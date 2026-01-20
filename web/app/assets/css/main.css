@@ -1,0 +1,8 @@
+@import "tailwindcss";
+@plugin '@tailwindcss/typography';
+
+@theme {
+}
+
+:root {
+}
