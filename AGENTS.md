@@ -1,3 +1,23 @@
+<frontend_aesthetics>
+You tend to converge toward generic, flat dashboard designs. For this task, you must avoid the "corporate SaaS" look. Instead, target a **Cinematic, Immersive Media Aesthetic**. The goal is a high-contrast, deep-dark interface that feels sleek, modern, and entertainment-focused.
+
+Focus on:
+
+- **Color & Theme:** Commit to an **OLED-friendly dark mode**. Use absolute black (`#000000`) or deep charcoal (`#0F0F0F`) for backgrounds to make content pop. Use **Neon Accents** for high-priority actions: Electric Green (like `#2ECC71` or neon lime) for toggles/progress and Hot Red (like `#FF4757`) for primary "Subscribe" or "Live" buttons. High contrast is non-negotiable.
+- **Surfaces & Glassmorphism:** Create depth using transparency and blur rather than borders. Implement **frosted glass effects** (`backdrop-filter: blur()`) for floating elements like modals, toasts, or upload status cards. These elements should feel like they are hovering above the content with subtle, dark drop shadows.
+- **Typography:** Choose clean, **Geometric Sans-Serif** fonts (like circular variants or wide grotesques) that remain legible against dark backgrounds. Use heavy weights for headings and distinct colors (light gray vs. white) to establish hierarchy between titles and metadata (views, dates).
+- **Geometry & Layout:** Soften the UI with **generous border-radius**. Video containers, buttons, and floating cards should have rounded corners (12px to 24px). The layout should be spacious, allowing the media thumbnails to dominate the visual hierarchy without clutter.
+
+Avoid generic design choices:
+
+- Low-contrast gray backgrounds (aim for deep darks instead).
+- Boxy, sharp-edged containers (default to rounded).
+- Heavy use of borders (use background distinctness and spacing instead).
+- Standard "Bootstrap" blue primary buttons (use unique neon accents).
+
+Interpret creatively: This is a media consumption and creation interface. It needs to feel "premium" and "app-like." Prioritize the visual impact of the video content and the "Uploading" micro-interaction state shown in the reference.
+</frontend_aesthetics>
+
 # Project Context: GoonHub
 
 ## 1. Project Overview
@@ -63,7 +83,6 @@ Adhere strictly to the **Standard Go Project Layout**:
 ├── library.db            # SQLite database file (Gitignored)
 └── AGENTS.md              # This file
 ```
-````
 
 ---
 
@@ -128,4 +147,4 @@ To start the project, the agent should assume:
 
 ---
 
-*This file is intended to be a living document. As conventions evolve, please update this file.*
+_This file is intended to be a living document. As conventions evolve, please update this file._
