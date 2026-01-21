@@ -1,4 +1,4 @@
-package api
+package handler
 
 import (
 	"goonhub/internal/core"

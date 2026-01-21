@@ -62,26 +62,36 @@ Interpret creatively: This is a media consumption and creation interface. It nee
 
 ## 3. Architecture & Directory Structure
 
-Adhere strictly to the **Standard Go Project Layout**:
+Adhere strictly to the **Clean Architecture** principles and **Standard Go Project Layout**:
 
 ```text
 /
 ├── cmd/
 │   └── server/
-│       └── main.go       # Entry point. Sets up EmbedFS, DB, and HTTP server.
+│       └── main.go              # Application bootstrap with wire DI
 ├── internal/
-│   ├── api/              # HTTP Handlers (Gin controllers)
-│   ├── core/             # Business Logic (Services)
-│   ├── data/             # Database Models & Repositories (GORM)
-│   └── jobs/             # Background workers (Scanner, Transcoder)
+│   ├── api/
+│   │   ├── middleware/          # Request ID, Auth, Recovery, Rate Limit
+│   │   ├── v1/                  # Versioned API handlers
+│   │   └── router.go            # Route registration
+│   ├── config/                  # Configuration (Viper)
+│   ├── core/                    # Business Logic (Services) - To be refactored to domain/app
+│   ├── data/                    # Data Access - To be refactored to infrastructure/persistence
+│   ├── domain/                  # Domain entities and interfaces
+│   ├── infrastructure/
+│   │   ├── logging/             # Structured logging (Zap)
+│   │   ├── persistence/         # Database implementation
+│   │   └── server/              # HTTP Server wrapper
+│   ├── wire/                    # Dependency Injection wiring
+│   └── pkg/                     # Internal shared utilities
 ├── pkg/
-│   ├── ffmpeg/           # FFmpeg helper functions
-│   └── scraper/          # Logic for ThePornDB/IAFD scraping
-├── web/                  # Vue.js Source Code
+│   ├── ffmpeg/                  # FFmpeg helper functions
+│   └── scraper/                 # Logic for ThePornDB/IAFD scraping
+├── web/                         # Vue.js Source Code
 │   ├── src/
-│   └── dist/             # Built assets (Gitignored, but embedded by Go)
-├── library.db            # SQLite database file (Gitignored)
-└── AGENTS.md              # This file
+│   └── dist/                    # Built assets (Gitignored, but embedded by Go)
+├── library.db                   # SQLite database file (Gitignored)
+└── AGENTS.md                    # This file
 ```
 
 ---
@@ -104,22 +114,30 @@ The AI agent should use these relationships when generating models.
 
 ## 5. Key Features & Implementation Details
 
-### A. Library Management
+### A. Core Infrastructure (Implemented)
+
+- **Configuration:** Viper-based configuration supporting `config.yaml` and Environment Variables (`GOONHUB_...`).
+- **Logging:** Structured logging using Zap.
+- **Dependency Injection:** Google Wire for compile-time dependency injection.
+- **Graceful Shutdown:** Proper signal handling to ensure active requests complete.
+- **Middleware:** Request ID, Recovery, CORS, and Structured Logging middleware.
+
+### B. Library Management
 
 - **File Watcher:** The backend must listen to file system events. When a file is added, trigger a `ScanJob`.
 - **Hashing:** Calculate hashes to detect duplicates and for metadata scraping lookups.
 
-### B. Video Player
+### C. Video Player
 
 - **Streaming:** Implement HTTP Range requests in Go to allow seeking.
 - **Transcoding:** Check `User-Agent`. If the device doesn't support the codec (e.g., HEVC on old browsers), trigger on-the-fly FFmpeg transcoding.
 - **Sprite Sheets:** Generate VTT sprite sheets for timeline hovering.
 
-### C. Privacy & Security
+### D. Privacy & Security
 
 - **Auth:** JWT-based stateless authentication.
 
-### D. Metadata Scraping
+### E. Metadata Scraping
 
 - **Scrapers:** Implement modular scrapers (interfaces) for sites like ThePornDB.
 - **Logic:** Try to match by Hash first, then by Filename regex.
@@ -133,8 +151,9 @@ The AI agent should use these relationships when generating models.
 3.  **Frontend/Backend Contract:**
     - All API responses must be JSON.
     - Use snake_case for JSON keys (`{"video_id": 1}`) and PascalCase for Go Structs (`VideoID int`).
-4.  **No Hallucinations:** Do not invent Go standard library functions that don't exist. If using a 3rd party library, verify it is popular and well-maintained.
-5.  **Code Blocks:** Always provide the filename at the top of the code block.
+4.  **Dependency Injection:** Always use Constructor Injection. Do not use global state. Register new components in `internal/wire/wire.go`.
+5.  **Configuration:** Do not hardcode values. Add them to `internal/config` structs.
+6.  **Code Blocks:** Always provide the filename at the top of the code block.
 
 ---
 
@@ -142,8 +161,10 @@ The AI agent should use these relationships when generating models.
 
 To start the project, the agent should assume:
 
-1.  **Backend:** `go run cmd/server/main.go`
+1.  **Backend (Dev):** `air` (Hot Reload) or `go run cmd/server/main.go`
 2.  **Frontend:** `cd web && bun run dev`
+3.  **Build:** `go build -o goonhub ./cmd/server`
+4.  **DI Generation:** `go run github.com/google/wire/cmd/wire ./internal/wire` (Run this after changing dependencies)
 
 ---
 

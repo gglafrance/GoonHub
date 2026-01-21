@@ -1,14 +1,21 @@
 package api
 
-import "github.com/gin-gonic/gin"
+import (
+	"goonhub/internal/api/v1/handler"
 
-func RegisterRoutes(r *gin.Engine, videoHandler *VideoHandler) {
+	"github.com/gin-gonic/gin"
+)
+
+func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler) {
 	api := r.Group("/api")
 	{
-		videos := api.Group("/videos")
+		v1 := api.Group("/v1")
 		{
-			videos.POST("", videoHandler.UploadVideo)
-			videos.GET("", videoHandler.ListVideos)
+			videos := v1.Group("/videos")
+			{
+				videos.POST("", videoHandler.UploadVideo)
+				videos.GET("", videoHandler.ListVideos)
+			}
 		}
 	}
 }
