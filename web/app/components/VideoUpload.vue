@@ -117,20 +117,7 @@ const upload = async () => {
             />
 
             <div class="flex flex-col items-center gap-3">
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke-width="1.5"
-                    stroke="currentColor"
-                    class="h-10 w-10 text-gray-400"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"
-                    />
-                </svg>
+                <Icon name="heroicons:arrow-up-tray" size="40" class="text-gray-400" />
                 <div class="text-lg font-medium text-white">Drop video here or click to upload</div>
                 <div class="text-sm text-gray-500">MP4, MKV, AVI, WEBM</div>
             </div>
