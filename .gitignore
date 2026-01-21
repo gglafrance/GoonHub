@@ -38,3 +38,10 @@ Thumbs.db
 # Git
 .gitconfig
 tmp/
+
+# Other
+.vscode/
+.idea/
+*.log
+server
+data/

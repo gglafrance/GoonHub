@@ -2,7 +2,17 @@
 @plugin '@tailwindcss/typography';
 
 @theme {
+    --color-neon-green: #2ECC71;
+    --color-neon-red: #FF4757;
+    --color-primary: #000000;
+    --color-secondary: #0F0F0F;
 }
 
 :root {
+    color-scheme: dark;
+}
+
+body {
+    background-color: var(--color-primary);
+    color: white;
 }
