@@ -7,6 +7,7 @@
 package wire
 
 import (
+	"github.com/gin-gonic/gin"
 	"goonhub/internal/api"
 	"goonhub/internal/api/v1/handler"
 	"goonhub/internal/config"
@@ -34,10 +35,11 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		return nil, err
 	}
 	videoRepository := provideVideoRepository(db)
-	videoService := provideVideoService(videoRepository, configConfig)
-	videoHandler := handler.NewVideoHandler(videoService)
+	videoProcessingService := provideVideoProcessingService(videoRepository, configConfig, logger)
+	videoService := provideVideoService(videoRepository, configConfig, videoProcessingService, logger)
+	videoHandler := provideVideoHandler(videoService, videoProcessingService)
 	engine := api.NewRouter(logger, configConfig, videoHandler)
-	serverServer := server.NewHTTPServer(engine, logger, configConfig)
+	serverServer := provideServer(engine, logger, configConfig, videoProcessingService)
 	return serverServer, nil
 }
 
@@ -47,9 +49,19 @@ func provideVideoRepository(db *gorm.DB) data.VideoRepository {
 	return data.NewSQLiteVideoRepository(db)
 }
 
-func provideVideoService(repo data.VideoRepository, cfg *config.Config) *core.VideoService {
-
+func provideVideoService(repo data.VideoRepository, cfg *config.Config, processingService *core.VideoProcessingService, logger *logging.Logger) *core.VideoService {
 	dataPath := "./data"
+	return core.NewVideoService(repo, dataPath, processingService, logger.Logger)
+}
 
-	return core.NewVideoService(repo, dataPath)
+func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger) *core.VideoProcessingService {
+	return core.NewVideoProcessingService(repo, cfg.Processing, logger.Logger)
+}
+
+func provideVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService) *handler.VideoHandler {
+	return handler.NewVideoHandler(service, processingService)
+}
+
+func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService) *server.Server {
+	return server.NewHTTPServer(router, logger, cfg, processingService)
 }

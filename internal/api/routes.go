@@ -15,6 +15,8 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler) {
 			{
 				videos.POST("", videoHandler.UploadVideo)
 				videos.GET("", videoHandler.ListVideos)
+				videos.GET("/:id/reprocess", videoHandler.ReprocessVideo)
+				videos.DELETE("/:id", videoHandler.DeleteVideo)
 			}
 		}
 	}

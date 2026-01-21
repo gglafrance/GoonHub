@@ -13,6 +13,7 @@ import (
 	"goonhub/internal/infrastructure/persistence/sqlite"
 	"goonhub/internal/infrastructure/server"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
 	"gorm.io/gorm"
 )
@@ -30,14 +31,15 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideVideoRepository,
 
 		// Core
+		provideVideoProcessingService,
 		provideVideoService,
 
 		// API
-		handler.NewVideoHandler,
+		provideVideoHandler,
 		api.NewRouter,
 
 		// Server
-		server.NewHTTPServer,
+		provideServer,
 	)
 	return &server.Server{}, nil
 }
@@ -48,11 +50,19 @@ func provideVideoRepository(db *gorm.DB) data.VideoRepository {
 	return data.NewSQLiteVideoRepository(db)
 }
 
-func provideVideoService(repo data.VideoRepository, cfg *config.Config) *core.VideoService {
-	// Extract data path from config.
-	// In config.go we used SetDefault("database.source") but didn't explicitly map a "data_path".
-	// Let's assume it's in the root or add it to config.
-	dataPath := "./data" // Default
-	// Check env var directly or add to config. Let's use a hardcoded default relative to config for now to match current behavior
-	return core.NewVideoService(repo, dataPath)
+func provideVideoService(repo data.VideoRepository, cfg *config.Config, processingService *core.VideoProcessingService, logger *logging.Logger) *core.VideoService {
+	dataPath := "./data"
+	return core.NewVideoService(repo, dataPath, processingService, logger.Logger)
+}
+
+func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger) *core.VideoProcessingService {
+	return core.NewVideoProcessingService(repo, cfg.Processing, logger.Logger)
+}
+
+func provideVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService) *handler.VideoHandler {
+	return handler.NewVideoHandler(service, processingService)
+}
+
+func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService) *server.Server {
+	return server.NewHTTPServer(router, logger, cfg, processingService)
 }

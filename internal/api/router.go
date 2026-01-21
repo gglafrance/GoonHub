@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"goonhub"
 	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/handler"
@@ -24,6 +25,25 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler
 	// Health Check (Unversioned)
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "env": cfg.Environment})
+	})
+
+	// Serve Thumbnails
+	r.GET("/thumbnails/:id", func(c *gin.Context) {
+		id := c.Param("id")
+		path := fmt.Sprintf("./data/thumbnails/%s_thumb.webp", id)
+		c.Header("Content-Type", "image/webp")
+		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
+		c.File(path)
+	})
+
+	// Serve Frames
+	r.GET("/frames/:videoId/:frameName", func(c *gin.Context) {
+		videoId := c.Param("videoId")
+		frameName := c.Param("frameName")
+		path := fmt.Sprintf("./data/frames/%s/%s", videoId, frameName)
+		c.Header("Content-Type", "image/webp")
+		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
+		c.File(path)
 	})
 
 	// Register Routes

@@ -16,5 +16,13 @@ type Video struct {
 	StoredPath       string         `json:"-"` // Don't expose internal path
 	Size             int64          `json:"size"`
 	ViewCount        int64          `json:"view_count"`
-	Duration         int            `json:"duration"` // In seconds (placeholder for now)
+	Duration         int            `json:"duration"`
+	Width            int            `json:"width"`
+	Height           int            `json:"height"`
+	ThumbnailPath    string         `json:"thumbnail_path"`
+	FramePaths       string         `json:"frame_paths" gorm:"type:text"`
+	FrameCount       int            `json:"frame_count"`
+	FrameInterval    int            `json:"frame_interval"`
+	ProcessingStatus string         `json:"processing_status" gorm:"default:'pending'"`
+	ProcessingError  string         `json:"processing_error" gorm:"type:text"`
 }

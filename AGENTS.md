@@ -168,4 +168,11 @@ To start the project, the agent should assume:
 
 ---
 
+## 8. Prohibited Actions
+
+- Do not delete any data without explicit confirmation.
+- Do not use any emojis in log messages or code comments.
+
+---
+
 _This file is intended to be a living document. As conventions evolve, please update this file._

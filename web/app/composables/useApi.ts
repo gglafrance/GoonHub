@@ -6,7 +6,7 @@ export const useApi = () => {
             formData.append('title', title);
         }
 
-        const response = await fetch('/api/videos', {
+        const response = await fetch('/api/v1/videos', {
             method: 'POST',
             body: formData,
         });
@@ -25,7 +25,7 @@ export const useApi = () => {
             limit: limit.toString(),
         });
 
-        const response = await fetch(`/api/videos?${params}`);
+        const response = await fetch(`/api/v1/videos?${params}`);
 
         if (!response.ok) {
             throw new Error('Failed to fetch videos');

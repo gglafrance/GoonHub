@@ -9,11 +9,15 @@ import (
 )
 
 type VideoHandler struct {
-	Service *core.VideoService
+	Service           *core.VideoService
+	ProcessingService *core.VideoProcessingService
 }
 
-func NewVideoHandler(service *core.VideoService) *VideoHandler {
-	return &VideoHandler{Service: service}
+func NewVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService) *VideoHandler {
+	return &VideoHandler{
+		Service:           service,
+		ProcessingService: processingService,
+	}
 }
 
 func (h *VideoHandler) UploadVideo(c *gin.Context) {
@@ -57,4 +61,46 @@ func (h *VideoHandler) ListVideos(c *gin.Context) {
 		"page":  page,
 		"limit": limit,
 	})
+}
+
+func (h *VideoHandler) ReprocessVideo(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		return
+	}
+
+	video, err := h.Service.GetVideo(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+		return
+	}
+
+	if err := h.ProcessingService.SubmitVideo(uint(id), video.StoredPath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to submit video for processing"})
+		return
+	}
+
+	c.JSON(http.StatusAccepted, gin.H{"message": "Video submitted for processing"})
+}
+
+func (h *VideoHandler) DeleteVideo(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		return
+	}
+
+	if err := h.Service.DeleteVideo(uint(id)); err != nil {
+		if err.Error() == "record not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete video"})
+		return
+	}
+
+	c.JSON(http.StatusNoContent, nil)
 }

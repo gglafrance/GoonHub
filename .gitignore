@@ -44,4 +44,4 @@ tmp/
 .idea/
 *.log
 server
-data/
+/data/

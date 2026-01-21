@@ -4,10 +4,10 @@ tmp_dir = "tmp"
 
 [build]
   args_bin = []
-  bin = "./tmp/goonhub"
+  entrypoint = "./tmp/goonhub"
   cmd = "go build -o ./tmp/goonhub ./cmd/server"
   delay = 1000
-  exclude_dir = ["tmp", "vendor", "testdata", "web/node_modules", "web/dist", "web/.nuxt"]
+  exclude_dir = ["tmp", "vendor", "testdata", "web/node_modules", "web/dist", "web/.nuxt", "data"]
   exclude_file = []
   exclude_regex = ["_test.go"]
   exclude_unchanged = false
@@ -16,7 +16,8 @@ tmp_dir = "tmp"
   include_dir = ["cmd", "internal", "pkg", "."]
   include_ext = ["go"]
   include_file = ["web.go"]
-  kill_delay = "0s"
+  kill_delay = "2s"
+  send_interrupt = true
   log = "build-errors.log"
   poll = false
   poll_interval = 0
@@ -24,7 +25,6 @@ tmp_dir = "tmp"
   pre_cmd = []
   rerun = false
   rerun_delay = 500
-  send_interrupt = false
   stop_on_error = false
 
 [color]
@@ -40,7 +40,7 @@ tmp_dir = "tmp"
   time = true
 
 [misc]
-  clean_on_exit = false
+  clean_on_exit = true
 
 [proxy]
   app_port = 0

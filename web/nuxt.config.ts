@@ -25,6 +25,14 @@ export default defineNuxtConfig({
                     target: 'http://localhost:8080',
                     changeOrigin: true,
                 },
+                '/thumbnails': {
+                    target: 'http://localhost:8080',
+                    changeOrigin: true,
+                },
+                '/frames': {
+                    target: 'http://localhost:8080',
+                    changeOrigin: true,
+                },
             },
         },
     },

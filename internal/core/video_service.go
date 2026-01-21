@@ -10,22 +10,29 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type VideoService struct {
-	Repo     data.VideoRepository
-	DataPath string
+	Repo              data.VideoRepository
+	DataPath          string
+	ProcessingService *VideoProcessingService
+	logger            *zap.Logger
 }
 
-func NewVideoService(repo data.VideoRepository, dataPath string) *VideoService {
+func NewVideoService(repo data.VideoRepository, dataPath string, processingService *VideoProcessingService, logger *zap.Logger) *VideoService {
 	// Ensure data directory exists
 	if err := os.MkdirAll(dataPath, 0755); err != nil {
-		// Log but don't panic here, though usually this would be fatal in main
-		fmt.Printf("Warning: failed to create data directory: %v\n", err)
+		logger.Warn("Failed to create data directory",
+			zap.String("directory", dataPath),
+			zap.Error(err),
+		)
 	}
 	return &VideoService{
-		Repo:     repo,
-		DataPath: dataPath,
+		Repo:              repo,
+		DataPath:          dataPath,
+		ProcessingService: processingService,
+		logger:            logger,
 	}
 }
 
@@ -79,12 +86,25 @@ func (s *VideoService) UploadVideo(file *multipart.FileHeader, title string) (*d
 		OriginalFilename: file.Filename,
 		StoredPath:       storedPath,
 		Size:             file.Size,
+		ProcessingStatus: "pending",
 	}
 
 	if err := s.Repo.Create(video); err != nil {
 		// Cleanup file if DB insert fails
 		os.Remove(storedPath)
 		return nil, err
+	}
+
+	if s.ProcessingService != nil {
+		go func() {
+			if err := s.ProcessingService.SubmitVideo(video.ID, storedPath); err != nil {
+				s.logger.Error("Failed to submit video for processing",
+					zap.Uint("video_id", video.ID),
+					zap.String("video_path", storedPath),
+					zap.Error(err),
+				)
+			}
+		}()
 	}
 
 	return video, nil
@@ -98,4 +118,32 @@ func (s *VideoService) ListVideos(page, limit int) ([]data.Video, int64, error) 
 		limit = 20
 	}
 	return s.Repo.List(page, limit)
+}
+
+func (s *VideoService) GetVideo(id uint) (*data.Video, error) {
+	return s.Repo.GetByID(id)
+}
+
+func (s *VideoService) DeleteVideo(id uint) error {
+	video, err := s.Repo.GetByID(id)
+	if err != nil {
+		return err
+	}
+
+	if err := s.Repo.Delete(id); err != nil {
+		return err
+	}
+
+	os.Remove(video.StoredPath)
+
+	if video.ThumbnailPath != "" {
+		os.Remove(video.ThumbnailPath)
+	}
+
+	if video.FramePaths != "" {
+		frameDir := filepath.Join(s.DataPath, "frames", fmt.Sprintf("%d", id))
+		os.RemoveAll(frameDir)
+	}
+
+	return nil
 }
