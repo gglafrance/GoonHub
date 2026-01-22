@@ -45,3 +45,4 @@ tmp/
 *.log
 server
 /data/
+*.db

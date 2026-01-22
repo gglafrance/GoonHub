@@ -1,0 +1,28 @@
+environment: development
+server:
+  port: "8081"
+  allowed_origins:
+    - "http://localhost:3000"
+    - "http://localhost:8081"
+database:
+  driver: sqlite
+  source: library-test.db
+log:
+  level: info
+  format: console
+processing:
+  frame_interval: 60
+  frame_width: 320
+  frame_height: 180
+  frame_quality: 85
+  worker_count: 2
+  thumbnail_seek: "00:00:05"
+  frame_output_dir: "./data/frames"
+  thumbnail_dir: "./data/thumbnails"
+auth:
+  paseto_secret: "01234567890123456789012345678901"
+  admin_username: "admin"
+  admin_password: "admin"
+  token_duration: 24h
+  login_rate_limit: 10
+  login_rate_burst: 5
