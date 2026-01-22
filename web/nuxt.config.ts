@@ -5,11 +5,20 @@ export default defineNuxtConfig({
     compatibilityDate: '2025-07-15',
     devtools: { enabled: true },
 
-    modules: ['@nuxt/eslint', '@pinia/nuxt', '@nuxt/icon'],
+    modules: [
+        '@nuxt/eslint',
+        '@pinia/nuxt',
+        '@nuxt/icon',
+        '@pinia-plugin-persistedstate/nuxt',
+    ],
 
     css: ['./app/assets/css/main.css'],
 
     ssr: false,
+
+    pinia: {
+        storesDirs: ['./stores/**'],
+    },
 
     nitro: {
         output: {

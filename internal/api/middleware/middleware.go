@@ -1,7 +1,11 @@
 package middleware
 
 import (
+	"fmt"
+	"goonhub/internal/core"
 	"goonhub/internal/infrastructure/logging"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -68,4 +72,72 @@ func Logger(logger *logging.Logger) gin.HandlerFunc {
 			)
 		}
 	}
+}
+
+func AuthMiddleware(authService *core.AuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
+			c.Abort()
+			return
+		}
+
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+		if token == authHeader {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
+			c.Abort()
+			return
+		}
+
+		payload, err := authService.ValidateToken(token)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.Abort()
+			return
+		}
+
+		c.Set("user", payload)
+		c.Next()
+	}
+}
+
+func RequireRole(role string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, exists := c.Get("user")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			c.Abort()
+			return
+		}
+
+		userPayload, ok := user.(*core.UserPayload)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user data"})
+			c.Abort()
+			return
+		}
+
+		if userPayload.Role != role {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func GetUserFromContext(c *gin.Context) (*core.UserPayload, error) {
+	user, exists := c.Get("user")
+	if !exists {
+		return nil, fmt.Errorf("user not found in context")
+	}
+
+	userPayload, ok := user.(*core.UserPayload)
+	if !ok {
+		return nil, fmt.Errorf("invalid user data in context")
+	}
+
+	return userPayload, nil
 }

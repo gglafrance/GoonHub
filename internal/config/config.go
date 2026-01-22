@@ -1,6 +1,9 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
 	"strings"
 	"time"
 
@@ -13,6 +16,7 @@ type Config struct {
 	Database    DatabaseConfig   `mapstructure:"database"`
 	Log         LogConfig        `mapstructure:"log"`
 	Processing  ProcessingConfig `mapstructure:"processing"`
+	Auth        AuthConfig       `mapstructure:"auth"`
 }
 
 type ServerConfig struct {
@@ -43,6 +47,13 @@ type ProcessingConfig struct {
 	ThumbnailDir   string `mapstructure:"thumbnail_dir"`    // relative to app root
 }
 
+type AuthConfig struct {
+	PasetoSecret  string        `mapstructure:"paseto_secret"`
+	AdminUsername string        `mapstructure:"admin_username"`
+	AdminPassword string        `mapstructure:"admin_password"`
+	TokenDuration time.Duration `mapstructure:"token_duration"`
+}
+
 // Load reads configuration from file or environment variables.
 func Load(path string) (*Config, error) {
 	v := viper.New()
@@ -65,6 +76,10 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("processing.thumbnail_seek", "00:00:05")
 	v.SetDefault("processing.frame_output_dir", "./data/frames")
 	v.SetDefault("processing.thumbnail_dir", "./data/thumbnails")
+	v.SetDefault("auth.paseto_secret", "01234567890123456789012345678901")
+	v.SetDefault("auth.admin_username", "admin")
+	v.SetDefault("auth.admin_password", "admin")
+	v.SetDefault("auth.token_duration", 24*time.Hour)
 
 	// Environment variables
 	v.SetEnvPrefix("GOONHUB")
@@ -82,6 +97,22 @@ func Load(path string) (*Config, error) {
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
+	}
+
+	// Validate PASETO secret
+	if cfg.Auth.PasetoSecret == "" {
+		if cfg.Environment == "production" {
+			return nil, fmt.Errorf("GOONHUB_AUTH_PASETO_SECRET is required in production")
+		}
+
+		// Generate random key for development
+		key := make([]byte, 32)
+		if _, err := rand.Read(key); err != nil {
+			return nil, fmt.Errorf("failed to generate PASETO key: %w", err)
+		}
+		cfg.Auth.PasetoSecret = hex.EncodeToString(key)
+		fmt.Printf("[WARNING] Generated random PASETO key for development: %s\n", cfg.Auth.PasetoSecret)
+		fmt.Println("[WARNING] Set GOONHUB_AUTH_PASETO_SECRET environment variable to use a persistent key")
 	}
 
 	return &cfg, nil

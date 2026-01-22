@@ -15,20 +15,16 @@ watch(
         store.loadVideos(newPage);
     },
 );
+
+definePageMeta({
+    title: 'Library - GoonHub',
+    middleware: ['auth'],
+});
 </script>
 
 <template>
     <div class="bg-primary min-h-screen px-4 py-8 sm:px-6 lg:px-8">
         <div class="mx-auto max-w-7xl">
-            <!-- Header -->
-            <header class="mb-12 flex items-center justify-between">
-                <div>
-                    <h1 class="text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
-                        Goon<span class="text-neon-green">Hub</span>
-                    </h1>
-                </div>
-            </header>
-
             <!-- Upload Section -->
             <VideoUpload />
 

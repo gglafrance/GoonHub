@@ -20,7 +20,9 @@ export const useVideoStore = defineStore('videos', () => {
             total.value = response.total;
             currentPage.value = response.page;
         } catch (e: any) {
-            error.value = e.message;
+            if (e.message !== 'Unauthorized') {
+                error.value = e.message;
+            }
         } finally {
             isLoading.value = false;
         }
@@ -34,7 +36,9 @@ export const useVideoStore = defineStore('videos', () => {
             // Refresh list after upload
             await loadVideos(1); // Go back to first page to see new upload
         } catch (e: any) {
-            error.value = e.message;
+            if (e.message !== 'Unauthorized') {
+                error.value = e.message;
+            }
             throw e;
         } finally {
             isLoading.value = false;

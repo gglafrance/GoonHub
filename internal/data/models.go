@@ -6,6 +6,15 @@ import (
 	"gorm.io/gorm"
 )
 
+type User struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Username  string    `gorm:"uniqueIndex;not null" json:"username"`
+	Password  string    `gorm:"not null" json:"-"`
+	Role      string    `gorm:"not null;default:'user'" json:"role"`
+}
+
 type Video struct {
 	ID               uint           `gorm:"primarykey" json:"id"`
 	CreatedAt        time.Time      `json:"created_at"`

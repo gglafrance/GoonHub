@@ -2,6 +2,13 @@ package data
 
 import "gorm.io/gorm"
 
+type UserRepository interface {
+	Create(user *User) error
+	GetByUsername(username string) (*User, error)
+	GetByID(id uint) (*User, error)
+	Exists(username string) (bool, error)
+}
+
 type VideoRepository interface {
 	Create(video *Video) error
 	List(page, limit int) ([]Video, int64, error)
@@ -87,4 +94,40 @@ func (r *SQLiteVideoRepository) Delete(id uint) error {
 		return err
 	}
 	return r.DB.Delete(&video).Error
+}
+
+type SQLiteUserRepository struct {
+	DB *gorm.DB
+}
+
+func NewSQLiteUserRepository(db *gorm.DB) *SQLiteUserRepository {
+	return &SQLiteUserRepository{DB: db}
+}
+
+func (r *SQLiteUserRepository) Create(user *User) error {
+	return r.DB.Create(user).Error
+}
+
+func (r *SQLiteUserRepository) GetByUsername(username string) (*User, error) {
+	var user User
+	if err := r.DB.Where("username = ?", username).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *SQLiteUserRepository) GetByID(id uint) (*User, error) {
+	var user User
+	if err := r.DB.First(&user, id).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *SQLiteUserRepository) Exists(username string) (bool, error) {
+	var count int64
+	if err := r.DB.Model(&User{}).Where("username = ?", username).Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }

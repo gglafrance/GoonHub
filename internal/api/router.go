@@ -6,6 +6,7 @@ import (
 	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/handler"
 	"goonhub/internal/config"
+	"goonhub/internal/core"
 	"goonhub/internal/infrastructure/logging"
 	"io/fs"
 	"net/http"
@@ -14,7 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler) *gin.Engine {
+func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, authService *core.AuthService) *gin.Engine {
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -47,7 +48,7 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler
 	})
 
 	// Register Routes
-	RegisterRoutes(r, videoHandler)
+	RegisterRoutes(r, videoHandler, authHandler, authService)
 
 	// Serve Frontend (SPA Fallback)
 	// We use a custom middleware/handler for this

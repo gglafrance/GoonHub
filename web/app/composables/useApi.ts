@@ -1,22 +1,55 @@
+import { useAuth } from './useAuth';
+
 export const useApi = () => {
+    const { getToken, logout } = useAuth();
+
+    const getAuthHeaders = () => {
+        const token = getToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+        };
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        return headers;
+    };
+
+    const handleResponse = async (response: Response) => {
+        if (response.status === 401) {
+            logout();
+            throw new Error('Unauthorized');
+        }
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Request failed');
+        }
+
+        return response.json();
+    };
+
     const uploadVideo = async (file: File, title?: string) => {
+        const token = getToken();
         const formData = new FormData();
         formData.append('video', file);
         if (title) {
             formData.append('title', title);
         }
 
+        const headers: Record<string, string> = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
         const response = await fetch('/api/v1/videos', {
             method: 'POST',
             body: formData,
+            headers,
         });
 
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to upload video');
-        }
-
-        return await response.json();
+        return handleResponse(response);
     };
 
     const fetchVideos = async (page: number, limit: number) => {
@@ -25,17 +58,37 @@ export const useApi = () => {
             limit: limit.toString(),
         });
 
-        const response = await fetch(`/api/v1/videos?${params}`);
+        const response = await fetch(`/api/v1/videos?${params}`, {
+            headers: getAuthHeaders(),
+        });
 
-        if (!response.ok) {
-            throw new Error('Failed to fetch videos');
-        }
+        return handleResponse(response);
+    };
 
-        return await response.json();
+    const fetchCurrentUser = async () => {
+        const response = await fetch('/api/v1/auth/me', {
+            headers: getAuthHeaders(),
+        });
+
+        return handleResponse(response);
+    };
+
+    const login = async (username: string, password: string) => {
+        const response = await fetch('/api/v1/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, password }),
+        });
+
+        return handleResponse(response);
     };
 
     return {
         uploadVideo,
         fetchVideos,
+        fetchCurrentUser,
+        login,
     };
 };

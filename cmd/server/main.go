@@ -3,12 +3,17 @@ package main
 import (
 	"goonhub/internal/wire"
 	"log"
+	"os"
 )
 
 func main() {
 	// Initialize Server using Wire
-	// Empty config path for now (uses defaults + env)
-	srv, err := wire.InitializeServer("")
+	// Config path can be set via environment variable or use default
+	configPath := ""
+	if path := os.Getenv("GOONHUB_CONFIG"); path != "" {
+		configPath = path
+	}
+	srv, err := wire.InitializeServer(configPath)
 	if err != nil {
 		log.Fatalf("Failed to initialize server: %v", err)
 	}

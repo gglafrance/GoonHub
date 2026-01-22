@@ -16,3 +16,30 @@ body {
     background-color: var(--color-primary);
     color: white;
 }
+
+/* Glassmorphism utilities */
+@utility glass-card {
+    background-color: rgba(15, 15, 15, 0.3);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 1rem;
+}
+
+@utility backdrop-blur-md {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+/* Animation utilities */
+@utility animate-spin-slow {
+    animation: spin 3s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
