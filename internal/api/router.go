@@ -15,13 +15,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, authService *core.AuthService) *gin.Engine {
+func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, authService *core.AuthService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	r := gin.New() // Empty engine, we add middleware manually
-	middleware.Setup(r, logger)
+	middleware.Setup(r, logger, cfg.Server.AllowedOrigins)
 
 	// Health Check (Unversioned)
 	r.GET("/health", func(c *gin.Context) {
@@ -48,7 +48,7 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler
 	})
 
 	// Register Routes
-	RegisterRoutes(r, videoHandler, authHandler, authService)
+	RegisterRoutes(r, videoHandler, authHandler, authService, logger, rateLimiter)
 
 	// Serve Frontend (SPA Fallback)
 	// We use a custom middleware/handler for this

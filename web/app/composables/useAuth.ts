@@ -30,7 +30,21 @@ export const useAuth = () => {
         return data;
     };
 
-    const logout = () => {
+    const logout = async () => {
+        try {
+            const token = getToken();
+            if (token) {
+                await fetch('/api/v1/auth/logout', {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+            }
+        } catch (error) {
+            console.error('Logout API call failed:', error);
+        }
+
         sessionStorage.removeItem('auth_token');
         sessionStorage.removeItem('auth_timestamp');
         authStore.clearUser();

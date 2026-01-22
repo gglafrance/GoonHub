@@ -23,7 +23,7 @@ func NewDB(cfg *config.Config, logger *logging.Logger) (*gorm.DB, error) {
 	}
 
 	// Auto Migrate (Move to migrator later)
-	if err := db.AutoMigrate(&data.Video{}, &data.User{}); err != nil {
+	if err := db.AutoMigrate(&data.Video{}, &data.User{}, &data.RevokedToken{}); err != nil {
 		logger.Error("Failed to migrate database: " + err.Error())
 		return nil, err
 	}

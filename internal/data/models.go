@@ -15,6 +15,14 @@ type User struct {
 	Role      string    `gorm:"not null;default:'user'" json:"role"`
 }
 
+type RevokedToken struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	TokenHash string    `gorm:"uniqueIndex;not null;size:64" json:"-"`
+	ExpiresAt time.Time `gorm:"not null;index" json:"expires_at"`
+	Reason    string    `gorm:"size:255" json:"reason,omitempty"`
+}
+
 type Video struct {
 	ID               uint           `gorm:"primarykey" json:"id"`
 	CreatedAt        time.Time      `json:"created_at"`

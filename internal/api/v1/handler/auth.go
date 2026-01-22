@@ -5,6 +5,7 @@ import (
 	"goonhub/internal/api/v1/response"
 	"goonhub/internal/core"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -66,4 +67,25 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, resp)
+}
+
+func (h *AuthHandler) Logout(c *gin.Context) {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No token provided"})
+		return
+	}
+
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+	if token == authHeader {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid authorization header format"})
+		return
+	}
+
+	if err := h.AuthService.RevokeToken(token, "user logout"); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revoke token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }

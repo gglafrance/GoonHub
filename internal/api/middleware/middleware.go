@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func Setup(r *gin.Engine, logger *logging.Logger) {
+func Setup(r *gin.Engine, logger *logging.Logger, allowedOrigins []string) {
 	// Panic Recovery
 	r.Use(gin.Recovery())
 
@@ -26,7 +26,7 @@ func Setup(r *gin.Engine, logger *logging.Logger) {
 
 	// CORS
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"}, // Adjust for production
+		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},

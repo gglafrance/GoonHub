@@ -1,12 +1,22 @@
 package data
 
-import "gorm.io/gorm"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 type UserRepository interface {
 	Create(user *User) error
 	GetByUsername(username string) (*User, error)
 	GetByID(id uint) (*User, error)
 	Exists(username string) (bool, error)
+}
+
+type RevokedTokenRepository interface {
+	Create(token *RevokedToken) error
+	IsRevoked(tokenHash string) (bool, error)
+	CleanupExpired() error
 }
 
 type VideoRepository interface {
@@ -130,4 +140,28 @@ func (r *SQLiteUserRepository) Exists(username string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+type SQLiteRevokedTokenRepository struct {
+	DB *gorm.DB
+}
+
+func NewSQLiteRevokedTokenRepository(db *gorm.DB) *SQLiteRevokedTokenRepository {
+	return &SQLiteRevokedTokenRepository{DB: db}
+}
+
+func (r *SQLiteRevokedTokenRepository) Create(token *RevokedToken) error {
+	return r.DB.Create(token).Error
+}
+
+func (r *SQLiteRevokedTokenRepository) IsRevoked(tokenHash string) (bool, error) {
+	var count int64
+	if err := r.DB.Model(&RevokedToken{}).Where("token_hash = ? AND expires_at > ?", tokenHash, time.Now()).Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *SQLiteRevokedTokenRepository) CleanupExpired() error {
+	return r.DB.Where("expires_at <= ?", time.Now()).Delete(&RevokedToken{}).Error
 }

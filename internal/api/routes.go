@@ -4,18 +4,19 @@ import (
 	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/handler"
 	"goonhub/internal/core"
+	"goonhub/internal/infrastructure/logging"
 
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, authService *core.AuthService) {
+func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, authService *core.AuthService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
 		{
 			auth := v1.Group("/auth")
 			{
-				auth.POST("/login", authHandler.Login)
+				auth.POST("/login", middleware.RateLimitMiddleware(rateLimiter, logger.Logger), authHandler.Login)
 			}
 
 			protected := v1.Group("")
@@ -24,6 +25,7 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 				auth := protected.Group("/auth")
 				{
 					auth.GET("/me", authHandler.Me)
+					auth.POST("/logout", authHandler.Logout)
 				}
 
 				videos := protected.Group("/videos")

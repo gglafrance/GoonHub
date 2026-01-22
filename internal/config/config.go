@@ -20,10 +20,11 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port         string        `mapstructure:"port"`
-	ReadTimeout  time.Duration `mapstructure:"read_timeout"`
-	WriteTimeout time.Duration `mapstructure:"write_timeout"`
-	IdleTimeout  time.Duration `mapstructure:"idle_timeout"`
+	Port           string        `mapstructure:"port"`
+	ReadTimeout    time.Duration `mapstructure:"read_timeout"`
+	WriteTimeout   time.Duration `mapstructure:"write_timeout"`
+	IdleTimeout    time.Duration `mapstructure:"idle_timeout"`
+	AllowedOrigins []string      `mapstructure:"allowed_origins"`
 }
 
 type DatabaseConfig struct {
@@ -48,10 +49,12 @@ type ProcessingConfig struct {
 }
 
 type AuthConfig struct {
-	PasetoSecret  string        `mapstructure:"paseto_secret"`
-	AdminUsername string        `mapstructure:"admin_username"`
-	AdminPassword string        `mapstructure:"admin_password"`
-	TokenDuration time.Duration `mapstructure:"token_duration"`
+	PasetoSecret   string        `mapstructure:"paseto_secret"`
+	AdminUsername  string        `mapstructure:"admin_username"`
+	AdminPassword  string        `mapstructure:"admin_password"`
+	TokenDuration  time.Duration `mapstructure:"token_duration"`
+	LoginRateLimit int           `mapstructure:"login_rate_limit"` // requests per minute
+	LoginRateBurst int           `mapstructure:"login_rate_burst"` // burst size
 }
 
 // Load reads configuration from file or environment variables.
@@ -64,6 +67,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("server.read_timeout", 15*time.Second)
 	v.SetDefault("server.write_timeout", 15*time.Second)
 	v.SetDefault("server.idle_timeout", 60*time.Second)
+	v.SetDefault("server.allowed_origins", []string{"http://localhost:3000"})
 	v.SetDefault("database.driver", "sqlite")
 	v.SetDefault("database.source", "library.db")
 	v.SetDefault("log.level", "info")
@@ -76,10 +80,12 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("processing.thumbnail_seek", "00:00:05")
 	v.SetDefault("processing.frame_output_dir", "./data/frames")
 	v.SetDefault("processing.thumbnail_dir", "./data/thumbnails")
-	v.SetDefault("auth.paseto_secret", "01234567890123456789012345678901")
+	v.SetDefault("auth.paseto_secret", "")
 	v.SetDefault("auth.admin_username", "admin")
 	v.SetDefault("auth.admin_password", "admin")
 	v.SetDefault("auth.token_duration", 24*time.Hour)
+	v.SetDefault("auth.login_rate_limit", 10)
+	v.SetDefault("auth.login_rate_burst", 5)
 
 	// Environment variables
 	v.SetEnvPrefix("GOONHUB")
