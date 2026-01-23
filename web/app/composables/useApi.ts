@@ -85,9 +85,18 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const fetchVideo = async (id: number) => {
+        const response = await fetch(`/api/v1/videos/${id}`, {
+            headers: getAuthHeaders(),
+        });
+
+        return handleResponse(response);
+    };
+
     return {
         uploadVideo,
         fetchVideos,
+        fetchVideo,
         fetchCurrentUser,
         login,
     };

@@ -43,3 +43,64 @@ body {
         transform: rotate(360deg);
     }
 }
+
+/* Plyr video player global styles */
+.plyr {
+    --plyr-color-main: #2ECC71;
+    --plyr-video-background: #000000;
+    --plyr-audio-background: #0F0F0F;
+    --plyr-menu-background: #0F0F0F;
+    --plyr-menu-color: #ffffff;
+    --plyr-control-spacing: 12px;
+    --plyr-video-controls-background: linear-gradient(rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.9));
+    border-radius: 16px;
+}
+
+.plyr__controls {
+    padding: 16px;
+    background: rgba(15, 15, 15, 0.95);
+    backdrop-filter: blur(10px);
+}
+
+.plyr__control--overlaid {
+    background: rgba(46, 204, 113, 0.9);
+    backdrop-filter: blur(8px);
+    border-radius: 50%;
+    box-shadow: 0 4px 20px rgba(46, 204, 113, 0.3);
+}
+
+.plyr__control--overlaid:hover {
+    background: rgba(46, 204, 113, 1);
+    transform: scale(1.05);
+}
+
+.plyr__control:hover {
+    background: rgba(46, 204, 113, 0.2);
+    color: #2ECC71;
+}
+
+.plyr__progress__buffer {
+    color: rgba(255, 255, 255, 0.2);
+}
+
+.plyr__progress--played,
+.plyr__volume--display {
+    color: #2ECC71;
+}
+
+.plyr__tooltip {
+    background: rgba(0, 0, 0, 0.9);
+    backdrop-filter: blur(8px);
+    border-radius: 8px;
+}
+
+.plyr__menu__container {
+    background: rgba(15, 15, 15, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+}
+
+.plyr__menu__value {
+    color: #2ECC71;
+}

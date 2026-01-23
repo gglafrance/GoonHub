@@ -6,8 +6,7 @@ const props = defineProps<{
 }>();
 
 const { formatDuration } = useTime();
-const { frames, loadFrames, getFrameByTimestamp, hasError } =
-    useFramePreloader(props.video);
+const { frames, loadFrames, getFrameByTimestamp, hasError } = useFramePreloader(props.video);
 
 const currentThumbnail = ref<string | null>(null);
 const isHoveringCard = ref(false);
@@ -91,10 +90,11 @@ onMounted(() => {
 </script>
 
 <template>
-    <div
+    <NuxtLink
+        :to="`/watch/${video.id}`"
         class="group bg-secondary/50 hover:bg-secondary hover:shadow-neon-green/10
-            hover:border-neon-green/50 relative overflow-hidden rounded-2xl border border-white/5
-            backdrop-blur-md transition-all duration-300 hover:shadow-lg"
+            hover:border-neon-green/50 relative block overflow-hidden rounded-2xl border
+            border-white/5 backdrop-blur-md transition-all duration-300 hover:shadow-lg"
         @mouseenter="isHoveringCard = true"
         @mouseleave="isHoveringCard = false"
     >
@@ -159,5 +159,5 @@ onMounted(() => {
                 <span>{{ formatDate(video.created_at) }}</span>
             </div>
         </div>
-    </div>
+    </NuxtLink>
 </template>

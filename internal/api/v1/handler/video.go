@@ -1,9 +1,15 @@
 package handler
 
 import (
+	"fmt"
 	"goonhub/internal/core"
+	"io"
+	"mime"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -103,4 +109,141 @@ func (h *VideoHandler) DeleteVideo(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusNoContent, nil)
+}
+
+func (h *VideoHandler) GetVideo(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		return
+	}
+
+	video, err := h.Service.GetVideo(uint(id))
+	if err != nil {
+		if err.Error() == "record not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get video"})
+		return
+	}
+
+	c.JSON(http.StatusOK, video)
+}
+
+func (h *VideoHandler) StreamVideo(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		return
+	}
+
+	video, err := h.Service.GetVideo(uint(id))
+	if err != nil {
+		if err.Error() == "record not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get video"})
+		return
+	}
+
+	filePath := video.StoredPath
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Video file not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to access video file"})
+		return
+	}
+
+	fileSize := fileInfo.Size()
+	file, err := os.Open(filePath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open video file"})
+		return
+	}
+	defer file.Close()
+
+	ext := strings.ToLower(filepath.Ext(filePath))
+	mimeType := mime.TypeByExtension(ext)
+	if mimeType == "" {
+		mimeType = "video/mp4"
+	}
+
+	rangeHeader := c.GetHeader("Range")
+	if rangeHeader == "" {
+		c.Header("Content-Length", strconv.FormatInt(fileSize, 10))
+		c.Header("Content-Type", mimeType)
+		c.Header("Accept-Ranges", "bytes")
+		c.Header("Cache-Control", "public, max-age=86400")
+
+		_, err = io.Copy(c.Writer, file)
+		if err != nil {
+			c.Status(http.StatusInternalServerError)
+			return
+		}
+		return
+	}
+
+	if !strings.HasPrefix(rangeHeader, "bytes=") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Range header"})
+		return
+	}
+
+	rangeSpec := strings.TrimPrefix(rangeHeader, "bytes=")
+	ranges := strings.Split(rangeSpec, "-")
+	if len(ranges) != 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Range format"})
+		return
+	}
+
+	var start, end int64
+	start, err = strconv.ParseInt(ranges[0], 10, 64)
+	if err != nil {
+		start = 0
+	}
+
+	if ranges[1] == "" {
+		end = fileSize - 1
+	} else {
+		end, err = strconv.ParseInt(ranges[1], 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Range end value"})
+			return
+		}
+	}
+
+	if start < 0 || end >= fileSize || start > end {
+		c.JSON(http.StatusRequestedRangeNotSatisfiable, gin.H{
+			"error":     "Requested Range Not Satisfiable",
+			"start":     start,
+			"end":       end,
+			"file_size": fileSize,
+		})
+		return
+	}
+
+	contentLength := end - start + 1
+	c.Header("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, fileSize))
+	c.Header("Content-Length", strconv.FormatInt(contentLength, 10))
+	c.Header("Content-Type", mimeType)
+	c.Header("Accept-Ranges", "bytes")
+	c.Header("Cache-Control", "public, max-age=86400")
+	c.Status(http.StatusPartialContent)
+
+	_, err = file.Seek(start, 0)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+
+	_, err = io.CopyN(c.Writer, file, contentLength)
+	if err != nil {
+		return
+	}
 }
