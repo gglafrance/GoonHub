@@ -11,6 +11,7 @@ const { formatDuration, formatSize, formatDate } = useTime();
 const video = ref<Video | null>(null);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
+const playerError = ref<any>(null);
 
 const videoId = computed(() => parseInt(route.params.id as string));
 
@@ -133,10 +134,29 @@ definePageMeta({
 
                 <!-- Player -->
                 <div v-else class="space-y-6">
+                    <!-- Player Error Display -->
+                    <div
+                        v-if="playerError"
+                        class="rounded-2xl border border-neon-red/50 bg-red-950/30 p-6
+                            backdrop-blur-md"
+                    >
+                        <div class="flex items-center gap-3">
+                            <Icon name="heroicons:exclamation-triangle" size="24" class="text-neon-red" />
+                            <div>
+                                <h3 class="font-bold text-white">Video Player Error</h3>
+                                <p class="text-sm text-gray-300">
+                                    {{ playerError?.message || 'Failed to load video' }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
                     <VideoPlayer
                         :video-url="streamUrl"
                         :poster-url="posterUrl"
+                        :video="video"
                         class="rounded-2xl"
+                        @error="playerError = $event"
                     />
 
                     <!-- Video Metadata -->

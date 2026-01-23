@@ -11,7 +11,7 @@ log:
   level: info
   format: console
 processing:
-  frame_interval: 60
+  frame_interval: 5
   frame_width: 320
   frame_height: 180
   frame_quality: 85

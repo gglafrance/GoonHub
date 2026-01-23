@@ -19,11 +19,6 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 				auth.POST("/login", middleware.RateLimitMiddleware(rateLimiter, logger.Logger), authHandler.Login)
 			}
 
-			videos := v1.Group("/videos")
-			{
-				videos.GET("/:id/stream", videoHandler.StreamVideo)
-			}
-
 			protected := v1.Group("")
 			protected.Use(middleware.AuthMiddleware(authService))
 			{
@@ -44,4 +39,7 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 			}
 		}
 	}
+
+	// Public video streaming endpoint (outside /api for better access)
+	r.GET("/api/v1/videos/:id/stream", videoHandler.StreamVideo)
 }
