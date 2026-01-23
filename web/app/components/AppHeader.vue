@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { useAuthStore } from '~/stores/auth';
-
 const authStore = useAuthStore();
 
 definePageMeta({
@@ -10,7 +8,7 @@ definePageMeta({
 
 <template>
     <header class="border-border bg-void/80 sticky top-0 z-50 border-b backdrop-blur-md">
-        <div class="mx-auto max-w-[1600px] px-4 sm:px-5">
+        <div class="mx-auto max-w-400 px-4 sm:px-5">
             <div class="flex h-12 items-center justify-between">
                 <NuxtLink to="/" class="group flex items-center gap-2">
                     <div

@@ -1,12 +1,9 @@
 <script setup lang="ts">
 import type { Video } from '~/types/video';
-import { useApi } from '~/composables/useApi';
-import { isVideoProcessing, hasVideoError } from '~/utils/video';
 
 const route = useRoute();
 const router = useRouter();
 const { fetchVideo } = useApi();
-const { formatDate } = useTime();
 
 const video = ref<Video | null>(null);
 const isLoading = ref(true);
@@ -190,7 +187,7 @@ definePageMeta({
                                 </span>
                                 <span class="flex items-center gap-1">
                                     <Icon name="heroicons:calendar" size="12" class="text-lava" />
-                                    {{ formatDate(video.created_at) }}
+                                    <NuxtTime :datetime="video.created_at" format="short" />
                                 </span>
                             </div>
                         </div>

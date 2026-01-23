@@ -2,8 +2,6 @@
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import type { Video } from '~/types/video';
-import { useVttParser } from '~/composables/useVttParser';
-import { useThumbnailPreview } from '~/composables/useThumbnailPreview';
 
 type Player = ReturnType<typeof videojs>;
 
@@ -21,7 +19,7 @@ const emit = defineEmits<{
 }>();
 
 const videoElement = ref<HTMLVideoElement>();
-const player = ref<Player | null>(null);
+const player = shallowRef<Player | null>(null);
 const { vttCues, loadVttCues } = useVttParser();
 const { setup: setupThumbnailPreview } = useThumbnailPreview(player, vttCues);
 

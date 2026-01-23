@@ -5,7 +5,7 @@ defineProps<{
     video: Video;
 }>();
 
-const { formatDuration, formatSize, formatDate } = useTime();
+const { formatDuration, formatSize } = useFormatter();
 </script>
 
 <template>
@@ -40,7 +40,12 @@ const { formatDuration, formatSize, formatDate } = useTime();
                 <div class="flex items-center justify-between py-2.5">
                     <span class="text-dim text-[11px]">Added</span>
                     <span class="text-muted font-mono text-[11px]">
-                        {{ formatDate(video.created_at) }}
+                        <NuxtTime
+                            :datetime="video.created_at"
+                            year="numeric"
+                            month="short"
+                            day="numeric"
+                        />
                     </span>
                 </div>
             </div>

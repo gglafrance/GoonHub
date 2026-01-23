@@ -7,7 +7,7 @@ export function useThumbnailPreview(player: Ref<Player | null>, vttCues: Ref<Vtt
     function setup() {
         if (!player.value) return;
 
-        const progressControl = player.value.controlBar?.progressControl;
+        const progressControl = (player.value as any).controlBar?.progressControl;
         if (!progressControl) return;
 
         const seekBar = progressControl.seekBar;

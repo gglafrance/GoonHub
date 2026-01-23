@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import type { Video } from '~/types/video';
-import { isVideoProcessing } from '~/utils/video';
 
 const props = defineProps<{
     video: Video;
 }>();
 
-const { formatDuration, formatSize, formatDate } = useTime();
+const { formatDuration, formatSize } = useFormatter();
 
 const isProcessing = computed(() => isVideoProcessing(props.video));
 
@@ -69,7 +68,7 @@ const thumbnailUrl = computed(() => {
             </h3>
             <div class="text-dim mt-1.5 flex items-center justify-between font-mono text-[10px]">
                 <span>{{ formatSize(video.size) }}</span>
-                <span>{{ formatDate(video.created_at) }}</span>
+                <NuxtTime :datetime="video.created_at" format="short" />
             </div>
         </div>
     </NuxtLink>

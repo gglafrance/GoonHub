@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { useVideoStore } from '~/stores/videos';
-
 const store = useVideoStore();
 
 // Initial load

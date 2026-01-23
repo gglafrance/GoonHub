@@ -1,5 +1,3 @@
-import { useAuthStore } from '~/stores/auth';
-
 export const useApi = () => {
     const authStore = useAuthStore();
 

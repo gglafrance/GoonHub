@@ -1,4 +1,4 @@
-export const useTime = () => {
+export const useFormatter = () => {
     const formatDuration = (seconds: number): string => {
         const h = Math.floor(seconds / 3600);
         const m = Math.floor((seconds % 3600) / 60);
@@ -18,17 +18,8 @@ export const useTime = () => {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
-    const formatDate = (dateStr: string): string => {
-        return new Date(dateStr).toLocaleDateString(undefined, {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-        });
-    };
-
     return {
         formatDuration,
         formatSize,
-        formatDate,
     };
 };

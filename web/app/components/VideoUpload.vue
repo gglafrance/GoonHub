@@ -1,7 +1,4 @@
 <script setup lang="ts">
-import { useVideoStore } from '~/stores/videos';
-import { useAuthStore } from '~/stores/auth';
-
 const store = useVideoStore();
 const authStore = useAuthStore();
 const fileInput = ref<HTMLInputElement | null>(null);
