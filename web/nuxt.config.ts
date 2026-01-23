@@ -5,6 +5,15 @@ export default defineNuxtConfig({
     compatibilityDate: '2025-07-15',
     devtools: { enabled: true },
 
+    vue: {
+        compilerOptions: {
+            isCustomElement: (tag) => 
+                tag.startsWith('media-') || 
+                tag === 'videojs-video' || 
+                tag === 'media-theme',
+        },
+    },
+
     modules: [
         '@nuxt/eslint',
         '@pinia/nuxt',
