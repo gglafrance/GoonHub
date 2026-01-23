@@ -38,7 +38,7 @@ Interpret creatively: This is a media consumption and creation interface. It nee
 
 - **Language:** Go (Golang) 1.21+
 - **Web Framework:** Gin.
-- **Database:** SQLite (embedded) using **GORM** (ORM).
+- **Database:** PostgreSQL 18 using **GORM** (ORM).
 - **Video Processing:** FFmpeg (via `u2takey/ffmpeg-go` wrapper).
 - **Image Processing:** `disintegration/imaging` for thumbnails.
 - **Filesystem:** `fsnotify` for watching folder changes.
@@ -90,7 +90,7 @@ Adhere strictly to the **Clean Architecture** principles and **Standard Go Proje
 ├── web/                         # Vue.js Source Code
 │   ├── src/
 │   └── dist/                    # Built assets (Gitignored, but embedded by Go)
-├── library.db                   # SQLite database file (Gitignored)
+├── docker/                      # Docker Compose for PostgreSQL
 └── AGENTS.md                    # This file
 ```
 

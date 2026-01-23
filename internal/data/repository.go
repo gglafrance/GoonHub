@@ -29,19 +29,19 @@ type VideoRepository interface {
 	Delete(id uint) error
 }
 
-type SQLiteVideoRepository struct {
+type VideoRepositoryImpl struct {
 	DB *gorm.DB
 }
 
-func NewSQLiteVideoRepository(db *gorm.DB) *SQLiteVideoRepository {
-	return &SQLiteVideoRepository{DB: db}
+func NewVideoRepository(db *gorm.DB) *VideoRepositoryImpl {
+	return &VideoRepositoryImpl{DB: db}
 }
 
-func (r *SQLiteVideoRepository) Create(video *Video) error {
+func (r *VideoRepositoryImpl) Create(video *Video) error {
 	return r.DB.Create(video).Error
 }
 
-func (r *SQLiteVideoRepository) List(page, limit int) ([]Video, int64, error) {
+func (r *VideoRepositoryImpl) List(page, limit int) ([]Video, int64, error) {
 	var videos []Video
 	var total int64
 
@@ -58,7 +58,7 @@ func (r *SQLiteVideoRepository) List(page, limit int) ([]Video, int64, error) {
 	return videos, total, nil
 }
 
-func (r *SQLiteVideoRepository) GetByID(id uint) (*Video, error) {
+func (r *VideoRepositoryImpl) GetByID(id uint) (*Video, error) {
 	var video Video
 	if err := r.DB.First(&video, id).Error; err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func (r *SQLiteVideoRepository) GetByID(id uint) (*Video, error) {
 	return &video, nil
 }
 
-func (r *SQLiteVideoRepository) UpdateMetadata(id uint, duration int, width, height int, thumbnailPath string, spriteSheetPath string, vttPath string, spriteSheetCount int, thumbnailWidth int, thumbnailHeight int) error {
+func (r *VideoRepositoryImpl) UpdateMetadata(id uint, duration int, width, height int, thumbnailPath string, spriteSheetPath string, vttPath string, spriteSheetCount int, thumbnailWidth int, thumbnailHeight int) error {
 	updates := map[string]interface{}{
 		"duration":           duration,
 		"width":              width,
@@ -82,7 +82,7 @@ func (r *SQLiteVideoRepository) UpdateMetadata(id uint, duration int, width, hei
 	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
 }
 
-func (r *SQLiteVideoRepository) UpdateProcessingStatus(id uint, status string, errorMsg string) error {
+func (r *VideoRepositoryImpl) UpdateProcessingStatus(id uint, status string, errorMsg string) error {
 	updates := map[string]interface{}{
 		"processing_status": status,
 	}
@@ -92,7 +92,7 @@ func (r *SQLiteVideoRepository) UpdateProcessingStatus(id uint, status string, e
 	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
 }
 
-func (r *SQLiteVideoRepository) GetPendingProcessing() ([]Video, error) {
+func (r *VideoRepositoryImpl) GetPendingProcessing() ([]Video, error) {
 	var videos []Video
 	if err := r.DB.Where("processing_status = ?", "pending").Find(&videos).Error; err != nil {
 		return nil, err
@@ -100,7 +100,7 @@ func (r *SQLiteVideoRepository) GetPendingProcessing() ([]Video, error) {
 	return videos, nil
 }
 
-func (r *SQLiteVideoRepository) Delete(id uint) error {
+func (r *VideoRepositoryImpl) Delete(id uint) error {
 	var video Video
 	if err := r.DB.First(&video, id).Error; err != nil {
 		return err
@@ -108,19 +108,19 @@ func (r *SQLiteVideoRepository) Delete(id uint) error {
 	return r.DB.Delete(&video).Error
 }
 
-type SQLiteUserRepository struct {
+type UserRepositoryImpl struct {
 	DB *gorm.DB
 }
 
-func NewSQLiteUserRepository(db *gorm.DB) *SQLiteUserRepository {
-	return &SQLiteUserRepository{DB: db}
+func NewUserRepository(db *gorm.DB) *UserRepositoryImpl {
+	return &UserRepositoryImpl{DB: db}
 }
 
-func (r *SQLiteUserRepository) Create(user *User) error {
+func (r *UserRepositoryImpl) Create(user *User) error {
 	return r.DB.Create(user).Error
 }
 
-func (r *SQLiteUserRepository) GetByUsername(username string) (*User, error) {
+func (r *UserRepositoryImpl) GetByUsername(username string) (*User, error) {
 	var user User
 	if err := r.DB.Where("username = ?", username).First(&user).Error; err != nil {
 		return nil, err
@@ -128,7 +128,7 @@ func (r *SQLiteUserRepository) GetByUsername(username string) (*User, error) {
 	return &user, nil
 }
 
-func (r *SQLiteUserRepository) GetByID(id uint) (*User, error) {
+func (r *UserRepositoryImpl) GetByID(id uint) (*User, error) {
 	var user User
 	if err := r.DB.First(&user, id).Error; err != nil {
 		return nil, err
@@ -136,7 +136,7 @@ func (r *SQLiteUserRepository) GetByID(id uint) (*User, error) {
 	return &user, nil
 }
 
-func (r *SQLiteUserRepository) Exists(username string) (bool, error) {
+func (r *UserRepositoryImpl) Exists(username string) (bool, error) {
 	var count int64
 	if err := r.DB.Model(&User{}).Where("username = ?", username).Count(&count).Error; err != nil {
 		return false, err
@@ -144,19 +144,19 @@ func (r *SQLiteUserRepository) Exists(username string) (bool, error) {
 	return count > 0, nil
 }
 
-type SQLiteRevokedTokenRepository struct {
+type RevokedTokenRepositoryImpl struct {
 	DB *gorm.DB
 }
 
-func NewSQLiteRevokedTokenRepository(db *gorm.DB) *SQLiteRevokedTokenRepository {
-	return &SQLiteRevokedTokenRepository{DB: db}
+func NewRevokedTokenRepository(db *gorm.DB) *RevokedTokenRepositoryImpl {
+	return &RevokedTokenRepositoryImpl{DB: db}
 }
 
-func (r *SQLiteRevokedTokenRepository) Create(token *RevokedToken) error {
+func (r *RevokedTokenRepositoryImpl) Create(token *RevokedToken) error {
 	return r.DB.Create(token).Error
 }
 
-func (r *SQLiteRevokedTokenRepository) IsRevoked(tokenHash string) (bool, error) {
+func (r *RevokedTokenRepositoryImpl) IsRevoked(tokenHash string) (bool, error) {
 	var count int64
 	if err := r.DB.Model(&RevokedToken{}).Where("token_hash = ? AND expires_at > ?", tokenHash, time.Now()).Count(&count).Error; err != nil {
 		return false, err
@@ -164,6 +164,6 @@ func (r *SQLiteRevokedTokenRepository) IsRevoked(tokenHash string) (bool, error)
 	return count > 0, nil
 }
 
-func (r *SQLiteRevokedTokenRepository) CleanupExpired() error {
+func (r *RevokedTokenRepositoryImpl) CleanupExpired() error {
 	return r.DB.Where("expires_at <= ?", time.Now()).Delete(&RevokedToken{}).Error
 }

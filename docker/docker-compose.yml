@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:18.1-alpine3.23
+    container_name: goonhub-postgres
+    environment:
+      POSTGRES_USER: goonhub
+      POSTGRES_PASSWORD: goonhub_dev_password
+      POSTGRES_DB: goonhub
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goonhub -d goonhub"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

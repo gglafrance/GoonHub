@@ -16,7 +16,7 @@ import (
 	"goonhub/internal/core"
 	"goonhub/internal/data"
 	"goonhub/internal/infrastructure/logging"
-	"goonhub/internal/infrastructure/persistence/sqlite"
+	"goonhub/internal/infrastructure/persistence/postgres"
 	"goonhub/internal/infrastructure/server"
 	"gorm.io/gorm"
 	"time"
@@ -33,7 +33,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	db, err := sqlite.NewDB(configConfig, logger)
+	db, err := postgres.NewDB(configConfig, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -60,15 +60,15 @@ func provideRateLimiter(cfg *config.Config) *middleware.IPRateLimiter {
 }
 
 func provideVideoRepository(db *gorm.DB) data.VideoRepository {
-	return data.NewSQLiteVideoRepository(db)
+	return data.NewVideoRepository(db)
 }
 
 func provideUserRepository(db *gorm.DB) data.UserRepository {
-	return data.NewSQLiteUserRepository(db)
+	return data.NewUserRepository(db)
 }
 
 func provideRevokedTokenRepository(db *gorm.DB) data.RevokedTokenRepository {
-	return data.NewSQLiteRevokedTokenRepository(db)
+	return data.NewRevokedTokenRepository(db)
 }
 
 func provideVideoService(repo data.VideoRepository, cfg *config.Config, processingService *core.VideoProcessingService, logger *logging.Logger) *core.VideoService {

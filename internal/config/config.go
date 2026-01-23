@@ -28,8 +28,21 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	Driver string `mapstructure:"driver"`
-	Source string `mapstructure:"source"`
+	Host         string `mapstructure:"host"`
+	Port         int    `mapstructure:"port"`
+	User         string `mapstructure:"user"`
+	Password     string `mapstructure:"password"`
+	DBName       string `mapstructure:"dbname"`
+	SSLMode      string `mapstructure:"sslmode"`
+	MaxOpenConns int    `mapstructure:"max_open_conns"`
+	MaxIdleConns int    `mapstructure:"max_idle_conns"`
+}
+
+func (d DatabaseConfig) DSN() string {
+	return fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		d.Host, d.Port, d.User, d.Password, d.DBName, d.SSLMode,
+	)
 }
 
 type LogConfig struct {
@@ -72,8 +85,14 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("server.write_timeout", 15*time.Second)
 	v.SetDefault("server.idle_timeout", 60*time.Second)
 	v.SetDefault("server.allowed_origins", []string{"http://localhost:3000"})
-	v.SetDefault("database.driver", "sqlite")
-	v.SetDefault("database.source", "library.db")
+	v.SetDefault("database.host", "localhost")
+	v.SetDefault("database.port", 5432)
+	v.SetDefault("database.user", "goonhub")
+	v.SetDefault("database.password", "goonhub_dev_password")
+	v.SetDefault("database.dbname", "goonhub")
+	v.SetDefault("database.sslmode", "disable")
+	v.SetDefault("database.max_open_conns", 25)
+	v.SetDefault("database.max_idle_conns", 5)
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "console")
 	v.SetDefault("processing.frame_interval", 5)

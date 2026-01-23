@@ -8,6 +8,22 @@ Goonhub is a self-hosted video library application with a Go backend and Nuxt 3 
 
 ## Development Commands
 
+### Database (PostgreSQL)
+
+```bash
+# Start PostgreSQL via Docker
+cd docker && docker compose up -d
+
+# Verify healthy
+docker compose ps
+
+# Connect via psql
+docker exec -it goonhub-postgres psql -U goonhub -d goonhub
+
+# Reset database (destroys all data)
+cd docker && docker compose down -v && docker compose up -d
+```
+
 ### Backend (Go)
 
 ```bash
@@ -53,8 +69,10 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - `internal/api/` - Gin HTTP router, routes, middleware (CORS, auth, rate limiting)
 - `internal/api/v1/handler/` - Request handlers (video, auth)
 - `internal/core/` - Business logic services (VideoService, VideoProcessingService, AuthService, UserService)
-- `internal/data/` - GORM models and repository interfaces/implementations (SQLite)
-- `internal/infrastructure/` - Server, logging (zap), SQLite persistence
+- `internal/data/` - GORM models and repository interfaces/implementations
+- `internal/infrastructure/` - Server, logging (zap), PostgreSQL persistence
+- `internal/infrastructure/persistence/postgres/` - GORM PostgreSQL initializer with connection pooling
+- `internal/infrastructure/persistence/migrator/` - golang-migrate based schema migrations
 - `internal/jobs/` - Worker pool and video processing jobs
 - `pkg/ffmpeg/` - ffmpeg wrapper for metadata extraction, thumbnails, sprite sheets, VTT generation
 - `web.go` - `embed.FS` directive embedding `web/dist` into the binary
@@ -77,6 +95,7 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - **Static Assets**: Thumbnails, sprites, VTT files served from `./data/` directory
 - **Frontend Proxy**: In dev, Vite proxies `/api`, `/thumbnails`, `/sprites`, `/vtt` to `:8080`
 - **Custom Elements**: Vue compiler configured to treat `media-*`, `videojs-video`, `media-theme` as custom elements
+- **Auto Imports**: Pinia stores and composables auto-imported via Nuxt config
 
 ### API Routes
 
@@ -91,10 +110,15 @@ All under `/api/v1/`:
 
 Config loaded via Viper: YAML file path set by `GOONHUB_CONFIG` env var. All config keys can be overridden with `GOONHUB_` prefixed env vars (dots become underscores, e.g. `GOONHUB_SERVER_PORT`).
 
+### Database
+
+- **PostgreSQL 18** is the database (run via `docker/docker-compose.yml`)
+- Migrations are managed by `golang-migrate` (embedded in binary, run automatically on startup)
+
 ### External Dependencies
 
 - **ffmpeg/ffprobe** must be available on PATH for video processing
-- **SQLite** is the database (file: `library.db` by default)
+- **PostgreSQL 18** via Docker (see `docker/` directory)
 
 ## Coding Conventions
 

@@ -5,8 +5,14 @@ server:
     - "http://localhost:3000"
     - "http://localhost:8081"
 database:
-  driver: sqlite
-  source: library-test.db
+  host: localhost
+  port: 5432
+  user: goonhub
+  password: goonhub_dev_password
+  dbname: goonhub_test
+  sslmode: disable
+  max_open_conns: 10
+  max_idle_conns: 2
 log:
   level: info
   format: console

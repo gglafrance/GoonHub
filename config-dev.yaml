@@ -5,8 +5,14 @@ server:
   write_timeout: 15s
   idle_timeout: 60s
 database:
-  driver: sqlite
-  source: library.db
+  host: localhost
+  port: 5432
+  user: goonhub
+  password: goonhub_dev_password
+  dbname: goonhub
+  sslmode: disable
+  max_open_conns: 25
+  max_idle_conns: 5
 log:
   level: info
   format: console
