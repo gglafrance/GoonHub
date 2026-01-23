@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -104,6 +105,9 @@ func (p *WorkerPool) worker(id int) {
 }
 
 func (p *WorkerPool) Submit(job Job) error {
+	if !p.running.Load() {
+		return fmt.Errorf("worker pool is stopped")
+	}
 	select {
 	case <-p.ctx.Done():
 		return p.ctx.Err()

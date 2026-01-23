@@ -55,6 +55,29 @@ bun run dev
 bun run build
 ```
 
+### Testing (Go Backend)
+
+```bash
+# Regenerate mocks (required after changing repository interfaces in internal/data/)
+make mocks
+
+# Run all tests
+make test
+
+# Run tests with race detector (critical for concurrency tests)
+make test-race
+
+# Run tests with coverage report
+make test-cover
+
+# Run specific package tests
+go test -v ./internal/core/
+go test -v ./internal/jobs/
+go test -v ./pkg/ffmpeg/
+go test -v ./internal/api/middleware/
+go test -v ./internal/api/v1/handler/
+```
+
 ### Full Stack Development
 
 Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously. The Nuxt dev server proxies API routes to the backend.
@@ -74,6 +97,7 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - `internal/infrastructure/persistence/postgres/` - GORM PostgreSQL initializer with connection pooling
 - `internal/infrastructure/persistence/migrator/` - golang-migrate based schema migrations
 - `internal/jobs/` - Worker pool and video processing jobs
+- `internal/mocks/` - Generated mock implementations for all repository interfaces (via `go.uber.org/mock`)
 - `pkg/ffmpeg/` - ffmpeg wrapper for metadata extraction, thumbnails, sprite sheets, VTT generation
 - `web.go` - `embed.FS` directive embedding `web/dist` into the binary
 
@@ -129,6 +153,18 @@ Config loaded via Viper: YAML file path set by `GOONHUB_CONFIG` env var. All con
 - Do not hardcode values; add them to `internal/config/` structs
 - Use Worker Pool pattern for concurrency (no unbounded goroutines)
 - All API responses are JSON with `snake_case` keys; Go structs use PascalCase
+- **Testing is mandatory:** After modifying Go backend code, always run `make test-race` to verify no regressions or data races. When adding new service methods or handlers, add corresponding tests in the same package.
+
+### Go Testing Conventions
+
+- Standard library `testing` only (no testify) — use `t.Fatalf`/`t.Fatal` for assertions
+- Mock repository interfaces via `go.uber.org/mock` — mocks live in `internal/mocks/` and are generated with `make mocks`
+- Use table-driven tests for validation boundaries (volumes, sort orders, file extensions)
+- Concurrency tests must pass with `-race` flag
+- Use `t.TempDir()` for file-based tests (auto-cleaned)
+- Tests are same-package (white-box) for services, allowing access to unexported fields
+- Use `gin.SetMode(gin.TestMode)` in handler/middleware tests
+- Use `zap.NewNop()` for logger dependencies in tests
 
 ### Vue/Nuxt Conventions
 
@@ -163,3 +199,7 @@ The UI follows a **Deep Space SaaS Aesthetic**—sophisticated, dark, and highly
 When working on GoonHub, remember:
 
 - Always import icons using NuxtIcon from `@nuxt/icons` (no direct SVG imports)
+- After any Go backend change, run `make test-race` before considering the task complete
+- When adding new repository interface methods, regenerate mocks with `make mocks`
+- PASETO key must be exactly 32 bytes for v2 symmetric encryption
+- Worker pool's `Submit()` returns an error if the pool is stopped (not a panic)
