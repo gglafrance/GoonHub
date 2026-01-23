@@ -14,24 +14,23 @@ import (
 )
 
 type ProcessVideoJob struct {
-	id            string
-	videoID       uint
-	videoPath     string
-	spriteDir     string
-	vttDir        string
-	thumbnailDir  string
-	frameInterval int
-	frameWidth    int
-	frameHeight   int
-	frameQuality  int
-	gridCols      int
-	gridRows      int
-	thumbnailSeek string
-	repo          data.VideoRepository
-	logger        *zap.Logger
-	status        JobStatus
-	error         error
-	cancelled     atomic.Bool
+	id                string
+	videoID           uint
+	videoPath         string
+	spriteDir         string
+	vttDir            string
+	thumbnailDir      string
+	frameInterval     int
+	maxFrameDimension int
+	frameQuality      int
+	gridCols          int
+	gridRows          int
+	thumbnailSeek     string
+	repo              data.VideoRepository
+	logger            *zap.Logger
+	status            JobStatus
+	error             error
+	cancelled         atomic.Bool
 }
 
 func NewProcessVideoJob(
@@ -41,8 +40,7 @@ func NewProcessVideoJob(
 	vttDir string,
 	thumbnailDir string,
 	frameInterval int,
-	frameWidth int,
-	frameHeight int,
+	maxFrameDimension int,
 	frameQuality int,
 	gridCols int,
 	gridRows int,
@@ -51,22 +49,21 @@ func NewProcessVideoJob(
 	logger *zap.Logger,
 ) *ProcessVideoJob {
 	return &ProcessVideoJob{
-		id:            uuid.New().String(),
-		videoID:       videoID,
-		videoPath:     videoPath,
-		spriteDir:     spriteDir,
-		vttDir:        vttDir,
-		thumbnailDir:  thumbnailDir,
-		frameInterval: frameInterval,
-		frameWidth:    frameWidth,
-		frameHeight:   frameHeight,
-		frameQuality:  frameQuality,
-		gridCols:      gridCols,
-		gridRows:      gridRows,
-		thumbnailSeek: thumbnailSeek,
-		repo:          repo,
-		logger:        logger,
-		status:        JobStatusPending,
+		id:                uuid.New().String(),
+		videoID:           videoID,
+		videoPath:         videoPath,
+		spriteDir:         spriteDir,
+		vttDir:            vttDir,
+		thumbnailDir:      thumbnailDir,
+		frameInterval:     frameInterval,
+		maxFrameDimension: maxFrameDimension,
+		frameQuality:      frameQuality,
+		gridCols:          gridCols,
+		gridRows:          gridRows,
+		thumbnailSeek:     thumbnailSeek,
+		repo:              repo,
+		logger:            logger,
+		status:            JobStatusPending,
 	}
 }
 
@@ -95,7 +92,7 @@ func (j *ProcessVideoJob) Execute() error {
 		zap.Uint("video_id", j.videoID),
 		zap.String("video_path", j.videoPath),
 		zap.Int("frame_interval", j.frameInterval),
-		zap.Int("frame_dimensions", j.frameWidth*j.frameHeight),
+		zap.Int("max_frame_dimension", j.maxFrameDimension),
 		zap.Int("grid_cols", j.gridCols),
 		zap.Int("grid_rows", j.gridRows),
 	)
@@ -127,12 +124,16 @@ func (j *ProcessVideoJob) Execute() error {
 		return err
 	}
 
+	tileWidth, tileHeight := ffmpeg.CalculateTileDimensions(metadata.Width, metadata.Height, j.maxFrameDimension)
+
 	j.logger.Info("Video metadata extracted",
 		zap.Uint("video_id", j.videoID),
 		zap.Int("duration_seconds", int(metadata.Duration)),
 		zap.Int("width", metadata.Width),
 		zap.Int("height", metadata.Height),
 		zap.Float64("aspect_ratio", float64(metadata.Width)/float64(metadata.Height)),
+		zap.Int("tile_width", tileWidth),
+		zap.Int("tile_height", tileHeight),
 		zap.Duration("step_duration", time.Since(stepStart)),
 	)
 
@@ -159,7 +160,7 @@ func (j *ProcessVideoJob) Execute() error {
 		zap.String("output_path", thumbnailPath),
 	)
 
-	if err := ffmpeg.ExtractThumbnail(j.videoPath, thumbnailPath, thumbnailSeek, j.frameWidth, j.frameHeight, j.frameQuality); err != nil {
+	if err := ffmpeg.ExtractThumbnail(j.videoPath, thumbnailPath, thumbnailSeek, tileWidth, tileHeight, j.frameQuality); err != nil {
 		j.logger.Error("Failed to extract thumbnail",
 			zap.Uint("video_id", j.videoID),
 			zap.Duration("step_duration", time.Since(stepStart)),
@@ -206,8 +207,8 @@ func (j *ProcessVideoJob) Execute() error {
 		j.videoPath,
 		j.spriteDir,
 		int(j.videoID),
-		j.frameWidth,
-		j.frameHeight,
+		tileWidth,
+		tileHeight,
 		j.gridCols,
 		j.gridRows,
 		j.frameInterval,
@@ -253,8 +254,8 @@ func (j *ProcessVideoJob) Execute() error {
 		j.frameInterval,
 		j.gridCols,
 		j.gridRows,
-		j.frameWidth,
-		j.frameHeight,
+		tileWidth,
+		tileHeight,
 	); err != nil {
 		j.logger.Error("Failed to generate VTT file",
 			zap.Uint("video_id", j.videoID),
@@ -285,8 +286,8 @@ func (j *ProcessVideoJob) Execute() error {
 		spriteSheetPath,
 		vttPath,
 		len(spriteSheets),
-		j.frameWidth,
-		j.frameHeight,
+		tileWidth,
+		tileHeight,
 	); err != nil {
 		j.logger.Error("Failed to update video metadata",
 			zap.Uint("video_id", j.videoID),

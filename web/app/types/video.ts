@@ -6,6 +6,8 @@ export interface Video {
     view_count: number;
     created_at: string;
     duration: number;
+    width?: number;
+    height?: number;
     thumbnail_path?: string;
     sprite_sheet_path?: string;
     vtt_path?: string;

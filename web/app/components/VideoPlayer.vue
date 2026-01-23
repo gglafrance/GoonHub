@@ -25,6 +25,17 @@ const player = shallowRef<Player | null>(null);
 const { vttCues, loadVttCues } = useVttParser();
 const { setup: setupThumbnailPreview } = useThumbnailPreview(player, vttCues);
 
+const aspectRatio = computed(() => {
+    if (props.video?.width && props.video?.height) {
+        return `${props.video.width} / ${props.video.height}`;
+    }
+    return '16 / 9';
+});
+
+const isPortrait = computed(() => {
+    return props.video?.width && props.video?.height && props.video.height > props.video.width;
+});
+
 const vttUrl = computed(() => {
     if (!props.video?.vtt_path) return null;
     return `/vtt/${props.video.id}`;
@@ -38,7 +49,7 @@ onMounted(async () => {
         autoplay: props.autoplay ? 'any' : false,
         loop: props.loop ?? false,
         preload: 'metadata',
-        fluid: true,
+        fill: true,
         playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2],
         html5: {
             vhs: {
@@ -110,7 +121,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="video-wrapper">
+    <div
+        class="video-wrapper"
+        :class="{ 'video-wrapper--portrait': isPortrait }"
+        :style="{ aspectRatio }"
+    >
         <video
             ref="videoElement"
             class="video-js vjs-big-play-centered"
@@ -126,10 +141,13 @@ onBeforeUnmount(() => {
 <style scoped>
 .video-wrapper {
     width: 100%;
-    aspect-ratio: 16/9;
-    height: 100%;
+    margin: 0 auto;
     background: #050505;
     overflow: hidden;
+}
+
+.video-wrapper--portrait {
+    max-height: 80vh;
 }
 
 :deep(.video-js) {

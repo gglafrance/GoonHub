@@ -51,18 +51,17 @@ type LogConfig struct {
 }
 
 type ProcessingConfig struct {
-	FrameInterval  int    `mapstructure:"frame_interval"`   // seconds
-	FrameWidth     int    `mapstructure:"frame_width"`      // pixels
-	FrameHeight    int    `mapstructure:"frame_height"`     // pixels
-	FrameQuality   int    `mapstructure:"frame_quality"`    // 1-100, WebP quality
-	WorkerCount    int    `mapstructure:"worker_count"`     // concurrent jobs
-	ThumbnailSeek  string `mapstructure:"thumbnail_seek"`   // "00:00:05" or "5%"
-	FrameOutputDir string `mapstructure:"frame_output_dir"` // relative to app root
-	ThumbnailDir   string `mapstructure:"thumbnail_dir"`    // relative to app root
-	SpriteDir      string `mapstructure:"sprite_dir"`       // relative to app root
-	VttDir         string `mapstructure:"vtt_dir"`          // relative to app root
-	GridCols       int    `mapstructure:"grid_cols"`        // number of columns in sprite sheet
-	GridRows       int    `mapstructure:"grid_rows"`        // number of rows in sprite sheet
+	FrameInterval     int    `mapstructure:"frame_interval"`     // seconds
+	MaxFrameDimension int    `mapstructure:"max_frame_dimension"` // longest side in pixels
+	FrameQuality      int    `mapstructure:"frame_quality"`      // 1-100, WebP quality
+	WorkerCount       int    `mapstructure:"worker_count"`       // concurrent jobs
+	ThumbnailSeek     string `mapstructure:"thumbnail_seek"`     // "00:00:05" or "5%"
+	FrameOutputDir    string `mapstructure:"frame_output_dir"`   // relative to app root
+	ThumbnailDir      string `mapstructure:"thumbnail_dir"`      // relative to app root
+	SpriteDir         string `mapstructure:"sprite_dir"`         // relative to app root
+	VttDir            string `mapstructure:"vtt_dir"`            // relative to app root
+	GridCols          int    `mapstructure:"grid_cols"`          // number of columns in sprite sheet
+	GridRows          int    `mapstructure:"grid_rows"`          // number of rows in sprite sheet
 }
 
 type AuthConfig struct {
@@ -96,8 +95,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "console")
 	v.SetDefault("processing.frame_interval", 5)
-	v.SetDefault("processing.frame_width", 320)
-	v.SetDefault("processing.frame_height", 180)
+	v.SetDefault("processing.max_frame_dimension", 320)
 	v.SetDefault("processing.frame_quality", 85)
 	v.SetDefault("processing.worker_count", 2)
 	v.SetDefault("processing.thumbnail_seek", "00:00:05")

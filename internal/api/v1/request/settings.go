@@ -2,7 +2,7 @@ package request
 
 type UpdatePlayerSettingsRequest struct {
 	Autoplay      bool `json:"autoplay"`
-	DefaultVolume int  `json:"default_volume" binding:"required,min=0,max=100"`
+	DefaultVolume int  `json:"default_volume" binding:"min=0,max=100"`
 	Loop          bool `json:"loop"`
 }
 

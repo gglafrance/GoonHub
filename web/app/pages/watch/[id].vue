@@ -15,6 +15,9 @@ const videoId = computed(() => parseInt(route.params.id as string));
 
 const isProcessing = computed(() => (video.value ? isVideoProcessing(video.value) : false));
 const hasProcessingError = computed(() => (video.value ? hasVideoError(video.value) : false));
+const isPortrait = computed(() => {
+    return video.value?.width && video.value?.height && video.value.height > video.value.width;
+});
 
 const streamUrl = computed(() => {
     if (!video.value) return '';
@@ -167,7 +170,10 @@ definePageMeta({
                             </div>
                         </Transition>
 
-                        <div class="border-border bg-void overflow-hidden rounded-xl border">
+                        <div
+                            class="border-border bg-void overflow-hidden rounded-xl border"
+                            :class="{ 'mx-auto max-w-xl': isPortrait }"
+                        >
                             <VideoPlayer
                                 :video-url="streamUrl"
                                 :poster-url="posterUrl"

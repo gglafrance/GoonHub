@@ -18,8 +18,7 @@ log:
   format: console
 processing:
   frame_interval: 5
-  frame_width: 320
-  frame_height: 180
+  max_frame_dimension: 320
   frame_quality: 50
   worker_count: 2
   thumbnail_seek: "00:00:05"
