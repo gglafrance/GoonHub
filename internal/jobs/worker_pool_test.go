@@ -45,9 +45,11 @@ func (j *testJob) Cancel() {
 	j.cancelled.Store(true)
 }
 
-func (j *testJob) GetID() string      { return j.id }
+func (j *testJob) GetID() string        { return j.id }
+func (j *testJob) GetVideoID() uint     { return 0 }
+func (j *testJob) GetPhase() string     { return "test" }
 func (j *testJob) GetStatus() JobStatus { return j.status }
-func (j *testJob) GetError() error     { return j.err }
+func (j *testJob) GetError() error      { return j.err }
 
 func TestWorkerPool_ExecutesJobs(t *testing.T) {
 	pool := NewWorkerPool(2, 10)

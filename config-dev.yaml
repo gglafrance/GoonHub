@@ -1,9 +1,9 @@
 environment: development
 server:
   port: "8080"
-  read_timeout: 15s
-  write_timeout: 15s
-  idle_timeout: 60s
+  read_timeout: 0s
+  write_timeout: 0s
+  idle_timeout: 120s
 database:
   host: localhost
   port: 5432

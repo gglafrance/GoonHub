@@ -14,12 +14,17 @@ type Job interface {
 	Execute() error
 	Cancel()
 	GetID() string
+	GetVideoID() uint
+	GetPhase() string
 	GetStatus() JobStatus
 	GetError() error
 }
 
 type JobResult struct {
-	JobID  string
-	Status JobStatus
-	Error  error
+	JobID   string
+	VideoID uint
+	Phase   string
+	Status  JobStatus
+	Error   error
+	Data    any
 }

@@ -114,6 +114,20 @@ func (mr *MockVideoRepositoryMockRecorder) List(page, limit any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockVideoRepository)(nil).List), page, limit)
 }
 
+// UpdateBasicMetadata mocks base method.
+func (m *MockVideoRepository) UpdateBasicMetadata(id uint, duration, width, height int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateBasicMetadata", id, duration, width, height)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateBasicMetadata indicates an expected call of UpdateBasicMetadata.
+func (mr *MockVideoRepositoryMockRecorder) UpdateBasicMetadata(id, duration, width, height any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBasicMetadata", reflect.TypeOf((*MockVideoRepository)(nil).UpdateBasicMetadata), id, duration, width, height)
+}
+
 // UpdateMetadata mocks base method.
 func (m *MockVideoRepository) UpdateMetadata(id uint, duration, width, height int, thumbnailPath, spriteSheetPath, vttPath string, spriteSheetCount, thumbnailWidth, thumbnailHeight int) error {
 	m.ctrl.T.Helper()
@@ -140,4 +154,32 @@ func (m *MockVideoRepository) UpdateProcessingStatus(id uint, status, errorMsg s
 func (mr *MockVideoRepositoryMockRecorder) UpdateProcessingStatus(id, status, errorMsg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProcessingStatus", reflect.TypeOf((*MockVideoRepository)(nil).UpdateProcessingStatus), id, status, errorMsg)
+}
+
+// UpdateSprites mocks base method.
+func (m *MockVideoRepository) UpdateSprites(id uint, spriteSheetPath, vttPath string, spriteSheetCount int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSprites", id, spriteSheetPath, vttPath, spriteSheetCount)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateSprites indicates an expected call of UpdateSprites.
+func (mr *MockVideoRepositoryMockRecorder) UpdateSprites(id, spriteSheetPath, vttPath, spriteSheetCount any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSprites", reflect.TypeOf((*MockVideoRepository)(nil).UpdateSprites), id, spriteSheetPath, vttPath, spriteSheetCount)
+}
+
+// UpdateThumbnail mocks base method.
+func (m *MockVideoRepository) UpdateThumbnail(id uint, thumbnailPath string, thumbnailWidth, thumbnailHeight int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateThumbnail", id, thumbnailPath, thumbnailWidth, thumbnailHeight)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateThumbnail indicates an expected call of UpdateThumbnail.
+func (mr *MockVideoRepositoryMockRecorder) UpdateThumbnail(id, thumbnailPath, thumbnailWidth, thumbnailHeight any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateThumbnail", reflect.TypeOf((*MockVideoRepository)(nil).UpdateThumbnail), id, thumbnailPath, thumbnailWidth, thumbnailHeight)
 }

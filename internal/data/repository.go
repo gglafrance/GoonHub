@@ -35,6 +35,9 @@ type VideoRepository interface {
 	List(page, limit int) ([]Video, int64, error)
 	GetByID(id uint) (*Video, error)
 	UpdateMetadata(id uint, duration int, width, height int, thumbnailPath string, spriteSheetPath string, vttPath string, spriteSheetCount int, thumbnailWidth int, thumbnailHeight int) error
+	UpdateBasicMetadata(id uint, duration int, width, height int) error
+	UpdateThumbnail(id uint, thumbnailPath string, thumbnailWidth, thumbnailHeight int) error
+	UpdateSprites(id uint, spriteSheetPath, vttPath string, spriteSheetCount int) error
 	UpdateProcessingStatus(id uint, status string, errorMsg string) error
 	GetPendingProcessing() ([]Video, error)
 	Delete(id uint) error
@@ -89,6 +92,33 @@ func (r *VideoRepositoryImpl) UpdateMetadata(id uint, duration int, width, heigh
 		"thumbnail_width":    thumbnailWidth,
 		"thumbnail_height":   thumbnailHeight,
 		"processing_status":  "completed",
+	}
+	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (r *VideoRepositoryImpl) UpdateBasicMetadata(id uint, duration int, width, height int) error {
+	updates := map[string]interface{}{
+		"duration": duration,
+		"width":    width,
+		"height":   height,
+	}
+	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (r *VideoRepositoryImpl) UpdateThumbnail(id uint, thumbnailPath string, thumbnailWidth, thumbnailHeight int) error {
+	updates := map[string]interface{}{
+		"thumbnail_path":   thumbnailPath,
+		"thumbnail_width":  thumbnailWidth,
+		"thumbnail_height": thumbnailHeight,
+	}
+	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (r *VideoRepositoryImpl) UpdateSprites(id uint, spriteSheetPath, vttPath string, spriteSheetCount int) error {
+	updates := map[string]interface{}{
+		"sprite_sheet_path":  spriteSheetPath,
+		"vtt_path":           vttPath,
+		"sprite_sheet_count": spriteSheetCount,
 	}
 	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
 }

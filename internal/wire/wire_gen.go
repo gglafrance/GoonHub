@@ -38,7 +38,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		return nil, err
 	}
 	videoRepository := provideVideoRepository(db)
-	videoProcessingService := provideVideoProcessingService(videoRepository, configConfig, logger)
+	eventBus := provideEventBus(logger)
+	videoProcessingService := provideVideoProcessingService(videoRepository, configConfig, logger, eventBus)
 	videoService := provideVideoService(videoRepository, configConfig, videoProcessingService, logger)
 	videoHandler := provideVideoHandler(videoService, videoProcessingService)
 	userRepository := provideUserRepository(db)
@@ -54,8 +55,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	rbacService := provideRBACService(roleRepository, permissionRepository, logger)
 	adminService := provideAdminService(userRepository, roleRepository, rbacService, logger)
 	adminHandler := provideAdminHandler(adminService, rbacService)
+	sseHandler := provideSSEHandler(eventBus, authService, logger)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, authService, rbacService, ipRateLimiter)
+	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, sseHandler, authService, rbacService, ipRateLimiter)
 	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService)
 	return serverServer, nil
 }
@@ -79,13 +81,21 @@ func provideRevokedTokenRepository(db *gorm.DB) data.RevokedTokenRepository {
 	return data.NewRevokedTokenRepository(db)
 }
 
+func provideEventBus(logger *logging.Logger) *core.EventBus {
+	return core.NewEventBus(logger.Logger)
+}
+
 func provideVideoService(repo data.VideoRepository, cfg *config.Config, processingService *core.VideoProcessingService, logger *logging.Logger) *core.VideoService {
 	dataPath := "./data"
 	return core.NewVideoService(repo, dataPath, processingService, logger.Logger)
 }
 
-func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger) *core.VideoProcessingService {
-	return core.NewVideoProcessingService(repo, cfg.Processing, logger.Logger)
+func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus) *core.VideoProcessingService {
+	return core.NewVideoProcessingService(repo, cfg.Processing, logger.Logger, eventBus)
+}
+
+func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, logger *logging.Logger) *handler.SSEHandler {
+	return handler.NewSSEHandler(eventBus, authService, logger.Logger)
 }
 
 func provideAuthService(userRepo data.UserRepository, revokedRepo data.RevokedTokenRepository, cfg *config.Config, logger *logging.Logger) *core.AuthService {
@@ -140,8 +150,8 @@ func provideAdminHandler(adminService *core.AdminService, rbacService *core.RBAC
 	return handler.NewAdminHandler(adminService, rbacService)
 }
 
-func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
-	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, authService, rbacService, rateLimiter)
+func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, sseHandler *handler.SSEHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
+	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, sseHandler, authService, rbacService, rateLimiter)
 }
 
 func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService) *server.Server {

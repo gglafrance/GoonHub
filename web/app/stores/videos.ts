@@ -55,6 +55,26 @@ export const useVideoStore = defineStore('videos', () => {
         }
     };
 
+    const updateVideoFields = (videoId: number, fields: Partial<Video>) => {
+        const idx = videos.value.findIndex((v) => v.id === videoId);
+        if (idx !== -1) {
+            videos.value[idx] = { ...videos.value[idx], ...fields } as Video;
+        }
+    };
+
+    const prependVideo = (video: Video) => {
+        if (currentPage.value === 1) {
+            const exists = videos.value.some((v) => v.id === video.id);
+            if (!exists) {
+                videos.value.unshift(video);
+                total.value++;
+                if (videos.value.length > limit.value) {
+                    videos.value.pop();
+                }
+            }
+        }
+    };
+
     return {
         videos,
         total,
@@ -64,5 +84,7 @@ export const useVideoStore = defineStore('videos', () => {
         error,
         loadVideos,
         uploadVideo,
+        updateVideoFields,
+        prependVideo,
     };
 });

@@ -76,7 +76,9 @@ func (p *WorkerPool) worker(id int) {
 			)
 
 			result := JobResult{
-				JobID: job.GetID(),
+				JobID:   job.GetID(),
+				VideoID: job.GetVideoID(),
+				Phase:   job.GetPhase(),
 			}
 
 			if err := job.Execute(); err != nil {
@@ -85,13 +87,18 @@ func (p *WorkerPool) worker(id int) {
 				p.logger.Error("Worker job failed",
 					zap.Int("worker_id", id),
 					zap.String("job_id", job.GetID()),
+					zap.String("phase", job.GetPhase()),
+					zap.Uint("video_id", job.GetVideoID()),
 					zap.Error(err),
 				)
 			} else {
 				result.Status = JobStatusCompleted
+				result.Data = job
 				p.logger.Debug("Worker job completed",
 					zap.Int("worker_id", id),
 					zap.String("job_id", job.GetID()),
+					zap.String("phase", job.GetPhase()),
+					zap.Uint("video_id", job.GetVideoID()),
 				)
 			}
 

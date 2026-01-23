@@ -1,6 +1,6 @@
 <script setup lang="ts">
-const store = useVideoStore();
 const authStore = useAuthStore();
+const uploadStore = useUploadStore();
 const fileInput = ref<HTMLInputElement | null>(null);
 const isDragging = ref(false);
 const title = ref('');
@@ -41,17 +41,13 @@ const handleFileSelect = (file: File) => {
     }
 };
 
-const upload = async () => {
+const upload = () => {
     if (!selectedFile.value) return;
 
-    try {
-        await store.uploadVideo(selectedFile.value, title.value);
-        selectedFile.value = null;
-        title.value = '';
-        if (fileInput.value) fileInput.value.value = '';
-    } catch (e: unknown) {
-        console.error(e);
-    }
+    uploadStore.addUpload(selectedFile.value, title.value || selectedFile.value.name.replace(/\.[^/.]+$/, ''));
+    selectedFile.value = null;
+    title.value = '';
+    if (fileInput.value) fileInput.value.value = '';
 };
 </script>
 
@@ -101,19 +97,10 @@ const upload = async () => {
 
                 <button
                     @click="upload"
-                    :disabled="store.isLoading"
                     class="bg-lava hover:bg-lava-glow glow-lava w-full rounded-lg px-4 py-2 text-xs
-                        font-semibold text-white transition-all disabled:opacity-50
-                        disabled:shadow-none"
+                        font-semibold text-white transition-all"
                 >
-                    <span v-if="store.isLoading" class="flex items-center justify-center gap-2">
-                        <div
-                            class="h-3 w-3 animate-spin rounded-full border-2 border-white/30
-                                border-t-white"
-                        ></div>
-                        Uploading...
-                    </span>
-                    <span v-else>Upload Video</span>
+                    Upload Video
                 </button>
             </div>
 
@@ -152,8 +139,6 @@ const upload = async () => {
                 </div>
             </div>
 
-            <!-- Error Message -->
-            <ErrorAlert v-if="store.error" :message="store.error" class="mt-3" />
         </div>
     </div>
 </template>
