@@ -38,50 +38,58 @@ const thumbnailUrl = computed(() => {
 <template>
     <NuxtLink
         :to="`/watch/${video.id}`"
-        class="group bg-secondary/50 hover:bg-secondary hover:shadow-neon-green/10
-            hover:border-neon-green/50 relative block overflow-hidden rounded-2xl border
-            border-white/5 backdrop-blur-md transition-all duration-300 hover:shadow-lg"
+        class="group border-border bg-surface hover:border-border-hover hover:bg-elevated relative
+            block overflow-hidden rounded-lg border transition-all duration-200"
     >
-        <div class="relative aspect-video w-full cursor-pointer bg-black/50">
+        <div class="bg-void relative aspect-video w-full">
             <img
                 v-if="thumbnailUrl"
                 :src="thumbnailUrl"
-                class="absolute inset-0 h-full w-full object-cover transition-transform
-                    duration-300 group-hover:scale-105"
+                class="absolute inset-0 h-full w-full object-cover transition-transform duration-300
+                    group-hover:scale-[1.03]"
                 :alt="video.title"
                 loading="lazy"
             />
 
             <div v-else-if="isProcessing" class="absolute inset-0 flex items-center justify-center">
-                <Icon name="heroicons:arrow-path" size="48" class="animate-spin text-gray-600" />
+                <div
+                    class="border-border border-t-lava h-5 w-5 animate-spin rounded-full border-2"
+                ></div>
             </div>
 
             <div
                 v-else
-                class="group-hover:text-neon-green absolute inset-0 flex items-center justify-center
-                    text-gray-600 transition-colors"
+                class="text-dim group-hover:text-lava absolute inset-0 flex items-center
+                    justify-center transition-colors"
             >
-                <Icon name="heroicons:play" size="48" />
+                <Icon name="heroicons:play" size="32" />
             </div>
 
+            <!-- Duration badge -->
             <div
                 v-if="video.duration > 0"
-                class="absolute right-2 bottom-2 rounded bg-black/80 px-1.5 py-0.5 text-xs
-                    font-medium text-white backdrop-blur-sm"
+                class="bg-void/90 absolute right-1.5 bottom-1.5 rounded px-1.5 py-0.5 font-mono
+                    text-[10px] font-medium text-white backdrop-blur-sm"
             >
                 {{ formatDuration(video.duration) }}
             </div>
+
+            <!-- Hover overlay -->
+            <div
+                class="bg-lava/0 group-hover:bg-lava/5 absolute inset-0 transition-colors
+                    duration-200"
+            ></div>
         </div>
 
-        <div class="p-4">
+        <div class="p-3">
             <h3
-                class="group-hover:text-neon-green truncate text-lg font-bold text-white
-                    transition-colors"
+                class="truncate text-xs font-medium text-white/90 transition-colors
+                    group-hover:text-white"
                 :title="video.title"
             >
                 {{ video.title }}
             </h3>
-            <div class="mt-2 flex items-center justify-between text-xs text-gray-400">
+            <div class="text-dim mt-1.5 flex items-center justify-between font-mono text-[10px]">
                 <span>{{ formatSize(video.size) }}</span>
                 <span>{{ formatDate(video.created_at) }}</span>
             </div>

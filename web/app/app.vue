@@ -1,5 +1,5 @@
 <template>
-    <div>
+    <div class="cosmic-bg min-h-screen">
         <AppHeader />
         <NuxtPage />
     </div>

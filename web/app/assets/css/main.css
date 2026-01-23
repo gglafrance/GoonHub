@@ -1,38 +1,106 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+@import 'tailwindcss';
+
 @plugin '@tailwindcss/typography';
 
 @theme {
-    --color-neon-green: #2ECC71;
-    --color-neon-red: #FF4757;
-    --color-primary: #000000;
-    --color-secondary: #0F0F0F;
+    --color-void: #050505;
+    --color-surface: #0a0a0a;
+    --color-panel: #0f0f0f;
+    --color-elevated: #141414;
+    --color-lava: #ff4d4d;
+    --color-lava-glow: #ff6b6b;
+    --color-ember: #ff2d2d;
+    --color-emerald: #10b981;
+    --color-muted: rgba(255, 255, 255, 0.6);
+    --color-dim: rgba(255, 255, 255, 0.35);
+    --color-border: rgba(255, 255, 255, 0.08);
+    --color-border-hover: rgba(255, 255, 255, 0.15);
+    --font-sans: 'Outfit', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
 }
 
 :root {
     color-scheme: dark;
 }
 
-body {
-    background-color: var(--color-primary);
-    color: white;
+* {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
-/* Glassmorphism utilities */
+body {
+    background-color: var(--color-void);
+    color: rgba(255, 255, 255, 0.9);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--color-void);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Glass panel utility */
+@utility glass-panel {
+    background-color: rgba(10, 10, 10, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+}
+
 @utility glass-card {
-    background-color: rgba(15, 15, 15, 0.3);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 1rem;
+    background-color: rgba(15, 15, 15, 0.4);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
 }
 
 @utility backdrop-blur-md {
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+/* Glow utilities */
+@utility glow-lava {
+    box-shadow:
+        0 0 20px rgba(255, 77, 77, 0.15),
+        0 0 40px rgba(255, 77, 77, 0.05);
+}
+
+@utility glow-lava-strong {
+    box-shadow:
+        0 0 20px rgba(255, 77, 77, 0.3),
+        0 0 60px rgba(255, 77, 77, 0.1);
 }
 
 /* Animation utilities */
 @utility animate-spin-slow {
     animation: spin 3s linear infinite;
+}
+
+@utility animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@utility animate-float {
+    animation: float 6s ease-in-out infinite;
 }
 
 @keyframes spin {
@@ -42,4 +110,47 @@ body {
     to {
         transform: rotate(360deg);
     }
+}
+
+@keyframes pulse-glow {
+    0%,
+    100% {
+        opacity: 0.4;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+@keyframes float {
+    0%,
+    100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-6px);
+    }
+}
+
+/* Cosmic background for main content areas */
+@utility cosmic-bg {
+    background-image:
+        radial-gradient(1px 1px at 20% 30%, rgba(255, 255, 255, 0.15) 0%, transparent 100%),
+        radial-gradient(1px 1px at 40% 70%, rgba(255, 255, 255, 0.1) 0%, transparent 100%),
+        radial-gradient(1px 1px at 60% 20%, rgba(255, 255, 255, 0.12) 0%, transparent 100%),
+        radial-gradient(1px 1px at 80% 50%, rgba(255, 255, 255, 0.08) 0%, transparent 100%),
+        radial-gradient(1.5px 1.5px at 10% 80%, rgba(255, 77, 77, 0.1) 0%, transparent 100%),
+        radial-gradient(1px 1px at 90% 10%, rgba(255, 77, 77, 0.08) 0%, transparent 100%),
+        radial-gradient(1px 1px at 50% 50%, rgba(255, 255, 255, 0.06) 0%, transparent 100%),
+        radial-gradient(1px 1px at 30% 90%, rgba(255, 255, 255, 0.08) 0%, transparent 100%),
+        radial-gradient(1px 1px at 70% 40%, rgba(255, 255, 255, 0.05) 0%, transparent 100%),
+        radial-gradient(1px 1px at 85% 75%, rgba(255, 255, 255, 0.07) 0%, transparent 100%);
+    background-color: var(--color-void);
+}
+
+/* Input styling */
+input[type='text'],
+input[type='password'] {
+    font-family: var(--font-sans);
+    font-size: 13px;
 }

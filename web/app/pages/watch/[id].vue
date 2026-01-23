@@ -70,64 +70,65 @@ definePageMeta({
 </script>
 
 <template>
-    <div class="bg-primary min-h-screen">
+    <div class="min-h-screen">
         <!-- Back Navigation Bar -->
         <div
-            class="sticky top-0 z-50 border-b border-white/5 bg-black/80 px-4 py-4 backdrop-blur-md
-                sm:px-6 lg:px-8"
+            class="border-border bg-void/90 sticky top-12 z-40 border-b px-4 py-2.5 backdrop-blur-md
+                sm:px-5"
         >
-            <div class="mx-auto flex max-w-480 items-center justify-between">
+            <div class="mx-auto flex max-w-400 items-center justify-between">
                 <button
-                    class="group flex items-center gap-2 text-gray-400 transition-colors
+                    class="group text-dim flex items-center gap-2 transition-colors
                         hover:text-white"
                     @click="goBack"
                 >
                     <div
-                        class="group-hover:bg-neon-green flex h-8 w-8 items-center justify-center
-                            rounded-full bg-white/5 transition-colors group-hover:text-black"
+                        class="border-border bg-panel group-hover:border-lava/30
+                            group-hover:text-lava flex h-6 w-6 items-center justify-center
+                            rounded-md border transition-all"
                     >
-                        <Icon name="heroicons:arrow-left" size="16" />
+                        <Icon name="heroicons:arrow-left" size="12" />
                     </div>
-                    <span class="font-medium tracking-wide">Back to Library</span>
+                    <span class="text-xs font-medium">Library</span>
                 </button>
 
-                <div v-if="video" class="hidden text-sm font-medium text-gray-400 sm:block">
+                <div v-if="video" class="text-dim hidden truncate text-xs sm:block">
                     {{ video.title }}
                 </div>
             </div>
         </div>
 
-        <div class="mx-auto max-w-480 p-4 sm:px-6 lg:px-8 lg:py-8">
+        <div class="mx-auto max-w-400 p-4 sm:px-5 lg:py-6">
             <!-- Loading State -->
-            <div
-                v-if="isLoading"
-                class="flex h-[70vh] items-center justify-center rounded-3xl bg-white/5"
-            >
-                <div class="flex flex-col items-center gap-4">
+            <div v-if="isLoading" class="flex h-[70vh] items-center justify-center">
+                <div class="flex flex-col items-center gap-3">
                     <div
-                        class="border-t-neon-green h-12 w-12 animate-spin rounded-full border-4
-                            border-white/10"
+                        class="border-border border-t-lava h-6 w-6 animate-spin rounded-full
+                            border-2"
                     ></div>
-                    <span class="animate-pulse text-sm font-medium text-gray-400">
-                        Loading Video...
-                    </span>
+                    <span class="text-dim text-[11px]">Loading...</span>
                 </div>
             </div>
 
             <!-- Error State -->
             <div
                 v-else-if="error || hasProcessingError"
-                class="flex h-[70vh] flex-col items-center justify-center rounded-3xl bg-white/5
-                    text-center"
+                class="flex h-[70vh] flex-col items-center justify-center text-center"
             >
-                <Icon name="heroicons:exclamation-triangle" size="64" class="text-neon-red" />
-                <h2 class="mt-4 text-3xl font-bold text-white">Video Unavailable</h2>
-                <p class="mt-2 text-lg text-gray-400">
+                <div
+                    class="border-lava/20 bg-lava/5 flex h-12 w-12 items-center justify-center
+                        rounded-xl border"
+                >
+                    <Icon name="heroicons:exclamation-triangle" size="24" class="text-lava" />
+                </div>
+                <h2 class="mt-4 text-lg font-semibold text-white">Video Unavailable</h2>
+                <p class="text-dim mt-1 text-xs">
                     {{ error || 'Video processing failed. Please try reprocessing.' }}
                 </p>
                 <button
-                    class="bg-neon-green mt-8 rounded-full px-8 py-3 font-bold text-black
-                        transition-all hover:scale-105 hover:shadow-[0_0_20px_rgba(46,204,113,0.4)]"
+                    class="border-border bg-surface text-muted hover:border-border-hover mt-6
+                        rounded-lg border px-4 py-2 text-xs font-medium transition-all
+                        hover:text-white"
                     @click="goBack"
                 >
                     Return to Library
@@ -135,64 +136,60 @@ definePageMeta({
             </div>
 
             <!-- Video Player & Content -->
-            <div v-else-if="video" class="grid gap-8 xl:grid-cols-[1fr_350px]">
-                <div class="min-w-0 space-y-6">
+            <div v-else-if="video" class="grid gap-5 xl:grid-cols-[1fr_280px]">
+                <div class="min-w-0 space-y-4">
                     <!-- Processing State -->
                     <div
                         v-if="isProcessing"
-                        class="flex aspect-video flex-col items-center justify-center rounded-3xl
-                            bg-white/5 text-center"
+                        class="border-border bg-surface flex aspect-video flex-col items-center
+                            justify-center rounded-xl border text-center"
                     >
-                        <Icon
-                            name="heroicons:arrow-path"
-                            size="64"
-                            class="text-neon-green animate-spin"
-                        />
-                        <h2 class="mt-6 text-2xl font-bold text-white">Processing Video</h2>
-                        <p class="mt-2 text-gray-400">
-                            Optimization in progress. This may take a few minutes.
-                        </p>
+                        <div
+                            class="border-border border-t-lava h-6 w-6 animate-spin rounded-full
+                                border-2"
+                        ></div>
+                        <h2 class="mt-4 text-sm font-semibold text-white">Processing</h2>
+                        <p class="text-dim mt-1 text-xs">Optimization in progress...</p>
                     </div>
 
                     <!-- Player -->
-                    <div v-else class="space-y-6">
+                    <div v-else class="space-y-4">
                         <!-- Player Error Alert -->
                         <Transition
-                            enter-active-class="transition duration-300 ease-out"
-                            enter-from-class="transform -translate-y-4 opacity-0"
+                            enter-active-class="transition duration-200 ease-out"
+                            enter-from-class="transform -translate-y-2 opacity-0"
                             enter-to-class="transform translate-y-0 opacity-100"
-                            leave-active-class="transition duration-200 ease-in"
+                            leave-active-class="transition duration-150 ease-in"
                             leave-from-class="transform translate-y-0 opacity-100"
-                            leave-to-class="transform -translate-y-4 opacity-0"
+                            leave-to-class="transform -translate-y-2 opacity-0"
                         >
                             <div
                                 v-if="playerError"
-                                class="border-neon-red/50 rounded-xl border bg-red-950/30 p-4
-                                    backdrop-blur-md"
+                                class="border-lava/30 bg-lava/5 rounded-lg border px-3 py-2
+                                    backdrop-blur-sm"
                             >
-                                <div class="flex items-center gap-3">
+                                <div class="flex items-center gap-2">
                                     <Icon
                                         name="heroicons:exclamation-triangle"
-                                        size="24"
-                                        class="text-neon-red"
+                                        size="14"
+                                        class="text-lava"
                                     />
                                     <div>
-                                        <h3 class="font-bold text-white">Playback Error</h3>
-                                        <p class="text-sm text-gray-300">
+                                        <span class="text-xs font-medium text-white"
+                                            >Playback Error</span
+                                        >
+                                        <span class="text-dim ml-2 text-[11px]">
                                             {{
                                                 playerError?.message ||
                                                 'Failed to initialize player'
                                             }}
-                                        </p>
+                                        </span>
                                     </div>
                                 </div>
                             </div>
                         </Transition>
 
-                        <div
-                            class="overflow-hidden rounded-2xl bg-black shadow-2xl ring-1
-                                ring-white/10"
-                        >
+                        <div class="border-border bg-void overflow-hidden rounded-xl border">
                             <VideoPlayer
                                 :video-url="streamUrl"
                                 :poster-url="posterUrl"
@@ -201,18 +198,18 @@ definePageMeta({
                             />
                         </div>
 
-                        <!-- Mobile Metadata (shown below player on small screens) -->
+                        <!-- Mobile Metadata -->
                         <div class="block xl:hidden">
-                            <h1 class="text-2xl font-bold text-white sm:text-3xl">
+                            <h1 class="text-sm font-semibold text-white">
                                 {{ video.title }}
                             </h1>
-                            <div class="mt-4 flex flex-wrap gap-4 text-sm text-gray-400">
-                                <span class="flex items-center gap-1.5">
-                                    <Icon name="heroicons:eye" class="text-neon-green" />
+                            <div class="text-dim mt-2 flex flex-wrap gap-3 font-mono text-[11px]">
+                                <span class="flex items-center gap-1">
+                                    <Icon name="heroicons:eye" size="12" class="text-lava" />
                                     {{ video.view_count }} views
                                 </span>
-                                <span class="flex items-center gap-1.5">
-                                    <Icon name="heroicons:calendar" class="text-neon-green" />
+                                <span class="flex items-center gap-1">
+                                    <Icon name="heroicons:calendar" size="12" class="text-lava" />
                                     {{ formatDate(video.created_at) }}
                                 </span>
                             </div>
@@ -222,85 +219,86 @@ definePageMeta({
 
                 <!-- Sidebar Metadata (Desktop) -->
                 <div class="hidden xl:block">
-                    <div class="sticky top-24 space-y-6">
+                    <div class="sticky top-28 space-y-3">
                         <div
-                            class="rounded-3xl border border-white/5 bg-white/5 p-6
-                                backdrop-blur-xl"
+                            class="border-border bg-surface/50 rounded-xl border p-4
+                                backdrop-blur-sm"
                         >
-                            <h1 class="text-2xl leading-tight font-bold text-white">
+                            <h1 class="text-sm leading-snug font-semibold text-white">
                                 {{ video.title }}
                             </h1>
 
-                            <div class="mt-6 space-y-4">
+                            <div class="mt-4 space-y-0">
                                 <div
-                                    class="flex items-center justify-between border-b border-white/5
-                                        pb-4"
+                                    class="border-border flex items-center justify-between border-b
+                                        py-2.5"
                                 >
-                                    <span class="text-gray-400">Duration</span>
-                                    <span class="font-mono font-medium text-white">
+                                    <span class="text-dim text-[11px]">Duration</span>
+                                    <span class="text-muted font-mono text-[11px]">
                                         {{ formatDuration(video.duration) }}
                                     </span>
                                 </div>
 
                                 <div
-                                    class="flex items-center justify-between border-b border-white/5
-                                        pb-4"
+                                    class="border-border flex items-center justify-between border-b
+                                        py-2.5"
                                 >
-                                    <span class="text-gray-400">Size</span>
-                                    <span class="font-mono font-medium text-white">
+                                    <span class="text-dim text-[11px]">Size</span>
+                                    <span class="text-muted font-mono text-[11px]">
                                         {{ formatSize(video.size) }}
                                     </span>
                                 </div>
 
                                 <div
-                                    class="flex items-center justify-between border-b border-white/5
-                                        pb-4"
+                                    class="border-border flex items-center justify-between border-b
+                                        py-2.5"
                                 >
-                                    <span class="text-gray-400">Views</span>
-                                    <span class="font-mono font-medium text-white">
+                                    <span class="text-dim text-[11px]">Views</span>
+                                    <span class="text-muted font-mono text-[11px]">
                                         {{ video.view_count }}
                                     </span>
                                 </div>
 
-                                <div class="flex items-center justify-between pb-2">
-                                    <span class="text-gray-400">Added</span>
-                                    <span class="font-mono font-medium text-white">
+                                <div class="flex items-center justify-between py-2.5">
+                                    <span class="text-dim text-[11px]">Added</span>
+                                    <span class="text-muted font-mono text-[11px]">
                                         {{ formatDate(video.created_at) }}
                                     </span>
                                 </div>
                             </div>
 
-                            <div class="mt-8 border-t border-white/5 pt-6">
-                                <h3
-                                    class="text-sm font-medium tracking-wider text-gray-500
+                            <div class="border-border mt-4 border-t pt-3">
+                                <span
+                                    class="text-dim text-[10px] font-medium tracking-wider
                                         uppercase"
+                                    >File</span
                                 >
-                                    File Details
-                                </h3>
-                                <p class="mt-2 font-mono text-xs break-all text-gray-400">
+                                <p class="text-dim/70 mt-1 font-mono text-[10px] break-all">
                                     {{ video.original_filename }}
                                 </p>
                             </div>
                         </div>
 
-                        <!-- Actions Card (Placeholder for future features) -->
+                        <!-- Actions -->
                         <div
-                            class="rounded-3xl border border-white/5 bg-white/5 p-6
-                                backdrop-blur-xl"
+                            class="border-border bg-surface/50 rounded-xl border p-3
+                                backdrop-blur-sm"
                         >
                             <div class="flex gap-2">
                                 <button
-                                    class="flex-1 rounded-xl bg-white/10 py-3 text-sm font-bold
-                                        text-white transition-colors hover:bg-white/20"
+                                    class="border-border bg-panel text-dim hover:border-border-hover
+                                        flex-1 rounded-lg border py-2 text-[11px] font-medium
+                                        transition-all hover:text-white"
                                 >
-                                    <Icon name="heroicons:share" class="mr-2" />
+                                    <Icon name="heroicons:share" size="12" class="mr-1" />
                                     Share
                                 </button>
                                 <button
-                                    class="flex-1 rounded-xl bg-white/10 py-3 text-sm font-bold
-                                        text-white transition-colors hover:bg-white/20"
+                                    class="border-border bg-panel text-dim hover:border-lava/30
+                                        hover:text-lava flex-1 rounded-lg border py-2 text-[11px]
+                                        font-medium transition-all"
                                 >
-                                    <Icon name="heroicons:heart" class="mr-2" />
+                                    <Icon name="heroicons:heart" size="12" class="mr-1" />
                                     Favorite
                                 </button>
                             </div>

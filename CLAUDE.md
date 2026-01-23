@@ -108,13 +108,16 @@ Config loaded via Viper: YAML file path set by `GOONHUB_CONFIG` env var. All con
 
 ### Frontend Aesthetics
 
-The UI follows a **Cinematic, Immersive Media Aesthetic**:
+The UI follows a **Deep Space SaaS Aesthetic**—sophisticated, dark, and highly technical:
 
-- OLED-friendly dark mode: absolute black (`#000000`) or deep charcoal (`#0F0F0F`) backgrounds
-- Neon accents: Electric Green (`#2ECC71`) for actions/progress, Hot Red (`#FF4757`) for primary CTAs
-- Glassmorphism: `backdrop-filter: blur()` for floating elements (modals, toasts, cards)
-- Generous border-radius (12-24px), spacious layout, media-dominant hierarchy
-- Avoid: low-contrast grays, sharp edges, heavy borders, generic Bootstrap blue
+- **Color & Theme:** Strict **Deep Dark Mode** with deep midnight/void black backgrounds (`#050505` to `#0F0F0F`). Use subtle white borders (10-15% opacity) to define panels rather than shadows.
+    - **Accents:** Sharp, glowing **Lava Red/Coral** (`#FF4D4D`) for primary highlights, active tabs, and gradients
+    - **Status Colors:** Vibrant emerald green for toggle switches and "active" states
+- **Layout & Structure:** Dense, information-rich layouts with clear hierarchy. Floating elements use backdrop-filter: blur() with low opacity backgrounds to create depth
+- **Typography:** Technical, geometric sans-serif (Inter, Geist, SF Pro). High hierarchy: bright white headers, muted grey (60%) secondary text. Relatively small font sizes (12-14px) for information density
+- **Interaction:** Immediate, subtle hover effects (lighten or 1px border glow). Snappy toggle transitions. Pill-shaped or rounded rectangle inputs with subtle inner glows
+- **Texture & Depth:** Use borders and subtle gradients to separate layers. Input fields and cards should feel crisp and defined against the deep background
+- Avoid: Light themes, high-brightness backgrounds, purple/blue AI gradients (stick to Red/Black/White palette), large chunky padding, flat design without depth
 
 ### Prohibited
 

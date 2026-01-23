@@ -36,10 +36,11 @@ const vttUrl = computed(() => {
 
 function parseVttTime(timeStr: string): number {
     const parts = timeStr.trim().split(':');
-    const hours = parseInt(parts[0]);
-    const minutes = parseInt(parts[1]);
-    const secParts = parts[2].split('.');
-    const seconds = parseInt(secParts[0]);
+    if (parts.length < 3) return 0;
+    const hours = parseInt(parts[0] || '0');
+    const minutes = parseInt(parts[1] || '0');
+    const secParts = (parts[2] || '0').split('.');
+    const seconds = parseInt(secParts[0] || '0');
     const millis = parseInt(secParts[1] || '0');
     return hours * 3600 + minutes * 60 + seconds + millis / 1000;
 }
@@ -54,8 +55,10 @@ async function loadVttCues(url: string) {
         for (const block of blocks) {
             const lines = block.trim().split('\n');
             for (let i = 0; i < lines.length; i++) {
-                if (lines[i].includes('-->')) {
-                    const [startStr, endStr] = lines[i].split('-->');
+                const line = lines[i];
+                if (line && line.includes('-->')) {
+                    const [startStr, endStr] = line.split('-->');
+                    if (!startStr || !endStr) continue;
                     const start = parseVttTime(startStr);
                     const end = parseVttTime(endStr);
                     const urlLine = lines[i + 1]?.trim();
@@ -65,15 +68,18 @@ async function loadVttCues(url: string) {
                     if (hashIndex === -1) continue;
 
                     const spriteUrl = urlLine.substring(0, hashIndex);
-                    const coords = urlLine.substring(hashIndex + 6).split(',').map(Number);
+                    const coords = urlLine
+                        .substring(hashIndex + 6)
+                        .split(',')
+                        .map(Number);
                     cues.push({
                         start,
                         end,
                         url: spriteUrl,
-                        x: coords[0],
-                        y: coords[1],
-                        w: coords[2],
-                        h: coords[3],
+                        x: coords[0] ?? 0,
+                        y: coords[1] ?? 0,
+                        w: coords[2] ?? 0,
+                        h: coords[3] ?? 0,
                     });
                 }
             }
@@ -235,79 +241,120 @@ onBeforeUnmount(() => {
     width: 100%;
     aspect-ratio: 16/9;
     height: 100%;
-    background: #000;
-    border-radius: 16px;
+    background: #050505;
     overflow: hidden;
-    box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.5);
 }
 
-/* Override Video.js default theme to match GoonHub aesthetic */
 :deep(.video-js) {
-    font-family: 'Inter', system-ui, sans-serif;
-    --primary-color: #2ecc71;
+    font-family: 'Outfit', system-ui, sans-serif;
+    --primary-color: #ff4d4d;
     --text-color: #ffffff;
 }
 
 :deep(.vjs-big-play-button) {
-    background-color: rgba(46, 204, 113, 0.8);
+    background-color: rgba(255, 77, 77, 0.9);
     border: none;
     border-radius: 50%;
-    width: 80px;
-    height: 80px;
-    line-height: 80px;
-    margin-left: -40px;
-    margin-top: -40px;
+    width: 56px;
+    height: 56px;
+    line-height: 56px;
+    margin-left: -28px;
+    margin-top: -28px;
+    transition: all 0.2s ease;
+    box-shadow: 0 0 30px rgba(255, 77, 77, 0.3);
 }
 
 :deep(.vjs-big-play-button:hover) {
-    background-color: #2ecc71;
+    background-color: #ff6b6b;
+    transform: scale(1.1);
+    box-shadow: 0 0 40px rgba(255, 77, 77, 0.5);
 }
 
 :deep(.vjs-control-bar) {
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0) 100%);
-    backdrop-filter: blur(10px);
+    background: linear-gradient(to top, rgba(5, 5, 5, 0.95) 0%, rgba(5, 5, 5, 0) 100%);
+    backdrop-filter: blur(8px);
+    height: 40px;
+    font-size: 11px;
 }
 
 :deep(.vjs-progress-control) {
-    margin-right: 10px;
+    height: 100%;
+}
+
+:deep(.vjs-progress-control .vjs-progress-holder) {
+    margin: 0;
+    height: 3px;
+    padding-top: 18px;
+    padding-bottom: 18px;
+    background-clip: content-box;
+    border-radius: 2px;
+}
+
+:deep(.vjs-progress-control .vjs-play-progress),
+:deep(.vjs-progress-control .vjs-load-progress) {
+    top: 18px;
+    height: 3px;
+    border-radius: 2px;
+}
+
+:deep(.vjs-progress-control .vjs-play-progress::before) {
+    top: -4px;
+    font-size: 10px;
+    color: #ff4d4d;
 }
 
 :deep(.vjs-play-progress) {
-    background-color: #2ecc71;
+    background-color: #ff4d4d;
+    box-shadow: 0 0 8px rgba(255, 77, 77, 0.5);
 }
 
 :deep(.vjs-slider) {
-    background-color: rgba(255, 255, 255, 0.2);
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
 }
 
 :deep(.vjs-load-progress) {
-    background: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.15);
 }
 
 :deep(.vjs-control) {
-    color: #ffffff;
+    color: rgba(255, 255, 255, 0.7);
 }
 
 :deep(.vjs-control:hover) {
-    color: #2ecc71;
+    color: #ff4d4d;
+}
+
+:deep(.vjs-time-control) {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    line-height: 40px;
+    padding: 0 4px;
 }
 
 :deep(.vjs-playback-rate-value) {
-    font-size: 1em;
-    line-height: 3.5em;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    line-height: 40px;
+}
+
+:deep(.vjs-volume-panel) {
+    font-size: 11px;
 }
 
 :deep(.vjs-thumb-preview) {
     position: absolute;
     bottom: 100%;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     pointer-events: none;
-    border: 2px solid rgba(46, 204, 113, 0.8);
+    border: 1px solid rgba(255, 77, 77, 0.5);
     border-radius: 4px;
     overflow: hidden;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    box-shadow:
+        0 4px 20px rgba(0, 0, 0, 0.8),
+        0 0 15px rgba(255, 77, 77, 0.15);
     z-index: 10;
-    background: #000;
+    background: #050505;
 }
 
 :deep(.vjs-thumb-preview img) {

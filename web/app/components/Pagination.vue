@@ -19,25 +19,29 @@ const setPage = (page: number) => {
 </script>
 
 <template>
-    <div v-if="totalPages > 1" class="flex items-center justify-center space-x-2 py-8">
+    <div v-if="totalPages > 1" class="flex items-center justify-center gap-2 py-6">
         <button
             @click="setPage(modelValue - 1)"
             :disabled="modelValue === 1"
-            class="rounded-lg bg-white/5 px-4 py-2 text-sm font-medium text-white backdrop-blur-md
-                transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+            class="border-border bg-surface text-muted hover:border-border-hover rounded-md border
+                px-3 py-1.5 text-[11px] font-medium transition-all hover:text-white
+                disabled:cursor-not-allowed disabled:opacity-30"
         >
-            Previous
+            Prev
         </button>
 
-        <span class="px-4 text-sm text-gray-400">
-            Page <span class="text-neon-green font-bold">{{ modelValue }}</span> of {{ totalPages }}
+        <span class="text-dim px-3 font-mono text-[11px]">
+            <span class="text-lava font-semibold">{{ modelValue }}</span>
+            <span class="mx-1">/</span>
+            {{ totalPages }}
         </span>
 
         <button
             @click="setPage(modelValue + 1)"
             :disabled="modelValue === totalPages"
-            class="rounded-lg bg-white/5 px-4 py-2 text-sm font-medium text-white backdrop-blur-md
-                transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+            class="border-border bg-surface text-muted hover:border-border-hover rounded-md border
+                px-3 py-1.5 text-[11px] font-medium transition-all hover:text-white
+                disabled:cursor-not-allowed disabled:opacity-30"
         >
             Next
         </button>

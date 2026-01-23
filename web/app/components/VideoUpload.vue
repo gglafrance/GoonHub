@@ -23,21 +23,22 @@ const handleDrop = (e: DragEvent) => {
     e.preventDefault();
     isDragging.value = false;
 
-    if (e.dataTransfer?.files.length) {
-        handleFileSelect(e.dataTransfer.files[0]);
+    const file = e.dataTransfer?.files[0];
+    if (file) {
+        handleFileSelect(file);
     }
 };
 
 const onFileChange = (e: Event) => {
     const target = e.target as HTMLInputElement;
-    if (target.files?.length) {
-        handleFileSelect(target.files[0]);
+    const file = target.files?.[0];
+    if (file) {
+        handleFileSelect(file);
     }
 };
 
 const handleFileSelect = (file: File) => {
     selectedFile.value = file;
-    // Auto-populate title if empty
     if (!title.value) {
         title.value = file.name.replace(/\.[^/.]+$/, '');
     }
@@ -48,7 +49,6 @@ const upload = async () => {
 
     try {
         await store.uploadVideo(selectedFile.value, title.value);
-        // Reset form
         selectedFile.value = null;
         title.value = '';
         if (fileInput.value) fileInput.value.value = '';
@@ -59,49 +59,64 @@ const upload = async () => {
 </script>
 
 <template>
-    <div class="bg-secondary/30 mb-8 rounded-2xl border border-white/5 p-6 backdrop-blur-md">
-        <div v-if="!authStore.user || !authStore.token" class="py-8 text-center">
-            <Icon name="heroicons:lock-closed" size="48" class="mx-auto mb-4 text-gray-500" />
-            <h3 class="mb-2 text-lg font-medium text-white">Authentication Required</h3>
-            <p class="text-sm text-gray-400">Sign in to upload videos</p>
+    <div class="border-border bg-surface/50 rounded-xl border p-4 backdrop-blur-sm">
+        <div v-if="!authStore.user || !authStore.token" class="py-6 text-center">
+            <Icon name="heroicons:lock-closed" size="24" class="text-dim mx-auto mb-2" />
+            <h3 class="text-muted text-xs font-medium">Authentication Required</h3>
+            <p class="text-dim mt-0.5 text-[11px]">Sign in to upload videos</p>
         </div>
 
         <div v-else>
-            <h2 class="mb-4 text-xl font-bold text-white">Upload Video</h2>
+            <h2 class="text-muted mb-3 text-xs font-semibold tracking-wider uppercase">Upload</h2>
 
             <!-- Upload Form -->
-            <div v-if="selectedFile" class="space-y-4">
-                <div class="flex items-center gap-4 rounded-lg bg-black/20 p-4">
-                    <div class="flex-1 truncate text-gray-300">
+            <div v-if="selectedFile" class="space-y-3">
+                <div
+                    class="border-border bg-panel flex items-center gap-3 rounded-lg border px-3
+                        py-2"
+                >
+                    <Icon name="heroicons:film" size="16" class="text-lava shrink-0" />
+                    <div class="text-muted flex-1 truncate text-xs">
                         {{ selectedFile.name }}
                     </div>
                     <button
                         @click="selectedFile = null"
-                        class="text-neon-red hover:text-neon-red/80"
+                        class="text-dim hover:text-lava transition-colors"
                     >
-                        Cancel
+                        <Icon name="heroicons:x-mark" size="14" />
                     </button>
                 </div>
 
                 <div>
-                    <label class="mb-1 block text-sm text-gray-400">Title</label>
+                    <label
+                        class="text-dim mb-1 block text-[11px] font-medium tracking-wider uppercase"
+                        >Title</label
+                    >
                     <input
                         v-model="title"
                         type="text"
-                        class="focus:border-neon-green/50 focus:ring-neon-green/50 w-full rounded-lg
-                            border border-white/10 bg-black/50 px-4 py-2 text-white focus:ring-1
-                            focus:outline-none"
-                        placeholder="Enter video title"
+                        class="border-border bg-void/80 placeholder-dim/50 focus:border-lava/40
+                            focus:ring-lava/20 w-full rounded-lg border px-3 py-2 text-xs text-white
+                            transition-all focus:ring-1 focus:outline-none"
+                        placeholder="Video title"
                     />
                 </div>
 
                 <button
                     @click="upload"
                     :disabled="store.isLoading"
-                    class="bg-neon-green hover:bg-neon-green/90 w-full rounded-lg px-4 py-2
-                        font-bold text-black transition disabled:opacity-50"
+                    class="bg-lava hover:bg-lava-glow glow-lava w-full rounded-lg px-4 py-2 text-xs
+                        font-semibold text-white transition-all disabled:opacity-50
+                        disabled:shadow-none"
                 >
-                    {{ store.isLoading ? 'Uploading...' : 'Upload Video' }}
+                    <span v-if="store.isLoading" class="flex items-center justify-center gap-2">
+                        <div
+                            class="h-3 w-3 animate-spin rounded-full border-2 border-white/30
+                                border-t-white"
+                        ></div>
+                        Uploading...
+                    </span>
+                    <span v-else>Upload Video</span>
                 </button>
             </div>
 
@@ -113,11 +128,11 @@ const upload = async () => {
                 @drop="handleDrop"
                 @click="fileInput?.click()"
                 :class="[
-                    `cursor-pointer rounded-xl border-2 border-dashed p-10 text-center
-                    transition-all duration-300`,
+                    `cursor-pointer rounded-lg border border-dashed p-6 text-center transition-all
+                    duration-200`,
                     isDragging
-                        ? 'border-neon-green bg-neon-green/5'
-                        : 'border-white/10 hover:border-white/20 hover:bg-white/5',
+                        ? 'border-lava/50 bg-lava/5'
+                        : 'border-border hover:border-border-hover hover:bg-elevated/50',
                 ]"
             >
                 <input
@@ -128,19 +143,22 @@ const upload = async () => {
                     @change="onFileChange"
                 />
 
-                <div class="flex flex-col items-center gap-3">
-                    <Icon name="heroicons:arrow-up-tray" size="40" class="text-gray-400" />
-                    <div class="text-lg font-medium text-white">
-                        Drop video here or click to upload
+                <div class="flex flex-col items-center gap-2">
+                    <div
+                        class="border-border bg-panel flex h-8 w-8 items-center justify-center
+                            rounded-lg border"
+                    >
+                        <Icon name="heroicons:arrow-up-tray" size="16" class="text-dim" />
                     </div>
-                    <div class="text-sm text-gray-500">MP4, MKV, AVI, WEBM</div>
+                    <div class="text-muted text-xs font-medium">Drop video or click to upload</div>
+                    <div class="text-dim font-mono text-[10px]">MP4, MKV, AVI, WEBM</div>
                 </div>
             </div>
 
             <!-- Error Message -->
             <div
                 v-if="store.error"
-                class="bg-neon-red/10 text-neon-red mt-4 rounded-lg p-3 text-sm"
+                class="border-lava/20 bg-lava/5 text-lava mt-3 rounded-lg border px-3 py-2 text-xs"
             >
                 {{ store.error }}
             </div>
