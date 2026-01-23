@@ -58,6 +58,10 @@ func (s *AuthService) Login(username, password string) (string, *data.User, erro
 		return "", nil, fmt.Errorf("failed to generate token")
 	}
 
+	if err := s.repo.UpdateLastLogin(user.ID); err != nil {
+		s.logger.Warn("Failed to update last login time", zap.Uint("user_id", user.ID), zap.Error(err))
+	}
+
 	s.logger.Info("User logged in", zap.String("username", username), zap.Uint("user_id", user.ID))
 	return token, user, nil
 }

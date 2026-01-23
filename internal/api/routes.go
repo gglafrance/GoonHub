@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, authService *core.AuthService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -30,11 +30,11 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 
 				videos := protected.Group("/videos")
 				{
-					videos.POST("", videoHandler.UploadVideo)
-					videos.GET("", videoHandler.ListVideos)
-					videos.GET("/:id", videoHandler.GetVideo)
-					videos.GET("/:id/reprocess", videoHandler.ReprocessVideo)
-					videos.DELETE("/:id", videoHandler.DeleteVideo)
+					videos.POST("", middleware.RequirePermission(rbacService, "videos:upload"), videoHandler.UploadVideo)
+					videos.GET("", middleware.RequirePermission(rbacService, "videos:view"), videoHandler.ListVideos)
+					videos.GET("/:id", middleware.RequirePermission(rbacService, "videos:view"), videoHandler.GetVideo)
+					videos.GET("/:id/reprocess", middleware.RequirePermission(rbacService, "videos:reprocess"), videoHandler.ReprocessVideo)
+					videos.DELETE("/:id", middleware.RequirePermission(rbacService, "videos:delete"), videoHandler.DeleteVideo)
 				}
 
 				settings := protected.Group("/settings")
@@ -44,6 +44,19 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					settings.PUT("/app", settingsHandler.UpdateAppSettings)
 					settings.PUT("/password", settingsHandler.ChangePassword)
 					settings.PUT("/username", settingsHandler.ChangeUsername)
+				}
+
+				admin := protected.Group("/admin")
+				admin.Use(middleware.RequireRole("admin"))
+				{
+					admin.GET("/users", adminHandler.ListUsers)
+					admin.POST("/users", adminHandler.CreateUser)
+					admin.PUT("/users/:id/role", adminHandler.UpdateUserRole)
+					admin.PUT("/users/:id/password", adminHandler.ResetUserPassword)
+					admin.DELETE("/users/:id", adminHandler.DeleteUser)
+					admin.GET("/roles", adminHandler.ListRoles)
+					admin.GET("/permissions", adminHandler.ListPermissions)
+					admin.PUT("/roles/:id/permissions", adminHandler.SyncRolePermissions)
 				}
 			}
 		}

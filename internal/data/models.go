@@ -7,12 +7,35 @@ import (
 )
 
 type User struct {
-	ID        uint      `gorm:"primarykey" json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Username  string    `gorm:"uniqueIndex;not null" json:"username"`
-	Password  string    `gorm:"not null" json:"-"`
-	Role      string    `gorm:"not null;default:'user'" json:"role"`
+	ID          uint       `gorm:"primarykey" json:"id"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	Username    string     `gorm:"uniqueIndex;not null" json:"username"`
+	Password    string     `gorm:"not null" json:"-"`
+	Role        string     `gorm:"not null;default:'user'" json:"role"`
+	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
+}
+
+type Role struct {
+	ID          uint         `gorm:"primarykey" json:"id"`
+	CreatedAt   time.Time    `json:"created_at"`
+	UpdatedAt   time.Time    `json:"updated_at"`
+	Name        string       `gorm:"uniqueIndex;not null;size:50" json:"name"`
+	Description string       `gorm:"size:255" json:"description"`
+	Permissions []Permission `gorm:"many2many:role_permissions" json:"permissions,omitempty"`
+}
+
+type Permission struct {
+	ID          uint      `gorm:"primarykey" json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	Name        string    `gorm:"uniqueIndex;not null;size:100" json:"name"`
+	Description string    `gorm:"size:255" json:"description"`
+}
+
+type RolePermission struct {
+	ID           uint `gorm:"primarykey"`
+	RoleID       uint `gorm:"not null"`
+	PermissionID uint `gorm:"not null"`
 }
 
 type RevokedToken struct {

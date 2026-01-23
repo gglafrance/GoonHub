@@ -13,6 +13,10 @@ type UserRepository interface {
 	Exists(username string) (bool, error)
 	UpdatePassword(userID uint, hashedPassword string) error
 	UpdateUsername(userID uint, newUsername string) error
+	List(page, limit int) ([]User, int64, error)
+	UpdateRole(userID uint, role string) error
+	UpdateLastLogin(userID uint) error
+	Delete(userID uint) error
 }
 
 type UserSettingsRepository interface {
@@ -157,6 +161,35 @@ func (r *UserRepositoryImpl) UpdatePassword(userID uint, hashedPassword string) 
 
 func (r *UserRepositoryImpl) UpdateUsername(userID uint, newUsername string) error {
 	return r.DB.Model(&User{}).Where("id = ?", userID).Update("username", newUsername).Error
+}
+
+func (r *UserRepositoryImpl) List(page, limit int) ([]User, int64, error) {
+	var users []User
+	var total int64
+
+	offset := (page - 1) * limit
+
+	if err := r.DB.Model(&User{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if err := r.DB.Limit(limit).Offset(offset).Order("created_at desc").Find(&users).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return users, total, nil
+}
+
+func (r *UserRepositoryImpl) UpdateRole(userID uint, role string) error {
+	return r.DB.Model(&User{}).Where("id = ?", userID).Update("role", role).Error
+}
+
+func (r *UserRepositoryImpl) UpdateLastLogin(userID uint) error {
+	return r.DB.Model(&User{}).Where("id = ?", userID).Update("last_login_at", time.Now()).Error
+}
+
+func (r *UserRepositoryImpl) Delete(userID uint) error {
+	return r.DB.Where("id = ?", userID).Delete(&User{}).Error
 }
 
 type UserSettingsRepositoryImpl struct {

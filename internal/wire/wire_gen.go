@@ -49,8 +49,13 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	userSettingsRepository := provideUserSettingsRepository(db)
 	settingsService := provideSettingsService(userSettingsRepository, userRepository, logger)
 	settingsHandler := provideSettingsHandler(settingsService)
+	roleRepository := provideRoleRepository(db)
+	permissionRepository := providePermissionRepository(db)
+	rbacService := provideRBACService(roleRepository, permissionRepository, logger)
+	adminService := provideAdminService(userRepository, roleRepository, rbacService, logger)
+	adminHandler := provideAdminHandler(adminService, rbacService)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, authService, ipRateLimiter)
+	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, authService, rbacService, ipRateLimiter)
 	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService)
 	return serverServer, nil
 }
@@ -111,8 +116,32 @@ func provideSettingsHandler(settingsService *core.SettingsService) *handler.Sett
 	return handler.NewSettingsHandler(settingsService)
 }
 
-func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, authService *core.AuthService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
-	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, authService, rateLimiter)
+func provideRoleRepository(db *gorm.DB) data.RoleRepository {
+	return data.NewRoleRepository(db)
+}
+
+func providePermissionRepository(db *gorm.DB) data.PermissionRepository {
+	return data.NewPermissionRepository(db)
+}
+
+func provideRBACService(roleRepo data.RoleRepository, permRepo data.PermissionRepository, logger *logging.Logger) *core.RBACService {
+	svc, err := core.NewRBACService(roleRepo, permRepo, logger.Logger)
+	if err != nil {
+		panic(err)
+	}
+	return svc
+}
+
+func provideAdminService(userRepo data.UserRepository, roleRepo data.RoleRepository, rbac *core.RBACService, logger *logging.Logger) *core.AdminService {
+	return core.NewAdminService(userRepo, roleRepo, rbac, logger.Logger)
+}
+
+func provideAdminHandler(adminService *core.AdminService, rbacService *core.RBACService) *handler.AdminHandler {
+	return handler.NewAdminHandler(adminService, rbacService)
+}
+
+func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
+	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, authService, rbacService, rateLimiter)
 }
 
 func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService) *server.Server {
