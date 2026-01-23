@@ -130,6 +130,16 @@ Config loaded via Viper: YAML file path set by `GOONHUB_CONFIG` env var. All con
 - Use Worker Pool pattern for concurrency (no unbounded goroutines)
 - All API responses are JSON with `snake_case` keys; Go structs use PascalCase
 
+### Vue/Nuxt Conventions
+
+- **Component decomposition:** When a page exceeds ~150 lines, extract logical sections into sub-components under `components/<page-name>/`. Nuxt auto-imports them as `<PageNameComponent />` (e.g., `components/settings/Account.vue` becomes `<SettingsAccount />`).
+- **Self-sufficient components:** Each sub-component manages its own state via stores and composables. Parent pages are thin orchestrators (tab state, layout, conditional rendering) that pass no props to tab-level children.
+- **Composables for shared patterns:** Extract repeated ref+logic patterns into `composables/use*.ts`. Nuxt auto-imports them. Example: `useSettingsMessage()` for message/error state.
+- **Modal pattern:** Modals receive `visible` + entity props and emit `close` + success events (`created`, `updated`, `deleted`). Modals own their form/loading state and display errors internally. Always wrap with `<Teleport to="body">`.
+- **No manual imports for auto-imported APIs:** Never import `ref`, `computed`, `watch`, `onMounted` from Vue, or stores/composables — Nuxt auto-imports them. Only use explicit `import type` for TypeScript types from `~/types/`.
+- **Data loading with `v-if` tabs:** Components rendered with `v-if` mount fresh each time the tab activates — use `onMounted` to load data (no watcher needed on the parent).
+- **Watchers for store sync:** When form fields mirror store state, use `watch(() => store.state, syncFn)` + `onMounted(syncFn)` to keep local refs in sync.
+
 ### Frontend Aesthetics
 
 The UI follows a **Deep Space SaaS Aesthetic**—sophisticated, dark, and highly technical:
