@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import type { User } from '~/types/auth';
+import type { User, AuthResponse, ErrorResponse } from '~/types/auth';
 
 export const useAuthStore = defineStore(
     'auth',
@@ -9,34 +9,69 @@ export const useAuthStore = defineStore(
         const isLoading = ref(false);
         const error = ref<string | null>(null);
 
-        const setUser = (userData: User | null) => {
-            user.value = userData;
+        const isAuthenticated = computed(() => !!token.value && !!user.value);
+
+        const login = async (username: string, password: string): Promise<AuthResponse> => {
+            isLoading.value = true;
+            error.value = null;
+
+            try {
+                const response = await fetch('/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password }),
+                });
+
+                if (!response.ok) {
+                    const err: ErrorResponse = await response.json();
+                    throw new Error(err.error || 'Login failed');
+                }
+
+                const data: AuthResponse = await response.json();
+                token.value = data.token;
+                user.value = data.user;
+                return data;
+            } finally {
+                isLoading.value = false;
+            }
         };
 
-        const setToken = (authToken: string) => {
-            token.value = authToken;
-        };
+        const logout = async () => {
+            try {
+                if (token.value) {
+                    await fetch('/api/v1/auth/logout', {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${token.value}` },
+                    });
+                }
+            } catch (e: unknown) {
+                console.error('Logout API call failed:', e);
+            }
 
-        const clearUser = () => {
+            token.value = null;
             user.value = null;
-            token.value = null;
             error.value = null;
+            navigateTo('/login');
         };
 
-        const clearToken = () => {
-            token.value = null;
-        };
+        const fetchCurrentUser = async (): Promise<User | null> => {
+            if (!token.value) return null;
 
-        const setLoading = (loading: boolean) => {
-            isLoading.value = loading;
-        };
+            const response = await fetch('/api/v1/auth/me', {
+                headers: { Authorization: `Bearer ${token.value}` },
+            });
 
-        const setError = (errorMessage: string | null) => {
-            error.value = errorMessage;
-        };
+            if (!response.ok) {
+                if (response.status === 401) {
+                    token.value = null;
+                    user.value = null;
+                }
+                throw new Error('Failed to fetch current user');
+            }
 
-        const clearError = () => {
-            error.value = null;
+            const userData: User = await response.json();
+            user.value = userData;
+            return userData;
         };
 
         return {
@@ -44,13 +79,10 @@ export const useAuthStore = defineStore(
             token,
             isLoading,
             error,
-            setUser,
-            setToken,
-            clearUser,
-            clearToken,
-            setLoading,
-            setError,
-            clearError,
+            isAuthenticated,
+            login,
+            logout,
+            fetchCurrentUser,
         };
     },
     {
@@ -73,10 +105,3 @@ export const useAuthStore = defineStore(
         },
     },
 );
-
-export interface AuthStoreState {
-    user: User | null;
-    token: string | null;
-    isLoading: boolean;
-    error: string | null;
-}

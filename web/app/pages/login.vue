@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { useAuth } from '~/composables/useAuth';
 import { useAuthStore } from '~/stores/auth';
 
-const authComposable = useAuth();
 const authStore = useAuthStore();
 
 const username = ref('');
@@ -17,18 +15,13 @@ const handleLogin = async () => {
     error.value = '';
 
     try {
-        authStore.setLoading(true);
-        authStore.clearError();
-
-        const data = await authComposable.login(username.value, password.value);
-
+        await authStore.login(username.value, password.value);
         const redirect = route.query.redirect as string;
         navigateTo(redirect || '/');
-    } catch (e: any) {
-        error.value = e.message || 'Invalid credentials';
+    } catch (e: unknown) {
+        error.value = e instanceof Error ? e.message : 'Invalid credentials';
     } finally {
         isLoading.value = false;
-        authStore.setLoading(false);
     }
 };
 

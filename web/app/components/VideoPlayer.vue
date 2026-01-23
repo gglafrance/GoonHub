@@ -2,16 +2,10 @@
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import type { Video } from '~/types/video';
+import { useVttParser } from '~/composables/useVttParser';
+import { useThumbnailPreview } from '~/composables/useThumbnailPreview';
 
-interface VttCue {
-    start: number;
-    end: number;
-    url: string;
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-}
+type Player = ReturnType<typeof videojs>;
 
 const props = defineProps<{
     videoUrl: string;
@@ -23,135 +17,18 @@ const props = defineProps<{
 const emit = defineEmits<{
     play: [];
     pause: [];
-    error: [error: any];
+    error: [error: unknown];
 }>();
 
 const videoElement = ref<HTMLVideoElement>();
-const player = ref<any>(null);
-const vttCues = ref<VttCue[]>([]);
+const player = ref<Player | null>(null);
+const { vttCues, loadVttCues } = useVttParser();
+const { setup: setupThumbnailPreview } = useThumbnailPreview(player, vttCues);
+
 const vttUrl = computed(() => {
     if (!props.video?.vtt_path) return null;
     return `/vtt/${props.video.id}`;
 });
-
-function parseVttTime(timeStr: string): number {
-    const parts = timeStr.trim().split(':');
-    if (parts.length < 3) return 0;
-    const hours = parseInt(parts[0] || '0');
-    const minutes = parseInt(parts[1] || '0');
-    const secParts = (parts[2] || '0').split('.');
-    const seconds = parseInt(secParts[0] || '0');
-    const millis = parseInt(secParts[1] || '0');
-    return hours * 3600 + minutes * 60 + seconds + millis / 1000;
-}
-
-async function loadVttCues(url: string) {
-    try {
-        const response = await fetch(url);
-        const text = await response.text();
-        const cues: VttCue[] = [];
-
-        const blocks = text.split('\n\n');
-        for (const block of blocks) {
-            const lines = block.trim().split('\n');
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                if (line && line.includes('-->')) {
-                    const [startStr, endStr] = line.split('-->');
-                    if (!startStr || !endStr) continue;
-                    const start = parseVttTime(startStr);
-                    const end = parseVttTime(endStr);
-                    const urlLine = lines[i + 1]?.trim();
-                    if (!urlLine) continue;
-
-                    const hashIndex = urlLine.indexOf('#xywh=');
-                    if (hashIndex === -1) continue;
-
-                    const spriteUrl = urlLine.substring(0, hashIndex);
-                    const coords = urlLine
-                        .substring(hashIndex + 6)
-                        .split(',')
-                        .map(Number);
-                    cues.push({
-                        start,
-                        end,
-                        url: spriteUrl,
-                        x: coords[0] ?? 0,
-                        y: coords[1] ?? 0,
-                        w: coords[2] ?? 0,
-                        h: coords[3] ?? 0,
-                    });
-                }
-            }
-        }
-        vttCues.value = cues;
-    } catch (e) {
-        console.error('Failed to load VTT cues:', e);
-    }
-}
-
-function setupThumbnailPreview() {
-    if (!player.value) return;
-
-    const progressControl = player.value.controlBar?.progressControl;
-    if (!progressControl) return;
-
-    const seekBar = progressControl.seekBar;
-    if (!seekBar) return;
-
-    const thumbEl = document.createElement('div');
-    thumbEl.className = 'vjs-thumb-preview';
-    thumbEl.style.display = 'none';
-    seekBar.el().appendChild(thumbEl);
-
-    const imgEl = document.createElement('img');
-    imgEl.style.display = 'block';
-    thumbEl.appendChild(imgEl);
-
-    let currentSpriteUrl = '';
-
-    const onMouseMove = (e: MouseEvent) => {
-        if (vttCues.value.length === 0) return;
-
-        const seekBarRect = seekBar.el().getBoundingClientRect();
-        const percent = (e.clientX - seekBarRect.left) / seekBarRect.width;
-        const duration = player.value.duration();
-        if (!duration) return;
-
-        const time = percent * duration;
-        const cue = vttCues.value.find((c) => time >= c.start && time < c.end);
-        if (!cue) {
-            thumbEl.style.display = 'none';
-            return;
-        }
-
-        thumbEl.style.display = 'block';
-
-        if (currentSpriteUrl !== cue.url) {
-            imgEl.src = cue.url;
-            currentSpriteUrl = cue.url;
-        }
-
-        imgEl.style.objectFit = 'none';
-        imgEl.style.objectPosition = `-${cue.x}px -${cue.y}px`;
-        imgEl.style.width = `${cue.w}px`;
-        imgEl.style.height = `${cue.h}px`;
-
-        thumbEl.style.width = `${cue.w}px`;
-        thumbEl.style.height = `${cue.h}px`;
-
-        const thumbLeft = e.clientX - seekBarRect.left - cue.w / 2;
-        const clampedLeft = Math.max(0, Math.min(thumbLeft, seekBarRect.width - cue.w));
-        thumbEl.style.left = `${clampedLeft}px`;
-    };
-
-    const onMouseOut = () => {
-        thumbEl.style.display = 'none';
-    };
-
-    seekBar.el().addEventListener('mousemove', onMouseMove);
-    seekBar.el().addEventListener('mouseout', onMouseOut);
-}
 
 onMounted(async () => {
     if (!videoElement.value) return;
@@ -187,7 +64,7 @@ onMounted(async () => {
 
     player.value.on('play', () => emit('play'));
     player.value.on('pause', () => emit('pause'));
-    player.value.on('error', (e: any) => emit('error', e));
+    player.value.on('error', (e: unknown) => emit('error', e));
 
     player.value.ready(() => {
         setupThumbnailPreview();

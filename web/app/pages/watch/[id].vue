@@ -1,30 +1,22 @@
 <script setup lang="ts">
 import type { Video } from '~/types/video';
 import { useApi } from '~/composables/useApi';
-import { useTime } from '~/composables/useTime';
+import { isVideoProcessing, hasVideoError } from '~/utils/video';
 
 const route = useRoute();
 const router = useRouter();
 const { fetchVideo } = useApi();
-const { formatDuration, formatSize, formatDate } = useTime();
+const { formatDate } = useTime();
 
 const video = ref<Video | null>(null);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
-const playerError = ref<any>(null);
+const playerError = ref<unknown>(null);
 
 const videoId = computed(() => parseInt(route.params.id as string));
 
-const isProcessing = computed(() => {
-    return (
-        video.value?.processing_status === 'pending' ||
-        video.value?.processing_status === 'processing'
-    );
-});
-
-const hasProcessingError = computed(() => {
-    return video.value?.processing_status === 'failed';
-});
+const isProcessing = computed(() => (video.value ? isVideoProcessing(video.value) : false));
+const hasProcessingError = computed(() => (video.value ? hasVideoError(video.value) : false));
 
 const streamUrl = computed(() => {
     if (!video.value) return '';
@@ -52,8 +44,8 @@ const loadVideo = async () => {
         isLoading.value = true;
         error.value = null;
         video.value = await fetchVideo(videoId.value);
-    } catch (err: any) {
-        error.value = err.message || 'Failed to load video';
+    } catch (err: unknown) {
+        error.value = err instanceof Error ? err.message : 'Failed to load video';
     } finally {
         isLoading.value = false;
     }
@@ -101,13 +93,7 @@ definePageMeta({
         <div class="mx-auto max-w-400 p-4 sm:px-5 lg:py-6">
             <!-- Loading State -->
             <div v-if="isLoading" class="flex h-[70vh] items-center justify-center">
-                <div class="flex flex-col items-center gap-3">
-                    <div
-                        class="border-border border-t-lava h-6 w-6 animate-spin rounded-full
-                            border-2"
-                    ></div>
-                    <span class="text-dim text-[11px]">Loading...</span>
-                </div>
+                <LoadingSpinner label="Loading..." />
             </div>
 
             <!-- Error State -->
@@ -144,10 +130,7 @@ definePageMeta({
                         class="border-border bg-surface flex aspect-video flex-col items-center
                             justify-center rounded-xl border text-center"
                     >
-                        <div
-                            class="border-border border-t-lava h-6 w-6 animate-spin rounded-full
-                                border-2"
-                        ></div>
+                        <LoadingSpinner />
                         <h2 class="mt-4 text-sm font-semibold text-white">Processing</h2>
                         <p class="text-dim mt-1 text-xs">Optimization in progress...</p>
                     </div>
@@ -179,10 +162,7 @@ definePageMeta({
                                             >Playback Error</span
                                         >
                                         <span class="text-dim ml-2 text-[11px]">
-                                            {{
-                                                playerError?.message ||
-                                                'Failed to initialize player'
-                                            }}
+                                            Failed to initialize player
                                         </span>
                                     </div>
                                 </div>
@@ -219,91 +199,7 @@ definePageMeta({
 
                 <!-- Sidebar Metadata (Desktop) -->
                 <div class="hidden xl:block">
-                    <div class="sticky top-28 space-y-3">
-                        <div
-                            class="border-border bg-surface/50 rounded-xl border p-4
-                                backdrop-blur-sm"
-                        >
-                            <h1 class="text-sm leading-snug font-semibold text-white">
-                                {{ video.title }}
-                            </h1>
-
-                            <div class="mt-4 space-y-0">
-                                <div
-                                    class="border-border flex items-center justify-between border-b
-                                        py-2.5"
-                                >
-                                    <span class="text-dim text-[11px]">Duration</span>
-                                    <span class="text-muted font-mono text-[11px]">
-                                        {{ formatDuration(video.duration) }}
-                                    </span>
-                                </div>
-
-                                <div
-                                    class="border-border flex items-center justify-between border-b
-                                        py-2.5"
-                                >
-                                    <span class="text-dim text-[11px]">Size</span>
-                                    <span class="text-muted font-mono text-[11px]">
-                                        {{ formatSize(video.size) }}
-                                    </span>
-                                </div>
-
-                                <div
-                                    class="border-border flex items-center justify-between border-b
-                                        py-2.5"
-                                >
-                                    <span class="text-dim text-[11px]">Views</span>
-                                    <span class="text-muted font-mono text-[11px]">
-                                        {{ video.view_count }}
-                                    </span>
-                                </div>
-
-                                <div class="flex items-center justify-between py-2.5">
-                                    <span class="text-dim text-[11px]">Added</span>
-                                    <span class="text-muted font-mono text-[11px]">
-                                        {{ formatDate(video.created_at) }}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div class="border-border mt-4 border-t pt-3">
-                                <span
-                                    class="text-dim text-[10px] font-medium tracking-wider
-                                        uppercase"
-                                    >File</span
-                                >
-                                <p class="text-dim/70 mt-1 font-mono text-[10px] break-all">
-                                    {{ video.original_filename }}
-                                </p>
-                            </div>
-                        </div>
-
-                        <!-- Actions -->
-                        <div
-                            class="border-border bg-surface/50 rounded-xl border p-3
-                                backdrop-blur-sm"
-                        >
-                            <div class="flex gap-2">
-                                <button
-                                    class="border-border bg-panel text-dim hover:border-border-hover
-                                        flex-1 rounded-lg border py-2 text-[11px] font-medium
-                                        transition-all hover:text-white"
-                                >
-                                    <Icon name="heroicons:share" size="12" class="mr-1" />
-                                    Share
-                                </button>
-                                <button
-                                    class="border-border bg-panel text-dim hover:border-lava/30
-                                        hover:text-lava flex-1 rounded-lg border py-2 text-[11px]
-                                        font-medium transition-all"
-                                >
-                                    <Icon name="heroicons:heart" size="12" class="mr-1" />
-                                    Favorite
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <VideoMetadata :video="video" />
                 </div>
             </div>
         </div>

@@ -1,13 +1,7 @@
 <script setup lang="ts">
-import { useAuth } from '~/composables/useAuth';
 import { useAuthStore } from '~/stores/auth';
 
-const authComposable = useAuth();
 const authStore = useAuthStore();
-
-const handleLogout = () => {
-    authComposable.logout();
-};
 
 definePageMeta({
     title: 'GoonHub',
@@ -30,33 +24,33 @@ definePageMeta({
                     </h1>
                 </NuxtLink>
 
-                <div v-if="authStore.user && authStore.token" class="flex items-center gap-3">
+                <div v-if="authStore.isAuthenticated" class="flex items-center gap-3">
                     <div class="flex items-center gap-2">
                         <div
                             class="border-border bg-panel flex h-7 w-7 items-center justify-center
                                 rounded-full border"
                         >
                             <span class="text-xs font-semibold text-white">
-                                {{ authStore.user.username.charAt(0).toUpperCase() }}
+                                {{ authStore.user!.username.charAt(0).toUpperCase() }}
                             </span>
                         </div>
                         <div class="hidden sm:block">
                             <div class="text-xs font-medium text-white">
-                                {{ authStore.user.username }}
+                                {{ authStore.user!.username }}
                             </div>
                             <div
                                 class="font-mono text-[10px] tracking-wider uppercase"
                                 :class="
-                                    authStore.user.role === 'admin' ? 'text-emerald' : 'text-dim'
+                                    authStore.user!.role === 'admin' ? 'text-emerald' : 'text-dim'
                                 "
                             >
-                                {{ authStore.user.role }}
+                                {{ authStore.user!.role }}
                             </div>
                         </div>
                     </div>
 
                     <button
-                        @click="handleLogout"
+                        @click="authStore.logout()"
                         class="border-border text-dim hover:border-lava/30 hover:text-lava
                             rounded-md border px-2.5 py-1 text-[11px] font-medium transition-all"
                     >

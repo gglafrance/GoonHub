@@ -1,16 +1,15 @@
-import { useAuth } from './useAuth';
+import { useAuthStore } from '~/stores/auth';
 
 export const useApi = () => {
-    const { getToken, logout } = useAuth();
+    const authStore = useAuthStore();
 
     const getAuthHeaders = () => {
-        const token = getToken();
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
         };
 
-        if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
+        if (authStore.token) {
+            headers['Authorization'] = `Bearer ${authStore.token}`;
         }
 
         return headers;
@@ -18,7 +17,7 @@ export const useApi = () => {
 
     const handleResponse = async (response: Response) => {
         if (response.status === 401) {
-            logout();
+            authStore.logout();
             throw new Error('Unauthorized');
         }
 
@@ -31,7 +30,6 @@ export const useApi = () => {
     };
 
     const uploadVideo = async (file: File, title?: string) => {
-        const token = getToken();
         const formData = new FormData();
         formData.append('video', file);
         if (title) {
@@ -39,8 +37,8 @@ export const useApi = () => {
         }
 
         const headers: Record<string, string> = {};
-        if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
+        if (authStore.token) {
+            headers['Authorization'] = `Bearer ${authStore.token}`;
         }
 
         const response = await fetch('/api/v1/videos', {
@@ -65,26 +63,6 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
-    const fetchCurrentUser = async () => {
-        const response = await fetch('/api/v1/auth/me', {
-            headers: getAuthHeaders(),
-        });
-
-        return handleResponse(response);
-    };
-
-    const login = async (username: string, password: string) => {
-        const response = await fetch('/api/v1/auth/login', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ username, password }),
-        });
-
-        return handleResponse(response);
-    };
-
     const fetchVideo = async (id: number) => {
         const response = await fetch(`/api/v1/videos/${id}`, {
             headers: getAuthHeaders(),
@@ -97,7 +75,5 @@ export const useApi = () => {
         uploadVideo,
         fetchVideos,
         fetchVideo,
-        fetchCurrentUser,
-        login,
     };
 };

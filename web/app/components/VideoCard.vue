@@ -1,34 +1,14 @@
 <script setup lang="ts">
 import type { Video } from '~/types/video';
+import { isVideoProcessing } from '~/utils/video';
 
 const props = defineProps<{
     video: Video;
 }>();
 
-const { formatDuration } = useTime();
+const { formatDuration, formatSize, formatDate } = useTime();
 
-const formatSize = (bytes: number) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-};
-
-const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-    });
-};
-
-const isProcessing = computed(() => {
-    return (
-        props.video.processing_status === 'pending' ||
-        props.video.processing_status === 'processing'
-    );
-});
+const isProcessing = computed(() => isVideoProcessing(props.video));
 
 const thumbnailUrl = computed(() => {
     return props.video.thumbnail_path ? `/thumbnails/${props.video.id}` : null;
@@ -52,9 +32,7 @@ const thumbnailUrl = computed(() => {
             />
 
             <div v-else-if="isProcessing" class="absolute inset-0 flex items-center justify-center">
-                <div
-                    class="border-border border-t-lava h-5 w-5 animate-spin rounded-full border-2"
-                ></div>
+                <LoadingSpinner size="sm" />
             </div>
 
             <div

@@ -19,9 +19,10 @@ export const useVideoStore = defineStore('videos', () => {
             videos.value = response.data;
             total.value = response.total;
             currentPage.value = response.page;
-        } catch (e: any) {
-            if (e.message !== 'Unauthorized') {
-                error.value = e.message;
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'Unknown error';
+            if (message !== 'Unauthorized') {
+                error.value = message;
             }
         } finally {
             isLoading.value = false;
@@ -33,11 +34,11 @@ export const useVideoStore = defineStore('videos', () => {
         error.value = null;
         try {
             await apiUploadVideo(file, title);
-            // Refresh list after upload
-            await loadVideos(1); // Go back to first page to see new upload
-        } catch (e: any) {
-            if (e.message !== 'Unauthorized') {
-                error.value = e.message;
+            await loadVideos(1);
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'Unknown error';
+            if (message !== 'Unauthorized') {
+                error.value = message;
             }
             throw e;
         } finally {

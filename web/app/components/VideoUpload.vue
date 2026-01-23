@@ -52,7 +52,7 @@ const upload = async () => {
         selectedFile.value = null;
         title.value = '';
         if (fileInput.value) fileInput.value.value = '';
-    } catch (e) {
+    } catch (e: unknown) {
         console.error(e);
     }
 };
@@ -60,7 +60,7 @@ const upload = async () => {
 
 <template>
     <div class="border-border bg-surface/50 rounded-xl border p-4 backdrop-blur-sm">
-        <div v-if="!authStore.user || !authStore.token" class="py-6 text-center">
+        <div v-if="!authStore.isAuthenticated" class="py-6 text-center">
             <Icon name="heroicons:lock-closed" size="24" class="text-dim mx-auto mb-2" />
             <h3 class="text-muted text-xs font-medium">Authentication Required</h3>
             <p class="text-dim mt-0.5 text-[11px]">Sign in to upload videos</p>
@@ -156,12 +156,7 @@ const upload = async () => {
             </div>
 
             <!-- Error Message -->
-            <div
-                v-if="store.error"
-                class="border-lava/20 bg-lava/5 text-lava mt-3 rounded-lg border px-3 py-2 text-xs"
-            >
-                {{ store.error }}
-            </div>
+            <ErrorAlert v-if="store.error" :message="store.error" class="mt-3" />
         </div>
     </div>
 </template>

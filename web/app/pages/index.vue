@@ -47,13 +47,7 @@ definePageMeta({
                     v-if="store.isLoading && store.videos.length === 0"
                     class="flex h-64 items-center justify-center"
                 >
-                    <div class="flex flex-col items-center gap-3">
-                        <div
-                            class="border-border border-t-lava h-6 w-6 animate-spin rounded-full
-                                border-2"
-                        ></div>
-                        <span class="text-dim text-[11px]">Loading library...</span>
-                    </div>
+                    <LoadingSpinner label="Loading library..." />
                 </div>
 
                 <!-- Empty State -->
