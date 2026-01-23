@@ -11,6 +11,13 @@ type UserRepository interface {
 	GetByUsername(username string) (*User, error)
 	GetByID(id uint) (*User, error)
 	Exists(username string) (bool, error)
+	UpdatePassword(userID uint, hashedPassword string) error
+	UpdateUsername(userID uint, newUsername string) error
+}
+
+type UserSettingsRepository interface {
+	GetByUserID(userID uint) (*UserSettings, error)
+	Upsert(settings *UserSettings) error
 }
 
 type RevokedTokenRepository interface {
@@ -142,6 +149,34 @@ func (r *UserRepositoryImpl) Exists(username string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (r *UserRepositoryImpl) UpdatePassword(userID uint, hashedPassword string) error {
+	return r.DB.Model(&User{}).Where("id = ?", userID).Update("password", hashedPassword).Error
+}
+
+func (r *UserRepositoryImpl) UpdateUsername(userID uint, newUsername string) error {
+	return r.DB.Model(&User{}).Where("id = ?", userID).Update("username", newUsername).Error
+}
+
+type UserSettingsRepositoryImpl struct {
+	DB *gorm.DB
+}
+
+func NewUserSettingsRepository(db *gorm.DB) *UserSettingsRepositoryImpl {
+	return &UserSettingsRepositoryImpl{DB: db}
+}
+
+func (r *UserSettingsRepositoryImpl) GetByUserID(userID uint) (*UserSettings, error) {
+	var settings UserSettings
+	if err := r.DB.Where("user_id = ?", userID).First(&settings).Error; err != nil {
+		return nil, err
+	}
+	return &settings, nil
+}
+
+func (r *UserSettingsRepositoryImpl) Upsert(settings *UserSettings) error {
+	return r.DB.Save(settings).Error
 }
 
 type RevokedTokenRepositoryImpl struct {

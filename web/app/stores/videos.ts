@@ -9,7 +9,16 @@ export const useVideoStore = defineStore('videos', () => {
     const isLoading = ref(false);
     const error = ref<string | null>(null);
 
+    const settingsStore = useSettingsStore();
     const { fetchVideos: apiFetchVideos, uploadVideo: apiUploadVideo } = useApi();
+
+    watch(
+        () => settingsStore.videosPerPage,
+        (newVal) => {
+            limit.value = newVal;
+        },
+        { immediate: true },
+    );
 
     const loadVideos = async (page = 1) => {
         isLoading.value = true;

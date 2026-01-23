@@ -34,7 +34,7 @@ GOONHUB_CONFIG=config-dev.yaml air
 GOONHUB_CONFIG=config-dev.yaml go run ./cmd/server
 
 # Regenerate Wire dependency injection (after changing providers in wire.go)
-wire ./internal/wire/
+go run github.com/google/wire/cmd/wire ./internal/wire
 
 # Build production binary (requires frontend build first)
 go build -o goonhub ./cmd/server
@@ -147,3 +147,4 @@ The UI follows a **Deep Space SaaS Aesthetic**—sophisticated, dark, and highly
 
 - No emoji in log messages or code comments
 - No data deletion without explicit confirmation
+- Always import icons using NuxtIcon from `@nuxt/icons` (no direct SVG imports)

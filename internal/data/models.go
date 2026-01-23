@@ -23,6 +23,18 @@ type RevokedToken struct {
 	Reason    string    `gorm:"size:255" json:"reason,omitempty"`
 }
 
+type UserSettings struct {
+	ID               uint      `gorm:"primarykey" json:"id"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	UserID           uint      `gorm:"uniqueIndex;not null" json:"user_id"`
+	Autoplay         bool      `gorm:"not null;default:false" json:"autoplay"`
+	DefaultVolume    int       `gorm:"not null;default:100" json:"default_volume"`
+	Loop             bool      `gorm:"not null;default:false" json:"loop"`
+	VideosPerPage    int       `gorm:"not null;default:20" json:"videos_per_page"`
+	DefaultSortOrder string    `gorm:"not null;default:'created_at_desc'" json:"default_sort_order"`
+}
+
 type Video struct {
 	ID               uint           `gorm:"primarykey" json:"id"`
 	CreatedAt        time.Time      `json:"created_at"`

@@ -35,12 +35,14 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideVideoRepository,
 		provideUserRepository,
 		provideRevokedTokenRepository,
+		provideUserSettingsRepository,
 
 		// Core
 		provideVideoProcessingService,
 		provideVideoService,
 		provideAuthService,
 		provideUserService,
+		provideSettingsService,
 
 		// API Middleware
 		provideRateLimiter,
@@ -48,6 +50,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// API
 		provideVideoHandler,
 		provideAuthHandler,
+		provideSettingsHandler,
 		provideRouter,
 
 		// Server
@@ -100,8 +103,20 @@ func provideAuthHandler(authService *core.AuthService, userService *core.UserSer
 	return handler.NewAuthHandler(authService, userService)
 }
 
-func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, authService *core.AuthService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
-	return api.NewRouter(logger, cfg, videoHandler, authHandler, authService, rateLimiter)
+func provideUserSettingsRepository(db *gorm.DB) data.UserSettingsRepository {
+	return data.NewUserSettingsRepository(db)
+}
+
+func provideSettingsService(settingsRepo data.UserSettingsRepository, userRepo data.UserRepository, logger *logging.Logger) *core.SettingsService {
+	return core.NewSettingsService(settingsRepo, userRepo, logger.Logger)
+}
+
+func provideSettingsHandler(settingsService *core.SettingsService) *handler.SettingsHandler {
+	return handler.NewSettingsHandler(settingsService)
+}
+
+func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, authService *core.AuthService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
+	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, authService, rateLimiter)
 }
 
 func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService) *server.Server {

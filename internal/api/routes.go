@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, authService *core.AuthService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, authService *core.AuthService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -35,6 +35,15 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					videos.GET("/:id", videoHandler.GetVideo)
 					videos.GET("/:id/reprocess", videoHandler.ReprocessVideo)
 					videos.DELETE("/:id", videoHandler.DeleteVideo)
+				}
+
+				settings := protected.Group("/settings")
+				{
+					settings.GET("", settingsHandler.GetSettings)
+					settings.PUT("/player", settingsHandler.UpdatePlayerSettings)
+					settings.PUT("/app", settingsHandler.UpdateAppSettings)
+					settings.PUT("/password", settingsHandler.ChangePassword)
+					settings.PUT("/username", settingsHandler.ChangeUsername)
 				}
 			}
 		}

@@ -14,6 +14,10 @@ export default defineNuxtRouteMiddleware(async (to) => {
         if (!authStore.user) {
             try {
                 await authStore.fetchCurrentUser();
+                const settingsStore = useSettingsStore();
+                if (!settingsStore.settings) {
+                    await settingsStore.loadSettings();
+                }
             } catch (e: unknown) {
                 authStore.$patch({ token: null, user: null });
                 return navigateTo({

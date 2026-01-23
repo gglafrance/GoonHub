@@ -46,8 +46,11 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	authService := provideAuthService(userRepository, revokedTokenRepository, configConfig, logger)
 	userService := provideUserService(userRepository, logger)
 	authHandler := provideAuthHandler(authService, userService)
+	userSettingsRepository := provideUserSettingsRepository(db)
+	settingsService := provideSettingsService(userSettingsRepository, userRepository, logger)
+	settingsHandler := provideSettingsHandler(settingsService)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	engine := provideRouter(logger, configConfig, videoHandler, authHandler, authService, ipRateLimiter)
+	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, authService, ipRateLimiter)
 	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService)
 	return serverServer, nil
 }
@@ -96,8 +99,20 @@ func provideAuthHandler(authService *core.AuthService, userService *core.UserSer
 	return handler.NewAuthHandler(authService, userService)
 }
 
-func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, authService *core.AuthService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
-	return api.NewRouter(logger, cfg, videoHandler, authHandler, authService, rateLimiter)
+func provideUserSettingsRepository(db *gorm.DB) data.UserSettingsRepository {
+	return data.NewUserSettingsRepository(db)
+}
+
+func provideSettingsService(settingsRepo data.UserSettingsRepository, userRepo data.UserRepository, logger *logging.Logger) *core.SettingsService {
+	return core.NewSettingsService(settingsRepo, userRepo, logger.Logger)
+}
+
+func provideSettingsHandler(settingsService *core.SettingsService) *handler.SettingsHandler {
+	return handler.NewSettingsHandler(settingsService)
+}
+
+func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, authService *core.AuthService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
+	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, authService, rateLimiter)
 }
 
 func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService) *server.Server {

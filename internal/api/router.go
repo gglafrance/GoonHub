@@ -15,7 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, authService *core.AuthService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
+func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, authService *core.AuthService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -56,7 +56,7 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler
 	})
 
 	// Register Routes
-	RegisterRoutes(r, videoHandler, authHandler, authService, logger, rateLimiter)
+	RegisterRoutes(r, videoHandler, authHandler, settingsHandler, authService, logger, rateLimiter)
 
 	// Serve Frontend (SPA Fallback)
 	// We use a custom middleware/handler for this
@@ -70,9 +70,7 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler
 		}
 
 		// Check if file exists in fs
-		if strings.HasPrefix(path, "/") {
-			path = path[1:]
-		}
+		path = strings.TrimPrefix(path, "/")
 		if path == "" {
 			path = "index.html"
 		}

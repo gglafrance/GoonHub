@@ -47,6 +47,14 @@ definePageMeta({
                         </div>
                     </div>
 
+                    <NuxtLink
+                        to="/settings"
+                        class="border-border text-dim hover:border-lava/30 hover:text-lava flex h-7
+                            w-7 items-center justify-center rounded-md border transition-all"
+                    >
+                        <Icon name="heroicons:cog-6-tooth" size="16" />
+                    </NuxtLink>
+
                     <button
                         @click="authStore.logout()"
                         class="border-border text-dim hover:border-lava/30 hover:text-lava
