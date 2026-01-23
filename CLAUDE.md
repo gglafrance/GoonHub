@@ -147,4 +147,9 @@ The UI follows a **Deep Space SaaS Aesthetic**—sophisticated, dark, and highly
 
 - No emoji in log messages or code comments
 - No data deletion without explicit confirmation
+
+### Project Memories (keep updating this section as you come across important patterns/observations)
+
+When working on GoonHub, remember:
+
 - Always import icons using NuxtIcon from `@nuxt/icons` (no direct SVG imports)

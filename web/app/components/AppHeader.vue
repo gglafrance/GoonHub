@@ -1,9 +1,5 @@
 <script setup lang="ts">
 const authStore = useAuthStore();
-
-definePageMeta({
-    title: 'GoonHub',
-});
 </script>
 
 <template>

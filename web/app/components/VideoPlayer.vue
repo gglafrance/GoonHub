@@ -9,6 +9,8 @@ const props = defineProps<{
     videoUrl: string;
     posterUrl?: string;
     autoplay?: boolean;
+    loop?: boolean;
+    defaultVolume?: number;
     video?: Video;
 }>();
 
@@ -34,6 +36,7 @@ onMounted(async () => {
     player.value = videojs(videoElement.value, {
         controls: true,
         autoplay: props.autoplay ? 'any' : false,
+        loop: props.loop ?? false,
         preload: 'metadata',
         fluid: true,
         playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2],
@@ -60,6 +63,10 @@ onMounted(async () => {
         },
     });
 
+    // Set initial volume (video.js uses 0-1 range)
+    const volume = props.defaultVolume != null ? props.defaultVolume / 100 : 1;
+    player.value.volume(volume);
+
     player.value.on('play', () => emit('play'));
     player.value.on('pause', () => emit('pause'));
     player.value.on('error', (e: unknown) => emit('error', e));
@@ -68,6 +75,11 @@ onMounted(async () => {
         setupThumbnailPreview();
         if (vttUrl.value) {
             loadVttCues(vttUrl.value);
+        }
+        if (props.autoplay) {
+            player.value!.play()?.catch(() => {
+                // Autoplay prevented by browser policy
+            });
         }
     });
 });

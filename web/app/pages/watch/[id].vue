@@ -4,6 +4,7 @@ import type { Video } from '~/types/video';
 const route = useRoute();
 const router = useRouter();
 const { fetchVideo } = useApi();
+const settingsStore = useSettingsStore();
 
 const video = ref<Video | null>(null);
 const isLoading = ref(true);
@@ -171,6 +172,9 @@ definePageMeta({
                                 :video-url="streamUrl"
                                 :poster-url="posterUrl"
                                 :video="video"
+                                :autoplay="settingsStore.autoplay"
+                                :loop="settingsStore.loop"
+                                :default-volume="settingsStore.defaultVolume"
                                 @error="playerError = $event"
                             />
                         </div>
