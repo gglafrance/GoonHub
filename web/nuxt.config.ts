@@ -47,7 +47,11 @@ export default defineNuxtConfig({
                     target: 'http://localhost:8080',
                     changeOrigin: true,
                 },
-                '/frames': {
+                '/sprites': {
+                    target: 'http://localhost:8080',
+                    changeOrigin: true,
+                },
+                '/vtt': {
                     target: 'http://localhost:8080',
                     changeOrigin: true,
                 },

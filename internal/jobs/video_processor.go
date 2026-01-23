@@ -14,50 +14,59 @@ import (
 )
 
 type ProcessVideoJob struct {
-	id             string
-	videoID        uint
-	videoPath      string
-	frameOutputDir string
-	thumbnailDir   string
-	frameInterval  int
-	frameWidth     int
-	frameHeight    int
-	frameQuality   int
-	thumbnailSeek  string
-	repo           data.VideoRepository
-	logger         *zap.Logger
-	status         JobStatus
-	error          error
-	cancelled      atomic.Bool
+	id            string
+	videoID       uint
+	videoPath     string
+	spriteDir     string
+	vttDir        string
+	thumbnailDir  string
+	frameInterval int
+	frameWidth    int
+	frameHeight   int
+	frameQuality  int
+	gridCols      int
+	gridRows      int
+	thumbnailSeek string
+	repo          data.VideoRepository
+	logger        *zap.Logger
+	status        JobStatus
+	error         error
+	cancelled     atomic.Bool
 }
 
 func NewProcessVideoJob(
 	videoID uint,
 	videoPath string,
-	frameOutputDir string,
+	spriteDir string,
+	vttDir string,
 	thumbnailDir string,
 	frameInterval int,
 	frameWidth int,
 	frameHeight int,
 	frameQuality int,
+	gridCols int,
+	gridRows int,
 	thumbnailSeek string,
 	repo data.VideoRepository,
 	logger *zap.Logger,
 ) *ProcessVideoJob {
 	return &ProcessVideoJob{
-		id:             uuid.New().String(),
-		videoID:        videoID,
-		videoPath:      videoPath,
-		frameOutputDir: frameOutputDir,
-		thumbnailDir:   thumbnailDir,
-		frameInterval:  frameInterval,
-		frameWidth:     frameWidth,
-		frameHeight:    frameHeight,
-		frameQuality:   frameQuality,
-		thumbnailSeek:  thumbnailSeek,
-		repo:           repo,
-		logger:         logger,
-		status:         JobStatusPending,
+		id:            uuid.New().String(),
+		videoID:       videoID,
+		videoPath:     videoPath,
+		spriteDir:     spriteDir,
+		vttDir:        vttDir,
+		thumbnailDir:  thumbnailDir,
+		frameInterval: frameInterval,
+		frameWidth:    frameWidth,
+		frameHeight:   frameHeight,
+		frameQuality:  frameQuality,
+		gridCols:      gridCols,
+		gridRows:      gridRows,
+		thumbnailSeek: thumbnailSeek,
+		repo:          repo,
+		logger:        logger,
+		status:        JobStatusPending,
 	}
 }
 
@@ -87,6 +96,8 @@ func (j *ProcessVideoJob) Execute() error {
 		zap.String("video_path", j.videoPath),
 		zap.Int("frame_interval", j.frameInterval),
 		zap.Int("frame_dimensions", j.frameWidth*j.frameHeight),
+		zap.Int("grid_cols", j.gridCols),
+		zap.Int("grid_rows", j.gridRows),
 	)
 
 	if err := j.repo.UpdateProcessingStatus(j.videoID, string(JobStatusRunning), ""); err != nil {
@@ -168,10 +179,9 @@ func (j *ProcessVideoJob) Execute() error {
 	}
 
 	stepStart = time.Now()
-	videoFrameDir := filepath.Join(j.frameOutputDir, fmt.Sprintf("%d", j.videoID))
-	if err := os.MkdirAll(videoFrameDir, 0755); err != nil {
-		j.logger.Error("Failed to create frame directory",
-			zap.String("dir", videoFrameDir),
+	if err := os.MkdirAll(j.spriteDir, 0755); err != nil {
+		j.logger.Error("Failed to create sprite directory",
+			zap.String("dir", j.spriteDir),
 			zap.Error(err),
 		)
 		j.handleError(err)
@@ -183,51 +193,100 @@ func (j *ProcessVideoJob) Execute() error {
 		expectedFrameCount++
 	}
 
-	j.logger.Info("Starting frame extraction",
+	j.logger.Info("Starting sprite sheet generation",
 		zap.Uint("video_id", j.videoID),
-		zap.String("output_dir", videoFrameDir),
+		zap.String("output_dir", j.spriteDir),
 		zap.Int("expected_frame_count", expectedFrameCount),
 		zap.Int("interval_seconds", j.frameInterval),
+		zap.Int("grid_cols", j.gridCols),
+		zap.Int("grid_rows", j.gridRows),
 	)
 
-	framePaths, err := ffmpeg.ExtractFrames(
+	spriteSheets, err := ffmpeg.ExtractSpriteSheets(
 		j.videoPath,
-		videoFrameDir,
-		j.frameInterval,
+		j.spriteDir,
+		int(j.videoID),
 		j.frameWidth,
 		j.frameHeight,
+		j.gridCols,
+		j.gridRows,
+		j.frameInterval,
 		j.frameQuality,
 	)
 	if err != nil {
-		j.logger.Error("Failed to extract frames",
+		j.logger.Error("Failed to generate sprite sheets",
 			zap.Uint("video_id", j.videoID),
 			zap.Duration("step_duration", time.Since(stepStart)),
 			zap.Error(err),
 		)
-		j.handleError(fmt.Errorf("frame extraction failed: %w", err))
+		j.handleError(fmt.Errorf("sprite sheet generation failed: %w", err))
 		return err
 	}
 
-	j.logger.Info("Frames extracted successfully",
+	j.logger.Info("Sprite sheets generated successfully",
 		zap.Uint("video_id", j.videoID),
-		zap.Int("actual_frame_count", len(framePaths)),
-		zap.Float64("frames_per_second", float64(len(framePaths))/metadata.Duration),
+		zap.Int("sprite_sheet_count", len(spriteSheets)),
 		zap.Duration("step_duration", time.Since(stepStart)),
 	)
 
-	framePathsStr := ffmpeg.ParseFramePaths(framePaths)
+	stepStart = time.Now()
+	if err := os.MkdirAll(j.vttDir, 0755); err != nil {
+		j.logger.Error("Failed to create VTT directory",
+			zap.String("dir", j.vttDir),
+			zap.Error(err),
+		)
+		j.handleError(err)
+		return err
+	}
+
+	vttPath := filepath.Join(j.vttDir, fmt.Sprintf("%d_thumbnails.vtt", j.videoID))
+	j.logger.Info("Generating VTT file",
+		zap.Uint("video_id", j.videoID),
+		zap.String("output_path", vttPath),
+	)
+
 	duration := int(metadata.Duration)
+	if err := ffmpeg.GenerateVttFile(
+		vttPath,
+		spriteSheets,
+		duration,
+		j.frameInterval,
+		j.gridCols,
+		j.gridRows,
+		j.frameWidth,
+		j.frameHeight,
+	); err != nil {
+		j.logger.Error("Failed to generate VTT file",
+			zap.Uint("video_id", j.videoID),
+			zap.Duration("step_duration", time.Since(stepStart)),
+			zap.Error(err),
+		)
+		j.handleError(fmt.Errorf("VTT generation failed: %w", err))
+		return err
+	}
+
+	j.logger.Info("VTT file generated successfully",
+		zap.Uint("video_id", j.videoID),
+		zap.Duration("step_duration", time.Since(stepStart)),
+	)
 
 	stepStart = time.Now()
+	spriteSheetPath := ""
+	if len(spriteSheets) > 0 {
+		spriteSheetPath = filepath.Join(j.spriteDir, spriteSheets[0])
+	}
+
 	if err := j.repo.UpdateMetadata(
 		j.videoID,
 		duration,
 		metadata.Width,
 		metadata.Height,
 		thumbnailPath,
-		framePathsStr,
-		len(framePaths),
-		j.frameInterval,
+		spriteSheetPath,
+		vttPath,
+		len(spriteSheets),
+		j.frameWidth,
+		j.frameHeight,
 	); err != nil {
 		j.logger.Error("Failed to update video metadata",
 			zap.Uint("video_id", j.videoID),
@@ -245,11 +304,10 @@ func (j *ProcessVideoJob) Execute() error {
 	j.logger.Info("Video processing completed successfully",
 		zap.String("job_id", j.id),
 		zap.Uint("video_id", j.videoID),
-		zap.Int("frame_count", len(framePaths)),
+		zap.Int("sprite_sheet_count", len(spriteSheets)),
 		zap.Int("duration", duration),
 		zap.Duration("total_duration", totalDuration),
 		zap.Float64("processing_rate_secs_per_sec", processingRate),
-		zap.String("estimated_storage", fmt.Sprintf("%.2f MB", float64(len(framePaths)*j.frameWidth*j.frameHeight*3)/1024/1024)),
 	)
 
 	return nil

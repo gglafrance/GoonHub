@@ -7,9 +7,11 @@ export interface Video {
     created_at: string;
     duration: number;
     thumbnail_path?: string;
-    frame_paths?: string;
-    frame_count?: number;
-    frame_interval?: number;
+    sprite_sheet_path?: string;
+    vtt_path?: string;
+    sprite_sheet_count?: number;
+    thumbnail_width?: number;
+    thumbnail_height?: number;
     processing_status?: string;
     processing_error?: string;
 }

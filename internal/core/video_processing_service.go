@@ -27,20 +27,32 @@ func NewVideoProcessingService(
 		zap.Int("frame_width", config.FrameWidth),
 		zap.Int("frame_height", config.FrameHeight),
 		zap.Int("frame_quality", config.FrameQuality),
-		zap.String("frame_output_dir", config.FrameOutputDir),
+		zap.Int("grid_cols", config.GridCols),
+		zap.Int("grid_rows", config.GridRows),
+		zap.String("sprite_dir", config.SpriteDir),
+		zap.String("vtt_dir", config.VttDir),
 		zap.String("thumbnail_dir", config.ThumbnailDir),
 	)
 
 	pool := jobs.NewWorkerPool(config.WorkerCount, 100)
 	pool.SetLogger(logger)
 
-	if err := os.MkdirAll(config.FrameOutputDir, 0755); err != nil {
-		logger.Error("Failed to create frame output directory",
-			zap.String("directory", config.FrameOutputDir),
+	if err := os.MkdirAll(config.SpriteDir, 0755); err != nil {
+		logger.Error("Failed to create sprite directory",
+			zap.String("directory", config.SpriteDir),
 			zap.Error(err),
 		)
 	} else {
-		logger.Info("Frame output directory ready", zap.String("directory", config.FrameOutputDir))
+		logger.Info("Sprite directory ready", zap.String("directory", config.SpriteDir))
+	}
+
+	if err := os.MkdirAll(config.VttDir, 0755); err != nil {
+		logger.Error("Failed to create VTT directory",
+			zap.String("directory", config.VttDir),
+			zap.Error(err),
+		)
+	} else {
+		logger.Info("VTT directory ready", zap.String("directory", config.VttDir))
 	}
 
 	if err := os.MkdirAll(config.ThumbnailDir, 0755); err != nil {
@@ -81,12 +93,15 @@ func (s *VideoProcessingService) SubmitVideo(videoID uint, videoPath string) err
 	job := jobs.NewProcessVideoJob(
 		videoID,
 		videoPath,
-		s.config.FrameOutputDir,
+		s.config.SpriteDir,
+		s.config.VttDir,
 		s.config.ThumbnailDir,
 		s.config.FrameInterval,
 		s.config.FrameWidth,
 		s.config.FrameHeight,
 		s.config.FrameQuality,
+		s.config.GridCols,
+		s.config.GridRows,
 		s.config.ThumbnailSeek,
 		s.repo,
 		s.logger,

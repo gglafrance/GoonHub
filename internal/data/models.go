@@ -37,9 +37,11 @@ type Video struct {
 	Width            int            `json:"width"`
 	Height           int            `json:"height"`
 	ThumbnailPath    string         `json:"thumbnail_path"`
-	FramePaths       string         `json:"frame_paths" gorm:"type:text"`
-	FrameCount       int            `json:"frame_count"`
-	FrameInterval    int            `json:"frame_interval"`
+	SpriteSheetPath  string         `json:"sprite_sheet_path"`
+	VttPath          string         `json:"vtt_path"`
+	SpriteSheetCount int            `json:"sprite_sheet_count"`
+	ThumbnailWidth   int            `json:"thumbnail_width"`
+	ThumbnailHeight  int            `json:"thumbnail_height"`
 	ProcessingStatus string         `json:"processing_status" gorm:"default:'pending'"`
 	ProcessingError  string         `json:"processing_error" gorm:"type:text"`
 }

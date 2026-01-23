@@ -140,9 +140,17 @@ func (s *VideoService) DeleteVideo(id uint) error {
 		os.Remove(video.ThumbnailPath)
 	}
 
-	if video.FramePaths != "" {
-		frameDir := filepath.Join(s.DataPath, "frames", fmt.Sprintf("%d", id))
-		os.RemoveAll(frameDir)
+	if video.SpriteSheetPath != "" {
+		spriteDir := filepath.Join(s.DataPath, "sprites")
+		spritePattern := filepath.Join(spriteDir, fmt.Sprintf("%d_sheet_*.jpg", id))
+		files, _ := filepath.Glob(spritePattern)
+		for _, file := range files {
+			os.Remove(file)
+		}
+	}
+
+	if video.VttPath != "" {
+		os.Remove(video.VttPath)
 	}
 
 	return nil

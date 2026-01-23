@@ -6,12 +6,6 @@ const props = defineProps<{
 }>();
 
 const { formatDuration } = useTime();
-const { frames, loadFrames, getFrameByTimestamp, hasError } = useFramePreloader(props.video);
-
-const currentThumbnail = ref<string | null>(null);
-const isHoveringCard = ref(false);
-const previewTimestamp = ref(0);
-const thumbnailContainer = ref<HTMLElement>();
 
 const formatSize = (bytes: number) => {
     if (bytes === 0) return '0 B';
@@ -36,56 +30,8 @@ const isProcessing = computed(() => {
     );
 });
 
-const showPreviewBar = computed(() => {
-    return !isProcessing.value && props.video.frame_count && props.video.frame_count > 0;
-});
-
-watch(isHoveringCard, (hovering) => {
-    if (hovering && showPreviewBar.value) {
-        loadFrames();
-    } else if (!hovering) {
-        previewTimestamp.value = 0;
-        currentThumbnail.value = props.video.thumbnail_path
-            ? `/thumbnails/${props.video.id}`
-            : null;
-    }
-});
-
-const handleMouseMove = (e: MouseEvent) => {
-    if (!thumbnailContainer.value || props.video.duration === 0) return;
-
-    const rect = thumbnailContainer.value.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percent = Math.max(0, Math.min(1, x / rect.width));
-
-    previewTimestamp.value = percent * props.video.duration;
-
-    const frame = getFrameByTimestamp(previewTimestamp.value);
-    if (frame) {
-        currentThumbnail.value = frame.src;
-    }
-};
-
-const handleMouseEnter = () => {
-    isHoveringCard.value = true;
-    previewTimestamp.value = props.video.duration / 2;
-
-    if (showPreviewBar.value) {
-        const frame = getFrameByTimestamp(previewTimestamp.value);
-        if (frame) {
-            currentThumbnail.value = frame.src;
-        }
-    }
-};
-
-const handleMouseLeave = () => {
-    isHoveringCard.value = false;
-};
-
-onMounted(() => {
-    if (props.video.thumbnail_path) {
-        currentThumbnail.value = `/thumbnails/${props.video.id}`;
-    }
+const thumbnailUrl = computed(() => {
+    return props.video.thumbnail_path ? `/thumbnails/${props.video.id}` : null;
 });
 </script>
 
@@ -95,32 +41,19 @@ onMounted(() => {
         class="group bg-secondary/50 hover:bg-secondary hover:shadow-neon-green/10
             hover:border-neon-green/50 relative block overflow-hidden rounded-2xl border
             border-white/5 backdrop-blur-md transition-all duration-300 hover:shadow-lg"
-        @mouseenter="isHoveringCard = true"
-        @mouseleave="isHoveringCard = false"
     >
-        <div
-            ref="thumbnailContainer"
-            class="relative aspect-video w-full cursor-pointer bg-black/50"
-            @mouseenter="handleMouseEnter"
-            @mouseleave="handleMouseLeave"
-            @mousemove="handleMouseMove"
-        >
+        <div class="relative aspect-video w-full cursor-pointer bg-black/50">
             <img
-                v-if="currentThumbnail"
-                :src="currentThumbnail"
-                class="absolute inset-0 h-full w-full object-cover transition-none"
+                v-if="thumbnailUrl"
+                :src="thumbnailUrl"
+                class="absolute inset-0 h-full w-full object-cover transition-transform
+                    duration-300 group-hover:scale-105"
                 :alt="video.title"
+                loading="lazy"
             />
 
             <div v-else-if="isProcessing" class="absolute inset-0 flex items-center justify-center">
                 <Icon name="heroicons:arrow-path" size="48" class="animate-spin text-gray-600" />
-            </div>
-
-            <div
-                v-else-if="frames.length > 0 && hasError(frames.length - 1)"
-                class="absolute inset-0 flex items-center justify-center"
-            >
-                <Icon name="heroicons:exclamation-triangle" size="48" class="text-neon-red" />
             </div>
 
             <div
@@ -138,12 +71,6 @@ onMounted(() => {
             >
                 {{ formatDuration(video.duration) }}
             </div>
-
-            <VideoPreviewBar
-                v-if="isHoveringCard && showPreviewBar"
-                :video="video"
-                :preview-timestamp="previewTimestamp"
-            />
         </div>
 
         <div class="p-4">

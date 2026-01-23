@@ -46,6 +46,10 @@ type ProcessingConfig struct {
 	ThumbnailSeek  string `mapstructure:"thumbnail_seek"`   // "00:00:05" or "5%"
 	FrameOutputDir string `mapstructure:"frame_output_dir"` // relative to app root
 	ThumbnailDir   string `mapstructure:"thumbnail_dir"`    // relative to app root
+	SpriteDir      string `mapstructure:"sprite_dir"`       // relative to app root
+	VttDir         string `mapstructure:"vtt_dir"`          // relative to app root
+	GridCols       int    `mapstructure:"grid_cols"`        // number of columns in sprite sheet
+	GridRows       int    `mapstructure:"grid_rows"`        // number of rows in sprite sheet
 }
 
 type AuthConfig struct {
@@ -72,7 +76,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("database.source", "library.db")
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "console")
-	v.SetDefault("processing.frame_interval", 60)
+	v.SetDefault("processing.frame_interval", 5)
 	v.SetDefault("processing.frame_width", 320)
 	v.SetDefault("processing.frame_height", 180)
 	v.SetDefault("processing.frame_quality", 85)
@@ -80,6 +84,10 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("processing.thumbnail_seek", "00:00:05")
 	v.SetDefault("processing.frame_output_dir", "./data/frames")
 	v.SetDefault("processing.thumbnail_dir", "./data/thumbnails")
+	v.SetDefault("processing.sprite_dir", "./data/sprites")
+	v.SetDefault("processing.vtt_dir", "./data/vtt")
+	v.SetDefault("processing.grid_cols", 12)
+	v.SetDefault("processing.grid_rows", 8)
 	v.SetDefault("auth.paseto_secret", "")
 	v.SetDefault("auth.admin_username", "admin")
 	v.SetDefault("auth.admin_password", "admin")

@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import 'videojs-video-element';
-import 'media-chrome';
-import 'media-chrome/menu';
-import 'media-chrome/media-theme-element';
-import { onMounted, onUnmounted, ref, watch } from 'vue';
+import videojs from 'video.js';
+import 'video.js/dist/video-js.css';
 import type { Video } from '~/types/video';
+
+interface VttCue {
+    start: number;
+    end: number;
+    url: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}
 
 const props = defineProps<{
     videoUrl: string;
@@ -19,302 +26,213 @@ const emit = defineEmits<{
     error: [error: any];
 }>();
 
-const thumbnailsTrackSrc = ref<string | null>(null);
+const videoElement = ref<HTMLVideoElement>();
+const player = ref<any>(null);
+const vttCues = ref<VttCue[]>([]);
+const vttUrl = computed(() => {
+    if (!props.video?.vtt_path) return null;
+    return `/vtt/${props.video.id}`;
+});
 
-const formatVttTime = (seconds: number): string => {
-    const date = new Date(0);
-    date.setSeconds(seconds);
-    date.setMilliseconds((seconds % 1) * 1000);
-    return date.toISOString().substr(11, 12);
-};
+function parseVttTime(timeStr: string): number {
+    const parts = timeStr.trim().split(':');
+    const hours = parseInt(parts[0]);
+    const minutes = parseInt(parts[1]);
+    const secParts = parts[2].split('.');
+    const seconds = parseInt(secParts[0]);
+    const millis = parseInt(secParts[1] || '0');
+    return hours * 3600 + minutes * 60 + seconds + millis / 1000;
+}
 
-const generateVttBlob = (video: Video): string | null => {
-    if (!video.frame_paths || !video.frame_interval || video.frame_paths.length === 0) return null;
+async function loadVttCues(url: string) {
+    try {
+        const response = await fetch(url);
+        const text = await response.text();
+        const cues: VttCue[] = [];
 
-    const frames = video.frame_paths.split(',');
-    if (frames.length === 0) return null;
+        const blocks = text.split('\n\n');
+        for (const block of blocks) {
+            const lines = block.trim().split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].includes('-->')) {
+                    const [startStr, endStr] = lines[i].split('-->');
+                    const start = parseVttTime(startStr);
+                    const end = parseVttTime(endStr);
+                    const urlLine = lines[i + 1]?.trim();
+                    if (!urlLine) continue;
 
-    let vttContent = 'WEBVTT\n\n';
-    let currentTime = 0;
-    const interval = video.frame_interval;
+                    const hashIndex = urlLine.indexOf('#xywh=');
+                    if (hashIndex === -1) continue;
 
-    frames.forEach((frame) => {
-        const start = formatVttTime(currentTime);
-        const end = formatVttTime(currentTime + interval);
-        // Use absolute URL to avoid "Invalid URL" errors in media-chrome
-        const url = new URL(`/frames/${video.id}/${frame}`, window.location.origin).toString();
+                    const spriteUrl = urlLine.substring(0, hashIndex);
+                    const coords = urlLine.substring(hashIndex + 6).split(',').map(Number);
+                    cues.push({
+                        start,
+                        end,
+                        url: spriteUrl,
+                        x: coords[0],
+                        y: coords[1],
+                        w: coords[2],
+                        h: coords[3],
+                    });
+                }
+            }
+        }
+        vttCues.value = cues;
+    } catch (e) {
+        console.error('Failed to load VTT cues:', e);
+    }
+}
 
-        vttContent += `${start} --> ${end}\n${url}\n\n`;
-        currentTime += interval;
+function setupThumbnailPreview() {
+    if (!player.value) return;
+
+    const progressControl = player.value.controlBar?.progressControl;
+    if (!progressControl) return;
+
+    const seekBar = progressControl.seekBar;
+    if (!seekBar) return;
+
+    const thumbEl = document.createElement('div');
+    thumbEl.className = 'vjs-thumb-preview';
+    thumbEl.style.display = 'none';
+    seekBar.el().appendChild(thumbEl);
+
+    const imgEl = document.createElement('img');
+    imgEl.style.display = 'block';
+    thumbEl.appendChild(imgEl);
+
+    let currentSpriteUrl = '';
+
+    const onMouseMove = (e: MouseEvent) => {
+        if (vttCues.value.length === 0) return;
+
+        const seekBarRect = seekBar.el().getBoundingClientRect();
+        const percent = (e.clientX - seekBarRect.left) / seekBarRect.width;
+        const duration = player.value.duration();
+        if (!duration) return;
+
+        const time = percent * duration;
+        const cue = vttCues.value.find((c) => time >= c.start && time < c.end);
+        if (!cue) {
+            thumbEl.style.display = 'none';
+            return;
+        }
+
+        thumbEl.style.display = 'block';
+
+        if (currentSpriteUrl !== cue.url) {
+            imgEl.src = cue.url;
+            currentSpriteUrl = cue.url;
+        }
+
+        imgEl.style.objectFit = 'none';
+        imgEl.style.objectPosition = `-${cue.x}px -${cue.y}px`;
+        imgEl.style.width = `${cue.w}px`;
+        imgEl.style.height = `${cue.h}px`;
+
+        thumbEl.style.width = `${cue.w}px`;
+        thumbEl.style.height = `${cue.h}px`;
+
+        const thumbLeft = e.clientX - seekBarRect.left - cue.w / 2;
+        const clampedLeft = Math.max(0, Math.min(thumbLeft, seekBarRect.width - cue.w));
+        thumbEl.style.left = `${clampedLeft}px`;
+    };
+
+    const onMouseOut = () => {
+        thumbEl.style.display = 'none';
+    };
+
+    seekBar.el().addEventListener('mousemove', onMouseMove);
+    seekBar.el().addEventListener('mouseout', onMouseOut);
+}
+
+onMounted(async () => {
+    if (!videoElement.value) return;
+
+    player.value = videojs(videoElement.value, {
+        controls: true,
+        autoplay: props.autoplay ? 'any' : false,
+        preload: 'metadata',
+        fluid: true,
+        playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2],
+        html5: {
+            vhs: {
+                overrideNative: true,
+            },
+            nativeAudioTracks: false,
+            nativeVideoTracks: false,
+        },
+        controlBar: {
+            children: [
+                'playToggle',
+                'volumePanel',
+                'currentTimeDisplay',
+                'timeDivider',
+                'durationDisplay',
+                'progressControl',
+                'remainingTimeDisplay',
+                'playbackRateMenuButton',
+                'pipToggle',
+                'fullscreenToggle',
+            ],
+        },
     });
 
-    const blob = new Blob([vttContent], { type: 'text/vtt' });
-    return URL.createObjectURL(blob);
-};
+    player.value.on('play', () => emit('play'));
+    player.value.on('pause', () => emit('pause'));
+    player.value.on('error', (e: any) => emit('error', e));
+
+    player.value.ready(() => {
+        setupThumbnailPreview();
+        if (vttUrl.value) {
+            loadVttCues(vttUrl.value);
+        }
+    });
+});
 
 watch(
-    () => props.video,
-    (newVideo) => {
-        if (thumbnailsTrackSrc.value) {
-            URL.revokeObjectURL(thumbnailsTrackSrc.value);
-            thumbnailsTrackSrc.value = null;
-        }
-
-        if (newVideo) {
-            thumbnailsTrackSrc.value = generateVttBlob(newVideo);
+    () => props.videoUrl,
+    () => {
+        if (player.value) {
+            player.value.src({ type: 'video/mp4', src: props.videoUrl });
+            if (props.autoplay) {
+                player.value.play();
+            }
         }
     },
-    { immediate: true, deep: true },
 );
 
-onUnmounted(() => {
-    if (thumbnailsTrackSrc.value) {
-        URL.revokeObjectURL(thumbnailsTrackSrc.value);
+watch(vttUrl, (newVttUrl) => {
+    if (newVttUrl) {
+        loadVttCues(newVttUrl);
     }
 });
 
-const mediaThemeRef = ref<HTMLElement | null>(null);
-
-onMounted(() => {
-    const template = document.createElement('template');
-    template.innerHTML = `
-      <!-- Sutro-inspired Theme for GoonHub -->
-      <style>
-        :host {
-          --_primary-color: var(--media-primary-color, #fff);
-          --_secondary-color: var(--media-secondary-color, transparent);
-          --_accent-color: var(--media-accent-color, #2ecc71);
-          display: block;
-          width: 100%;
-          height: 100%;
-        }
-
-        media-controller {
-          --base: 14px;
-          width: 100%;
-          height: 100%;
-          background: #000;
-
-          font-size: calc(1 * var(--base));
-          font-family: 'Inter', system-ui, sans-serif;
-          --media-font-family: 'Inter', system-ui, sans-serif;
-          -webkit-font-smoothing: antialiased;
-
-          --media-primary-color: #fff;
-          --media-secondary-color: transparent;
-          --media-menu-background: rgba(15, 15, 15, 0.9);
-          --media-text-color: var(--_primary-color);
-          --media-control-hover-background: var(--media-secondary-color);
-
-          --media-range-track-height: calc(0.3 * var(--base));
-          --media-range-thumb-height: var(--base);
-          --media-range-thumb-width: var(--base);
-          --media-range-thumb-border-radius: var(--base);
-
-          --media-control-height: calc(1.5 * var(--base));
-        }
-
-        media-controller[breakpointmd] {
-          --base: 16px;
-        }
-
-        media-controller[mediaisfullscreen] {
-          --base: 20px;
-        }
-
-        .media-button {
-          --media-control-hover-background: var(--_secondary-color);
-          --media-tooltip-background: rgb(28 28 28 / .9);
-          --media-text-content-height: 1.2;
-          --media-tooltip-padding: .7em 1em;
-          --media-tooltip-distance: 8px;
-          --media-tooltip-container-margin: 18px;
-          position: relative;
-          padding: 6px;
-          opacity: 0.9;
-          transition: opacity 0.1s cubic-bezier(0.4, 0, 1, 1);
-        }
-        
-        .media-button:hover {
-            opacity: 1;
-            color: var(--_accent-color);
-            --media-icon-color: var(--_accent-color);
-        }
-
-        .media-button svg {
-          fill: none;
-          stroke: currentColor;
-          stroke-width: 2;
-          stroke-linecap: round;
-          stroke-linejoin: round;
-          width: 100%;
-          height: 100%;
-        }
-        
-        /* Specific override for SVG icons that use fill instead of stroke or specific paths */
-        .media-button svg path {
-            stroke: currentColor;
-        }
-      </style>
-
-      <media-controller
-        breakpoints="md:480"
-        hotkeys
-        defaultstreamtype="on-demand"
-      >
-        <slot name="media" slot="media"></slot>
-        <slot name="poster" slot="poster"></slot>
-        <slot name="centered-chrome" slot="centered-chrome"></slot>
-        <media-error-dialog slot="dialog"></media-error-dialog>
-
-        <!-- Controls Gradient -->
-        <style>
-          .media-gradient-bottom {
-            position: absolute;
-            bottom: 0;
-            width: 100%;
-            height: calc(12 * var(--base));
-            pointer-events: none;
-            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);
-          }
-        </style>
-        <div class="media-gradient-bottom"></div>
-
-        <!-- Settings Menu -->
-        <style>
-          media-settings-menu {
-            --media-menu-icon-height: 20px;
-            --media-menu-item-icon-height: 20px;
-            --media-settings-menu-min-width: calc(10 * var(--base));
-            padding-block: calc(0.5 * var(--base));
-            margin-right: 10px;
-            margin-bottom: 70px; /* Push up above control bar */
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(12px);
-            z-index: 100;
-          }
-
-          media-settings-menu-item,
-          [role='menu']::part(menu-item) {
-            --media-icon-color: var(--_primary-color);
-            margin-inline: calc(0.45 * var(--base));
-            height: calc(2 * var(--base));
-            font-size: calc(0.8 * var(--base));
-            border-radius: 6px;
-          }
-          
-          media-settings-menu-item:hover {
-            color: var(--_accent-color);
-            background: rgba(255,255,255,0.1);
-          }
-        </style>
-        <media-settings-menu hidden anchor="auto">
-          <media-settings-menu-item>
-            Playback Speed
-            <media-playback-rate-menu slot="submenu" hidden>
-              <div slot="title">Playback Speed</div>
-            </media-playback-rate-menu>
-          </media-settings-menu-item>
-        </media-settings-menu>
-
-        <!-- Control Bar -->
-        <style>
-          media-control-bar {
-            position: absolute;
-            height: calc(4 * var(--base));
-            bottom: 0;
-            left: 0;
-            right: 0;
-            padding: 0 var(--base);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-          }
-        </style>
-        <media-control-bar>
-          <!-- Play/Pause -->
-          <media-play-button class="media-button">
-          </media-play-button>
-
-          <!-- Volume -->
-          <media-mute-button class="media-button"></media-mute-button>
-          <media-volume-range style="width: 100px; --media-range-bar-color: var(--_accent-color);"></media-volume-range>
-
-          <!-- Time Display -->
-          <media-time-display style="margin-left: 10px;"></media-time-display>
-          
-          <!-- Time Range (Progress) -->
-          <style>
-             media-time-range {
-                 flex-grow: 1;
-                 --media-range-bar-color: var(--_accent-color);
-                 --media-range-track-background: rgba(255,255,255,0.2);
-                 --media-time-buffered-color: rgba(255,255,255,0.4);
-                 --media-range-thumb-opacity: 0;
-             }
-             media-time-range:hover {
-                 --media-range-thumb-opacity: 1;
-             }
-          </style>
-          <media-time-range>
-             <media-preview-thumbnail slot="preview" style="border: 2px solid var(--_accent-color); border-radius: 8px; max-width: 180px;"></media-preview-thumbnail>
-             <media-preview-time-display slot="preview"></media-preview-time-display>
-          </media-time-range>
-
-          <media-time-display showduration style="margin-right: 10px;"></media-time-display>
-
-          <!-- Settings -->
-          <media-settings-menu-button class="media-button"></media-settings-menu-button>
-
-          <!-- PIP -->
-          <media-pip-button class="media-button"></media-pip-button>
-          
-          <!-- Fullscreen -->
-          <media-fullscreen-button class="media-button"></media-fullscreen-button>
-        </media-control-bar>
-      </media-controller>
-    `;
-
-    if (mediaThemeRef.value) {
-        // @ts-ignore
-        mediaThemeRef.value.template = template;
+onBeforeUnmount(() => {
+    if (player.value) {
+        player.value.dispose();
     }
 });
 </script>
 
 <template>
     <div class="video-wrapper">
-        <media-theme ref="mediaThemeRef" class="video-theme">
-            <videojs-video
-                slot="media"
-                :key="videoUrl"
-                :poster="posterUrl"
-                :autoplay="autoplay"
-                playsinline
-                crossorigin="anonymous"
-                class="video-element"
-                @play="emit('play')"
-                @pause="emit('pause')"
-                @error="emit('error', $event)"
-            >
-                <source :src="videoUrl" type="video/mp4" />
-                <track
-                    v-if="thumbnailsTrackSrc"
-                    default
-                    kind="metadata"
-                    label="thumbnails"
-                    :src="thumbnailsTrackSrc"
-                />
-            </videojs-video>
-        </media-theme>
+        <video
+            ref="videoElement"
+            class="video-js vjs-big-play-centered"
+            controls
+            :poster="posterUrl"
+            crossorigin="anonymous"
+        >
+            <source :src="videoUrl" type="video/mp4" />
+        </video>
     </div>
 </template>
 
 <style scoped>
 .video-wrapper {
     width: 100%;
-    /* Default aspect ratio, but allow it to be overridden or grow if container specifies height */
     aspect-ratio: 16/9;
     height: 100%;
     background: #000;
@@ -323,17 +241,76 @@ onMounted(() => {
     box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.5);
 }
 
-.video-theme {
-    width: 100%;
-    height: 100%;
-    --media-accent-color: #2ecc71;
-    --media-primary-color: #fff;
-    --media-secondary-color: rgba(46, 204, 113, 0.2);
+/* Override Video.js default theme to match GoonHub aesthetic */
+:deep(.video-js) {
+    font-family: 'Inter', system-ui, sans-serif;
+    --primary-color: #2ecc71;
+    --text-color: #ffffff;
 }
 
-/* Ensure video element fills the container */
-.video-element {
-    width: 100%;
-    height: 100%;
+:deep(.vjs-big-play-button) {
+    background-color: rgba(46, 204, 113, 0.8);
+    border: none;
+    border-radius: 50%;
+    width: 80px;
+    height: 80px;
+    line-height: 80px;
+    margin-left: -40px;
+    margin-top: -40px;
+}
+
+:deep(.vjs-big-play-button:hover) {
+    background-color: #2ecc71;
+}
+
+:deep(.vjs-control-bar) {
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0) 100%);
+    backdrop-filter: blur(10px);
+}
+
+:deep(.vjs-progress-control) {
+    margin-right: 10px;
+}
+
+:deep(.vjs-play-progress) {
+    background-color: #2ecc71;
+}
+
+:deep(.vjs-slider) {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+:deep(.vjs-load-progress) {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+:deep(.vjs-control) {
+    color: #ffffff;
+}
+
+:deep(.vjs-control:hover) {
+    color: #2ecc71;
+}
+
+:deep(.vjs-playback-rate-value) {
+    font-size: 1em;
+    line-height: 3.5em;
+}
+
+:deep(.vjs-thumb-preview) {
+    position: absolute;
+    bottom: 100%;
+    margin-bottom: 8px;
+    pointer-events: none;
+    border: 2px solid rgba(46, 204, 113, 0.8);
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    z-index: 10;
+    background: #000;
+}
+
+:deep(.vjs-thumb-preview img) {
+    display: block;
 }
 </style>

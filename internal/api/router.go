@@ -37,12 +37,20 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler
 		c.File(path)
 	})
 
-	// Serve Frames
-	r.GET("/frames/:videoId/:frameName", func(c *gin.Context) {
-		videoId := c.Param("videoId")
-		frameName := c.Param("frameName")
-		path := fmt.Sprintf("./data/frames/%s/%s", videoId, frameName)
+	// Serve Sprite Sheets
+	r.GET("/sprites/:filename", func(c *gin.Context) {
+		filename := c.Param("filename")
+		path := fmt.Sprintf("./data/sprites/%s", filename)
 		c.Header("Content-Type", "image/webp")
+		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
+		c.File(path)
+	})
+
+	// Serve VTT Files
+	r.GET("/vtt/:videoId", func(c *gin.Context) {
+		videoId := c.Param("videoId")
+		path := fmt.Sprintf("./data/vtt/%s_thumbnails.vtt", videoId)
+		c.Header("Content-Type", "text/vtt")
 		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
 		c.File(path)
 	})

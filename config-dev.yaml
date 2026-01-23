@@ -14,11 +14,15 @@ processing:
   frame_interval: 5
   frame_width: 320
   frame_height: 180
-  frame_quality: 85
+  frame_quality: 50
   worker_count: 2
   thumbnail_seek: "00:00:05"
   frame_output_dir: "./data/frames"
   thumbnail_dir: "./data/thumbnails"
+  sprite_dir: "./data/sprites"
+  vtt_dir: "./data/vtt"
+  grid_cols: 12
+  grid_rows: 8
 auth:
   paseto_secret: "01234567890123456789012345678901"
   admin_username: "admin"
