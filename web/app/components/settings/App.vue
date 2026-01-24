@@ -81,21 +81,11 @@ const handleSaveApp = async () => {
                     >
                         Default Sort Order
                     </label>
-                    <select
+                    <UiSelectMenu
                         v-model="appSortOrder"
-                        class="border-border bg-void/80 focus:border-lava/40 focus:ring-lava/20
-                            w-full max-w-64 appearance-none rounded-lg border px-3.5 py-2.5 text-sm
-                            text-white transition-all focus:ring-1 focus:outline-none"
-                    >
-                        <option
-                            v-for="opt in sortOptions"
-                            :key="opt.value"
-                            :value="opt.value"
-                            class="bg-panel"
-                        >
-                            {{ opt.label }}
-                        </option>
-                    </select>
+                        :options="sortOptions"
+                        class="max-w-64"
+                    />
                 </div>
 
                 <button

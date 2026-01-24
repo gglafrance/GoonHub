@@ -8,6 +8,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var allowedTagSorts = map[string]bool{
+	"az":    true,
+	"za":    true,
+	"most":  true,
+	"least": true,
+}
+
 var allowedSortOrders = map[string]bool{
 	"created_at_desc": true,
 	"created_at_asc":  true,
@@ -44,6 +51,7 @@ func (s *SettingsService) GetSettings(userID uint) (*data.UserSettings, error) {
 			Loop:             false,
 			VideosPerPage:    20,
 			DefaultSortOrder: "created_at_desc",
+			DefaultTagSort:   "az",
 		}, nil
 	}
 	return settings, nil
@@ -89,6 +97,25 @@ func (s *SettingsService) UpdateAppSettings(userID uint, videosPerPage int, sort
 
 	if err := s.settingsRepo.Upsert(settings); err != nil {
 		return nil, fmt.Errorf("failed to update app settings: %w", err)
+	}
+
+	return settings, nil
+}
+
+func (s *SettingsService) UpdateTagSettings(userID uint, defaultTagSort string) (*data.UserSettings, error) {
+	if !allowedTagSorts[defaultTagSort] {
+		return nil, fmt.Errorf("invalid tag sort: %s", defaultTagSort)
+	}
+
+	settings, err := s.settingsRepo.GetByUserID(userID)
+	if err != nil {
+		settings = &data.UserSettings{UserID: userID}
+	}
+
+	settings.DefaultTagSort = defaultTagSort
+
+	if err := s.settingsRepo.Upsert(settings); err != nil {
+		return nil, fmt.Errorf("failed to update tag settings: %w", err)
 	}
 
 	return settings, nil

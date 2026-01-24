@@ -56,6 +56,7 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					settings.GET("", settingsHandler.GetSettings)
 					settings.PUT("/player", settingsHandler.UpdatePlayerSettings)
 					settings.PUT("/app", settingsHandler.UpdateAppSettings)
+					settings.PUT("/tags", settingsHandler.UpdateTagSettings)
 					settings.PUT("/password", settingsHandler.ChangePassword)
 					settings.PUT("/username", settingsHandler.ChangeUsername)
 				}

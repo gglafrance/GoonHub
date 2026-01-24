@@ -6,6 +6,7 @@ export interface UserSettings {
     loop: boolean;
     videos_per_page: number;
     default_sort_order: SortOrder;
+    default_tag_sort: TagSort;
     created_at: string;
     updated_at: string;
 }
@@ -30,6 +31,12 @@ export type SortOrder =
     | 'duration_desc'
     | 'size_asc'
     | 'size_desc';
+
+export type TagSort = 'az' | 'za' | 'most' | 'least';
+
+export interface TagSettings {
+    default_tag_sort: TagSort;
+}
 
 export interface ChangePasswordRequest {
     current_password: string;

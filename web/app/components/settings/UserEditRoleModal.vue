@@ -60,31 +60,30 @@ const handleClose = () => {
                 </h3>
                 <div
                     v-if="error"
-                    class="border-lava/20 bg-lava/5 text-lava mb-3 rounded-lg border px-3 py-2 text-xs"
+                    class="border-lava/20 bg-lava/5 text-lava mb-3 rounded-lg border px-3 py-2
+                        text-xs"
                 >
                     {{ error }}
                 </div>
                 <form @submit.prevent="handleSubmit" class="space-y-3">
                     <div>
-                        <label class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider uppercase">
+                        <label
+                            class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
+                                uppercase"
+                        >
                             Role
                         </label>
-                        <select
+                        <UiSelectMenu
                             v-model="roleValue"
-                            class="border-border bg-void/80 focus:border-lava/40 focus:ring-lava/20
-                                w-full appearance-none rounded-lg border px-3.5 py-2.5 text-sm
-                                text-white transition-all focus:ring-1 focus:outline-none"
-                        >
-                            <option v-for="r in roles" :key="r.id" :value="r.name" class="bg-panel">
-                                {{ r.name }}
-                            </option>
-                        </select>
+                            :options="roles.map((r) => ({ value: r.name, label: r.name }))"
+                        />
                     </div>
                     <div class="flex justify-end gap-2 pt-2">
                         <button
                             type="button"
                             @click="handleClose"
-                            class="text-dim hover:text-white rounded-lg px-3 py-1.5 text-xs transition-colors"
+                            class="text-dim rounded-lg px-3 py-1.5 text-xs transition-colors
+                                hover:text-white"
                         >
                             Cancel
                         </button>

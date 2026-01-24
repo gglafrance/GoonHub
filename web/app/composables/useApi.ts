@@ -101,6 +101,15 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const updateTagSettings = async (settings: { default_tag_sort: string }) => {
+        const response = await fetch('/api/v1/settings/tags', {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(settings),
+        });
+        return handleResponse(response);
+    };
+
     const changePassword = async (currentPassword: string, newPassword: string) => {
         const response = await fetch('/api/v1/settings/password', {
             method: 'PUT',
@@ -344,6 +353,7 @@ export const useApi = () => {
         fetchSettings,
         updatePlayerSettings,
         updateAppSettings,
+        updateTagSettings,
         changePassword,
         changeUsername,
         fetchAdminUsers,

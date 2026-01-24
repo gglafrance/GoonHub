@@ -11,6 +11,10 @@ type UpdateAppSettingsRequest struct {
 	DefaultSortOrder string `json:"default_sort_order" binding:"required"`
 }
 
+type UpdateTagSettingsRequest struct {
+	DefaultTagSort string `json:"default_tag_sort" binding:"required"`
+}
+
 type ChangePasswordRequest struct {
 	CurrentPassword string `json:"current_password" binding:"required"`
 	NewPassword     string `json:"new_password" binding:"required,min=6"`

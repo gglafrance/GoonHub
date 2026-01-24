@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import type { Tag } from '~/types/tag';
+import type { TagSort } from '~/types/settings';
 
 const { fetchTags, createTag, deleteTag } = useApi();
 const { message, error, clearMessages } = useSettingsMessage();
+const settingsStore = useSettingsStore();
 
 const tags = ref<Tag[]>([]);
 const loading = ref(false);
@@ -10,6 +12,32 @@ const loading = ref(false);
 const newTagName = ref('');
 const newTagColor = ref('#6B7280');
 const creating = ref(false);
+
+const selectedTagSort = ref<TagSort>(settingsStore.defaultTagSort);
+
+const tagSortOptions: { value: TagSort; label: string }[] = [
+    { value: 'az', label: 'A-Z' },
+    { value: 'za', label: 'Z-A' },
+    { value: 'most', label: 'Most used' },
+    { value: 'least', label: 'Least used' },
+];
+
+watch(
+    () => settingsStore.defaultTagSort,
+    (val) => {
+        selectedTagSort.value = val;
+    },
+);
+
+async function handleSortChange() {
+    clearMessages();
+    try {
+        await settingsStore.updateTags(selectedTagSort.value);
+        message.value = 'Default tag sort updated';
+    } catch (e: unknown) {
+        error.value = e instanceof Error ? e.message : 'Failed to update tag sort';
+    }
+}
 
 const colorPresets = [
     '#6B7280',
@@ -86,6 +114,30 @@ async function handleDelete(tag: Tag) {
             class="border-lava/20 bg-lava/5 text-lava rounded-lg border px-3 py-2 text-xs"
         >
             {{ error }}
+        </div>
+
+        <!-- Default sort -->
+        <div class="glass-panel p-5">
+            <h3 class="mb-5 text-sm font-semibold text-white">Preferences</h3>
+            <div>
+                <label
+                    class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider uppercase"
+                >
+                    Default Sort
+                </label>
+                <UiSelectMenu
+                    :model-value="selectedTagSort"
+                    @update:model-value="
+                        selectedTagSort = $event as TagSort;
+                        handleSortChange();
+                    "
+                    :options="tagSortOptions"
+                    class="max-w-48"
+                />
+                <p class="text-dim mt-1.5 text-[10px]">
+                    Default sort order when opening the tag picker
+                </p>
+            </div>
         </div>
 
         <!-- Create tag -->

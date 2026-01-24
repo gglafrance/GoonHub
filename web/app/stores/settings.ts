@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import type { UserSettings, SortOrder } from '~/types/settings';
+import type { UserSettings, SortOrder, TagSort } from '~/types/settings';
 
 export const useSettingsStore = defineStore(
     'settings',
@@ -12,6 +12,7 @@ export const useSettingsStore = defineStore(
             fetchSettings: apiFetchSettings,
             updatePlayerSettings: apiUpdatePlayer,
             updateAppSettings: apiUpdateApp,
+            updateTagSettings: apiUpdateTags,
         } = useApi();
 
         const autoplay = computed(() => settings.value?.autoplay ?? false);
@@ -21,6 +22,7 @@ export const useSettingsStore = defineStore(
         const defaultSortOrder = computed<SortOrder>(
             () => settings.value?.default_sort_order ?? 'created_at_desc',
         );
+        const defaultTagSort = computed<TagSort>(() => settings.value?.default_tag_sort ?? 'az');
 
         const loadSettings = async () => {
             isLoading.value = true;
@@ -75,6 +77,23 @@ export const useSettingsStore = defineStore(
             }
         };
 
+        const updateTags = async (tagSort: TagSort) => {
+            isLoading.value = true;
+            error.value = null;
+            try {
+                const data: UserSettings = await apiUpdateTags({
+                    default_tag_sort: tagSort,
+                });
+                settings.value = data;
+            } catch (e: unknown) {
+                const message = e instanceof Error ? e.message : 'Unknown error';
+                error.value = message;
+                throw e;
+            } finally {
+                isLoading.value = false;
+            }
+        };
+
         return {
             settings,
             isLoading,
@@ -84,9 +103,11 @@ export const useSettingsStore = defineStore(
             loop,
             videosPerPage,
             defaultSortOrder,
+            defaultTagSort,
             loadSettings,
             updatePlayer,
             updateApp,
+            updateTags,
         };
     },
     {

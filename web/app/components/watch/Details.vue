@@ -12,70 +12,14 @@ const allTags = ref<Tag[]>([]);
 const videoTags = ref<Tag[]>([]);
 const showTagPicker = ref(false);
 
-const pickerRef = ref<HTMLElement | null>(null);
-const searchQuery = ref('');
-const sortMode = ref<'az' | 'za' | 'most' | 'least'>('az');
+const anchorRef = ref<HTMLElement | null>(null);
 
-const sortLabels: Record<string, string> = {
-    az: 'A-Z',
-    za: 'Z-A',
-    most: 'Most used',
-    least: 'Least used',
-};
-
-function cycleSortMode() {
-    const modes: Array<'az' | 'za' | 'most' | 'least'> = ['az', 'za', 'most', 'least'];
-    const idx = modes.indexOf(sortMode.value);
-    sortMode.value = modes[(idx + 1) % modes.length];
-}
-
-const availableTags = computed(() => {
-    let tags = allTags.value.filter((t) => !videoTags.value.some((vt) => vt.id === t.id));
-
-    if (searchQuery.value) {
-        const q = searchQuery.value.toLowerCase();
-        tags = tags.filter((t) => t.name.toLowerCase().includes(q));
-    }
-
-    switch (sortMode.value) {
-        case 'az':
-            tags.sort((a, b) => a.name.localeCompare(b.name));
-            break;
-        case 'za':
-            tags.sort((a, b) => b.name.localeCompare(a.name));
-            break;
-        case 'most':
-            tags.sort((a, b) => b.video_count - a.video_count || a.name.localeCompare(b.name));
-            break;
-        case 'least':
-            tags.sort((a, b) => a.video_count - b.video_count || a.name.localeCompare(b.name));
-            break;
-    }
-
-    return tags;
-});
+const availableTags = computed(() =>
+    allTags.value.filter((t) => !videoTags.value.some((vt) => vt.id === t.id)),
+);
 
 onMounted(async () => {
     await loadTags();
-});
-
-function onClickOutside(event: MouseEvent) {
-    if (pickerRef.value && !pickerRef.value.contains(event.target as Node)) {
-        showTagPicker.value = false;
-    }
-}
-
-watch(showTagPicker, (open) => {
-    if (open) {
-        setTimeout(() => document.addEventListener('click', onClickOutside), 0);
-    } else {
-        document.removeEventListener('click', onClickOutside);
-        searchQuery.value = '';
-    }
-});
-
-onBeforeUnmount(() => {
-    document.removeEventListener('click', onClickOutside);
 });
 
 async function loadTags() {
@@ -172,66 +116,23 @@ async function removeTag(tagId: number) {
                 </span>
 
                 <!-- Add tag button -->
-                <div class="relative" ref="pickerRef">
-                    <button
-                        @click="showTagPicker = !showTagPicker"
-                        class="border-border hover:border-border-hover flex h-5 w-5 items-center
-                            justify-center rounded-full border transition-colors"
-                        title="Add tag"
-                    >
-                        <Icon name="heroicons:plus" size="12" class="text-dim" />
-                    </button>
+                <button
+                    ref="anchorRef"
+                    @click="showTagPicker = !showTagPicker"
+                    class="border-border hover:border-border-hover flex h-5 w-5 items-center
+                        justify-center rounded-full border transition-colors"
+                    title="Add tag"
+                >
+                    <Icon name="heroicons:plus" size="12" class="text-dim" />
+                </button>
 
-                    <!-- Tag picker dropdown -->
-                    <div
-                        v-if="showTagPicker"
-                        class="border-border bg-panel absolute top-full left-0 z-50 mt-1.5 min-w-48
-                            rounded-lg border shadow-xl"
-                    >
-                        <!-- Search + Sort header -->
-                        <div class="border-border/50 flex items-center gap-1 border-b px-2 py-1.5">
-                            <input
-                                v-model="searchQuery"
-                                type="text"
-                                placeholder="Search tags..."
-                                class="bg-transparent text-[11px] text-white/80 placeholder-white/30
-                                    outline-none flex-1 min-w-0"
-                                @click.stop
-                            />
-                            <button
-                                @click.stop="cycleSortMode()"
-                                class="text-dim hover:text-white/80 shrink-0 rounded px-1.5 py-0.5
-                                    text-[9px] transition-colors hover:bg-white/5"
-                                :title="`Sort: ${sortLabels[sortMode]}`"
-                            >
-                                {{ sortLabels[sortMode] }}
-                            </button>
-                        </div>
-
-                        <div v-if="availableTags.length === 0" class="px-3 py-2">
-                            <p class="text-dim text-[11px]">
-                                {{ searchQuery ? 'No matching tags' : 'No more tags available' }}
-                            </p>
-                        </div>
-                        <div v-else class="max-h-48 overflow-y-auto py-1">
-                            <button
-                                v-for="tag in availableTags"
-                                :key="tag.id"
-                                @click="addTag(tag.id)"
-                                class="flex w-full items-center gap-2 px-3 py-1.5 text-left
-                                    text-[11px] text-white/70 transition-colors hover:bg-white/5
-                                    hover:text-white"
-                            >
-                                <span
-                                    class="inline-block h-2 w-2 rounded-full shrink-0"
-                                    :style="{ backgroundColor: tag.color }"
-                                />
-                                <span class="flex-1 truncate">{{ tag.name }}</span>
-                                <span class="text-white/30 text-[10px]">({{ tag.video_count }})</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <WatchTagPicker
+                    :visible="showTagPicker"
+                    :tags="availableTags"
+                    :anchor-el="anchorRef"
+                    @select="addTag"
+                    @close="showTagPicker = false"
+                />
             </div>
         </div>
     </div>

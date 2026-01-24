@@ -45,6 +45,9 @@ func TestGetSettings_Defaults(t *testing.T) {
 	if settings.Loop != false {
 		t.Fatal("expected default loop false")
 	}
+	if settings.DefaultTagSort != "az" {
+		t.Fatalf("expected default tag sort 'az', got %s", settings.DefaultTagSort)
+	}
 }
 
 func TestUpdatePlayerSettings_VolumeBoundaries(t *testing.T) {
@@ -144,6 +147,36 @@ func TestUpdateAppSettings_VideosPerPageBoundaries(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		})
+	}
+}
+
+func TestUpdateTagSettings_ValidSorts(t *testing.T) {
+	validSorts := []string{"az", "za", "most", "least"}
+
+	for _, sort := range validSorts {
+		t.Run(sort, func(t *testing.T) {
+			svc, settingsRepo, _ := newTestSettingsService(t)
+
+			settingsRepo.EXPECT().GetByUserID(uint(1)).Return(&data.UserSettings{UserID: 1}, nil)
+			settingsRepo.EXPECT().Upsert(gomock.Any()).Return(nil)
+
+			_, err := svc.UpdateTagSettings(1, sort)
+			if err != nil {
+				t.Fatalf("expected valid tag sort %q to be accepted, got error: %v", sort, err)
+			}
+		})
+	}
+}
+
+func TestUpdateTagSettings_InvalidSort(t *testing.T) {
+	svc, _, _ := newTestSettingsService(t)
+
+	_, err := svc.UpdateTagSettings(1, "invalid")
+	if err == nil {
+		t.Fatal("expected error for invalid tag sort")
+	}
+	if !strings.Contains(err.Error(), "invalid tag sort") {
+		t.Fatalf("expected 'invalid tag sort' error, got: %v", err)
 	}
 }
 

@@ -79,6 +79,28 @@ func (h *SettingsHandler) UpdateAppSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, settings)
 }
 
+func (h *SettingsHandler) UpdateTagSettings(c *gin.Context) {
+	userPayload, err := middleware.GetUserFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	var req request.UpdateTagSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	settings, err := h.SettingsService.UpdateTagSettings(userPayload.UserID, req.DefaultTagSort)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, settings)
+}
+
 func (h *SettingsHandler) ChangePassword(c *gin.Context) {
 	userPayload, err := middleware.GetUserFromContext(c)
 	if err != nil {
