@@ -20,7 +20,9 @@ processing:
   frame_interval: 5
   max_frame_dimension: 320
   frame_quality: 50
-  worker_count: 2
+  metadata_workers: 3
+  thumbnail_workers: 1
+  sprites_workers: 1
   thumbnail_seek: "00:00:05"
   frame_output_dir: "./data/frames"
   thumbnail_dir: "./data/thumbnails"

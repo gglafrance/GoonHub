@@ -199,6 +199,26 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const fetchPoolConfig = async () => {
+        const response = await fetch('/api/v1/admin/pool-config', {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const updatePoolConfig = async (config: {
+        metadata_workers: number;
+        thumbnail_workers: number;
+        sprites_workers: number;
+    }) => {
+        const response = await fetch('/api/v1/admin/pool-config', {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(config),
+        });
+        return handleResponse(response);
+    };
+
     return {
         uploadVideo,
         fetchVideos,
@@ -217,5 +237,7 @@ export const useApi = () => {
         fetchPermissions,
         syncRolePermissions,
         fetchJobs,
+        fetchPoolConfig,
+        updatePoolConfig,
     };
 };

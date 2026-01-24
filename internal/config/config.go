@@ -54,7 +54,9 @@ type ProcessingConfig struct {
 	FrameInterval       int    `mapstructure:"frame_interval"`        // seconds
 	MaxFrameDimension   int    `mapstructure:"max_frame_dimension"`   // longest side in pixels
 	FrameQuality        int    `mapstructure:"frame_quality"`         // 1-100, WebP quality
-	WorkerCount         int    `mapstructure:"worker_count"`          // concurrent jobs
+	MetadataWorkers     int    `mapstructure:"metadata_workers"`      // concurrent metadata jobs
+	ThumbnailWorkers    int    `mapstructure:"thumbnail_workers"`     // concurrent thumbnail jobs
+	SpritesWorkers      int    `mapstructure:"sprites_workers"`       // concurrent sprites jobs
 	ThumbnailSeek       string `mapstructure:"thumbnail_seek"`        // "00:00:05" or "5%"
 	FrameOutputDir      string `mapstructure:"frame_output_dir"`      // relative to app root
 	ThumbnailDir        string `mapstructure:"thumbnail_dir"`         // relative to app root
@@ -98,7 +100,9 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("processing.frame_interval", 5)
 	v.SetDefault("processing.max_frame_dimension", 320)
 	v.SetDefault("processing.frame_quality", 85)
-	v.SetDefault("processing.worker_count", 2)
+	v.SetDefault("processing.metadata_workers", 3)
+	v.SetDefault("processing.thumbnail_workers", 1)
+	v.SetDefault("processing.sprites_workers", 1)
 	v.SetDefault("processing.thumbnail_seek", "00:00:05")
 	v.SetDefault("processing.frame_output_dir", "./data/frames")
 	v.SetDefault("processing.thumbnail_dir", "./data/thumbnails")

@@ -41,7 +41,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	eventBus := provideEventBus(logger)
 	jobHistoryRepository := provideJobHistoryRepository(db)
 	jobHistoryService := provideJobHistoryService(jobHistoryRepository, configConfig, logger)
-	videoProcessingService := provideVideoProcessingService(videoRepository, configConfig, logger, eventBus, jobHistoryService)
+	poolConfigRepository := providePoolConfigRepository(db)
+	videoProcessingService := provideVideoProcessingService(videoRepository, configConfig, logger, eventBus, jobHistoryService, poolConfigRepository)
 	videoService := provideVideoService(videoRepository, configConfig, videoProcessingService, logger)
 	videoHandler := provideVideoHandler(videoService, videoProcessingService)
 	userRepository := provideUserRepository(db)
@@ -57,7 +58,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	rbacService := provideRBACService(roleRepository, permissionRepository, logger)
 	adminService := provideAdminService(userRepository, roleRepository, rbacService, logger)
 	adminHandler := provideAdminHandler(adminService, rbacService)
-	jobHandler := provideJobHandler(jobHistoryService)
+	jobHandler := provideJobHandler(jobHistoryService, videoProcessingService, poolConfigRepository)
 	sseHandler := provideSSEHandler(eventBus, authService, logger)
 	ipRateLimiter := provideRateLimiter(configConfig)
 	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, authService, rbacService, ipRateLimiter)
@@ -101,12 +102,16 @@ func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config
 	return core.NewJobHistoryService(repo, cfg.Processing, logger.Logger)
 }
 
-func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService) *core.VideoProcessingService {
-	return core.NewVideoProcessingService(repo, cfg.Processing, logger.Logger, eventBus, jobHistory)
+func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository) *core.VideoProcessingService {
+	return core.NewVideoProcessingService(repo, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo)
 }
 
-func provideJobHandler(jobHistoryService *core.JobHistoryService) *handler.JobHandler {
-	return handler.NewJobHandler(jobHistoryService)
+func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.VideoProcessingService, poolConfigRepo data.PoolConfigRepository) *handler.JobHandler {
+	return handler.NewJobHandler(jobHistoryService, processingService, poolConfigRepo)
+}
+
+func providePoolConfigRepository(db *gorm.DB) data.PoolConfigRepository {
+	return data.NewPoolConfigRepository(db)
 }
 
 func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, logger *logging.Logger) *handler.SSEHandler {

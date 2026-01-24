@@ -11,6 +11,12 @@ export interface JobHistory {
     created_at: string;
 }
 
+export interface PoolConfig {
+    metadata_workers: number;
+    thumbnail_workers: number;
+    sprites_workers: number;
+}
+
 export interface JobListResponse {
     data: JobHistory[];
     total: number;
@@ -18,4 +24,5 @@ export interface JobListResponse {
     limit: number;
     active_count: number;
     retention: string;
+    pool_config: PoolConfig;
 }

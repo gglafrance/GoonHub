@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"goonhub/internal/config"
 	"goonhub/internal/data"
 	"goonhub/internal/jobs"
@@ -10,88 +11,131 @@ import (
 	"go.uber.org/zap"
 )
 
+type PoolConfig struct {
+	MetadataWorkers  int `json:"metadata_workers"`
+	ThumbnailWorkers int `json:"thumbnail_workers"`
+	SpritesWorkers   int `json:"sprites_workers"`
+}
+
 type phaseState struct {
 	thumbnailDone bool
 	spritesDone   bool
 }
 
 type VideoProcessingService struct {
-	pool       *jobs.WorkerPool
-	repo       data.VideoRepository
-	config     config.ProcessingConfig
-	logger     *zap.Logger
-	eventBus   *EventBus
-	jobHistory *JobHistoryService
-	phases     sync.Map // map[uint]*phaseState
+	metadataPool  *jobs.WorkerPool
+	thumbnailPool *jobs.WorkerPool
+	spritesPool   *jobs.WorkerPool
+	poolMu        sync.RWMutex
+	repo          data.VideoRepository
+	config        config.ProcessingConfig
+	logger        *zap.Logger
+	eventBus      *EventBus
+	jobHistory    *JobHistoryService
+	phases        sync.Map // map[uint]*phaseState
 }
 
 func NewVideoProcessingService(
 	repo data.VideoRepository,
-	config config.ProcessingConfig,
+	cfg config.ProcessingConfig,
 	logger *zap.Logger,
 	eventBus *EventBus,
 	jobHistory *JobHistoryService,
+	poolConfigRepo data.PoolConfigRepository,
 ) *VideoProcessingService {
+	// Check DB for persisted pool config overrides
+	metadataWorkers := cfg.MetadataWorkers
+	thumbnailWorkers := cfg.ThumbnailWorkers
+	spritesWorkers := cfg.SpritesWorkers
+
+	if poolConfigRepo != nil {
+		if dbConfig, err := poolConfigRepo.Get(); err == nil && dbConfig != nil {
+			metadataWorkers = dbConfig.MetadataWorkers
+			thumbnailWorkers = dbConfig.ThumbnailWorkers
+			spritesWorkers = dbConfig.SpritesWorkers
+			logger.Info("Loaded pool config from database",
+				zap.Int("metadata_workers", metadataWorkers),
+				zap.Int("thumbnail_workers", thumbnailWorkers),
+				zap.Int("sprites_workers", spritesWorkers),
+			)
+		}
+	}
+
 	logger.Info("Initializing video processing service",
-		zap.Int("worker_count", config.WorkerCount),
-		zap.Int("frame_interval", config.FrameInterval),
-		zap.Int("max_frame_dimension", config.MaxFrameDimension),
-		zap.Int("frame_quality", config.FrameQuality),
-		zap.Int("grid_cols", config.GridCols),
-		zap.Int("grid_rows", config.GridRows),
-		zap.String("sprite_dir", config.SpriteDir),
-		zap.String("vtt_dir", config.VttDir),
-		zap.String("thumbnail_dir", config.ThumbnailDir),
+		zap.Int("metadata_workers", metadataWorkers),
+		zap.Int("thumbnail_workers", thumbnailWorkers),
+		zap.Int("sprites_workers", spritesWorkers),
+		zap.Int("frame_interval", cfg.FrameInterval),
+		zap.Int("max_frame_dimension", cfg.MaxFrameDimension),
+		zap.Int("frame_quality", cfg.FrameQuality),
+		zap.Int("grid_cols", cfg.GridCols),
+		zap.Int("grid_rows", cfg.GridRows),
+		zap.String("sprite_dir", cfg.SpriteDir),
+		zap.String("vtt_dir", cfg.VttDir),
+		zap.String("thumbnail_dir", cfg.ThumbnailDir),
 	)
 
-	pool := jobs.NewWorkerPool(config.WorkerCount, 100)
-	pool.SetLogger(logger)
+	metadataPool := jobs.NewWorkerPool(metadataWorkers, 100)
+	metadataPool.SetLogger(logger.With(zap.String("pool", "metadata")))
 
-	if err := os.MkdirAll(config.SpriteDir, 0755); err != nil {
+	thumbnailPool := jobs.NewWorkerPool(thumbnailWorkers, 100)
+	thumbnailPool.SetLogger(logger.With(zap.String("pool", "thumbnail")))
+
+	spritesPool := jobs.NewWorkerPool(spritesWorkers, 100)
+	spritesPool.SetLogger(logger.With(zap.String("pool", "sprites")))
+
+	if err := os.MkdirAll(cfg.SpriteDir, 0755); err != nil {
 		logger.Error("Failed to create sprite directory",
-			zap.String("directory", config.SpriteDir),
+			zap.String("directory", cfg.SpriteDir),
 			zap.Error(err),
 		)
 	} else {
-		logger.Info("Sprite directory ready", zap.String("directory", config.SpriteDir))
+		logger.Info("Sprite directory ready", zap.String("directory", cfg.SpriteDir))
 	}
 
-	if err := os.MkdirAll(config.VttDir, 0755); err != nil {
+	if err := os.MkdirAll(cfg.VttDir, 0755); err != nil {
 		logger.Error("Failed to create VTT directory",
-			zap.String("directory", config.VttDir),
+			zap.String("directory", cfg.VttDir),
 			zap.Error(err),
 		)
 	} else {
-		logger.Info("VTT directory ready", zap.String("directory", config.VttDir))
+		logger.Info("VTT directory ready", zap.String("directory", cfg.VttDir))
 	}
 
-	if err := os.MkdirAll(config.ThumbnailDir, 0755); err != nil {
+	if err := os.MkdirAll(cfg.ThumbnailDir, 0755); err != nil {
 		logger.Error("Failed to create thumbnail directory",
-			zap.String("directory", config.ThumbnailDir),
+			zap.String("directory", cfg.ThumbnailDir),
 			zap.Error(err),
 		)
 	} else {
-		logger.Info("Thumbnail directory ready", zap.String("directory", config.ThumbnailDir))
+		logger.Info("Thumbnail directory ready", zap.String("directory", cfg.ThumbnailDir))
 	}
 
 	return &VideoProcessingService{
-		pool:       pool,
-		repo:       repo,
-		config:     config,
-		logger:     logger,
-		eventBus:   eventBus,
-		jobHistory: jobHistory,
+		metadataPool:  metadataPool,
+		thumbnailPool: thumbnailPool,
+		spritesPool:   spritesPool,
+		repo:          repo,
+		config:        cfg,
+		logger:        logger,
+		eventBus:      eventBus,
+		jobHistory:    jobHistory,
 	}
 }
 
 func (s *VideoProcessingService) Start() {
-	s.pool.Start()
+	s.metadataPool.Start()
+	s.thumbnailPool.Start()
+	s.spritesPool.Start()
 
-	go s.processResults()
+	go s.processPoolResults(s.metadataPool)
+	go s.processPoolResults(s.thumbnailPool)
+	go s.processPoolResults(s.spritesPool)
 
 	s.logger.Info("Video processing service started",
-		zap.Int("worker_count", s.config.WorkerCount),
-		zap.Int("queue_capacity", 100),
+		zap.Int("metadata_workers", s.metadataPool.ActiveWorkers()),
+		zap.Int("thumbnail_workers", s.thumbnailPool.ActiveWorkers()),
+		zap.Int("sprites_workers", s.spritesPool.ActiveWorkers()),
 	)
 }
 
@@ -99,7 +143,6 @@ func (s *VideoProcessingService) SubmitVideo(videoID uint, videoPath string) err
 	s.logger.Info("Video submitted for processing",
 		zap.Uint("video_id", videoID),
 		zap.String("video_path", videoPath),
-		zap.Int("current_queue_depth", s.pool.QueueSize()),
 	)
 
 	job := jobs.NewMetadataJob(
@@ -110,7 +153,11 @@ func (s *VideoProcessingService) SubmitVideo(videoID uint, videoPath string) err
 		s.logger,
 	)
 
-	if err := s.pool.Submit(job); err != nil {
+	s.poolMu.RLock()
+	err := s.metadataPool.Submit(job)
+	s.poolMu.RUnlock()
+
+	if err != nil {
 		s.logger.Error("Failed to submit metadata job",
 			zap.Uint("video_id", videoID),
 			zap.Error(err),
@@ -129,10 +176,8 @@ func (s *VideoProcessingService) SubmitVideo(videoID uint, videoPath string) err
 	return nil
 }
 
-func (s *VideoProcessingService) processResults() {
-	s.logger.Info("Job result processor started")
-
-	for result := range s.pool.Results() {
+func (s *VideoProcessingService) processPoolResults(pool *jobs.WorkerPool) {
+	for result := range pool.Results() {
 		switch result.Status {
 		case jobs.JobStatusCompleted:
 			s.handleCompleted(result)
@@ -198,7 +243,7 @@ func (s *VideoProcessingService) onMetadataComplete(result jobs.JobResult) {
 	// Retrieve the video path from the metadata job
 	videoPath := metadataJob.GetVideoPath()
 
-	// Submit thumbnail and sprites jobs in parallel
+	// Submit thumbnail and sprites jobs to their respective pools
 	thumbnailJob := jobs.NewThumbnailJob(
 		result.VideoID,
 		videoPath,
@@ -227,19 +272,24 @@ func (s *VideoProcessingService) onMetadataComplete(result jobs.JobResult) {
 		s.logger,
 	)
 
-	if err := s.pool.Submit(thumbnailJob); err != nil {
+	s.poolMu.RLock()
+	thumbnailErr := s.thumbnailPool.Submit(thumbnailJob)
+	spritesErr := s.spritesPool.Submit(spritesJob)
+	s.poolMu.RUnlock()
+
+	if thumbnailErr != nil {
 		s.logger.Error("Failed to submit thumbnail job",
 			zap.Uint("video_id", result.VideoID),
-			zap.Error(err),
+			zap.Error(thumbnailErr),
 		)
 		s.repo.UpdateProcessingStatus(result.VideoID, "failed", "failed to submit thumbnail job")
 		return
 	}
 
-	if err := s.pool.Submit(spritesJob); err != nil {
+	if spritesErr != nil {
 		s.logger.Error("Failed to submit sprites job",
 			zap.Uint("video_id", result.VideoID),
-			zap.Error(err),
+			zap.Error(spritesErr),
 		)
 		s.repo.UpdateProcessingStatus(result.VideoID, "failed", "failed to submit sprites job")
 		return
@@ -359,14 +409,85 @@ func (s *VideoProcessingService) handleFailed(result jobs.JobResult) {
 
 func (s *VideoProcessingService) Stop() {
 	s.logger.Info("Stopping video processing service")
-	s.pool.Stop()
+	s.metadataPool.Stop()
+	s.thumbnailPool.Stop()
+	s.spritesPool.Stop()
 }
 
-func (s *VideoProcessingService) GetPool() *jobs.WorkerPool {
-	return s.pool
+func (s *VideoProcessingService) GetPoolConfig() PoolConfig {
+	s.poolMu.RLock()
+	defer s.poolMu.RUnlock()
+	return PoolConfig{
+		MetadataWorkers:  s.metadataPool.ActiveWorkers(),
+		ThumbnailWorkers: s.thumbnailPool.ActiveWorkers(),
+		SpritesWorkers:   s.spritesPool.ActiveWorkers(),
+	}
+}
+
+func (s *VideoProcessingService) UpdatePoolConfig(cfg PoolConfig) error {
+	s.poolMu.Lock()
+	defer s.poolMu.Unlock()
+
+	if cfg.MetadataWorkers < 1 || cfg.MetadataWorkers > 10 {
+		return fmt.Errorf("metadata_workers must be between 1 and 10")
+	}
+	if cfg.ThumbnailWorkers < 1 || cfg.ThumbnailWorkers > 10 {
+		return fmt.Errorf("thumbnail_workers must be between 1 and 10")
+	}
+	if cfg.SpritesWorkers < 1 || cfg.SpritesWorkers > 10 {
+		return fmt.Errorf("sprites_workers must be between 1 and 10")
+	}
+
+	// Resize metadata pool if needed
+	if cfg.MetadataWorkers != s.metadataPool.ActiveWorkers() {
+		newPool := jobs.NewWorkerPool(cfg.MetadataWorkers, 100)
+		newPool.SetLogger(s.logger.With(zap.String("pool", "metadata")))
+		newPool.Start()
+		go s.processPoolResults(newPool)
+
+		oldPool := s.metadataPool
+		s.metadataPool = newPool
+		oldPool.Stop()
+
+		s.logger.Info("Resized metadata pool", zap.Int("workers", cfg.MetadataWorkers))
+	}
+
+	// Resize thumbnail pool if needed
+	if cfg.ThumbnailWorkers != s.thumbnailPool.ActiveWorkers() {
+		newPool := jobs.NewWorkerPool(cfg.ThumbnailWorkers, 100)
+		newPool.SetLogger(s.logger.With(zap.String("pool", "thumbnail")))
+		newPool.Start()
+		go s.processPoolResults(newPool)
+
+		oldPool := s.thumbnailPool
+		s.thumbnailPool = newPool
+		oldPool.Stop()
+
+		s.logger.Info("Resized thumbnail pool", zap.Int("workers", cfg.ThumbnailWorkers))
+	}
+
+	// Resize sprites pool if needed
+	if cfg.SpritesWorkers != s.spritesPool.ActiveWorkers() {
+		newPool := jobs.NewWorkerPool(cfg.SpritesWorkers, 100)
+		newPool.SetLogger(s.logger.With(zap.String("pool", "sprites")))
+		newPool.Start()
+		go s.processPoolResults(newPool)
+
+		oldPool := s.spritesPool
+		s.spritesPool = newPool
+		oldPool.Stop()
+
+		s.logger.Info("Resized sprites pool", zap.Int("workers", cfg.SpritesWorkers))
+	}
+
+	return nil
 }
 
 func (s *VideoProcessingService) LogStatus() {
 	s.logger.Info("Video processing service status")
-	s.pool.LogStatus()
+	s.poolMu.RLock()
+	defer s.poolMu.RUnlock()
+	s.metadataPool.LogStatus()
+	s.thumbnailPool.LogStatus()
+	s.spritesPool.LogStatus()
 }

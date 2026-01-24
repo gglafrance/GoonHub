@@ -39,6 +39,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideRoleRepository,
 		providePermissionRepository,
 		provideJobHistoryRepository,
+		providePoolConfigRepository,
 
 		// Core
 		provideEventBus,
@@ -105,12 +106,16 @@ func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config
 	return core.NewJobHistoryService(repo, cfg.Processing, logger.Logger)
 }
 
-func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService) *core.VideoProcessingService {
-	return core.NewVideoProcessingService(repo, cfg.Processing, logger.Logger, eventBus, jobHistory)
+func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository) *core.VideoProcessingService {
+	return core.NewVideoProcessingService(repo, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo)
 }
 
-func provideJobHandler(jobHistoryService *core.JobHistoryService) *handler.JobHandler {
-	return handler.NewJobHandler(jobHistoryService)
+func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.VideoProcessingService, poolConfigRepo data.PoolConfigRepository) *handler.JobHandler {
+	return handler.NewJobHandler(jobHistoryService, processingService, poolConfigRepo)
+}
+
+func providePoolConfigRepository(db *gorm.DB) data.PoolConfigRepository {
+	return data.NewPoolConfigRepository(db)
 }
 
 func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, logger *logging.Logger) *handler.SSEHandler {

@@ -61,6 +61,8 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					admin.GET("/permissions", adminHandler.ListPermissions)
 					admin.PUT("/roles/:id/permissions", adminHandler.SyncRolePermissions)
 					admin.GET("/jobs", jobHandler.ListJobs)
+					admin.GET("/pool-config", jobHandler.GetPoolConfig)
+					admin.PUT("/pool-config", jobHandler.UpdatePoolConfig)
 				}
 			}
 		}
