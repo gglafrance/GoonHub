@@ -46,3 +46,4 @@ tmp/
 server
 /data/
 *.db
+.claude/settings.json
