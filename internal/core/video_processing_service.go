@@ -5,6 +5,7 @@ import (
 	"goonhub/internal/config"
 	"goonhub/internal/data"
 	"goonhub/internal/jobs"
+	"goonhub/pkg/ffmpeg"
 	"os"
 	"path/filepath"
 	"strings"
@@ -720,10 +721,11 @@ func (s *VideoProcessingService) SubmitPhase(videoID uint, phase string) error {
 		if video.Duration == 0 {
 			return fmt.Errorf("metadata must be extracted before thumbnail generation")
 		}
+		tileWidthLg, tileHeightLg := ffmpeg.CalculateTileDimensions(video.Width, video.Height, s.config.MaxFrameDimensionLarge)
 		thumbnailJob := jobs.NewThumbnailJob(
 			videoID, video.StoredPath, s.config.ThumbnailDir,
 			video.ThumbnailWidth, video.ThumbnailHeight,
-			video.ThumbnailWidth, video.ThumbnailHeight,
+			tileWidthLg, tileHeightLg,
 			video.Duration, qualitySm, qualityLg, s.repo, s.logger,
 		)
 		s.poolMu.RLock()
