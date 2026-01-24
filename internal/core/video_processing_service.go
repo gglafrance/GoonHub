@@ -6,6 +6,8 @@ import (
 	"goonhub/internal/data"
 	"goonhub/internal/jobs"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"go.uber.org/zap"
@@ -124,6 +126,8 @@ func NewVideoProcessingService(
 }
 
 func (s *VideoProcessingService) Start() {
+	s.migrateOldThumbnails()
+
 	s.metadataPool.Start()
 	s.thumbnailPool.Start()
 	s.spritesPool.Start()
@@ -139,6 +143,39 @@ func (s *VideoProcessingService) Start() {
 	)
 }
 
+// migrateOldThumbnails renames legacy {id}_thumb.webp files to the new {id}_thumb_sm.webp naming.
+func (s *VideoProcessingService) migrateOldThumbnails() {
+	entries, err := os.ReadDir(s.config.ThumbnailDir)
+	if err != nil {
+		// Directory might not exist yet on first run
+		return
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasSuffix(name, "_thumb.webp") {
+			oldPath := filepath.Join(s.config.ThumbnailDir, name)
+			newName := strings.TrimSuffix(name, "_thumb.webp") + "_thumb_sm.webp"
+			newPath := filepath.Join(s.config.ThumbnailDir, newName)
+			if err := os.Rename(oldPath, newPath); err != nil {
+				s.logger.Error("Failed to migrate old thumbnail",
+					zap.String("old_path", oldPath),
+					zap.String("new_path", newPath),
+					zap.Error(err),
+				)
+			} else {
+				s.logger.Info("Migrated old thumbnail",
+					zap.String("old_path", oldPath),
+					zap.String("new_path", newPath),
+				)
+			}
+		}
+	}
+}
+
 func (s *VideoProcessingService) SubmitVideo(videoID uint, videoPath string) error {
 	s.logger.Info("Video submitted for processing",
 		zap.Uint("video_id", videoID),
@@ -149,6 +186,7 @@ func (s *VideoProcessingService) SubmitVideo(videoID uint, videoPath string) err
 		videoID,
 		videoPath,
 		s.config.MaxFrameDimension,
+		s.config.MaxFrameDimensionLarge,
 		s.repo,
 		s.logger,
 	)
@@ -250,6 +288,8 @@ func (s *VideoProcessingService) onMetadataComplete(result jobs.JobResult) {
 		s.config.ThumbnailDir,
 		meta.TileWidth,
 		meta.TileHeight,
+		meta.TileWidthLarge,
+		meta.TileHeightLarge,
 		meta.Duration,
 		s.config.FrameQuality,
 		s.repo,

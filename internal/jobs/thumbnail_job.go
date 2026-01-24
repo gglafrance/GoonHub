@@ -14,26 +14,31 @@ import (
 )
 
 type ThumbnailResult struct {
-	ThumbnailPath   string
-	ThumbnailWidth  int
-	ThumbnailHeight int
+	ThumbnailPath        string
+	ThumbnailWidth       int
+	ThumbnailHeight      int
+	ThumbnailPathLarge   string
+	ThumbnailWidthLarge  int
+	ThumbnailHeightLarge int
 }
 
 type ThumbnailJob struct {
-	id           string
-	videoID      uint
-	videoPath    string
-	thumbnailDir string
-	tileWidth    int
-	tileHeight   int
-	duration     int
-	frameQuality int
-	repo         data.VideoRepository
-	logger       *zap.Logger
-	status       JobStatus
-	error        error
-	cancelled    atomic.Bool
-	result       *ThumbnailResult
+	id             string
+	videoID        uint
+	videoPath      string
+	thumbnailDir   string
+	tileWidth      int
+	tileHeight     int
+	tileWidthLarge  int
+	tileHeightLarge int
+	duration       int
+	frameQuality   int
+	repo           data.VideoRepository
+	logger         *zap.Logger
+	status         JobStatus
+	error          error
+	cancelled      atomic.Bool
+	result         *ThumbnailResult
 }
 
 func NewThumbnailJob(
@@ -42,23 +47,27 @@ func NewThumbnailJob(
 	thumbnailDir string,
 	tileWidth int,
 	tileHeight int,
+	tileWidthLarge int,
+	tileHeightLarge int,
 	duration int,
 	frameQuality int,
 	repo data.VideoRepository,
 	logger *zap.Logger,
 ) *ThumbnailJob {
 	return &ThumbnailJob{
-		id:           uuid.New().String(),
-		videoID:      videoID,
-		videoPath:    videoPath,
-		thumbnailDir: thumbnailDir,
-		tileWidth:    tileWidth,
-		tileHeight:   tileHeight,
-		duration:     duration,
-		frameQuality: frameQuality,
-		repo:         repo,
-		logger:       logger,
-		status:       JobStatusPending,
+		id:              uuid.New().String(),
+		videoID:         videoID,
+		videoPath:       videoPath,
+		thumbnailDir:    thumbnailDir,
+		tileWidth:       tileWidth,
+		tileHeight:      tileHeight,
+		tileWidthLarge:  tileWidthLarge,
+		tileHeightLarge: tileHeightLarge,
+		duration:        duration,
+		frameQuality:    frameQuality,
+		repo:            repo,
+		logger:          logger,
+		status:          JobStatusPending,
 	}
 }
 
@@ -98,19 +107,31 @@ func (j *ThumbnailJob) Execute() error {
 		return err
 	}
 
-	thumbnailPath := filepath.Join(j.thumbnailDir, fmt.Sprintf("%d_thumb.webp", j.videoID))
+	thumbnailPathSmall := filepath.Join(j.thumbnailDir, fmt.Sprintf("%d_thumb_sm.webp", j.videoID))
+	thumbnailPathLarge := filepath.Join(j.thumbnailDir, fmt.Sprintf("%d_thumb_lg.webp", j.videoID))
 	thumbnailSeek := fmt.Sprintf("%d", j.duration/2)
 
-	if err := ffmpeg.ExtractThumbnail(j.videoPath, thumbnailPath, thumbnailSeek, j.tileWidth, j.tileHeight, j.frameQuality); err != nil {
-		j.logger.Error("Failed to extract thumbnail",
+	// Extract small thumbnail
+	if err := ffmpeg.ExtractThumbnail(j.videoPath, thumbnailPathSmall, thumbnailSeek, j.tileWidth, j.tileHeight, j.frameQuality); err != nil {
+		j.logger.Error("Failed to extract small thumbnail",
 			zap.Uint("video_id", j.videoID),
 			zap.Error(err),
 		)
-		j.handleError(fmt.Errorf("thumbnail extraction failed: %w", err))
+		j.handleError(fmt.Errorf("small thumbnail extraction failed: %w", err))
 		return err
 	}
 
-	if err := j.repo.UpdateThumbnail(j.videoID, thumbnailPath, j.tileWidth, j.tileHeight); err != nil {
+	// Extract large thumbnail
+	if err := ffmpeg.ExtractThumbnail(j.videoPath, thumbnailPathLarge, thumbnailSeek, j.tileWidthLarge, j.tileHeightLarge, j.frameQuality); err != nil {
+		j.logger.Error("Failed to extract large thumbnail",
+			zap.Uint("video_id", j.videoID),
+			zap.Error(err),
+		)
+		j.handleError(fmt.Errorf("large thumbnail extraction failed: %w", err))
+		return err
+	}
+
+	if err := j.repo.UpdateThumbnail(j.videoID, thumbnailPathSmall, j.tileWidth, j.tileHeight); err != nil {
 		j.logger.Error("Failed to update thumbnail in database",
 			zap.Uint("video_id", j.videoID),
 			zap.Error(err),
@@ -120,16 +141,20 @@ func (j *ThumbnailJob) Execute() error {
 	}
 
 	j.result = &ThumbnailResult{
-		ThumbnailPath:   thumbnailPath,
-		ThumbnailWidth:  j.tileWidth,
-		ThumbnailHeight: j.tileHeight,
+		ThumbnailPath:        thumbnailPathSmall,
+		ThumbnailWidth:       j.tileWidth,
+		ThumbnailHeight:      j.tileHeight,
+		ThumbnailPathLarge:   thumbnailPathLarge,
+		ThumbnailWidthLarge:  j.tileWidthLarge,
+		ThumbnailHeightLarge: j.tileHeightLarge,
 	}
 
 	j.status = JobStatusCompleted
 	j.logger.Info("Thumbnail extraction completed",
 		zap.String("job_id", j.id),
 		zap.Uint("video_id", j.videoID),
-		zap.String("thumbnail_path", thumbnailPath),
+		zap.String("thumbnail_path_small", thumbnailPathSmall),
+		zap.String("thumbnail_path_large", thumbnailPathLarge),
 		zap.Duration("elapsed", time.Since(startTime)),
 	)
 

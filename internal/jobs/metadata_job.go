@@ -12,41 +12,50 @@ import (
 )
 
 type MetadataResult struct {
-	Duration   int
-	Width      int
-	Height     int
-	TileWidth  int
-	TileHeight int
+	Duration        int
+	Width           int
+	Height          int
+	TileWidth       int
+	TileHeight      int
+	TileWidthLarge  int
+	TileHeightLarge int
+	FrameRate       float64
+	BitRate         int64
+	VideoCodec      string
+	AudioCodec      string
 }
 
 type MetadataJob struct {
-	id                string
-	videoID           uint
-	videoPath         string
-	maxFrameDimension int
-	repo              data.VideoRepository
-	logger            *zap.Logger
-	status            JobStatus
-	error             error
-	cancelled         atomic.Bool
-	result            *MetadataResult
+	id                     string
+	videoID                uint
+	videoPath              string
+	maxFrameDimension      int
+	maxFrameDimensionLarge int
+	repo                   data.VideoRepository
+	logger                 *zap.Logger
+	status                 JobStatus
+	error                  error
+	cancelled              atomic.Bool
+	result                 *MetadataResult
 }
 
 func NewMetadataJob(
 	videoID uint,
 	videoPath string,
 	maxFrameDimension int,
+	maxFrameDimensionLarge int,
 	repo data.VideoRepository,
 	logger *zap.Logger,
 ) *MetadataJob {
 	return &MetadataJob{
-		id:                uuid.New().String(),
-		videoID:           videoID,
-		videoPath:         videoPath,
-		maxFrameDimension: maxFrameDimension,
-		repo:              repo,
-		logger:            logger,
-		status:            JobStatusPending,
+		id:                     uuid.New().String(),
+		videoID:                videoID,
+		videoPath:              videoPath,
+		maxFrameDimension:      maxFrameDimension,
+		maxFrameDimensionLarge: maxFrameDimensionLarge,
+		repo:                   repo,
+		logger:                 logger,
+		status:                 JobStatusPending,
 	}
 }
 
@@ -99,9 +108,10 @@ func (j *MetadataJob) Execute() error {
 	}
 
 	tileWidth, tileHeight := ffmpeg.CalculateTileDimensions(metadata.Width, metadata.Height, j.maxFrameDimension)
+	tileWidthLarge, tileHeightLarge := ffmpeg.CalculateTileDimensions(metadata.Width, metadata.Height, j.maxFrameDimensionLarge)
 
 	duration := int(metadata.Duration)
-	if err := j.repo.UpdateBasicMetadata(j.videoID, duration, metadata.Width, metadata.Height); err != nil {
+	if err := j.repo.UpdateBasicMetadata(j.videoID, duration, metadata.Width, metadata.Height, metadata.FrameRate, metadata.BitRate, metadata.VideoCodec, metadata.AudioCodec); err != nil {
 		j.logger.Error("Failed to update basic metadata",
 			zap.Uint("video_id", j.videoID),
 			zap.Error(err),
@@ -111,11 +121,17 @@ func (j *MetadataJob) Execute() error {
 	}
 
 	j.result = &MetadataResult{
-		Duration:   duration,
-		Width:      metadata.Width,
-		Height:     metadata.Height,
-		TileWidth:  tileWidth,
-		TileHeight: tileHeight,
+		Duration:        duration,
+		Width:           metadata.Width,
+		Height:          metadata.Height,
+		TileWidth:       tileWidth,
+		TileHeight:      tileHeight,
+		TileWidthLarge:  tileWidthLarge,
+		TileHeightLarge: tileHeightLarge,
+		FrameRate:       metadata.FrameRate,
+		BitRate:         metadata.BitRate,
+		VideoCodec:      metadata.VideoCodec,
+		AudioCodec:      metadata.AudioCodec,
 	}
 
 	j.status = JobStatusCompleted

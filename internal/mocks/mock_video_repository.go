@@ -115,17 +115,17 @@ func (mr *MockVideoRepositoryMockRecorder) List(page, limit any) *gomock.Call {
 }
 
 // UpdateBasicMetadata mocks base method.
-func (m *MockVideoRepository) UpdateBasicMetadata(id uint, duration, width, height int) error {
+func (m *MockVideoRepository) UpdateBasicMetadata(id uint, duration, width, height int, frameRate float64, bitRate int64, videoCodec, audioCodec string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateBasicMetadata", id, duration, width, height)
+	ret := m.ctrl.Call(m, "UpdateBasicMetadata", id, duration, width, height, frameRate, bitRate, videoCodec, audioCodec)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateBasicMetadata indicates an expected call of UpdateBasicMetadata.
-func (mr *MockVideoRepositoryMockRecorder) UpdateBasicMetadata(id, duration, width, height any) *gomock.Call {
+func (mr *MockVideoRepositoryMockRecorder) UpdateBasicMetadata(id, duration, width, height, frameRate, bitRate, videoCodec, audioCodec any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBasicMetadata", reflect.TypeOf((*MockVideoRepository)(nil).UpdateBasicMetadata), id, duration, width, height)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBasicMetadata", reflect.TypeOf((*MockVideoRepository)(nil).UpdateBasicMetadata), id, duration, width, height, frameRate, bitRate, videoCodec, audioCodec)
 }
 
 // UpdateMetadata mocks base method.

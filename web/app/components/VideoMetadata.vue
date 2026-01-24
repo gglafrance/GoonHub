@@ -5,11 +5,22 @@ defineProps<{
     video: Video;
 }>();
 
-const { formatDuration, formatSize } = useFormatter();
+const { formatDuration, formatSize, formatBitRate, formatFrameRate } = useFormatter();
+
+const formatResolution = (w?: number, h?: number): string => {
+    if (!w || !h) return '';
+    return `${w}x${h}`;
+};
+
+const formatCodec = (codec?: string): string => {
+    if (!codec) return '';
+    return codec.toUpperCase();
+};
 </script>
 
 <template>
     <div class="sticky top-28 space-y-3">
+        <!-- Info Section -->
         <div class="border-border bg-surface/50 rounded-xl border p-4 backdrop-blur-sm">
             <h1 class="text-sm leading-snug font-semibold text-white">
                 {{ video.title }}
@@ -49,12 +60,140 @@ const { formatDuration, formatSize } = useFormatter();
                     </span>
                 </div>
             </div>
+        </div>
 
-            <div class="border-border mt-4 border-t pt-3">
-                <span class="text-dim text-[10px] font-medium tracking-wider uppercase">File</span>
-                <p class="text-dim/70 mt-1 font-mono text-[10px] break-all">
-                    {{ video.original_filename }}
-                </p>
+        <!-- Technical Section -->
+        <div
+            v-if="video.width || video.frame_rate || video.bit_rate || video.video_codec"
+            class="border-border bg-surface/50 rounded-xl border p-4 backdrop-blur-sm"
+        >
+            <span class="text-dim text-[10px] font-medium tracking-wider uppercase">Technical</span>
+            <div class="mt-2 space-y-0">
+                <div
+                    v-if="video.width && video.height"
+                    class="border-border flex items-center justify-between border-b py-2.5"
+                >
+                    <span class="text-dim text-[11px]">Resolution</span>
+                    <span class="text-muted font-mono text-[11px]">
+                        {{ formatResolution(video.width, video.height) }}
+                    </span>
+                </div>
+
+                <div
+                    v-if="video.frame_rate"
+                    class="border-border flex items-center justify-between border-b py-2.5"
+                >
+                    <span class="text-dim text-[11px]">Frame Rate</span>
+                    <span class="text-muted font-mono text-[11px]">
+                        {{ formatFrameRate(video.frame_rate) }}
+                    </span>
+                </div>
+
+                <div
+                    v-if="video.bit_rate"
+                    class="border-border flex items-center justify-between border-b py-2.5"
+                >
+                    <span class="text-dim text-[11px]">Bit Rate</span>
+                    <span class="text-muted font-mono text-[11px]">
+                        {{ formatBitRate(video.bit_rate) }}
+                    </span>
+                </div>
+
+                <div
+                    v-if="video.video_codec"
+                    class="border-border flex items-center justify-between py-2.5"
+                    :class="{ 'border-b': video.audio_codec }"
+                >
+                    <span class="text-dim text-[11px]">Video Codec</span>
+                    <span class="text-muted font-mono text-[11px]">
+                        {{ formatCodec(video.video_codec) }}
+                    </span>
+                </div>
+
+                <div v-if="video.audio_codec" class="flex items-center justify-between py-2.5">
+                    <span class="text-dim text-[11px]">Audio Codec</span>
+                    <span class="text-muted font-mono text-[11px]">
+                        {{ formatCodec(video.audio_codec) }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- File Section -->
+        <div class="border-border bg-surface/50 rounded-xl border p-4 backdrop-blur-sm">
+            <span class="text-dim text-[10px] font-medium tracking-wider uppercase">File</span>
+            <div class="mt-2 space-y-0">
+                <div class="border-border border-b py-2.5">
+                    <span class="text-dim text-[11px]">Filename</span>
+                    <p class="text-dim/70 mt-0.5 font-mono text-[10px] break-all">
+                        {{ video.original_filename }}
+                    </p>
+                </div>
+
+                <div
+                    v-if="video.file_created_at"
+                    class="flex items-center justify-between py-2.5"
+                >
+                    <span class="text-dim text-[11px]">File Date</span>
+                    <span class="text-muted font-mono text-[11px]">
+                        <NuxtTime
+                            :datetime="video.file_created_at"
+                            year="numeric"
+                            month="short"
+                            day="numeric"
+                        />
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Details Section (placeholders for future use) -->
+        <div
+            v-if="video.description || video.studio || (video.tags && video.tags.length) || (video.actors && video.actors.length)"
+            class="border-border bg-surface/50 rounded-xl border p-4 backdrop-blur-sm"
+        >
+            <span class="text-dim text-[10px] font-medium tracking-wider uppercase">Details</span>
+            <div class="mt-2 space-y-0">
+                <div v-if="video.description" class="border-border border-b py-2.5">
+                    <span class="text-dim text-[11px]">Description</span>
+                    <p class="text-muted mt-0.5 text-[11px]">{{ video.description }}</p>
+                </div>
+
+                <div
+                    v-if="video.studio"
+                    class="border-border flex items-center justify-between border-b py-2.5"
+                >
+                    <span class="text-dim text-[11px]">Studio</span>
+                    <span class="text-muted text-[11px]">{{ video.studio }}</span>
+                </div>
+
+                <div v-if="video.tags && video.tags.length" class="border-border border-b py-2.5">
+                    <span class="text-dim text-[11px]">Tags</span>
+                    <div class="mt-1 flex flex-wrap gap-1">
+                        <span
+                            v-for="tag in video.tags"
+                            :key="tag"
+                            class="border-border bg-panel rounded-md border px-1.5 py-0.5
+                                font-mono text-[10px] text-white/60"
+                        >
+                            {{ tag }}
+                        </span>
+                    </div>
+                </div>
+
+                <div v-if="video.actors && video.actors.length" class="py-2.5">
+                    <span class="text-dim text-[11px]">Actors</span>
+                    <div class="mt-1 flex flex-wrap gap-1">
+                        <span
+                            v-for="actor in video.actors"
+                            :key="actor"
+                            class="border-border bg-panel rounded-md border px-1.5 py-0.5
+                                font-mono text-[10px] text-white/60"
+                        >
+                            {{ actor }}
+                        </span>
+                    </div>
+                </div>
             </div>
         </div>
 

@@ -35,7 +35,7 @@ type VideoRepository interface {
 	List(page, limit int) ([]Video, int64, error)
 	GetByID(id uint) (*Video, error)
 	UpdateMetadata(id uint, duration int, width, height int, thumbnailPath string, spriteSheetPath string, vttPath string, spriteSheetCount int, thumbnailWidth int, thumbnailHeight int) error
-	UpdateBasicMetadata(id uint, duration int, width, height int) error
+	UpdateBasicMetadata(id uint, duration int, width, height int, frameRate float64, bitRate int64, videoCodec, audioCodec string) error
 	UpdateThumbnail(id uint, thumbnailPath string, thumbnailWidth, thumbnailHeight int) error
 	UpdateSprites(id uint, spriteSheetPath, vttPath string, spriteSheetCount int) error
 	UpdateProcessingStatus(id uint, status string, errorMsg string) error
@@ -96,11 +96,15 @@ func (r *VideoRepositoryImpl) UpdateMetadata(id uint, duration int, width, heigh
 	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
 }
 
-func (r *VideoRepositoryImpl) UpdateBasicMetadata(id uint, duration int, width, height int) error {
+func (r *VideoRepositoryImpl) UpdateBasicMetadata(id uint, duration int, width, height int, frameRate float64, bitRate int64, videoCodec, audioCodec string) error {
 	updates := map[string]interface{}{
-		"duration": duration,
-		"width":    width,
-		"height":   height,
+		"duration":    duration,
+		"width":      width,
+		"height":     height,
+		"frame_rate":  frameRate,
+		"bit_rate":    bitRate,
+		"video_codec": videoCodec,
+		"audio_codec": audioCodec,
 	}
 	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
 }

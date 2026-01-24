@@ -18,8 +18,29 @@ export const useFormatter = () => {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
+    const formatBitRate = (bps: number): string => {
+        if (!bps) return '';
+        if (bps >= 1_000_000) {
+            return `${(bps / 1_000_000).toFixed(1)} Mbps`;
+        }
+        if (bps >= 1_000) {
+            return `${(bps / 1_000).toFixed(0)} Kbps`;
+        }
+        return `${bps} bps`;
+    };
+
+    const formatFrameRate = (fps: number): string => {
+        if (!fps) return '';
+        if (fps === Math.floor(fps)) {
+            return `${fps} fps`;
+        }
+        return `${fps.toFixed(3)} fps`;
+    };
+
     return {
         formatDuration,
         formatSize,
+        formatBitRate,
+        formatFrameRate,
     };
 };

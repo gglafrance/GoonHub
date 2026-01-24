@@ -1,0 +1,12 @@
+ALTER TABLE videos
+  DROP COLUMN IF EXISTS file_created_at,
+  DROP COLUMN IF EXISTS description,
+  DROP COLUMN IF EXISTS studio,
+  DROP COLUMN IF EXISTS tags,
+  DROP COLUMN IF EXISTS actors,
+  DROP COLUMN IF EXISTS cover_image_path,
+  DROP COLUMN IF EXISTS file_hash,
+  DROP COLUMN IF EXISTS frame_rate,
+  DROP COLUMN IF EXISTS bit_rate,
+  DROP COLUMN IF EXISTS video_codec,
+  DROP COLUMN IF EXISTS audio_codec;

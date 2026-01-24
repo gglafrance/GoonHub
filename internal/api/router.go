@@ -31,7 +31,11 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler
 	// Serve Thumbnails
 	r.GET("/thumbnails/:id", func(c *gin.Context) {
 		id := c.Param("id")
-		path := fmt.Sprintf("./data/thumbnails/%s_thumb.webp", id)
+		size := c.DefaultQuery("size", "sm")
+		if size != "sm" && size != "lg" {
+			size = "sm"
+		}
+		path := fmt.Sprintf("./data/thumbnails/%s_thumb_%s.webp", id, size)
 		c.Header("Content-Type", "image/webp")
 		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
 		c.File(path)

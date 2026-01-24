@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"go.uber.org/zap"
 )
 
@@ -87,6 +88,13 @@ func (s *VideoService) UploadVideo(file *multipart.FileHeader, title string) (*d
 		StoredPath:       storedPath,
 		Size:             file.Size,
 		ProcessingStatus: "pending",
+		Tags:             pq.StringArray{},
+		Actors:           pq.StringArray{},
+	}
+
+	if stat, err := os.Stat(storedPath); err == nil {
+		modTime := stat.ModTime()
+		video.FileCreatedAt = &modTime
 	}
 
 	if err := s.Repo.Create(video); err != nil {

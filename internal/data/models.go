@@ -3,6 +3,7 @@ package data
 import (
 	"time"
 
+	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
@@ -96,4 +97,15 @@ type Video struct {
 	ThumbnailHeight  int            `json:"thumbnail_height"`
 	ProcessingStatus string         `json:"processing_status" gorm:"default:'pending'"`
 	ProcessingError  string         `json:"processing_error" gorm:"type:text"`
+	FileCreatedAt    *time.Time     `json:"file_created_at"`
+	Description      string         `json:"description"`
+	Studio           string         `json:"studio"`
+	Tags             pq.StringArray `json:"tags" gorm:"type:text[]"`
+	Actors           pq.StringArray `json:"actors" gorm:"type:text[]"`
+	CoverImagePath   string         `json:"cover_image_path"`
+	FileHash         string         `json:"file_hash"`
+	FrameRate        float64        `json:"frame_rate"`
+	BitRate          int64          `json:"bit_rate"`
+	VideoCodec       string         `json:"video_codec"`
+	AudioCodec       string         `json:"audio_codec"`
 }

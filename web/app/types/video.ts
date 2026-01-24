@@ -16,6 +16,17 @@ export interface Video {
     thumbnail_height?: number;
     processing_status?: string;
     processing_error?: string;
+    file_created_at?: string;
+    description?: string;
+    studio?: string;
+    tags?: string[];
+    actors?: string[];
+    cover_image_path?: string;
+    file_hash?: string;
+    frame_rate?: number;
+    bit_rate?: number;
+    video_codec?: string;
+    audio_codec?: string;
 }
 
 export interface VideoListResponse {

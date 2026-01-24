@@ -26,7 +26,7 @@ const streamUrl = computed(() => {
 
 const posterUrl = computed(() => {
     if (!video.value || !video.value.thumbnail_path) return '';
-    return `/thumbnails/${video.value.id}`;
+    return `/thumbnails/${video.value.id}?size=lg`;
 });
 
 onMounted(async () => {
