@@ -13,7 +13,7 @@ const playerError = ref<unknown>(null);
 
 const videoId = computed(() => parseInt(route.params.id as string));
 
-const isProcessing = computed(() => (video.value ? isVideoProcessing(video.value) : false));
+const isProcessing = computed(() => video.value?.processing_status === 'pending');
 const hasProcessingError = computed(() => (video.value ? hasVideoError(video.value) : false));
 const isPortrait = computed(() => {
     return video.value?.width && video.value?.height && video.value.height > video.value.width;
