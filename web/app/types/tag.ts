@@ -3,4 +3,5 @@ export interface Tag {
     name: string;
     color: string;
     created_at: string;
+    video_count: number;
 }

@@ -23,11 +23,11 @@ func newTestTagService(t *testing.T) (*TagService, *mocks.MockTagRepository, *mo
 func TestListTags_Success(t *testing.T) {
 	svc, tagRepo, _ := newTestTagService(t)
 
-	expected := []data.Tag{
-		{ID: 1, Name: "Amateur", Color: "#8B5CF6"},
-		{ID: 2, Name: "Favorite", Color: "#FF4D4D"},
+	expected := []data.TagWithCount{
+		{Tag: data.Tag{ID: 1, Name: "Amateur", Color: "#8B5CF6"}, VideoCount: 3},
+		{Tag: data.Tag{ID: 2, Name: "Favorite", Color: "#FF4D4D"}, VideoCount: 5},
 	}
-	tagRepo.EXPECT().List().Return(expected, nil)
+	tagRepo.EXPECT().ListWithCounts().Return(expected, nil)
 
 	tags, err := svc.ListTags()
 	if err != nil {
@@ -38,6 +38,9 @@ func TestListTags_Success(t *testing.T) {
 	}
 	if tags[0].Name != "Amateur" {
 		t.Fatalf("expected first tag 'Amateur', got %q", tags[0].Name)
+	}
+	if tags[0].VideoCount != 3 {
+		t.Fatalf("expected first tag video_count 3, got %d", tags[0].VideoCount)
 	}
 }
 

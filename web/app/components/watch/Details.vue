@@ -13,10 +13,47 @@ const videoTags = ref<Tag[]>([]);
 const showTagPicker = ref(false);
 
 const pickerRef = ref<HTMLElement | null>(null);
+const searchQuery = ref('');
+const sortMode = ref<'az' | 'za' | 'most' | 'least'>('az');
 
-const availableTags = computed(() =>
-    allTags.value.filter((t) => !videoTags.value.some((vt) => vt.id === t.id)),
-);
+const sortLabels: Record<string, string> = {
+    az: 'A-Z',
+    za: 'Z-A',
+    most: 'Most used',
+    least: 'Least used',
+};
+
+function cycleSortMode() {
+    const modes: Array<'az' | 'za' | 'most' | 'least'> = ['az', 'za', 'most', 'least'];
+    const idx = modes.indexOf(sortMode.value);
+    sortMode.value = modes[(idx + 1) % modes.length];
+}
+
+const availableTags = computed(() => {
+    let tags = allTags.value.filter((t) => !videoTags.value.some((vt) => vt.id === t.id));
+
+    if (searchQuery.value) {
+        const q = searchQuery.value.toLowerCase();
+        tags = tags.filter((t) => t.name.toLowerCase().includes(q));
+    }
+
+    switch (sortMode.value) {
+        case 'az':
+            tags.sort((a, b) => a.name.localeCompare(b.name));
+            break;
+        case 'za':
+            tags.sort((a, b) => b.name.localeCompare(a.name));
+            break;
+        case 'most':
+            tags.sort((a, b) => b.video_count - a.video_count || a.name.localeCompare(b.name));
+            break;
+        case 'least':
+            tags.sort((a, b) => a.video_count - b.video_count || a.name.localeCompare(b.name));
+            break;
+    }
+
+    return tags;
+});
 
 onMounted(async () => {
     await loadTags();
@@ -33,6 +70,7 @@ watch(showTagPicker, (open) => {
         setTimeout(() => document.addEventListener('click', onClickOutside), 0);
     } else {
         document.removeEventListener('click', onClickOutside);
+        searchQuery.value = '';
     }
 });
 
@@ -147,11 +185,33 @@ async function removeTag(tagId: number) {
                     <!-- Tag picker dropdown -->
                     <div
                         v-if="showTagPicker"
-                        class="border-border bg-panel absolute top-full left-0 z-50 mt-1.5 min-w-40
+                        class="border-border bg-panel absolute top-full left-0 z-50 mt-1.5 min-w-48
                             rounded-lg border shadow-xl"
                     >
+                        <!-- Search + Sort header -->
+                        <div class="border-border/50 flex items-center gap-1 border-b px-2 py-1.5">
+                            <input
+                                v-model="searchQuery"
+                                type="text"
+                                placeholder="Search tags..."
+                                class="bg-transparent text-[11px] text-white/80 placeholder-white/30
+                                    outline-none flex-1 min-w-0"
+                                @click.stop
+                            />
+                            <button
+                                @click.stop="cycleSortMode()"
+                                class="text-dim hover:text-white/80 shrink-0 rounded px-1.5 py-0.5
+                                    text-[9px] transition-colors hover:bg-white/5"
+                                :title="`Sort: ${sortLabels[sortMode]}`"
+                            >
+                                {{ sortLabels[sortMode] }}
+                            </button>
+                        </div>
+
                         <div v-if="availableTags.length === 0" class="px-3 py-2">
-                            <p class="text-dim text-[11px]">No more tags available</p>
+                            <p class="text-dim text-[11px]">
+                                {{ searchQuery ? 'No matching tags' : 'No more tags available' }}
+                            </p>
                         </div>
                         <div v-else class="max-h-48 overflow-y-auto py-1">
                             <button
@@ -163,10 +223,11 @@ async function removeTag(tagId: number) {
                                     hover:text-white"
                             >
                                 <span
-                                    class="inline-block h-2 w-2 rounded-full"
+                                    class="inline-block h-2 w-2 rounded-full shrink-0"
                                     :style="{ backgroundColor: tag.color }"
                                 />
-                                {{ tag.name }}
+                                <span class="flex-1 truncate">{{ tag.name }}</span>
+                                <span class="text-white/30 text-[10px]">({{ tag.video_count }})</span>
                             </button>
                         </div>
                     </div>

@@ -2,8 +2,14 @@ package data
 
 import "gorm.io/gorm"
 
+type TagWithCount struct {
+	Tag
+	VideoCount int64 `json:"video_count"`
+}
+
 type TagRepository interface {
 	List() ([]Tag, error)
+	ListWithCounts() ([]TagWithCount, error)
 	GetByID(id uint) (*Tag, error)
 	Create(tag *Tag) error
 	Delete(id uint) error
@@ -22,6 +28,21 @@ func NewTagRepository(db *gorm.DB) *TagRepositoryImpl {
 func (r *TagRepositoryImpl) List() ([]Tag, error) {
 	var tags []Tag
 	if err := r.DB.Order("name asc").Find(&tags).Error; err != nil {
+		return nil, err
+	}
+	return tags, nil
+}
+
+func (r *TagRepositoryImpl) ListWithCounts() ([]TagWithCount, error) {
+	var tags []TagWithCount
+	err := r.DB.
+		Table("tags").
+		Select("tags.*, COALESCE(COUNT(video_tags.id), 0) as video_count").
+		Joins("LEFT JOIN video_tags ON video_tags.tag_id = tags.id").
+		Group("tags.id").
+		Order("tags.name asc").
+		Find(&tags).Error
+	if err != nil {
 		return nil, err
 	}
 	return tags, nil

@@ -24,8 +24,8 @@ func NewTagService(tagRepo data.TagRepository, videoRepo data.VideoRepository, l
 	}
 }
 
-func (s *TagService) ListTags() ([]data.Tag, error) {
-	return s.tagRepo.List()
+func (s *TagService) ListTags() ([]data.TagWithCount, error) {
+	return s.tagRepo.ListWithCounts()
 }
 
 func (s *TagService) CreateTag(name, color string) (*data.Tag, error) {

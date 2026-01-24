@@ -113,6 +113,21 @@ func (mr *MockTagRepositoryMockRecorder) List() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockTagRepository)(nil).List))
 }
 
+// ListWithCounts mocks base method.
+func (m *MockTagRepository) ListWithCounts() ([]data.TagWithCount, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListWithCounts")
+	ret0, _ := ret[0].([]data.TagWithCount)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListWithCounts indicates an expected call of ListWithCounts.
+func (mr *MockTagRepositoryMockRecorder) ListWithCounts() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWithCounts", reflect.TypeOf((*MockTagRepository)(nil).ListWithCounts))
+}
+
 // SetVideoTags mocks base method.
 func (m *MockTagRepository) SetVideoTags(videoID uint, tagIDs []uint) error {
 	m.ctrl.T.Helper()
