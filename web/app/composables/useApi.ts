@@ -219,6 +219,28 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const fetchProcessingConfig = async () => {
+        const response = await fetch('/api/v1/admin/processing-config', {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const updateProcessingConfig = async (config: {
+        max_frame_dimension_sm: number;
+        max_frame_dimension_lg: number;
+        frame_quality_sm: number;
+        frame_quality_lg: number;
+        frame_quality_sprites: number;
+    }) => {
+        const response = await fetch('/api/v1/admin/processing-config', {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(config),
+        });
+        return handleResponse(response);
+    };
+
     return {
         uploadVideo,
         fetchVideos,
@@ -239,5 +261,7 @@ export const useApi = () => {
         fetchJobs,
         fetchPoolConfig,
         updatePoolConfig,
+        fetchProcessingConfig,
+        updateProcessingConfig,
     };
 };

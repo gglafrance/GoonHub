@@ -3,7 +3,7 @@ import type { JobHistory, JobListResponse } from '~/types/jobs';
 
 const { fetchJobs } = useApi();
 
-const activeSubTab = ref<'history' | 'workers'>('history');
+const activeSubTab = ref<'history' | 'workers' | 'processing'>('history');
 
 const loading = ref(false);
 const jobs = ref<JobHistory[]>([]);
@@ -160,6 +160,17 @@ const phaseLabel = (phase: string): string => {
                 ]"
             >
                 Workers
+            </button>
+            <button
+                @click="activeSubTab = 'processing'"
+                :class="[
+                    'rounded-full px-3 py-1 text-[11px] font-medium transition-colors',
+                    activeSubTab === 'processing'
+                        ? 'bg-white/10 text-white'
+                        : 'text-dim hover:text-white',
+                ]"
+            >
+                Processing
             </button>
         </div>
 
@@ -350,5 +361,8 @@ const phaseLabel = (phase: string): string => {
 
         <!-- Workers sub-tab -->
         <SettingsJobsWorkers v-if="activeSubTab === 'workers'" />
+
+        <!-- Processing sub-tab -->
+        <SettingsJobsProcessing v-if="activeSubTab === 'processing'" />
     </div>
 </template>

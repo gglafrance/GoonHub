@@ -63,6 +63,8 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					admin.GET("/jobs", jobHandler.ListJobs)
 					admin.GET("/pool-config", jobHandler.GetPoolConfig)
 					admin.PUT("/pool-config", jobHandler.UpdatePoolConfig)
+					admin.GET("/processing-config", jobHandler.GetProcessingConfig)
+					admin.PUT("/processing-config", jobHandler.UpdateProcessingConfig)
 				}
 			}
 		}

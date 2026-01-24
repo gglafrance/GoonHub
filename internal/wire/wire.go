@@ -40,6 +40,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		providePermissionRepository,
 		provideJobHistoryRepository,
 		providePoolConfigRepository,
+		provideProcessingConfigRepository,
 
 		// Core
 		provideEventBus,
@@ -106,16 +107,20 @@ func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config
 	return core.NewJobHistoryService(repo, cfg.Processing, logger.Logger)
 }
 
-func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository) *core.VideoProcessingService {
-	return core.NewVideoProcessingService(repo, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo)
+func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository) *core.VideoProcessingService {
+	return core.NewVideoProcessingService(repo, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo)
 }
 
-func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.VideoProcessingService, poolConfigRepo data.PoolConfigRepository) *handler.JobHandler {
-	return handler.NewJobHandler(jobHistoryService, processingService, poolConfigRepo)
+func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.VideoProcessingService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository) *handler.JobHandler {
+	return handler.NewJobHandler(jobHistoryService, processingService, poolConfigRepo, processingConfigRepo)
 }
 
 func providePoolConfigRepository(db *gorm.DB) data.PoolConfigRepository {
 	return data.NewPoolConfigRepository(db)
+}
+
+func provideProcessingConfigRepository(db *gorm.DB) data.ProcessingConfigRepository {
+	return data.NewProcessingConfigRepository(db)
 }
 
 func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, logger *logging.Logger) *handler.SSEHandler {

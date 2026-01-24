@@ -19,22 +19,31 @@ type PoolConfig struct {
 	SpritesWorkers   int `json:"sprites_workers"`
 }
 
+type ProcessingQualityConfig struct {
+	MaxFrameDimensionSm int `json:"max_frame_dimension_sm"`
+	MaxFrameDimensionLg int `json:"max_frame_dimension_lg"`
+	FrameQualitySm      int `json:"frame_quality_sm"`
+	FrameQualityLg      int `json:"frame_quality_lg"`
+	FrameQualitySprites int `json:"frame_quality_sprites"`
+}
+
 type phaseState struct {
 	thumbnailDone bool
 	spritesDone   bool
 }
 
 type VideoProcessingService struct {
-	metadataPool  *jobs.WorkerPool
-	thumbnailPool *jobs.WorkerPool
-	spritesPool   *jobs.WorkerPool
-	poolMu        sync.RWMutex
-	repo          data.VideoRepository
-	config        config.ProcessingConfig
-	logger        *zap.Logger
-	eventBus      *EventBus
-	jobHistory    *JobHistoryService
-	phases        sync.Map // map[uint]*phaseState
+	metadataPool           *jobs.WorkerPool
+	thumbnailPool          *jobs.WorkerPool
+	spritesPool            *jobs.WorkerPool
+	poolMu                 sync.RWMutex
+	repo                   data.VideoRepository
+	config                 config.ProcessingConfig
+	processingQualityConfig ProcessingQualityConfig
+	logger                 *zap.Logger
+	eventBus               *EventBus
+	jobHistory             *JobHistoryService
+	phases                 sync.Map // map[uint]*phaseState
 }
 
 func NewVideoProcessingService(
@@ -44,6 +53,7 @@ func NewVideoProcessingService(
 	eventBus *EventBus,
 	jobHistory *JobHistoryService,
 	poolConfigRepo data.PoolConfigRepository,
+	processingConfigRepo data.ProcessingConfigRepository,
 ) *VideoProcessingService {
 	// Check DB for persisted pool config overrides
 	metadataWorkers := cfg.MetadataWorkers
@@ -63,13 +73,43 @@ func NewVideoProcessingService(
 		}
 	}
 
+	// Initialize processing quality config from YAML defaults
+	qualityConfig := ProcessingQualityConfig{
+		MaxFrameDimensionSm: cfg.MaxFrameDimension,
+		MaxFrameDimensionLg: cfg.MaxFrameDimensionLarge,
+		FrameQualitySm:      cfg.FrameQuality,
+		FrameQualityLg:      cfg.FrameQualityLg,
+		FrameQualitySprites: cfg.FrameQualitySprites,
+	}
+
+	// Override with DB-persisted processing config if available
+	if processingConfigRepo != nil {
+		if dbConfig, err := processingConfigRepo.Get(); err == nil && dbConfig != nil {
+			qualityConfig.MaxFrameDimensionSm = dbConfig.MaxFrameDimensionSm
+			qualityConfig.MaxFrameDimensionLg = dbConfig.MaxFrameDimensionLg
+			qualityConfig.FrameQualitySm = dbConfig.FrameQualitySm
+			qualityConfig.FrameQualityLg = dbConfig.FrameQualityLg
+			qualityConfig.FrameQualitySprites = dbConfig.FrameQualitySprites
+			logger.Info("Loaded processing config from database",
+				zap.Int("max_frame_dimension_sm", qualityConfig.MaxFrameDimensionSm),
+				zap.Int("max_frame_dimension_lg", qualityConfig.MaxFrameDimensionLg),
+				zap.Int("frame_quality_sm", qualityConfig.FrameQualitySm),
+				zap.Int("frame_quality_lg", qualityConfig.FrameQualityLg),
+				zap.Int("frame_quality_sprites", qualityConfig.FrameQualitySprites),
+			)
+		}
+	}
+
 	logger.Info("Initializing video processing service",
 		zap.Int("metadata_workers", metadataWorkers),
 		zap.Int("thumbnail_workers", thumbnailWorkers),
 		zap.Int("sprites_workers", spritesWorkers),
 		zap.Int("frame_interval", cfg.FrameInterval),
-		zap.Int("max_frame_dimension", cfg.MaxFrameDimension),
-		zap.Int("frame_quality", cfg.FrameQuality),
+		zap.Int("max_frame_dimension_sm", qualityConfig.MaxFrameDimensionSm),
+		zap.Int("max_frame_dimension_lg", qualityConfig.MaxFrameDimensionLg),
+		zap.Int("frame_quality_sm", qualityConfig.FrameQualitySm),
+		zap.Int("frame_quality_lg", qualityConfig.FrameQualityLg),
+		zap.Int("frame_quality_sprites", qualityConfig.FrameQualitySprites),
 		zap.Int("grid_cols", cfg.GridCols),
 		zap.Int("grid_rows", cfg.GridRows),
 		zap.String("sprite_dir", cfg.SpriteDir),
@@ -114,14 +154,15 @@ func NewVideoProcessingService(
 	}
 
 	return &VideoProcessingService{
-		metadataPool:  metadataPool,
-		thumbnailPool: thumbnailPool,
-		spritesPool:   spritesPool,
-		repo:          repo,
-		config:        cfg,
-		logger:        logger,
-		eventBus:      eventBus,
-		jobHistory:    jobHistory,
+		metadataPool:            metadataPool,
+		thumbnailPool:           thumbnailPool,
+		spritesPool:             spritesPool,
+		repo:                    repo,
+		config:                  cfg,
+		processingQualityConfig: qualityConfig,
+		logger:                  logger,
+		eventBus:                eventBus,
+		jobHistory:              jobHistory,
 	}
 }
 
@@ -182,11 +223,16 @@ func (s *VideoProcessingService) SubmitVideo(videoID uint, videoPath string) err
 		zap.String("video_path", videoPath),
 	)
 
+	s.poolMu.RLock()
+	dimSm := s.processingQualityConfig.MaxFrameDimensionSm
+	dimLg := s.processingQualityConfig.MaxFrameDimensionLg
+	s.poolMu.RUnlock()
+
 	job := jobs.NewMetadataJob(
 		videoID,
 		videoPath,
-		s.config.MaxFrameDimension,
-		s.config.MaxFrameDimensionLarge,
+		dimSm,
+		dimLg,
 		s.repo,
 		s.logger,
 	)
@@ -281,6 +327,13 @@ func (s *VideoProcessingService) onMetadataComplete(result jobs.JobResult) {
 	// Retrieve the video path from the metadata job
 	videoPath := metadataJob.GetVideoPath()
 
+	// Read runtime quality config
+	s.poolMu.RLock()
+	qualitySm := s.processingQualityConfig.FrameQualitySm
+	qualityLg := s.processingQualityConfig.FrameQualityLg
+	qualitySprites := s.processingQualityConfig.FrameQualitySprites
+	s.poolMu.RUnlock()
+
 	// Submit thumbnail and sprites jobs to their respective pools
 	thumbnailJob := jobs.NewThumbnailJob(
 		result.VideoID,
@@ -291,7 +344,8 @@ func (s *VideoProcessingService) onMetadataComplete(result jobs.JobResult) {
 		meta.TileWidthLarge,
 		meta.TileHeightLarge,
 		meta.Duration,
-		s.config.FrameQuality,
+		qualitySm,
+		qualityLg,
 		s.repo,
 		s.logger,
 	)
@@ -305,7 +359,7 @@ func (s *VideoProcessingService) onMetadataComplete(result jobs.JobResult) {
 		meta.TileHeight,
 		meta.Duration,
 		s.config.FrameInterval,
-		s.config.FrameQuality,
+		qualitySprites,
 		s.config.GridCols,
 		s.config.GridRows,
 		s.repo,
@@ -519,6 +573,47 @@ func (s *VideoProcessingService) UpdatePoolConfig(cfg PoolConfig) error {
 
 		s.logger.Info("Resized sprites pool", zap.Int("workers", cfg.SpritesWorkers))
 	}
+
+	return nil
+}
+
+func (s *VideoProcessingService) GetProcessingQualityConfig() ProcessingQualityConfig {
+	s.poolMu.RLock()
+	defer s.poolMu.RUnlock()
+	return s.processingQualityConfig
+}
+
+var validDimensionsSm = map[int]bool{160: true, 240: true, 320: true, 480: true}
+var validDimensionsLg = map[int]bool{640: true, 720: true, 960: true, 1280: true, 1920: true}
+
+func (s *VideoProcessingService) UpdateProcessingQualityConfig(cfg ProcessingQualityConfig) error {
+	if !validDimensionsSm[cfg.MaxFrameDimensionSm] {
+		return fmt.Errorf("max_frame_dimension_sm must be one of: 160, 240, 320, 480")
+	}
+	if !validDimensionsLg[cfg.MaxFrameDimensionLg] {
+		return fmt.Errorf("max_frame_dimension_lg must be one of: 640, 720, 960, 1280, 1920")
+	}
+	if cfg.FrameQualitySm < 1 || cfg.FrameQualitySm > 100 {
+		return fmt.Errorf("frame_quality_sm must be between 1 and 100")
+	}
+	if cfg.FrameQualityLg < 1 || cfg.FrameQualityLg > 100 {
+		return fmt.Errorf("frame_quality_lg must be between 1 and 100")
+	}
+	if cfg.FrameQualitySprites < 1 || cfg.FrameQualitySprites > 100 {
+		return fmt.Errorf("frame_quality_sprites must be between 1 and 100")
+	}
+
+	s.poolMu.Lock()
+	s.processingQualityConfig = cfg
+	s.poolMu.Unlock()
+
+	s.logger.Info("Updated processing quality config",
+		zap.Int("max_frame_dimension_sm", cfg.MaxFrameDimensionSm),
+		zap.Int("max_frame_dimension_lg", cfg.MaxFrameDimensionLg),
+		zap.Int("frame_quality_sm", cfg.FrameQualitySm),
+		zap.Int("frame_quality_lg", cfg.FrameQualityLg),
+		zap.Int("frame_quality_sprites", cfg.FrameQualitySprites),
+	)
 
 	return nil
 }

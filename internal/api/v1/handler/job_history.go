@@ -10,16 +10,18 @@ import (
 )
 
 type JobHandler struct {
-	jobHistoryService   *core.JobHistoryService
-	processingService   *core.VideoProcessingService
-	poolConfigRepo      data.PoolConfigRepository
+	jobHistoryService    *core.JobHistoryService
+	processingService    *core.VideoProcessingService
+	poolConfigRepo       data.PoolConfigRepository
+	processingConfigRepo data.ProcessingConfigRepository
 }
 
-func NewJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.VideoProcessingService, poolConfigRepo data.PoolConfigRepository) *JobHandler {
+func NewJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.VideoProcessingService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository) *JobHandler {
 	return &JobHandler{
-		jobHistoryService:   jobHistoryService,
-		processingService:   processingService,
-		poolConfigRepo:      poolConfigRepo,
+		jobHistoryService:    jobHistoryService,
+		processingService:    processingService,
+		poolConfigRepo:       poolConfigRepo,
+		processingConfigRepo: processingConfigRepo,
 	}
 }
 
@@ -103,4 +105,36 @@ func (h *JobHandler) UpdatePoolConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, h.processingService.GetPoolConfig())
+}
+
+func (h *JobHandler) GetProcessingConfig(c *gin.Context) {
+	cfg := h.processingService.GetProcessingQualityConfig()
+	c.JSON(http.StatusOK, cfg)
+}
+
+func (h *JobHandler) UpdateProcessingConfig(c *gin.Context) {
+	var req core.ProcessingQualityConfig
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	if err := h.processingService.UpdateProcessingQualityConfig(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	record := &data.ProcessingConfigRecord{
+		MaxFrameDimensionSm: req.MaxFrameDimensionSm,
+		MaxFrameDimensionLg: req.MaxFrameDimensionLg,
+		FrameQualitySm:      req.FrameQualitySm,
+		FrameQualityLg:      req.FrameQualityLg,
+		FrameQualitySprites: req.FrameQualitySprites,
+	}
+	if err := h.processingConfigRepo.Upsert(record); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Processing config applied but failed to persist: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, h.processingService.GetProcessingQualityConfig())
 }

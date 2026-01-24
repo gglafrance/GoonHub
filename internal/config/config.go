@@ -54,7 +54,9 @@ type ProcessingConfig struct {
 	FrameInterval            int    `mapstructure:"frame_interval"`             // seconds
 	MaxFrameDimension        int    `mapstructure:"max_frame_dimension"`        // longest side in pixels (small thumbnail)
 	MaxFrameDimensionLarge   int    `mapstructure:"max_frame_dimension_large"`  // longest side in pixels (large thumbnail)
-	FrameQuality             int    `mapstructure:"frame_quality"`              // 1-100, WebP quality
+	FrameQuality             int    `mapstructure:"frame_quality"`              // 1-100, WebP quality (small thumbnails)
+	FrameQualityLg           int    `mapstructure:"frame_quality_lg"`           // 1-100, WebP quality (large thumbnails)
+	FrameQualitySprites      int    `mapstructure:"frame_quality_sprites"`      // 1-100, WebP quality (sprite sheets)
 	MetadataWorkers     int    `mapstructure:"metadata_workers"`      // concurrent metadata jobs
 	ThumbnailWorkers    int    `mapstructure:"thumbnail_workers"`     // concurrent thumbnail jobs
 	SpritesWorkers      int    `mapstructure:"sprites_workers"`       // concurrent sprites jobs
@@ -102,6 +104,8 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("processing.max_frame_dimension", 320)
 	v.SetDefault("processing.max_frame_dimension_large", 1280)
 	v.SetDefault("processing.frame_quality", 85)
+	v.SetDefault("processing.frame_quality_lg", 85)
+	v.SetDefault("processing.frame_quality_sprites", 75)
 	v.SetDefault("processing.metadata_workers", 3)
 	v.SetDefault("processing.thumbnail_workers", 1)
 	v.SetDefault("processing.sprites_workers", 1)

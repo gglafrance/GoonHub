@@ -16,6 +16,17 @@ const formatCodec = (codec?: string): string => {
     if (!codec) return '';
     return codec.toUpperCase();
 };
+
+const getResolutionLabel = (h?: number): string => {
+    if (!h) return '';
+    if (h >= 4320) return '8K';
+    if (h >= 2880) return '5K';
+    if (h >= 2160) return '4K';
+    if (h >= 1440) return 'QHD';
+    if (h >= 1080) return 'FHD';
+    if (h >= 720) return 'HD';
+    return 'SD';
+};
 </script>
 
 <template>
@@ -74,8 +85,16 @@ const formatCodec = (codec?: string): string => {
                     class="border-border flex items-center justify-between border-b py-2.5"
                 >
                     <span class="text-dim text-[11px]">Resolution</span>
-                    <span class="text-muted font-mono text-[11px]">
-                        {{ formatResolution(video.width, video.height) }}
+                    <span class="flex items-center gap-1.5">
+                        <span class="text-muted font-mono text-[11px]">
+                            {{ formatResolution(video.width, video.height) }}
+                        </span>
+                        <span
+                            class="border-lava/30 bg-lava/10 text-lava rounded px-1 py-px text-[9px]
+                                leading-tight font-bold"
+                        >
+                            {{ getResolutionLabel(video.height) }}
+                        </span>
                     </span>
                 </div>
 
@@ -130,10 +149,7 @@ const formatCodec = (codec?: string): string => {
                     </p>
                 </div>
 
-                <div
-                    v-if="video.file_created_at"
-                    class="flex items-center justify-between py-2.5"
-                >
+                <div v-if="video.file_created_at" class="flex items-center justify-between py-2.5">
                     <span class="text-dim text-[11px]">File Date</span>
                     <span class="text-muted font-mono text-[11px]">
                         <NuxtTime
@@ -149,7 +165,12 @@ const formatCodec = (codec?: string): string => {
 
         <!-- Details Section (placeholders for future use) -->
         <div
-            v-if="video.description || video.studio || (video.tags && video.tags.length) || (video.actors && video.actors.length)"
+            v-if="
+                video.description ||
+                video.studio ||
+                (video.tags && video.tags.length) ||
+                (video.actors && video.actors.length)
+            "
             class="border-border bg-surface/50 rounded-xl border p-4 backdrop-blur-sm"
         >
             <span class="text-dim text-[10px] font-medium tracking-wider uppercase">Details</span>
@@ -173,8 +194,8 @@ const formatCodec = (codec?: string): string => {
                         <span
                             v-for="tag in video.tags"
                             :key="tag"
-                            class="border-border bg-panel rounded-md border px-1.5 py-0.5
-                                font-mono text-[10px] text-white/60"
+                            class="border-border bg-panel rounded-md border px-1.5 py-0.5 font-mono
+                                text-[10px] text-white/60"
                         >
                             {{ tag }}
                         </span>
@@ -187,8 +208,8 @@ const formatCodec = (codec?: string): string => {
                         <span
                             v-for="actor in video.actors"
                             :key="actor"
-                            class="border-border bg-panel rounded-md border px-1.5 py-0.5
-                                font-mono text-[10px] text-white/60"
+                            class="border-border bg-panel rounded-md border px-1.5 py-0.5 font-mono
+                                text-[10px] text-white/60"
                         >
                             {{ actor }}
                         </span>

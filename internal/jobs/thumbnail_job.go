@@ -23,22 +23,23 @@ type ThumbnailResult struct {
 }
 
 type ThumbnailJob struct {
-	id             string
-	videoID        uint
-	videoPath      string
-	thumbnailDir   string
-	tileWidth      int
-	tileHeight     int
+	id              string
+	videoID         uint
+	videoPath       string
+	thumbnailDir    string
+	tileWidth       int
+	tileHeight      int
 	tileWidthLarge  int
 	tileHeightLarge int
-	duration       int
-	frameQuality   int
-	repo           data.VideoRepository
-	logger         *zap.Logger
-	status         JobStatus
-	error          error
-	cancelled      atomic.Bool
-	result         *ThumbnailResult
+	duration        int
+	frameQualitySm  int
+	frameQualityLg  int
+	repo            data.VideoRepository
+	logger          *zap.Logger
+	status          JobStatus
+	error           error
+	cancelled       atomic.Bool
+	result          *ThumbnailResult
 }
 
 func NewThumbnailJob(
@@ -50,7 +51,8 @@ func NewThumbnailJob(
 	tileWidthLarge int,
 	tileHeightLarge int,
 	duration int,
-	frameQuality int,
+	frameQualitySm int,
+	frameQualityLg int,
 	repo data.VideoRepository,
 	logger *zap.Logger,
 ) *ThumbnailJob {
@@ -64,7 +66,8 @@ func NewThumbnailJob(
 		tileWidthLarge:  tileWidthLarge,
 		tileHeightLarge: tileHeightLarge,
 		duration:        duration,
-		frameQuality:    frameQuality,
+		frameQualitySm:  frameQualitySm,
+		frameQualityLg:  frameQualityLg,
 		repo:            repo,
 		logger:          logger,
 		status:          JobStatusPending,
@@ -112,7 +115,7 @@ func (j *ThumbnailJob) Execute() error {
 	thumbnailSeek := fmt.Sprintf("%d", j.duration/2)
 
 	// Extract small thumbnail
-	if err := ffmpeg.ExtractThumbnail(j.videoPath, thumbnailPathSmall, thumbnailSeek, j.tileWidth, j.tileHeight, j.frameQuality); err != nil {
+	if err := ffmpeg.ExtractThumbnail(j.videoPath, thumbnailPathSmall, thumbnailSeek, j.tileWidth, j.tileHeight, j.frameQualitySm); err != nil {
 		j.logger.Error("Failed to extract small thumbnail",
 			zap.Uint("video_id", j.videoID),
 			zap.Error(err),
@@ -122,7 +125,7 @@ func (j *ThumbnailJob) Execute() error {
 	}
 
 	// Extract large thumbnail
-	if err := ffmpeg.ExtractThumbnail(j.videoPath, thumbnailPathLarge, thumbnailSeek, j.tileWidthLarge, j.tileHeightLarge, j.frameQuality); err != nil {
+	if err := ffmpeg.ExtractThumbnail(j.videoPath, thumbnailPathLarge, thumbnailSeek, j.tileWidthLarge, j.tileHeightLarge, j.frameQualityLg); err != nil {
 		j.logger.Error("Failed to extract large thumbnail",
 			zap.Uint("video_id", j.videoID),
 			zap.Error(err),

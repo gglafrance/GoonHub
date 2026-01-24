@@ -17,6 +17,14 @@ export interface PoolConfig {
     sprites_workers: number;
 }
 
+export interface ProcessingConfig {
+    max_frame_dimension_sm: number;
+    max_frame_dimension_lg: number;
+    frame_quality_sm: number;
+    frame_quality_lg: number;
+    frame_quality_sprites: number;
+}
+
 export interface JobListResponse {
     data: JobHistory[];
     total: number;
