@@ -218,8 +218,8 @@ async function handleDelete(tag: Tag) {
                     <span class="flex-1 text-xs text-white">{{ tag.name }}</span>
                     <button
                         @click="handleDelete(tag)"
-                        class="text-dim opacity-0 transition-all group-hover:opacity-100
-                            hover:text-red-400"
+                        class="text-dim flex items-center justify-center opacity-0 transition-all
+                            group-hover:opacity-100 hover:text-red-400"
                         title="Delete tag"
                     >
                         <Icon name="heroicons:trash" size="14" />
