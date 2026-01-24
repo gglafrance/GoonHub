@@ -10,6 +10,7 @@ mocks:
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_job_history_repository.go -package=mocks goonhub/internal/data JobHistoryRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_pool_config_repository.go -package=mocks goonhub/internal/data PoolConfigRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_processing_config_repository.go -package=mocks goonhub/internal/data ProcessingConfigRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_trigger_config_repository.go -package=mocks goonhub/internal/data TriggerConfigRepository
 
 test: mocks
 	go test ./...

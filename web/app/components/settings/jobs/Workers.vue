@@ -86,7 +86,10 @@ onMounted(() => {
             <!-- Metadata Workers -->
             <div class="flex items-center justify-between">
                 <div>
-                    <label class="text-xs font-medium text-white">Metadata</label>
+                    <label class="flex items-center gap-1.5 text-xs font-medium text-white">
+                        <Icon name="heroicons:document-text" size="13" class="text-dim" />
+                        Metadata
+                    </label>
                     <p class="text-dim text-[10px]">
                         Extracts video duration, resolution, codec info
                     </p>
@@ -105,7 +108,10 @@ onMounted(() => {
             <!-- Thumbnail Workers -->
             <div class="flex items-center justify-between">
                 <div>
-                    <label class="text-xs font-medium text-white">Thumbnail</label>
+                    <label class="flex items-center gap-1.5 text-xs font-medium text-white">
+                        <Icon name="heroicons:photo" size="13" class="text-dim" />
+                        Thumbnail
+                    </label>
                     <p class="text-dim text-[10px]">
                         Generates preview thumbnails from video frames
                     </p>
@@ -124,7 +130,10 @@ onMounted(() => {
             <!-- Sprites Workers -->
             <div class="flex items-center justify-between">
                 <div>
-                    <label class="text-xs font-medium text-white">Sprites</label>
+                    <label class="flex items-center gap-1.5 text-xs font-medium text-white">
+                        <Icon name="heroicons:squares-2x2" size="13" class="text-dim" />
+                        Sprites
+                    </label>
                     <p class="text-dim text-[10px]">
                         Builds sprite sheets and VTT files for seek preview
                     </p>

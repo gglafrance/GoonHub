@@ -242,6 +242,35 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const fetchTriggerConfig = async () => {
+        const response = await fetch('/api/v1/admin/trigger-config', {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const updateTriggerConfig = async (config: {
+        phase: string;
+        trigger_type: string;
+        after_phase?: string | null;
+        cron_expression?: string | null;
+    }) => {
+        const response = await fetch('/api/v1/admin/trigger-config', {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(config),
+        });
+        return handleResponse(response);
+    };
+
+    const triggerVideoPhase = async (videoId: number, phase: string) => {
+        const response = await fetch(`/api/v1/admin/videos/${videoId}/process/${phase}`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
     return {
         uploadVideo,
         fetchVideos,
@@ -264,5 +293,8 @@ export const useApi = () => {
         updatePoolConfig,
         fetchProcessingConfig,
         updateProcessingConfig,
+        fetchTriggerConfig,
+        updateTriggerConfig,
+        triggerVideoPhase,
     };
 };

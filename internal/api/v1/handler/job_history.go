@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"fmt"
 	"goonhub/internal/core"
 	"goonhub/internal/data"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/robfig/cron/v3"
 )
 
 type JobHandler struct {
@@ -14,14 +16,18 @@ type JobHandler struct {
 	processingService    *core.VideoProcessingService
 	poolConfigRepo       data.PoolConfigRepository
 	processingConfigRepo data.ProcessingConfigRepository
+	triggerConfigRepo    data.TriggerConfigRepository
+	triggerScheduler     *core.TriggerScheduler
 }
 
-func NewJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.VideoProcessingService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository) *JobHandler {
+func NewJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.VideoProcessingService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository, triggerScheduler *core.TriggerScheduler) *JobHandler {
 	return &JobHandler{
 		jobHistoryService:    jobHistoryService,
 		processingService:    processingService,
 		poolConfigRepo:       poolConfigRepo,
 		processingConfigRepo: processingConfigRepo,
+		triggerConfigRepo:    triggerConfigRepo,
+		triggerScheduler:     triggerScheduler,
 	}
 }
 
@@ -177,4 +183,167 @@ func (h *JobHandler) UpdateProcessingConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, h.processingService.GetProcessingQualityConfig())
+}
+
+func (h *JobHandler) GetTriggerConfig(c *gin.Context) {
+	configs, err := h.triggerConfigRepo.GetAll()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get trigger config"})
+		return
+	}
+	c.JSON(http.StatusOK, configs)
+}
+
+var validPhases = map[string]bool{"metadata": true, "thumbnail": true, "sprites": true}
+var validTriggerTypes = map[string]bool{"on_import": true, "after_job": true, "manual": true, "scheduled": true}
+
+func (h *JobHandler) UpdateTriggerConfig(c *gin.Context) {
+	var req struct {
+		Phase          string  `json:"phase"`
+		TriggerType    string  `json:"trigger_type"`
+		AfterPhase     *string `json:"after_phase"`
+		CronExpression *string `json:"cron_expression"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	if !validPhases[req.Phase] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "phase must be one of: metadata, thumbnail, sprites"})
+		return
+	}
+	if !validTriggerTypes[req.TriggerType] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "trigger_type must be one of: on_import, after_job, manual, scheduled"})
+		return
+	}
+
+	// Only metadata can be on_import
+	if req.TriggerType == "on_import" && req.Phase != "metadata" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "only metadata phase can use on_import trigger"})
+		return
+	}
+
+	// after_job requires valid after_phase
+	if req.TriggerType == "after_job" {
+		if req.AfterPhase == nil || *req.AfterPhase == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "after_phase is required when trigger_type is after_job"})
+			return
+		}
+		if !validPhases[*req.AfterPhase] {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "after_phase must be one of: metadata, thumbnail, sprites"})
+			return
+		}
+		if *req.AfterPhase == req.Phase {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "after_phase cannot be the same as phase"})
+			return
+		}
+
+		// Circular dependency detection
+		if err := h.detectCycle(req.Phase, *req.AfterPhase); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	// scheduled requires valid cron expression
+	if req.TriggerType == "scheduled" {
+		if req.CronExpression == nil || *req.CronExpression == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "cron_expression is required when trigger_type is scheduled"})
+			return
+		}
+		parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+		if _, err := parser.Parse(*req.CronExpression); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid cron expression: %s", err.Error())})
+			return
+		}
+	}
+
+	record := &data.TriggerConfigRecord{
+		Phase:          req.Phase,
+		TriggerType:    req.TriggerType,
+		AfterPhase:     req.AfterPhase,
+		CronExpression: req.CronExpression,
+	}
+
+	if err := h.triggerConfigRepo.Upsert(record); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update trigger config"})
+		return
+	}
+
+	// Refresh caches
+	if err := h.processingService.RefreshTriggerCache(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Trigger config saved but failed to refresh cache"})
+		return
+	}
+
+	if h.triggerScheduler != nil {
+		if err := h.triggerScheduler.RefreshSchedules(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Trigger config saved but failed to refresh scheduler"})
+			return
+		}
+	}
+
+	configs, err := h.triggerConfigRepo.GetAll()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Trigger config saved but failed to reload"})
+		return
+	}
+	c.JSON(http.StatusOK, configs)
+}
+
+func (h *JobHandler) detectCycle(phase string, afterPhase string) error {
+	configs, err := h.triggerConfigRepo.GetAll()
+	if err != nil {
+		return fmt.Errorf("failed to check dependencies")
+	}
+
+	// Build adjacency: phase -> after_phase (what this phase depends on)
+	dependsOn := make(map[string]string)
+	for _, cfg := range configs {
+		if cfg.TriggerType == "after_job" && cfg.AfterPhase != nil {
+			dependsOn[cfg.Phase] = *cfg.AfterPhase
+		}
+	}
+
+	// Apply the proposed change
+	dependsOn[phase] = afterPhase
+
+	// Walk from phase following the chain to detect a cycle
+	visited := make(map[string]bool)
+	current := phase
+	for {
+		if visited[current] {
+			return fmt.Errorf("circular dependency detected: %s would create a cycle", phase)
+		}
+		visited[current] = true
+		next, exists := dependsOn[current]
+		if !exists {
+			break
+		}
+		current = next
+	}
+	return nil
+}
+
+func (h *JobHandler) TriggerPhase(c *gin.Context) {
+	idStr := c.Param("id")
+	videoID, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		return
+	}
+
+	phase := c.Param("phase")
+	if !validPhases[phase] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "phase must be one of: metadata, thumbnail, sprites"})
+		return
+	}
+
+	if err := h.processingService.SubmitPhase(uint(videoID), phase); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Phase %s triggered for video %d", phase, videoID)})
 }

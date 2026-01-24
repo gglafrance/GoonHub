@@ -3,7 +3,7 @@ import type { JobHistory, JobListResponse, QueueStatus } from '~/types/jobs';
 
 const { fetchJobs } = useApi();
 
-const activeSubTab = ref<'history' | 'workers' | 'processing'>('history');
+const activeSubTab = ref<'history' | 'workers' | 'processing' | 'triggers'>('history');
 
 const loading = ref(false);
 const historyJobs = ref<JobHistory[]>([]);
@@ -158,6 +158,19 @@ const phaseLabel = (phase: string): string => {
             return phase;
     }
 };
+
+const phaseIcon = (phase: string): string => {
+    switch (phase) {
+        case 'metadata':
+            return 'heroicons:document-text';
+        case 'thumbnail':
+            return 'heroicons:photo';
+        case 'sprites':
+            return 'heroicons:squares-2x2';
+        default:
+            return 'heroicons:cog-6-tooth';
+    }
+};
 </script>
 
 <template>
@@ -196,6 +209,17 @@ const phaseLabel = (phase: string): string => {
                 ]"
             >
                 Processing
+            </button>
+            <button
+                @click="activeSubTab = 'triggers'"
+                :class="[
+                    'rounded-full px-3 py-1 text-[11px] font-medium transition-colors',
+                    activeSubTab === 'triggers'
+                        ? 'bg-white/10 text-white'
+                        : 'text-dim hover:text-white',
+                ]"
+            >
+                Triggers
             </button>
         </div>
 
@@ -246,7 +270,11 @@ const phaseLabel = (phase: string): string => {
                         :key="phase"
                         class="rounded-lg border border-white/5 bg-white/2 px-3 py-2.5"
                     >
-                        <div class="text-dim mb-2 text-[10px] font-medium tracking-wider uppercase">
+                        <div
+                            class="text-dim mb-2 flex items-center gap-1.5 text-[10px] font-medium
+                                tracking-wider uppercase"
+                        >
+                            <Icon :name="phaseIcon(phase)" size="11" />
                             {{ phaseLabel(phase) }}
                         </div>
                         <div class="flex items-baseline gap-3">
@@ -323,9 +351,10 @@ const phaseLabel = (phase: string): string => {
                             "
                         >
                             <div
-                                class="text-dim mb-1.5 text-[10px] font-medium tracking-wider
-                                    uppercase"
+                                class="text-dim mb-1.5 flex items-center gap-1.5 text-[10px]
+                                    font-medium tracking-wider uppercase"
                             >
+                                <Icon :name="phaseIcon(phase)" size="11" />
                                 {{ phaseLabel(phase) }}
                             </div>
                             <div class="space-y-1.5">
@@ -415,7 +444,12 @@ const phaseLabel = (phase: string): string => {
                                 <td class="max-w-45 truncate py-2 pr-4 text-white">
                                     {{ job.video_title || `Video #${job.video_id}` }}
                                 </td>
-                                <td class="text-dim py-2 pr-4">{{ phaseLabel(job.phase) }}</td>
+                                <td class="text-dim py-2 pr-4">
+                                    <span class="flex items-center gap-1.5">
+                                        <Icon :name="phaseIcon(job.phase)" size="11" />
+                                        {{ phaseLabel(job.phase) }}
+                                    </span>
+                                </td>
                                 <td class="py-2 pr-4">
                                     <span
                                         class="inline-block rounded-full border px-2 py-0.5
@@ -490,5 +524,8 @@ const phaseLabel = (phase: string): string => {
 
         <!-- Processing sub-tab -->
         <SettingsJobsProcessing v-if="activeSubTab === 'processing'" />
+
+        <!-- Triggers sub-tab -->
+        <SettingsJobsTriggers v-if="activeSubTab === 'triggers'" />
     </div>
 </template>

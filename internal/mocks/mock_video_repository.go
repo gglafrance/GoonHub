@@ -98,6 +98,21 @@ func (mr *MockVideoRepositoryMockRecorder) GetPendingProcessing() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingProcessing", reflect.TypeOf((*MockVideoRepository)(nil).GetPendingProcessing))
 }
 
+// GetVideosNeedingPhase mocks base method.
+func (m *MockVideoRepository) GetVideosNeedingPhase(phase string) ([]data.Video, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetVideosNeedingPhase", phase)
+	ret0, _ := ret[0].([]data.Video)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetVideosNeedingPhase indicates an expected call of GetVideosNeedingPhase.
+func (mr *MockVideoRepositoryMockRecorder) GetVideosNeedingPhase(phase any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideosNeedingPhase", reflect.TypeOf((*MockVideoRepository)(nil).GetVideosNeedingPhase), phase)
+}
+
 // List mocks base method.
 func (m *MockVideoRepository) List(page, limit int) ([]data.Video, int64, error) {
 	m.ctrl.T.Helper()

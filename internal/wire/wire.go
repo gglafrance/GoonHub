@@ -41,6 +41,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideJobHistoryRepository,
 		providePoolConfigRepository,
 		provideProcessingConfigRepository,
+		provideTriggerConfigRepository,
 
 		// Core
 		provideEventBus,
@@ -52,6 +53,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideSettingsService,
 		provideRBACService,
 		provideAdminService,
+		provideTriggerScheduler,
 
 		// API Middleware
 		provideRateLimiter,
@@ -107,12 +109,12 @@ func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config
 	return core.NewJobHistoryService(repo, cfg.Processing, logger.Logger)
 }
 
-func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository) *core.VideoProcessingService {
-	return core.NewVideoProcessingService(repo, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo)
+func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository) *core.VideoProcessingService {
+	return core.NewVideoProcessingService(repo, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo, triggerConfigRepo)
 }
 
-func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.VideoProcessingService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository) *handler.JobHandler {
-	return handler.NewJobHandler(jobHistoryService, processingService, poolConfigRepo, processingConfigRepo)
+func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.VideoProcessingService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository, triggerScheduler *core.TriggerScheduler) *handler.JobHandler {
+	return handler.NewJobHandler(jobHistoryService, processingService, poolConfigRepo, processingConfigRepo, triggerConfigRepo, triggerScheduler)
 }
 
 func providePoolConfigRepository(db *gorm.DB) data.PoolConfigRepository {
@@ -121,6 +123,14 @@ func providePoolConfigRepository(db *gorm.DB) data.PoolConfigRepository {
 
 func provideProcessingConfigRepository(db *gorm.DB) data.ProcessingConfigRepository {
 	return data.NewProcessingConfigRepository(db)
+}
+
+func provideTriggerConfigRepository(db *gorm.DB) data.TriggerConfigRepository {
+	return data.NewTriggerConfigRepository(db)
+}
+
+func provideTriggerScheduler(triggerConfigRepo data.TriggerConfigRepository, videoRepo data.VideoRepository, processingService *core.VideoProcessingService, logger *logging.Logger) *core.TriggerScheduler {
+	return core.NewTriggerScheduler(triggerConfigRepo, videoRepo, processingService, logger.Logger)
 }
 
 func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, logger *logging.Logger) *handler.SSEHandler {
@@ -183,6 +193,6 @@ func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *han
 	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, authService, rbacService, rateLimiter)
 }
 
-func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService, jobHistoryService *core.JobHistoryService) *server.Server {
-	return server.NewHTTPServer(router, logger, cfg, processingService, userService, jobHistoryService)
+func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService, jobHistoryService *core.JobHistoryService, triggerScheduler *core.TriggerScheduler) *server.Server {
+	return server.NewHTTPServer(router, logger, cfg, processingService, userService, jobHistoryService, triggerScheduler)
 }

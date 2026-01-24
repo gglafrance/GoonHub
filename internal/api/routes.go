@@ -65,6 +65,9 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					admin.PUT("/pool-config", jobHandler.UpdatePoolConfig)
 					admin.GET("/processing-config", jobHandler.GetProcessingConfig)
 					admin.PUT("/processing-config", jobHandler.UpdateProcessingConfig)
+					admin.GET("/trigger-config", jobHandler.GetTriggerConfig)
+					admin.PUT("/trigger-config", jobHandler.UpdateTriggerConfig)
+					admin.POST("/videos/:id/process/:phase", jobHandler.TriggerPhase)
 				}
 			}
 		}

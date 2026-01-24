@@ -46,3 +46,12 @@ export interface JobListResponse {
     pool_config: PoolConfig;
     queue_status: QueueStatus;
 }
+
+export interface TriggerConfig {
+    id: number;
+    phase: 'metadata' | 'thumbnail' | 'sprites';
+    trigger_type: 'on_import' | 'after_job' | 'manual' | 'scheduled';
+    after_phase: string | null;
+    cron_expression: string | null;
+    updated_at: string;
+}

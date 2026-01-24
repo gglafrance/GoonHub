@@ -40,6 +40,7 @@ type VideoRepository interface {
 	UpdateSprites(id uint, spriteSheetPath, vttPath string, spriteSheetCount int) error
 	UpdateProcessingStatus(id uint, status string, errorMsg string) error
 	GetPendingProcessing() ([]Video, error)
+	GetVideosNeedingPhase(phase string) ([]Video, error)
 	Delete(id uint) error
 }
 
@@ -140,6 +141,31 @@ func (r *VideoRepositoryImpl) UpdateProcessingStatus(id uint, status string, err
 func (r *VideoRepositoryImpl) GetPendingProcessing() ([]Video, error) {
 	var videos []Video
 	if err := r.DB.Where("processing_status = ?", "pending").Find(&videos).Error; err != nil {
+		return nil, err
+	}
+	return videos, nil
+}
+
+func (r *VideoRepositoryImpl) GetVideosNeedingPhase(phase string) ([]Video, error) {
+	var videos []Video
+
+	baseQuery := r.DB.Model(&Video{}).
+		Where("processing_status != ?", "failed").
+		Where("deleted_at IS NULL").
+		Where("NOT EXISTS (SELECT 1 FROM job_history jh WHERE jh.video_id = videos.id AND jh.phase = ? AND jh.status = 'running')", phase)
+
+	switch phase {
+	case "metadata":
+		baseQuery = baseQuery.Where("duration = 0")
+	case "thumbnail":
+		baseQuery = baseQuery.Where("thumbnail_path = ''").Where("duration > 0")
+	case "sprites":
+		baseQuery = baseQuery.Where("sprite_sheet_path = ''").Where("duration > 0")
+	default:
+		return nil, nil
+	}
+
+	if err := baseQuery.Find(&videos).Error; err != nil {
 		return nil, err
 	}
 	return videos, nil

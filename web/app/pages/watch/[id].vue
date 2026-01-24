@@ -126,14 +126,16 @@ definePageMeta({
             <div v-else-if="video" class="grid gap-5 xl:grid-cols-[1fr_280px]">
                 <div class="min-w-0 space-y-4">
                     <!-- Processing State -->
-                    <div
-                        v-if="isProcessing"
-                        class="border-border bg-surface flex aspect-video flex-col items-center
-                            justify-center rounded-xl border text-center"
-                    >
-                        <LoadingSpinner />
-                        <h2 class="mt-4 text-sm font-semibold text-white">Processing</h2>
-                        <p class="text-dim mt-1 text-xs">Optimization in progress...</p>
+                    <div v-if="isProcessing" class="space-y-4">
+                        <div
+                            class="border-border bg-surface flex aspect-video flex-col items-center
+                                justify-center rounded-xl border text-center"
+                        >
+                            <LoadingSpinner />
+                            <h2 class="mt-4 text-sm font-semibold text-white">Processing</h2>
+                            <p class="text-dim mt-1 text-xs">Optimization in progress...</p>
+                        </div>
+                        <WatchDetailTabs />
                     </div>
 
                     <!-- Player -->
@@ -201,6 +203,9 @@ definePageMeta({
                                 </span>
                             </div>
                         </div>
+
+                        <!-- Detail tabs (Jobs, etc.) -->
+                        <WatchDetailTabs />
                     </div>
                 </div>
 
