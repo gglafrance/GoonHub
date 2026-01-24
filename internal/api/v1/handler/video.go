@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"goonhub/internal/api/v1/request"
 	"goonhub/internal/core"
 	"io"
 	"mime"
@@ -246,4 +247,77 @@ func (h *VideoHandler) StreamVideo(c *gin.Context) {
 	if err != nil {
 		return
 	}
+}
+
+func (h *VideoHandler) ExtractThumbnail(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		return
+	}
+
+	var req request.ExtractThumbnailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: timecode is required and must be >= 0"})
+		return
+	}
+
+	if err := h.Service.SetThumbnailFromTimecode(uint(id), req.Timecode); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to extract thumbnail: " + err.Error()})
+		return
+	}
+
+	video, err := h.Service.GetVideo(uint(id))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get updated video"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"thumbnail_path":   video.ThumbnailPath,
+		"thumbnail_width":  video.ThumbnailWidth,
+		"thumbnail_height": video.ThumbnailHeight,
+	})
+}
+
+func (h *VideoHandler) UploadThumbnail(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		return
+	}
+
+	file, err := c.FormFile("thumbnail")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thumbnail file is required"})
+		return
+	}
+
+	if file.Size > 10*1024*1024 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File size must be less than 10MB"})
+		return
+	}
+
+	if err := h.Service.SetThumbnailFromUpload(uint(id), file); err != nil {
+		if strings.Contains(err.Error(), "invalid image extension") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload thumbnail: " + err.Error()})
+		return
+	}
+
+	video, err := h.Service.GetVideo(uint(id))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get updated video"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"thumbnail_path":   video.ThumbnailPath,
+		"thumbnail_width":  video.ThumbnailWidth,
+		"thumbnail_height": video.ThumbnailHeight,
+	})
 }

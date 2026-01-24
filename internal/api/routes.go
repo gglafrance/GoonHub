@@ -37,6 +37,8 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					videos.GET("", middleware.RequirePermission(rbacService, "videos:view"), videoHandler.ListVideos)
 					videos.GET("/:id", middleware.RequirePermission(rbacService, "videos:view"), videoHandler.GetVideo)
 					videos.GET("/:id/reprocess", middleware.RequirePermission(rbacService, "videos:reprocess"), videoHandler.ReprocessVideo)
+					videos.PUT("/:id/thumbnail", middleware.RequirePermission(rbacService, "videos:upload"), videoHandler.ExtractThumbnail)
+					videos.POST("/:id/thumbnail/upload", middleware.RequirePermission(rbacService, "videos:upload"), videoHandler.UploadThumbnail)
 					videos.DELETE("/:id", middleware.RequirePermission(rbacService, "videos:delete"), videoHandler.DeleteVideo)
 				}
 

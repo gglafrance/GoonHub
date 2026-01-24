@@ -45,7 +45,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	processingConfigRepository := provideProcessingConfigRepository(db)
 	triggerConfigRepository := provideTriggerConfigRepository(db)
 	videoProcessingService := provideVideoProcessingService(videoRepository, configConfig, logger, eventBus, jobHistoryService, poolConfigRepository, processingConfigRepository, triggerConfigRepository)
-	videoService := provideVideoService(videoRepository, configConfig, videoProcessingService, logger)
+	videoService := provideVideoService(videoRepository, configConfig, videoProcessingService, eventBus, logger)
 	videoHandler := provideVideoHandler(videoService, videoProcessingService)
 	userRepository := provideUserRepository(db)
 	revokedTokenRepository := provideRevokedTokenRepository(db)
@@ -92,9 +92,9 @@ func provideEventBus(logger *logging.Logger) *core.EventBus {
 	return core.NewEventBus(logger.Logger)
 }
 
-func provideVideoService(repo data.VideoRepository, cfg *config.Config, processingService *core.VideoProcessingService, logger *logging.Logger) *core.VideoService {
+func provideVideoService(repo data.VideoRepository, cfg *config.Config, processingService *core.VideoProcessingService, eventBus *core.EventBus, logger *logging.Logger) *core.VideoService {
 	dataPath := "./data"
-	return core.NewVideoService(repo, dataPath, processingService, logger.Logger)
+	return core.NewVideoService(repo, dataPath, processingService, eventBus, logger.Logger)
 }
 
 func provideJobHistoryRepository(db *gorm.DB) data.JobHistoryRepository {

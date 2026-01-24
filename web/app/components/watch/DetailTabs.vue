@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const activeTab = ref<'jobs'>('jobs');
+const activeTab = ref<'jobs' | 'thumbnail'>('jobs');
 </script>
 
 <template>
@@ -17,11 +17,23 @@ const activeTab = ref<'jobs'>('jobs');
             >
                 Jobs
             </button>
+            <button
+                @click="activeTab = 'thumbnail'"
+                :class="[
+                    'border-b-2 px-3 pb-2.5 text-[11px] font-medium transition-colors',
+                    activeTab === 'thumbnail'
+                        ? 'border-lava text-white'
+                        : 'text-dim border-transparent hover:text-white',
+                ]"
+            >
+                Thumbnail
+            </button>
         </div>
 
         <!-- Tab content -->
         <div class="p-4">
             <WatchJobs v-if="activeTab === 'jobs'" />
+            <WatchThumbnail v-if="activeTab === 'thumbnail'" />
         </div>
     </div>
 </template>

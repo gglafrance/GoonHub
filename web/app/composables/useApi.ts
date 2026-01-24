@@ -271,6 +271,32 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const extractThumbnail = async (videoId: number, timecode: number) => {
+        const response = await fetch(`/api/v1/videos/${videoId}/thumbnail`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ timecode }),
+        });
+        return handleResponse(response);
+    };
+
+    const uploadThumbnail = async (videoId: number, file: File) => {
+        const formData = new FormData();
+        formData.append('thumbnail', file);
+
+        const headers: Record<string, string> = {};
+        if (authStore.token) {
+            headers['Authorization'] = `Bearer ${authStore.token}`;
+        }
+
+        const response = await fetch(`/api/v1/videos/${videoId}/thumbnail/upload`, {
+            method: 'POST',
+            body: formData,
+            headers,
+        });
+        return handleResponse(response);
+    };
+
     return {
         uploadVideo,
         fetchVideos,
@@ -296,5 +322,7 @@ export const useApi = () => {
         fetchTriggerConfig,
         updateTriggerConfig,
         triggerVideoPhase,
+        extractThumbnail,
+        uploadThumbnail,
     };
 };

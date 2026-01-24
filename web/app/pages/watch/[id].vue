@@ -10,6 +10,10 @@ const video = ref<Video | null>(null);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 const playerError = ref<unknown>(null);
+const playerRef = ref<{ getCurrentTime: () => number } | null>(null);
+
+provide('getPlayerTime', () => playerRef.value?.getCurrentTime() ?? 0);
+provide('watchVideo', video);
 
 const videoId = computed(() => parseInt(route.params.id as string));
 
@@ -177,6 +181,7 @@ definePageMeta({
                             :class="{ 'mx-auto max-w-xl': isPortrait }"
                         >
                             <VideoPlayer
+                                ref="playerRef"
                                 :video-url="streamUrl"
                                 :poster-url="posterUrl"
                                 :video="video"

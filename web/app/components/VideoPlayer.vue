@@ -113,6 +113,10 @@ watch(vttUrl, (newVttUrl) => {
     }
 });
 
+defineExpose({
+    getCurrentTime: () => player.value?.currentTime() ?? 0,
+});
+
 onBeforeUnmount(() => {
     if (player.value) {
         player.value.dispose();
