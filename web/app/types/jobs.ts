@@ -26,12 +26,23 @@ export interface ProcessingConfig {
     sprites_concurrency: number;
 }
 
+export interface QueueStatus {
+    metadata_queued: number;
+    thumbnail_queued: number;
+    sprites_queued: number;
+    metadata_running: number;
+    thumbnail_running: number;
+    sprites_running: number;
+}
+
 export interface JobListResponse {
     data: JobHistory[];
     total: number;
     page: number;
     limit: number;
     active_count: number;
+    active_jobs: JobHistory[];
     retention: string;
     pool_config: PoolConfig;
+    queue_status: QueueStatus;
 }

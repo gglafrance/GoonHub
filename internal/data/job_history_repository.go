@@ -45,11 +45,11 @@ func (r *JobHistoryRepositoryImpl) ListAll(page, limit int) ([]JobHistory, int64
 
 	offset := (page - 1) * limit
 
-	if err := r.DB.Model(&JobHistory{}).Count(&total).Error; err != nil {
+	if err := r.DB.Model(&JobHistory{}).Where("status != ?", "running").Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	if err := r.DB.Limit(limit).Offset(offset).Order("started_at desc").Find(&records).Error; err != nil {
+	if err := r.DB.Where("status != ?", "running").Limit(limit).Offset(offset).Order("started_at desc").Find(&records).Error; err != nil {
 		return nil, 0, err
 	}
 

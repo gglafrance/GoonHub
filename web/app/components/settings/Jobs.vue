@@ -1,17 +1,26 @@
 <script setup lang="ts">
-import type { JobHistory, JobListResponse } from '~/types/jobs';
+import type { JobHistory, JobListResponse, QueueStatus } from '~/types/jobs';
 
 const { fetchJobs } = useApi();
 
 const activeSubTab = ref<'history' | 'workers' | 'processing'>('history');
 
 const loading = ref(false);
-const jobs = ref<JobHistory[]>([]);
+const historyJobs = ref<JobHistory[]>([]);
+const activeJobs = ref<JobHistory[]>([]);
+const queueStatus = ref<QueueStatus>({
+    metadata_queued: 0,
+    thumbnail_queued: 0,
+    sprites_queued: 0,
+    metadata_running: 0,
+    thumbnail_running: 0,
+    sprites_running: 0,
+});
+const poolConfig = ref({ metadata_workers: 0, thumbnail_workers: 0, sprites_workers: 0 });
 const total = ref(0);
 const page = ref(1);
 const pageSizes = [10, 25, 50] as const;
 const limit = ref(Number(localStorage.getItem('jobs-page-size')) || 10);
-const activeCount = ref(0);
 const retention = ref('');
 const error = ref('');
 const autoRefresh = ref(localStorage.getItem('jobs-auto-refresh') === 'true');
@@ -19,17 +28,33 @@ const autoRefreshInterval = ref<ReturnType<typeof setInterval> | null>(null);
 
 const totalPages = computed(() => Math.ceil(total.value / limit.value));
 
-const activeJobs = computed(() => jobs.value.filter((j) => j.status === 'running'));
-const historyJobs = computed(() => jobs.value.filter((j) => j.status !== 'running'));
+const activeJobsByPhase = computed(() => {
+    const phases = ['metadata', 'thumbnail', 'sprites'] as const;
+    const result: Record<string, { running: JobHistory[]; queued: JobHistory[] }> = {};
+    for (const phase of phases) {
+        const phaseJobs = activeJobs.value
+            .filter((j) => j.phase === phase)
+            .sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime());
+        const runningCount =
+            queueStatus.value[`${phase}_running` as keyof typeof queueStatus.value] || 0;
+        result[phase] = {
+            running: phaseJobs.slice(0, runningCount),
+            queued: phaseJobs.slice(runningCount),
+        };
+    }
+    return result;
+});
 
-const loadJobs = async () => {
-    loading.value = true;
+const loadJobs = async (silent = false) => {
+    if (!silent) loading.value = true;
     error.value = '';
     try {
         const data: JobListResponse = await fetchJobs(page.value, limit.value);
-        jobs.value = data.data || [];
+        historyJobs.value = data.data || [];
+        activeJobs.value = data.active_jobs || [];
+        queueStatus.value = data.queue_status;
+        poolConfig.value = data.pool_config;
         total.value = data.total;
-        activeCount.value = data.active_count;
         retention.value = data.retention;
     } catch (e: unknown) {
         error.value = e instanceof Error ? e.message : 'Failed to load jobs';
@@ -57,7 +82,7 @@ watch(
             autoRefreshInterval.value = null;
         }
         if (enabled) {
-            autoRefreshInterval.value = setInterval(() => loadJobs(), 5000);
+            autoRefreshInterval.value = setInterval(() => loadJobs(true), 5000);
         }
     },
     { immediate: true },
@@ -183,54 +208,10 @@ const phaseLabel = (phase: string): string => {
                 {{ error }}
             </div>
 
-            <!-- Active Jobs -->
-            <div v-if="activeJobs.length > 0" class="glass-panel p-4">
-                <div class="mb-3 flex items-center gap-2">
-                    <span class="relative flex h-2 w-2">
-                        <span
-                            class="absolute inline-flex h-full w-full animate-ping rounded-full
-                                bg-amber-400 opacity-75"
-                        ></span>
-                        <span class="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
-                    </span>
-                    <h3 class="text-sm font-semibold text-white">
-                        Active Jobs
-                        <span class="text-dim text-[11px] font-normal"
-                            >({{ activeJobs.length }})</span
-                        >
-                    </h3>
-                </div>
-                <div class="space-y-2">
-                    <div
-                        v-for="job in activeJobs"
-                        :key="job.job_id"
-                        class="flex items-center justify-between rounded-lg border
-                            border-amber-500/10 bg-amber-500/5 px-3 py-2"
-                    >
-                        <div class="flex items-center gap-3">
-                            <span
-                                class="inline-block rounded-full border px-2 py-0.5 text-[10px]
-                                    font-medium"
-                                :class="statusClass('running')"
-                            >
-                                running
-                            </span>
-                            <span class="text-[11px] text-white">{{
-                                job.video_title || `Video #${job.video_id}`
-                            }}</span>
-                            <span class="text-dim text-[10px]">{{ phaseLabel(job.phase) }}</span>
-                        </div>
-                        <span class="text-dim text-[10px]">{{
-                            formatDuration(job.started_at)
-                        }}</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Job History Table -->
-            <div class="glass-panel p-5">
-                <div class="mb-4 flex items-center justify-between">
-                    <h3 class="text-sm font-semibold text-white">Job History</h3>
+            <!-- Queue Status Panel -->
+            <div class="glass-panel p-4">
+                <div class="mb-3 flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-white">Queue Status</h3>
                     <div class="flex items-center gap-3">
                         <label class="flex cursor-pointer items-center gap-1.5">
                             <span class="text-dim text-[11px]">Auto</span>
@@ -251,12 +232,157 @@ const phaseLabel = (phase: string): string => {
                             </button>
                         </label>
                         <button
-                            @click="loadJobs"
+                            @click="() => loadJobs()"
                             class="text-dim text-[11px] transition-colors hover:text-white"
                         >
                             Refresh
                         </button>
                     </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3">
+                    <div
+                        v-for="phase in ['metadata', 'thumbnail', 'sprites'] as const"
+                        :key="phase"
+                        class="rounded-lg border border-white/5 bg-white/2 px-3 py-2.5"
+                    >
+                        <div class="text-dim mb-2 text-[10px] font-medium tracking-wider uppercase">
+                            {{ phaseLabel(phase) }}
+                        </div>
+                        <div class="flex items-baseline gap-3">
+                            <div class="flex items-baseline gap-1">
+                                <span class="text-dim text-[10px]">W</span>
+                                <span class="text-xs font-medium text-white">{{
+                                    poolConfig[`${phase}_workers` as keyof typeof poolConfig]
+                                }}</span>
+                            </div>
+                            <div class="flex items-baseline gap-1">
+                                <span class="text-[10px] text-emerald-400">R</span>
+                                <span
+                                    class="text-xs font-medium"
+                                    :class="
+                                        queueStatus[
+                                            `${phase}_running` as keyof typeof queueStatus
+                                        ] > 0
+                                            ? 'text-emerald-400'
+                                            : 'text-dim'
+                                    "
+                                    >{{
+                                        queueStatus[`${phase}_running` as keyof typeof queueStatus]
+                                    }}</span
+                                >
+                            </div>
+                            <div class="flex items-baseline gap-1">
+                                <span class="text-[10px] text-amber-400">Q</span>
+                                <span
+                                    class="text-xs font-medium"
+                                    :class="
+                                        queueStatus[`${phase}_queued` as keyof typeof queueStatus] >
+                                        0
+                                            ? 'text-amber-400'
+                                            : 'text-dim'
+                                    "
+                                    >{{
+                                        queueStatus[`${phase}_queued` as keyof typeof queueStatus]
+                                    }}</span
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Jobs (grouped by phase) -->
+            <div v-if="activeJobs.length > 0" class="glass-panel p-4">
+                <div class="mb-3 flex items-center gap-2">
+                    <span class="relative flex h-2 w-2">
+                        <span
+                            class="absolute inline-flex h-full w-full animate-ping rounded-full
+                                bg-emerald-400 opacity-75"
+                        ></span>
+                        <span
+                            class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"
+                        ></span>
+                    </span>
+                    <h3 class="text-sm font-semibold text-white">
+                        Active Jobs
+                        <span class="text-dim text-[11px] font-normal"
+                            >({{ activeJobs.length }})</span
+                        >
+                    </h3>
+                </div>
+                <div class="space-y-3">
+                    <template
+                        v-for="phase in ['metadata', 'thumbnail', 'sprites'] as const"
+                        :key="phase"
+                    >
+                        <div
+                            v-if="
+                                activeJobsByPhase[phase]?.running.length ||
+                                activeJobsByPhase[phase]?.queued.length
+                            "
+                        >
+                            <div
+                                class="text-dim mb-1.5 text-[10px] font-medium tracking-wider
+                                    uppercase"
+                            >
+                                {{ phaseLabel(phase) }}
+                            </div>
+                            <div class="space-y-1.5">
+                                <div
+                                    v-for="job in activeJobsByPhase[phase].running"
+                                    :key="job.job_id"
+                                    class="flex items-center justify-between rounded-lg border
+                                        border-emerald-500/10 bg-emerald-500/5 px-3 py-2"
+                                >
+                                    <div class="flex items-center gap-3">
+                                        <span
+                                            class="inline-block rounded-full border
+                                                border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5
+                                                text-[10px] font-medium text-emerald-400"
+                                        >
+                                            running
+                                        </span>
+                                        <span class="text-[11px] text-white">{{
+                                            job.video_title || `Video #${job.video_id}`
+                                        }}</span>
+                                    </div>
+                                    <span class="text-dim text-[10px]">{{
+                                        formatDuration(job.started_at)
+                                    }}</span>
+                                </div>
+                                <div
+                                    v-for="job in activeJobsByPhase[phase].queued"
+                                    :key="job.job_id"
+                                    class="flex items-center justify-between rounded-lg border
+                                        border-amber-500/10 bg-amber-500/5 px-3 py-2"
+                                >
+                                    <div class="flex items-center gap-3">
+                                        <span
+                                            class="inline-block rounded-full border
+                                                border-amber-500/30 bg-amber-500/15 px-2 py-0.5
+                                                text-[10px] font-medium text-amber-400"
+                                        >
+                                            queued
+                                        </span>
+                                        <span class="text-[11px] text-white">{{
+                                            job.video_title || `Video #${job.video_id}`
+                                        }}</span>
+                                    </div>
+                                    <span class="text-dim text-[10px]">{{
+                                        formatDuration(job.started_at)
+                                    }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Job History Table -->
+            <div class="glass-panel p-5">
+                <div class="mb-4">
+                    <h3 class="text-sm font-semibold text-white">History</h3>
                 </div>
 
                 <div v-if="loading" class="text-dim py-8 text-center text-xs">Loading...</div>
@@ -266,7 +392,7 @@ const phaseLabel = (phase: string): string => {
                 >
                     No job history yet
                 </div>
-                <div v-else class="overflow-x-auto">
+                <div v-else-if="historyJobs.length > 0" class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
                         <thead>
                             <tr

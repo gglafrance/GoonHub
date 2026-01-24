@@ -28,6 +28,12 @@ type ProcessingQualityConfig struct {
 	SpritesConcurrency  int `json:"sprites_concurrency"`
 }
 
+type QueueStatus struct {
+	MetadataQueued  int `json:"metadata_queued"`
+	ThumbnailQueued int `json:"thumbnail_queued"`
+	SpritesQueued   int `json:"sprites_queued"`
+}
+
 type phaseState struct {
 	thumbnailDone bool
 	spritesDone   bool
@@ -521,6 +527,16 @@ func (s *VideoProcessingService) GetPoolConfig() PoolConfig {
 		MetadataWorkers:  s.metadataPool.ActiveWorkers(),
 		ThumbnailWorkers: s.thumbnailPool.ActiveWorkers(),
 		SpritesWorkers:   s.spritesPool.ActiveWorkers(),
+	}
+}
+
+func (s *VideoProcessingService) GetQueueStatus() QueueStatus {
+	s.poolMu.RLock()
+	defer s.poolMu.RUnlock()
+	return QueueStatus{
+		MetadataQueued:  s.metadataPool.QueueSize(),
+		ThumbnailQueued: s.thumbnailPool.QueueSize(),
+		SpritesQueued:   s.spritesPool.QueueSize(),
 	}
 }
 

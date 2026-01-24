@@ -52,6 +52,36 @@ func (h *JobHandler) ListJobs(c *gin.Context) {
 	}
 
 	poolConfig := h.processingService.GetPoolConfig()
+	queueStatus := h.processingService.GetQueueStatus()
+
+	// Count active (submitted) jobs per phase from DB
+	metadataActive := 0
+	thumbnailActive := 0
+	spritesActive := 0
+	for _, aj := range activeJobs {
+		switch aj.Phase {
+		case "metadata":
+			metadataActive++
+		case "thumbnail":
+			thumbnailActive++
+		case "sprites":
+			spritesActive++
+		}
+	}
+
+	// True running = active in DB minus those still in the queue buffer
+	metadataRunning := metadataActive - queueStatus.MetadataQueued
+	thumbnailRunning := thumbnailActive - queueStatus.ThumbnailQueued
+	spritesRunning := spritesActive - queueStatus.SpritesQueued
+	if metadataRunning < 0 {
+		metadataRunning = 0
+	}
+	if thumbnailRunning < 0 {
+		thumbnailRunning = 0
+	}
+	if spritesRunning < 0 {
+		spritesRunning = 0
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"data":         jobs,
@@ -59,8 +89,17 @@ func (h *JobHandler) ListJobs(c *gin.Context) {
 		"page":         page,
 		"limit":        limit,
 		"active_count": len(activeJobs),
+		"active_jobs":  activeJobs,
 		"retention":    h.jobHistoryService.GetRetention(),
 		"pool_config":  poolConfig,
+		"queue_status": gin.H{
+			"metadata_queued":  queueStatus.MetadataQueued,
+			"thumbnail_queued": queueStatus.ThumbnailQueued,
+			"sprites_queued":   queueStatus.SpritesQueued,
+			"metadata_running":  metadataRunning,
+			"thumbnail_running": thumbnailRunning,
+			"sprites_running":   spritesRunning,
+		},
 	})
 }
 
