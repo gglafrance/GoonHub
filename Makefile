@@ -1,6 +1,9 @@
-.PHONY: mocks test test-race test-cover
+.PHONY: mocks test test-race test-cover setup-test
 
-mocks:
+setup-test:
+	mkdir -p web/dist && touch web/dist/main.html
+
+mocks: setup-test
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_user_repository.go -package=mocks goonhub/internal/data UserRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_video_repository.go -package=mocks goonhub/internal/data VideoRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_revoked_token_repository.go -package=mocks goonhub/internal/data RevokedTokenRepository
@@ -11,6 +14,7 @@ mocks:
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_pool_config_repository.go -package=mocks goonhub/internal/data PoolConfigRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_processing_config_repository.go -package=mocks goonhub/internal/data ProcessingConfigRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_trigger_config_repository.go -package=mocks goonhub/internal/data TriggerConfigRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_tag_repository.go -package=mocks goonhub/internal/data TagRepository
 
 test: mocks
 	go test ./...

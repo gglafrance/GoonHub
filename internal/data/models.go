@@ -76,6 +76,19 @@ func (JobHistory) TableName() string {
 	return "job_history"
 }
 
+type Tag struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	Name      string    `gorm:"uniqueIndex;not null;size:100" json:"name"`
+	Color     string    `gorm:"not null;size:7;default:'#6B7280'" json:"color"`
+}
+
+type VideoTag struct {
+	ID      uint `gorm:"primarykey"`
+	VideoID uint `gorm:"not null"`
+	TagID   uint `gorm:"not null"`
+}
+
 type Video struct {
 	ID               uint           `gorm:"primarykey" json:"id"`
 	CreatedAt        time.Time      `json:"created_at"`

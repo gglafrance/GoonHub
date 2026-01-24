@@ -43,6 +43,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideProcessingConfigRepository,
 		provideTriggerConfigRepository,
 
+		provideTagRepository,
+
 		// Core
 		provideEventBus,
 		provideJobHistoryService,
@@ -53,6 +55,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideSettingsService,
 		provideRBACService,
 		provideAdminService,
+		provideTagService,
 		provideTriggerScheduler,
 
 		// API Middleware
@@ -65,6 +68,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideAdminHandler,
 		provideJobHandler,
 		provideSSEHandler,
+		provideTagHandler,
 		provideRouter,
 
 		// Server
@@ -189,8 +193,20 @@ func provideAdminHandler(adminService *core.AdminService, rbacService *core.RBAC
 	return handler.NewAdminHandler(adminService, rbacService)
 }
 
-func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
-	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, authService, rbacService, rateLimiter)
+func provideTagRepository(db *gorm.DB) data.TagRepository {
+	return data.NewTagRepository(db)
+}
+
+func provideTagService(tagRepo data.TagRepository, videoRepo data.VideoRepository, logger *logging.Logger) *core.TagService {
+	return core.NewTagService(tagRepo, videoRepo, logger.Logger)
+}
+
+func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
+	return handler.NewTagHandler(tagService)
+}
+
+func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
+	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, authService, rbacService, rateLimiter)
 }
 
 func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService, jobHistoryService *core.JobHistoryService, triggerScheduler *core.TriggerScheduler) *server.Server {

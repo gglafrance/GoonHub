@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -40,6 +40,15 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					videos.PUT("/:id/thumbnail", middleware.RequirePermission(rbacService, "videos:upload"), videoHandler.ExtractThumbnail)
 					videos.POST("/:id/thumbnail/upload", middleware.RequirePermission(rbacService, "videos:upload"), videoHandler.UploadThumbnail)
 					videos.DELETE("/:id", middleware.RequirePermission(rbacService, "videos:delete"), videoHandler.DeleteVideo)
+					videos.GET("/:id/tags", middleware.RequirePermission(rbacService, "videos:view"), tagHandler.GetVideoTags)
+					videos.PUT("/:id/tags", middleware.RequirePermission(rbacService, "videos:upload"), tagHandler.SetVideoTags)
+				}
+
+				tags := protected.Group("/tags")
+				{
+					tags.GET("", tagHandler.ListTags)
+					tags.POST("", tagHandler.CreateTag)
+					tags.DELETE("/:id", tagHandler.DeleteTag)
 				}
 
 				settings := protected.Group("/settings")
