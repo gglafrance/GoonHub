@@ -114,6 +114,39 @@ func TestDeleteVideo_RepoInteraction(t *testing.T) {
 	}
 }
 
+func TestUpdateVideoDetails_Success(t *testing.T) {
+	svc, videoRepo := newTestVideoService(t)
+
+	videoRepo.EXPECT().UpdateDetails(uint(1), "New Title", "New Description").Return(nil)
+	videoRepo.EXPECT().GetByID(uint(1)).Return(&data.Video{
+		ID:          1,
+		Title:       "New Title",
+		Description: "New Description",
+	}, nil)
+
+	video, err := svc.UpdateVideoDetails(1, "New Title", "New Description")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if video.Title != "New Title" {
+		t.Fatalf("expected title 'New Title', got %q", video.Title)
+	}
+	if video.Description != "New Description" {
+		t.Fatalf("expected description 'New Description', got %q", video.Description)
+	}
+}
+
+func TestUpdateVideoDetails_UpdateFails(t *testing.T) {
+	svc, videoRepo := newTestVideoService(t)
+
+	videoRepo.EXPECT().UpdateDetails(uint(1), "Title", "Desc").Return(fmt.Errorf("db error"))
+
+	_, err := svc.UpdateVideoDetails(1, "Title", "Desc")
+	if err == nil {
+		t.Fatal("expected error when update fails")
+	}
+}
+
 func TestDeleteVideo_NotFound(t *testing.T) {
 	svc, videoRepo := newTestVideoService(t)
 

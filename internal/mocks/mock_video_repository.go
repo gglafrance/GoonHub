@@ -143,6 +143,20 @@ func (mr *MockVideoRepositoryMockRecorder) UpdateBasicMetadata(id, duration, wid
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBasicMetadata", reflect.TypeOf((*MockVideoRepository)(nil).UpdateBasicMetadata), id, duration, width, height, frameRate, bitRate, videoCodec, audioCodec)
 }
 
+// UpdateDetails mocks base method.
+func (m *MockVideoRepository) UpdateDetails(id uint, title, description string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateDetails", id, title, description)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateDetails indicates an expected call of UpdateDetails.
+func (mr *MockVideoRepositoryMockRecorder) UpdateDetails(id, title, description any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDetails", reflect.TypeOf((*MockVideoRepository)(nil).UpdateDetails), id, title, description)
+}
+
 // UpdateMetadata mocks base method.
 func (m *MockVideoRepository) UpdateMetadata(id uint, duration, width, height int, thumbnailPath, spriteSheetPath, vttPath string, spriteSheetCount, thumbnailWidth, thumbnailHeight int) error {
 	m.ctrl.T.Helper()

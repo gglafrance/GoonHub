@@ -163,61 +163,6 @@ const getResolutionLabel = (h?: number): string => {
             </div>
         </div>
 
-        <!-- Details Section (placeholders for future use) -->
-        <div
-            v-if="
-                video.description ||
-                video.studio ||
-                (video.tags && video.tags.length) ||
-                (video.actors && video.actors.length)
-            "
-            class="border-border bg-surface/50 rounded-xl border p-4 backdrop-blur-sm"
-        >
-            <span class="text-dim text-[10px] font-medium tracking-wider uppercase">Details</span>
-            <div class="mt-2 space-y-0">
-                <div v-if="video.description" class="border-border border-b py-2.5">
-                    <span class="text-dim text-[11px]">Description</span>
-                    <p class="text-muted mt-0.5 text-[11px]">{{ video.description }}</p>
-                </div>
-
-                <div
-                    v-if="video.studio"
-                    class="border-border flex items-center justify-between border-b py-2.5"
-                >
-                    <span class="text-dim text-[11px]">Studio</span>
-                    <span class="text-muted text-[11px]">{{ video.studio }}</span>
-                </div>
-
-                <div v-if="video.tags && video.tags.length" class="border-border border-b py-2.5">
-                    <span class="text-dim text-[11px]">Tags</span>
-                    <div class="mt-1 flex flex-wrap gap-1">
-                        <span
-                            v-for="tag in video.tags"
-                            :key="tag"
-                            class="border-border bg-panel rounded-md border px-1.5 py-0.5 font-mono
-                                text-[10px] text-white/60"
-                        >
-                            {{ tag }}
-                        </span>
-                    </div>
-                </div>
-
-                <div v-if="video.actors && video.actors.length" class="py-2.5">
-                    <span class="text-dim text-[11px]">Actors</span>
-                    <div class="mt-1 flex flex-wrap gap-1">
-                        <span
-                            v-for="actor in video.actors"
-                            :key="actor"
-                            class="border-border bg-panel rounded-md border px-1.5 py-0.5 font-mono
-                                text-[10px] text-white/60"
-                        >
-                            {{ actor }}
-                        </span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Actions -->
         <div class="border-border bg-surface/50 rounded-xl border p-3 backdrop-blur-sm">
             <div class="flex gap-2">

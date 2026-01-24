@@ -281,6 +281,33 @@ func (h *VideoHandler) ExtractThumbnail(c *gin.Context) {
 	})
 }
 
+func (h *VideoHandler) UpdateVideoDetails(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		return
+	}
+
+	var req request.UpdateVideoDetailsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	video, err := h.Service.UpdateVideoDetails(uint(id), req.Title, req.Description)
+	if err != nil {
+		if strings.Contains(err.Error(), "record not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update video details"})
+		return
+	}
+
+	c.JSON(http.StatusOK, video)
+}
+
 func (h *VideoHandler) UploadThumbnail(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)

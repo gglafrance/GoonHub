@@ -42,6 +42,7 @@ type VideoRepository interface {
 	GetPendingProcessing() ([]Video, error)
 	GetVideosNeedingPhase(phase string) ([]Video, error)
 	Delete(id uint) error
+	UpdateDetails(id uint, title, description string) error
 }
 
 type VideoRepositoryImpl struct {
@@ -177,6 +178,11 @@ func (r *VideoRepositoryImpl) Delete(id uint) error {
 		return err
 	}
 	return r.DB.Delete(&video).Error
+}
+
+func (r *VideoRepositoryImpl) UpdateDetails(id uint, title, description string) error {
+	return r.DB.Model(&Video{}).Where("id = ?", id).
+		Updates(map[string]interface{}{"title": title, "description": description}).Error
 }
 
 type UserRepositoryImpl struct {

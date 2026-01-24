@@ -3,7 +3,7 @@ import type { Video } from '~/types/video';
 import type { Tag } from '~/types/tag';
 
 const video = inject<Ref<Video | null>>('watchVideo');
-const { fetchTags, fetchVideoTags, setVideoTags } = useApi();
+const { fetchTags, fetchVideoTags, setVideoTags, updateVideoDetails } = useApi();
 
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -14,6 +14,17 @@ const showTagPicker = ref(false);
 
 const anchorRef = ref<HTMLElement | null>(null);
 
+const editingTitle = ref(false);
+const editingDescription = ref(false);
+const editTitle = ref('');
+const editDescription = ref('');
+const saving = ref(false);
+const saved = ref(false);
+let savedTimeout: ReturnType<typeof setTimeout> | null = null;
+
+const titleInputRef = ref<HTMLInputElement | null>(null);
+const descriptionInputRef = ref<HTMLTextAreaElement | null>(null);
+
 const availableTags = computed(() =>
     allTags.value.filter((t) => !videoTags.value.some((vt) => vt.id === t.id)),
 );
@@ -21,6 +32,67 @@ const availableTags = computed(() =>
 onMounted(async () => {
     await loadTags();
 });
+
+function startEditTitle() {
+    editTitle.value = video?.value?.title || '';
+    editingTitle.value = true;
+    nextTick(() => titleInputRef.value?.focus());
+}
+
+function startEditDescription() {
+    editDescription.value = video?.value?.description || '';
+    editingDescription.value = true;
+    nextTick(() => {
+        if (descriptionInputRef.value) {
+            descriptionInputRef.value.focus();
+            autoResize({ target: descriptionInputRef.value } as unknown as Event);
+        }
+    });
+}
+
+async function saveTitle() {
+    editingTitle.value = false;
+    if (!video?.value) return;
+    if (editTitle.value === (video.value.title || '')) return;
+    await saveDetails(editTitle.value, video.value.description || '');
+}
+
+async function saveDescription() {
+    editingDescription.value = false;
+    if (!video?.value) return;
+    if (editDescription.value === (video.value.description || '')) return;
+    await saveDetails(video.value.title || '', editDescription.value);
+}
+
+async function saveDetails(title: string, description: string) {
+    if (!video?.value) return;
+
+    saving.value = true;
+    error.value = null;
+
+    try {
+        const updated = await updateVideoDetails(video.value.id, title, description);
+        if (video.value) {
+            video.value.title = updated.title;
+            video.value.description = updated.description;
+        }
+        saved.value = true;
+        if (savedTimeout) clearTimeout(savedTimeout);
+        savedTimeout = setTimeout(() => {
+            saved.value = false;
+        }, 2000);
+    } catch (err: unknown) {
+        error.value = err instanceof Error ? err.message : 'Failed to save details';
+    } finally {
+        saving.value = false;
+    }
+}
+
+function autoResize(event: Event) {
+    const el = event.target as HTMLTextAreaElement;
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+}
 
 async function loadTags() {
     if (!video?.value) return;
@@ -81,6 +153,62 @@ async function removeTag(tagId: number) {
             <span class="text-xs text-red-300">{{ error }}</span>
         </div>
 
+        <!-- Title -->
+        <div class="space-y-1">
+            <div class="flex items-center gap-2">
+                <h3 class="text-dim text-[11px] font-medium tracking-wider uppercase">Title</h3>
+                <Transition name="fade">
+                    <span v-if="saved" class="text-[10px] text-emerald-400/80">Saved</span>
+                </Transition>
+            </div>
+
+            <input
+                v-if="editingTitle"
+                ref="titleInputRef"
+                v-model="editTitle"
+                @blur="saveTitle"
+                @keydown.enter="($event.target as HTMLInputElement).blur()"
+                type="text"
+                class="border-border focus:border-lava/50 -mx-2 w-[calc(100%+16px)] rounded-md
+                    border bg-white/3 px-2 py-1 text-sm text-white transition-colors outline-none"
+            />
+            <p
+                v-else
+                @click="startEditTitle"
+                class="text-dim -mx-2 cursor-pointer rounded-md px-2 py-1 text-sm transition-colors
+                    hover:bg-white/3 hover:text-white"
+                :class="{ 'text-white': video?.title }"
+            >
+                {{ video?.title || 'Untitled' }}
+            </p>
+        </div>
+
+        <!-- Description -->
+        <div class="space-y-1">
+            <h3 class="text-dim text-[11px] font-medium tracking-wider uppercase">Description</h3>
+
+            <textarea
+                v-if="editingDescription"
+                ref="descriptionInputRef"
+                v-model="editDescription"
+                @blur="saveDescription"
+                @input="autoResize"
+                rows="2"
+                class="border-border focus:border-lava/50 -mx-2 w-[calc(100%+16px)] resize-none
+                    rounded-md border bg-white/3 px-2 py-1 text-sm text-white transition-colors
+                    outline-none"
+            />
+            <p
+                v-else
+                @click="startEditDescription"
+                class="text-dim -mx-2 cursor-pointer rounded-md px-2 py-1 text-sm
+                    whitespace-pre-wrap transition-colors hover:bg-white/3 hover:text-white"
+                :class="{ 'text-white/70': video?.description }"
+            >
+                {{ video?.description || 'No description' }}
+            </p>
+        </div>
+
         <!-- Tags section -->
         <div class="space-y-2">
             <h3 class="text-dim text-[11px] font-medium tracking-wider uppercase">Tags</h3>
@@ -137,3 +265,14 @@ async function removeTag(tagId: number) {
         </div>
     </div>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+}
+</style>

@@ -346,6 +346,15 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const updateVideoDetails = async (videoId: number, title: string, description: string) => {
+        const response = await fetch(`/api/v1/videos/${videoId}/details`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ title, description }),
+        });
+        return handleResponse(response);
+    };
+
     return {
         uploadVideo,
         fetchVideos,
@@ -379,5 +388,6 @@ export const useApi = () => {
         deleteTag,
         fetchVideoTags,
         setVideoTags,
+        updateVideoDetails,
     };
 };

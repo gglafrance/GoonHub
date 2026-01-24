@@ -136,6 +136,13 @@ func (s *VideoService) GetVideo(id uint) (*data.Video, error) {
 	return s.Repo.GetByID(id)
 }
 
+func (s *VideoService) UpdateVideoDetails(id uint, title, description string) (*data.Video, error) {
+	if err := s.Repo.UpdateDetails(id, title, description); err != nil {
+		return nil, fmt.Errorf("failed to update video details: %w", err)
+	}
+	return s.Repo.GetByID(id)
+}
+
 func (s *VideoService) DeleteVideo(id uint) error {
 	video, err := s.Repo.GetByID(id)
 	if err != nil {
