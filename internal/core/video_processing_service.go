@@ -25,6 +25,7 @@ type ProcessingQualityConfig struct {
 	FrameQualitySm      int `json:"frame_quality_sm"`
 	FrameQualityLg      int `json:"frame_quality_lg"`
 	FrameQualitySprites int `json:"frame_quality_sprites"`
+	SpritesConcurrency  int `json:"sprites_concurrency"`
 }
 
 type phaseState struct {
@@ -80,6 +81,7 @@ func NewVideoProcessingService(
 		FrameQualitySm:      cfg.FrameQuality,
 		FrameQualityLg:      cfg.FrameQualityLg,
 		FrameQualitySprites: cfg.FrameQualitySprites,
+		SpritesConcurrency:  cfg.SpritesConcurrency,
 	}
 
 	// Override with DB-persisted processing config if available
@@ -90,12 +92,14 @@ func NewVideoProcessingService(
 			qualityConfig.FrameQualitySm = dbConfig.FrameQualitySm
 			qualityConfig.FrameQualityLg = dbConfig.FrameQualityLg
 			qualityConfig.FrameQualitySprites = dbConfig.FrameQualitySprites
+			qualityConfig.SpritesConcurrency = dbConfig.SpritesConcurrency
 			logger.Info("Loaded processing config from database",
 				zap.Int("max_frame_dimension_sm", qualityConfig.MaxFrameDimensionSm),
 				zap.Int("max_frame_dimension_lg", qualityConfig.MaxFrameDimensionLg),
 				zap.Int("frame_quality_sm", qualityConfig.FrameQualitySm),
 				zap.Int("frame_quality_lg", qualityConfig.FrameQualityLg),
 				zap.Int("frame_quality_sprites", qualityConfig.FrameQualitySprites),
+				zap.Int("sprites_concurrency", qualityConfig.SpritesConcurrency),
 			)
 		}
 	}
@@ -332,6 +336,7 @@ func (s *VideoProcessingService) onMetadataComplete(result jobs.JobResult) {
 	qualitySm := s.processingQualityConfig.FrameQualitySm
 	qualityLg := s.processingQualityConfig.FrameQualityLg
 	qualitySprites := s.processingQualityConfig.FrameQualitySprites
+	spritesConcurrency := s.processingQualityConfig.SpritesConcurrency
 	s.poolMu.RUnlock()
 
 	// Submit thumbnail and sprites jobs to their respective pools
@@ -362,6 +367,7 @@ func (s *VideoProcessingService) onMetadataComplete(result jobs.JobResult) {
 		qualitySprites,
 		s.config.GridCols,
 		s.config.GridRows,
+		spritesConcurrency,
 		s.repo,
 		s.logger,
 	)
@@ -602,6 +608,9 @@ func (s *VideoProcessingService) UpdateProcessingQualityConfig(cfg ProcessingQua
 	if cfg.FrameQualitySprites < 1 || cfg.FrameQualitySprites > 100 {
 		return fmt.Errorf("frame_quality_sprites must be between 1 and 100")
 	}
+	if cfg.SpritesConcurrency < 0 || cfg.SpritesConcurrency > 64 {
+		return fmt.Errorf("sprites_concurrency must be between 0 and 64 (0 = auto)")
+	}
 
 	s.poolMu.Lock()
 	s.processingQualityConfig = cfg
@@ -613,6 +622,7 @@ func (s *VideoProcessingService) UpdateProcessingQualityConfig(cfg ProcessingQua
 		zap.Int("frame_quality_sm", cfg.FrameQualitySm),
 		zap.Int("frame_quality_lg", cfg.FrameQualityLg),
 		zap.Int("frame_quality_sprites", cfg.FrameQualitySprites),
+		zap.Int("sprites_concurrency", cfg.SpritesConcurrency),
 	)
 
 	return nil

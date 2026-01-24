@@ -14,6 +14,7 @@ type ProcessingConfigRecord struct {
 	FrameQualitySm      int       `gorm:"column:frame_quality_sm" json:"frame_quality_sm"`
 	FrameQualityLg      int       `gorm:"column:frame_quality_lg" json:"frame_quality_lg"`
 	FrameQualitySprites int       `gorm:"column:frame_quality_sprites" json:"frame_quality_sprites"`
+	SpritesConcurrency  int       `gorm:"column:sprites_concurrency" json:"sprites_concurrency"`
 	UpdatedAt           time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
 
@@ -51,6 +52,6 @@ func (r *ProcessingConfigRepositoryImpl) Upsert(record *ProcessingConfigRecord) 
 	record.UpdatedAt = time.Now()
 	return r.DB.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"max_frame_dimension_sm", "max_frame_dimension_lg", "frame_quality_sm", "frame_quality_lg", "frame_quality_sprites", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"max_frame_dimension_sm", "max_frame_dimension_lg", "frame_quality_sm", "frame_quality_lg", "frame_quality_sprites", "sprites_concurrency", "updated_at"}),
 	}).Create(record).Error
 }

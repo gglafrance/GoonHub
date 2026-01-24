@@ -32,6 +32,7 @@ type SpritesJob struct {
 	frameQuality  int
 	gridCols      int
 	gridRows      int
+	concurrency   int
 	repo          data.VideoRepository
 	logger        *zap.Logger
 	status        JobStatus
@@ -52,6 +53,7 @@ func NewSpritesJob(
 	frameQuality int,
 	gridCols int,
 	gridRows int,
+	concurrency int,
 	repo data.VideoRepository,
 	logger *zap.Logger,
 ) *SpritesJob {
@@ -68,6 +70,7 @@ func NewSpritesJob(
 		frameQuality:  frameQuality,
 		gridCols:      gridCols,
 		gridRows:      gridRows,
+		concurrency:   concurrency,
 		repo:          repo,
 		logger:        logger,
 		status:        JobStatusPending,
@@ -123,6 +126,7 @@ func (j *SpritesJob) Execute() error {
 		j.gridRows,
 		j.frameInterval,
 		j.frameQuality,
+		j.concurrency,
 	)
 	if err != nil {
 		j.logger.Error("Failed to generate sprite sheets",

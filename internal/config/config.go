@@ -67,6 +67,7 @@ type ProcessingConfig struct {
 	VttDir              string `mapstructure:"vtt_dir"`               // relative to app root
 	GridCols            int    `mapstructure:"grid_cols"`             // number of columns in sprite sheet
 	GridRows            int    `mapstructure:"grid_rows"`             // number of rows in sprite sheet
+	SpritesConcurrency  int    `mapstructure:"sprites_concurrency"`   // concurrent ffmpeg processes for sprite extraction (0 = auto)
 	JobHistoryRetention string `mapstructure:"job_history_retention"` // duration string e.g. "7d", "24h"
 }
 
@@ -116,6 +117,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("processing.vtt_dir", "./data/vtt")
 	v.SetDefault("processing.grid_cols", 12)
 	v.SetDefault("processing.grid_rows", 8)
+	v.SetDefault("processing.sprites_concurrency", 0)
 	v.SetDefault("processing.job_history_retention", "7d")
 	v.SetDefault("auth.paseto_secret", "")
 	v.SetDefault("auth.admin_username", "admin")

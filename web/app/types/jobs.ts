@@ -23,6 +23,7 @@ export interface ProcessingConfig {
     frame_quality_sm: number;
     frame_quality_lg: number;
     frame_quality_sprites: number;
+    sprites_concurrency: number;
 }
 
 export interface JobListResponse {

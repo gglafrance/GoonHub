@@ -130,6 +130,7 @@ func (h *JobHandler) UpdateProcessingConfig(c *gin.Context) {
 		FrameQualitySm:      req.FrameQualitySm,
 		FrameQualityLg:      req.FrameQualityLg,
 		FrameQualitySprites: req.FrameQualitySprites,
+		SpritesConcurrency:  req.SpritesConcurrency,
 	}
 	if err := h.processingConfigRepo.Upsert(record); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Processing config applied but failed to persist: " + err.Error()})

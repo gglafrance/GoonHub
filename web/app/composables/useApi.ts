@@ -232,6 +232,7 @@ export const useApi = () => {
         frame_quality_sm: number;
         frame_quality_lg: number;
         frame_quality_sprites: number;
+        sprites_concurrency: number;
     }) => {
         const response = await fetch('/api/v1/admin/processing-config', {
             method: 'PUT',

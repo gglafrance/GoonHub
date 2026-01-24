@@ -13,6 +13,7 @@ const maxFrameDimensionLg = ref(1280);
 const frameQualitySm = ref(85);
 const frameQualityLg = ref(85);
 const frameQualitySprites = ref(75);
+const spritesConcurrency = ref(0);
 
 const dimensionOptionsSm = [160, 240, 320, 480];
 const dimensionOptionsLg = [640, 720, 960, 1280, 1920];
@@ -27,6 +28,7 @@ const loadConfig = async () => {
         frameQualitySm.value = config.frame_quality_sm;
         frameQualityLg.value = config.frame_quality_lg;
         frameQualitySprites.value = config.frame_quality_sprites;
+        spritesConcurrency.value = config.sprites_concurrency;
     } catch (e: unknown) {
         error.value = e instanceof Error ? e.message : 'Failed to load processing config';
     } finally {
@@ -45,6 +47,7 @@ const applyConfig = async () => {
             frame_quality_sm: frameQualitySm.value,
             frame_quality_lg: frameQualityLg.value,
             frame_quality_sprites: frameQualitySprites.value,
+            sprites_concurrency: spritesConcurrency.value,
         });
         message.value = 'Processing configuration updated';
         setTimeout(() => {
@@ -203,6 +206,36 @@ onMounted(() => {
                         max="100"
                         class="slider w-full"
                     />
+                </div>
+            </div>
+
+            <!-- Concurrency Section -->
+            <div class="border-border space-y-3 border-t pt-5">
+                <h4 class="text-[11px] font-medium tracking-wider text-white/60 uppercase">
+                    Performance
+                </h4>
+
+                <div class="space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <label class="text-xs font-medium text-white"
+                                >Sprites Concurrency</label
+                            >
+                            <p class="text-dim text-[10px]">
+                                Parallel ffmpeg processes for frame extraction (0 = auto, uses CPU
+                                count)
+                            </p>
+                        </div>
+                        <input
+                            v-model.number="spritesConcurrency"
+                            type="number"
+                            min="0"
+                            max="64"
+                            class="border-border bg-surface w-16 rounded-lg border px-2 py-1.5
+                                text-center text-xs text-white focus:border-white/20
+                                focus:outline-none"
+                        />
+                    </div>
                 </div>
             </div>
 
