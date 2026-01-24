@@ -7,10 +7,13 @@ const loading = ref(false);
 const jobs = ref<JobHistory[]>([]);
 const total = ref(0);
 const page = ref(1);
-const limit = ref(50);
+const pageSizes = [10, 25, 50] as const;
+const limit = ref(Number(localStorage.getItem('jobs-page-size')) || 10);
 const activeCount = ref(0);
 const retention = ref('');
 const error = ref('');
+const autoRefresh = ref(localStorage.getItem('jobs-auto-refresh') === 'true');
+const autoRefreshInterval = ref<ReturnType<typeof setInterval> | null>(null);
 
 const totalPages = computed(() => Math.ceil(total.value / limit.value));
 
@@ -37,6 +40,23 @@ onMounted(() => {
     loadJobs();
 });
 
+onUnmounted(() => {
+    if (autoRefreshInterval.value) {
+        clearInterval(autoRefreshInterval.value);
+    }
+});
+
+watch(autoRefresh, (enabled) => {
+    localStorage.setItem('jobs-auto-refresh', String(enabled));
+    if (autoRefreshInterval.value) {
+        clearInterval(autoRefreshInterval.value);
+        autoRefreshInterval.value = null;
+    }
+    if (enabled) {
+        autoRefreshInterval.value = setInterval(() => loadJobs(), 5000);
+    }
+}, { immediate: true });
+
 const prevPage = () => {
     if (page.value > 1) {
         page.value--;
@@ -49,6 +69,13 @@ const nextPage = () => {
         page.value++;
         loadJobs();
     }
+};
+
+const changePageSize = (size: number) => {
+    limit.value = size;
+    page.value = 1;
+    localStorage.setItem('jobs-page-size', String(size));
+    loadJobs();
 };
 
 const formatDuration = (startedAt: string, completedAt?: string): string => {
@@ -152,12 +179,31 @@ const phaseLabel = (phase: string): string => {
         <div class="glass-panel p-5">
             <div class="mb-4 flex items-center justify-between">
                 <h3 class="text-sm font-semibold text-white">Job History</h3>
-                <button
-                    @click="loadJobs"
-                    class="text-dim hover:text-white text-[11px] transition-colors"
-                >
-                    Refresh
-                </button>
+                <div class="flex items-center gap-3">
+                    <label class="flex cursor-pointer items-center gap-1.5">
+                        <span class="text-dim text-[11px]">Auto</span>
+                        <button
+                            @click="autoRefresh = !autoRefresh"
+                            :class="[
+                                'relative h-4 w-7 rounded-full transition-colors',
+                                autoRefresh ? 'bg-emerald-500' : 'bg-white/10',
+                            ]"
+                        >
+                            <span
+                                :class="[
+                                    'absolute top-0.5 left-0.5 h-3 w-3 rounded-full bg-white transition-transform',
+                                    autoRefresh ? 'translate-x-3' : 'translate-x-0',
+                                ]"
+                            ></span>
+                        </button>
+                    </label>
+                    <button
+                        @click="loadJobs"
+                        class="text-dim hover:text-white text-[11px] transition-colors"
+                    >
+                        Refresh
+                    </button>
+                </div>
             </div>
 
             <div v-if="loading" class="text-dim py-8 text-center text-xs">Loading...</div>
@@ -209,24 +255,41 @@ const phaseLabel = (phase: string): string => {
 
             <!-- Pagination -->
             <div
-                v-if="totalPages > 1"
+                v-if="total > 0"
                 class="border-border mt-4 flex items-center justify-between border-t pt-3"
             >
-                <button
-                    @click="prevPage"
-                    :disabled="page <= 1"
-                    class="text-dim hover:text-white text-[11px] transition-colors disabled:opacity-30 disabled:hover:text-dim"
-                >
-                    Previous
-                </button>
-                <span class="text-dim text-[11px]">Page {{ page }} of {{ totalPages }}</span>
-                <button
-                    @click="nextPage"
-                    :disabled="page >= totalPages"
-                    class="text-dim hover:text-white text-[11px] transition-colors disabled:opacity-30 disabled:hover:text-dim"
-                >
-                    Next
-                </button>
+                <div class="flex items-center gap-1">
+                    <button
+                        v-for="size in pageSizes"
+                        :key="size"
+                        @click="changePageSize(size)"
+                        :class="[
+                            'rounded px-1.5 py-0.5 text-[11px] transition-colors',
+                            limit === size
+                                ? 'bg-white/10 text-white'
+                                : 'text-dim hover:text-white',
+                        ]"
+                    >
+                        {{ size }}
+                    </button>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button
+                        @click="prevPage"
+                        :disabled="page <= 1"
+                        class="text-dim hover:text-white text-[11px] transition-colors disabled:opacity-30 disabled:hover:text-dim"
+                    >
+                        Previous
+                    </button>
+                    <span class="text-dim text-[11px]">{{ page }} / {{ totalPages }}</span>
+                    <button
+                        @click="nextPage"
+                        :disabled="page >= totalPages"
+                        class="text-dim hover:text-white text-[11px] transition-colors disabled:opacity-30 disabled:hover:text-dim"
+                    >
+                        Next
+                    </button>
+                </div>
             </div>
         </div>
 

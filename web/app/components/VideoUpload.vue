@@ -3,8 +3,6 @@ const authStore = useAuthStore();
 const uploadStore = useUploadStore();
 const fileInput = ref<HTMLInputElement | null>(null);
 const isDragging = ref(false);
-const title = ref('');
-const selectedFile = ref<File | null>(null);
 
 const handleDragOver = (e: DragEvent) => {
     e.preventDefault();
@@ -20,34 +18,25 @@ const handleDrop = (e: DragEvent) => {
     e.preventDefault();
     isDragging.value = false;
 
-    const file = e.dataTransfer?.files[0];
-    if (file) {
-        handleFileSelect(file);
+    const files = e.dataTransfer?.files;
+    if (files) {
+        queueFiles(files);
     }
 };
 
 const onFileChange = (e: Event) => {
     const target = e.target as HTMLInputElement;
-    const file = target.files?.[0];
-    if (file) {
-        handleFileSelect(file);
+    if (target.files) {
+        queueFiles(target.files);
     }
-};
-
-const handleFileSelect = (file: File) => {
-    selectedFile.value = file;
-    if (!title.value) {
-        title.value = file.name.replace(/\.[^/.]+$/, '');
-    }
-};
-
-const upload = () => {
-    if (!selectedFile.value) return;
-
-    uploadStore.addUpload(selectedFile.value, title.value || selectedFile.value.name.replace(/\.[^/.]+$/, ''));
-    selectedFile.value = null;
-    title.value = '';
     if (fileInput.value) fileInput.value.value = '';
+};
+
+const queueFiles = (files: FileList) => {
+    for (const file of files) {
+        const title = file.name.replace(/\.[^/.]+$/, '');
+        uploadStore.addUpload(file, title);
+    }
 };
 </script>
 
@@ -62,51 +51,7 @@ const upload = () => {
         <div v-else>
             <h2 class="text-muted mb-3 text-xs font-semibold tracking-wider uppercase">Upload</h2>
 
-            <!-- Upload Form -->
-            <div v-if="selectedFile" class="space-y-3">
-                <div
-                    class="border-border bg-panel flex items-center gap-3 rounded-lg border px-3
-                        py-2"
-                >
-                    <Icon name="heroicons:film" size="16" class="text-lava shrink-0" />
-                    <div class="text-muted flex-1 truncate text-xs">
-                        {{ selectedFile.name }}
-                    </div>
-                    <button
-                        @click="selectedFile = null"
-                        class="text-dim hover:text-lava transition-colors"
-                    >
-                        <Icon name="heroicons:x-mark" size="14" />
-                    </button>
-                </div>
-
-                <div>
-                    <label
-                        class="text-dim mb-1 block text-[11px] font-medium tracking-wider uppercase"
-                        >Title</label
-                    >
-                    <input
-                        v-model="title"
-                        type="text"
-                        class="border-border bg-void/80 placeholder-dim/50 focus:border-lava/40
-                            focus:ring-lava/20 w-full rounded-lg border px-3 py-2 text-xs text-white
-                            transition-all focus:ring-1 focus:outline-none"
-                        placeholder="Video title"
-                    />
-                </div>
-
-                <button
-                    @click="upload"
-                    class="bg-lava hover:bg-lava-glow glow-lava w-full rounded-lg px-4 py-2 text-xs
-                        font-semibold text-white transition-all"
-                >
-                    Upload Video
-                </button>
-            </div>
-
-            <!-- Drop Zone -->
             <div
-                v-else
                 @dragover="handleDragOver"
                 @dragleave="handleDragLeave"
                 @drop="handleDrop"
@@ -124,6 +69,7 @@ const upload = () => {
                     type="file"
                     class="hidden"
                     accept="video/*"
+                    multiple
                     @change="onFileChange"
                 />
 
@@ -134,7 +80,7 @@ const upload = () => {
                     >
                         <Icon name="heroicons:arrow-up-tray" size="16" class="text-dim" />
                     </div>
-                    <div class="text-muted text-xs font-medium">Drop video or click to upload</div>
+                    <div class="text-muted text-xs font-medium">Drop videos or click to upload</div>
                     <div class="text-dim font-mono text-[10px]">MP4, MKV, AVI, WEBM</div>
                 </div>
             </div>
