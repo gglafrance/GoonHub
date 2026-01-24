@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Goonhub is a self-hosted video library application with a Go backend and Nuxt 3 (Vue 3) frontend. Videos are uploaded, processed (thumbnails, sprite sheets, VTT files generated via ffmpeg), and streamed. The frontend is embedded into the Go binary for single-binary production deployment.
+Goonhub is a self-hosted video library application with a Go backend and Nuxt 4 (Vue 3) frontend. Videos are uploaded, processed (thumbnails, sprite sheets, VTT files generated via ffmpeg), and streamed. The frontend is embedded into the Go binary for single-binary production deployment. Features include RBAC, real-time updates via SSE, dynamic worker pool configuration, and scheduled job triggers.
 
 ## Development Commands
 
@@ -40,7 +40,7 @@ go run github.com/google/wire/cmd/wire ./internal/wire
 go build -o goonhub ./cmd/server
 ```
 
-### Frontend (Nuxt 3 / Vue 3)
+### Frontend (Nuxt 4 / Vue 3)
 
 ```bash
 cd web
@@ -89,14 +89,33 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - `cmd/server/main.go` - Entry point, initializes via Wire DI
 - `internal/wire/` - Google Wire dependency injection (run `wire ./internal/wire/` after changing providers)
 - `internal/config/` - Viper-based config, loaded from YAML file or `GOONHUB_*` env vars
-- `internal/api/` - Gin HTTP router, routes, middleware (CORS, auth, rate limiting)
-- `internal/api/v1/handler/` - Request handlers (video, auth)
-- `internal/core/` - Business logic services (VideoService, VideoProcessingService, AuthService, UserService)
-- `internal/data/` - GORM models and repository interfaces/implementations
+- `internal/api/` - Gin HTTP router, routes, middleware (CORS, auth, rate limiting, RBAC)
+- `internal/api/v1/handler/` - Request handlers (video, auth, admin, settings, SSE, job history)
+- `internal/api/v1/request/` - Request DTOs (admin, auth, settings)
+- `internal/api/v1/response/` - Response DTOs (auth)
+- `internal/core/` - Business logic services:
+  - `video_service.go` - Video CRUD operations
+  - `video_processing_service.go` - Processing orchestration and queue status
+  - `auth_service.go` - PASETO token management
+  - `user_service.go` - User management
+  - `admin_service.go` - Admin operations
+  - `rbac_service.go` - Role-Based Access Control
+  - `settings_service.go` - User settings management
+  - `job_history_service.go` - Job history and retention
+  - `event_bus.go` - EventBus for real-time SSE event publishing
+  - `trigger_scheduler.go` - Cron-based scheduled triggers for processing phases
+- `internal/data/` - GORM models and repository interfaces/implementations:
+  - `models.go` - User, Video, Role, Permission, RolePermission, RevokedToken, UserSettings, JobHistory
+  - `repository.go` - Core repository interfaces (VideoRepository, UserRepository, RevokedTokenRepository, UserSettingsRepository)
+  - `rbac_repository.go` - RBACRepository for roles/permissions
+  - `job_history_repository.go` - JobHistoryRepository
+  - `pool_config_repository.go` - PoolConfigRepository (dynamic worker pool settings)
+  - `processing_config_repository.go` - ProcessingConfigRepository (quality/concurrency settings)
+  - `trigger_config_repository.go` - TriggerConfigRepository (cron/after_job/on_import triggers)
 - `internal/infrastructure/` - Server, logging (zap), PostgreSQL persistence
 - `internal/infrastructure/persistence/postgres/` - GORM PostgreSQL initializer with connection pooling
-- `internal/infrastructure/persistence/migrator/` - golang-migrate based schema migrations
-- `internal/jobs/` - Worker pool and video processing jobs
+- `internal/infrastructure/persistence/migrator/` - golang-migrate based schema migrations (10 migrations)
+- `internal/jobs/` - Worker pool and video processing jobs (metadata, thumbnail, sprites)
 - `internal/mocks/` - Generated mock implementations for all repository interfaces (via `go.uber.org/mock`)
 - `pkg/ffmpeg/` - ffmpeg wrapper for metadata extraction, thumbnails, sprite sheets, VTT generation
 - `web.go` - `embed.FS` directive embedding `web/dist` into the binary
@@ -104,18 +123,28 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 ### Frontend Structure (web/app/)
 
 - Nuxt 4 directory structure with `app/` subdirectory
-- `pages/` - Routes: index (video grid), login, watch/[id]
-- `components/` - VideoCard, VideoPlayer, etc.
-- `stores/` - Pinia stores (auth with sessionStorage persistence, videos)
-- `composables/` - Reusable composition functions
-- `types/` - TypeScript interfaces (Video, Auth)
+- `pages/` - Routes: index (video grid), login, watch/[id], settings
+- `components/` - Organized by feature:
+  - Root: `AppHeader`, `VideoCard`, `VideoGrid`, `VideoPlayer`, `VideoUpload`, `VideoMetadata`, `UploadIndicator`, `Pagination`, `ErrorAlert`, `LoadingSpinner`
+  - `settings/` - `Account`, `Player`, `App`, `Users`, `Jobs` (with sub-components: `jobs/Workers`, `jobs/Processing`, `jobs/Triggers`)
+  - `settings/` modals - `UserCreateModal`, `UserEditRoleModal`, `UserResetPasswordModal`, `UserDeleteModal`
+  - `watch/` - `DetailTabs`, `Jobs`
+  - `ui/` - Reusable `ErrorAlert`, `LoadingSpinner`
+- `stores/` - Pinia stores: `auth` (sessionStorage), `videos`, `upload`, `settings`
+- `composables/` - `useApi`, `useSettingsMessage`, `useFormatter`, `useThumbnailPreview`, `useSSE`, `useVttParser`
+- `types/` - TypeScript interfaces: `video`, `auth`, `settings`, `admin`, `jobs`
 - `assets/css/main.css` - Tailwind CSS 4 entry point
 
 ### Key Patterns
 
 - **DI**: Google Wire generates `wire_gen.go`; edit `wire.go` then regenerate
 - **Auth**: PASETO tokens, admin user auto-created on startup, token revocation via DB
-- **Video Processing Pipeline**: Upload -> save file -> create DB record -> submit async job (worker pool) -> extract metadata -> generate thumbnail -> generate sprite sheets -> generate VTT -> update DB
+- **RBAC**: Roles and permissions managed via database, enforced by middleware
+- **Video Processing Pipeline**: Upload -> save file -> create DB record -> submit async job (worker pool) -> extract metadata -> generate thumbnails (multi-resolution) -> generate sprite sheets -> generate VTT -> update DB
+- **Real-Time Updates (SSE)**: EventBus publishes VideoEvents -> SSEHandler streams to connected clients via Server-Sent Events. Token auth via query parameter. 30-second keepalive pings. Buffered channel (50 events) prevents blocking.
+- **Trigger Scheduler**: Cron-based scheduling via robfig/cron/v3. Supports trigger types: `on_import`, `after_job`, `manual`, `scheduled`. Includes cycle detection for after_job dependencies.
+- **Dynamic Configuration**: Worker pool size, processing quality, and trigger schedules are stored in DB and configurable at runtime via admin API.
+- **Queue Status Monitoring**: `VideoProcessingService.GetQueueStatus()` returns queued jobs per phase for frontend display.
 - **Static Assets**: Thumbnails, sprites, VTT files served from `./data/` directory
 - **Frontend Proxy**: In dev, Vite proxies `/api`, `/thumbnails`, `/sprites`, `/vtt` to `:8080`
 - **Custom Elements**: Vue compiler configured to treat `media-*`, `videojs-video`, `media-theme` as custom elements
@@ -125,24 +154,52 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 
 All under `/api/v1/`:
 
-- `POST /auth/login` (public, rate-limited)
-- `GET /auth/me`, `POST /auth/logout` (authenticated)
-- `POST /videos`, `GET /videos`, `GET /videos/:id`, `DELETE /videos/:id`, `GET /videos/:id/reprocess` (authenticated)
-- `GET /videos/:id/stream` (public)
+**Public:**
+- `POST /auth/login` (rate-limited)
+- `GET /videos/:id/stream`
+- `GET /events?token=<token>` (SSE real-time event stream)
+
+**Authenticated:**
+- `GET /auth/me`, `POST /auth/logout`
+- `POST /videos`, `GET /videos`, `GET /videos/:id`, `DELETE /videos/:id`
+- `GET /settings`, `PUT /settings`
+
+**Admin (requires admin role):**
+- `GET /admin/jobs` - List job history
+- `GET /admin/pool-config`, `PUT /admin/pool-config` - Worker pool configuration
+- `GET /admin/processing-config`, `PUT /admin/processing-config` - Processing quality settings
+- `GET /admin/trigger-config`, `PUT /admin/trigger-config` - Trigger schedule management
+- `POST /admin/videos/:id/process/:phase` - Manually trigger processing phase
 
 ### Configuration
 
 Config loaded via Viper: YAML file path set by `GOONHUB_CONFIG` env var. All config keys can be overridden with `GOONHUB_` prefixed env vars (dots become underscores, e.g. `GOONHUB_SERVER_PORT`).
 
+Key config sections:
+- `server` - Port, timeouts
+- `database` - PostgreSQL connection, pooling
+- `log` - Level, format
+- `auth` - PASETO secret, admin credentials, token duration, rate limits
+- `processing` - Frame intervals, dimensions (small/large), quality levels (thumbnails/sprites), worker counts per phase, sprite grid size, concurrency, output directories, job history retention
+
 ### Database
 
 - **PostgreSQL 18** is the database (run via `docker/docker-compose.yml`)
 - Migrations are managed by `golang-migrate` (embedded in binary, run automatically on startup)
+- 10 migration files covering: initial schema, user settings, RBAC, job history, pool config, multi-resolution thumbnails, extended metadata, processing config, sprites concurrency, trigger config
 
 ### External Dependencies
 
 - **ffmpeg/ffprobe** must be available on PATH for video processing
 - **PostgreSQL 18** via Docker (see `docker/` directory)
+
+### Tech Stack Versions
+
+- Go 1.24 (toolchain 1.24.12)
+- Nuxt 4.2 / Vue 3.5
+- Gin 1.11, GORM 1.31
+- Pinia 3.0, Tailwind CSS 4.1
+- video.js 8.23, media-chrome 4.17
 
 ## Coding Conventions
 
@@ -203,3 +260,9 @@ When working on GoonHub, remember:
 - When adding new repository interface methods, regenerate mocks with `make mocks`
 - PASETO key must be exactly 32 bytes for v2 symmetric encryption
 - Worker pool's `Submit()` returns an error if the pool is stopped (not a panic)
+- EventBus uses a buffered channel (cap 50); slow subscribers may miss events
+- TriggerScheduler supports cycle detection for `after_job` trigger chains
+- SSE endpoint authenticates via `?token=` query param (not Authorization header)
+- Configuration repositories (pool, processing, trigger) all use Upsert semantics
+- Admin routes require RBAC middleware with admin role check
+- Settings sub-components under `components/settings/jobs/` are nested one level deeper (e.g., `<SettingsJobsWorkers />`)
