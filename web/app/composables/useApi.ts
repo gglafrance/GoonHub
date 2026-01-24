@@ -355,6 +355,67 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const fetchVideoRating = async (videoId: number) => {
+        const response = await fetch(`/api/v1/videos/${videoId}/rating`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const setVideoRating = async (videoId: number, rating: number) => {
+        const response = await fetch(`/api/v1/videos/${videoId}/rating`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ rating }),
+        });
+        return handleResponse(response);
+    };
+
+    const deleteVideoRating = async (videoId: number) => {
+        const response = await fetch(`/api/v1/videos/${videoId}/rating`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+        });
+        if (response.status === 401) {
+            authStore.logout();
+            throw new Error('Unauthorized');
+        }
+        if (!response.ok && response.status !== 204) {
+            const error = await response.json();
+            throw new Error(error.error || 'Request failed');
+        }
+    };
+
+    const fetchVideoLike = async (videoId: number) => {
+        const response = await fetch(`/api/v1/videos/${videoId}/like`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const toggleVideoLike = async (videoId: number) => {
+        const response = await fetch(`/api/v1/videos/${videoId}/like`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const fetchJizzedCount = async (videoId: number) => {
+        const response = await fetch(`/api/v1/videos/${videoId}/jizzed`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const incrementJizzed = async (videoId: number) => {
+        const response = await fetch(`/api/v1/videos/${videoId}/jizzed`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
     return {
         uploadVideo,
         fetchVideos,
@@ -389,5 +450,12 @@ export const useApi = () => {
         fetchVideoTags,
         setVideoTags,
         updateVideoDetails,
+        fetchVideoRating,
+        setVideoRating,
+        deleteVideoRating,
+        fetchVideoLike,
+        toggleVideoLike,
+        fetchJizzedCount,
+        incrementJizzed,
     };
 };

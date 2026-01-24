@@ -90,6 +90,35 @@ type VideoTag struct {
 	TagID   uint `gorm:"not null"`
 }
 
+type UserVideoRating struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	UserID    uint      `gorm:"not null" json:"user_id"`
+	VideoID   uint      `gorm:"not null" json:"video_id"`
+	Rating    float64   `gorm:"type:decimal(2,1);not null" json:"rating"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type UserVideoLike struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	UserID    uint      `gorm:"not null" json:"user_id"`
+	VideoID   uint      `gorm:"not null" json:"video_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type UserVideoJizzed struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	UserID    uint      `gorm:"not null" json:"user_id"`
+	VideoID   uint      `gorm:"not null" json:"video_id"`
+	Count     int       `gorm:"not null;default:0" json:"count"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (UserVideoJizzed) TableName() string {
+	return "user_video_jizzed"
+}
+
 type Video struct {
 	ID               uint           `gorm:"primarykey" json:"id"`
 	CreatedAt        time.Time      `json:"created_at"`

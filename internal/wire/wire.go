@@ -44,6 +44,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideTriggerConfigRepository,
 
 		provideTagRepository,
+		provideInteractionRepository,
 
 		// Core
 		provideEventBus,
@@ -56,6 +57,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideRBACService,
 		provideAdminService,
 		provideTagService,
+		provideInteractionService,
 		provideTriggerScheduler,
 
 		// API Middleware
@@ -69,6 +71,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideJobHandler,
 		provideSSEHandler,
 		provideTagHandler,
+		provideInteractionHandler,
 		provideRouter,
 
 		// Server
@@ -205,8 +208,20 @@ func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
 	return handler.NewTagHandler(tagService)
 }
 
-func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
-	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, authService, rbacService, rateLimiter)
+func provideInteractionRepository(db *gorm.DB) data.InteractionRepository {
+	return data.NewInteractionRepository(db)
+}
+
+func provideInteractionService(repo data.InteractionRepository, logger *logging.Logger) *core.InteractionService {
+	return core.NewInteractionService(repo, logger.Logger)
+}
+
+func provideInteractionHandler(service *core.InteractionService) *handler.InteractionHandler {
+	return handler.NewInteractionHandler(service)
+}
+
+func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
+	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, authService, rbacService, rateLimiter)
 }
 
 func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService, jobHistoryService *core.JobHistoryService, triggerScheduler *core.TriggerScheduler) *server.Server {

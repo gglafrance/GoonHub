@@ -174,13 +174,6 @@ const getResolutionLabel = (h?: number): string => {
                     <Icon name="heroicons:share" size="12" class="mr-1" />
                     Share
                 </button>
-                <button
-                    class="border-border bg-panel text-dim hover:border-lava/30 hover:text-lava
-                        flex-1 rounded-lg border py-2 text-[11px] font-medium transition-all"
-                >
-                    <Icon name="heroicons:heart" size="12" class="mr-1" />
-                    Favorite
-                </button>
             </div>
         </div>
     </div>

@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -43,6 +43,13 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 				videos.DELETE("/:id", middleware.RequirePermission(rbacService, "videos:delete"), videoHandler.DeleteVideo)
 					videos.GET("/:id/tags", middleware.RequirePermission(rbacService, "videos:view"), tagHandler.GetVideoTags)
 					videos.PUT("/:id/tags", middleware.RequirePermission(rbacService, "videos:upload"), tagHandler.SetVideoTags)
+					videos.GET("/:id/rating", interactionHandler.GetRating)
+					videos.PUT("/:id/rating", interactionHandler.SetRating)
+					videos.DELETE("/:id/rating", interactionHandler.DeleteRating)
+					videos.GET("/:id/like", interactionHandler.GetLike)
+					videos.POST("/:id/like", interactionHandler.ToggleLike)
+					videos.GET("/:id/jizzed", interactionHandler.GetJizzed)
+					videos.POST("/:id/jizzed", interactionHandler.ToggleJizzed)
 				}
 
 				tags := protected.Group("/tags")
