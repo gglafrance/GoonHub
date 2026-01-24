@@ -188,6 +188,17 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const fetchJobs = async (page: number, limit: number) => {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+        });
+        const response = await fetch(`/api/v1/admin/jobs?${params}`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
     return {
         uploadVideo,
         fetchVideos,
@@ -205,5 +216,6 @@ export const useApi = () => {
         fetchRoles,
         fetchPermissions,
         syncRolePermissions,
+        fetchJobs,
     };
 };

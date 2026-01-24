@@ -2,13 +2,14 @@
 const settingsStore = useSettingsStore();
 const authStore = useAuthStore();
 
-type TabType = 'account' | 'player' | 'app' | 'users';
+type TabType = 'account' | 'player' | 'app' | 'users' | 'jobs';
 const activeTab = ref<TabType>('account');
 
 const availableTabs = computed(() => {
     const tabs: TabType[] = ['account', 'player', 'app'];
     if (authStore.user?.role === 'admin') {
         tabs.push('users');
+        tabs.push('jobs');
     }
     return tabs;
 });
@@ -47,5 +48,6 @@ definePageMeta({
         <SettingsPlayer v-if="activeTab === 'player'" />
         <SettingsApp v-if="activeTab === 'app'" />
         <SettingsUsers v-if="activeTab === 'users'" />
+        <SettingsJobs v-if="activeTab === 'jobs'" />
     </div>
 </template>

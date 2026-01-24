@@ -28,6 +28,7 @@ processing:
   vtt_dir: "./data/vtt"
   grid_cols: 12
   grid_rows: 8
+  job_history_retention: "7d"
 auth:
   paseto_secret: "01234567890123456789012345678901"
   admin_username: "admin"

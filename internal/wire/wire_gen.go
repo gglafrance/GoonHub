@@ -39,7 +39,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	}
 	videoRepository := provideVideoRepository(db)
 	eventBus := provideEventBus(logger)
-	videoProcessingService := provideVideoProcessingService(videoRepository, configConfig, logger, eventBus)
+	jobHistoryRepository := provideJobHistoryRepository(db)
+	jobHistoryService := provideJobHistoryService(jobHistoryRepository, configConfig, logger)
+	videoProcessingService := provideVideoProcessingService(videoRepository, configConfig, logger, eventBus, jobHistoryService)
 	videoService := provideVideoService(videoRepository, configConfig, videoProcessingService, logger)
 	videoHandler := provideVideoHandler(videoService, videoProcessingService)
 	userRepository := provideUserRepository(db)
@@ -55,10 +57,11 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	rbacService := provideRBACService(roleRepository, permissionRepository, logger)
 	adminService := provideAdminService(userRepository, roleRepository, rbacService, logger)
 	adminHandler := provideAdminHandler(adminService, rbacService)
+	jobHandler := provideJobHandler(jobHistoryService)
 	sseHandler := provideSSEHandler(eventBus, authService, logger)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, sseHandler, authService, rbacService, ipRateLimiter)
-	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService)
+	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, authService, rbacService, ipRateLimiter)
+	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService, jobHistoryService)
 	return serverServer, nil
 }
 
@@ -90,8 +93,20 @@ func provideVideoService(repo data.VideoRepository, cfg *config.Config, processi
 	return core.NewVideoService(repo, dataPath, processingService, logger.Logger)
 }
 
-func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus) *core.VideoProcessingService {
-	return core.NewVideoProcessingService(repo, cfg.Processing, logger.Logger, eventBus)
+func provideJobHistoryRepository(db *gorm.DB) data.JobHistoryRepository {
+	return data.NewJobHistoryRepository(db)
+}
+
+func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config, logger *logging.Logger) *core.JobHistoryService {
+	return core.NewJobHistoryService(repo, cfg.Processing, logger.Logger)
+}
+
+func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService) *core.VideoProcessingService {
+	return core.NewVideoProcessingService(repo, cfg.Processing, logger.Logger, eventBus, jobHistory)
+}
+
+func provideJobHandler(jobHistoryService *core.JobHistoryService) *handler.JobHandler {
+	return handler.NewJobHandler(jobHistoryService)
 }
 
 func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, logger *logging.Logger) *handler.SSEHandler {
@@ -150,10 +165,10 @@ func provideAdminHandler(adminService *core.AdminService, rbacService *core.RBAC
 	return handler.NewAdminHandler(adminService, rbacService)
 }
 
-func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, sseHandler *handler.SSEHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
-	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, sseHandler, authService, rbacService, rateLimiter)
+func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
+	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, authService, rbacService, rateLimiter)
 }
 
-func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService) *server.Server {
-	return server.NewHTTPServer(router, logger, cfg, processingService, userService)
+func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService, jobHistoryService *core.JobHistoryService) *server.Server {
+	return server.NewHTTPServer(router, logger, cfg, processingService, userService, jobHistoryService)
 }

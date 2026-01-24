@@ -51,17 +51,18 @@ type LogConfig struct {
 }
 
 type ProcessingConfig struct {
-	FrameInterval     int    `mapstructure:"frame_interval"`     // seconds
-	MaxFrameDimension int    `mapstructure:"max_frame_dimension"` // longest side in pixels
-	FrameQuality      int    `mapstructure:"frame_quality"`      // 1-100, WebP quality
-	WorkerCount       int    `mapstructure:"worker_count"`       // concurrent jobs
-	ThumbnailSeek     string `mapstructure:"thumbnail_seek"`     // "00:00:05" or "5%"
-	FrameOutputDir    string `mapstructure:"frame_output_dir"`   // relative to app root
-	ThumbnailDir      string `mapstructure:"thumbnail_dir"`      // relative to app root
-	SpriteDir         string `mapstructure:"sprite_dir"`         // relative to app root
-	VttDir            string `mapstructure:"vtt_dir"`            // relative to app root
-	GridCols          int    `mapstructure:"grid_cols"`          // number of columns in sprite sheet
-	GridRows          int    `mapstructure:"grid_rows"`          // number of rows in sprite sheet
+	FrameInterval       int    `mapstructure:"frame_interval"`        // seconds
+	MaxFrameDimension   int    `mapstructure:"max_frame_dimension"`   // longest side in pixels
+	FrameQuality        int    `mapstructure:"frame_quality"`         // 1-100, WebP quality
+	WorkerCount         int    `mapstructure:"worker_count"`          // concurrent jobs
+	ThumbnailSeek       string `mapstructure:"thumbnail_seek"`        // "00:00:05" or "5%"
+	FrameOutputDir      string `mapstructure:"frame_output_dir"`      // relative to app root
+	ThumbnailDir        string `mapstructure:"thumbnail_dir"`         // relative to app root
+	SpriteDir           string `mapstructure:"sprite_dir"`            // relative to app root
+	VttDir              string `mapstructure:"vtt_dir"`               // relative to app root
+	GridCols            int    `mapstructure:"grid_cols"`             // number of columns in sprite sheet
+	GridRows            int    `mapstructure:"grid_rows"`             // number of rows in sprite sheet
+	JobHistoryRetention string `mapstructure:"job_history_retention"` // duration string e.g. "7d", "24h"
 }
 
 type AuthConfig struct {
@@ -105,6 +106,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("processing.vtt_dir", "./data/vtt")
 	v.SetDefault("processing.grid_cols", 12)
 	v.SetDefault("processing.grid_rows", 8)
+	v.SetDefault("processing.job_history_retention", "7d")
 	v.SetDefault("auth.paseto_secret", "")
 	v.SetDefault("auth.admin_username", "admin")
 	v.SetDefault("auth.admin_password", "admin")
@@ -147,4 +149,24 @@ func Load(path string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// ParseRetentionDuration parses a retention duration string like "7d", "24h", "30m".
+// Supports "d" suffix for days, otherwise falls back to time.ParseDuration.
+func ParseRetentionDuration(s string) (time.Duration, error) {
+	if len(s) == 0 {
+		return 7 * 24 * time.Hour, nil
+	}
+	if daysStr, ok := strings.CutSuffix(s, "d"); ok {
+		var days int
+		if _, err := fmt.Sscanf(daysStr, "%d", &days); err != nil {
+			return 0, fmt.Errorf("invalid day duration %q: %w", s, err)
+		}
+		return time.Duration(days) * 24 * time.Hour, nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid duration %q: %w", s, err)
+	}
+	return d, nil
 }

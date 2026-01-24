@@ -58,6 +58,23 @@ type UserSettings struct {
 	DefaultSortOrder string    `gorm:"not null;default:'created_at_desc'" json:"default_sort_order"`
 }
 
+type JobHistory struct {
+	ID           uint       `gorm:"primarykey" json:"id"`
+	JobID        string     `gorm:"uniqueIndex;not null;size:36" json:"job_id"`
+	VideoID      uint       `gorm:"not null" json:"video_id"`
+	VideoTitle   string     `gorm:"not null;size:255;default:''" json:"video_title"`
+	Phase        string     `gorm:"not null;size:20" json:"phase"`
+	Status       string     `gorm:"not null;size:20;default:'running'" json:"status"`
+	ErrorMessage *string    `gorm:"type:text" json:"error_message,omitempty"`
+	StartedAt    time.Time  `gorm:"not null;default:now()" json:"started_at"`
+	CompletedAt  *time.Time `json:"completed_at,omitempty"`
+	CreatedAt    time.Time  `gorm:"not null;default:now()" json:"created_at"`
+}
+
+func (JobHistory) TableName() string {
+	return "job_history"
+}
+
 type Video struct {
 	ID               uint           `gorm:"primarykey" json:"id"`
 	CreatedAt        time.Time      `json:"created_at"`

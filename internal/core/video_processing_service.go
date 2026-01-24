@@ -21,6 +21,7 @@ type VideoProcessingService struct {
 	config     config.ProcessingConfig
 	logger     *zap.Logger
 	eventBus   *EventBus
+	jobHistory *JobHistoryService
 	phases     sync.Map // map[uint]*phaseState
 }
 
@@ -29,6 +30,7 @@ func NewVideoProcessingService(
 	config config.ProcessingConfig,
 	logger *zap.Logger,
 	eventBus *EventBus,
+	jobHistory *JobHistoryService,
 ) *VideoProcessingService {
 	logger.Info("Initializing video processing service",
 		zap.Int("worker_count", config.WorkerCount),
@@ -73,11 +75,12 @@ func NewVideoProcessingService(
 	}
 
 	return &VideoProcessingService{
-		pool:     pool,
-		repo:     repo,
-		config:   config,
-		logger:   logger,
-		eventBus: eventBus,
+		pool:       pool,
+		repo:       repo,
+		config:     config,
+		logger:     logger,
+		eventBus:   eventBus,
+		jobHistory: jobHistory,
 	}
 }
 
@@ -115,6 +118,14 @@ func (s *VideoProcessingService) SubmitVideo(videoID uint, videoPath string) err
 		return err
 	}
 
+	if s.jobHistory != nil {
+		videoTitle := ""
+		if v, err := s.repo.GetByID(videoID); err == nil {
+			videoTitle = v.Title
+		}
+		s.jobHistory.RecordJobStart(job.GetID(), videoID, videoTitle, "metadata")
+	}
+
 	return nil
 }
 
@@ -143,6 +154,10 @@ func (s *VideoProcessingService) handleCompleted(result jobs.JobResult) {
 		zap.String("phase", result.Phase),
 		zap.Uint("video_id", result.VideoID),
 	)
+
+	if s.jobHistory != nil {
+		s.jobHistory.RecordJobComplete(result.JobID)
+	}
 
 	switch result.Phase {
 	case "metadata":
@@ -228,6 +243,15 @@ func (s *VideoProcessingService) onMetadataComplete(result jobs.JobResult) {
 		)
 		s.repo.UpdateProcessingStatus(result.VideoID, "failed", "failed to submit sprites job")
 		return
+	}
+
+	if s.jobHistory != nil {
+		videoTitle := ""
+		if v, err := s.repo.GetByID(result.VideoID); err == nil {
+			videoTitle = v.Title
+		}
+		s.jobHistory.RecordJobStart(thumbnailJob.GetID(), result.VideoID, videoTitle, "thumbnail")
+		s.jobHistory.RecordJobStart(spritesJob.GetID(), result.VideoID, videoTitle, "sprites")
 	}
 
 	s.logger.Info("Submitted thumbnail and sprites jobs",
@@ -316,6 +340,10 @@ func (s *VideoProcessingService) handleFailed(result jobs.JobResult) {
 		zap.Uint("video_id", result.VideoID),
 		zap.Error(result.Error),
 	)
+
+	if s.jobHistory != nil && result.Error != nil {
+		s.jobHistory.RecordJobFailed(result.JobID, result.Error)
+	}
 
 	s.phases.Delete(result.VideoID)
 
