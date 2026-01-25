@@ -13,7 +13,7 @@
 
 services:
   app:
-    image: ghcr.io/${GITHUB_REPOSITORY:-goonhub/goonhub}:${GOONHUB_VERSION:-latest}
+    image: ghcr.io/${GITHUB_REPOSITORY:-gglafrance/goonhub}:${GOONHUB_VERSION:-latest}
     container_name: goonhub-app
     restart: unless-stopped
     ports:
@@ -50,7 +50,7 @@ services:
       POSTGRES_PASSWORD: ${GOONHUB_DATABASE_PASSWORD:?Database password required}
       POSTGRES_DB: goonhub
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata-prod:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U goonhub -d goonhub"]
       interval: 5s
@@ -66,7 +66,7 @@ services:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?Meilisearch master key required}
       MEILI_NO_ANALYTICS: true
     volumes:
-      - meilidata:/meili_data
+      - meilidata-prod:/meili_data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
       interval: 5s
@@ -75,5 +75,5 @@ services:
 
 volumes:
   goonhub-data:
-  pgdata:
-  meilidata:
+  pgdata-prod:
+  meilidata-prod:

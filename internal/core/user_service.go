@@ -21,12 +21,7 @@ func NewUserService(repo data.UserRepository, logger *zap.Logger) *UserService {
 }
 
 func (s *UserService) EnsureAdminExists(username, password, environment string) error {
-	// Skip default admin creation in production
-	if environment == "production" {
-		s.logger.Info("Skipping default admin creation in production")
-		return nil
-	}
-
+	// Check if admin already exists
 	exists, err := s.repo.Exists(username)
 	if err != nil {
 		return fmt.Errorf("failed to check admin existence: %w", err)
@@ -35,6 +30,19 @@ func (s *UserService) EnsureAdminExists(username, password, environment string) 
 	if exists {
 		s.logger.Info("Admin user already exists", zap.String("username", username))
 		return nil
+	}
+
+	// In production, only create admin on first-time setup (no users exist)
+	if environment == "production" {
+		userCount, err := s.repo.Count()
+		if err != nil {
+			return fmt.Errorf("failed to count users: %w", err)
+		}
+		if userCount > 0 {
+			s.logger.Info("Skipping admin creation in production (users already exist)")
+			return nil
+		}
+		s.logger.Info("First-time setup: creating admin user in production")
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)

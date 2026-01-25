@@ -47,3 +47,4 @@ tmp/
 /data/
 *.db
 .claude/settings.json
+docker/config.prod.yaml

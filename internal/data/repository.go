@@ -11,6 +11,7 @@ type UserRepository interface {
 	GetByUsername(username string) (*User, error)
 	GetByID(id uint) (*User, error)
 	Exists(username string) (bool, error)
+	Count() (int64, error)
 	UpdatePassword(userID uint, hashedPassword string) error
 	UpdateUsername(userID uint, newUsername string) error
 	List(page, limit int) ([]User, int64, error)
@@ -302,6 +303,14 @@ func (r *UserRepositoryImpl) Exists(username string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (r *UserRepositoryImpl) Count() (int64, error) {
+	var count int64
+	if err := r.DB.Model(&User{}).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func (r *UserRepositoryImpl) UpdatePassword(userID uint, hashedPassword string) error {
