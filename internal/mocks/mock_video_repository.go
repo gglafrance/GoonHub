@@ -68,6 +68,21 @@ func (mr *MockVideoRepositoryMockRecorder) Delete(id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockVideoRepository)(nil).Delete), id)
 }
 
+// ExistsByStoredPath mocks base method.
+func (m *MockVideoRepository) ExistsByStoredPath(path string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExistsByStoredPath", path)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExistsByStoredPath indicates an expected call of ExistsByStoredPath.
+func (mr *MockVideoRepositoryMockRecorder) ExistsByStoredPath(path any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExistsByStoredPath", reflect.TypeOf((*MockVideoRepository)(nil).ExistsByStoredPath), path)
+}
+
 // GetAll mocks base method.
 func (m *MockVideoRepository) GetAll() ([]data.Video, error) {
 	m.ctrl.T.Helper()

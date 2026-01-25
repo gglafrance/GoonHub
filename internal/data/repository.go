@@ -70,6 +70,7 @@ type VideoRepository interface {
 	GetVideosNeedingPhase(phase string) ([]Video, error)
 	Delete(id uint) error
 	UpdateDetails(id uint, title, description string) error
+	ExistsByStoredPath(path string) (bool, error)
 }
 
 type VideoRepositoryImpl struct {
@@ -267,6 +268,14 @@ func (r *VideoRepositoryImpl) GetDistinctActors() ([]string, error) {
 		return nil, err
 	}
 	return actors, nil
+}
+
+func (r *VideoRepositoryImpl) ExistsByStoredPath(path string) (bool, error) {
+	var count int64
+	if err := r.DB.Model(&Video{}).Where("stored_path = ?", path).Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 type UserRepositoryImpl struct {

@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -105,6 +105,10 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					admin.PUT("/storage-paths/:id", storagePathHandler.Update)
 					admin.DELETE("/storage-paths/:id", storagePathHandler.Delete)
 					admin.POST("/storage-paths/validate", storagePathHandler.ValidatePath)
+					admin.POST("/scan", scanHandler.StartScan)
+					admin.POST("/scan/cancel", scanHandler.CancelScan)
+					admin.GET("/scan/status", scanHandler.GetStatus)
+					admin.GET("/scan/history", scanHandler.GetHistory)
 				}
 			}
 		}

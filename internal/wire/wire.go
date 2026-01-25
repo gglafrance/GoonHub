@@ -49,6 +49,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideInteractionRepository,
 		provideWatchHistoryRepository,
 		provideStoragePathRepository,
+		provideScanHistoryRepository,
 
 		// Infrastructure
 		provideMeilisearchClient,
@@ -69,6 +70,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideWatchHistoryService,
 		provideTriggerScheduler,
 		provideStoragePathService,
+		provideScanService,
 
 		// API Middleware
 		provideRateLimiter,
@@ -85,6 +87,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideSearchHandler,
 		provideWatchHistoryHandler,
 		provideStoragePathHandler,
+		provideScanHandler,
 		provideRouter,
 
 		// Server
@@ -268,12 +271,12 @@ func provideWatchHistoryHandler(service *core.WatchHistoryService) *handler.Watc
 	return handler.NewWatchHistoryHandler(service)
 }
 
-func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
-	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, watchHistoryHandler, storagePathHandler, authService, rbacService, rateLimiter)
+func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
+	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, authService, rbacService, rateLimiter)
 }
 
-func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService, jobHistoryService *core.JobHistoryService, triggerScheduler *core.TriggerScheduler, videoService *core.VideoService, tagService *core.TagService, searchService *core.SearchService) *server.Server {
-	return server.NewHTTPServer(router, logger, cfg, processingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService)
+func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService, jobHistoryService *core.JobHistoryService, triggerScheduler *core.TriggerScheduler, videoService *core.VideoService, tagService *core.TagService, searchService *core.SearchService, scanService *core.ScanService) *server.Server {
+	return server.NewHTTPServer(router, logger, cfg, processingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService, scanService)
 }
 
 func provideStoragePathRepository(db *gorm.DB) data.StoragePathRepository {
@@ -286,4 +289,16 @@ func provideStoragePathService(repo data.StoragePathRepository, logger *logging.
 
 func provideStoragePathHandler(service *core.StoragePathService) *handler.StoragePathHandler {
 	return handler.NewStoragePathHandler(service)
+}
+
+func provideScanHistoryRepository(db *gorm.DB) data.ScanHistoryRepository {
+	return data.NewScanHistoryRepository(db)
+}
+
+func provideScanService(storagePathService *core.StoragePathService, videoRepo data.VideoRepository, scanHistoryRepo data.ScanHistoryRepository, processingService *core.VideoProcessingService, eventBus *core.EventBus, logger *logging.Logger) *core.ScanService {
+	return core.NewScanService(storagePathService, videoRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
+}
+
+func provideScanHandler(scanService *core.ScanService) *handler.ScanHandler {
+	return handler.NewScanHandler(scanService)
 }

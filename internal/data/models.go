@@ -167,4 +167,5 @@ type Video struct {
 	BitRate          int64          `json:"bit_rate"`
 	VideoCodec       string         `json:"video_codec"`
 	AudioCodec       string         `json:"audio_codec"`
+	StoragePathID    *uint          `json:"storage_path_id"`
 }

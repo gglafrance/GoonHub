@@ -17,7 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
+func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -62,7 +62,7 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler
 	})
 
 	// Register Routes
-	RegisterRoutes(r, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, watchHistoryHandler, storagePathHandler, authService, rbacService, logger, rateLimiter)
+	RegisterRoutes(r, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, authService, rbacService, logger, rateLimiter)
 
 	// Serve Frontend (SPA Fallback)
 	fsys, _ := fs.Sub(goonhub.WebDist, "web/dist")

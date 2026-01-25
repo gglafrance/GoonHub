@@ -532,6 +532,40 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const startScan = async () => {
+        const response = await fetch('/api/v1/admin/scan', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const cancelScan = async () => {
+        const response = await fetch('/api/v1/admin/scan/cancel', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const getScanStatus = async () => {
+        const response = await fetch('/api/v1/admin/scan/status', {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const getScanHistory = async (page = 1, limit = 10) => {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+        });
+        const response = await fetch(`/api/v1/admin/scan/history?${params}`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
     return {
         uploadVideo,
         fetchVideos,
@@ -585,5 +619,9 @@ export const useApi = () => {
         updateStoragePath,
         deleteStoragePath,
         validateStoragePath,
+        startScan,
+        cancelScan,
+        getScanStatus,
+        getScanHistory,
     };
 };

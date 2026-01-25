@@ -28,6 +28,7 @@ type Server struct {
 	videoService      *core.VideoService
 	tagService        *core.TagService
 	searchService     *core.SearchService
+	scanService       *core.ScanService
 	srv               *http.Server
 }
 
@@ -42,6 +43,7 @@ func NewHTTPServer(
 	videoService *core.VideoService,
 	tagService *core.TagService,
 	searchService *core.SearchService,
+	scanService *core.ScanService,
 ) *Server {
 	return &Server{
 		router:            router,
@@ -54,6 +56,7 @@ func NewHTTPServer(
 		videoService:      videoService,
 		tagService:        tagService,
 		searchService:     searchService,
+		scanService:       scanService,
 	}
 }
 
@@ -73,7 +76,15 @@ func (s *Server) Start() error {
 		if s.processingService != nil {
 			s.processingService.SetIndexer(s.searchService)
 		}
+		if s.scanService != nil {
+			s.scanService.SetIndexer(s.searchService)
+		}
 		s.logger.Info("Search indexer wired to services")
+	}
+
+	// Recover any interrupted scans from previous runs
+	if s.scanService != nil {
+		s.scanService.RecoverInterruptedScans()
 	}
 
 	if s.processingService != nil {
