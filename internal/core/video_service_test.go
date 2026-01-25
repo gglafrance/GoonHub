@@ -14,9 +14,11 @@ func newTestVideoService(t *testing.T) (*VideoService, *mocks.MockVideoRepositor
 	ctrl := gomock.NewController(t)
 	videoRepo := mocks.NewMockVideoRepository(ctrl)
 
+	tempDir := t.TempDir()
 	svc := &VideoService{
 		Repo:              videoRepo,
-		DataPath:          t.TempDir(),
+		VideoPath:         tempDir,
+		MetadataPath:      tempDir,
 		ProcessingService: nil,
 		logger:            zap.NewNop(),
 	}

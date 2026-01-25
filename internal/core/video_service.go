@@ -18,24 +18,33 @@ import (
 
 type VideoService struct {
 	Repo              data.VideoRepository
-	DataPath          string
+	VideoPath         string
+	MetadataPath      string
 	ProcessingService *VideoProcessingService
 	EventBus          *EventBus
 	logger            *zap.Logger
 	indexer           VideoIndexer
 }
 
-func NewVideoService(repo data.VideoRepository, dataPath string, processingService *VideoProcessingService, eventBus *EventBus, logger *zap.Logger) *VideoService {
-	// Ensure data directory exists
-	if err := os.MkdirAll(dataPath, 0755); err != nil {
-		logger.Warn("Failed to create data directory",
-			zap.String("directory", dataPath),
+func NewVideoService(repo data.VideoRepository, videoPath string, metadataPath string, processingService *VideoProcessingService, eventBus *EventBus, logger *zap.Logger) *VideoService {
+	// Ensure video directory exists
+	if err := os.MkdirAll(videoPath, 0755); err != nil {
+		logger.Warn("Failed to create video directory",
+			zap.String("directory", videoPath),
+			zap.Error(err),
+		)
+	}
+	// Ensure metadata directory exists
+	if err := os.MkdirAll(metadataPath, 0755); err != nil {
+		logger.Warn("Failed to create metadata directory",
+			zap.String("directory", metadataPath),
 			zap.Error(err),
 		)
 	}
 	return &VideoService{
 		Repo:              repo,
-		DataPath:          dataPath,
+		VideoPath:         videoPath,
+		MetadataPath:      metadataPath,
 		ProcessingService: processingService,
 		EventBus:          eventBus,
 		logger:            logger,
@@ -76,7 +85,7 @@ func (s *VideoService) UploadVideo(file *multipart.FileHeader, title string) (*d
 
 	// Generate unique filename
 	uniqueName := fmt.Sprintf("%s_%s", uuid.New().String(), file.Filename)
-	storedPath := filepath.Join(s.DataPath, uniqueName)
+	storedPath := filepath.Join(s.VideoPath, uniqueName)
 
 	// Save file
 	dst, err := os.Create(storedPath)
@@ -211,7 +220,7 @@ func (s *VideoService) DeleteVideo(id uint) error {
 	}
 
 	if video.SpriteSheetPath != "" {
-		spriteDir := filepath.Join(s.DataPath, "sprites")
+		spriteDir := filepath.Join(s.MetadataPath, "sprites")
 		spritePattern := filepath.Join(spriteDir, fmt.Sprintf("%d_sheet_*.jpg", id))
 		files, _ := filepath.Glob(spritePattern)
 		for _, file := range files {
@@ -248,7 +257,7 @@ func (s *VideoService) SetThumbnailFromTimecode(videoID uint, timecode float64) 
 	tileWidthSm, tileHeightSm := ffmpeg.CalculateTileDimensions(video.Width, video.Height, qualityConfig.MaxFrameDimensionSm)
 	tileWidthLg, tileHeightLg := ffmpeg.CalculateTileDimensions(video.Width, video.Height, qualityConfig.MaxFrameDimensionLg)
 
-	thumbnailDir := filepath.Join(s.DataPath, "thumbnails")
+	thumbnailDir := filepath.Join(s.MetadataPath, "thumbnails")
 	if err := os.MkdirAll(thumbnailDir, 0755); err != nil {
 		return fmt.Errorf("failed to create thumbnail directory: %w", err)
 	}
@@ -322,7 +331,7 @@ func (s *VideoService) SetThumbnailFromUpload(videoID uint, file *multipart.File
 	tileWidthSm, tileHeightSm := ffmpeg.CalculateTileDimensions(video.Width, video.Height, qualityConfig.MaxFrameDimensionSm)
 	tileWidthLg, tileHeightLg := ffmpeg.CalculateTileDimensions(video.Width, video.Height, qualityConfig.MaxFrameDimensionLg)
 
-	thumbnailDir := filepath.Join(s.DataPath, "thumbnails")
+	thumbnailDir := filepath.Join(s.MetadataPath, "thumbnails")
 	if err := os.MkdirAll(thumbnailDir, 0755); err != nil {
 		return fmt.Errorf("failed to create thumbnail directory: %w", err)
 	}

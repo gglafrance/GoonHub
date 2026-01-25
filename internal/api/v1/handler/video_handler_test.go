@@ -25,8 +25,9 @@ func newTestVideoHandler(t *testing.T) (*VideoHandler, *mocks.MockVideoRepositor
 	dataPath := t.TempDir()
 
 	svc := &core.VideoService{
-		Repo:     videoRepo,
-		DataPath: dataPath,
+		Repo:         videoRepo,
+		VideoPath:    dataPath,
+		MetadataPath: dataPath,
 	}
 
 	handler := &VideoHandler{

@@ -27,10 +27,10 @@ processing:
   thumbnail_workers: 1
   sprites_workers: 1
   thumbnail_seek: "00:00:05"
-  frame_output_dir: "./data/frames"
-  thumbnail_dir: "./data/thumbnails"
-  sprite_dir: "./data/sprites"
-  vtt_dir: "./data/vtt"
+  frame_output_dir: "./data/metadata/frames"
+  thumbnail_dir: "./data/metadata/thumbnails"
+  sprite_dir: "./data/metadata/sprites"
+  vtt_dir: "./data/metadata/vtt"
   grid_cols: 12
   grid_rows: 8
   sprites_concurrency: 0

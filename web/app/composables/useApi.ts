@@ -485,6 +485,53 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const fetchStoragePaths = async () => {
+        const response = await fetch('/api/v1/admin/storage-paths', {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const createStoragePath = async (name: string, path: string, isDefault: boolean) => {
+        const response = await fetch('/api/v1/admin/storage-paths', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ name, path, is_default: isDefault }),
+        });
+        return handleResponse(response);
+    };
+
+    const updateStoragePath = async (
+        id: number,
+        name: string,
+        path: string,
+        isDefault: boolean,
+    ) => {
+        const response = await fetch(`/api/v1/admin/storage-paths/${id}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ name, path, is_default: isDefault }),
+        });
+        return handleResponse(response);
+    };
+
+    const deleteStoragePath = async (id: number) => {
+        const response = await fetch(`/api/v1/admin/storage-paths/${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const validateStoragePath = async (path: string) => {
+        const response = await fetch('/api/v1/admin/storage-paths/validate', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ path }),
+        });
+        return handleResponse(response);
+    };
+
     return {
         uploadVideo,
         fetchVideos,
@@ -533,5 +580,10 @@ export const useApi = () => {
         getResumePosition,
         getVideoWatchHistory,
         getUserWatchHistory,
+        fetchStoragePaths,
+        createStoragePath,
+        updateStoragePath,
+        deleteStoragePath,
+        validateStoragePath,
     };
 };

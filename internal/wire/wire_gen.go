@@ -80,8 +80,11 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	watchHistoryRepository := provideWatchHistoryRepository(db)
 	watchHistoryService := provideWatchHistoryService(watchHistoryRepository, videoRepository, logger)
 	watchHistoryHandler := provideWatchHistoryHandler(watchHistoryService)
+	storagePathRepository := provideStoragePathRepository(db)
+	storagePathService := provideStoragePathService(storagePathRepository, logger)
+	storagePathHandler := provideStoragePathHandler(storagePathService)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, watchHistoryHandler, authService, rbacService, ipRateLimiter)
+	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, watchHistoryHandler, storagePathHandler, authService, rbacService, ipRateLimiter)
 	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService)
 	return serverServer, nil
 }
@@ -110,8 +113,9 @@ func provideEventBus(logger *logging.Logger) *core.EventBus {
 }
 
 func provideVideoService(repo data.VideoRepository, cfg *config.Config, processingService *core.VideoProcessingService, eventBus *core.EventBus, logger *logging.Logger) *core.VideoService {
-	dataPath := "./data"
-	return core.NewVideoService(repo, dataPath, processingService, eventBus, logger.Logger)
+	videoPath := "./data/videos"
+	metadataPath := "./data/metadata"
+	return core.NewVideoService(repo, videoPath, metadataPath, processingService, eventBus, logger.Logger)
 }
 
 func provideJobHistoryRepository(db *gorm.DB) data.JobHistoryRepository {
@@ -260,10 +264,22 @@ func provideWatchHistoryHandler(service *core.WatchHistoryService) *handler.Watc
 	return handler.NewWatchHistoryHandler(service)
 }
 
-func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
-	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, watchHistoryHandler, authService, rbacService, rateLimiter)
+func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
+	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, watchHistoryHandler, storagePathHandler, authService, rbacService, rateLimiter)
 }
 
 func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService, jobHistoryService *core.JobHistoryService, triggerScheduler *core.TriggerScheduler, videoService *core.VideoService, tagService *core.TagService, searchService *core.SearchService) *server.Server {
 	return server.NewHTTPServer(router, logger, cfg, processingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService)
+}
+
+func provideStoragePathRepository(db *gorm.DB) data.StoragePathRepository {
+	return data.NewStoragePathRepository(db)
+}
+
+func provideStoragePathService(repo data.StoragePathRepository, logger *logging.Logger) *core.StoragePathService {
+	return core.NewStoragePathService(repo, logger.Logger)
+}
+
+func provideStoragePathHandler(service *core.StoragePathService) *handler.StoragePathHandler {
+	return handler.NewStoragePathHandler(service)
 }

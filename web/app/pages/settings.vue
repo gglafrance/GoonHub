@@ -6,7 +6,7 @@ const router = useRouter();
 
 useHead({ title: 'Settings' });
 
-type TabType = 'account' | 'player' | 'app' | 'tags' | 'users' | 'jobs';
+type TabType = 'account' | 'player' | 'app' | 'tags' | 'users' | 'jobs' | 'storage';
 const activeTab = ref<TabType>('account');
 
 const availableTabs = computed(() => {
@@ -14,6 +14,7 @@ const availableTabs = computed(() => {
     if (authStore.user?.role === 'admin') {
         tabs.push('users');
         tabs.push('jobs');
+        tabs.push('storage');
     }
     return tabs;
 });
@@ -66,5 +67,6 @@ definePageMeta({
         <SettingsTags v-if="activeTab === 'tags'" />
         <SettingsUsers v-if="activeTab === 'users'" />
         <SettingsJobs v-if="activeTab === 'jobs'" />
+        <SettingsStorage v-if="activeTab === 'storage'" />
     </div>
 </template>

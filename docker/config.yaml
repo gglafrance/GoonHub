@@ -53,10 +53,10 @@ processing:
   thumbnail_workers: 1
   sprites_workers: 1
   thumbnail_seek: "00:00:05"
-  frame_output_dir: "/app/data/frames"
-  thumbnail_dir: "/app/data/thumbnails"
-  sprite_dir: "/app/data/sprites"
-  vtt_dir: "/app/data/vtt"
+  frame_output_dir: "/app/data/metadata/frames"
+  thumbnail_dir: "/app/data/metadata/thumbnails"
+  sprite_dir: "/app/data/metadata/sprites"
+  vtt_dir: "/app/data/metadata/vtt"
   grid_cols: 12
   grid_rows: 8
   sprites_concurrency: 0

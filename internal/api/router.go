@@ -17,7 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
+func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -37,7 +37,7 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler
 		if size != "sm" && size != "lg" {
 			size = "sm"
 		}
-		path := fmt.Sprintf("./data/thumbnails/%s_thumb_%s.webp", id, size)
+		path := fmt.Sprintf("./data/metadata/thumbnails/%s_thumb_%s.webp", id, size)
 		c.Header("Content-Type", "image/webp")
 		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
 		c.File(path)
@@ -46,7 +46,7 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler
 	// Serve Sprite Sheets
 	r.GET("/sprites/:filename", func(c *gin.Context) {
 		filename := c.Param("filename")
-		path := fmt.Sprintf("./data/sprites/%s", filename)
+		path := fmt.Sprintf("./data/metadata/sprites/%s", filename)
 		c.Header("Content-Type", "image/webp")
 		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
 		c.File(path)
@@ -55,14 +55,14 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler
 	// Serve VTT Files
 	r.GET("/vtt/:videoId", func(c *gin.Context) {
 		videoId := c.Param("videoId")
-		path := fmt.Sprintf("./data/vtt/%s_thumbnails.vtt", videoId)
+		path := fmt.Sprintf("./data/metadata/vtt/%s_thumbnails.vtt", videoId)
 		c.Header("Content-Type", "text/vtt")
 		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
 		c.File(path)
 	})
 
 	// Register Routes
-	RegisterRoutes(r, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, watchHistoryHandler, authService, rbacService, logger, rateLimiter)
+	RegisterRoutes(r, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, watchHistoryHandler, storagePathHandler, authService, rbacService, logger, rateLimiter)
 
 	// Serve Frontend (SPA Fallback)
 	fsys, _ := fs.Sub(goonhub.WebDist, "web/dist")
