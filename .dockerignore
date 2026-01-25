@@ -54,8 +54,7 @@ web/.output/
 .DS_Store
 Thumbs.db
 
-# Test/mock data
-internal/mocks/
+# Test files (mocks are needed for compilation)
 *_test.go
 
 # Configuration for local dev

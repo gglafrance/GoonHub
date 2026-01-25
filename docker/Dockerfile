@@ -27,14 +27,15 @@ FROM golang:1.24-alpine AS backend-builder
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
 
-WORKDIR /app
-
 # Ensure Go modules are enabled
 ENV GO111MODULE=on
+ENV GOPROXY=https://proxy.golang.org,direct
+
+WORKDIR /src
 
 # Copy go mod files first for better caching
 COPY go.mod go.sum ./
-RUN go mod download
+RUN go mod download && go mod verify
 
 # Copy source code
 COPY . .
@@ -47,7 +48,7 @@ ARG TARGETOS
 ARG TARGETARCH
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags="-w -s" \
-    -o /app/goonhub \
+    -o /src/goonhub \
     ./cmd/server
 
 # ============================================================================
@@ -68,7 +69,7 @@ RUN addgroup -g 1000 goonhub && \
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=backend-builder /app/goonhub /app/goonhub
+COPY --from=backend-builder /src/goonhub /app/goonhub
 
 # Create data directories
 RUN mkdir -p /app/data/frames /app/data/thumbnails /app/data/sprites /app/data/vtt /app/data/videos && \
