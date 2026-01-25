@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Goonhub is a self-hosted video library application with a Go backend and Nuxt 4 (Vue 3) frontend. Videos are uploaded, processed (thumbnails, sprite sheets, VTT files generated via ffmpeg), and streamed. The frontend is embedded into the Go binary for single-binary production deployment. Features include RBAC, real-time updates via SSE, dynamic worker pool configuration, and scheduled job triggers.
+Goonhub is a self-hosted video library application with a Go backend and Nuxt 4 (Vue 3) frontend. Videos are uploaded, processed (thumbnails, sprite sheets, VTT files generated via ffmpeg), and streamed. The frontend is embedded into the Go binary for single-binary production deployment. Features include RBAC, real-time updates via SSE, dynamic worker pool configuration, scheduled job triggers, and Meilisearch-powered full-text search.
 
 ## Development Commands
 
-### Database (PostgreSQL)
+### Database & Search (PostgreSQL + Meilisearch)
 
 ```bash
-# Start PostgreSQL via Docker
+# Start PostgreSQL and Meilisearch via Docker
 cd docker && docker compose up -d
 
 # Verify healthy
@@ -20,8 +20,14 @@ docker compose ps
 # Connect via psql
 docker exec -it goonhub-postgres psql -U goonhub -d goonhub
 
-# Reset database (destroys all data)
+# Reset database (destroys all data including search index)
 cd docker && docker compose down -v && docker compose up -d
+
+# Trigger full search reindex (via API, requires admin auth)
+curl -X POST http://localhost:8080/api/v1/admin/search/reindex -H "Authorization: Bearer <token>"
+
+# Check Meilisearch health
+curl http://localhost:7700/health
 ```
 
 ### Backend (Go)
@@ -96,6 +102,7 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - `internal/core/` - Business logic services:
   - `video_service.go` - Video CRUD operations
   - `video_processing_service.go` - Processing orchestration and queue status
+  - `search_service.go` - Search orchestration using Meilisearch
   - `auth_service.go` - PASETO token management
   - `user_service.go` - User management
   - `admin_service.go` - Admin operations
@@ -112,7 +119,8 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
   - `pool_config_repository.go` - PoolConfigRepository (dynamic worker pool settings)
   - `processing_config_repository.go` - ProcessingConfigRepository (quality/concurrency settings)
   - `trigger_config_repository.go` - TriggerConfigRepository (cron/after_job/on_import triggers)
-- `internal/infrastructure/` - Server, logging (zap), PostgreSQL persistence
+- `internal/infrastructure/` - Server, logging (zap), PostgreSQL persistence, Meilisearch client
+- `internal/infrastructure/meilisearch/` - Meilisearch client wrapper (indexing, search, health checks)
 - `internal/infrastructure/persistence/postgres/` - GORM PostgreSQL initializer with connection pooling
 - `internal/infrastructure/persistence/migrator/` - golang-migrate based schema migrations (10 migrations)
 - `internal/jobs/` - Worker pool and video processing jobs (metadata, thumbnail, sprites)
@@ -145,6 +153,7 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - **Trigger Scheduler**: Cron-based scheduling via robfig/cron/v3. Supports trigger types: `on_import`, `after_job`, `manual`, `scheduled`. Includes cycle detection for after_job dependencies.
 - **Dynamic Configuration**: Worker pool size, processing quality, and trigger schedules are stored in DB and configurable at runtime via admin API.
 - **Queue Status Monitoring**: `VideoProcessingService.GetQueueStatus()` returns queued jobs per phase for frontend display.
+- **Meilisearch Full-Text Search**: SearchService orchestrates search operations via Meilisearch. Meilisearch handles full-text search and attribute filtering (tags, actors, studio, duration, resolution, date). PostgreSQL handles user-specific filters (liked, rating, jizz_count) via pre-filtering video IDs which are then passed to Meilisearch. Videos are indexed on: upload, update, delete, tag changes, and metadata extraction completion.
 - **Static Assets**: Thumbnails, sprites, VTT files served from `./data/` directory
 - **Frontend Proxy**: In dev, Vite proxies `/api`, `/thumbnails`, `/sprites`, `/vtt` to `:8080`
 - **Custom Elements**: Vue compiler configured to treat `media-*`, `videojs-video`, `media-theme` as custom elements
@@ -170,6 +179,8 @@ All under `/api/v1/`:
 - `GET /admin/processing-config`, `PUT /admin/processing-config` - Processing quality settings
 - `GET /admin/trigger-config`, `PUT /admin/trigger-config` - Trigger schedule management
 - `POST /admin/videos/:id/process/:phase` - Manually trigger processing phase
+- `GET /admin/search/status` - Check Meilisearch availability
+- `POST /admin/search/reindex` - Trigger full search index rebuild
 
 ### Configuration
 
@@ -181,6 +192,7 @@ Key config sections:
 - `log` - Level, format
 - `auth` - PASETO secret, admin credentials, token duration, rate limits
 - `processing` - Frame intervals, dimensions (small/large), quality levels (thumbnails/sprites), worker counts per phase, sprite grid size, concurrency, output directories, job history retention
+- `meilisearch` - Host, API key, index name (required for search functionality)
 
 ### Database
 
@@ -192,6 +204,7 @@ Key config sections:
 
 - **ffmpeg/ffprobe** must be available on PATH for video processing
 - **PostgreSQL 18** via Docker (see `docker/` directory)
+- **Meilisearch v1.33** via Docker (required for search functionality)
 
 ### Tech Stack Versions
 
@@ -200,6 +213,7 @@ Key config sections:
 - Gin 1.11, GORM 1.31
 - Pinia 3.0, Tailwind CSS 4.1
 - video.js 8.23, media-chrome 4.17
+- Meilisearch v1.33, meilisearch-go v0.27.0
 
 ## Coding Conventions
 
@@ -266,3 +280,7 @@ When working on GoonHub, remember:
 - Configuration repositories (pool, processing, trigger) all use Upsert semantics
 - Admin routes require RBAC middleware with admin role check
 - Settings sub-components under `components/settings/jobs/` are nested one level deeper (e.g., `<SettingsJobsWorkers />`)
+- SearchService uses `VideoIndexer` interface for indexing hooks - services call `SetIndexer()` during server startup
+- Meilisearch index is configured with searchable (title, filename, description, actors, tag_names), filterable (studio, actors, tag_ids, duration, height, created_at, processing_status, id), and sortable (created_at, title, duration) attributes
+- User-specific filters (liked, rating, jizz_count) are handled by querying PostgreSQL for matching video IDs first, then passing those IDs as a filter to Meilisearch
+- Meilisearch is required for search functionality - there is no PostgreSQL fallback

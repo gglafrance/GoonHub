@@ -11,12 +11,19 @@ import (
 )
 
 type Config struct {
-	Environment string           `mapstructure:"environment"`
-	Server      ServerConfig     `mapstructure:"server"`
-	Database    DatabaseConfig   `mapstructure:"database"`
-	Log         LogConfig        `mapstructure:"log"`
-	Processing  ProcessingConfig `mapstructure:"processing"`
-	Auth        AuthConfig       `mapstructure:"auth"`
+	Environment string             `mapstructure:"environment"`
+	Server      ServerConfig       `mapstructure:"server"`
+	Database    DatabaseConfig     `mapstructure:"database"`
+	Log         LogConfig          `mapstructure:"log"`
+	Processing  ProcessingConfig   `mapstructure:"processing"`
+	Auth        AuthConfig         `mapstructure:"auth"`
+	Meilisearch MeilisearchConfig  `mapstructure:"meilisearch"`
+}
+
+type MeilisearchConfig struct {
+	Host      string `mapstructure:"host"`
+	APIKey    string `mapstructure:"api_key"`
+	IndexName string `mapstructure:"index_name"`
 }
 
 type ServerConfig struct {
@@ -125,6 +132,9 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("auth.token_duration", 24*time.Hour)
 	v.SetDefault("auth.login_rate_limit", 10)
 	v.SetDefault("auth.login_rate_burst", 5)
+	v.SetDefault("meilisearch.host", "http://localhost:7700")
+	v.SetDefault("meilisearch.api_key", "goonhub_dev_master_key")
+	v.SetDefault("meilisearch.index_name", "videos")
 
 	// Environment variables
 	v.SetEnvPrefix("GOONHUB")

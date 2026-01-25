@@ -61,6 +61,28 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const searchVideos = async (searchParams: Record<string, string | number | undefined>) => {
+        const params = new URLSearchParams();
+        for (const [key, value] of Object.entries(searchParams)) {
+            if (value !== undefined && value !== '' && value !== 0) {
+                params.set(key, String(value));
+            }
+        }
+
+        const response = await fetch(`/api/v1/videos?${params}`, {
+            headers: getAuthHeaders(),
+        });
+
+        return handleResponse(response);
+    };
+
+    const fetchFilterOptions = async () => {
+        const response = await fetch('/api/v1/videos/filters', {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
     const fetchVideo = async (id: number) => {
         const response = await fetch(`/api/v1/videos/${id}`, {
             headers: getAuthHeaders(),
@@ -419,6 +441,8 @@ export const useApi = () => {
     return {
         uploadVideo,
         fetchVideos,
+        searchVideos,
+        fetchFilterOptions,
         fetchVideo,
         fetchSettings,
         updatePlayerSettings,

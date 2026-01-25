@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -35,6 +35,7 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 				{
 					videos.POST("", middleware.RequirePermission(rbacService, "videos:upload"), videoHandler.UploadVideo)
 					videos.GET("", middleware.RequirePermission(rbacService, "videos:view"), videoHandler.ListVideos)
+					videos.GET("/filters", middleware.RequirePermission(rbacService, "videos:view"), videoHandler.GetFilterOptions)
 					videos.GET("/:id", middleware.RequirePermission(rbacService, "videos:view"), videoHandler.GetVideo)
 					videos.GET("/:id/reprocess", middleware.RequirePermission(rbacService, "videos:reprocess"), videoHandler.ReprocessVideo)
 					videos.PUT("/:id/thumbnail", middleware.RequirePermission(rbacService, "videos:upload"), videoHandler.ExtractThumbnail)
@@ -88,6 +89,8 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					admin.GET("/trigger-config", jobHandler.GetTriggerConfig)
 					admin.PUT("/trigger-config", jobHandler.UpdateTriggerConfig)
 					admin.POST("/videos/:id/process/:phase", jobHandler.TriggerPhase)
+					admin.GET("/search/status", searchHandler.GetStatus)
+					admin.POST("/search/reindex", searchHandler.ReindexAll)
 				}
 			}
 		}

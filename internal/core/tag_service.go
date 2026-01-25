@@ -14,6 +14,7 @@ type TagService struct {
 	tagRepo   data.TagRepository
 	videoRepo data.VideoRepository
 	logger    *zap.Logger
+	indexer   VideoIndexer
 }
 
 func NewTagService(tagRepo data.TagRepository, videoRepo data.VideoRepository, logger *zap.Logger) *TagService {
@@ -22,6 +23,11 @@ func NewTagService(tagRepo data.TagRepository, videoRepo data.VideoRepository, l
 		videoRepo: videoRepo,
 		logger:    logger,
 	}
+}
+
+// SetIndexer sets the video indexer for search index updates.
+func (s *TagService) SetIndexer(indexer VideoIndexer) {
+	s.indexer = indexer
 }
 
 func (s *TagService) ListTags() ([]data.TagWithCount, error) {
@@ -77,13 +83,28 @@ func (s *TagService) GetVideoTags(videoID uint) ([]data.Tag, error) {
 	return s.tagRepo.GetVideoTags(videoID)
 }
 
+func (s *TagService) GetTagsByNames(names []string) ([]data.Tag, error) {
+	return s.tagRepo.GetByNames(names)
+}
+
 func (s *TagService) SetVideoTags(videoID uint, tagIDs []uint) ([]data.Tag, error) {
-	if _, err := s.videoRepo.GetByID(videoID); err != nil {
+	video, err := s.videoRepo.GetByID(videoID)
+	if err != nil {
 		return nil, fmt.Errorf("video not found")
 	}
 
 	if err := s.tagRepo.SetVideoTags(videoID, tagIDs); err != nil {
 		return nil, fmt.Errorf("failed to set video tags: %w", err)
+	}
+
+	// Re-index video in search engine after tag changes
+	if s.indexer != nil {
+		if err := s.indexer.UpdateVideoIndex(video); err != nil {
+			s.logger.Warn("Failed to update video in search index after tag change",
+				zap.Uint("video_id", videoID),
+				zap.Error(err),
+			)
+		}
 	}
 
 	return s.tagRepo.GetVideoTags(videoID)

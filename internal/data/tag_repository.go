@@ -11,6 +11,7 @@ type TagRepository interface {
 	List() ([]Tag, error)
 	ListWithCounts() ([]TagWithCount, error)
 	GetByID(id uint) (*Tag, error)
+	GetByNames(names []string) ([]Tag, error)
 	Create(tag *Tag) error
 	Delete(id uint) error
 	GetVideoTags(videoID uint) ([]Tag, error)
@@ -54,6 +55,17 @@ func (r *TagRepositoryImpl) GetByID(id uint) (*Tag, error) {
 		return nil, err
 	}
 	return &tag, nil
+}
+
+func (r *TagRepositoryImpl) GetByNames(names []string) ([]Tag, error) {
+	var tags []Tag
+	if len(names) == 0 {
+		return tags, nil
+	}
+	if err := r.DB.Where("name IN ?", names).Find(&tags).Error; err != nil {
+		return nil, err
+	}
+	return tags, nil
 }
 
 func (r *TagRepositoryImpl) Create(tag *Tag) error {

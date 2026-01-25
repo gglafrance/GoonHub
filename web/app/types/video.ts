@@ -35,3 +35,36 @@ export interface VideoListResponse {
     page: number;
     limit: number;
 }
+
+export interface VideoSearchParams {
+    q?: string;
+    tags?: string;
+    actors?: string;
+    studio?: string;
+    min_duration?: number;
+    max_duration?: number;
+    min_date?: string;
+    max_date?: string;
+    resolution?: string;
+    sort?: string;
+    page?: number;
+    limit?: number;
+    liked?: boolean;
+    min_rating?: number;
+    max_rating?: number;
+    min_jizz_count?: number;
+    max_jizz_count?: number;
+}
+
+export interface TagOption {
+    id: number;
+    name: string;
+    color: string;
+    video_count: number;
+}
+
+export interface VideoFilterOptions {
+    studios: string[];
+    actors: string[];
+    tags: TagOption[];
+}

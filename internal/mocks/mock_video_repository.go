@@ -68,6 +68,21 @@ func (mr *MockVideoRepositoryMockRecorder) Delete(id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockVideoRepository)(nil).Delete), id)
 }
 
+// GetAll mocks base method.
+func (m *MockVideoRepository) GetAll() ([]data.Video, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAll")
+	ret0, _ := ret[0].([]data.Video)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAll indicates an expected call of GetAll.
+func (mr *MockVideoRepositoryMockRecorder) GetAll() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAll", reflect.TypeOf((*MockVideoRepository)(nil).GetAll))
+}
+
 // GetByID mocks base method.
 func (m *MockVideoRepository) GetByID(id uint) (*data.Video, error) {
 	m.ctrl.T.Helper()
@@ -81,6 +96,51 @@ func (m *MockVideoRepository) GetByID(id uint) (*data.Video, error) {
 func (mr *MockVideoRepositoryMockRecorder) GetByID(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByID", reflect.TypeOf((*MockVideoRepository)(nil).GetByID), id)
+}
+
+// GetByIDs mocks base method.
+func (m *MockVideoRepository) GetByIDs(ids []uint) ([]data.Video, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByIDs", ids)
+	ret0, _ := ret[0].([]data.Video)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByIDs indicates an expected call of GetByIDs.
+func (mr *MockVideoRepositoryMockRecorder) GetByIDs(ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByIDs", reflect.TypeOf((*MockVideoRepository)(nil).GetByIDs), ids)
+}
+
+// GetDistinctActors mocks base method.
+func (m *MockVideoRepository) GetDistinctActors() ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDistinctActors")
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDistinctActors indicates an expected call of GetDistinctActors.
+func (mr *MockVideoRepositoryMockRecorder) GetDistinctActors() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDistinctActors", reflect.TypeOf((*MockVideoRepository)(nil).GetDistinctActors))
+}
+
+// GetDistinctStudios mocks base method.
+func (m *MockVideoRepository) GetDistinctStudios() ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDistinctStudios")
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDistinctStudios indicates an expected call of GetDistinctStudios.
+func (mr *MockVideoRepositoryMockRecorder) GetDistinctStudios() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDistinctStudios", reflect.TypeOf((*MockVideoRepository)(nil).GetDistinctStudios))
 }
 
 // GetPendingProcessing mocks base method.

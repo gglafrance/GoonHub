@@ -7,6 +7,7 @@
 package wire
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/time/rate"
 	"goonhub/internal/api"
@@ -16,6 +17,7 @@ import (
 	"goonhub/internal/core"
 	"goonhub/internal/data"
 	"goonhub/internal/infrastructure/logging"
+	"goonhub/internal/infrastructure/meilisearch"
 	"goonhub/internal/infrastructure/persistence/postgres"
 	"goonhub/internal/infrastructure/server"
 	"gorm.io/gorm"
@@ -46,7 +48,15 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	triggerConfigRepository := provideTriggerConfigRepository(db)
 	videoProcessingService := provideVideoProcessingService(videoRepository, configConfig, logger, eventBus, jobHistoryService, poolConfigRepository, processingConfigRepository, triggerConfigRepository)
 	videoService := provideVideoService(videoRepository, configConfig, videoProcessingService, eventBus, logger)
-	videoHandler := provideVideoHandler(videoService, videoProcessingService)
+	tagRepository := provideTagRepository(db)
+	tagService := provideTagService(tagRepository, videoRepository, logger)
+	client, err := provideMeilisearchClient(configConfig, logger)
+	if err != nil {
+		return nil, err
+	}
+	interactionRepository := provideInteractionRepository(db)
+	searchService := provideSearchService(client, videoRepository, interactionRepository, tagRepository, logger)
+	videoHandler := provideVideoHandler(videoService, videoProcessingService, tagService, searchService)
 	userRepository := provideUserRepository(db)
 	revokedTokenRepository := provideRevokedTokenRepository(db)
 	authService := provideAuthService(userRepository, revokedTokenRepository, configConfig, logger)
@@ -63,15 +73,13 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	triggerScheduler := provideTriggerScheduler(triggerConfigRepository, videoRepository, videoProcessingService, logger)
 	jobHandler := provideJobHandler(jobHistoryService, videoProcessingService, poolConfigRepository, processingConfigRepository, triggerConfigRepository, triggerScheduler)
 	sseHandler := provideSSEHandler(eventBus, authService, logger)
-	tagRepository := provideTagRepository(db)
-	tagService := provideTagService(tagRepository, videoRepository, logger)
 	tagHandler := provideTagHandler(tagService)
-	interactionRepository := provideInteractionRepository(db)
 	interactionService := provideInteractionService(interactionRepository, logger)
 	interactionHandler := provideInteractionHandler(interactionService)
+	searchHandler := provideSearchHandler(searchService)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, authService, rbacService, ipRateLimiter)
-	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService, jobHistoryService, triggerScheduler)
+	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, authService, rbacService, ipRateLimiter)
+	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService)
 	return serverServer, nil
 }
 
@@ -147,8 +155,8 @@ func provideUserService(userRepo data.UserRepository, logger *logging.Logger) *c
 	return core.NewUserService(userRepo, logger.Logger)
 }
 
-func provideVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService) *handler.VideoHandler {
-	return handler.NewVideoHandler(service, processingService)
+func provideVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService) *handler.VideoHandler {
+	return handler.NewVideoHandler(service, processingService, tagService, searchService)
 }
 
 func provideAuthHandler(authService *core.AuthService, userService *core.UserService) *handler.AuthHandler {
@@ -207,6 +215,24 @@ func provideInteractionRepository(db *gorm.DB) data.InteractionRepository {
 	return data.NewInteractionRepository(db)
 }
 
+func provideMeilisearchClient(cfg *config.Config, logger *logging.Logger) (*meilisearch.Client, error) {
+	client, err := meilisearch.NewClient(
+		cfg.Meilisearch.Host,
+		cfg.Meilisearch.APIKey,
+		cfg.Meilisearch.IndexName,
+		logger.Logger,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to meilisearch: %w", err)
+	}
+
+	return client, nil
+}
+
+func provideSearchService(meiliClient *meilisearch.Client, videoRepo data.VideoRepository, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, logger *logging.Logger) *core.SearchService {
+	return core.NewSearchService(meiliClient, videoRepo, interactionRepo, tagRepo, logger.Logger)
+}
+
 func provideInteractionService(repo data.InteractionRepository, logger *logging.Logger) *core.InteractionService {
 	return core.NewInteractionService(repo, logger.Logger)
 }
@@ -215,10 +241,14 @@ func provideInteractionHandler(service *core.InteractionService) *handler.Intera
 	return handler.NewInteractionHandler(service)
 }
 
-func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
-	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, authService, rbacService, rateLimiter)
+func provideSearchHandler(searchService *core.SearchService) *handler.SearchHandler {
+	return handler.NewSearchHandler(searchService)
 }
 
-func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService, jobHistoryService *core.JobHistoryService, triggerScheduler *core.TriggerScheduler) *server.Server {
-	return server.NewHTTPServer(router, logger, cfg, processingService, userService, jobHistoryService, triggerScheduler)
+func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
+	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, authService, rbacService, rateLimiter)
+}
+
+func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService, jobHistoryService *core.JobHistoryService, triggerScheduler *core.TriggerScheduler, videoService *core.VideoService, tagService *core.TagService, searchService *core.SearchService) *server.Server {
+	return server.NewHTTPServer(router, logger, cfg, processingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService)
 }

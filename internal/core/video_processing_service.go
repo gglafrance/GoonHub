@@ -55,6 +55,12 @@ type VideoProcessingService struct {
 	triggerConfigRepo       data.TriggerConfigRepository
 	triggerCache            []data.TriggerConfigRecord
 	triggerCacheMu          sync.RWMutex
+	indexer                 VideoIndexer
+}
+
+// SetIndexer sets the video indexer for search index updates.
+func (s *VideoProcessingService) SetIndexer(indexer VideoIndexer) {
+	s.indexer = indexer
 }
 
 func NewVideoProcessingService(
@@ -344,6 +350,18 @@ func (s *VideoProcessingService) onMetadataComplete(result jobs.JobResult) {
 	if meta == nil {
 		s.logger.Error("Metadata result is nil", zap.Uint("video_id", result.VideoID))
 		return
+	}
+
+	// Re-index video after metadata extraction (duration/resolution now available)
+	if s.indexer != nil {
+		if video, err := s.repo.GetByID(result.VideoID); err == nil {
+			if err := s.indexer.UpdateVideoIndex(video); err != nil {
+				s.logger.Warn("Failed to update video in search index after metadata",
+					zap.Uint("video_id", result.VideoID),
+					zap.Error(err),
+				)
+			}
+		}
 	}
 
 	s.eventBus.Publish(VideoEvent{

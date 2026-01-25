@@ -16,6 +16,9 @@ type InteractionRepository interface {
 	IsLiked(userID, videoID uint) (bool, error)
 	IncrementJizzed(userID, videoID uint) (int, error)
 	GetJizzedCount(userID, videoID uint) (int, error)
+	GetLikedVideoIDs(userID uint) ([]uint, error)
+	GetRatedVideoIDs(userID uint, minRating, maxRating float64) ([]uint, error)
+	GetJizzedVideoIDs(userID uint, minCount, maxCount int) ([]uint, error)
 }
 
 type InteractionRepositoryImpl struct {
@@ -113,10 +116,57 @@ func (r *InteractionRepositoryImpl) GetJizzedCount(userID, videoID uint) (int, e
 	return record.Count, nil
 }
 
-// Ensure InteractionRepositoryImpl implements InteractionRepository
-var _ InteractionRepository = (*InteractionRepositoryImpl)(nil)
-
 // Ensure gorm.ErrRecordNotFound is accessible for callers
 func IsNotFound(err error) bool {
 	return errors.Is(err, gorm.ErrRecordNotFound)
 }
+
+func (r *InteractionRepositoryImpl) GetLikedVideoIDs(userID uint) ([]uint, error) {
+	var ids []uint
+	err := r.DB.Model(&UserVideoLike{}).
+		Where("user_id = ?", userID).
+		Pluck("video_id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func (r *InteractionRepositoryImpl) GetRatedVideoIDs(userID uint, minRating, maxRating float64) ([]uint, error) {
+	var ids []uint
+	query := r.DB.Model(&UserVideoRating{}).Where("user_id = ?", userID)
+
+	if minRating > 0 {
+		query = query.Where("rating >= ?", minRating)
+	}
+	if maxRating > 0 {
+		query = query.Where("rating <= ?", maxRating)
+	}
+
+	err := query.Pluck("video_id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func (r *InteractionRepositoryImpl) GetJizzedVideoIDs(userID uint, minCount, maxCount int) ([]uint, error) {
+	var ids []uint
+	query := r.DB.Model(&UserVideoJizzed{}).Where("user_id = ?", userID)
+
+	if minCount > 0 {
+		query = query.Where("count >= ?", minCount)
+	}
+	if maxCount > 0 {
+		query = query.Where("count <= ?", maxCount)
+	}
+
+	err := query.Pluck("video_id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// Ensure InteractionRepositoryImpl implements InteractionRepository
+var _ InteractionRepository = (*InteractionRepositoryImpl)(nil)

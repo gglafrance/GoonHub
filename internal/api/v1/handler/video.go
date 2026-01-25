@@ -2,8 +2,10 @@ package handler
 
 import (
 	"fmt"
+	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/request"
 	"goonhub/internal/core"
+	"goonhub/internal/data"
 	"io"
 	"mime"
 	"net/http"
@@ -11,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,12 +21,16 @@ import (
 type VideoHandler struct {
 	Service           *core.VideoService
 	ProcessingService *core.VideoProcessingService
+	TagService        *core.TagService
+	SearchService     *core.SearchService
 }
 
-func NewVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService) *VideoHandler {
+func NewVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService) *VideoHandler {
 	return &VideoHandler{
 		Service:           service,
 		ProcessingService: processingService,
+		TagService:        tagService,
+		SearchService:     searchService,
 	}
 }
 
@@ -49,24 +56,124 @@ func (h *VideoHandler) UploadVideo(c *gin.Context) {
 	c.JSON(http.StatusCreated, video)
 }
 
+var resolutionToHeight = map[string][2]int{
+	"4k":    {2160, 0},
+	"1440p": {1440, 2159},
+	"1080p": {1080, 1439},
+	"720p":  {720, 1079},
+	"480p":  {480, 719},
+	"360p":  {0, 479},
+}
+
 func (h *VideoHandler) ListVideos(c *gin.Context) {
-	pageStr := c.DefaultQuery("page", "1")
-	limitStr := c.DefaultQuery("limit", "20")
+	var req request.SearchVideosRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
+		return
+	}
 
-	page, _ := strconv.Atoi(pageStr)
-	limit, _ := strconv.Atoi(limitStr)
+	if req.Page < 1 {
+		req.Page = 1
+	}
+	if req.Limit < 1 {
+		req.Limit = 20
+	}
 
-	videos, total, err := h.Service.ListVideos(page, limit)
+	var userID uint
+	if payload, err := middleware.GetUserFromContext(c); err == nil {
+		userID = payload.UserID
+	}
+
+	params := data.VideoSearchParams{
+		Page:         req.Page,
+		Limit:        req.Limit,
+		Query:        req.Query,
+		Studio:       req.Studio,
+		MinDuration:  req.MinDuration,
+		MaxDuration:  req.MaxDuration,
+		Sort:         req.Sort,
+		UserID:       userID,
+		Liked:        req.Liked,
+		MinRating:    req.MinRating,
+		MaxRating:    req.MaxRating,
+		MinJizzCount: req.MinJizzCount,
+		MaxJizzCount: req.MaxJizzCount,
+	}
+
+	if req.Tags != "" {
+		tagNames := strings.Split(req.Tags, ",")
+		tags, err := h.TagService.GetTagsByNames(tagNames)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resolve tags"})
+			return
+		}
+		for _, tag := range tags {
+			params.TagIDs = append(params.TagIDs, tag.ID)
+		}
+	}
+
+	if req.Actors != "" {
+		params.Actors = strings.Split(req.Actors, ",")
+	}
+
+	if req.MinDate != "" {
+		t, err := time.Parse("2006-01-02", req.MinDate)
+		if err == nil {
+			params.MinDate = &t
+		}
+	}
+	if req.MaxDate != "" {
+		t, err := time.Parse("2006-01-02", req.MaxDate)
+		if err == nil {
+			endOfDay := t.Add(24*time.Hour - time.Second)
+			params.MaxDate = &endOfDay
+		}
+	}
+
+	if req.Resolution != "" {
+		if heights, ok := resolutionToHeight[req.Resolution]; ok {
+			params.MinHeight = heights[0]
+			params.MaxHeight = heights[1]
+		}
+	}
+
+	videos, total, err := h.SearchService.Search(params)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list videos"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search videos"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"data":  videos,
 		"total": total,
-		"page":  page,
-		"limit": limit,
+		"page":  req.Page,
+		"limit": req.Limit,
+	})
+}
+
+func (h *VideoHandler) GetFilterOptions(c *gin.Context) {
+	studios, err := h.Service.GetDistinctStudios()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get studios"})
+		return
+	}
+
+	actors, err := h.Service.GetDistinctActors()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get actors"})
+		return
+	}
+
+	tags, err := h.TagService.ListTags()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tags"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"studios": studios,
+		"actors":  actors,
+		"tags":    tags,
 	})
 }
 

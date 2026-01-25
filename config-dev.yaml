@@ -40,3 +40,7 @@ auth:
   admin_username: "admin"
   admin_password: "admin"
   token_duration: 24h
+meilisearch:
+  host: "http://localhost:7700"
+  api_key: "goonhub_dev_master_key"
+  index_name: "videos"

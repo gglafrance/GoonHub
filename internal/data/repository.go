@@ -30,10 +30,36 @@ type RevokedTokenRepository interface {
 	CleanupExpired() error
 }
 
+type VideoSearchParams struct {
+	Page         int
+	Limit        int
+	Query        string
+	TagIDs       []uint
+	Actors       []string
+	Studio       string
+	MinDuration  int
+	MaxDuration  int
+	MinDate      *time.Time
+	MaxDate      *time.Time
+	MinHeight    int
+	MaxHeight    int
+	Sort         string
+	UserID       uint
+	Liked        *bool
+	MinRating    float64
+	MaxRating    float64
+	MinJizzCount int
+	MaxJizzCount int
+}
+
 type VideoRepository interface {
 	Create(video *Video) error
 	List(page, limit int) ([]Video, int64, error)
 	GetByID(id uint) (*Video, error)
+	GetByIDs(ids []uint) ([]Video, error)
+	GetAll() ([]Video, error)
+	GetDistinctStudios() ([]string, error)
+	GetDistinctActors() ([]string, error)
 	UpdateMetadata(id uint, duration int, width, height int, thumbnailPath string, spriteSheetPath string, vttPath string, spriteSheetCount int, thumbnailWidth int, thumbnailHeight int) error
 	UpdateBasicMetadata(id uint, duration int, width, height int, frameRate float64, bitRate int64, videoCodec, audioCodec string) error
 	UpdateThumbnail(id uint, thumbnailPath string, thumbnailWidth, thumbnailHeight int) error
@@ -80,6 +106,40 @@ func (r *VideoRepositoryImpl) GetByID(id uint) (*Video, error) {
 		return nil, err
 	}
 	return &video, nil
+}
+
+func (r *VideoRepositoryImpl) GetByIDs(ids []uint) ([]Video, error) {
+	if len(ids) == 0 {
+		return []Video{}, nil
+	}
+
+	var videos []Video
+	if err := r.DB.Where("id IN ?", ids).Find(&videos).Error; err != nil {
+		return nil, err
+	}
+
+	// Preserve the order of IDs
+	idToVideo := make(map[uint]Video, len(videos))
+	for _, v := range videos {
+		idToVideo[v.ID] = v
+	}
+
+	result := make([]Video, 0, len(ids))
+	for _, id := range ids {
+		if v, ok := idToVideo[id]; ok {
+			result = append(result, v)
+		}
+	}
+
+	return result, nil
+}
+
+func (r *VideoRepositoryImpl) GetAll() ([]Video, error) {
+	var videos []Video
+	if err := r.DB.Find(&videos).Error; err != nil {
+		return nil, err
+	}
+	return videos, nil
 }
 
 func (r *VideoRepositoryImpl) UpdateMetadata(id uint, duration int, width, height int, thumbnailPath string, spriteSheetPath string, vttPath string, spriteSheetCount int, thumbnailWidth int, thumbnailHeight int) error {
@@ -183,6 +243,29 @@ func (r *VideoRepositoryImpl) Delete(id uint) error {
 func (r *VideoRepositoryImpl) UpdateDetails(id uint, title, description string) error {
 	return r.DB.Model(&Video{}).Where("id = ?", id).
 		Updates(map[string]interface{}{"title": title, "description": description}).Error
+}
+
+func (r *VideoRepositoryImpl) GetDistinctStudios() ([]string, error) {
+	var studios []string
+	err := r.DB.Model(&Video{}).
+		Where("studio != '' AND deleted_at IS NULL").
+		Distinct("studio").
+		Order("studio ASC").
+		Pluck("studio", &studios).Error
+	if err != nil {
+		return nil, err
+	}
+	return studios, nil
+}
+
+func (r *VideoRepositoryImpl) GetDistinctActors() ([]string, error) {
+	var actors []string
+	err := r.DB.Raw("SELECT DISTINCT unnest(actors) AS actor FROM videos WHERE deleted_at IS NULL ORDER BY actor ASC").
+		Scan(&actors).Error
+	if err != nil {
+		return nil, err
+	}
+	return actors, nil
 }
 
 type UserRepositoryImpl struct {

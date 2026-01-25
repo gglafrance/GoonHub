@@ -22,6 +22,7 @@ type VideoService struct {
 	ProcessingService *VideoProcessingService
 	EventBus          *EventBus
 	logger            *zap.Logger
+	indexer           VideoIndexer
 }
 
 func NewVideoService(repo data.VideoRepository, dataPath string, processingService *VideoProcessingService, eventBus *EventBus, logger *zap.Logger) *VideoService {
@@ -39,6 +40,12 @@ func NewVideoService(repo data.VideoRepository, dataPath string, processingServi
 		EventBus:          eventBus,
 		logger:            logger,
 	}
+}
+
+// SetIndexer sets the video indexer for search index updates.
+// This is called after service initialization to avoid circular dependencies.
+func (s *VideoService) SetIndexer(indexer VideoIndexer) {
+	s.indexer = indexer
 }
 
 var AllowedExtensions = map[string]bool{
@@ -119,6 +126,16 @@ func (s *VideoService) UploadVideo(file *multipart.FileHeader, title string) (*d
 		}()
 	}
 
+	// Index video in search engine
+	if s.indexer != nil {
+		if err := s.indexer.IndexVideo(video); err != nil {
+			s.logger.Warn("Failed to index video for search",
+				zap.Uint("video_id", video.ID),
+				zap.Error(err),
+			)
+		}
+	}
+
 	return video, nil
 }
 
@@ -132,6 +149,14 @@ func (s *VideoService) ListVideos(page, limit int) ([]data.Video, int64, error) 
 	return s.Repo.List(page, limit)
 }
 
+func (s *VideoService) GetDistinctStudios() ([]string, error) {
+	return s.Repo.GetDistinctStudios()
+}
+
+func (s *VideoService) GetDistinctActors() ([]string, error) {
+	return s.Repo.GetDistinctActors()
+}
+
 func (s *VideoService) GetVideo(id uint) (*data.Video, error) {
 	return s.Repo.GetByID(id)
 }
@@ -140,7 +165,23 @@ func (s *VideoService) UpdateVideoDetails(id uint, title, description string) (*
 	if err := s.Repo.UpdateDetails(id, title, description); err != nil {
 		return nil, fmt.Errorf("failed to update video details: %w", err)
 	}
-	return s.Repo.GetByID(id)
+
+	video, err := s.Repo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update search index
+	if s.indexer != nil {
+		if err := s.indexer.UpdateVideoIndex(video); err != nil {
+			s.logger.Warn("Failed to update video in search index",
+				zap.Uint("video_id", id),
+				zap.Error(err),
+			)
+		}
+	}
+
+	return video, nil
 }
 
 func (s *VideoService) DeleteVideo(id uint) error {
@@ -151,6 +192,16 @@ func (s *VideoService) DeleteVideo(id uint) error {
 
 	if err := s.Repo.Delete(id); err != nil {
 		return err
+	}
+
+	// Remove from search index
+	if s.indexer != nil {
+		if err := s.indexer.DeleteVideoIndex(id); err != nil {
+			s.logger.Warn("Failed to delete video from search index",
+				zap.Uint("video_id", id),
+				zap.Error(err),
+			)
+		}
 	}
 
 	os.Remove(video.StoredPath)
