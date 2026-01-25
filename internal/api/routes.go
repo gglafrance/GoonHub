@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -51,6 +51,14 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					videos.POST("/:id/like", interactionHandler.ToggleLike)
 					videos.GET("/:id/jizzed", interactionHandler.GetJizzed)
 					videos.POST("/:id/jizzed", interactionHandler.ToggleJizzed)
+					videos.POST("/:id/watch", middleware.RequirePermission(rbacService, "videos:view"), watchHistoryHandler.RecordWatch)
+					videos.GET("/:id/resume", middleware.RequirePermission(rbacService, "videos:view"), watchHistoryHandler.GetResumePosition)
+					videos.GET("/:id/history", middleware.RequirePermission(rbacService, "videos:view"), watchHistoryHandler.GetVideoHistory)
+				}
+
+				history := protected.Group("/history")
+				{
+					history.GET("", watchHistoryHandler.GetUserHistory)
 				}
 
 				tags := protected.Group("/tags")

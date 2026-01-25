@@ -3,17 +3,25 @@ import type { Video } from '~/types/video';
 
 const route = useRoute();
 const router = useRouter();
-const { fetchVideo } = useApi();
+const { fetchVideo, getResumePosition } = useApi();
 const settingsStore = useSettingsStore();
+const { formatDuration } = useFormatter();
 
 const video = ref<Video | null>(null);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 const playerError = ref<unknown>(null);
 const playerRef = ref<{ getCurrentTime: () => number } | null>(null);
+const resumePosition = ref(0);
+const showResumePrompt = ref(false);
+const startTime = ref(0);
 
 provide('getPlayerTime', () => playerRef.value?.getCurrentTime() ?? 0);
 provide('watchVideo', video);
+provide('seekToTime', (time: number) => {
+    startTime.value = time;
+    showResumePrompt.value = false;
+});
 
 const videoId = computed(() => parseInt(route.params.id as string));
 
@@ -48,12 +56,37 @@ const loadVideo = async () => {
     try {
         isLoading.value = true;
         error.value = null;
+        showResumePrompt.value = false;
+        resumePosition.value = 0;
+        startTime.value = 0;
+
         video.value = await fetchVideo(videoId.value);
+
+        // Fetch resume position
+        try {
+            const res = await getResumePosition(videoId.value);
+            if (res.position > 0) {
+                resumePosition.value = res.position;
+                showResumePrompt.value = true;
+            }
+        } catch {
+            // Ignore errors - resume is optional
+        }
     } catch (err: unknown) {
         error.value = err instanceof Error ? err.message : 'Failed to load video';
     } finally {
         isLoading.value = false;
     }
+};
+
+const handleResume = () => {
+    startTime.value = resumePosition.value;
+    showResumePrompt.value = false;
+};
+
+const handleStartOver = () => {
+    startTime.value = 0;
+    showResumePrompt.value = false;
 };
 
 const goBack = () => {
@@ -176,6 +209,57 @@ definePageMeta({
                             </div>
                         </Transition>
 
+                        <!-- Resume Prompt -->
+                        <Transition
+                            enter-active-class="transition duration-200 ease-out"
+                            enter-from-class="transform -translate-y-2 opacity-0"
+                            enter-to-class="transform translate-y-0 opacity-100"
+                            leave-active-class="transition duration-150 ease-in"
+                            leave-from-class="transform translate-y-0 opacity-100"
+                            leave-to-class="transform -translate-y-2 opacity-0"
+                        >
+                            <div
+                                v-if="showResumePrompt"
+                                class="border-lava/30 bg-lava/5 rounded-lg border px-4 py-3
+                                    backdrop-blur-sm"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <Icon
+                                            name="heroicons:play-circle"
+                                            size="20"
+                                            class="text-lava"
+                                        />
+                                        <div>
+                                            <span class="text-xs font-medium text-white">
+                                                Resume watching?
+                                            </span>
+                                            <span class="text-dim ml-2 text-[11px]">
+                                                You left off at
+                                                {{ formatDuration(resumePosition) }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <button
+                                            class="text-dim px-3 py-1.5 text-[11px] font-medium
+                                                transition-colors hover:text-white"
+                                            @click="handleStartOver"
+                                        >
+                                            Start Over
+                                        </button>
+                                        <button
+                                            class="bg-lava hover:bg-lava/80 rounded-md px-3 py-1.5
+                                                text-[11px] font-medium text-white transition-colors"
+                                            @click="handleResume"
+                                        >
+                                            Resume
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </Transition>
+
                         <div
                             class="border-border bg-void overflow-hidden rounded-xl border"
                             :class="{ 'mx-auto max-w-xl': isPortrait }"
@@ -188,6 +272,7 @@ definePageMeta({
                                 :autoplay="settingsStore.autoplay"
                                 :loop="settingsStore.loop"
                                 :default-volume="settingsStore.defaultVolume"
+                                :start-time="startTime"
                                 @error="playerError = $event"
                             />
                         </div>

@@ -100,25 +100,25 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - `internal/api/v1/request/` - Request DTOs (admin, auth, settings)
 - `internal/api/v1/response/` - Response DTOs (auth)
 - `internal/core/` - Business logic services:
-  - `video_service.go` - Video CRUD operations
-  - `video_processing_service.go` - Processing orchestration and queue status
-  - `search_service.go` - Search orchestration using Meilisearch
-  - `auth_service.go` - PASETO token management
-  - `user_service.go` - User management
-  - `admin_service.go` - Admin operations
-  - `rbac_service.go` - Role-Based Access Control
-  - `settings_service.go` - User settings management
-  - `job_history_service.go` - Job history and retention
-  - `event_bus.go` - EventBus for real-time SSE event publishing
-  - `trigger_scheduler.go` - Cron-based scheduled triggers for processing phases
+    - `video_service.go` - Video CRUD operations
+    - `video_processing_service.go` - Processing orchestration and queue status
+    - `search_service.go` - Search orchestration using Meilisearch
+    - `auth_service.go` - PASETO token management
+    - `user_service.go` - User management
+    - `admin_service.go` - Admin operations
+    - `rbac_service.go` - Role-Based Access Control
+    - `settings_service.go` - User settings management
+    - `job_history_service.go` - Job history and retention
+    - `event_bus.go` - EventBus for real-time SSE event publishing
+    - `trigger_scheduler.go` - Cron-based scheduled triggers for processing phases
 - `internal/data/` - GORM models and repository interfaces/implementations:
-  - `models.go` - User, Video, Role, Permission, RolePermission, RevokedToken, UserSettings, JobHistory
-  - `repository.go` - Core repository interfaces (VideoRepository, UserRepository, RevokedTokenRepository, UserSettingsRepository)
-  - `rbac_repository.go` - RBACRepository for roles/permissions
-  - `job_history_repository.go` - JobHistoryRepository
-  - `pool_config_repository.go` - PoolConfigRepository (dynamic worker pool settings)
-  - `processing_config_repository.go` - ProcessingConfigRepository (quality/concurrency settings)
-  - `trigger_config_repository.go` - TriggerConfigRepository (cron/after_job/on_import triggers)
+    - `models.go` - User, Video, Role, Permission, RolePermission, RevokedToken, UserSettings, JobHistory
+    - `repository.go` - Core repository interfaces (VideoRepository, UserRepository, RevokedTokenRepository, UserSettingsRepository)
+    - `rbac_repository.go` - RBACRepository for roles/permissions
+    - `job_history_repository.go` - JobHistoryRepository
+    - `pool_config_repository.go` - PoolConfigRepository (dynamic worker pool settings)
+    - `processing_config_repository.go` - ProcessingConfigRepository (quality/concurrency settings)
+    - `trigger_config_repository.go` - TriggerConfigRepository (cron/after_job/on_import triggers)
 - `internal/infrastructure/` - Server, logging (zap), PostgreSQL persistence, Meilisearch client
 - `internal/infrastructure/meilisearch/` - Meilisearch client wrapper (indexing, search, health checks)
 - `internal/infrastructure/persistence/postgres/` - GORM PostgreSQL initializer with connection pooling
@@ -133,11 +133,11 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - Nuxt 4 directory structure with `app/` subdirectory
 - `pages/` - Routes: index (video grid), login, watch/[id], settings
 - `components/` - Organized by feature:
-  - Root: `AppHeader`, `VideoCard`, `VideoGrid`, `VideoPlayer`, `VideoUpload`, `VideoMetadata`, `UploadIndicator`, `Pagination`, `ErrorAlert`, `LoadingSpinner`
-  - `settings/` - `Account`, `Player`, `App`, `Users`, `Jobs` (with sub-components: `jobs/Workers`, `jobs/Processing`, `jobs/Triggers`)
-  - `settings/` modals - `UserCreateModal`, `UserEditRoleModal`, `UserResetPasswordModal`, `UserDeleteModal`
-  - `watch/` - `DetailTabs`, `Jobs`
-  - `ui/` - Reusable `ErrorAlert`, `LoadingSpinner`
+    - Root: `AppHeader`, `VideoCard`, `VideoGrid`, `VideoPlayer`, `VideoUpload`, `VideoMetadata`, `UploadIndicator`, `Pagination`, `ErrorAlert`, `LoadingSpinner`
+    - `settings/` - `Account`, `Player`, `App`, `Users`, `Jobs` (with sub-components: `jobs/Workers`, `jobs/Processing`, `jobs/Triggers`)
+    - `settings/` modals - `UserCreateModal`, `UserEditRoleModal`, `UserResetPasswordModal`, `UserDeleteModal`
+    - `watch/` - `DetailTabs`, `Jobs`
+    - `ui/` - Reusable `ErrorAlert`, `LoadingSpinner`
 - `stores/` - Pinia stores: `auth` (sessionStorage), `videos`, `upload`, `settings`
 - `composables/` - `useApi`, `useSettingsMessage`, `useFormatter`, `useThumbnailPreview`, `useSSE`, `useVttParser`
 - `types/` - TypeScript interfaces: `video`, `auth`, `settings`, `admin`, `jobs`
@@ -164,16 +164,19 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 All under `/api/v1/`:
 
 **Public:**
+
 - `POST /auth/login` (rate-limited)
 - `GET /videos/:id/stream`
 - `GET /events?token=<token>` (SSE real-time event stream)
 
 **Authenticated:**
+
 - `GET /auth/me`, `POST /auth/logout`
 - `POST /videos`, `GET /videos`, `GET /videos/:id`, `DELETE /videos/:id`
 - `GET /settings`, `PUT /settings`
 
 **Admin (requires admin role):**
+
 - `GET /admin/jobs` - List job history
 - `GET /admin/pool-config`, `PUT /admin/pool-config` - Worker pool configuration
 - `GET /admin/processing-config`, `PUT /admin/processing-config` - Processing quality settings
@@ -187,6 +190,7 @@ All under `/api/v1/`:
 Config loaded via Viper: YAML file path set by `GOONHUB_CONFIG` env var. All config keys can be overridden with `GOONHUB_` prefixed env vars (dots become underscores, e.g. `GOONHUB_SERVER_PORT`).
 
 Key config sections:
+
 - `server` - Port, timeouts
 - `database` - PostgreSQL connection, pooling
 - `log` - Level, format
@@ -284,3 +288,4 @@ When working on GoonHub, remember:
 - Meilisearch index is configured with searchable (title, filename, description, actors, tag_names), filterable (studio, actors, tag_ids, duration, height, created_at, processing_status, id), and sortable (created_at, title, duration) attributes
 - User-specific filters (liked, rating, jizz_count) are handled by querying PostgreSQL for matching video IDs first, then passing those IDs as a filter to Meilisearch
 - Meilisearch is required for search functionality - there is no PostgreSQL fallback
+- Use <NuxtTime :datetime=".." /> for date display

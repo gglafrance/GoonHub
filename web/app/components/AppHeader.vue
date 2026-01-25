@@ -52,6 +52,14 @@ const authStore = useAuthStore();
                     </NuxtLink>
 
                     <NuxtLink
+                        to="/history"
+                        class="border-border text-dim hover:border-lava/30 hover:text-lava flex h-7
+                            w-7 items-center justify-center rounded-md border transition-all"
+                    >
+                        <Icon name="heroicons:clock" size="16" />
+                    </NuxtLink>
+
+                    <NuxtLink
                         to="/settings"
                         class="border-border text-dim hover:border-lava/30 hover:text-lava flex h-7
                             w-7 items-center justify-center rounded-md border transition-all"

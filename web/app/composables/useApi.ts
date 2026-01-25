@@ -438,6 +438,46 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const recordWatch = async (
+        videoId: number,
+        duration: number,
+        position: number,
+        completed: boolean,
+    ) => {
+        const response = await fetch(`/api/v1/videos/${videoId}/watch`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ duration, position, completed }),
+        });
+        return handleResponse(response);
+    };
+
+    const getResumePosition = async (videoId: number) => {
+        const response = await fetch(`/api/v1/videos/${videoId}/resume`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const getVideoWatchHistory = async (videoId: number, limit = 10) => {
+        const params = new URLSearchParams({ limit: limit.toString() });
+        const response = await fetch(`/api/v1/videos/${videoId}/history?${params}`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const getUserWatchHistory = async (page = 1, limit = 20) => {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+        });
+        const response = await fetch(`/api/v1/history?${params}`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
     return {
         uploadVideo,
         fetchVideos,
@@ -481,5 +521,9 @@ export const useApi = () => {
         toggleVideoLike,
         fetchJizzedCount,
         incrementJizzed,
+        recordWatch,
+        getResumePosition,
+        getVideoWatchHistory,
+        getUserWatchHistory,
     };
 };

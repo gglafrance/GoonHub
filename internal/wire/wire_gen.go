@@ -77,8 +77,11 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	interactionService := provideInteractionService(interactionRepository, logger)
 	interactionHandler := provideInteractionHandler(interactionService)
 	searchHandler := provideSearchHandler(searchService)
+	watchHistoryRepository := provideWatchHistoryRepository(db)
+	watchHistoryService := provideWatchHistoryService(watchHistoryRepository, videoRepository, logger)
+	watchHistoryHandler := provideWatchHistoryHandler(watchHistoryService)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, authService, rbacService, ipRateLimiter)
+	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, watchHistoryHandler, authService, rbacService, ipRateLimiter)
 	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService)
 	return serverServer, nil
 }
@@ -245,8 +248,20 @@ func provideSearchHandler(searchService *core.SearchService) *handler.SearchHand
 	return handler.NewSearchHandler(searchService)
 }
 
-func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
-	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, authService, rbacService, rateLimiter)
+func provideWatchHistoryRepository(db *gorm.DB) data.WatchHistoryRepository {
+	return data.NewWatchHistoryRepository(db)
+}
+
+func provideWatchHistoryService(repo data.WatchHistoryRepository, videoRepo data.VideoRepository, logger *logging.Logger) *core.WatchHistoryService {
+	return core.NewWatchHistoryService(repo, videoRepo, logger.Logger)
+}
+
+func provideWatchHistoryHandler(service *core.WatchHistoryService) *handler.WatchHistoryHandler {
+	return handler.NewWatchHistoryHandler(service)
+}
+
+func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
+	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, watchHistoryHandler, authService, rbacService, rateLimiter)
 }
 
 func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService, jobHistoryService *core.JobHistoryService, triggerScheduler *core.TriggerScheduler, videoService *core.VideoService, tagService *core.TagService, searchService *core.SearchService) *server.Server {
