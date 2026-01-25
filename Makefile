@@ -15,7 +15,9 @@ mocks: setup-test
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_processing_config_repository.go -package=mocks goonhub/internal/data ProcessingConfigRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_trigger_config_repository.go -package=mocks goonhub/internal/data TriggerConfigRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_tag_repository.go -package=mocks goonhub/internal/data TagRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_actor_repository.go -package=mocks goonhub/internal/data ActorRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_interaction_repository.go -package=mocks goonhub/internal/data InteractionRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_actor_interaction_repository.go -package=mocks goonhub/internal/data ActorInteractionRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_watch_history_repository.go -package=mocks goonhub/internal/data WatchHistoryRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_dlq_repository.go -package=mocks goonhub/internal/data DLQRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_retry_config_repository.go -package=mocks goonhub/internal/data RetryConfigRepository

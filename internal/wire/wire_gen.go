@@ -84,8 +84,14 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	retryConfigHandler := provideRetryConfigHandler(retryConfigRepository, retryScheduler)
 	sseHandler := provideSSEHandler(eventBus, authService, logger)
 	tagHandler := provideTagHandler(tagService)
+	actorRepository := provideActorRepository(db)
+	actorService := provideActorService(actorRepository, videoRepository, logger)
+	actorHandler := provideActorHandler(actorService, configConfig)
 	interactionService := provideInteractionService(interactionRepository, logger)
 	interactionHandler := provideInteractionHandler(interactionService)
+	actorInteractionRepository := provideActorInteractionRepository(db)
+	actorInteractionService := provideActorInteractionService(actorInteractionRepository, logger)
+	actorInteractionHandler := provideActorInteractionHandler(actorInteractionService, actorRepository)
 	searchHandler := provideSearchHandler(searchService)
 	watchHistoryRepository := provideWatchHistoryRepository(db)
 	watchHistoryService := provideWatchHistoryService(watchHistoryRepository, videoRepository, logger)
@@ -97,7 +103,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	scanService := provideScanService(storagePathService, videoRepository, scanHistoryRepository, videoProcessingService, eventBus, logger)
 	scanHandler := provideScanHandler(scanService)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, interactionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, authService, rbacService, ipRateLimiter)
+	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, interactionHandler, actorInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, authService, rbacService, ipRateLimiter)
 	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService, scanService, retryScheduler, dlqService)
 	return serverServer, nil
 }
@@ -132,8 +138,16 @@ func provideTagRepository(db *gorm.DB) data.TagRepository {
 	return data.NewTagRepository(db)
 }
 
+func provideActorRepository(db *gorm.DB) data.ActorRepository {
+	return data.NewActorRepository(db)
+}
+
 func provideInteractionRepository(db *gorm.DB) data.InteractionRepository {
 	return data.NewInteractionRepository(db)
+}
+
+func provideActorInteractionRepository(db *gorm.DB) data.ActorInteractionRepository {
+	return data.NewActorInteractionRepository(db)
 }
 
 func provideWatchHistoryRepository(db *gorm.DB) data.WatchHistoryRepository {
@@ -223,8 +237,16 @@ func provideTagService(tagRepo data.TagRepository, videoRepo data.VideoRepositor
 	return core.NewTagService(tagRepo, videoRepo, logger.Logger)
 }
 
+func provideActorService(actorRepo data.ActorRepository, videoRepo data.VideoRepository, logger *logging.Logger) *core.ActorService {
+	return core.NewActorService(actorRepo, videoRepo, logger.Logger)
+}
+
 func provideInteractionService(repo data.InteractionRepository, logger *logging.Logger) *core.InteractionService {
 	return core.NewInteractionService(repo, logger.Logger)
+}
+
+func provideActorInteractionService(repo data.ActorInteractionRepository, logger *logging.Logger) *core.ActorInteractionService {
+	return core.NewActorInteractionService(repo, logger.Logger)
 }
 
 func provideSearchService(meiliClient *meilisearch.Client, videoRepo data.VideoRepository, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, logger *logging.Logger) *core.SearchService {
@@ -288,8 +310,16 @@ func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
 	return handler.NewTagHandler(tagService)
 }
 
+func provideActorHandler(actorService *core.ActorService, cfg *config.Config) *handler.ActorHandler {
+	return handler.NewActorHandler(actorService, cfg.Processing.ActorImageDir)
+}
+
 func provideInteractionHandler(service *core.InteractionService) *handler.InteractionHandler {
 	return handler.NewInteractionHandler(service)
+}
+
+func provideActorInteractionHandler(service *core.ActorInteractionService, actorRepo data.ActorRepository) *handler.ActorInteractionHandler {
+	return handler.NewActorInteractionHandler(service, actorRepo)
 }
 
 func provideSearchHandler(searchService *core.SearchService) *handler.SearchHandler {
@@ -351,7 +381,9 @@ func provideRouter(
 	retryConfigHandler *handler.RetryConfigHandler,
 	sseHandler *handler.SSEHandler,
 	tagHandler *handler.TagHandler,
+	actorHandler *handler.ActorHandler,
 	interactionHandler *handler.InteractionHandler,
+	actorInteractionHandler *handler.ActorInteractionHandler,
 	searchHandler *handler.SearchHandler,
 	watchHistoryHandler *handler.WatchHistoryHandler,
 	storagePathHandler *handler.StoragePathHandler,
@@ -364,8 +396,8 @@ func provideRouter(
 		logger, cfg,
 		videoHandler, authHandler, settingsHandler, adminHandler,
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
-		dlqHandler, retryConfigHandler, sseHandler, tagHandler, interactionHandler,
-		searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
+		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, interactionHandler,
+		actorInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		authService, rbacService, rateLimiter,
 	)
 }

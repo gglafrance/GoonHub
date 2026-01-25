@@ -48,3 +48,27 @@ type UserVideoWatch struct {
 func (UserVideoWatch) TableName() string {
 	return "user_video_watches"
 }
+
+// Actor interaction models
+
+type UserActorRating struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	UserID    uint      `gorm:"not null" json:"user_id"`
+	ActorID   uint      `gorm:"not null" json:"actor_id"`
+	Rating    float64   `gorm:"type:decimal(2,1);not null" json:"rating"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type UserActorLike struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	UserID    uint      `gorm:"not null" json:"user_id"`
+	ActorID   uint      `gorm:"not null" json:"actor_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// ActorInteractions holds all interaction data for an actor
+type ActorInteractions struct {
+	Rating float64
+	Liked  bool
+}

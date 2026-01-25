@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS video_actors;
+DROP TABLE IF EXISTS actors;
