@@ -1,0 +1,79 @@
+# Production Docker Compose
+# Uses pre-built images from GitHub Container Registry
+#
+# Usage:
+#   cd docker
+#   cp config.yaml config.prod.yaml   # Customize settings
+#   cp .env.example .env              # Set secrets
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Configuration:
+#   - Edit config.prod.yaml for application settings
+#   - Edit .env for secrets (passwords, API keys)
+
+services:
+  app:
+    image: ghcr.io/${GITHUB_REPOSITORY:-goonhub/goonhub}:${GOONHUB_VERSION:-latest}
+    container_name: goonhub-app
+    restart: unless-stopped
+    ports:
+      - "${GOONHUB_PORT:-8080}:8080"
+    environment:
+      GOONHUB_CONFIG: /app/config.yaml
+      # Secrets injected via env vars (override config file)
+      GOONHUB_DATABASE_PASSWORD: ${GOONHUB_DATABASE_PASSWORD:?Database password required}
+      GOONHUB_AUTH_PASETO_SECRET: ${GOONHUB_AUTH_PASETO_SECRET:?PASETO secret required (32 bytes)}
+      GOONHUB_AUTH_ADMIN_PASSWORD: ${GOONHUB_AUTH_ADMIN_PASSWORD:?Admin password required}
+      GOONHUB_MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY:?Meilisearch master key required}
+    volumes:
+      - ./config.prod.yaml:/app/config.yaml:ro
+      - goonhub-data:/app/data
+      - ${GOONHUB_VIDEOS_PATH:-./videos}:/app/data/videos
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  postgres:
+    image: postgres:18.1-alpine3.23
+    container_name: goonhub-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: goonhub
+      POSTGRES_PASSWORD: ${GOONHUB_DATABASE_PASSWORD:?Database password required}
+      POSTGRES_DB: goonhub
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goonhub -d goonhub"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.33.1
+    container_name: goonhub-meilisearch
+    restart: unless-stopped
+    environment:
+      MEILI_ENV: production
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?Meilisearch master key required}
+      MEILI_NO_ANALYTICS: true
+    volumes:
+      - meilidata:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  goonhub-data:
+  pgdata:
+  meilidata:

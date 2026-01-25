@@ -1,0 +1,67 @@
+# Git
+.git
+.gitignore
+.gitconfig
+
+# Documentation
+*.md
+!web/**/*.md
+LICENSE
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/goonhub
+
+# Local development
+.env
+.env.*
+!.env.example
+tmp/
+*.log
+data/
+
+# Databases
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+library.db*
+
+# Docker (exclude compose files but keep Dockerfile for reference)
+docker/docker-compose*.yml
+docker/.env*
+!docker/.env.example
+.dockerignore
+
+# Node/Frontend (rebuilt in Docker)
+web/node_modules/
+web/.nuxt/
+web/dist/
+web/.output/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test/mock data
+internal/mocks/
+*_test.go
+
+# Configuration for local dev
+config-dev.yaml
+
+# Claude/AI tools
+.claude/
+.opencode/
+CLAUDE.md

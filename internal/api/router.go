@@ -8,8 +8,10 @@ import (
 	"goonhub/internal/config"
 	"goonhub/internal/core"
 	"goonhub/internal/infrastructure/logging"
+	"io"
 	"io/fs"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -63,34 +65,92 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler
 	RegisterRoutes(r, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, watchHistoryHandler, authService, rbacService, logger, rateLimiter)
 
 	// Serve Frontend (SPA Fallback)
-	// We use a custom middleware/handler for this
 	fsys, _ := fs.Sub(goonhub.WebDist, "web/dist")
+
+	// Helper to serve a file from the embedded filesystem
+	serveFile := func(c *gin.Context, filePath string) bool {
+		f, err := fsys.Open(filePath)
+		if err != nil {
+			return false
+		}
+		defer f.Close()
+
+		stat, err := f.Stat()
+		if err != nil || stat.IsDir() {
+			return false
+		}
+
+		content, err := io.ReadAll(f)
+		if err != nil {
+			return false
+		}
+
+		// Determine content type from extension
+		contentType := "application/octet-stream"
+		switch filepath.Ext(filePath) {
+		case ".html":
+			contentType = "text/html; charset=utf-8"
+		case ".css":
+			contentType = "text/css; charset=utf-8"
+		case ".js", ".mjs":
+			contentType = "application/javascript"
+		case ".json":
+			contentType = "application/json"
+		case ".svg":
+			contentType = "image/svg+xml"
+		case ".png":
+			contentType = "image/png"
+		case ".jpg", ".jpeg":
+			contentType = "image/jpeg"
+		case ".gif":
+			contentType = "image/gif"
+		case ".webp":
+			contentType = "image/webp"
+		case ".ico":
+			contentType = "image/x-icon"
+		case ".woff":
+			contentType = "font/woff"
+		case ".woff2":
+			contentType = "font/woff2"
+		case ".ttf":
+			contentType = "font/ttf"
+		case ".txt":
+			contentType = "text/plain; charset=utf-8"
+		}
+
+		c.Data(http.StatusOK, contentType, content)
+		return true
+	}
+
 	r.NoRoute(func(c *gin.Context) {
 		path := c.Request.URL.Path
+
 		// If path starts with /api, return 404
 		if strings.HasPrefix(path, "/api") {
 			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 			return
 		}
 
-		// Check if file exists in fs
+		// Clean the path
 		path = strings.TrimPrefix(path, "/")
 		if path == "" {
 			path = "index.html"
 		}
 
-		f, err := fsys.Open(path)
-		if err == nil {
-			defer f.Close()
-			stat, _ := f.Stat()
-			if !stat.IsDir() {
-				c.FileFromFS(path, http.FS(fsys))
+		// Try to serve the exact file
+		if serveFile(c, path) {
+			return
+		}
+
+		// For SPA routes (no extension), try path/index.html
+		if filepath.Ext(path) == "" {
+			if serveFile(c, path+"/index.html") {
 				return
 			}
 		}
 
-		// Fallback to index.html for SPA
-		c.FileFromFS("index.html", http.FS(fsys))
+		// Fallback to index.html for SPA routing
+		serveFile(c, "index.html")
 	})
 
 	return r

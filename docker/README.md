@@ -2,45 +2,101 @@
 
 ## Quick Start
 
+### Development (build locally)
+
 ```bash
 cd docker
-docker compose up -d
+docker compose up -d --build
 ```
 
-Wait for the healthcheck to pass:
+This builds the application from source and starts all services with development settings.
+
+For hot-reloading during development, run only the dependencies:
 ```bash
-docker compose ps
+cd docker
+docker compose up -d postgres meilisearch
+```
+Then run the backend and frontend locally (see main CLAUDE.md for commands).
+
+### Production (pre-built images)
+
+```bash
+cd docker
+
+# 1. Copy and customize configuration
+cp config.yaml config.prod.yaml
+# Edit config.prod.yaml as needed
+
+# 2. Set up secrets
+cp .env.example .env
+# Edit .env with secure passwords
+
+# 3. Start services
+docker compose -f docker-compose.prod.yml up -d
 ```
 
-The PostgreSQL instance will be available at `localhost:5432`.
+## Configuration
 
-## Connection Details
+### Development
 
-| Field    | Value                |
-|----------|----------------------|
-| Host     | localhost            |
-| Port     | 5432                 |
-| User     | goonhub              |
+Development uses `config-dev.yaml` which has sensible defaults for local development. No configuration needed.
+
+### Production
+
+Configuration is split into two files:
+
+| File | Purpose |
+|------|---------|
+| `config.prod.yaml` | Application settings (non-sensitive) |
+| `.env` | Secrets only (passwords, API keys) |
+
+**config.prod.yaml** - Edit for:
+- Server timeouts and CORS settings
+- Log level and format
+- Processing workers and quality settings
+- Token duration
+
+**`.env`** - Required secrets:
+
+| Variable | Description |
+|----------|-------------|
+| `GOONHUB_DATABASE_PASSWORD` | PostgreSQL password |
+| `GOONHUB_AUTH_PASETO_SECRET` | 32-byte token signing secret |
+| `GOONHUB_AUTH_ADMIN_PASSWORD` | Admin account password |
+| `MEILI_MASTER_KEY` | Meilisearch API key |
+
+Secrets in `.env` override values in `config.prod.yaml`.
+
+## Services
+
+| Service | Port | Description |
+|---------|------|-------------|
+| app | 8080 | GoonHub application |
+| postgres | 5432 | PostgreSQL database |
+| meilisearch | 7700 | Full-text search engine |
+
+## Connection Details (Development)
+
+### PostgreSQL
+
+| Field | Value |
+|-------|-------|
+| Host | localhost |
+| Port | 5432 |
+| User | goonhub |
 | Password | goonhub_dev_password |
-| Database | goonhub              |
-| SSL      | disabled             |
+| Database | goonhub |
 
-Connect via psql:
 ```bash
 docker exec -it goonhub-postgres psql -U goonhub -d goonhub
 ```
 
-## PostgreSQL Configuration
+### Meilisearch
 
-The `postgres/postgresql.conf` is tuned for a media library workload on SSD storage:
-
-- **50 max connections** - sufficient for dev, increase for production
-- **256MB shared_buffers** - PostgreSQL's internal cache
-- **768MB effective_cache_size** - hints to query planner about OS cache
-- **16MB work_mem** - per-operation sort/hash memory
-- **SSD-optimized** - `random_page_cost = 1.1` reflects SSD random read speed
-- **WAL tuning** - 1GB max WAL size with 0.9 checkpoint target for write throughput
-- **Slow query logging** - queries over 1000ms are logged
+| Field | Value |
+|-------|-------|
+| Host | http://localhost:7700 |
+| Master Key | goonhub_dev_master_key |
 
 ## Database Management
 
@@ -60,18 +116,32 @@ docker exec goonhub-postgres pg_dump -U goonhub goonhub > backup.sql
 docker exec -i goonhub-postgres psql -U goonhub -d goonhub < backup.sql
 ```
 
-## Migrations
+## Building the Docker Image
 
-Migrations are located in `internal/infrastructure/persistence/migrator/migrations/` and are embedded into the Go binary. They run automatically on startup when using the PostgreSQL driver.
+The multi-stage Dockerfile builds:
+1. Frontend (Bun + Nuxt)
+2. Backend (Go with embedded frontend)
+3. Runtime (Alpine + ffmpeg)
 
-### Adding a new migration
+Manual build from repo root:
+```bash
+docker build -f docker/Dockerfile -t goonhub:local .
+```
 
-1. Create two files in the migrations directory:
-   - `NNNNNN_description.up.sql` - applies the change
-   - `NNNNNN_description.down.sql` - reverts the change
-2. Use sequential numbering (e.g., `000002_add_tags.up.sql`)
-3. Rebuild the application (migrations are embedded via `//go:embed`)
+The GitHub Actions workflow automatically builds and pushes images to GHCR on pushes to main and version tags.
 
-### Migration versioning
+## Files
 
-The `schema_migrations` table tracks which migrations have been applied. Never modify an already-applied migration file; create a new one instead.
+```
+docker/
+├── Dockerfile            # Multi-stage build definition
+├── docker-compose.yml    # Development (builds locally)
+├── docker-compose.prod.yml # Production (uses GHCR images)
+├── config.yaml           # Production config template
+├── config-dev.yaml       # Development config (Docker)
+├── .env.example          # Secrets template
+├── README.md
+└── postgres/
+    ├── postgresql.conf   # PostgreSQL tuning
+    └── init.sql          # Initial SQL setup
+```
