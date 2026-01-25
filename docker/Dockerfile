@@ -22,12 +22,15 @@ RUN bun run generate
 # ============================================================================
 # Stage 2: Build Go backend
 # ============================================================================
-FROM golang:alpine3.23 AS backend-builder
+FROM golang:1.24-alpine AS backend-builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /app
+
+# Ensure Go modules are enabled
+ENV GO111MODULE=on
 
 # Copy go mod files first for better caching
 COPY go.mod go.sum ./
@@ -40,8 +43,8 @@ COPY . .
 COPY --from=frontend-builder /app/web/dist ./web/dist
 
 # Build the binary (TARGETOS and TARGETARCH are set by Docker buildx)
-ARG TARGETOS=linux
-ARG TARGETARCH=amd64
+ARG TARGETOS
+ARG TARGETARCH
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags="-w -s" \
     -o /app/goonhub \
