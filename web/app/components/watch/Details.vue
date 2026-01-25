@@ -19,6 +19,8 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 
 const allTags = ref<Tag[]>([]);
+const allTagsLoaded = ref(false);
+const loadingAllTags = ref(false);
 const videoTags = ref<Tag[]>([]);
 const showTagPicker = ref(false);
 
@@ -55,8 +57,7 @@ const availableTags = computed(() =>
 const displayRating = computed(() => (isHovering.value ? hoverRating.value : currentRating.value));
 
 onMounted(async () => {
-    await loadTags();
-    await loadInteractions();
+    await Promise.all([loadVideoTags(), loadInteractions()]);
 });
 
 async function loadInteractions() {
@@ -207,23 +208,43 @@ function autoResize(event: Event) {
     el.style.height = el.scrollHeight + 'px';
 }
 
-async function loadTags() {
+async function loadVideoTags() {
     if (!video?.value) return;
     loading.value = true;
     error.value = null;
 
     try {
-        const [tagsRes, videoTagsRes] = await Promise.all([
-            fetchTags(),
-            fetchVideoTags(video.value.id),
-        ]);
-        allTags.value = tagsRes.data || [];
-        videoTags.value = videoTagsRes.data || [];
+        const res = await fetchVideoTags(video.value.id);
+        videoTags.value = res.data || [];
     } catch (err: unknown) {
         error.value = err instanceof Error ? err.message : 'Failed to load tags';
     } finally {
         loading.value = false;
     }
+}
+
+async function loadAllTags() {
+    if (allTagsLoaded.value || loadingAllTags.value) return;
+    loadingAllTags.value = true;
+
+    try {
+        const res = await fetchTags();
+        allTags.value = res.data || [];
+        allTagsLoaded.value = true;
+    } catch (err: unknown) {
+        error.value = err instanceof Error ? err.message : 'Failed to load tags';
+    } finally {
+        loadingAllTags.value = false;
+    }
+}
+
+async function onAddTagClick() {
+    if (showTagPicker.value) {
+        showTagPicker.value = false;
+        return;
+    }
+    await loadAllTags();
+    showTagPicker.value = true;
 }
 
 async function addTag(tagId: number) {
@@ -364,12 +385,19 @@ async function removeTag(tagId: number) {
                     <!-- Add tag button -->
                     <button
                         ref="anchorRef"
-                        @click="showTagPicker = !showTagPicker"
+                        @click="onAddTagClick"
                         class="border-border hover:border-border-hover flex h-5 w-5 items-center
                             justify-center rounded-full border transition-colors"
+                        :disabled="loadingAllTags"
                         title="Add tag"
                     >
-                        <Icon name="heroicons:plus" size="12" class="text-dim" />
+                        <Icon
+                            v-if="loadingAllTags"
+                            name="heroicons:arrow-path"
+                            size="12"
+                            class="text-dim animate-spin"
+                        />
+                        <Icon v-else name="heroicons:plus" size="12" class="text-dim" />
                     </button>
 
                     <WatchTagPicker
