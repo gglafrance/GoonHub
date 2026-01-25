@@ -98,6 +98,7 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					admin.GET("/trigger-config", jobHandler.GetTriggerConfig)
 					admin.PUT("/trigger-config", jobHandler.UpdateTriggerConfig)
 					admin.POST("/videos/:id/process/:phase", jobHandler.TriggerPhase)
+					admin.POST("/jobs/bulk", jobHandler.TriggerBulkPhase)
 					admin.GET("/search/status", searchHandler.GetStatus)
 					admin.POST("/search/reindex", searchHandler.ReindexAll)
 					admin.GET("/storage-paths", storagePathHandler.List)

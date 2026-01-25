@@ -194,8 +194,10 @@ func (h *JobHandler) GetTriggerConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, configs)
 }
 
-var validPhases = map[string]bool{"metadata": true, "thumbnail": true, "sprites": true}
+var validPhases = map[string]bool{"metadata": true, "thumbnail": true, "sprites": true, "scan": true}
+var validProcessingPhases = map[string]bool{"metadata": true, "thumbnail": true, "sprites": true}
 var validTriggerTypes = map[string]bool{"on_import": true, "after_job": true, "manual": true, "scheduled": true}
+var validScanTriggerTypes = map[string]bool{"manual": true, "scheduled": true}
 
 func (h *JobHandler) UpdateTriggerConfig(c *gin.Context) {
 	var req struct {
@@ -210,12 +212,21 @@ func (h *JobHandler) UpdateTriggerConfig(c *gin.Context) {
 	}
 
 	if !validPhases[req.Phase] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "phase must be one of: metadata, thumbnail, sprites"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "phase must be one of: metadata, thumbnail, sprites, scan"})
 		return
 	}
-	if !validTriggerTypes[req.TriggerType] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "trigger_type must be one of: on_import, after_job, manual, scheduled"})
-		return
+
+	// Scan phase only supports manual and scheduled triggers
+	if req.Phase == "scan" {
+		if !validScanTriggerTypes[req.TriggerType] {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "scan phase only supports manual or scheduled triggers"})
+			return
+		}
+	} else {
+		if !validTriggerTypes[req.TriggerType] {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "trigger_type must be one of: on_import, after_job, manual, scheduled"})
+			return
+		}
 	}
 
 	// Only metadata can be on_import
@@ -224,13 +235,13 @@ func (h *JobHandler) UpdateTriggerConfig(c *gin.Context) {
 		return
 	}
 
-	// after_job requires valid after_phase
+	// after_job requires valid after_phase (only for processing phases, not scan)
 	if req.TriggerType == "after_job" {
 		if req.AfterPhase == nil || *req.AfterPhase == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "after_phase is required when trigger_type is after_job"})
 			return
 		}
-		if !validPhases[*req.AfterPhase] {
+		if !validProcessingPhases[*req.AfterPhase] {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "after_phase must be one of: metadata, thumbnail, sprites"})
 			return
 		}
@@ -346,4 +357,40 @@ func (h *JobHandler) TriggerPhase(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Phase %s triggered for video %d", phase, videoID)})
+}
+
+var validModes = map[string]bool{"missing": true, "all": true}
+
+func (h *JobHandler) TriggerBulkPhase(c *gin.Context) {
+	var req struct {
+		Phase string `json:"phase"`
+		Mode  string `json:"mode"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	if !validPhases[req.Phase] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "phase must be one of: metadata, thumbnail, sprites"})
+		return
+	}
+
+	if !validModes[req.Mode] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "mode must be one of: missing, all"})
+		return
+	}
+
+	result, err := h.processingService.SubmitBulkPhase(req.Phase, req.Mode)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   fmt.Sprintf("Bulk %s phase triggered (%s mode)", req.Phase, req.Mode),
+		"submitted": result.Submitted,
+		"skipped":   result.Skipped,
+		"errors":    result.Errors,
+	})
 }

@@ -3,7 +3,7 @@ import type { JobHistory, JobListResponse, QueueStatus } from '~/types/jobs';
 
 const { fetchJobs } = useApi();
 
-const activeSubTab = ref<'history' | 'workers' | 'processing' | 'triggers'>('history');
+const activeSubTab = ref<'manual' | 'history' | 'workers' | 'processing' | 'triggers'>('manual');
 
 const loading = ref(false);
 const historyJobs = ref<JobHistory[]>([]);
@@ -177,6 +177,17 @@ const phaseIcon = (phase: string): string => {
     <div class="space-y-5">
         <!-- Sub-tab navigation -->
         <div class="flex items-center gap-1">
+            <button
+                @click="activeSubTab = 'manual'"
+                :class="[
+                    'rounded-full px-3 py-1 text-[11px] font-medium transition-colors',
+                    activeSubTab === 'manual'
+                        ? 'bg-white/10 text-white'
+                        : 'text-dim hover:text-white',
+                ]"
+            >
+                Manual
+            </button>
             <button
                 @click="activeSubTab = 'history'"
                 :class="[
@@ -527,5 +538,8 @@ const phaseIcon = (phase: string): string => {
 
         <!-- Triggers sub-tab -->
         <SettingsJobsTriggers v-if="activeSubTab === 'triggers'" />
+
+        <!-- Manual sub-tab -->
+        <SettingsJobsManual v-if="activeSubTab === 'manual'" />
     </div>
 </template>

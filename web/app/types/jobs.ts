@@ -49,9 +49,21 @@ export interface JobListResponse {
 
 export interface TriggerConfig {
     id: number;
-    phase: 'metadata' | 'thumbnail' | 'sprites';
+    phase: 'metadata' | 'thumbnail' | 'sprites' | 'scan';
     trigger_type: 'on_import' | 'after_job' | 'manual' | 'scheduled';
     after_phase: string | null;
     cron_expression: string | null;
     updated_at: string;
+}
+
+export interface BulkJobRequest {
+    phase: 'metadata' | 'thumbnail' | 'sprites';
+    mode: 'missing' | 'all';
+}
+
+export interface BulkJobResponse {
+    message: string;
+    submitted: number;
+    skipped: number;
+    errors: number;
 }

@@ -787,6 +787,64 @@ func (s *VideoProcessingService) SubmitPhase(videoID uint, phase string) error {
 	return nil
 }
 
+// BulkPhaseResult contains the results of a bulk phase submission
+type BulkPhaseResult struct {
+	Submitted int `json:"submitted"`
+	Skipped   int `json:"skipped"`
+	Errors    int `json:"errors"`
+}
+
+// SubmitBulkPhase submits a processing phase for multiple videos
+// mode can be "missing" (only videos needing the phase) or "all" (all videos)
+func (s *VideoProcessingService) SubmitBulkPhase(phase string, mode string) (*BulkPhaseResult, error) {
+	var videos []data.Video
+	var err error
+
+	if mode == "all" {
+		videos, err = s.repo.GetAll()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get videos: %w", err)
+		}
+	} else {
+		// Default to "missing" mode
+		videos, err = s.repo.GetVideosNeedingPhase(phase)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get videos needing %s: %w", phase, err)
+		}
+	}
+
+	result := &BulkPhaseResult{}
+
+	for _, video := range videos {
+		// For thumbnail/sprites in "all" mode, skip videos without metadata
+		if mode == "all" && (phase == "thumbnail" || phase == "sprites") && video.Duration == 0 {
+			result.Skipped++
+			continue
+		}
+
+		if err := s.SubmitPhase(video.ID, phase); err != nil {
+			s.logger.Warn("Failed to submit bulk phase job",
+				zap.Uint("video_id", video.ID),
+				zap.String("phase", phase),
+				zap.Error(err),
+			)
+			result.Errors++
+		} else {
+			result.Submitted++
+		}
+	}
+
+	s.logger.Info("Bulk phase submission completed",
+		zap.String("phase", phase),
+		zap.String("mode", mode),
+		zap.Int("submitted", result.Submitted),
+		zap.Int("skipped", result.Skipped),
+		zap.Int("errors", result.Errors),
+	)
+
+	return result, nil
+}
+
 func (s *VideoProcessingService) GetPoolConfig() PoolConfig {
 	s.poolMu.RLock()
 	defer s.poolMu.RUnlock()

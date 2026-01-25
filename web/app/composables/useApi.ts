@@ -302,6 +302,15 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const triggerBulkPhase = async (phase: string, mode: string) => {
+        const response = await fetch('/api/v1/admin/jobs/bulk', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ phase, mode }),
+        });
+        return handleResponse(response);
+    };
+
     const extractThumbnail = async (videoId: number, timecode: number) => {
         const response = await fetch(`/api/v1/videos/${videoId}/thumbnail`, {
             method: 'PUT',
@@ -594,6 +603,7 @@ export const useApi = () => {
         fetchTriggerConfig,
         updateTriggerConfig,
         triggerVideoPhase,
+        triggerBulkPhase,
         extractThumbnail,
         uploadThumbnail,
         fetchTags,

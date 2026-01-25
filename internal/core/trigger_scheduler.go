@@ -14,9 +14,15 @@ type TriggerScheduler struct {
 	triggerConfigRepo data.TriggerConfigRepository
 	videoRepo         data.VideoRepository
 	processingService *VideoProcessingService
+	scanService       *ScanService
 	logger            *zap.Logger
 	mu                sync.Mutex
 	entryIDs          []cron.EntryID
+}
+
+// SetScanService sets the scan service for scheduled library scans
+func (s *TriggerScheduler) SetScanService(scanService *ScanService) {
+	s.scanService = scanService
 }
 
 func NewTriggerScheduler(
@@ -112,6 +118,12 @@ func (s *TriggerScheduler) loadSchedules() error {
 func (s *TriggerScheduler) runScheduledPhase(phase string) {
 	s.logger.Info("Running scheduled trigger", zap.String("phase", phase))
 
+	// Handle scan phase specially
+	if phase == "scan" {
+		s.runScheduledScan()
+		return
+	}
+
 	videos, err := s.videoRepo.GetVideosNeedingPhase(phase)
 	if err != nil {
 		s.logger.Error("Failed to get videos needing phase",
@@ -139,5 +151,24 @@ func (s *TriggerScheduler) runScheduledPhase(phase string) {
 				zap.Error(err),
 			)
 		}
+	}
+}
+
+func (s *TriggerScheduler) runScheduledScan() {
+	if s.scanService == nil {
+		s.logger.Error("Scan service not configured for scheduled scan")
+		return
+	}
+
+	// Check if a scan is already running
+	status := s.scanService.GetStatus()
+	if status.Running {
+		s.logger.Info("Skipping scheduled scan: scan already running")
+		return
+	}
+
+	s.logger.Info("Starting scheduled library scan")
+	if _, err := s.scanService.StartScan(nil); err != nil {
+		s.logger.Error("Failed to start scheduled library scan", zap.Error(err))
 	}
 }

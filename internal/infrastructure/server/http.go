@@ -87,6 +87,11 @@ func (s *Server) Start() error {
 		s.scanService.RecoverInterruptedScans()
 	}
 
+	// Wire up scan service to trigger scheduler for scheduled scans
+	if s.triggerScheduler != nil && s.scanService != nil {
+		s.triggerScheduler.SetScanService(s.scanService)
+	}
+
 	if s.processingService != nil {
 		s.processingService.Start()
 		defer s.processingService.Stop()
