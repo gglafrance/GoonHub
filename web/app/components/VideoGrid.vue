@@ -7,9 +7,7 @@ defineProps<{
 </script>
 
 <template>
-    <div
-        class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
-    >
+    <div class="grid justify-center gap-3" style="grid-template-columns: repeat(auto-fill, 320px)">
         <VideoCard v-for="video in videos" :key="video.id" :video="video" />
     </div>
 </template>

@@ -6,7 +6,7 @@ const authStore = useAuthStore();
     <div class="sticky top-0 z-50">
         <!-- Main Header -->
         <header class="border-border bg-void/80 border-b backdrop-blur-md">
-            <div class="mx-auto max-w-400 px-4 sm:px-5">
+            <div class="mx-auto max-w-415 px-4 sm:px-5">
                 <div class="flex h-12 items-center justify-between">
                     <NuxtLink to="/" class="group flex items-center gap-2">
                         <div
@@ -74,7 +74,7 @@ const authStore = useAuthStore();
             v-if="authStore.isAuthenticated"
             class="border-border bg-void/60 border-b backdrop-blur-sm"
         >
-            <div class="mx-auto max-w-400 px-4 sm:px-5">
+            <div class="mx-auto max-w-415 px-4 sm:px-5">
                 <div class="flex h-9 items-center gap-1">
                     <NuxtLink
                         to="/search"

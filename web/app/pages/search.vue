@@ -102,7 +102,7 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="mx-auto max-w-400 px-4 py-6 sm:px-5">
+    <div class="mx-auto max-w-415 px-4 py-6 sm:px-5">
         <div class="mb-5">
             <SearchBar />
         </div>

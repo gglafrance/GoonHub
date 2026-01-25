@@ -108,7 +108,7 @@ definePageMeta({
             class="border-border bg-void/90 sticky top-12 z-40 border-b px-4 py-2.5 backdrop-blur-md
                 sm:px-5"
         >
-            <div class="mx-auto flex max-w-400 items-center justify-between">
+            <div class="mx-auto flex max-w-415 items-center justify-between">
                 <button
                     class="group text-dim flex items-center gap-2 transition-colors
                         hover:text-white"
@@ -130,7 +130,7 @@ definePageMeta({
             </div>
         </div>
 
-        <div class="mx-auto max-w-400 p-4 sm:px-5 lg:py-6">
+        <div class="mx-auto max-w-415 p-4 sm:px-5 lg:py-6">
             <!-- Loading State -->
             <div v-if="isLoading" class="flex h-[70vh] items-center justify-center">
                 <LoadingSpinner label="Loading..." />

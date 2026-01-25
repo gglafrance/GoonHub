@@ -20,11 +20,13 @@ const thumbnailUrl = computed(() => {
         class="group border-border bg-surface hover:border-border-hover hover:bg-elevated relative
             block overflow-hidden rounded-lg border transition-all duration-200"
     >
-        <div class="bg-void relative aspect-video w-full">
+        <div class="bg-void relative h-45 w-[320px]">
             <img
                 v-if="thumbnailUrl"
                 :src="thumbnailUrl"
-                class="absolute inset-0 h-full w-full object-contain transition-transform duration-300
+                width="320"
+                height="180"
+                class="absolute inset-0 h-45 w-[320px] transition-transform duration-300
                     group-hover:scale-[1.03]"
                 :alt="video.title"
                 loading="lazy"
