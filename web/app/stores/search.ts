@@ -61,7 +61,7 @@ export const useSearchStore = defineStore('search', () => {
         error.value = '';
 
         try {
-            const params: Record<string, string | number | boolean | undefined> = {
+            const params: Record<string, string | number | undefined> = {
                 page: page.value,
                 limit: limit.value,
             };
@@ -76,7 +76,7 @@ export const useSearchStore = defineStore('search', () => {
             if (maxDate.value) params.max_date = maxDate.value;
             if (resolution.value) params.resolution = resolution.value;
             if (sort.value) params.sort = sort.value;
-            if (liked.value) params.liked = true;
+            if (liked.value) params.liked = 'true';
             if (minRating.value > 0) params.min_rating = minRating.value;
             if (maxRating.value > 0) params.max_rating = maxRating.value;
             if (minJizzCount.value > 0) params.min_jizz_count = minJizzCount.value;

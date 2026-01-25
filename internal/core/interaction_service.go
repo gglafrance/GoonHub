@@ -108,3 +108,12 @@ func (s *InteractionService) GetJizzedCount(userID, videoID uint) (int, error) {
 	}
 	return count, nil
 }
+
+func (s *InteractionService) GetAllInteractions(userID, videoID uint) (*data.VideoInteractions, error) {
+	interactions, err := s.repo.GetAllInteractions(userID, videoID)
+	if err != nil {
+		s.logger.Error("failed to get interactions", zap.Uint("userID", userID), zap.Uint("videoID", videoID), zap.Error(err))
+		return nil, fmt.Errorf("failed to get interactions: %w", err)
+	}
+	return interactions, nil
+}

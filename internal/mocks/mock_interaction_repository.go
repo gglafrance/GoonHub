@@ -68,6 +68,21 @@ func (mr *MockInteractionRepositoryMockRecorder) DeleteRating(userID, videoID an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRating", reflect.TypeOf((*MockInteractionRepository)(nil).DeleteRating), userID, videoID)
 }
 
+// GetAllInteractions mocks base method.
+func (m *MockInteractionRepository) GetAllInteractions(userID, videoID uint) (*data.VideoInteractions, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllInteractions", userID, videoID)
+	ret0, _ := ret[0].(*data.VideoInteractions)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllInteractions indicates an expected call of GetAllInteractions.
+func (mr *MockInteractionRepositoryMockRecorder) GetAllInteractions(userID, videoID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllInteractions", reflect.TypeOf((*MockInteractionRepository)(nil).GetAllInteractions), userID, videoID)
+}
+
 // GetJizzedCount mocks base method.
 func (m *MockInteractionRepository) GetJizzedCount(userID, videoID uint) (int, error) {
 	m.ctrl.T.Helper()

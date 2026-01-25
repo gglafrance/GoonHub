@@ -3,7 +3,17 @@ import type { Video } from '~/types/video';
 import type { Tag } from '~/types/tag';
 
 const video = inject<Ref<Video | null>>('watchVideo');
-const { fetchTags, fetchVideoTags, setVideoTags, updateVideoDetails, fetchVideoRating, setVideoRating, deleteVideoRating, fetchVideoLike, toggleVideoLike, fetchJizzedCount, incrementJizzed } = useApi();
+const {
+    fetchTags,
+    fetchVideoTags,
+    setVideoTags,
+    updateVideoDetails,
+    fetchVideoInteractions,
+    setVideoRating,
+    deleteVideoRating,
+    toggleVideoLike,
+    incrementJizzed,
+} = useApi();
 
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -52,14 +62,10 @@ onMounted(async () => {
 async function loadInteractions() {
     if (!video?.value) return;
     try {
-        const [ratingRes, likeRes, jizzedRes] = await Promise.all([
-            fetchVideoRating(video.value.id),
-            fetchVideoLike(video.value.id),
-            fetchJizzedCount(video.value.id),
-        ]);
-        currentRating.value = ratingRes.rating || 0;
-        liked.value = likeRes.liked || false;
-        jizzedCount.value = jizzedRes.count || 0;
+        const res = await fetchVideoInteractions(video.value.id);
+        currentRating.value = res.rating || 0;
+        liked.value = res.liked || false;
+        jizzedCount.value = res.jizzed_count || 0;
     } catch {
         // Silently fail for interactions
     }
@@ -250,7 +256,7 @@ async function removeTag(tagId: number) {
 </script>
 
 <template>
-    <div class="min-h-64 flex gap-6">
+    <div class="flex min-h-64 gap-6">
         <!-- Left column: existing content -->
         <div class="min-w-0 flex-1 space-y-4">
             <!-- Error -->
@@ -279,13 +285,14 @@ async function removeTag(tagId: number) {
                     @keydown.enter="($event.target as HTMLInputElement).blur()"
                     type="text"
                     class="border-border focus:border-lava/50 -mx-2 w-[calc(100%+16px)] rounded-md
-                        border bg-white/3 px-2 py-1 text-sm text-white transition-colors outline-none"
+                        border bg-white/3 px-2 py-1 text-sm text-white transition-colors
+                        outline-none"
                 />
                 <p
                     v-else
                     @click="startEditTitle"
-                    class="text-dim -mx-2 cursor-pointer rounded-md px-2 py-1 text-sm transition-colors
-                        hover:bg-white/3 hover:text-white"
+                    class="text-dim -mx-2 cursor-pointer rounded-md px-2 py-1 text-sm
+                        transition-colors hover:bg-white/3 hover:text-white"
                     :class="{ 'text-white': video?.title }"
                 >
                     {{ video?.title || 'Untitled' }}
@@ -294,7 +301,9 @@ async function removeTag(tagId: number) {
 
             <!-- Description -->
             <div class="space-y-1">
-                <h3 class="text-dim text-[11px] font-medium tracking-wider uppercase">Description</h3>
+                <h3 class="text-dim text-[11px] font-medium tracking-wider uppercase">
+                    Description
+                </h3>
 
                 <textarea
                     v-if="editingDescription"
@@ -345,8 +354,8 @@ async function removeTag(tagId: number) {
                         {{ tag.name }}
                         <span
                             @click="removeTag(tag.id)"
-                            class="cursor-pointer opacity-0 transition-opacity group-hover:opacity-60
-                                hover:opacity-100!"
+                            class="cursor-pointer opacity-0 transition-opacity
+                                group-hover:opacity-60 hover:opacity-100!"
                         >
                             <Icon name="heroicons:x-mark" size="10" />
                         </span>
@@ -377,10 +386,7 @@ async function removeTag(tagId: number) {
         <!-- Right column: Rating & Actions -->
         <div class="flex shrink-0 flex-col items-center gap-2.5">
             <!-- Stars -->
-            <div
-                class="flex items-center gap-[3px]"
-                @mouseleave="onStarLeave"
-            >
+            <div class="flex items-center gap-[3px]" @mouseleave="onStarLeave">
                 <div
                     v-for="star in 5"
                     :key="star"
@@ -450,7 +456,8 @@ async function removeTag(tagId: number) {
                     :class="[
                         liked
                             ? 'border-lava/20 bg-lava/[0.03]'
-                            : 'border-border hover:border-border-hover bg-white/[0.02] hover:bg-white/[0.04]',
+                            : `border-border hover:border-border-hover bg-white/[0.02]
+                                hover:bg-white/[0.04]`,
                     ]"
                 >
                     <div
@@ -467,7 +474,9 @@ async function removeTag(tagId: number) {
                     </div>
                     <span
                         class="text-[10px] font-medium transition-colors duration-200"
-                        :class="[liked ? 'text-lava/60' : 'text-white/25 group-hover:text-white/40']"
+                        :class="[
+                            liked ? 'text-lava/60' : 'text-white/25 group-hover:text-white/40',
+                        ]"
                     >
                         {{ liked ? 'Liked' : 'Like' }}
                     </span>
@@ -481,24 +490,28 @@ async function removeTag(tagId: number) {
                     :class="[
                         jizzedCount > 0
                             ? 'border-white/20 bg-white/[0.05]'
-                            : 'border-border hover:border-border-hover bg-white/[0.02] hover:bg-white/[0.04]',
+                            : `border-border hover:border-border-hover bg-white/[0.02]
+                                hover:bg-white/[0.04]`,
                     ]"
                 >
                     <div
                         class="transition-all duration-200"
                         :class="[
-                            jizzedCount > 0 ? 'text-white' : 'text-white/20 group-hover:text-white/40',
+                            jizzedCount > 0
+                                ? 'text-white'
+                                : 'text-white/20 group-hover:text-white/40',
                             jizzedAnimating ? 'scale-125' : 'scale-100',
                         ]"
                     >
-                        <Icon
-                            name="fluent-emoji-high-contrast:sweat-droplets"
-                            size="16"
-                        />
+                        <Icon name="fluent-emoji-high-contrast:sweat-droplets" size="16" />
                     </div>
                     <span
                         class="text-[10px] font-medium tabular-nums transition-colors duration-200"
-                        :class="[jizzedCount > 0 ? 'text-white/60' : 'text-white/25 group-hover:text-white/40']"
+                        :class="[
+                            jizzedCount > 0
+                                ? 'text-white/60'
+                                : 'text-white/25 group-hover:text-white/40',
+                        ]"
                     >
                         {{ jizzedCount > 0 ? jizzedCount : 'Jizz' }}
                     </span>

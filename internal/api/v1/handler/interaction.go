@@ -175,3 +175,29 @@ func (h *InteractionHandler) ToggleJizzed(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"count": count})
 }
+
+func (h *InteractionHandler) GetInteractions(c *gin.Context) {
+	payload, err := middleware.GetUserFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	videoID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		return
+	}
+
+	interactions, err := h.Service.GetAllInteractions(payload.UserID, uint(videoID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get interactions"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"rating":       interactions.Rating,
+		"liked":        interactions.Liked,
+		"jizzed_count": interactions.JizzedCount,
+	})
+}

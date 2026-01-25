@@ -44,6 +44,7 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 				videos.DELETE("/:id", middleware.RequirePermission(rbacService, "videos:delete"), videoHandler.DeleteVideo)
 					videos.GET("/:id/tags", middleware.RequirePermission(rbacService, "videos:view"), tagHandler.GetVideoTags)
 					videos.PUT("/:id/tags", middleware.RequirePermission(rbacService, "videos:upload"), tagHandler.SetVideoTags)
+					videos.GET("/:id/interactions", interactionHandler.GetInteractions)
 					videos.GET("/:id/rating", interactionHandler.GetRating)
 					videos.PUT("/:id/rating", interactionHandler.SetRating)
 					videos.DELETE("/:id/rating", interactionHandler.DeleteRating)

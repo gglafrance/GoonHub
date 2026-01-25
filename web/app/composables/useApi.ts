@@ -377,6 +377,13 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const fetchVideoInteractions = async (videoId: number) => {
+        const response = await fetch(`/api/v1/videos/${videoId}/interactions`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
     const fetchVideoRating = async (videoId: number) => {
         const response = await fetch(`/api/v1/videos/${videoId}/rating`, {
             headers: getAuthHeaders(),
@@ -514,6 +521,7 @@ export const useApi = () => {
         fetchVideoTags,
         setVideoTags,
         updateVideoDetails,
+        fetchVideoInteractions,
         fetchVideoRating,
         setVideoRating,
         deleteVideoRating,

@@ -7,6 +7,13 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// VideoInteractions holds all interaction data for a video
+type VideoInteractions struct {
+	Rating      float64
+	Liked       bool
+	JizzedCount int
+}
+
 type InteractionRepository interface {
 	UpsertRating(userID, videoID uint, rating float64) error
 	DeleteRating(userID, videoID uint) error
@@ -16,6 +23,7 @@ type InteractionRepository interface {
 	IsLiked(userID, videoID uint) (bool, error)
 	IncrementJizzed(userID, videoID uint) (int, error)
 	GetJizzedCount(userID, videoID uint) (int, error)
+	GetAllInteractions(userID, videoID uint) (*VideoInteractions, error)
 	GetLikedVideoIDs(userID uint) ([]uint, error)
 	GetRatedVideoIDs(userID uint, minRating, maxRating float64) ([]uint, error)
 	GetJizzedVideoIDs(userID uint, minCount, maxCount int) ([]uint, error)
@@ -114,6 +122,38 @@ func (r *InteractionRepositoryImpl) GetJizzedCount(userID, videoID uint) (int, e
 		return 0, err
 	}
 	return record.Count, nil
+}
+
+func (r *InteractionRepositoryImpl) GetAllInteractions(userID, videoID uint) (*VideoInteractions, error) {
+	result := &VideoInteractions{}
+
+	// Get rating
+	var rating UserVideoRating
+	err := r.DB.Where("user_id = ? AND video_id = ?", userID, videoID).First(&rating).Error
+	if err == nil {
+		result.Rating = rating.Rating
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	// Check if liked
+	var likeCount int64
+	err = r.DB.Model(&UserVideoLike{}).Where("user_id = ? AND video_id = ?", userID, videoID).Count(&likeCount).Error
+	if err != nil {
+		return nil, err
+	}
+	result.Liked = likeCount > 0
+
+	// Get jizzed count
+	var jizzed UserVideoJizzed
+	err = r.DB.Where("user_id = ? AND video_id = ?", userID, videoID).First(&jizzed).Error
+	if err == nil {
+		result.JizzedCount = jizzed.Count
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 // Ensure gorm.ErrRecordNotFound is accessible for callers
