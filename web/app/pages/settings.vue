@@ -1,6 +1,8 @@
 <script setup lang="ts">
 const settingsStore = useSettingsStore();
 const authStore = useAuthStore();
+const route = useRoute();
+const router = useRouter();
 
 useHead({ title: 'Settings' });
 
@@ -16,8 +18,20 @@ const availableTabs = computed(() => {
     return tabs;
 });
 
+function setTab(tab: TabType) {
+    activeTab.value = tab;
+    router.replace({ query: { tab } });
+}
+
 onMounted(() => {
     settingsStore.loadSettings();
+
+    const tabFromUrl = route.query.tab as string;
+    if (tabFromUrl && availableTabs.value.includes(tabFromUrl as TabType)) {
+        activeTab.value = tabFromUrl as TabType;
+    } else {
+        router.replace({ query: { tab: activeTab.value } });
+    }
 });
 
 definePageMeta({
@@ -34,7 +48,7 @@ definePageMeta({
             <button
                 v-for="tab in availableTabs"
                 :key="tab"
-                @click="activeTab = tab"
+                @click="setTab(tab)"
                 class="relative px-4 py-2 text-xs font-medium capitalize transition-colors"
                 :class="activeTab === tab ? 'text-lava' : 'text-dim hover:text-white'"
             >
