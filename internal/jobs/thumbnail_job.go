@@ -106,6 +106,7 @@ func (j *ThumbnailJob) ExecuteWithContext(ctx context.Context) error {
 	j.logger.Info("Starting thumbnail extraction job",
 		zap.String("job_id", j.id),
 		zap.Uint("video_id", j.videoID),
+		zap.String("video_path", j.videoPath),
 		zap.Int("tile_width", j.tileWidth),
 		zap.Int("tile_height", j.tileHeight),
 	)

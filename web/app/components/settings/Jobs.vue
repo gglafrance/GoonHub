@@ -3,7 +3,9 @@ import type { JobHistory, JobListResponse, QueueStatus } from '~/types/jobs';
 
 const { fetchJobs } = useApi();
 
-const activeSubTab = ref<'manual' | 'history' | 'workers' | 'processing' | 'triggers'>('manual');
+const activeSubTab = ref<
+    'manual' | 'history' | 'workers' | 'processing' | 'triggers' | 'retry' | 'dlq'
+>('manual');
 
 const loading = ref(false);
 const historyJobs = ref<JobHistory[]>([]);
@@ -141,6 +143,10 @@ const statusClass = (status: string): string => {
             return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
         case 'failed':
             return 'bg-lava/15 text-lava border-lava/30';
+        case 'cancelled':
+            return 'bg-white/5 text-dim border-white/10';
+        case 'timed_out':
+            return 'bg-orange-500/15 text-orange-400 border-orange-500/30';
         default:
             return 'bg-white/5 text-dim border-white/10';
     }
@@ -231,6 +237,26 @@ const phaseIcon = (phase: string): string => {
                 ]"
             >
                 Triggers
+            </button>
+            <button
+                @click="activeSubTab = 'retry'"
+                :class="[
+                    'rounded-full px-3 py-1 text-[11px] font-medium transition-colors',
+                    activeSubTab === 'retry'
+                        ? 'bg-white/10 text-white'
+                        : 'text-dim hover:text-white',
+                ]"
+            >
+                Retry
+            </button>
+            <button
+                @click="activeSubTab = 'dlq'"
+                :class="[
+                    'rounded-full px-3 py-1 text-[11px] font-medium transition-colors',
+                    activeSubTab === 'dlq' ? 'bg-white/10 text-white' : 'text-dim hover:text-white',
+                ]"
+            >
+                DLQ
             </button>
         </div>
 
@@ -372,24 +398,49 @@ const phaseIcon = (phase: string): string => {
                                 <div
                                     v-for="job in activeJobsByPhase[phase].running"
                                     :key="job.job_id"
-                                    class="flex items-center justify-between rounded-lg border
-                                        border-emerald-500/10 bg-emerald-500/5 px-3 py-2"
+                                    class="rounded-lg border border-emerald-500/10 bg-emerald-500/5
+                                        px-3 py-2"
                                 >
-                                    <div class="flex items-center gap-3">
-                                        <span
-                                            class="inline-block rounded-full border
-                                                border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5
-                                                text-[10px] font-medium text-emerald-400"
-                                        >
-                                            running
-                                        </span>
-                                        <span class="text-[11px] text-white">{{
-                                            job.video_title || `Video #${job.video_id}`
-                                        }}</span>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3">
+                                            <span
+                                                class="inline-block rounded-full border
+                                                    border-emerald-500/30 bg-emerald-500/15 px-2
+                                                    py-0.5 text-[10px] font-medium text-emerald-400"
+                                            >
+                                                running
+                                            </span>
+                                            <span class="text-[11px] text-white">{{
+                                                job.video_title || `Video #${job.video_id}`
+                                            }}</span>
+                                            <span
+                                                v-if="job.retry_count > 0"
+                                                class="text-dim text-[10px]"
+                                            >
+                                                (retry {{ job.retry_count }}/{{ job.max_retries }})
+                                            </span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span
+                                                v-if="job.progress > 0"
+                                                class="text-[10px] text-emerald-400"
+                                                >{{ job.progress }}%</span
+                                            >
+                                            <span class="text-dim text-[10px]">{{
+                                                formatDuration(job.started_at)
+                                            }}</span>
+                                        </div>
                                     </div>
-                                    <span class="text-dim text-[10px]">{{
-                                        formatDuration(job.started_at)
-                                    }}</span>
+                                    <div
+                                        v-if="job.progress > 0"
+                                        class="mt-2 h-1 overflow-hidden rounded-full bg-white/5"
+                                    >
+                                        <div
+                                            class="h-full rounded-full bg-emerald-500 transition-all
+                                                duration-300"
+                                            :style="{ width: `${job.progress}%` }"
+                                        ></div>
+                                    </div>
                                 </div>
                                 <div
                                     v-for="job in activeJobsByPhase[phase].queued"
@@ -442,6 +493,7 @@ const phaseIcon = (phase: string): string => {
                                 <th class="pr-4 pb-2 font-medium">Video</th>
                                 <th class="pr-4 pb-2 font-medium">Phase</th>
                                 <th class="pr-4 pb-2 font-medium">Status</th>
+                                <th class="pr-4 pb-2 font-medium">Retries</th>
                                 <th class="pr-4 pb-2 font-medium">Duration</th>
                                 <th class="pb-2 font-medium">Started</th>
                             </tr>
@@ -452,7 +504,7 @@ const phaseIcon = (phase: string): string => {
                                 :key="job.job_id"
                                 class="border-border/50 border-b last:border-0"
                             >
-                                <td class="max-w-45 truncate py-2 pr-4 text-white">
+                                <td class="max-w-40 truncate py-2 pr-4 text-white">
                                     {{ job.video_title || `Video #${job.video_id}` }}
                                 </td>
                                 <td class="text-dim py-2 pr-4">
@@ -470,6 +522,16 @@ const phaseIcon = (phase: string): string => {
                                     >
                                         {{ job.status }}
                                     </span>
+                                </td>
+                                <td class="py-2 pr-4">
+                                    <span
+                                        v-if="job.max_retries > 0"
+                                        class="text-dim text-[11px]"
+                                        :class="{ 'text-lava': job.retry_count >= job.max_retries }"
+                                    >
+                                        {{ job.retry_count }}/{{ job.max_retries }}
+                                    </span>
+                                    <span v-else class="text-dim text-[11px]">-</span>
                                 </td>
                                 <td class="text-dim py-2 pr-4 text-[11px]">
                                     {{ formatDuration(job.started_at, job.completed_at) }}
@@ -538,6 +600,12 @@ const phaseIcon = (phase: string): string => {
 
         <!-- Triggers sub-tab -->
         <SettingsJobsTriggers v-if="activeSubTab === 'triggers'" />
+
+        <!-- Retry sub-tab -->
+        <SettingsJobsRetry v-if="activeSubTab === 'retry'" />
+
+        <!-- DLQ sub-tab -->
+        <SettingsJobsDLQ v-if="activeSubTab === 'dlq'" />
 
         <!-- Manual sub-tab -->
         <SettingsJobsManual v-if="activeSubTab === 'manual'" />

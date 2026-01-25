@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 func ExtractThumbnail(videoPath, outputPath, seekPosition string, width, height, quality int) error {
@@ -174,6 +175,12 @@ func ExtractSpriteSheets(videoPath, outputDir string, videoID int, width, height
 }
 
 func ExtractSpriteSheetsWithContext(ctx context.Context, videoPath, outputDir string, videoID int, width, height, gridCols, gridRows, interval, quality, concurrency int) ([]string, error) {
+	return ExtractSpriteSheetsWithProgress(ctx, videoPath, outputDir, videoID, width, height, gridCols, gridRows, interval, quality, concurrency, nil)
+}
+
+// ExtractSpriteSheetsWithProgress extracts sprite sheets with optional progress reporting.
+// The progress callback receives progress values from 0-100.
+func ExtractSpriteSheetsWithProgress(ctx context.Context, videoPath, outputDir string, videoID int, width, height, gridCols, gridRows, interval, quality, concurrency int, progressCallback func(progress int)) ([]string, error) {
 	metadata, err := GetMetadataWithContext(ctx, videoPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get video metadata: %w", err)
@@ -217,6 +224,9 @@ func ExtractSpriteSheetsWithContext(ctx context.Context, videoPath, outputDir st
 	var wg sync.WaitGroup
 	errChan := make(chan error, totalFrames)
 
+	// Atomic counter for tracking completed frames
+	var completedFrames int64
+
 	for i := 0; i < totalFrames; i++ {
 		wg.Add(1)
 		go func(frameIndex int) {
@@ -259,6 +269,14 @@ func ExtractSpriteSheetsWithContext(ctx context.Context, videoPath, outputDir st
 					return
 				}
 				errChan <- fmt.Errorf("ffmpeg failed extracting frame at %ds: %w, output: %s", ts, err, string(output))
+				return
+			}
+
+			// Report progress (0-80% for frame extraction phase)
+			completed := atomic.AddInt64(&completedFrames, 1)
+			if progressCallback != nil {
+				progress := int(float64(completed) / float64(totalFrames) * 80)
+				progressCallback(progress)
 			}
 		}(i)
 	}
@@ -275,7 +293,7 @@ func ExtractSpriteSheetsWithContext(ctx context.Context, videoPath, outputDir st
 		return nil, err
 	}
 
-	// Phase 2: Tile extracted frames into sprite sheets
+	// Phase 2: Tile extracted frames into sprite sheets (80-100% progress)
 	var spriteSheets []string
 	for sheetIndex := 0; sheetIndex < totalSheets; sheetIndex++ {
 		// Check for context cancellation between sheets
@@ -329,6 +347,12 @@ func ExtractSpriteSheetsWithContext(ctx context.Context, videoPath, outputDir st
 		}
 
 		spriteSheets = append(spriteSheets, spriteName)
+
+		// Report progress (80-100% for tiling phase)
+		if progressCallback != nil {
+			progress := 80 + int(float64(sheetIndex+1)/float64(totalSheets)*20)
+			progressCallback(progress)
+		}
 	}
 
 	return spriteSheets, nil

@@ -29,6 +29,8 @@ type Server struct {
 	tagService        *core.TagService
 	searchService     *core.SearchService
 	scanService       *core.ScanService
+	retryScheduler    *core.RetryScheduler
+	dlqService        *core.DLQService
 	srv               *http.Server
 }
 
@@ -44,6 +46,8 @@ func NewHTTPServer(
 	tagService *core.TagService,
 	searchService *core.SearchService,
 	scanService *core.ScanService,
+	retryScheduler *core.RetryScheduler,
+	dlqService *core.DLQService,
 ) *Server {
 	return &Server{
 		router:            router,
@@ -57,6 +61,8 @@ func NewHTTPServer(
 		tagService:        tagService,
 		searchService:     searchService,
 		scanService:       scanService,
+		retryScheduler:    retryScheduler,
+		dlqService:        dlqService,
 	}
 }
 
@@ -105,6 +111,23 @@ func (s *Server) Start() error {
 	if s.triggerScheduler != nil {
 		s.triggerScheduler.Start()
 		defer s.triggerScheduler.Stop()
+	}
+
+	// Wire up retry scheduler and DLQ service to processing service
+	if s.retryScheduler != nil {
+		s.retryScheduler.SetProcessingService(s.processingService)
+		s.retryScheduler.SetJobHistoryService(s.jobHistoryService)
+		s.retryScheduler.Start()
+		defer s.retryScheduler.Stop()
+	}
+
+	if s.dlqService != nil {
+		s.dlqService.SetProcessingService(s.processingService)
+	}
+
+	// Wire retry scheduler to job history service for automatic retry scheduling
+	if s.jobHistoryService != nil && s.retryScheduler != nil {
+		s.jobHistoryService.SetRetryScheduler(s.retryScheduler)
 	}
 
 	s.srv = &http.Server{

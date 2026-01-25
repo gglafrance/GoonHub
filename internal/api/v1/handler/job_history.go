@@ -18,9 +18,22 @@ type JobHandler struct {
 	processingConfigRepo data.ProcessingConfigRepository
 	triggerConfigRepo    data.TriggerConfigRepository
 	triggerScheduler     *core.TriggerScheduler
+	dlqService           *core.DLQService
+	retryConfigRepo      data.RetryConfigRepository
+	retryScheduler       *core.RetryScheduler
 }
 
-func NewJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.VideoProcessingService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository, triggerScheduler *core.TriggerScheduler) *JobHandler {
+func NewJobHandler(
+	jobHistoryService *core.JobHistoryService,
+	processingService *core.VideoProcessingService,
+	poolConfigRepo data.PoolConfigRepository,
+	processingConfigRepo data.ProcessingConfigRepository,
+	triggerConfigRepo data.TriggerConfigRepository,
+	triggerScheduler *core.TriggerScheduler,
+	dlqService *core.DLQService,
+	retryConfigRepo data.RetryConfigRepository,
+	retryScheduler *core.RetryScheduler,
+) *JobHandler {
 	return &JobHandler{
 		jobHistoryService:    jobHistoryService,
 		processingService:    processingService,
@@ -28,6 +41,9 @@ func NewJobHandler(jobHistoryService *core.JobHistoryService, processingService 
 		processingConfigRepo: processingConfigRepo,
 		triggerConfigRepo:    triggerConfigRepo,
 		triggerScheduler:     triggerScheduler,
+		dlqService:           dlqService,
+		retryConfigRepo:      retryConfigRepo,
+		retryScheduler:       retryScheduler,
 	}
 }
 
@@ -408,4 +424,181 @@ func (h *JobHandler) CancelJob(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Job cancelled", "job_id": jobID})
+}
+
+// DLQ Handlers
+
+func (h *JobHandler) ListDLQ(c *gin.Context) {
+	if h.dlqService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "DLQ service not available"})
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	status := c.DefaultQuery("status", "")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 50
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	var entries []data.DLQEntry
+	var total int64
+	var err error
+
+	if status != "" {
+		entries, total, err = h.dlqService.ListByStatus(status, page, limit)
+	} else {
+		entries, total, err = h.dlqService.ListAll(page, limit)
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list DLQ entries"})
+		return
+	}
+
+	stats, _ := h.dlqService.GetStats()
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  entries,
+		"total": total,
+		"page":  page,
+		"limit": limit,
+		"stats": stats,
+	})
+}
+
+func (h *JobHandler) RetryFromDLQ(c *gin.Context) {
+	if h.dlqService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "DLQ service not available"})
+		return
+	}
+
+	jobID := c.Param("job_id")
+	if jobID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "job_id is required"})
+		return
+	}
+
+	if err := h.dlqService.RetryFromDLQ(jobID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Job resubmitted from DLQ", "job_id": jobID})
+}
+
+func (h *JobHandler) AbandonDLQ(c *gin.Context) {
+	if h.dlqService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "DLQ service not available"})
+		return
+	}
+
+	jobID := c.Param("job_id")
+	if jobID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "job_id is required"})
+		return
+	}
+
+	if err := h.dlqService.Abandon(jobID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "DLQ entry abandoned", "job_id": jobID})
+}
+
+// Retry Config Handlers
+
+func (h *JobHandler) GetRetryConfig(c *gin.Context) {
+	if h.retryConfigRepo == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Retry config not available"})
+		return
+	}
+
+	configs, err := h.retryConfigRepo.GetAll()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get retry config"})
+		return
+	}
+
+	c.JSON(http.StatusOK, configs)
+}
+
+func (h *JobHandler) UpdateRetryConfig(c *gin.Context) {
+	if h.retryConfigRepo == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Retry config not available"})
+		return
+	}
+
+	var req struct {
+		Phase               string  `json:"phase"`
+		MaxRetries          int     `json:"max_retries"`
+		InitialDelaySeconds int     `json:"initial_delay_seconds"`
+		MaxDelaySeconds     int     `json:"max_delay_seconds"`
+		BackoffFactor       float64 `json:"backoff_factor"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// Validate phase
+	validRetryPhases := map[string]bool{"metadata": true, "thumbnail": true, "sprites": true, "scan": true}
+	if !validRetryPhases[req.Phase] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "phase must be one of: metadata, thumbnail, sprites, scan"})
+		return
+	}
+
+	// Validate values
+	if req.MaxRetries < 0 || req.MaxRetries > 10 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "max_retries must be between 0 and 10"})
+		return
+	}
+	if req.InitialDelaySeconds < 1 || req.InitialDelaySeconds > 3600 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "initial_delay_seconds must be between 1 and 3600"})
+		return
+	}
+	if req.MaxDelaySeconds < req.InitialDelaySeconds || req.MaxDelaySeconds > 86400 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "max_delay_seconds must be between initial_delay_seconds and 86400"})
+		return
+	}
+	if req.BackoffFactor < 1.0 || req.BackoffFactor > 5.0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "backoff_factor must be between 1.0 and 5.0"})
+		return
+	}
+
+	record := &data.RetryConfigRecord{
+		Phase:               req.Phase,
+		MaxRetries:          req.MaxRetries,
+		InitialDelaySeconds: req.InitialDelaySeconds,
+		MaxDelaySeconds:     req.MaxDelaySeconds,
+		BackoffFactor:       req.BackoffFactor,
+	}
+
+	if err := h.retryConfigRepo.Upsert(record); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update retry config"})
+		return
+	}
+
+	// Refresh the retry scheduler's cache
+	if h.retryScheduler != nil {
+		if err := h.retryScheduler.RefreshConfigCache(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Retry config saved but failed to refresh cache"})
+			return
+		}
+	}
+
+	configs, err := h.retryConfigRepo.GetAll()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Retry config saved but failed to reload"})
+		return
+	}
+	c.JSON(http.StatusOK, configs)
 }

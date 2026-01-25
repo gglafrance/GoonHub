@@ -320,6 +320,12 @@ func (s *ScanService) createVideoFromPath(path string, storagePath *data.Storage
 		return nil, fmt.Errorf("failed to create video record: %w", err)
 	}
 
+	s.logger.Info("Video record created",
+		zap.Uint("video_id", video.ID),
+		zap.String("stored_path", video.StoredPath),
+		zap.String("title", video.Title),
+	)
+
 	// Index video in search engine
 	if s.indexer != nil {
 		if err := s.indexer.IndexVideo(video); err != nil {
@@ -331,15 +337,17 @@ func (s *ScanService) createVideoFromPath(path string, storagePath *data.Storage
 	}
 
 	// Submit for processing
+	// NOTE: Explicitly capture videoID and videoPath to avoid potential closure issues
+	// where values might not be captured at goroutine creation time
 	if s.processingService != nil {
-		go func() {
-			if err := s.processingService.SubmitVideo(video.ID, path); err != nil {
+		go func(videoID uint, videoPath string) {
+			if err := s.processingService.SubmitVideo(videoID, videoPath); err != nil {
 				s.logger.Warn("Failed to submit video for processing",
-					zap.Uint("video_id", video.ID),
+					zap.Uint("video_id", videoID),
 					zap.Error(err),
 				)
 			}
-		}()
+		}(video.ID, path)
 	}
 
 	return video, nil

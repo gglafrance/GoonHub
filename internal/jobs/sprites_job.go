@@ -7,6 +7,7 @@ import (
 	"goonhub/pkg/ffmpeg"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -21,27 +22,29 @@ type SpritesResult struct {
 }
 
 type SpritesJob struct {
-	id            string
-	videoID       uint
-	videoPath     string
-	spriteDir     string
-	vttDir        string
-	tileWidth     int
-	tileHeight    int
-	duration      int
-	frameInterval int
-	frameQuality  int
-	gridCols      int
-	gridRows      int
-	concurrency   int
-	repo          data.VideoRepository
-	logger        *zap.Logger
-	status        JobStatus
-	error         error
-	cancelled     atomic.Bool
-	result        *SpritesResult
-	ctx           context.Context
-	cancelFn      context.CancelFunc
+	id               string
+	videoID          uint
+	videoPath        string
+	spriteDir        string
+	vttDir           string
+	tileWidth        int
+	tileHeight       int
+	duration         int
+	frameInterval    int
+	frameQuality     int
+	gridCols         int
+	gridRows         int
+	concurrency      int
+	repo             data.VideoRepository
+	logger           *zap.Logger
+	status           JobStatus
+	error            error
+	cancelled        atomic.Bool
+	result           *SpritesResult
+	ctx              context.Context
+	cancelFn         context.CancelFunc
+	progressCallback ProgressCallback
+	progressMu       sync.Mutex
 }
 
 func NewSpritesJob(
@@ -94,6 +97,24 @@ func (j *SpritesJob) Cancel() {
 	}
 }
 
+// SetProgressCallback sets the progress callback for this job.
+func (j *SpritesJob) SetProgressCallback(callback ProgressCallback) {
+	j.progressMu.Lock()
+	defer j.progressMu.Unlock()
+	j.progressCallback = callback
+}
+
+// reportProgress reports progress to the callback if set.
+func (j *SpritesJob) reportProgress(progress int) {
+	j.progressMu.Lock()
+	callback := j.progressCallback
+	j.progressMu.Unlock()
+
+	if callback != nil {
+		callback(j.id, progress)
+	}
+}
+
 func (j *SpritesJob) Execute() error {
 	return j.ExecuteWithContext(context.Background())
 }
@@ -131,7 +152,12 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 		return err
 	}
 
-	spriteSheets, err := ffmpeg.ExtractSpriteSheetsWithContext(
+	// Create a progress callback wrapper
+	progressCallback := func(progress int) {
+		j.reportProgress(progress)
+	}
+
+	spriteSheets, err := ffmpeg.ExtractSpriteSheetsWithProgress(
 		j.ctx,
 		j.videoPath,
 		j.spriteDir,
@@ -143,6 +169,7 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 		j.frameInterval,
 		j.frameQuality,
 		j.concurrency,
+		progressCallback,
 	)
 	if err != nil {
 		if j.ctx.Err() == context.DeadlineExceeded {

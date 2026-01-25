@@ -575,6 +575,58 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const fetchDLQ = async (page = 1, limit = 50, status?: string) => {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+        });
+        if (status) {
+            params.set('status', status);
+        }
+        const response = await fetch(`/api/v1/admin/dlq?${params}`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const retryFromDLQ = async (jobId: string) => {
+        const response = await fetch(`/api/v1/admin/dlq/${jobId}/retry`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const abandonDLQ = async (jobId: string) => {
+        const response = await fetch(`/api/v1/admin/dlq/${jobId}/abandon`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const fetchRetryConfig = async () => {
+        const response = await fetch('/api/v1/admin/retry-config', {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const updateRetryConfig = async (config: {
+        phase: string;
+        max_retries: number;
+        initial_delay_seconds: number;
+        max_delay_seconds: number;
+        backoff_factor: number;
+    }) => {
+        const response = await fetch('/api/v1/admin/retry-config', {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(config),
+        });
+        return handleResponse(response);
+    };
+
     return {
         uploadVideo,
         fetchVideos,
@@ -633,5 +685,10 @@ export const useApi = () => {
         cancelScan,
         getScanStatus,
         getScanHistory,
+        fetchDLQ,
+        retryFromDLQ,
+        abandonDLQ,
+        fetchRetryConfig,
+        updateRetryConfig,
     };
 };

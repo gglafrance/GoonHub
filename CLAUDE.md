@@ -154,7 +154,7 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - **Dynamic Configuration**: Worker pool size, processing quality, and trigger schedules are stored in DB and configurable at runtime via admin API.
 - **Queue Status Monitoring**: `VideoProcessingService.GetQueueStatus()` returns queued jobs per phase for frontend display.
 - **Meilisearch Full-Text Search**: SearchService orchestrates search operations via Meilisearch. Meilisearch handles full-text search and attribute filtering (tags, actors, studio, duration, resolution, date). PostgreSQL handles user-specific filters (liked, rating, jizz_count) via pre-filtering video IDs which are then passed to Meilisearch. Videos are indexed on: upload, update, delete, tag changes, and metadata extraction completion.
-- **Static Assets**: Thumbnails, sprites, VTT files served from `./data/` directory
+- **Static Assets**: Thumbnails, sprites, VTT files served from configured directories (`processing.thumbnail_dir`, `processing.sprite_dir`, `processing.vtt_dir`). Defaults: `./data/thumbnails`, `./data/sprites`, `./data/vtt`
 - **Frontend Proxy**: In dev, Vite proxies `/api`, `/thumbnails`, `/sprites`, `/vtt` to `:8080`
 - **Custom Elements**: Vue compiler configured to treat `media-*`, `videojs-video`, `media-theme` as custom elements
 - **Auto Imports**: Pinia stores and composables auto-imported via Nuxt config
@@ -289,3 +289,5 @@ When working on GoonHub, remember:
 - User-specific filters (liked, rating, jizz_count) are handled by querying PostgreSQL for matching video IDs first, then passing those IDs as a filter to Meilisearch
 - Meilisearch is required for search functionality - there is no PostgreSQL fallback
 - Use <NuxtTime :datetime=".." /> for date display
+- Static assets (thumbnails, sprites, VTT) are served from **configured** directories (`cfg.Processing.ThumbnailDir`, etc.) - never hardcode paths in the router
+- Default asset paths differ between dev (`./data/thumbnails`) and docker production (`/app/data/metadata/thumbnails`) - the router dynamically uses the configured paths

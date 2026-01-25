@@ -70,6 +70,50 @@ func (mr *MockJobHistoryRepositoryMockRecorder) DeleteOlderThan(before any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOlderThan", reflect.TypeOf((*MockJobHistoryRepository)(nil).DeleteOlderThan), before)
 }
 
+// GetByJobID mocks base method.
+func (m *MockJobHistoryRepository) GetByJobID(jobID string) (*data.JobHistory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByJobID", jobID)
+	ret0, _ := ret[0].(*data.JobHistory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByJobID indicates an expected call of GetByJobID.
+func (mr *MockJobHistoryRepositoryMockRecorder) GetByJobID(jobID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByJobID", reflect.TypeOf((*MockJobHistoryRepository)(nil).GetByJobID), jobID)
+}
+
+// GetRetryableJobs mocks base method.
+func (m *MockJobHistoryRepository) GetRetryableJobs() ([]data.JobHistory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRetryableJobs")
+	ret0, _ := ret[0].([]data.JobHistory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetRetryableJobs indicates an expected call of GetRetryableJobs.
+func (mr *MockJobHistoryRepositoryMockRecorder) GetRetryableJobs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRetryableJobs", reflect.TypeOf((*MockJobHistoryRepository)(nil).GetRetryableJobs))
+}
+
+// IncrementRetryCount mocks base method.
+func (m *MockJobHistoryRepository) IncrementRetryCount(jobID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IncrementRetryCount", jobID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// IncrementRetryCount indicates an expected call of IncrementRetryCount.
+func (mr *MockJobHistoryRepositoryMockRecorder) IncrementRetryCount(jobID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementRetryCount", reflect.TypeOf((*MockJobHistoryRepository)(nil).IncrementRetryCount), jobID)
+}
+
 // ListActive mocks base method.
 func (m *MockJobHistoryRepository) ListActive() ([]data.JobHistory, error) {
 	m.ctrl.T.Helper()
@@ -99,6 +143,48 @@ func (m *MockJobHistoryRepository) ListAll(page, limit int) ([]data.JobHistory, 
 func (mr *MockJobHistoryRepositoryMockRecorder) ListAll(page, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAll", reflect.TypeOf((*MockJobHistoryRepository)(nil).ListAll), page, limit)
+}
+
+// MarkNotRetryable mocks base method.
+func (m *MockJobHistoryRepository) MarkNotRetryable(jobID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkNotRetryable", jobID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MarkNotRetryable indicates an expected call of MarkNotRetryable.
+func (mr *MockJobHistoryRepositoryMockRecorder) MarkNotRetryable(jobID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkNotRetryable", reflect.TypeOf((*MockJobHistoryRepository)(nil).MarkNotRetryable), jobID)
+}
+
+// UpdateProgress mocks base method.
+func (m *MockJobHistoryRepository) UpdateProgress(jobID string, progress int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateProgress", jobID, progress)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateProgress indicates an expected call of UpdateProgress.
+func (mr *MockJobHistoryRepositoryMockRecorder) UpdateProgress(jobID, progress any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProgress", reflect.TypeOf((*MockJobHistoryRepository)(nil).UpdateProgress), jobID, progress)
+}
+
+// UpdateRetryInfo mocks base method.
+func (m *MockJobHistoryRepository) UpdateRetryInfo(jobID string, retryCount, maxRetries int, nextRetryAt *time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateRetryInfo", jobID, retryCount, maxRetries, nextRetryAt)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateRetryInfo indicates an expected call of UpdateRetryInfo.
+func (mr *MockJobHistoryRepositoryMockRecorder) UpdateRetryInfo(jobID, retryCount, maxRetries, nextRetryAt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRetryInfo", reflect.TypeOf((*MockJobHistoryRepository)(nil).UpdateRetryInfo), jobID, retryCount, maxRetries, nextRetryAt)
 }
 
 // UpdateStatus mocks base method.

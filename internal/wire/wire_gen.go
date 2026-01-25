@@ -71,7 +71,11 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	adminService := provideAdminService(userRepository, roleRepository, rbacService, logger)
 	adminHandler := provideAdminHandler(adminService, rbacService)
 	triggerScheduler := provideTriggerScheduler(triggerConfigRepository, videoRepository, videoProcessingService, logger)
-	jobHandler := provideJobHandler(jobHistoryService, videoProcessingService, poolConfigRepository, processingConfigRepository, triggerConfigRepository, triggerScheduler)
+	dlqRepository := provideDLQRepository(db)
+	dlqService := provideDLQService(dlqRepository, jobHistoryRepository, videoRepository, eventBus, logger)
+	retryConfigRepository := provideRetryConfigRepository(db)
+	retryScheduler := provideRetryScheduler(jobHistoryRepository, dlqRepository, retryConfigRepository, videoRepository, eventBus, logger)
+	jobHandler := provideJobHandler(jobHistoryService, videoProcessingService, poolConfigRepository, processingConfigRepository, triggerConfigRepository, triggerScheduler, dlqService, retryConfigRepository, retryScheduler)
 	sseHandler := provideSSEHandler(eventBus, authService, logger)
 	tagHandler := provideTagHandler(tagService)
 	interactionService := provideInteractionService(interactionRepository, logger)
@@ -88,7 +92,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	scanHandler := provideScanHandler(scanService)
 	ipRateLimiter := provideRateLimiter(configConfig)
 	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, authService, rbacService, ipRateLimiter)
-	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService, scanService)
+	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService, scanService, retryScheduler, dlqService)
 	return serverServer, nil
 }
 
@@ -133,8 +137,8 @@ func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config
 	return core.NewVideoProcessingService(repo, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo, triggerConfigRepo)
 }
 
-func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.VideoProcessingService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository, triggerScheduler *core.TriggerScheduler) *handler.JobHandler {
-	return handler.NewJobHandler(jobHistoryService, processingService, poolConfigRepo, processingConfigRepo, triggerConfigRepo, triggerScheduler)
+func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.VideoProcessingService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository, triggerScheduler *core.TriggerScheduler, dlqService *core.DLQService, retryConfigRepo data.RetryConfigRepository, retryScheduler *core.RetryScheduler) *handler.JobHandler {
+	return handler.NewJobHandler(jobHistoryService, processingService, poolConfigRepo, processingConfigRepo, triggerConfigRepo, triggerScheduler, dlqService, retryConfigRepo, retryScheduler)
 }
 
 func providePoolConfigRepository(db *gorm.DB) data.PoolConfigRepository {
@@ -271,8 +275,8 @@ func provideRouter(logger *logging.Logger, cfg *config.Config, videoHandler *han
 	return api.NewRouter(logger, cfg, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, authService, rbacService, rateLimiter)
 }
 
-func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService, jobHistoryService *core.JobHistoryService, triggerScheduler *core.TriggerScheduler, videoService *core.VideoService, tagService *core.TagService, searchService *core.SearchService, scanService *core.ScanService) *server.Server {
-	return server.NewHTTPServer(router, logger, cfg, processingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService, scanService)
+func provideServer(router *gin.Engine, logger *logging.Logger, cfg *config.Config, processingService *core.VideoProcessingService, userService *core.UserService, jobHistoryService *core.JobHistoryService, triggerScheduler *core.TriggerScheduler, videoService *core.VideoService, tagService *core.TagService, searchService *core.SearchService, scanService *core.ScanService, retryScheduler *core.RetryScheduler, dlqService *core.DLQService) *server.Server {
+	return server.NewHTTPServer(router, logger, cfg, processingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService, scanService, retryScheduler, dlqService)
 }
 
 func provideStoragePathRepository(db *gorm.DB) data.StoragePathRepository {
@@ -297,4 +301,20 @@ func provideScanService(storagePathService *core.StoragePathService, videoRepo d
 
 func provideScanHandler(scanService *core.ScanService) *handler.ScanHandler {
 	return handler.NewScanHandler(scanService)
+}
+
+func provideDLQRepository(db *gorm.DB) data.DLQRepository {
+	return data.NewDLQRepository(db)
+}
+
+func provideRetryConfigRepository(db *gorm.DB) data.RetryConfigRepository {
+	return data.NewRetryConfigRepository(db)
+}
+
+func provideRetryScheduler(jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, retryConfigRepo data.RetryConfigRepository, videoRepo data.VideoRepository, eventBus *core.EventBus, logger *logging.Logger) *core.RetryScheduler {
+	return core.NewRetryScheduler(jobHistoryRepo, dlqRepo, retryConfigRepo, videoRepo, eventBus, logger.Logger)
+}
+
+func provideDLQService(dlqRepo data.DLQRepository, jobHistoryRepo data.JobHistoryRepository, videoRepo data.VideoRepository, eventBus *core.EventBus, logger *logging.Logger) *core.DLQService {
+	return core.NewDLQService(dlqRepo, jobHistoryRepo, videoRepo, eventBus, logger.Logger)
 }

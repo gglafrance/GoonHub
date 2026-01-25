@@ -434,6 +434,11 @@ func (s *VideoProcessingService) onMetadataComplete(result jobs.JobResult) {
 	var spritesJob *jobs.SpritesJob
 
 	if submitThumbnail {
+		s.logger.Info("Creating thumbnail job from metadata result",
+			zap.Uint("result_video_id", result.VideoID),
+			zap.Uint("metadata_job_video_id", metadataJob.GetVideoID()),
+			zap.String("video_path", videoPath),
+		)
 		thumbnailJob = jobs.NewThumbnailJob(
 			result.VideoID,
 			videoPath,
@@ -670,7 +675,8 @@ func (s *VideoProcessingService) handleFailed(result jobs.JobResult) {
 	)
 
 	if s.jobHistory != nil && result.Error != nil {
-		s.jobHistory.RecordJobFailed(result.JobID, result.Error)
+		// Use RecordJobFailedWithRetry to schedule automatic retry
+		s.jobHistory.RecordJobFailedWithRetry(result.JobID, result.VideoID, result.Phase, result.Error)
 	}
 
 	s.phases.Delete(result.VideoID)
@@ -715,7 +721,9 @@ func (s *VideoProcessingService) handleTimedOut(result jobs.JobResult) {
 	)
 
 	if s.jobHistory != nil {
-		s.jobHistory.RecordJobTimedOut(result.JobID)
+		// Use RecordJobFailedWithRetry to schedule automatic retry for timed out jobs
+		timeoutErr := fmt.Errorf("job timed out")
+		s.jobHistory.RecordJobFailedWithRetry(result.JobID, result.VideoID, result.Phase, timeoutErr)
 	}
 
 	s.phases.Delete(result.VideoID)
@@ -825,6 +833,13 @@ func (s *VideoProcessingService) getPhasesTriggeredAfter(completedPhase string) 
 }
 
 func (s *VideoProcessingService) SubmitPhase(videoID uint, phase string) error {
+	return s.SubmitPhaseWithRetry(videoID, phase, 0, 0)
+}
+
+// SubmitPhaseWithRetry submits a phase for processing with retry tracking.
+// retryCount is the current retry attempt (0 for first attempt).
+// maxRetries is the maximum number of retries allowed (0 uses default from config).
+func (s *VideoProcessingService) SubmitPhaseWithRetry(videoID uint, phase string, retryCount, maxRetries int) error {
 	video, err := s.repo.GetByID(videoID)
 	if err != nil {
 		return fmt.Errorf("failed to get video: %w", err)
@@ -838,6 +853,18 @@ func (s *VideoProcessingService) SubmitPhase(videoID uint, phase string) error {
 	qualitySprites := s.processingQualityConfig.FrameQualitySprites
 	spritesConcurrency := s.processingQualityConfig.SpritesConcurrency
 	s.poolMu.RUnlock()
+
+	// Helper to record job start with or without retry info
+	recordJobStart := func(jobID string, phase string) {
+		if s.jobHistory == nil {
+			return
+		}
+		if retryCount > 0 || maxRetries > 0 {
+			s.jobHistory.RecordJobStartWithRetry(jobID, videoID, video.Title, phase, maxRetries, retryCount)
+		} else {
+			s.jobHistory.RecordJobStart(jobID, videoID, video.Title, phase)
+		}
+	}
 
 	switch phase {
 	case "metadata":
@@ -854,14 +881,18 @@ func (s *VideoProcessingService) SubmitPhase(videoID uint, phase string) error {
 			}
 			return fmt.Errorf("failed to submit metadata job: %w", err)
 		}
-		if s.jobHistory != nil {
-			s.jobHistory.RecordJobStart(job.GetID(), videoID, video.Title, "metadata")
-		}
+		recordJobStart(job.GetID(), "metadata")
 
 	case "thumbnail":
 		if video.Duration == 0 {
 			return fmt.Errorf("metadata must be extracted before thumbnail generation")
 		}
+		s.logger.Info("SubmitPhase: Creating thumbnail job",
+			zap.Uint("video_id", videoID),
+			zap.Uint("video_db_id", video.ID),
+			zap.String("video_stored_path", video.StoredPath),
+			zap.String("video_title", video.Title),
+		)
 		tileWidthLg, tileHeightLg := ffmpeg.CalculateTileDimensions(video.Width, video.Height, s.config.MaxFrameDimensionLarge)
 		thumbnailJob := jobs.NewThumbnailJob(
 			videoID, video.StoredPath, s.config.ThumbnailDir,
@@ -881,9 +912,7 @@ func (s *VideoProcessingService) SubmitPhase(videoID uint, phase string) error {
 			}
 			return fmt.Errorf("failed to submit thumbnail job: %w", err)
 		}
-		if s.jobHistory != nil {
-			s.jobHistory.RecordJobStart(thumbnailJob.GetID(), videoID, video.Title, "thumbnail")
-		}
+		recordJobStart(thumbnailJob.GetID(), "thumbnail")
 
 	case "sprites":
 		if video.Duration == 0 {
@@ -907,9 +936,7 @@ func (s *VideoProcessingService) SubmitPhase(videoID uint, phase string) error {
 			}
 			return fmt.Errorf("failed to submit sprites job: %w", err)
 		}
-		if s.jobHistory != nil {
-			s.jobHistory.RecordJobStart(spritesJob.GetID(), videoID, video.Title, "sprites")
-		}
+		recordJobStart(spritesJob.GetID(), "sprites")
 
 	default:
 		return fmt.Errorf("unknown phase: %s", phase)
@@ -918,6 +945,7 @@ func (s *VideoProcessingService) SubmitPhase(videoID uint, phase string) error {
 	s.logger.Info("Phase submitted",
 		zap.Uint("video_id", videoID),
 		zap.String("phase", phase),
+		zap.Int("retry_count", retryCount),
 	)
 	return nil
 }

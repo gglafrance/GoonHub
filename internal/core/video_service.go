@@ -124,15 +124,15 @@ func (s *VideoService) UploadVideo(file *multipart.FileHeader, title string) (*d
 	}
 
 	if s.ProcessingService != nil {
-		go func() {
-			if err := s.ProcessingService.SubmitVideo(video.ID, storedPath); err != nil {
+		go func(videoID uint, videoPath string) {
+			if err := s.ProcessingService.SubmitVideo(videoID, videoPath); err != nil {
 				s.logger.Error("Failed to submit video for processing",
-					zap.Uint("video_id", video.ID),
-					zap.String("video_path", storedPath),
+					zap.Uint("video_id", videoID),
+					zap.String("video_path", videoPath),
 					zap.Error(err),
 				)
 			}
-		}()
+		}(video.ID, storedPath)
 	}
 
 	// Index video in search engine

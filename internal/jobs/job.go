@@ -53,3 +53,11 @@ type JobResult struct {
 	Error   error
 	Data    any
 }
+
+// ProgressCallback is a function type for reporting job progress.
+type ProgressCallback func(jobID string, progress int)
+
+// ProgressReporter is an interface for jobs that support progress reporting.
+type ProgressReporter interface {
+	SetProgressCallback(callback ProgressCallback)
+}
