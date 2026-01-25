@@ -64,3 +64,6 @@ processing:
   metadata_timeout: 5m
   thumbnail_timeout: 2m
   sprites_timeout: 30m
+
+porndb:
+  api_key: "your-theporndb-api-token"

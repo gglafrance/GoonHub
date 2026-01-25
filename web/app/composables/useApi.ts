@@ -760,6 +760,31 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    // PornDB integration
+    const getPornDBStatus = async () => {
+        const response = await fetch('/api/v1/admin/porndb/status', {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const searchPornDBPerformers = async (query: string) => {
+        const params = new URLSearchParams({ q: query });
+        const response = await fetch(`/api/v1/admin/porndb/performers?${params}`, {
+            headers: getAuthHeaders(),
+        });
+        const result = await handleResponse(response);
+        return result.data || [];
+    };
+
+    const getPornDBPerformer = async (id: string) => {
+        const response = await fetch(`/api/v1/admin/porndb/performers/${id}`, {
+            headers: getAuthHeaders(),
+        });
+        const result = await handleResponse(response);
+        return result.data;
+    };
+
     return {
         uploadVideo,
         fetchVideos,
@@ -836,5 +861,8 @@ export const useApi = () => {
         setActorRating,
         deleteActorRating,
         toggleActorLike,
+        getPornDBStatus,
+        searchPornDBPerformers,
+        getPornDBPerformer,
     };
 };

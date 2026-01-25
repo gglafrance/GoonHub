@@ -18,6 +18,11 @@ type Config struct {
 	Processing  ProcessingConfig   `mapstructure:"processing"`
 	Auth        AuthConfig         `mapstructure:"auth"`
 	Meilisearch MeilisearchConfig  `mapstructure:"meilisearch"`
+	PornDB      PornDBConfig       `mapstructure:"porndb"`
+}
+
+type PornDBConfig struct {
+	APIKey string `mapstructure:"api_key"`
 }
 
 type MeilisearchConfig struct {
@@ -143,6 +148,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("meilisearch.host", "http://localhost:7700")
 	v.SetDefault("meilisearch.api_key", "goonhub_dev_master_key")
 	v.SetDefault("meilisearch.index_name", "videos")
+	v.SetDefault("porndb.api_key", "")
 
 	// Environment variables
 	v.SetEnvPrefix("GOONHUB")

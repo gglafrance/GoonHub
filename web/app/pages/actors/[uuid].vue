@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Actor } from '~/types/actor';
+import type { Actor, UpdateActorInput } from '~/types/actor';
 import type { Video } from '~/types/video';
 
 const route = useRoute();
@@ -17,6 +17,7 @@ const isLoadingVideos = ref(false);
 const error = ref<string | null>(null);
 const showEditModal = ref(false);
 const showCreateModal = ref(false);
+const showFetchModal = ref(false);
 
 // Rating state
 const currentRating = ref(0);
@@ -161,6 +162,17 @@ const handleActorUpdated = () => {
 const handleActorCreated = (newActor: Actor) => {
     showCreateModal.value = false;
     router.push(`/actors/${newActor.uuid}`);
+};
+
+const handleApplyMetadata = async (data: Partial<UpdateActorInput>) => {
+    if (!actor.value) return;
+    try {
+        await api.updateActor(actor.value.id, data);
+        showFetchModal.value = false;
+        await loadActor();
+    } catch (err) {
+        error.value = err instanceof Error ? err.message : 'Failed to update actor';
+    }
 };
 
 const formatAge = (birthday: string) => {
@@ -350,6 +362,15 @@ definePageMeta({
                                 >
                                     <Icon name="heroicons:plus" size="14" />
                                     New
+                                </button>
+                                <button
+                                    @click="showFetchModal = true"
+                                    class="border-border bg-panel hover:border-lava/50
+                                        hover:text-lava text-dim flex items-center gap-1 rounded-lg
+                                        border px-3 py-1.5 text-sm transition-colors"
+                                >
+                                    <Icon name="heroicons:cloud-arrow-down" size="14" />
+                                    Fetch
                                 </button>
                                 <button
                                     @click="showEditModal = true"
@@ -560,6 +581,16 @@ definePageMeta({
                 :visible="showCreateModal"
                 @close="showCreateModal = false"
                 @created="handleActorCreated"
+            />
+
+            <!-- Fetch Metadata Modal -->
+            <ActorsFetchMetadataModal
+                v-if="showFetchModal && actor"
+                :visible="showFetchModal"
+                :actor-name="actor.name"
+                :current-actor="actor"
+                @close="showFetchModal = false"
+                @apply="handleApplyMetadata"
             />
         </div>
     </div>

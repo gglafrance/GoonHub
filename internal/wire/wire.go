@@ -104,6 +104,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideStoragePathService,
 		provideScanService,
 
+		// External API Services
+		providePornDBService,
+
 		// ============================================================
 		// API LAYER - MIDDLEWARE
 		// ============================================================
@@ -139,6 +142,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideSSEHandler,
 		provideStoragePathHandler,
 		provideScanHandler,
+
+		// External API Handlers
+		providePornDBHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -354,6 +360,12 @@ func provideScanService(storagePathService *core.StoragePathService, videoRepo d
 	return core.NewScanService(storagePathService, videoRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
 }
 
+// --- External API Services ---
+
+func providePornDBService(cfg *config.Config, logger *logging.Logger) *core.PornDBService {
+	return core.NewPornDBService(cfg.PornDB.APIKey, logger.Logger)
+}
+
 // ============================================================================
 // API MIDDLEWARE PROVIDERS
 // ============================================================================
@@ -451,6 +463,12 @@ func provideScanHandler(scanService *core.ScanService) *handler.ScanHandler {
 	return handler.NewScanHandler(scanService)
 }
 
+// --- External API Handlers ---
+
+func providePornDBHandler(pornDBService *core.PornDBService) *handler.PornDBHandler {
+	return handler.NewPornDBHandler(pornDBService)
+}
+
 // ============================================================================
 // ROUTER & SERVER PROVIDERS
 // ============================================================================
@@ -477,6 +495,7 @@ func provideRouter(
 	watchHistoryHandler *handler.WatchHistoryHandler,
 	storagePathHandler *handler.StoragePathHandler,
 	scanHandler *handler.ScanHandler,
+	pornDBHandler *handler.PornDBHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -487,7 +506,7 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, interactionHandler,
 		actorInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		authService, rbacService, rateLimiter,
+		pornDBHandler, authService, rbacService, rateLimiter,
 	)
 }
 
