@@ -58,24 +58,27 @@ type LogConfig struct {
 }
 
 type ProcessingConfig struct {
-	FrameInterval            int    `mapstructure:"frame_interval"`             // seconds
-	MaxFrameDimension        int    `mapstructure:"max_frame_dimension"`        // longest side in pixels (small thumbnail)
-	MaxFrameDimensionLarge   int    `mapstructure:"max_frame_dimension_large"`  // longest side in pixels (large thumbnail)
-	FrameQuality             int    `mapstructure:"frame_quality"`              // 1-100, WebP quality (small thumbnails)
-	FrameQualityLg           int    `mapstructure:"frame_quality_lg"`           // 1-100, WebP quality (large thumbnails)
-	FrameQualitySprites      int    `mapstructure:"frame_quality_sprites"`      // 1-100, WebP quality (sprite sheets)
-	MetadataWorkers     int    `mapstructure:"metadata_workers"`      // concurrent metadata jobs
-	ThumbnailWorkers    int    `mapstructure:"thumbnail_workers"`     // concurrent thumbnail jobs
-	SpritesWorkers      int    `mapstructure:"sprites_workers"`       // concurrent sprites jobs
-	ThumbnailSeek       string `mapstructure:"thumbnail_seek"`        // "00:00:05" or "5%"
-	FrameOutputDir      string `mapstructure:"frame_output_dir"`      // relative to app root
-	ThumbnailDir        string `mapstructure:"thumbnail_dir"`         // relative to app root
-	SpriteDir           string `mapstructure:"sprite_dir"`            // relative to app root
-	VttDir              string `mapstructure:"vtt_dir"`               // relative to app root
-	GridCols            int    `mapstructure:"grid_cols"`             // number of columns in sprite sheet
-	GridRows            int    `mapstructure:"grid_rows"`             // number of rows in sprite sheet
-	SpritesConcurrency  int    `mapstructure:"sprites_concurrency"`   // concurrent ffmpeg processes for sprite extraction (0 = auto)
-	JobHistoryRetention string `mapstructure:"job_history_retention"` // duration string e.g. "7d", "24h"
+	FrameInterval            int           `mapstructure:"frame_interval"`             // seconds
+	MaxFrameDimension        int           `mapstructure:"max_frame_dimension"`        // longest side in pixels (small thumbnail)
+	MaxFrameDimensionLarge   int           `mapstructure:"max_frame_dimension_large"`  // longest side in pixels (large thumbnail)
+	FrameQuality             int           `mapstructure:"frame_quality"`              // 1-100, WebP quality (small thumbnails)
+	FrameQualityLg           int           `mapstructure:"frame_quality_lg"`           // 1-100, WebP quality (large thumbnails)
+	FrameQualitySprites      int           `mapstructure:"frame_quality_sprites"`      // 1-100, WebP quality (sprite sheets)
+	MetadataWorkers          int           `mapstructure:"metadata_workers"`           // concurrent metadata jobs
+	ThumbnailWorkers         int           `mapstructure:"thumbnail_workers"`          // concurrent thumbnail jobs
+	SpritesWorkers           int           `mapstructure:"sprites_workers"`            // concurrent sprites jobs
+	ThumbnailSeek            string        `mapstructure:"thumbnail_seek"`             // "00:00:05" or "5%"
+	FrameOutputDir           string        `mapstructure:"frame_output_dir"`           // relative to app root
+	ThumbnailDir             string        `mapstructure:"thumbnail_dir"`              // relative to app root
+	SpriteDir                string        `mapstructure:"sprite_dir"`                 // relative to app root
+	VttDir                   string        `mapstructure:"vtt_dir"`                    // relative to app root
+	GridCols                 int           `mapstructure:"grid_cols"`                  // number of columns in sprite sheet
+	GridRows                 int           `mapstructure:"grid_rows"`                  // number of rows in sprite sheet
+	SpritesConcurrency       int           `mapstructure:"sprites_concurrency"`        // concurrent ffmpeg processes for sprite extraction (0 = auto)
+	JobHistoryRetention      string        `mapstructure:"job_history_retention"`      // duration string e.g. "7d", "24h"
+	MetadataTimeout          time.Duration `mapstructure:"metadata_timeout"`           // timeout for metadata extraction jobs
+	ThumbnailTimeout         time.Duration `mapstructure:"thumbnail_timeout"`          // timeout for thumbnail extraction jobs
+	SpritesTimeout           time.Duration `mapstructure:"sprites_timeout"`            // timeout for sprite sheet generation jobs
 }
 
 type AuthConfig struct {
@@ -126,6 +129,9 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("processing.grid_rows", 8)
 	v.SetDefault("processing.sprites_concurrency", 0)
 	v.SetDefault("processing.job_history_retention", "7d")
+	v.SetDefault("processing.metadata_timeout", 5*time.Minute)
+	v.SetDefault("processing.thumbnail_timeout", 2*time.Minute)
+	v.SetDefault("processing.sprites_timeout", 30*time.Minute)
 	v.SetDefault("auth.paseto_secret", "")
 	v.SetDefault("auth.admin_username", "admin")
 	v.SetDefault("auth.admin_password", "admin")

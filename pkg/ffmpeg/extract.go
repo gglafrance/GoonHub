@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +13,10 @@ import (
 )
 
 func ExtractThumbnail(videoPath, outputPath, seekPosition string, width, height, quality int) error {
+	return ExtractThumbnailWithContext(context.Background(), videoPath, outputPath, seekPosition, width, height, quality)
+}
+
+func ExtractThumbnailWithContext(ctx context.Context, videoPath, outputPath, seekPosition string, width, height, quality int) error {
 	args := GetDefaultArgs()
 	args = append(args, []string{
 		"-ss", seekPosition,
@@ -23,8 +28,11 @@ func ExtractThumbnail(videoPath, outputPath, seekPosition string, width, height,
 		outputPath,
 	}...)
 
-	cmd := exec.Command(FFMpegPath(), args...)
+	cmd := exec.CommandContext(ctx, FFMpegPath(), args...)
 	if output, err := cmd.CombinedOutput(); err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		return fmt.Errorf("ffmpeg failed: %w, output: %s", err, string(output))
 	}
 
@@ -162,7 +170,11 @@ func ResizeImageToWebp(inputPath, outputPath string, width, height, quality int)
 }
 
 func ExtractSpriteSheets(videoPath, outputDir string, videoID int, width, height, gridCols, gridRows, interval, quality, concurrency int) ([]string, error) {
-	metadata, err := GetMetadata(videoPath)
+	return ExtractSpriteSheetsWithContext(context.Background(), videoPath, outputDir, videoID, width, height, gridCols, gridRows, interval, quality, concurrency)
+}
+
+func ExtractSpriteSheetsWithContext(ctx context.Context, videoPath, outputDir string, videoID int, width, height, gridCols, gridRows, interval, quality, concurrency int) ([]string, error) {
+	metadata, err := GetMetadataWithContext(ctx, videoPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get video metadata: %w", err)
 	}
@@ -209,8 +221,21 @@ func ExtractSpriteSheets(videoPath, outputDir string, videoID int, width, height
 		wg.Add(1)
 		go func(frameIndex int) {
 			defer wg.Done()
-			semaphore <- struct{}{}
+
+			// Check for context cancellation before acquiring semaphore
+			select {
+			case <-ctx.Done():
+				errChan <- ctx.Err()
+				return
+			case semaphore <- struct{}{}:
+			}
 			defer func() { <-semaphore }()
+
+			// Check again after acquiring semaphore
+			if ctx.Err() != nil {
+				errChan <- ctx.Err()
+				return
+			}
 
 			ts := frameIndex * interval
 			framePath := filepath.Join(tmpDir, fmt.Sprintf("frame_%04d.webp", frameIndex))
@@ -227,8 +252,12 @@ func ExtractSpriteSheets(videoPath, outputDir string, videoID int, width, height
 				framePath,
 			)
 
-			cmd := exec.Command(FFMpegPath(), args...)
+			cmd := exec.CommandContext(ctx, FFMpegPath(), args...)
 			if output, err := cmd.CombinedOutput(); err != nil {
+				if ctx.Err() != nil {
+					errChan <- ctx.Err()
+					return
+				}
 				errChan <- fmt.Errorf("ffmpeg failed extracting frame at %ds: %w, output: %s", ts, err, string(output))
 			}
 		}(i)
@@ -237,6 +266,11 @@ func ExtractSpriteSheets(videoPath, outputDir string, videoID int, width, height
 	wg.Wait()
 	close(errChan)
 
+	// Check for context cancellation first
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
 	if err := <-errChan; err != nil {
 		return nil, err
 	}
@@ -244,6 +278,11 @@ func ExtractSpriteSheets(videoPath, outputDir string, videoID int, width, height
 	// Phase 2: Tile extracted frames into sprite sheets
 	var spriteSheets []string
 	for sheetIndex := 0; sheetIndex < totalSheets; sheetIndex++ {
+		// Check for context cancellation between sheets
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
 		spriteName := fmt.Sprintf("%d_sheet_%03d.webp", videoID, sheetIndex+1)
 		spritePath := filepath.Join(outputDir, spriteName)
 
@@ -279,10 +318,13 @@ func ExtractSpriteSheets(videoPath, outputDir string, videoID int, width, height
 			spritePath,
 		)
 
-		cmd := exec.Command(FFMpegPath(), args...)
+		cmd := exec.CommandContext(ctx, FFMpegPath(), args...)
 		output, cmdErr := cmd.CombinedOutput()
 		os.RemoveAll(sheetDir)
 		if cmdErr != nil {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
 			return nil, fmt.Errorf("ffmpeg failed tiling sprite sheet %d: %w, output: %s", sheetIndex+1, cmdErr, string(output))
 		}
 

@@ -394,3 +394,18 @@ func (h *JobHandler) TriggerBulkPhase(c *gin.Context) {
 		"errors":    result.Errors,
 	})
 }
+
+func (h *JobHandler) CancelJob(c *gin.Context) {
+	jobID := c.Param("id")
+	if jobID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "job ID is required"})
+		return
+	}
+
+	if err := h.processingService.CancelJob(jobID); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Job cancelled", "job_id": jobID})
+}

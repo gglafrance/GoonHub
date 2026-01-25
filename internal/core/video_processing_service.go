@@ -140,12 +140,24 @@ func NewVideoProcessingService(
 
 	metadataPool := jobs.NewWorkerPool(metadataWorkers, 100)
 	metadataPool.SetLogger(logger.With(zap.String("pool", "metadata")))
+	if cfg.MetadataTimeout > 0 {
+		metadataPool.SetTimeout(cfg.MetadataTimeout)
+		logger.Info("Metadata pool timeout set", zap.Duration("timeout", cfg.MetadataTimeout))
+	}
 
 	thumbnailPool := jobs.NewWorkerPool(thumbnailWorkers, 100)
 	thumbnailPool.SetLogger(logger.With(zap.String("pool", "thumbnail")))
+	if cfg.ThumbnailTimeout > 0 {
+		thumbnailPool.SetTimeout(cfg.ThumbnailTimeout)
+		logger.Info("Thumbnail pool timeout set", zap.Duration("timeout", cfg.ThumbnailTimeout))
+	}
 
 	spritesPool := jobs.NewWorkerPool(spritesWorkers, 100)
 	spritesPool.SetLogger(logger.With(zap.String("pool", "sprites")))
+	if cfg.SpritesTimeout > 0 {
+		spritesPool.SetTimeout(cfg.SpritesTimeout)
+		logger.Info("Sprites pool timeout set", zap.Duration("timeout", cfg.SpritesTimeout))
+	}
 
 	if err := os.MkdirAll(cfg.SpriteDir, 0755); err != nil {
 		logger.Error("Failed to create sprite directory",
@@ -283,6 +295,14 @@ func (s *VideoProcessingService) SubmitVideo(videoID uint, videoPath string) err
 	s.poolMu.RUnlock()
 
 	if err != nil {
+		// Handle duplicate job gracefully - not an error
+		if jobs.IsDuplicateJobError(err) {
+			s.logger.Info("Duplicate metadata job skipped",
+				zap.Uint("video_id", videoID),
+				zap.Error(err),
+			)
+			return nil
+		}
 		s.logger.Error("Failed to submit metadata job",
 			zap.Uint("video_id", videoID),
 			zap.Error(err),
@@ -309,11 +329,9 @@ func (s *VideoProcessingService) processPoolResults(pool *jobs.WorkerPool) {
 		case jobs.JobStatusFailed:
 			s.handleFailed(result)
 		case jobs.JobStatusCancelled:
-			s.logger.Warn("Job cancelled",
-				zap.String("job_id", result.JobID),
-				zap.String("phase", result.Phase),
-				zap.Uint("video_id", result.VideoID),
-			)
+			s.handleCancelled(result)
+		case jobs.JobStatusTimedOut:
+			s.handleTimedOut(result)
 		}
 	}
 }
@@ -436,12 +454,19 @@ func (s *VideoProcessingService) onMetadataComplete(result jobs.JobResult) {
 		s.poolMu.RUnlock()
 
 		if thumbnailErr != nil {
-			s.logger.Error("Failed to submit thumbnail job",
-				zap.Uint("video_id", result.VideoID),
-				zap.Error(thumbnailErr),
-			)
-			s.repo.UpdateProcessingStatus(result.VideoID, "failed", "failed to submit thumbnail job")
-			return
+			if jobs.IsDuplicateJobError(thumbnailErr) {
+				s.logger.Info("Duplicate thumbnail job skipped",
+					zap.Uint("video_id", result.VideoID),
+				)
+				thumbnailJob = nil // Don't record in history
+			} else {
+				s.logger.Error("Failed to submit thumbnail job",
+					zap.Uint("video_id", result.VideoID),
+					zap.Error(thumbnailErr),
+				)
+				s.repo.UpdateProcessingStatus(result.VideoID, "failed", "failed to submit thumbnail job")
+				return
+			}
 		}
 	}
 
@@ -468,12 +493,19 @@ func (s *VideoProcessingService) onMetadataComplete(result jobs.JobResult) {
 		s.poolMu.RUnlock()
 
 		if spritesErr != nil {
-			s.logger.Error("Failed to submit sprites job",
-				zap.Uint("video_id", result.VideoID),
-				zap.Error(spritesErr),
-			)
-			s.repo.UpdateProcessingStatus(result.VideoID, "failed", "failed to submit sprites job")
-			return
+			if jobs.IsDuplicateJobError(spritesErr) {
+				s.logger.Info("Duplicate sprites job skipped",
+					zap.Uint("video_id", result.VideoID),
+				)
+				spritesJob = nil // Don't record in history
+			} else {
+				s.logger.Error("Failed to submit sprites job",
+					zap.Uint("video_id", result.VideoID),
+					zap.Error(spritesErr),
+				)
+				s.repo.UpdateProcessingStatus(result.VideoID, "failed", "failed to submit sprites job")
+				return
+			}
 		}
 	}
 
@@ -653,11 +685,96 @@ func (s *VideoProcessingService) handleFailed(result jobs.JobResult) {
 	})
 }
 
+func (s *VideoProcessingService) handleCancelled(result jobs.JobResult) {
+	s.logger.Warn("Job cancelled",
+		zap.String("job_id", result.JobID),
+		zap.String("phase", result.Phase),
+		zap.Uint("video_id", result.VideoID),
+	)
+
+	if s.jobHistory != nil {
+		s.jobHistory.RecordJobCancelled(result.JobID)
+	}
+
+	s.phases.Delete(result.VideoID)
+
+	s.eventBus.Publish(VideoEvent{
+		Type:    "video:cancelled",
+		VideoID: result.VideoID,
+		Data: map[string]any{
+			"phase": result.Phase,
+		},
+	})
+}
+
+func (s *VideoProcessingService) handleTimedOut(result jobs.JobResult) {
+	s.logger.Error("Job timed out",
+		zap.String("job_id", result.JobID),
+		zap.String("phase", result.Phase),
+		zap.Uint("video_id", result.VideoID),
+	)
+
+	if s.jobHistory != nil {
+		s.jobHistory.RecordJobTimedOut(result.JobID)
+	}
+
+	s.phases.Delete(result.VideoID)
+
+	s.eventBus.Publish(VideoEvent{
+		Type:    "video:timed_out",
+		VideoID: result.VideoID,
+		Data: map[string]any{
+			"phase": result.Phase,
+		},
+	})
+}
+
 func (s *VideoProcessingService) Stop() {
 	s.logger.Info("Stopping video processing service")
 	s.metadataPool.Stop()
 	s.thumbnailPool.Stop()
 	s.spritesPool.Stop()
+}
+
+// CancelJob cancels a running job by its ID. It searches all pools.
+func (s *VideoProcessingService) CancelJob(jobID string) error {
+	s.poolMu.RLock()
+	defer s.poolMu.RUnlock()
+
+	// Try to find and cancel the job in each pool
+	if err := s.metadataPool.CancelJob(jobID); err == nil {
+		s.logger.Info("Job cancelled in metadata pool", zap.String("job_id", jobID))
+		return nil
+	}
+
+	if err := s.thumbnailPool.CancelJob(jobID); err == nil {
+		s.logger.Info("Job cancelled in thumbnail pool", zap.String("job_id", jobID))
+		return nil
+	}
+
+	if err := s.spritesPool.CancelJob(jobID); err == nil {
+		s.logger.Info("Job cancelled in sprites pool", zap.String("job_id", jobID))
+		return nil
+	}
+
+	return fmt.Errorf("job not found: %s", jobID)
+}
+
+// GetJob retrieves a job by its ID from any pool.
+func (s *VideoProcessingService) GetJob(jobID string) (jobs.Job, bool) {
+	s.poolMu.RLock()
+	defer s.poolMu.RUnlock()
+
+	if job, ok := s.metadataPool.GetJob(jobID); ok {
+		return job, true
+	}
+	if job, ok := s.thumbnailPool.GetJob(jobID); ok {
+		return job, true
+	}
+	if job, ok := s.spritesPool.GetJob(jobID); ok {
+		return job, true
+	}
+	return nil, false
 }
 
 func (s *VideoProcessingService) RefreshTriggerCache() error {
@@ -729,6 +846,12 @@ func (s *VideoProcessingService) SubmitPhase(videoID uint, phase string) error {
 		err = s.metadataPool.Submit(job)
 		s.poolMu.RUnlock()
 		if err != nil {
+			if jobs.IsDuplicateJobError(err) {
+				s.logger.Info("Duplicate metadata job skipped",
+					zap.Uint("video_id", videoID),
+				)
+				return nil
+			}
 			return fmt.Errorf("failed to submit metadata job: %w", err)
 		}
 		if s.jobHistory != nil {
@@ -750,6 +873,12 @@ func (s *VideoProcessingService) SubmitPhase(videoID uint, phase string) error {
 		err = s.thumbnailPool.Submit(thumbnailJob)
 		s.poolMu.RUnlock()
 		if err != nil {
+			if jobs.IsDuplicateJobError(err) {
+				s.logger.Info("Duplicate thumbnail job skipped",
+					zap.Uint("video_id", videoID),
+				)
+				return nil
+			}
 			return fmt.Errorf("failed to submit thumbnail job: %w", err)
 		}
 		if s.jobHistory != nil {
@@ -770,6 +899,12 @@ func (s *VideoProcessingService) SubmitPhase(videoID uint, phase string) error {
 		err = s.spritesPool.Submit(spritesJob)
 		s.poolMu.RUnlock()
 		if err != nil {
+			if jobs.IsDuplicateJobError(err) {
+				s.logger.Info("Duplicate sprites job skipped",
+					zap.Uint("video_id", videoID),
+				)
+				return nil
+			}
 			return fmt.Errorf("failed to submit sprites job: %w", err)
 		}
 		if s.jobHistory != nil {

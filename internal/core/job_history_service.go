@@ -82,6 +82,28 @@ func (s *JobHistoryService) RecordJobFailed(jobID string, jobErr error) {
 	}
 }
 
+func (s *JobHistoryService) RecordJobCancelled(jobID string) {
+	now := time.Now()
+	errMsg := "job was cancelled"
+	if err := s.repo.UpdateStatus(jobID, "cancelled", &errMsg, &now); err != nil {
+		s.logger.Error("Failed to record job cancellation",
+			zap.String("job_id", jobID),
+			zap.Error(err),
+		)
+	}
+}
+
+func (s *JobHistoryService) RecordJobTimedOut(jobID string) {
+	now := time.Now()
+	errMsg := "job timed out"
+	if err := s.repo.UpdateStatus(jobID, "timed_out", &errMsg, &now); err != nil {
+		s.logger.Error("Failed to record job timeout",
+			zap.String("job_id", jobID),
+			zap.Error(err),
+		)
+	}
+}
+
 func (s *JobHistoryService) StartCleanupTicker() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel

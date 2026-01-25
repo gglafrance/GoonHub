@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"context"
 	"fmt"
 	"goonhub/internal/data"
 	"goonhub/pkg/ffmpeg"
@@ -39,6 +40,8 @@ type SpritesJob struct {
 	error         error
 	cancelled     atomic.Bool
 	result        *SpritesResult
+	ctx           context.Context
+	cancelFn      context.CancelFunc
 }
 
 func NewSpritesJob(
@@ -86,9 +89,20 @@ func (j *SpritesJob) GetResult() *SpritesResult { return j.result }
 
 func (j *SpritesJob) Cancel() {
 	j.cancelled.Store(true)
+	if j.cancelFn != nil {
+		j.cancelFn()
+	}
 }
 
 func (j *SpritesJob) Execute() error {
+	return j.ExecuteWithContext(context.Background())
+}
+
+func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
+	// Create a cancellable context for this execution
+	j.ctx, j.cancelFn = context.WithCancel(ctx)
+	defer j.cancelFn()
+
 	startTime := time.Now()
 	j.status = JobStatusRunning
 
@@ -102,7 +116,8 @@ func (j *SpritesJob) Execute() error {
 		zap.Int("grid_rows", j.gridRows),
 	)
 
-	if j.cancelled.Load() {
+	// Check for cancellation
+	if j.cancelled.Load() || j.ctx.Err() != nil {
 		j.status = JobStatusCancelled
 		return fmt.Errorf("job cancelled")
 	}
@@ -116,7 +131,8 @@ func (j *SpritesJob) Execute() error {
 		return err
 	}
 
-	spriteSheets, err := ffmpeg.ExtractSpriteSheets(
+	spriteSheets, err := ffmpeg.ExtractSpriteSheetsWithContext(
+		j.ctx,
 		j.videoPath,
 		j.spriteDir,
 		int(j.videoID),
@@ -129,6 +145,16 @@ func (j *SpritesJob) Execute() error {
 		j.concurrency,
 	)
 	if err != nil {
+		if j.ctx.Err() == context.DeadlineExceeded {
+			j.status = JobStatusTimedOut
+			j.error = fmt.Errorf("sprite sheet generation timed out")
+			j.repo.UpdateProcessingStatus(j.videoID, string(JobStatusTimedOut), "sprite sheet generation timed out")
+			return j.error
+		}
+		if j.ctx.Err() == context.Canceled || j.cancelled.Load() {
+			j.status = JobStatusCancelled
+			return fmt.Errorf("job cancelled")
+		}
 		j.logger.Error("Failed to generate sprite sheets",
 			zap.Uint("video_id", j.videoID),
 			zap.Error(err),

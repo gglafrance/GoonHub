@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"context"
 	"fmt"
 	"goonhub/internal/data"
 	"goonhub/pkg/ffmpeg"
@@ -40,6 +41,8 @@ type ThumbnailJob struct {
 	error           error
 	cancelled       atomic.Bool
 	result          *ThumbnailResult
+	ctx             context.Context
+	cancelFn        context.CancelFunc
 }
 
 func NewThumbnailJob(
@@ -83,9 +86,20 @@ func (j *ThumbnailJob) GetResult() *ThumbnailResult { return j.result }
 
 func (j *ThumbnailJob) Cancel() {
 	j.cancelled.Store(true)
+	if j.cancelFn != nil {
+		j.cancelFn()
+	}
 }
 
 func (j *ThumbnailJob) Execute() error {
+	return j.ExecuteWithContext(context.Background())
+}
+
+func (j *ThumbnailJob) ExecuteWithContext(ctx context.Context) error {
+	// Create a cancellable context for this execution
+	j.ctx, j.cancelFn = context.WithCancel(ctx)
+	defer j.cancelFn()
+
 	startTime := time.Now()
 	j.status = JobStatusRunning
 
@@ -96,7 +110,8 @@ func (j *ThumbnailJob) Execute() error {
 		zap.Int("tile_height", j.tileHeight),
 	)
 
-	if j.cancelled.Load() {
+	// Check for cancellation
+	if j.cancelled.Load() || j.ctx.Err() != nil {
 		j.status = JobStatusCancelled
 		return fmt.Errorf("job cancelled")
 	}
@@ -115,7 +130,17 @@ func (j *ThumbnailJob) Execute() error {
 	thumbnailSeek := fmt.Sprintf("%d", j.duration/2)
 
 	// Extract small thumbnail
-	if err := ffmpeg.ExtractThumbnail(j.videoPath, thumbnailPathSmall, thumbnailSeek, j.tileWidth, j.tileHeight, j.frameQualitySm); err != nil {
+	if err := ffmpeg.ExtractThumbnailWithContext(j.ctx, j.videoPath, thumbnailPathSmall, thumbnailSeek, j.tileWidth, j.tileHeight, j.frameQualitySm); err != nil {
+		if j.ctx.Err() == context.DeadlineExceeded {
+			j.status = JobStatusTimedOut
+			j.error = fmt.Errorf("thumbnail extraction timed out")
+			j.repo.UpdateProcessingStatus(j.videoID, string(JobStatusTimedOut), "thumbnail extraction timed out")
+			return j.error
+		}
+		if j.ctx.Err() == context.Canceled || j.cancelled.Load() {
+			j.status = JobStatusCancelled
+			return fmt.Errorf("job cancelled")
+		}
 		j.logger.Error("Failed to extract small thumbnail",
 			zap.Uint("video_id", j.videoID),
 			zap.Error(err),
@@ -124,8 +149,24 @@ func (j *ThumbnailJob) Execute() error {
 		return err
 	}
 
+	// Check for cancellation before large thumbnail
+	if j.cancelled.Load() || j.ctx.Err() != nil {
+		j.status = JobStatusCancelled
+		return fmt.Errorf("job cancelled")
+	}
+
 	// Extract large thumbnail
-	if err := ffmpeg.ExtractThumbnail(j.videoPath, thumbnailPathLarge, thumbnailSeek, j.tileWidthLarge, j.tileHeightLarge, j.frameQualityLg); err != nil {
+	if err := ffmpeg.ExtractThumbnailWithContext(j.ctx, j.videoPath, thumbnailPathLarge, thumbnailSeek, j.tileWidthLarge, j.tileHeightLarge, j.frameQualityLg); err != nil {
+		if j.ctx.Err() == context.DeadlineExceeded {
+			j.status = JobStatusTimedOut
+			j.error = fmt.Errorf("thumbnail extraction timed out")
+			j.repo.UpdateProcessingStatus(j.videoID, string(JobStatusTimedOut), "thumbnail extraction timed out")
+			return j.error
+		}
+		if j.ctx.Err() == context.Canceled || j.cancelled.Load() {
+			j.status = JobStatusCancelled
+			return fmt.Errorf("job cancelled")
+		}
 		j.logger.Error("Failed to extract large thumbnail",
 			zap.Uint("video_id", j.videoID),
 			zap.Error(err),

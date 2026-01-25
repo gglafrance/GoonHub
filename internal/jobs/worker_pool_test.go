@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -11,22 +12,30 @@ import (
 // testJob is a minimal Job implementation for testing
 type testJob struct {
 	id        string
+	videoID   uint // Unique per job to avoid deduplication
 	status    JobStatus
 	err       error
 	executeFn func() error
 	cancelled atomic.Bool
 }
 
+var testJobCounter atomic.Uint64
+
 func newTestJob(id string, fn func() error) *testJob {
 	return &testJob{
 		id:        id,
+		videoID:   uint(testJobCounter.Add(1)), // Unique video ID for each job
 		status:    JobStatusPending,
 		executeFn: fn,
 	}
 }
 
 func (j *testJob) Execute() error {
-	if j.cancelled.Load() {
+	return j.ExecuteWithContext(context.Background())
+}
+
+func (j *testJob) ExecuteWithContext(ctx context.Context) error {
+	if j.cancelled.Load() || ctx.Err() != nil {
 		j.status = JobStatusCancelled
 		return fmt.Errorf("job cancelled")
 	}
@@ -46,7 +55,7 @@ func (j *testJob) Cancel() {
 }
 
 func (j *testJob) GetID() string        { return j.id }
-func (j *testJob) GetVideoID() uint     { return 0 }
+func (j *testJob) GetVideoID() uint     { return j.videoID }
 func (j *testJob) GetPhase() string     { return "test" }
 func (j *testJob) GetStatus() JobStatus { return j.status }
 func (j *testJob) GetError() error      { return j.err }
@@ -248,14 +257,351 @@ func TestWorkerPool_CancelledJob(t *testing.T) {
 		if r.JobID != "to-cancel" {
 			t.Fatalf("expected job ID 'to-cancel', got %s", r.JobID)
 		}
-		if r.Status != JobStatusFailed {
-			t.Fatalf("expected cancelled job to have failed status, got %s", r.Status)
+		// Job can report as cancelled or failed depending on when the check happens
+		if r.Status != JobStatusCancelled && r.Status != JobStatusFailed {
+			t.Fatalf("expected cancelled or failed status, got %s", r.Status)
 		}
 		if r.Error == nil || r.Error.Error() != "job cancelled" {
 			t.Fatalf("expected 'job cancelled' error, got: %v", r.Error)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for cancelled job result")
+	}
+
+	pool.Stop()
+}
+
+// testJobWithVideoID extends testJob with a video ID for duplicate testing
+type testJobWithVideoID struct {
+	id        string
+	videoID   uint
+	phase     string
+	status    JobStatus
+	err       error
+	executeFn func(ctx context.Context) error
+	cancelled atomic.Bool
+	cancelFn  context.CancelFunc
+	mu        sync.Mutex
+}
+
+func newTestJobWithVideoID(id string, videoID uint, phase string, fn func() error) *testJobWithVideoID {
+	return &testJobWithVideoID{
+		id:      id,
+		videoID: videoID,
+		phase:   phase,
+		status:  JobStatusPending,
+		executeFn: func(ctx context.Context) error {
+			return fn()
+		},
+	}
+}
+
+func newTestJobWithVideoIDContext(id string, videoID uint, phase string, fn func(ctx context.Context) error) *testJobWithVideoID {
+	return &testJobWithVideoID{
+		id:        id,
+		videoID:   videoID,
+		phase:     phase,
+		status:    JobStatusPending,
+		executeFn: fn,
+	}
+}
+
+func (j *testJobWithVideoID) Execute() error {
+	return j.ExecuteWithContext(context.Background())
+}
+
+func (j *testJobWithVideoID) ExecuteWithContext(ctx context.Context) error {
+	// Create a cancellable context for this execution
+	j.mu.Lock()
+	execCtx, cancelFn := context.WithCancel(ctx)
+	j.cancelFn = cancelFn
+	j.mu.Unlock()
+	defer cancelFn()
+
+	if j.cancelled.Load() || execCtx.Err() != nil {
+		j.status = JobStatusCancelled
+		return fmt.Errorf("job cancelled")
+	}
+	j.status = JobStatusRunning
+	err := j.executeFn(execCtx)
+	if ctx.Err() == context.DeadlineExceeded || execCtx.Err() == context.DeadlineExceeded {
+		j.status = JobStatusTimedOut
+		j.err = fmt.Errorf("job timed out")
+		return j.err
+	}
+	if ctx.Err() == context.Canceled || execCtx.Err() == context.Canceled || j.cancelled.Load() {
+		j.status = JobStatusCancelled
+		return fmt.Errorf("job cancelled")
+	}
+	if err != nil {
+		j.status = JobStatusFailed
+		j.err = err
+	} else {
+		j.status = JobStatusCompleted
+	}
+	return err
+}
+
+func (j *testJobWithVideoID) Cancel() {
+	j.cancelled.Store(true)
+	j.mu.Lock()
+	if j.cancelFn != nil {
+		j.cancelFn()
+	}
+	j.mu.Unlock()
+}
+
+func (j *testJobWithVideoID) GetID() string        { return j.id }
+func (j *testJobWithVideoID) GetVideoID() uint     { return j.videoID }
+func (j *testJobWithVideoID) GetPhase() string     { return j.phase }
+func (j *testJobWithVideoID) GetStatus() JobStatus { return j.status }
+func (j *testJobWithVideoID) GetError() error      { return j.err }
+
+func TestWorkerPool_DuplicateJobRejection(t *testing.T) {
+	pool := NewWorkerPool(1, 10)
+	pool.Start()
+
+	executed := make(chan struct{}, 2)
+
+	// Submit first job
+	job1 := newTestJobWithVideoID("job-1", 100, "metadata", func() error {
+		time.Sleep(100 * time.Millisecond) // Hold the job for a bit
+		executed <- struct{}{}
+		return nil
+	})
+
+	if err := pool.Submit(job1); err != nil {
+		t.Fatalf("failed to submit first job: %v", err)
+	}
+
+	// Try to submit duplicate job (same video+phase)
+	job2 := newTestJobWithVideoID("job-2", 100, "metadata", func() error {
+		executed <- struct{}{}
+		return nil
+	})
+
+	err := pool.Submit(job2)
+	if err == nil {
+		t.Fatal("expected error for duplicate job, got nil")
+	}
+
+	if !IsDuplicateJobError(err) {
+		t.Fatalf("expected DuplicateJobError, got: %v", err)
+	}
+
+	// Wait for first job to complete
+	select {
+	case <-pool.Results():
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for job result")
+	}
+
+	// Verify only one job executed
+	select {
+	case <-executed:
+	case <-time.After(1 * time.Second):
+		t.Fatal("first job did not execute")
+	}
+
+	// Second execution should not happen
+	select {
+	case <-executed:
+		t.Fatal("duplicate job should not have executed")
+	default:
+		// This is expected
+	}
+
+	pool.Stop()
+}
+
+func TestWorkerPool_CancelJobActive(t *testing.T) {
+	pool := NewWorkerPool(1, 10)
+	pool.Start()
+
+	started := make(chan struct{})
+	job := newTestJobWithVideoIDContext("cancellable", 200, "thumbnail", func(ctx context.Context) error {
+		close(started)
+		// Simulate a long-running job that checks context
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Second):
+			return nil
+		}
+	})
+
+	if err := pool.Submit(job); err != nil {
+		t.Fatalf("failed to submit job: %v", err)
+	}
+
+	// Wait for job to start
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("job did not start")
+	}
+
+	// Cancel the job
+	if err := pool.CancelJob("cancellable"); err != nil {
+		t.Fatalf("failed to cancel job: %v", err)
+	}
+
+	// Result should indicate cancellation
+	select {
+	case result := <-pool.Results():
+		if result.Status != JobStatusCancelled && result.Status != JobStatusFailed {
+			t.Fatalf("expected cancelled or failed status, got %s", result.Status)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for cancelled job result")
+	}
+
+	pool.Stop()
+}
+
+func TestWorkerPool_CancelJobNotFound(t *testing.T) {
+	pool := NewWorkerPool(1, 10)
+	pool.Start()
+
+	err := pool.CancelJob("non-existent")
+	if err == nil {
+		t.Fatal("expected error for non-existent job")
+	}
+
+	if err.Error() != "job not found: non-existent" {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+
+	pool.Stop()
+}
+
+func TestWorkerPool_Timeout(t *testing.T) {
+	pool := NewWorkerPool(1, 10)
+	pool.SetTimeout(100 * time.Millisecond)
+	pool.Start()
+
+	job := newTestJobWithVideoIDContext("slow-job", 300, "sprites", func(ctx context.Context) error {
+		// Simulate a long-running job that checks context
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Second):
+			return nil
+		}
+	})
+
+	if err := pool.Submit(job); err != nil {
+		t.Fatalf("failed to submit job: %v", err)
+	}
+
+	// Result should indicate timeout
+	select {
+	case result := <-pool.Results():
+		// The job may report timed_out, cancelled, or failed depending on timing
+		if result.Status != JobStatusTimedOut && result.Status != JobStatusCancelled && result.Status != JobStatusFailed {
+			t.Fatalf("expected timed_out, cancelled, or failed status, got %s", result.Status)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for timeout result")
+	}
+
+	pool.Stop()
+}
+
+func TestWorkerPool_GetJob(t *testing.T) {
+	pool := NewWorkerPool(1, 10)
+	pool.Start()
+
+	done := make(chan struct{})
+	job := newTestJobWithVideoID("trackable", 400, "metadata", func() error {
+		<-done // Wait until we signal to complete
+		return nil
+	})
+
+	if err := pool.Submit(job); err != nil {
+		t.Fatalf("failed to submit job: %v", err)
+	}
+
+	// Give time for job to be picked up
+	time.Sleep(50 * time.Millisecond)
+
+	// Should be able to get the job while it's running
+	retrieved, ok := pool.GetJob("trackable")
+	if !ok {
+		t.Fatal("expected to find job by ID")
+	}
+	if retrieved.GetID() != "trackable" {
+		t.Fatalf("expected job ID 'trackable', got %s", retrieved.GetID())
+	}
+
+	// Signal job to complete
+	close(done)
+
+	// Drain result
+	select {
+	case <-pool.Results():
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for job result")
+	}
+
+	// After completion, job should be unregistered
+	_, ok = pool.GetJob("trackable")
+	if ok {
+		t.Fatal("expected job to be unregistered after completion")
+	}
+
+	pool.Stop()
+}
+
+func TestWorkerPool_SetTimeout(t *testing.T) {
+	pool := NewWorkerPool(1, 10)
+
+	// Initial timeout should be 0
+	if pool.GetTimeout() != 0 {
+		t.Fatalf("expected initial timeout 0, got %v", pool.GetTimeout())
+	}
+
+	// Set timeout
+	pool.SetTimeout(5 * time.Minute)
+	if pool.GetTimeout() != 5*time.Minute {
+		t.Fatalf("expected timeout 5m, got %v", pool.GetTimeout())
+	}
+}
+
+func TestWorkerPool_ResubmitAfterComplete(t *testing.T) {
+	pool := NewWorkerPool(1, 10)
+	pool.Start()
+
+	// Submit and complete first job
+	job1 := newTestJobWithVideoID("job-1", 500, "metadata", func() error {
+		return nil
+	})
+
+	if err := pool.Submit(job1); err != nil {
+		t.Fatalf("failed to submit first job: %v", err)
+	}
+
+	// Wait for completion
+	select {
+	case <-pool.Results():
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for first job")
+	}
+
+	// Should be able to resubmit for same video+phase
+	job2 := newTestJobWithVideoID("job-2", 500, "metadata", func() error {
+		return nil
+	})
+
+	if err := pool.Submit(job2); err != nil {
+		t.Fatalf("failed to resubmit job: %v", err)
+	}
+
+	// Wait for completion
+	select {
+	case <-pool.Results():
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for second job")
 	}
 
 	pool.Stop()

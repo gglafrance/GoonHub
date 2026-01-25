@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -18,6 +19,8 @@ type WorkerPool struct {
 	cancel      context.CancelFunc
 	running     atomic.Bool
 	logger      *zap.Logger
+	registry    *JobRegistry
+	timeout     time.Duration
 }
 
 func NewWorkerPool(workerCount int, queueSize int) *WorkerPool {
@@ -29,6 +32,8 @@ func NewWorkerPool(workerCount int, queueSize int) *WorkerPool {
 		ctx:         ctx,
 		cancel:      cancel,
 		logger:      zap.NewNop(),
+		registry:    NewJobRegistry(),
+		timeout:     0, // no timeout by default
 	}
 }
 
@@ -81,16 +86,54 @@ func (p *WorkerPool) worker(id int) {
 				Phase:   job.GetPhase(),
 			}
 
-			if err := job.Execute(); err != nil {
-				result.Status = JobStatusFailed
-				result.Error = err
-				p.logger.Error("Worker job failed",
-					zap.Int("worker_id", id),
-					zap.String("job_id", job.GetID()),
-					zap.String("phase", job.GetPhase()),
-					zap.Uint("video_id", job.GetVideoID()),
-					zap.Error(err),
-				)
+			// Create execution context with optional timeout
+			var execCtx context.Context
+			var execCancel context.CancelFunc
+			if p.timeout > 0 {
+				execCtx, execCancel = context.WithTimeout(p.ctx, p.timeout)
+			} else {
+				execCtx, execCancel = context.WithCancel(p.ctx)
+			}
+
+			err := job.ExecuteWithContext(execCtx)
+			execCancel()
+
+			// Unregister the job from the registry after execution
+			p.registry.Unregister(job.GetID())
+
+			if err != nil {
+				// Check for timeout vs cancellation vs other failures
+				jobStatus := job.GetStatus()
+				if jobStatus == JobStatusTimedOut {
+					result.Status = JobStatusTimedOut
+					result.Error = err
+					p.logger.Warn("Worker job timed out",
+						zap.Int("worker_id", id),
+						zap.String("job_id", job.GetID()),
+						zap.String("phase", job.GetPhase()),
+						zap.Uint("video_id", job.GetVideoID()),
+						zap.Duration("timeout", p.timeout),
+					)
+				} else if jobStatus == JobStatusCancelled {
+					result.Status = JobStatusCancelled
+					result.Error = err
+					p.logger.Warn("Worker job cancelled",
+						zap.Int("worker_id", id),
+						zap.String("job_id", job.GetID()),
+						zap.String("phase", job.GetPhase()),
+						zap.Uint("video_id", job.GetVideoID()),
+					)
+				} else {
+					result.Status = JobStatusFailed
+					result.Error = err
+					p.logger.Error("Worker job failed",
+						zap.Int("worker_id", id),
+						zap.String("job_id", job.GetID()),
+						zap.String("phase", job.GetPhase()),
+						zap.Uint("video_id", job.GetVideoID()),
+						zap.Error(err),
+					)
+				}
 			} else {
 				result.Status = JobStatusCompleted
 				result.Data = job
@@ -115,8 +158,20 @@ func (p *WorkerPool) Submit(job Job) error {
 	if !p.running.Load() {
 		return fmt.Errorf("worker pool is stopped")
 	}
+
+	// Check for duplicate job (same video+phase already in progress)
+	if existingJobID := p.registry.Register(job); existingJobID != "" {
+		return &DuplicateJobError{
+			VideoID:       job.GetVideoID(),
+			Phase:         job.GetPhase(),
+			ExistingJobID: existingJobID,
+		}
+	}
+
 	select {
 	case <-p.ctx.Done():
+		// Unregister since we couldn't queue the job
+		p.registry.Unregister(job.GetID())
 		return p.ctx.Err()
 	case p.jobQueue <- job:
 		p.logger.Debug("Job submitted to queue",
@@ -168,4 +223,39 @@ func (p *WorkerPool) LogStatus() {
 		zap.Int("queue_capacity", cap(p.jobQueue)),
 		zap.Bool("running", p.running.Load()),
 	)
+}
+
+// SetTimeout sets the job execution timeout. A timeout of 0 means no timeout.
+func (p *WorkerPool) SetTimeout(timeout time.Duration) {
+	p.timeout = timeout
+}
+
+// GetTimeout returns the current job execution timeout.
+func (p *WorkerPool) GetTimeout() time.Duration {
+	return p.timeout
+}
+
+// GetJob retrieves a job by its ID from the registry.
+func (p *WorkerPool) GetJob(jobID string) (Job, bool) {
+	return p.registry.Get(jobID)
+}
+
+// CancelJob cancels a job by its ID. Returns an error if the job is not found.
+func (p *WorkerPool) CancelJob(jobID string) error {
+	job, exists := p.registry.Get(jobID)
+	if !exists {
+		return fmt.Errorf("job not found: %s", jobID)
+	}
+	job.Cancel()
+	p.logger.Info("Job cancelled",
+		zap.String("job_id", jobID),
+		zap.Uint("video_id", job.GetVideoID()),
+		zap.String("phase", job.GetPhase()),
+	)
+	return nil
+}
+
+// Registry returns the job registry (for advanced use cases).
+func (p *WorkerPool) Registry() *JobRegistry {
+	return p.registry
 }

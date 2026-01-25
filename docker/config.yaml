@@ -61,3 +61,6 @@ processing:
   grid_rows: 8
   sprites_concurrency: 0
   job_history_retention: "7d"
+  metadata_timeout: 5m
+  thumbnail_timeout: 2m
+  sprites_timeout: 30m
