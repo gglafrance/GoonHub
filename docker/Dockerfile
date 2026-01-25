@@ -48,7 +48,9 @@ RUN echo "=== PWD ===" && pwd && \
     echo "=== go.mod exists ===" && ls -la go.mod && \
     echo "=== go.mod content ===" && head -5 go.mod && \
     echo "=== go env ===" && go env GOMOD GOPATH GOROOT && \
-    echo "=== go list module ===" && go list -m
+    echo "=== go list module ===" && go list -m && \
+    echo "=== internal/infrastructure/server ===" && ls -la internal/infrastructure/server/ && \
+    echo "=== server package files ===" && head -3 internal/infrastructure/server/*.go
 
 # Build the binary (platform is determined by the container)
 RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o /src/goonhub ./cmd/server
