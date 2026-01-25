@@ -1,6 +1,8 @@
 <script setup lang="ts">
 const store = useVideoStore();
 
+useHead({ title: 'Library' });
+
 // Initial load
 onMounted(() => {
     store.loadVideos();
@@ -15,7 +17,6 @@ watch(
 );
 
 definePageMeta({
-    title: 'Library - GoonHub',
     middleware: ['auth'],
 });
 </script>

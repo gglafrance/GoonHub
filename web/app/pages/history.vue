@@ -4,6 +4,8 @@ import type { WatchHistoryEntry } from '~/types/watch';
 const { getUserWatchHistory } = useApi();
 const { formatDuration } = useFormatter();
 
+useHead({ title: 'Watch History' });
+
 const entries = ref<WatchHistoryEntry[]>([]);
 const isLoading = ref(true);
 const total = ref(0);
@@ -47,7 +49,6 @@ onMounted(() => {
 });
 
 definePageMeta({
-    title: 'Watch History - GoonHub',
     middleware: ['auth'],
 });
 </script>

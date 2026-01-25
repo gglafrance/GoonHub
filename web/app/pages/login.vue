@@ -1,6 +1,8 @@
 <script setup lang="ts">
 const authStore = useAuthStore();
 
+useHead({ title: 'Login' });
+
 const username = ref('');
 const password = ref('');
 const isLoading = ref(false);
@@ -22,10 +24,6 @@ const handleLogin = async () => {
         isLoading.value = false;
     }
 };
-
-definePageMeta({
-    title: 'Login - GoonHub',
-});
 </script>
 
 <template>

@@ -3,6 +3,12 @@ const searchStore = useSearchStore();
 const route = useRoute();
 const router = useRouter();
 
+useHead({ title: 'Search' });
+
+definePageMeta({
+    middleware: ['auth'],
+});
+
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const syncFromUrl = () => {

@@ -10,6 +10,9 @@ const { formatDuration } = useFormatter();
 const video = ref<Video | null>(null);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
+
+const pageTitle = computed(() => video.value?.title || 'Watch');
+useHead({ title: pageTitle });
 const playerError = ref<unknown>(null);
 const playerRef = ref<{ getCurrentTime: () => number } | null>(null);
 const resumePosition = ref(0);
@@ -95,7 +98,6 @@ const goBack = () => {
 
 definePageMeta({
     middleware: ['auth'],
-    title: 'Watch - GoonHub',
 });
 </script>
 
@@ -250,7 +252,8 @@ definePageMeta({
                                         </button>
                                         <button
                                             class="bg-lava hover:bg-lava/80 rounded-md px-3 py-1.5
-                                                text-[11px] font-medium text-white transition-colors"
+                                                text-[11px] font-medium text-white
+                                                transition-colors"
                                             @click="handleResume"
                                         >
                                             Resume

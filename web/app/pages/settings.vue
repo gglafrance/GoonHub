@@ -2,6 +2,8 @@
 const settingsStore = useSettingsStore();
 const authStore = useAuthStore();
 
+useHead({ title: 'Settings' });
+
 type TabType = 'account' | 'player' | 'app' | 'tags' | 'users' | 'jobs';
 const activeTab = ref<TabType>('account');
 
@@ -19,7 +21,7 @@ onMounted(() => {
 });
 
 definePageMeta({
-    title: 'Settings - GoonHub',
+    middleware: ['auth'],
 });
 </script>
 
