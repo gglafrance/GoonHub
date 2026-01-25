@@ -22,7 +22,7 @@ RUN bun run generate
 # ============================================================================
 # Stage 2: Build Go backend
 # ============================================================================
-FROM golang:1.24-alpine AS backend-builder
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS backend-builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
@@ -43,13 +43,13 @@ COPY . .
 # Copy built frontend from previous stage
 COPY --from=frontend-builder /app/web/dist ./web/dist
 
-# Build the binary (TARGETOS and TARGETARCH are set by Docker buildx)
+# Build the binary for the target platform
 ARG TARGETOS
 ARG TARGETARCH
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
-    -ldflags="-w -s" \
-    -o /src/goonhub \
-    ./cmd/server
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
+    go build -ldflags="-w -s" -o /src/goonhub ./cmd/server
 
 # ============================================================================
 # Stage 3: Production runtime
