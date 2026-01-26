@@ -1,5 +1,12 @@
 # GoonHub Development Configuration (Docker)
 # Used when running the full stack in Docker
+#
+# SECURITY: Secrets should be set via environment variables:
+#   - GOONHUB_DATABASE_PASSWORD
+#   - GOONHUB_AUTH_PASETO_SECRET (must be exactly 32 bytes, auto-generated if empty in dev)
+#   - GOONHUB_AUTH_ADMIN_PASSWORD (required - change from default!)
+#   - GOONHUB_MEILISEARCH_API_KEY
+#   - GOONHUB_PORNDB_API_KEY (optional, for metadata fetching)
 
 environment: development
 
@@ -13,7 +20,7 @@ database:
   host: localhost
   port: 5432
   user: goonhub
-  password: goonhub_dev_password
+  # password: set via GOONHUB_DATABASE_PASSWORD env var (default: goonhub_dev_password)
   dbname: goonhub
   sslmode: disable
   max_open_conns: 25
@@ -24,14 +31,14 @@ log:
   format: console
 
 auth:
-  paseto_secret: "01234567890123456789012345678901"
+  # paseto_secret: set via GOONHUB_AUTH_PASETO_SECRET env var (auto-generated if empty in dev)
   admin_username: admin
-  admin_password: admin
+  # admin_password: set via GOONHUB_AUTH_ADMIN_PASSWORD env var (REQUIRED - must change!)
   token_duration: 24h
 
 meilisearch:
   host: "http://localhost:7700"
-  api_key: "goonhub_dev_master_key"
+  # api_key: set via GOONHUB_MEILISEARCH_API_KEY env var
   index_name: "videos"
 
 processing:
@@ -56,3 +63,6 @@ processing:
   metadata_timeout: 5m
   thumbnail_timeout: 2m
   sprites_timeout: 30m
+
+porndb:
+  # api_key: set via GOONHUB_PORNDB_API_KEY env var (optional)

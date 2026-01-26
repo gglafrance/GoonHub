@@ -37,6 +37,9 @@ type ServerConfig struct {
 	WriteTimeout   time.Duration `mapstructure:"write_timeout"`
 	IdleTimeout    time.Duration `mapstructure:"idle_timeout"`
 	AllowedOrigins []string      `mapstructure:"allowed_origins"`
+	TLSCertFile    string        `mapstructure:"tls_cert_file"`    // Path to TLS certificate file
+	TLSKeyFile     string        `mapstructure:"tls_key_file"`     // Path to TLS private key file
+	TrustedProxies []string      `mapstructure:"trusted_proxies"`  // CIDR ranges for trusted proxies (for X-Forwarded-For)
 }
 
 type DatabaseConfig struct {
@@ -88,12 +91,15 @@ type ProcessingConfig struct {
 }
 
 type AuthConfig struct {
-	PasetoSecret   string        `mapstructure:"paseto_secret"`
-	AdminUsername  string        `mapstructure:"admin_username"`
-	AdminPassword  string        `mapstructure:"admin_password"`
-	TokenDuration  time.Duration `mapstructure:"token_duration"`
-	LoginRateLimit int           `mapstructure:"login_rate_limit"` // requests per minute
-	LoginRateBurst int           `mapstructure:"login_rate_burst"` // burst size
+	PasetoSecret        string        `mapstructure:"paseto_secret"`
+	AdminUsername       string        `mapstructure:"admin_username"`
+	AdminPassword       string        `mapstructure:"admin_password"`
+	TokenDuration       time.Duration `mapstructure:"token_duration"`
+	LoginRateLimit      int           `mapstructure:"login_rate_limit"`      // requests per minute
+	LoginRateBurst      int           `mapstructure:"login_rate_burst"`      // burst size
+	LockoutThreshold    int           `mapstructure:"lockout_threshold"`     // failed attempts before lockout
+	LockoutDuration     time.Duration `mapstructure:"lockout_duration"`      // how long account is locked
+	LockoutCleanupFreq  time.Duration `mapstructure:"lockout_cleanup_freq"`  // how often to cleanup old entries
 }
 
 // Load reads configuration from file or environment variables.
@@ -107,6 +113,9 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("server.write_timeout", 15*time.Second)
 	v.SetDefault("server.idle_timeout", 60*time.Second)
 	v.SetDefault("server.allowed_origins", []string{"http://localhost:3000"})
+	v.SetDefault("server.tls_cert_file", "")      // Empty = TLS disabled
+	v.SetDefault("server.tls_key_file", "")       // Empty = TLS disabled
+	v.SetDefault("server.trusted_proxies", nil)   // nil = trust no proxies; set to ["127.0.0.1", "::1"] for loopback or CIDR ranges
 	v.SetDefault("database.host", "localhost")
 	v.SetDefault("database.port", 5432)
 	v.SetDefault("database.user", "goonhub")
@@ -145,6 +154,9 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("auth.token_duration", 24*time.Hour)
 	v.SetDefault("auth.login_rate_limit", 10)
 	v.SetDefault("auth.login_rate_burst", 5)
+	v.SetDefault("auth.lockout_threshold", 5)              // Lock after 5 failed attempts
+	v.SetDefault("auth.lockout_duration", 15*time.Minute)  // Lock for 15 minutes
+	v.SetDefault("auth.lockout_cleanup_freq", 5*time.Minute)
 	v.SetDefault("meilisearch.host", "http://localhost:7700")
 	v.SetDefault("meilisearch.api_key", "goonhub_dev_master_key")
 	v.SetDefault("meilisearch.index_name", "videos")
@@ -174,14 +186,33 @@ func Load(path string) (*Config, error) {
 			return nil, fmt.Errorf("GOONHUB_AUTH_PASETO_SECRET is required in production")
 		}
 
-		// Generate random key for development
+		// Generate random key for development (tokens will not persist across restarts)
 		key := make([]byte, 32)
 		if _, err := rand.Read(key); err != nil {
 			return nil, fmt.Errorf("failed to generate PASETO key: %w", err)
 		}
 		cfg.Auth.PasetoSecret = hex.EncodeToString(key)
-		fmt.Printf("[WARNING] Generated random PASETO key for development: %s\n", cfg.Auth.PasetoSecret)
-		fmt.Println("[WARNING] Set GOONHUB_AUTH_PASETO_SECRET environment variable to use a persistent key")
+		// Security: Never log the actual secret value
+		fmt.Println("[WARNING] Generated ephemeral PASETO key for development - tokens will not survive server restart")
+		fmt.Println("[WARNING] Set GOONHUB_AUTH_PASETO_SECRET environment variable for persistent sessions")
+	}
+
+	// Validate production security requirements
+	if cfg.Environment == "production" {
+		if err := validateAdminPassword(cfg.Auth.AdminPassword); err != nil {
+			return nil, fmt.Errorf("GOONHUB_AUTH_ADMIN_PASSWORD: %w", err)
+		}
+		if cfg.Database.Password == "goonhub_dev_password" || cfg.Database.Password == "" {
+			return nil, fmt.Errorf("GOONHUB_DATABASE_PASSWORD must be set to a secure value in production")
+		}
+		if cfg.Database.SSLMode == "disable" {
+			fmt.Println("[WARNING] Database SSL is disabled in production - consider enabling for security")
+		}
+	} else {
+		// Development warnings
+		if cfg.Auth.AdminPassword == "admin" {
+			fmt.Println("[WARNING] Using default admin password 'admin' - set GOONHUB_AUTH_ADMIN_PASSWORD for security")
+		}
 	}
 
 	return &cfg, nil
@@ -205,4 +236,45 @@ func ParseRetentionDuration(s string) (time.Duration, error) {
 		return 0, fmt.Errorf("invalid duration %q: %w", s, err)
 	}
 	return d, nil
+}
+
+// validateAdminPassword checks that the admin password meets security requirements.
+// Requirements:
+// - Minimum 12 characters
+// - At least one uppercase letter
+// - At least one lowercase letter
+// - At least one digit
+// - Not a common/default password
+func validateAdminPassword(password string) error {
+	if password == "" || password == "admin" {
+		return fmt.Errorf("must be set to a secure value (not empty or 'admin')")
+	}
+
+	if len(password) < 12 {
+		return fmt.Errorf("must be at least 12 characters (got %d)", len(password))
+	}
+
+	var hasUpper, hasLower, hasDigit bool
+	for _, c := range password {
+		switch {
+		case c >= 'A' && c <= 'Z':
+			hasUpper = true
+		case c >= 'a' && c <= 'z':
+			hasLower = true
+		case c >= '0' && c <= '9':
+			hasDigit = true
+		}
+	}
+
+	if !hasUpper {
+		return fmt.Errorf("must contain at least one uppercase letter")
+	}
+	if !hasLower {
+		return fmt.Errorf("must contain at least one lowercase letter")
+	}
+	if !hasDigit {
+		return fmt.Errorf("must contain at least one digit")
+	}
+
+	return nil
 }

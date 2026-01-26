@@ -1,15 +1,17 @@
 export const useApi = () => {
     const authStore = useAuthStore();
 
+    // Common fetch options that include credentials for cookie-based auth
+    const fetchOptions = (): RequestInit => ({
+        credentials: 'include', // Send HTTP-only cookies
+    });
+
     const getAuthHeaders = () => {
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
         };
-
-        if (authStore.token) {
-            headers['Authorization'] = `Bearer ${authStore.token}`;
-        }
-
+        // No longer need to manually add Authorization header
+        // as authentication is handled via HTTP-only cookies
         return headers;
     };
 
@@ -34,15 +36,11 @@ export const useApi = () => {
             formData.append('title', title);
         }
 
-        const headers: Record<string, string> = {};
-        if (authStore.token) {
-            headers['Authorization'] = `Bearer ${authStore.token}`;
-        }
-
+        // No Authorization header needed - using cookies
         const response = await fetch('/api/v1/videos', {
             method: 'POST',
             body: formData,
-            headers,
+            ...fetchOptions(),
         });
 
         return handleResponse(response);
@@ -56,6 +54,7 @@ export const useApi = () => {
 
         const response = await fetch(`/api/v1/videos?${params}`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
 
         return handleResponse(response);
@@ -71,6 +70,7 @@ export const useApi = () => {
 
         const response = await fetch(`/api/v1/videos?${params}`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
 
         return handleResponse(response);
@@ -79,6 +79,7 @@ export const useApi = () => {
     const fetchFilterOptions = async () => {
         const response = await fetch('/api/v1/videos/filters', {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -86,6 +87,7 @@ export const useApi = () => {
     const fetchVideo = async (id: number) => {
         const response = await fetch(`/api/v1/videos/${id}`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
 
         return handleResponse(response);
@@ -94,6 +96,7 @@ export const useApi = () => {
     const fetchSettings = async () => {
         const response = await fetch('/api/v1/settings', {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -157,6 +160,7 @@ export const useApi = () => {
         });
         const response = await fetch(`/api/v1/admin/users?${params}`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -192,6 +196,7 @@ export const useApi = () => {
         const response = await fetch(`/api/v1/admin/users/${userId}`, {
             method: 'DELETE',
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -199,6 +204,7 @@ export const useApi = () => {
     const fetchRoles = async () => {
         const response = await fetch('/api/v1/admin/roles', {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -206,6 +212,7 @@ export const useApi = () => {
     const fetchPermissions = async () => {
         const response = await fetch('/api/v1/admin/permissions', {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -226,6 +233,7 @@ export const useApi = () => {
         });
         const response = await fetch(`/api/v1/admin/jobs?${params}`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -233,6 +241,7 @@ export const useApi = () => {
     const fetchPoolConfig = async () => {
         const response = await fetch('/api/v1/admin/pool-config', {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -253,6 +262,7 @@ export const useApi = () => {
     const fetchProcessingConfig = async () => {
         const response = await fetch('/api/v1/admin/processing-config', {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -276,6 +286,7 @@ export const useApi = () => {
     const fetchTriggerConfig = async () => {
         const response = await fetch('/api/v1/admin/trigger-config', {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -298,6 +309,7 @@ export const useApi = () => {
         const response = await fetch(`/api/v1/admin/videos/${videoId}/process/${phase}`, {
             method: 'POST',
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -324,15 +336,11 @@ export const useApi = () => {
         const formData = new FormData();
         formData.append('thumbnail', file);
 
-        const headers: Record<string, string> = {};
-        if (authStore.token) {
-            headers['Authorization'] = `Bearer ${authStore.token}`;
-        }
-
+        // No Authorization header needed - using cookies
         const response = await fetch(`/api/v1/videos/${videoId}/thumbnail/upload`, {
             method: 'POST',
             body: formData,
-            headers,
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -340,6 +348,7 @@ export const useApi = () => {
     const fetchTags = async () => {
         const response = await fetch('/api/v1/tags', {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -357,6 +366,7 @@ export const useApi = () => {
         const response = await fetch(`/api/v1/tags/${id}`, {
             method: 'DELETE',
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -364,6 +374,7 @@ export const useApi = () => {
     const fetchVideoTags = async (videoId: number) => {
         const response = await fetch(`/api/v1/videos/${videoId}/tags`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -389,6 +400,7 @@ export const useApi = () => {
     const fetchVideoInteractions = async (videoId: number) => {
         const response = await fetch(`/api/v1/videos/${videoId}/interactions`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -396,6 +408,7 @@ export const useApi = () => {
     const fetchVideoRating = async (videoId: number) => {
         const response = await fetch(`/api/v1/videos/${videoId}/rating`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -413,6 +426,7 @@ export const useApi = () => {
         const response = await fetch(`/api/v1/videos/${videoId}/rating`, {
             method: 'DELETE',
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         if (response.status === 401) {
             authStore.logout();
@@ -427,6 +441,7 @@ export const useApi = () => {
     const fetchVideoLike = async (videoId: number) => {
         const response = await fetch(`/api/v1/videos/${videoId}/like`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -435,6 +450,7 @@ export const useApi = () => {
         const response = await fetch(`/api/v1/videos/${videoId}/like`, {
             method: 'POST',
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -442,6 +458,7 @@ export const useApi = () => {
     const fetchJizzedCount = async (videoId: number) => {
         const response = await fetch(`/api/v1/videos/${videoId}/jizzed`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -450,6 +467,7 @@ export const useApi = () => {
         const response = await fetch(`/api/v1/videos/${videoId}/jizzed`, {
             method: 'POST',
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -471,6 +489,7 @@ export const useApi = () => {
     const getResumePosition = async (videoId: number) => {
         const response = await fetch(`/api/v1/videos/${videoId}/resume`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -479,6 +498,7 @@ export const useApi = () => {
         const params = new URLSearchParams({ limit: limit.toString() });
         const response = await fetch(`/api/v1/videos/${videoId}/history?${params}`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -490,6 +510,7 @@ export const useApi = () => {
         });
         const response = await fetch(`/api/v1/history?${params}`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -497,6 +518,7 @@ export const useApi = () => {
     const fetchStoragePaths = async () => {
         const response = await fetch('/api/v1/admin/storage-paths', {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -528,6 +550,7 @@ export const useApi = () => {
         const response = await fetch(`/api/v1/admin/storage-paths/${id}`, {
             method: 'DELETE',
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -545,6 +568,7 @@ export const useApi = () => {
         const response = await fetch('/api/v1/admin/scan', {
             method: 'POST',
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -553,6 +577,7 @@ export const useApi = () => {
         const response = await fetch('/api/v1/admin/scan/cancel', {
             method: 'POST',
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -560,6 +585,7 @@ export const useApi = () => {
     const getScanStatus = async () => {
         const response = await fetch('/api/v1/admin/scan/status', {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -571,6 +597,7 @@ export const useApi = () => {
         });
         const response = await fetch(`/api/v1/admin/scan/history?${params}`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -585,6 +612,7 @@ export const useApi = () => {
         }
         const response = await fetch(`/api/v1/admin/dlq?${params}`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -593,6 +621,7 @@ export const useApi = () => {
         const response = await fetch(`/api/v1/admin/dlq/${jobId}/retry`, {
             method: 'POST',
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -601,6 +630,7 @@ export const useApi = () => {
         const response = await fetch(`/api/v1/admin/dlq/${jobId}/abandon`, {
             method: 'POST',
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -608,6 +638,7 @@ export const useApi = () => {
     const fetchRetryConfig = async () => {
         const response = await fetch('/api/v1/admin/retry-config', {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -638,6 +669,7 @@ export const useApi = () => {
         }
         const response = await fetch(`/api/v1/actors?${params}`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -645,6 +677,7 @@ export const useApi = () => {
     const fetchActorByUUID = async (uuid: string) => {
         const response = await fetch(`/api/v1/actors/${uuid}`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -656,6 +689,7 @@ export const useApi = () => {
         });
         const response = await fetch(`/api/v1/actors/${uuid}/videos?${params}`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -682,6 +716,7 @@ export const useApi = () => {
         const response = await fetch(`/api/v1/admin/actors/${id}`, {
             method: 'DELETE',
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -690,15 +725,11 @@ export const useApi = () => {
         const formData = new FormData();
         formData.append('image', file);
 
-        const headers: Record<string, string> = {};
-        if (authStore.token) {
-            headers['Authorization'] = `Bearer ${authStore.token}`;
-        }
-
+        // No Authorization header needed - using cookies
         const response = await fetch(`/api/v1/admin/actors/${id}/image`, {
             method: 'POST',
             body: formData,
-            headers,
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -707,6 +738,7 @@ export const useApi = () => {
     const fetchVideoActors = async (videoId: number) => {
         const response = await fetch(`/api/v1/videos/${videoId}/actors`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -724,6 +756,7 @@ export const useApi = () => {
     const fetchActorInteractions = async (actorUuid: string) => {
         const response = await fetch(`/api/v1/actors/${actorUuid}/interactions`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -741,6 +774,7 @@ export const useApi = () => {
         const response = await fetch(`/api/v1/actors/${actorUuid}/rating`, {
             method: 'DELETE',
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         if (response.status === 401) {
             authStore.logout();
@@ -756,6 +790,7 @@ export const useApi = () => {
         const response = await fetch(`/api/v1/actors/${actorUuid}/like`, {
             method: 'POST',
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -764,6 +799,7 @@ export const useApi = () => {
     const getPornDBStatus = async () => {
         const response = await fetch('/api/v1/admin/porndb/status', {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -772,6 +808,7 @@ export const useApi = () => {
         const params = new URLSearchParams({ q: query });
         const response = await fetch(`/api/v1/admin/porndb/performers?${params}`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         const result = await handleResponse(response);
         return result.data || [];
@@ -780,6 +817,7 @@ export const useApi = () => {
     const getPornDBPerformer = async (id: string) => {
         const response = await fetch(`/api/v1/admin/porndb/performers/${id}`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
         });
         const result = await handleResponse(response);
         return result.data;

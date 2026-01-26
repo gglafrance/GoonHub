@@ -14,9 +14,12 @@ import (
 	"go.uber.org/zap"
 )
 
-func Setup(r *gin.Engine, logger *logging.Logger, allowedOrigins []string) {
+func Setup(r *gin.Engine, logger *logging.Logger, allowedOrigins []string, environment string) {
 	// Panic Recovery
 	r.Use(gin.Recovery())
+
+	// Security Headers
+	r.Use(SecurityHeaders(environment))
 
 	// Request ID
 	r.Use(RequestID())
@@ -24,7 +27,14 @@ func Setup(r *gin.Engine, logger *logging.Logger, allowedOrigins []string) {
 	// Structured Logger
 	r.Use(Logger(logger))
 
-	// CORS
+	// CORS - validate origins at startup in production
+	if environment == "production" {
+		for _, origin := range allowedOrigins {
+			if origin == "*" {
+				logger.Warn("CORS wildcard origin is not recommended in production")
+			}
+		}
+	}
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
@@ -33,6 +43,47 @@ func Setup(r *gin.Engine, logger *logging.Logger, allowedOrigins []string) {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+}
+
+// SecurityHeaders adds essential security headers to all responses.
+func SecurityHeaders(environment string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Prevent clickjacking
+		c.Header("X-Frame-Options", "DENY")
+
+		// Prevent MIME type sniffing
+		c.Header("X-Content-Type-Options", "nosniff")
+
+		// XSS protection (legacy browsers)
+		c.Header("X-XSS-Protection", "1; mode=block")
+
+		// Referrer policy - don't leak URLs to third parties
+		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+
+		// Permissions policy - disable unnecessary features
+		c.Header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+
+		// HSTS - only in production (requires HTTPS)
+		if environment == "production" {
+			c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+
+		// Content Security Policy - restrictive default
+		// Allows self, inline styles (for Tailwind), and specific domains
+		csp := "default-src 'self'; " +
+			"script-src 'self' 'unsafe-inline'; " +
+			"style-src 'self' 'unsafe-inline'; " +
+			"img-src 'self' data: blob:; " +
+			"media-src 'self' blob:; " +
+			"font-src 'self'; " +
+			"connect-src 'self'; " +
+			"frame-ancestors 'none'; " +
+			"base-uri 'self'; " +
+			"form-action 'self'"
+		c.Header("Content-Security-Policy", csp)
+
+		c.Next()
+	}
 }
 
 func RequestID() gin.HandlerFunc {
@@ -74,18 +125,31 @@ func Logger(logger *logging.Logger) gin.HandlerFunc {
 	}
 }
 
+// AuthCookieName is the name of the HTTP-only auth cookie
+const AuthCookieName = "goonhub_auth"
+
 func AuthMiddleware(authService *core.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
-			c.Abort()
-			return
+		token := ""
+
+		// Try to get token from HTTP-only cookie first (preferred, more secure)
+		if cookie, err := c.Cookie(AuthCookieName); err == nil && cookie != "" {
+			token = cookie
 		}
 
-		token := strings.TrimPrefix(authHeader, "Bearer ")
-		if token == authHeader {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
+		// Fall back to Authorization header for backward compatibility
+		if token == "" {
+			authHeader := c.GetHeader("Authorization")
+			if authHeader != "" {
+				token = strings.TrimPrefix(authHeader, "Bearer ")
+				if token == authHeader {
+					token = "" // Not a Bearer token
+				}
+			}
+		}
+
+		if token == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
 			c.Abort()
 			return
 		}

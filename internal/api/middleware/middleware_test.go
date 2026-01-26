@@ -21,7 +21,11 @@ func newTestAuthService(t *testing.T) (*core.AuthService, *mocks.MockUserReposit
 	revokedRepo := mocks.NewMockRevokedTokenRepository(ctrl)
 
 	key := "01234567890123456789012345678901"
-	svc := core.NewAuthService(userRepo, revokedRepo, key, 24*time.Hour, zap.NewNop())
+	// Lockout: 5 attempts, 15 minute duration
+	svc, err := core.NewAuthService(userRepo, revokedRepo, key, 24*time.Hour, 5, 15*time.Minute, zap.NewNop())
+	if err != nil {
+		t.Fatalf("failed to create auth service: %v", err)
+	}
 	return svc, userRepo, revokedRepo
 }
 

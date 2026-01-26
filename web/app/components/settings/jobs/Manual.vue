@@ -95,10 +95,11 @@ const handleBulkJob = async (
 };
 
 const connectSSE = () => {
-    if (!authStore.token || eventSource) return;
+    if (!authStore.isAuthenticated || eventSource) return;
 
-    const url = `/api/v1/events?token=${encodeURIComponent(authStore.token)}`;
-    eventSource = new EventSource(url);
+    // Use credentials to send HTTP-only cookies for authentication
+    const url = '/api/v1/events';
+    eventSource = new EventSource(url, { withCredentials: true });
 
     eventSource.addEventListener('scan:progress', (e: MessageEvent) => {
         const event = JSON.parse(e.data);

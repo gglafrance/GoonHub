@@ -14,11 +14,13 @@ export const useSSE = () => {
     const maxReconnectDelay = 30000;
 
     function connect() {
-        if (!authStore.token) return;
+        if (!authStore.isAuthenticated) return;
         disconnect();
 
-        const url = `/api/v1/events?token=${encodeURIComponent(authStore.token)}`;
-        eventSource = new EventSource(url);
+        // Use credentials to send HTTP-only cookies for authentication
+        // No longer passing token in URL to prevent exposure in logs/history
+        const url = '/api/v1/events';
+        eventSource = new EventSource(url, { withCredentials: true });
 
         eventSource.onopen = () => {
             reconnectDelay = 1000;
@@ -98,7 +100,7 @@ export const useSSE = () => {
     }
 
     function scheduleReconnect() {
-        if (!authStore.token) return;
+        if (!authStore.isAuthenticated) return;
 
         reconnectTimer = setTimeout(() => {
             reconnectTimer = null;

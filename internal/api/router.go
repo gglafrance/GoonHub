@@ -23,7 +23,19 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler
 	}
 
 	r := gin.New() // Empty engine, we add middleware manually
-	middleware.Setup(r, logger, cfg.Server.AllowedOrigins)
+
+	// SECURITY: Configure trusted proxies to prevent X-Forwarded-For spoofing
+	// Only proxies in this list are trusted to set X-Forwarded-For headers
+	if len(cfg.Server.TrustedProxies) > 0 {
+		if err := r.SetTrustedProxies(cfg.Server.TrustedProxies); err != nil {
+			logger.Error(fmt.Sprintf("Failed to set trusted proxies: %v", err))
+		}
+	} else {
+		// No trusted proxies configured - trust no proxies (use direct client IP)
+		r.SetTrustedProxies(nil)
+	}
+
+	middleware.Setup(r, logger, cfg.Server.AllowedOrigins, cfg.Environment)
 
 	// Health Check (Unversioned)
 	r.GET("/health", func(c *gin.Context) {

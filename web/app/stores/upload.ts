@@ -18,8 +18,8 @@ export const useUploadStore = defineStore('upload', () => {
     const videoStore = useVideoStore();
     const authStore = useAuthStore();
 
-    const activeCount = computed(() =>
-        uploads.value.filter((u) => u.status === 'uploading').length,
+    const activeCount = computed(
+        () => uploads.value.filter((u) => u.status === 'uploading').length,
     );
 
     const hasActive = computed(() =>
@@ -138,9 +138,8 @@ export const useUploadStore = defineStore('upload', () => {
         };
 
         xhr.open('POST', '/api/v1/videos');
-        if (authStore.token) {
-            xhr.setRequestHeader('Authorization', `Bearer ${authStore.token}`);
-        }
+        // Use credentials to send HTTP-only cookies for authentication
+        xhr.withCredentials = true;
         xhr.send(formData);
     }
 

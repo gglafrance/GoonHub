@@ -139,9 +139,23 @@ func (s *Server) Start() error {
 	}
 
 	go func() {
-		s.logger.Info("Starting server", zap.String("port", s.cfg.Server.Port))
-		if err := s.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			s.logger.Fatal("Server start failed", zap.Error(err))
+		// Check if TLS is configured
+		if s.cfg.Server.TLSCertFile != "" && s.cfg.Server.TLSKeyFile != "" {
+			s.logger.Info("Starting HTTPS server",
+				zap.String("port", s.cfg.Server.Port),
+				zap.String("cert", s.cfg.Server.TLSCertFile),
+			)
+			if err := s.srv.ListenAndServeTLS(s.cfg.Server.TLSCertFile, s.cfg.Server.TLSKeyFile); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				s.logger.Fatal("HTTPS server start failed", zap.Error(err))
+			}
+		} else {
+			s.logger.Info("Starting HTTP server", zap.String("port", s.cfg.Server.Port))
+			if s.cfg.Environment == "production" {
+				s.logger.Warn("Running HTTP without TLS in production - configure tls_cert_file and tls_key_file for HTTPS")
+			}
+			if err := s.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				s.logger.Fatal("HTTP server start failed", zap.Error(err))
+			}
 		}
 	}()
 

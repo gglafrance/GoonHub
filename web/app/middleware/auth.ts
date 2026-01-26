@@ -4,30 +4,24 @@ export default defineNuxtRouteMiddleware(async (to) => {
     const isPublicRoute = ['/login'].includes(to.path);
 
     if (!isPublicRoute) {
-        if (!authStore.token) {
-            return navigateTo({
-                path: '/login',
-                query: { redirect: to.fullPath },
-            });
-        }
-
-        if (!authStore.user) {
-            try {
-                await authStore.fetchCurrentUser();
-                const settingsStore = useSettingsStore();
-                if (!settingsStore.settings) {
-                    await settingsStore.loadSettings();
-                }
-            } catch (e: unknown) {
-                authStore.$patch({ token: null, user: null });
+        // With HTTP-only cookies, verify session by calling the API.
+        // The cookie is sent automatically with credentials: 'include'.
+        try {
+            const user = await authStore.fetchCurrentUser();
+            if (!user) {
+                authStore.$patch({ user: null });
                 return navigateTo({
                     path: '/login',
                     query: { redirect: to.fullPath },
                 });
             }
-        }
-
-        if (!authStore.user) {
+            // Load settings if not already loaded
+            const settingsStore = useSettingsStore();
+            if (!settingsStore.settings) {
+                await settingsStore.loadSettings();
+            }
+        } catch {
+            authStore.$patch({ user: null });
             return navigateTo({
                 path: '/login',
                 query: { redirect: to.fullPath },
@@ -35,6 +29,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
         }
     }
 
+    // If already logged in and trying to access login page, redirect to home
     if (authStore.user && to.path === '/login') {
         const redirect = to.query.redirect as string;
         return navigateTo(redirect || '/');

@@ -195,13 +195,13 @@ const handleBeforeUnload = () => {
     const completed =
         videoDuration > 0 && currentTime >= videoDuration - COMPLETION_THRESHOLD_SECONDS;
 
-    // Use fetch with keepalive instead of sendBeacon to include auth headers
+    // Use fetch with keepalive and credentials to include HTTP-only auth cookie
     fetch(`/api/v1/videos/${props.video.id}/watch`, {
         method: 'POST',
         keepalive: true,
+        credentials: 'include', // Send HTTP-only auth cookie
         headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${authStore.token}`,
         },
         body: JSON.stringify({
             duration,

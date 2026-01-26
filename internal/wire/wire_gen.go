@@ -60,9 +60,12 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	videoHandler := provideVideoHandler(videoService, videoProcessingService, tagService, searchService)
 	userRepository := provideUserRepository(db)
 	revokedTokenRepository := provideRevokedTokenRepository(db)
-	authService := provideAuthService(userRepository, revokedTokenRepository, configConfig, logger)
+	authService, err := provideAuthService(userRepository, revokedTokenRepository, configConfig, logger)
+	if err != nil {
+		return nil, err
+	}
 	userService := provideUserService(userRepository, logger)
-	authHandler := provideAuthHandler(authService, userService)
+	authHandler := provideAuthHandler(authService, userService, configConfig)
 	userSettingsRepository := provideUserSettingsRepository(db)
 	settingsService := provideSettingsService(userSettingsRepository, userRepository, logger)
 	settingsHandler := provideSettingsHandler(settingsService)
@@ -205,8 +208,13 @@ func provideEventBus(logger *logging.Logger) *core.EventBus {
 	return core.NewEventBus(logger.Logger)
 }
 
-func provideAuthService(userRepo data.UserRepository, revokedRepo data.RevokedTokenRepository, cfg *config.Config, logger *logging.Logger) *core.AuthService {
-	return core.NewAuthService(userRepo, revokedRepo, cfg.Auth.PasetoSecret, cfg.Auth.TokenDuration, logger.Logger)
+func provideAuthService(userRepo data.UserRepository, revokedRepo data.RevokedTokenRepository, cfg *config.Config, logger *logging.Logger) (*core.AuthService, error) {
+	return core.NewAuthService(
+		userRepo, revokedRepo,
+		cfg.Auth.PasetoSecret, cfg.Auth.TokenDuration,
+		cfg.Auth.LockoutThreshold, cfg.Auth.LockoutDuration,
+		logger.Logger,
+	)
 }
 
 func provideUserService(userRepo data.UserRepository, logger *logging.Logger) *core.UserService {
@@ -296,8 +304,9 @@ func provideRateLimiter(cfg *config.Config) *middleware.IPRateLimiter {
 	return middleware.NewIPRateLimiter(rl, cfg.Auth.LoginRateBurst)
 }
 
-func provideAuthHandler(authService *core.AuthService, userService *core.UserService) *handler.AuthHandler {
-	return handler.NewAuthHandler(authService, userService)
+func provideAuthHandler(authService *core.AuthService, userService *core.UserService, cfg *config.Config) *handler.AuthHandler {
+	secureCookies := cfg.Environment == "production"
+	return handler.NewAuthHandlerWithConfig(authService, userService, cfg.Auth.TokenDuration, secureCookies)
 }
 
 func provideAdminHandler(adminService *core.AdminService, rbacService *core.RBACService) *handler.AdminHandler {

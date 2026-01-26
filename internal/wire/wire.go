@@ -272,8 +272,13 @@ func provideEventBus(logger *logging.Logger) *core.EventBus {
 
 // --- Auth & User Services ---
 
-func provideAuthService(userRepo data.UserRepository, revokedRepo data.RevokedTokenRepository, cfg *config.Config, logger *logging.Logger) *core.AuthService {
-	return core.NewAuthService(userRepo, revokedRepo, cfg.Auth.PasetoSecret, cfg.Auth.TokenDuration, logger.Logger)
+func provideAuthService(userRepo data.UserRepository, revokedRepo data.RevokedTokenRepository, cfg *config.Config, logger *logging.Logger) (*core.AuthService, error) {
+	return core.NewAuthService(
+		userRepo, revokedRepo,
+		cfg.Auth.PasetoSecret, cfg.Auth.TokenDuration,
+		cfg.Auth.LockoutThreshold, cfg.Auth.LockoutDuration,
+		logger.Logger,
+	)
 }
 
 func provideUserService(userRepo data.UserRepository, logger *logging.Logger) *core.UserService {
@@ -381,8 +386,9 @@ func provideRateLimiter(cfg *config.Config) *middleware.IPRateLimiter {
 
 // --- Auth & User Handlers ---
 
-func provideAuthHandler(authService *core.AuthService, userService *core.UserService) *handler.AuthHandler {
-	return handler.NewAuthHandler(authService, userService)
+func provideAuthHandler(authService *core.AuthService, userService *core.UserService, cfg *config.Config) *handler.AuthHandler {
+	secureCookies := cfg.Environment == "production"
+	return handler.NewAuthHandlerWithConfig(authService, userService, cfg.Auth.TokenDuration, secureCookies)
 }
 
 func provideAdminHandler(adminService *core.AdminService, rbacService *core.RBACService) *handler.AdminHandler {

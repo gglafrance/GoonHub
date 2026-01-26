@@ -42,19 +42,44 @@ func (i *IPRateLimiter) CleanupOldEntries() {
 	defer i.mu.Unlock()
 
 	for ip, limiter := range i.ips {
-		if limiter.AllowN(time.Now(), i.b) {
+		// Check if limiter has recovered to full capacity (idle long enough)
+		// Using Tokens() checks without consuming any tokens
+		if limiter.Tokens() >= float64(i.b) {
 			delete(i.ips, ip)
 		}
 	}
 }
 
-func RateLimitMiddleware(limiter *IPRateLimiter, logger *zap.Logger) gin.HandlerFunc {
+// cleanupRegistry tracks which limiters have cleanup goroutines running
+// to prevent multiple goroutines per limiter instance
+var (
+	cleanupRegistry   = make(map[*IPRateLimiter]struct{})
+	cleanupRegistryMu sync.Mutex
+)
+
+// startCleanup starts a single cleanup goroutine for this limiter if not already running
+func startCleanup(limiter *IPRateLimiter, interval time.Duration) {
+	cleanupRegistryMu.Lock()
+	defer cleanupRegistryMu.Unlock()
+
+	if _, exists := cleanupRegistry[limiter]; exists {
+		return // Already has a cleanup goroutine
+	}
+
+	cleanupRegistry[limiter] = struct{}{}
+
 	go func() {
-		ticker := time.NewTicker(1 * time.Minute)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
 		for range ticker.C {
 			limiter.CleanupOldEntries()
 		}
 	}()
+}
+
+func RateLimitMiddleware(limiter *IPRateLimiter, logger *zap.Logger) gin.HandlerFunc {
+	// Start cleanup goroutine only once per limiter instance
+	startCleanup(limiter, 1*time.Minute)
 
 	return func(c *gin.Context) {
 		ip := c.ClientIP()

@@ -22,7 +22,11 @@ func newTestAuthService(t *testing.T) (*AuthService, *mocks.MockUserRepository, 
 
 	// 32-byte key for PASETO v2 symmetric encryption
 	key := "01234567890123456789012345678901"
-	svc := NewAuthService(userRepo, revokedRepo, key, 24*time.Hour, zap.NewNop())
+	// Lockout: 5 attempts, 15 minute duration
+	svc, err := NewAuthService(userRepo, revokedRepo, key, 24*time.Hour, 5, 15*time.Minute, zap.NewNop())
+	if err != nil {
+		t.Fatalf("failed to create auth service: %v", err)
+	}
 	return svc, userRepo, revokedRepo
 }
 
@@ -163,7 +167,10 @@ func TestValidateToken_Expired(t *testing.T) {
 
 	key := "01234567890123456789012345678901"
 	// TTL of -1 hour means token is already expired
-	svc := NewAuthService(userRepo, revokedRepo, key, -1*time.Hour, zap.NewNop())
+	svc, err := NewAuthService(userRepo, revokedRepo, key, -1*time.Hour, 5, 15*time.Minute, zap.NewNop())
+	if err != nil {
+		t.Fatalf("failed to create auth service: %v", err)
+	}
 
 	hashed := hashPassword(t, "pass")
 	user := &data.User{ID: 1, Username: "alice", Password: hashed, Role: "admin"}
@@ -209,8 +216,14 @@ func TestValidateToken_WrongKey(t *testing.T) {
 	key1 := "01234567890123456789012345678901"
 	key2 := "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345"
 
-	svc1 := NewAuthService(userRepo, revokedRepo, key1, 24*time.Hour, zap.NewNop())
-	svc2 := NewAuthService(userRepo, revokedRepo, key2, 24*time.Hour, zap.NewNop())
+	svc1, err := NewAuthService(userRepo, revokedRepo, key1, 24*time.Hour, 5, 15*time.Minute, zap.NewNop())
+	if err != nil {
+		t.Fatalf("failed to create auth service 1: %v", err)
+	}
+	svc2, err := NewAuthService(userRepo, revokedRepo, key2, 24*time.Hour, 5, 15*time.Minute, zap.NewNop())
+	if err != nil {
+		t.Fatalf("failed to create auth service 2: %v", err)
+	}
 
 	hashed := hashPassword(t, "pass")
 	user := &data.User{ID: 1, Username: "alice", Password: hashed, Role: "admin"}
@@ -321,4 +334,52 @@ func sha256Hash(s string) string {
 	h := sha256.New()
 	h.Write([]byte(s))
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+func TestNewAuthService_ShortKeyRejected(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	userRepo := mocks.NewMockUserRepository(ctrl)
+	revokedRepo := mocks.NewMockRevokedTokenRepository(ctrl)
+
+	// Key shorter than 32 bytes should be rejected
+	shortKey := "tooshort"
+	_, err := NewAuthService(userRepo, revokedRepo, shortKey, 24*time.Hour, 5, 15*time.Minute, zap.NewNop())
+	if err == nil {
+		t.Fatal("expected error for short PASETO key")
+	}
+	if err != ErrPasetoKeyTooShort {
+		t.Fatalf("expected ErrPasetoKeyTooShort, got: %v", err)
+	}
+}
+
+func TestNewAuthService_ValidKeyAccepted(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	userRepo := mocks.NewMockUserRepository(ctrl)
+	revokedRepo := mocks.NewMockRevokedTokenRepository(ctrl)
+
+	// Exactly 32 bytes should work
+	validKey := "01234567890123456789012345678901"
+	svc, err := NewAuthService(userRepo, revokedRepo, validKey, 24*time.Hour, 5, 15*time.Minute, zap.NewNop())
+	if err != nil {
+		t.Fatalf("expected no error for valid key, got: %v", err)
+	}
+	if svc == nil {
+		t.Fatal("expected non-nil service")
+	}
+}
+
+func TestNewAuthService_HexKeyAccepted(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	userRepo := mocks.NewMockUserRepository(ctrl)
+	revokedRepo := mocks.NewMockRevokedTokenRepository(ctrl)
+
+	// 64-character hex string (32 bytes when decoded) should work
+	hexKey := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	svc, err := NewAuthService(userRepo, revokedRepo, hexKey, 24*time.Hour, 5, 15*time.Minute, zap.NewNop())
+	if err != nil {
+		t.Fatalf("expected no error for hex key, got: %v", err)
+	}
+	if svc == nil {
+		t.Fatal("expected non-nil service")
+	}
 }
