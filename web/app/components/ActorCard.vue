@@ -16,17 +16,12 @@ const genderInfo = computed(() => {
     const genderMap: Record<string, { icon: string; label: string; color: string }> = {
         male: { icon: 'mdi:gender-male', label: 'Male', color: 'text-blue-400' },
         female: { icon: 'mdi:gender-female', label: 'Female', color: 'text-pink-400' },
-        transgender_male: {
+        trans: {
             icon: 'mdi:gender-transgender',
-            label: 'Trans Male',
-            color: 'text-cyan-400',
-        },
-        transgender_female: {
-            icon: 'mdi:gender-transgender',
-            label: 'Trans Female',
+            label: 'Trans',
             color: 'text-fuchsia-400',
         },
-        non_binary: {
+        'non-binary': {
             icon: 'mdi:gender-non-binary',
             label: 'Non-binary',
             color: 'text-purple-400',
