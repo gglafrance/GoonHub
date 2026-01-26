@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, pornDBHandler *handler.PornDBHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -55,6 +55,8 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					videos.POST("/:id/watch", middleware.RequirePermission(rbacService, "videos:view"), watchHistoryHandler.RecordWatch)
 					videos.GET("/:id/resume", middleware.RequirePermission(rbacService, "videos:view"), watchHistoryHandler.GetResumePosition)
 					videos.GET("/:id/history", middleware.RequirePermission(rbacService, "videos:view"), watchHistoryHandler.GetVideoHistory)
+					videos.GET("/:id/actors", middleware.RequirePermission(rbacService, "videos:view"), actorHandler.GetVideoActors)
+					videos.PUT("/:id/actors", middleware.RequirePermission(rbacService, "videos:upload"), actorHandler.SetVideoActors)
 				}
 
 				history := protected.Group("/history")
@@ -67,6 +69,17 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					tags.GET("", tagHandler.ListTags)
 					tags.POST("", tagHandler.CreateTag)
 					tags.DELETE("/:id", tagHandler.DeleteTag)
+				}
+
+				actors := protected.Group("/actors")
+				{
+					actors.GET("", actorHandler.ListActors)
+					actors.GET("/:uuid", actorHandler.GetActorByUUID)
+					actors.GET("/:uuid/videos", actorHandler.GetActorVideos)
+					actors.GET("/:uuid/interactions", actorInteractionHandler.GetInteractions)
+					actors.PUT("/:uuid/rating", actorInteractionHandler.SetRating)
+					actors.DELETE("/:uuid/rating", actorInteractionHandler.DeleteRating)
+					actors.POST("/:uuid/like", actorInteractionHandler.ToggleLike)
 				}
 
 				settings := protected.Group("/settings")
@@ -91,13 +104,20 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					admin.GET("/permissions", adminHandler.ListPermissions)
 					admin.PUT("/roles/:id/permissions", adminHandler.SyncRolePermissions)
 					admin.GET("/jobs", jobHandler.ListJobs)
-					admin.GET("/pool-config", jobHandler.GetPoolConfig)
-					admin.PUT("/pool-config", jobHandler.UpdatePoolConfig)
-					admin.GET("/processing-config", jobHandler.GetProcessingConfig)
-					admin.PUT("/processing-config", jobHandler.UpdateProcessingConfig)
-					admin.GET("/trigger-config", jobHandler.GetTriggerConfig)
-					admin.PUT("/trigger-config", jobHandler.UpdateTriggerConfig)
+					admin.GET("/pool-config", poolConfigHandler.GetPoolConfig)
+					admin.PUT("/pool-config", poolConfigHandler.UpdatePoolConfig)
+					admin.GET("/processing-config", processingConfigHandler.GetProcessingConfig)
+					admin.PUT("/processing-config", processingConfigHandler.UpdateProcessingConfig)
+					admin.GET("/trigger-config", triggerConfigHandler.GetTriggerConfig)
+					admin.PUT("/trigger-config", triggerConfigHandler.UpdateTriggerConfig)
 					admin.POST("/videos/:id/process/:phase", jobHandler.TriggerPhase)
+					admin.POST("/jobs/bulk", jobHandler.TriggerBulkPhase)
+					admin.POST("/jobs/:id/cancel", jobHandler.CancelJob)
+					admin.GET("/dlq", dlqHandler.ListDLQ)
+					admin.POST("/dlq/:job_id/retry", dlqHandler.RetryFromDLQ)
+					admin.POST("/dlq/:job_id/abandon", dlqHandler.AbandonDLQ)
+					admin.GET("/retry-config", retryConfigHandler.GetRetryConfig)
+					admin.PUT("/retry-config", retryConfigHandler.UpdateRetryConfig)
 					admin.GET("/search/status", searchHandler.GetStatus)
 					admin.POST("/search/reindex", searchHandler.ReindexAll)
 					admin.GET("/storage-paths", storagePathHandler.List)
@@ -109,6 +129,15 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					admin.POST("/scan/cancel", scanHandler.CancelScan)
 					admin.GET("/scan/status", scanHandler.GetStatus)
 					admin.GET("/scan/history", scanHandler.GetHistory)
+					admin.POST("/actors", actorHandler.CreateActor)
+					admin.PUT("/actors/:id", actorHandler.UpdateActor)
+					admin.DELETE("/actors/:id", actorHandler.DeleteActor)
+					admin.POST("/actors/:id/image", actorHandler.UploadActorImage)
+
+					// PornDB integration
+					admin.GET("/porndb/status", pornDBHandler.GetStatus)
+					admin.GET("/porndb/performers", pornDBHandler.SearchPerformers)
+					admin.GET("/porndb/performers/:id", pornDBHandler.GetPerformer)
 				}
 			}
 		}

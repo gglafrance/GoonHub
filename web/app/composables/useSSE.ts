@@ -64,6 +64,20 @@ export const useSSE = () => {
             });
         });
 
+        eventSource.addEventListener('video:cancelled', (e: MessageEvent) => {
+            const event: VideoEventData = JSON.parse(e.data);
+            videoStore.updateVideoFields(event.video_id, {
+                processing_status: 'cancelled',
+            });
+        });
+
+        eventSource.addEventListener('video:timed_out', (e: MessageEvent) => {
+            const event: VideoEventData = JSON.parse(e.data);
+            videoStore.updateVideoFields(event.video_id, {
+                processing_status: 'timed_out',
+            });
+        });
+
         eventSource.onerror = () => {
             eventSource?.close();
             eventSource = null;

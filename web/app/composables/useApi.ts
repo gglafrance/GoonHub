@@ -302,6 +302,15 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const triggerBulkPhase = async (phase: string, mode: string) => {
+        const response = await fetch('/api/v1/admin/jobs/bulk', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ phase, mode }),
+        });
+        return handleResponse(response);
+    };
+
     const extractThumbnail = async (videoId: number, timecode: number) => {
         const response = await fetch(`/api/v1/videos/${videoId}/thumbnail`, {
             method: 'PUT',
@@ -566,6 +575,216 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
+    const fetchDLQ = async (page = 1, limit = 50, status?: string) => {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+        });
+        if (status) {
+            params.set('status', status);
+        }
+        const response = await fetch(`/api/v1/admin/dlq?${params}`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const retryFromDLQ = async (jobId: string) => {
+        const response = await fetch(`/api/v1/admin/dlq/${jobId}/retry`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const abandonDLQ = async (jobId: string) => {
+        const response = await fetch(`/api/v1/admin/dlq/${jobId}/abandon`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const fetchRetryConfig = async () => {
+        const response = await fetch('/api/v1/admin/retry-config', {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const updateRetryConfig = async (config: {
+        phase: string;
+        max_retries: number;
+        initial_delay_seconds: number;
+        max_delay_seconds: number;
+        backoff_factor: number;
+    }) => {
+        const response = await fetch('/api/v1/admin/retry-config', {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(config),
+        });
+        return handleResponse(response);
+    };
+
+    // Actor CRUD
+    const fetchActors = async (page = 1, limit = 20, query?: string) => {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+        });
+        if (query) {
+            params.set('q', query);
+        }
+        const response = await fetch(`/api/v1/actors?${params}`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const fetchActorByUUID = async (uuid: string) => {
+        const response = await fetch(`/api/v1/actors/${uuid}`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const fetchActorVideos = async (uuid: string, page = 1, limit = 20) => {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+        });
+        const response = await fetch(`/api/v1/actors/${uuid}/videos?${params}`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const createActor = async (data: Record<string, unknown>) => {
+        const response = await fetch('/api/v1/admin/actors', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(data),
+        });
+        return handleResponse(response);
+    };
+
+    const updateActor = async (id: number, data: Record<string, unknown>) => {
+        const response = await fetch(`/api/v1/admin/actors/${id}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(data),
+        });
+        return handleResponse(response);
+    };
+
+    const deleteActor = async (id: number) => {
+        const response = await fetch(`/api/v1/admin/actors/${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const uploadActorImage = async (id: number, file: File) => {
+        const formData = new FormData();
+        formData.append('image', file);
+
+        const headers: Record<string, string> = {};
+        if (authStore.token) {
+            headers['Authorization'] = `Bearer ${authStore.token}`;
+        }
+
+        const response = await fetch(`/api/v1/admin/actors/${id}/image`, {
+            method: 'POST',
+            body: formData,
+            headers,
+        });
+        return handleResponse(response);
+    };
+
+    // Actor-Video associations
+    const fetchVideoActors = async (videoId: number) => {
+        const response = await fetch(`/api/v1/videos/${videoId}/actors`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const setVideoActors = async (videoId: number, actorIds: number[]) => {
+        const response = await fetch(`/api/v1/videos/${videoId}/actors`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ actor_ids: actorIds }),
+        });
+        return handleResponse(response);
+    };
+
+    // Actor interactions (use UUID for routes)
+    const fetchActorInteractions = async (actorUuid: string) => {
+        const response = await fetch(`/api/v1/actors/${actorUuid}/interactions`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const setActorRating = async (actorUuid: string, rating: number) => {
+        const response = await fetch(`/api/v1/actors/${actorUuid}/rating`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ rating }),
+        });
+        return handleResponse(response);
+    };
+
+    const deleteActorRating = async (actorUuid: string) => {
+        const response = await fetch(`/api/v1/actors/${actorUuid}/rating`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+        });
+        if (response.status === 401) {
+            authStore.logout();
+            throw new Error('Unauthorized');
+        }
+        if (!response.ok && response.status !== 204) {
+            const error = await response.json();
+            throw new Error(error.error || 'Request failed');
+        }
+    };
+
+    const toggleActorLike = async (actorUuid: string) => {
+        const response = await fetch(`/api/v1/actors/${actorUuid}/like`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    // PornDB integration
+    const getPornDBStatus = async () => {
+        const response = await fetch('/api/v1/admin/porndb/status', {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const searchPornDBPerformers = async (query: string) => {
+        const params = new URLSearchParams({ q: query });
+        const response = await fetch(`/api/v1/admin/porndb/performers?${params}`, {
+            headers: getAuthHeaders(),
+        });
+        const result = await handleResponse(response);
+        return result.data || [];
+    };
+
+    const getPornDBPerformer = async (id: string) => {
+        const response = await fetch(`/api/v1/admin/porndb/performers/${id}`, {
+            headers: getAuthHeaders(),
+        });
+        const result = await handleResponse(response);
+        return result.data;
+    };
+
     return {
         uploadVideo,
         fetchVideos,
@@ -594,6 +813,7 @@ export const useApi = () => {
         fetchTriggerConfig,
         updateTriggerConfig,
         triggerVideoPhase,
+        triggerBulkPhase,
         extractThumbnail,
         uploadThumbnail,
         fetchTags,
@@ -623,5 +843,26 @@ export const useApi = () => {
         cancelScan,
         getScanStatus,
         getScanHistory,
+        fetchDLQ,
+        retryFromDLQ,
+        abandonDLQ,
+        fetchRetryConfig,
+        updateRetryConfig,
+        fetchActors,
+        fetchActorByUUID,
+        fetchActorVideos,
+        createActor,
+        updateActor,
+        deleteActor,
+        uploadActorImage,
+        fetchVideoActors,
+        setVideoActors,
+        fetchActorInteractions,
+        setActorRating,
+        deleteActorRating,
+        toggleActorLike,
+        getPornDBStatus,
+        searchPornDBPerformers,
+        getPornDBPerformer,
     };
 };

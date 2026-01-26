@@ -2,35 +2,32 @@ package handler
 
 import (
 	"fmt"
+	"goonhub/internal/api/v1/validators"
 	"goonhub/internal/core"
-	"goonhub/internal/data"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/robfig/cron/v3"
 )
 
+// JobHandler handles job-related requests
 type JobHandler struct {
-	jobHistoryService    *core.JobHistoryService
-	processingService    *core.VideoProcessingService
-	poolConfigRepo       data.PoolConfigRepository
-	processingConfigRepo data.ProcessingConfigRepository
-	triggerConfigRepo    data.TriggerConfigRepository
-	triggerScheduler     *core.TriggerScheduler
+	jobHistoryService *core.JobHistoryService
+	processingService *core.VideoProcessingService
 }
 
-func NewJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.VideoProcessingService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository, triggerScheduler *core.TriggerScheduler) *JobHandler {
+// NewJobHandler creates a new JobHandler
+func NewJobHandler(
+	jobHistoryService *core.JobHistoryService,
+	processingService *core.VideoProcessingService,
+) *JobHandler {
 	return &JobHandler{
-		jobHistoryService:    jobHistoryService,
-		processingService:    processingService,
-		poolConfigRepo:       poolConfigRepo,
-		processingConfigRepo: processingConfigRepo,
-		triggerConfigRepo:    triggerConfigRepo,
-		triggerScheduler:     triggerScheduler,
+		jobHistoryService: jobHistoryService,
+		processingService: processingService,
 	}
 }
 
+// ListJobs returns paginated job history with queue status
 func (h *JobHandler) ListJobs(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
@@ -99,9 +96,9 @@ func (h *JobHandler) ListJobs(c *gin.Context) {
 		"retention":    h.jobHistoryService.GetRetention(),
 		"pool_config":  poolConfig,
 		"queue_status": gin.H{
-			"metadata_queued":  queueStatus.MetadataQueued,
-			"thumbnail_queued": queueStatus.ThumbnailQueued,
-			"sprites_queued":   queueStatus.SpritesQueued,
+			"metadata_queued":   queueStatus.MetadataQueued,
+			"thumbnail_queued":  queueStatus.ThumbnailQueued,
+			"sprites_queued":    queueStatus.SpritesQueued,
 			"metadata_running":  metadataRunning,
 			"thumbnail_running": thumbnailRunning,
 			"sprites_running":   spritesRunning,
@@ -109,223 +106,7 @@ func (h *JobHandler) ListJobs(c *gin.Context) {
 	})
 }
 
-func (h *JobHandler) GetPoolConfig(c *gin.Context) {
-	poolConfig := h.processingService.GetPoolConfig()
-	c.JSON(http.StatusOK, poolConfig)
-}
-
-func (h *JobHandler) UpdatePoolConfig(c *gin.Context) {
-	var req core.PoolConfig
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
-
-	if req.MetadataWorkers < 1 || req.MetadataWorkers > 10 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "metadata_workers must be between 1 and 10"})
-		return
-	}
-	if req.ThumbnailWorkers < 1 || req.ThumbnailWorkers > 10 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "thumbnail_workers must be between 1 and 10"})
-		return
-	}
-	if req.SpritesWorkers < 1 || req.SpritesWorkers > 10 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "sprites_workers must be between 1 and 10"})
-		return
-	}
-
-	if err := h.processingService.UpdatePoolConfig(req); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update pool config: " + err.Error()})
-		return
-	}
-
-	record := &data.PoolConfigRecord{
-		MetadataWorkers:  req.MetadataWorkers,
-		ThumbnailWorkers: req.ThumbnailWorkers,
-		SpritesWorkers:   req.SpritesWorkers,
-	}
-	if err := h.poolConfigRepo.Upsert(record); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Pool config applied but failed to persist: " + err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, h.processingService.GetPoolConfig())
-}
-
-func (h *JobHandler) GetProcessingConfig(c *gin.Context) {
-	cfg := h.processingService.GetProcessingQualityConfig()
-	c.JSON(http.StatusOK, cfg)
-}
-
-func (h *JobHandler) UpdateProcessingConfig(c *gin.Context) {
-	var req core.ProcessingQualityConfig
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
-
-	if err := h.processingService.UpdateProcessingQualityConfig(req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	record := &data.ProcessingConfigRecord{
-		MaxFrameDimensionSm: req.MaxFrameDimensionSm,
-		MaxFrameDimensionLg: req.MaxFrameDimensionLg,
-		FrameQualitySm:      req.FrameQualitySm,
-		FrameQualityLg:      req.FrameQualityLg,
-		FrameQualitySprites: req.FrameQualitySprites,
-		SpritesConcurrency:  req.SpritesConcurrency,
-	}
-	if err := h.processingConfigRepo.Upsert(record); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Processing config applied but failed to persist: " + err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, h.processingService.GetProcessingQualityConfig())
-}
-
-func (h *JobHandler) GetTriggerConfig(c *gin.Context) {
-	configs, err := h.triggerConfigRepo.GetAll()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get trigger config"})
-		return
-	}
-	c.JSON(http.StatusOK, configs)
-}
-
-var validPhases = map[string]bool{"metadata": true, "thumbnail": true, "sprites": true}
-var validTriggerTypes = map[string]bool{"on_import": true, "after_job": true, "manual": true, "scheduled": true}
-
-func (h *JobHandler) UpdateTriggerConfig(c *gin.Context) {
-	var req struct {
-		Phase          string  `json:"phase"`
-		TriggerType    string  `json:"trigger_type"`
-		AfterPhase     *string `json:"after_phase"`
-		CronExpression *string `json:"cron_expression"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
-
-	if !validPhases[req.Phase] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "phase must be one of: metadata, thumbnail, sprites"})
-		return
-	}
-	if !validTriggerTypes[req.TriggerType] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "trigger_type must be one of: on_import, after_job, manual, scheduled"})
-		return
-	}
-
-	// Only metadata can be on_import
-	if req.TriggerType == "on_import" && req.Phase != "metadata" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "only metadata phase can use on_import trigger"})
-		return
-	}
-
-	// after_job requires valid after_phase
-	if req.TriggerType == "after_job" {
-		if req.AfterPhase == nil || *req.AfterPhase == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "after_phase is required when trigger_type is after_job"})
-			return
-		}
-		if !validPhases[*req.AfterPhase] {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "after_phase must be one of: metadata, thumbnail, sprites"})
-			return
-		}
-		if *req.AfterPhase == req.Phase {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "after_phase cannot be the same as phase"})
-			return
-		}
-
-		// Circular dependency detection
-		if err := h.detectCycle(req.Phase, *req.AfterPhase); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-	}
-
-	// scheduled requires valid cron expression
-	if req.TriggerType == "scheduled" {
-		if req.CronExpression == nil || *req.CronExpression == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "cron_expression is required when trigger_type is scheduled"})
-			return
-		}
-		parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-		if _, err := parser.Parse(*req.CronExpression); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid cron expression: %s", err.Error())})
-			return
-		}
-	}
-
-	record := &data.TriggerConfigRecord{
-		Phase:          req.Phase,
-		TriggerType:    req.TriggerType,
-		AfterPhase:     req.AfterPhase,
-		CronExpression: req.CronExpression,
-	}
-
-	if err := h.triggerConfigRepo.Upsert(record); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update trigger config"})
-		return
-	}
-
-	// Refresh caches
-	if err := h.processingService.RefreshTriggerCache(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Trigger config saved but failed to refresh cache"})
-		return
-	}
-
-	if h.triggerScheduler != nil {
-		if err := h.triggerScheduler.RefreshSchedules(); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Trigger config saved but failed to refresh scheduler"})
-			return
-		}
-	}
-
-	configs, err := h.triggerConfigRepo.GetAll()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Trigger config saved but failed to reload"})
-		return
-	}
-	c.JSON(http.StatusOK, configs)
-}
-
-func (h *JobHandler) detectCycle(phase string, afterPhase string) error {
-	configs, err := h.triggerConfigRepo.GetAll()
-	if err != nil {
-		return fmt.Errorf("failed to check dependencies")
-	}
-
-	// Build adjacency: phase -> after_phase (what this phase depends on)
-	dependsOn := make(map[string]string)
-	for _, cfg := range configs {
-		if cfg.TriggerType == "after_job" && cfg.AfterPhase != nil {
-			dependsOn[cfg.Phase] = *cfg.AfterPhase
-		}
-	}
-
-	// Apply the proposed change
-	dependsOn[phase] = afterPhase
-
-	// Walk from phase following the chain to detect a cycle
-	visited := make(map[string]bool)
-	current := phase
-	for {
-		if visited[current] {
-			return fmt.Errorf("circular dependency detected: %s would create a cycle", phase)
-		}
-		visited[current] = true
-		next, exists := dependsOn[current]
-		if !exists {
-			break
-		}
-		current = next
-	}
-	return nil
-}
-
+// TriggerPhase manually triggers a processing phase for a video
 func (h *JobHandler) TriggerPhase(c *gin.Context) {
 	idStr := c.Param("id")
 	videoID, err := strconv.ParseUint(idStr, 10, 32)
@@ -335,8 +116,8 @@ func (h *JobHandler) TriggerPhase(c *gin.Context) {
 	}
 
 	phase := c.Param("phase")
-	if !validPhases[phase] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "phase must be one of: metadata, thumbnail, sprites"})
+	if err := validators.ValidatePhase(phase); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -346,4 +127,55 @@ func (h *JobHandler) TriggerPhase(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Phase %s triggered for video %d", phase, videoID)})
+}
+
+// TriggerBulkPhase triggers a processing phase for multiple videos
+func (h *JobHandler) TriggerBulkPhase(c *gin.Context) {
+	var req struct {
+		Phase string `json:"phase"`
+		Mode  string `json:"mode"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	if err := validators.ValidatePhase(req.Phase); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := validators.ValidateJobMode(req.Mode); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	result, err := h.processingService.SubmitBulkPhase(req.Phase, req.Mode)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   fmt.Sprintf("Bulk %s phase triggered (%s mode)", req.Phase, req.Mode),
+		"submitted": result.Submitted,
+		"skipped":   result.Skipped,
+		"errors":    result.Errors,
+	})
+}
+
+// CancelJob cancels a running job
+func (h *JobHandler) CancelJob(c *gin.Context) {
+	jobID := c.Param("id")
+	if jobID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "job ID is required"})
+		return
+	}
+
+	if err := h.processingService.CancelJob(jobID); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Job cancelled", "job_id": jobID})
 }

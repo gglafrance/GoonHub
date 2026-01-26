@@ -91,6 +91,8 @@ const phaseLabel = (phase: string): string => {
             return 'Thumbnail';
         case 'sprites':
             return 'Sprites';
+        case 'scan':
+            return 'Library Scan';
         default:
             return phase;
     }
@@ -104,6 +106,8 @@ const phaseIcon = (phase: string): string => {
             return 'heroicons:photo';
         case 'sprites':
             return 'heroicons:squares-2x2';
+        case 'scan':
+            return 'heroicons:folder-open';
         default:
             return 'heroicons:cog-6-tooth';
     }
@@ -117,6 +121,8 @@ const phaseDescription = (phase: string): string => {
             return 'Generate preview thumbnails';
         case 'sprites':
             return 'Build sprite sheets and VTT files';
+        case 'scan':
+            return 'Discover new videos in storage paths';
         default:
             return '';
     }
@@ -157,6 +163,22 @@ const availableAfterPhases = (currentPhase: string) => {
 };
 
 const triggerTypes = (phase: string) => {
+    // Scan only supports manual and scheduled
+    if (phase === 'scan') {
+        return [
+            {
+                value: 'manual',
+                label: 'Manual',
+                description: 'Triggered manually via Jobs > Manual',
+            },
+            {
+                value: 'scheduled',
+                label: 'Scheduled',
+                description: 'Runs on a cron schedule',
+            },
+        ];
+    }
+
     const types = [
         {
             value: 'after_job',

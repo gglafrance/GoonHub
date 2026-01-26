@@ -17,7 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, interactionHandler *handler.InteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
+func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, pornDBHandler *handler.PornDBHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter) *gin.Engine {
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -30,39 +30,60 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, videoHandler *handler
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "env": cfg.Environment})
 	})
 
-	// Serve Thumbnails
+	// Serve Thumbnails (using configured thumbnail directory)
 	r.GET("/thumbnails/:id", func(c *gin.Context) {
 		id := c.Param("id")
 		size := c.DefaultQuery("size", "sm")
 		if size != "sm" && size != "lg" {
 			size = "sm"
 		}
-		path := fmt.Sprintf("./data/metadata/thumbnails/%s_thumb_%s.webp", id, size)
+		path := filepath.Join(cfg.Processing.ThumbnailDir, fmt.Sprintf("%s_thumb_%s.webp", id, size))
 		c.Header("Content-Type", "image/webp")
 		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
 		c.File(path)
 	})
 
-	// Serve Sprite Sheets
+	// Serve Sprite Sheets (using configured sprite directory)
 	r.GET("/sprites/:filename", func(c *gin.Context) {
 		filename := c.Param("filename")
-		path := fmt.Sprintf("./data/metadata/sprites/%s", filename)
+		path := filepath.Join(cfg.Processing.SpriteDir, filename)
 		c.Header("Content-Type", "image/webp")
 		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
 		c.File(path)
 	})
 
-	// Serve VTT Files
+	// Serve VTT Files (using configured VTT directory)
 	r.GET("/vtt/:videoId", func(c *gin.Context) {
 		videoId := c.Param("videoId")
-		path := fmt.Sprintf("./data/metadata/vtt/%s_thumbnails.vtt", videoId)
+		path := filepath.Join(cfg.Processing.VttDir, fmt.Sprintf("%s_thumbnails.vtt", videoId))
 		c.Header("Content-Type", "text/vtt")
 		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
 		c.File(path)
 	})
 
+	// Serve Actor Images (using configured actor image directory)
+	r.GET("/actor-images/:filename", func(c *gin.Context) {
+		filename := c.Param("filename")
+		path := filepath.Join(cfg.Processing.ActorImageDir, filename)
+		ext := filepath.Ext(filename)
+		switch ext {
+		case ".jpg", ".jpeg":
+			c.Header("Content-Type", "image/jpeg")
+		case ".png":
+			c.Header("Content-Type", "image/png")
+		case ".webp":
+			c.Header("Content-Type", "image/webp")
+		case ".gif":
+			c.Header("Content-Type", "image/gif")
+		default:
+			c.Header("Content-Type", "application/octet-stream")
+		}
+		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
+		c.File(path)
+	})
+
 	// Register Routes
-	RegisterRoutes(r, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, sseHandler, tagHandler, interactionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, authService, rbacService, logger, rateLimiter)
+	RegisterRoutes(r, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, interactionHandler, actorInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, pornDBHandler, authService, rbacService, logger, rateLimiter)
 
 	// Serve Frontend (SPA Fallback)
 	fsys, _ := fs.Sub(goonhub.WebDist, "web/dist")

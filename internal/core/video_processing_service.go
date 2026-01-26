@@ -1,68 +1,68 @@
 package core
 
 import (
-	"fmt"
 	"goonhub/internal/config"
+	"goonhub/internal/core/processing"
 	"goonhub/internal/data"
 	"goonhub/internal/jobs"
-	"goonhub/pkg/ffmpeg"
-	"os"
-	"path/filepath"
-	"strings"
-	"sync"
 
 	"go.uber.org/zap"
 )
 
-type PoolConfig struct {
-	MetadataWorkers  int `json:"metadata_workers"`
-	ThumbnailWorkers int `json:"thumbnail_workers"`
-	SpritesWorkers   int `json:"sprites_workers"`
+// Type aliases for backward compatibility
+type PoolConfig = processing.PoolConfig
+type ProcessingQualityConfig = processing.QualityConfig
+type QueueStatus = processing.QueueStatus
+type BulkPhaseResult = processing.BulkPhaseResult
+
+// eventBusAdapter adapts EventBus to the processing.EventPublisher interface
+type eventBusAdapter struct {
+	eventBus *EventBus
 }
 
-type ProcessingQualityConfig struct {
-	MaxFrameDimensionSm int `json:"max_frame_dimension_sm"`
-	MaxFrameDimensionLg int `json:"max_frame_dimension_lg"`
-	FrameQualitySm      int `json:"frame_quality_sm"`
-	FrameQualityLg      int `json:"frame_quality_lg"`
-	FrameQualitySprites int `json:"frame_quality_sprites"`
-	SpritesConcurrency  int `json:"sprites_concurrency"`
+func (a *eventBusAdapter) Publish(event processing.VideoEvent) {
+	a.eventBus.Publish(VideoEvent{
+		Type:    event.Type,
+		VideoID: event.VideoID,
+		Data:    event.Data,
+	})
 }
 
-type QueueStatus struct {
-	MetadataQueued  int `json:"metadata_queued"`
-	ThumbnailQueued int `json:"thumbnail_queued"`
-	SpritesQueued   int `json:"sprites_queued"`
+// jobHistoryAdapter adapts JobHistoryService to the processing.JobHistoryRecorder interface
+type jobHistoryAdapter struct {
+	service *JobHistoryService
 }
 
-type phaseState struct {
-	thumbnailDone bool
-	spritesDone   bool
+func (a *jobHistoryAdapter) RecordJobStart(jobID string, videoID uint, videoTitle string, phase string) {
+	a.service.RecordJobStart(jobID, videoID, videoTitle, phase)
 }
 
+func (a *jobHistoryAdapter) RecordJobStartWithRetry(jobID string, videoID uint, videoTitle string, phase string, maxRetries int, retryCount int) {
+	a.service.RecordJobStartWithRetry(jobID, videoID, videoTitle, phase, maxRetries, retryCount)
+}
+
+func (a *jobHistoryAdapter) RecordJobComplete(jobID string) {
+	a.service.RecordJobComplete(jobID)
+}
+
+func (a *jobHistoryAdapter) RecordJobCancelled(jobID string) {
+	a.service.RecordJobCancelled(jobID)
+}
+
+func (a *jobHistoryAdapter) RecordJobFailedWithRetry(jobID string, videoID uint, phase string, err error) {
+	a.service.RecordJobFailedWithRetry(jobID, videoID, phase, err)
+}
+
+// VideoProcessingService orchestrates video processing using worker pools
 type VideoProcessingService struct {
-	metadataPool            *jobs.WorkerPool
-	thumbnailPool           *jobs.WorkerPool
-	spritesPool             *jobs.WorkerPool
-	poolMu                  sync.RWMutex
-	repo                    data.VideoRepository
-	config                  config.ProcessingConfig
-	processingQualityConfig ProcessingQualityConfig
-	logger                  *zap.Logger
-	eventBus                *EventBus
-	jobHistory              *JobHistoryService
-	phases                  sync.Map // map[uint]*phaseState
-	triggerConfigRepo       data.TriggerConfigRepository
-	triggerCache            []data.TriggerConfigRecord
-	triggerCacheMu          sync.RWMutex
-	indexer                 VideoIndexer
+	poolManager   *processing.PoolManager
+	phaseTracker  *processing.PhaseTracker
+	resultHandler *processing.ResultHandler
+	jobSubmitter  *processing.JobSubmitter
+	logger        *zap.Logger
 }
 
-// SetIndexer sets the video indexer for search index updates.
-func (s *VideoProcessingService) SetIndexer(indexer VideoIndexer) {
-	s.indexer = indexer
-}
-
+// NewVideoProcessingService creates a new VideoProcessingService
 func NewVideoProcessingService(
 	repo data.VideoRepository,
 	cfg config.ProcessingConfig,
@@ -73,849 +73,126 @@ func NewVideoProcessingService(
 	processingConfigRepo data.ProcessingConfigRepository,
 	triggerConfigRepo data.TriggerConfigRepository,
 ) *VideoProcessingService {
-	// Check DB for persisted pool config overrides
-	metadataWorkers := cfg.MetadataWorkers
-	thumbnailWorkers := cfg.ThumbnailWorkers
-	spritesWorkers := cfg.SpritesWorkers
+	// Create pool manager
+	poolManager := processing.NewPoolManager(cfg, logger, poolConfigRepo, processingConfigRepo)
 
-	if poolConfigRepo != nil {
-		if dbConfig, err := poolConfigRepo.Get(); err == nil && dbConfig != nil {
-			metadataWorkers = dbConfig.MetadataWorkers
-			thumbnailWorkers = dbConfig.ThumbnailWorkers
-			spritesWorkers = dbConfig.SpritesWorkers
-			logger.Info("Loaded pool config from database",
-				zap.Int("metadata_workers", metadataWorkers),
-				zap.Int("thumbnail_workers", thumbnailWorkers),
-				zap.Int("sprites_workers", spritesWorkers),
-			)
-		}
-	}
-
-	// Initialize processing quality config from YAML defaults
-	qualityConfig := ProcessingQualityConfig{
-		MaxFrameDimensionSm: cfg.MaxFrameDimension,
-		MaxFrameDimensionLg: cfg.MaxFrameDimensionLarge,
-		FrameQualitySm:      cfg.FrameQuality,
-		FrameQualityLg:      cfg.FrameQualityLg,
-		FrameQualitySprites: cfg.FrameQualitySprites,
-		SpritesConcurrency:  cfg.SpritesConcurrency,
-	}
-
-	// Override with DB-persisted processing config if available
-	if processingConfigRepo != nil {
-		if dbConfig, err := processingConfigRepo.Get(); err == nil && dbConfig != nil {
-			qualityConfig.MaxFrameDimensionSm = dbConfig.MaxFrameDimensionSm
-			qualityConfig.MaxFrameDimensionLg = dbConfig.MaxFrameDimensionLg
-			qualityConfig.FrameQualitySm = dbConfig.FrameQualitySm
-			qualityConfig.FrameQualityLg = dbConfig.FrameQualityLg
-			qualityConfig.FrameQualitySprites = dbConfig.FrameQualitySprites
-			qualityConfig.SpritesConcurrency = dbConfig.SpritesConcurrency
-			logger.Info("Loaded processing config from database",
-				zap.Int("max_frame_dimension_sm", qualityConfig.MaxFrameDimensionSm),
-				zap.Int("max_frame_dimension_lg", qualityConfig.MaxFrameDimensionLg),
-				zap.Int("frame_quality_sm", qualityConfig.FrameQualitySm),
-				zap.Int("frame_quality_lg", qualityConfig.FrameQualityLg),
-				zap.Int("frame_quality_sprites", qualityConfig.FrameQualitySprites),
-				zap.Int("sprites_concurrency", qualityConfig.SpritesConcurrency),
-			)
-		}
-	}
-
-	logger.Info("Initializing video processing service",
-		zap.Int("metadata_workers", metadataWorkers),
-		zap.Int("thumbnail_workers", thumbnailWorkers),
-		zap.Int("sprites_workers", spritesWorkers),
-		zap.Int("frame_interval", cfg.FrameInterval),
-		zap.Int("max_frame_dimension_sm", qualityConfig.MaxFrameDimensionSm),
-		zap.Int("max_frame_dimension_lg", qualityConfig.MaxFrameDimensionLg),
-		zap.Int("frame_quality_sm", qualityConfig.FrameQualitySm),
-		zap.Int("frame_quality_lg", qualityConfig.FrameQualityLg),
-		zap.Int("frame_quality_sprites", qualityConfig.FrameQualitySprites),
-		zap.Int("grid_cols", cfg.GridCols),
-		zap.Int("grid_rows", cfg.GridRows),
-		zap.String("sprite_dir", cfg.SpriteDir),
-		zap.String("vtt_dir", cfg.VttDir),
-		zap.String("thumbnail_dir", cfg.ThumbnailDir),
-	)
-
-	metadataPool := jobs.NewWorkerPool(metadataWorkers, 100)
-	metadataPool.SetLogger(logger.With(zap.String("pool", "metadata")))
-
-	thumbnailPool := jobs.NewWorkerPool(thumbnailWorkers, 100)
-	thumbnailPool.SetLogger(logger.With(zap.String("pool", "thumbnail")))
-
-	spritesPool := jobs.NewWorkerPool(spritesWorkers, 100)
-	spritesPool.SetLogger(logger.With(zap.String("pool", "sprites")))
-
-	if err := os.MkdirAll(cfg.SpriteDir, 0755); err != nil {
-		logger.Error("Failed to create sprite directory",
-			zap.String("directory", cfg.SpriteDir),
-			zap.Error(err),
-		)
-	} else {
-		logger.Info("Sprite directory ready", zap.String("directory", cfg.SpriteDir))
-	}
-
-	if err := os.MkdirAll(cfg.VttDir, 0755); err != nil {
-		logger.Error("Failed to create VTT directory",
-			zap.String("directory", cfg.VttDir),
-			zap.Error(err),
-		)
-	} else {
-		logger.Info("VTT directory ready", zap.String("directory", cfg.VttDir))
-	}
-
-	if err := os.MkdirAll(cfg.ThumbnailDir, 0755); err != nil {
-		logger.Error("Failed to create thumbnail directory",
-			zap.String("directory", cfg.ThumbnailDir),
-			zap.Error(err),
-		)
-	} else {
-		logger.Info("Thumbnail directory ready", zap.String("directory", cfg.ThumbnailDir))
-	}
-
-	svc := &VideoProcessingService{
-		metadataPool:            metadataPool,
-		thumbnailPool:           thumbnailPool,
-		spritesPool:             spritesPool,
-		repo:                    repo,
-		config:                  cfg,
-		processingQualityConfig: qualityConfig,
-		logger:                  logger,
-		eventBus:                eventBus,
-		jobHistory:              jobHistory,
-		triggerConfigRepo:       triggerConfigRepo,
-	}
-
-	// Load trigger config cache
+	// Create phase tracker
+	phaseTracker := processing.NewPhaseTracker(triggerConfigRepo)
 	if triggerConfigRepo != nil {
-		if err := svc.RefreshTriggerCache(); err != nil {
+		if err := phaseTracker.RefreshTriggerCache(); err != nil {
 			logger.Error("Failed to load trigger config cache", zap.Error(err))
 		}
 	}
 
-	return svc
+	// Create adapters
+	eventAdapter := &eventBusAdapter{eventBus: eventBus}
+	var historyAdapter processing.JobHistoryRecorder
+	if jobHistory != nil {
+		historyAdapter = &jobHistoryAdapter{service: jobHistory}
+	}
+
+	// Create result handler
+	resultHandler := processing.NewResultHandler(repo, eventAdapter, historyAdapter, phaseTracker, poolManager, logger)
+
+	// Create job submitter
+	jobSubmitter := processing.NewJobSubmitter(repo, poolManager, phaseTracker, historyAdapter, logger)
+
+	// Wire up the result handler callback for phase completion
+	resultHandler.SetOnPhaseComplete(func(videoID uint, phase string) error {
+		return jobSubmitter.SubmitPhase(videoID, phase)
+	})
+
+	// Set the pool manager's result handler
+	poolManager.SetResultHandler(resultHandler.ProcessPoolResults)
+
+	return &VideoProcessingService{
+		poolManager:   poolManager,
+		phaseTracker:  phaseTracker,
+		resultHandler: resultHandler,
+		jobSubmitter:  jobSubmitter,
+		logger:        logger,
+	}
 }
 
+// SetIndexer sets the video indexer for search index updates
+func (s *VideoProcessingService) SetIndexer(indexer VideoIndexer) {
+	s.resultHandler.SetIndexer(indexer)
+}
+
+// Start starts all worker pools
 func (s *VideoProcessingService) Start() {
-	s.migrateOldThumbnails()
-
-	s.metadataPool.Start()
-	s.thumbnailPool.Start()
-	s.spritesPool.Start()
-
-	go s.processPoolResults(s.metadataPool)
-	go s.processPoolResults(s.thumbnailPool)
-	go s.processPoolResults(s.spritesPool)
-
-	s.logger.Info("Video processing service started",
-		zap.Int("metadata_workers", s.metadataPool.ActiveWorkers()),
-		zap.Int("thumbnail_workers", s.thumbnailPool.ActiveWorkers()),
-		zap.Int("sprites_workers", s.spritesPool.ActiveWorkers()),
-	)
+	s.poolManager.Start()
+	s.logger.Info("Video processing service started")
 }
 
-// migrateOldThumbnails renames legacy {id}_thumb.webp files to the new {id}_thumb_sm.webp naming.
-func (s *VideoProcessingService) migrateOldThumbnails() {
-	entries, err := os.ReadDir(s.config.ThumbnailDir)
-	if err != nil {
-		// Directory might not exist yet on first run
-		return
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if strings.HasSuffix(name, "_thumb.webp") {
-			oldPath := filepath.Join(s.config.ThumbnailDir, name)
-			newName := strings.TrimSuffix(name, "_thumb.webp") + "_thumb_sm.webp"
-			newPath := filepath.Join(s.config.ThumbnailDir, newName)
-			if err := os.Rename(oldPath, newPath); err != nil {
-				s.logger.Error("Failed to migrate old thumbnail",
-					zap.String("old_path", oldPath),
-					zap.String("new_path", newPath),
-					zap.Error(err),
-				)
-			} else {
-				s.logger.Info("Migrated old thumbnail",
-					zap.String("old_path", oldPath),
-					zap.String("new_path", newPath),
-				)
-			}
-		}
-	}
-}
-
-func (s *VideoProcessingService) SubmitVideo(videoID uint, videoPath string) error {
-	s.logger.Info("Video submitted for processing",
-		zap.Uint("video_id", videoID),
-		zap.String("video_path", videoPath),
-	)
-
-	// Check if metadata trigger is on_import
-	metaTrigger := s.getTriggerForPhase("metadata")
-	if metaTrigger != nil && metaTrigger.TriggerType != "on_import" {
-		s.logger.Info("Metadata trigger is not on_import, skipping auto-submit",
-			zap.Uint("video_id", videoID),
-			zap.String("trigger_type", metaTrigger.TriggerType),
-		)
-		return nil
-	}
-
-	s.poolMu.RLock()
-	dimSm := s.processingQualityConfig.MaxFrameDimensionSm
-	dimLg := s.processingQualityConfig.MaxFrameDimensionLg
-	s.poolMu.RUnlock()
-
-	job := jobs.NewMetadataJob(
-		videoID,
-		videoPath,
-		dimSm,
-		dimLg,
-		s.repo,
-		s.logger,
-	)
-
-	s.poolMu.RLock()
-	err := s.metadataPool.Submit(job)
-	s.poolMu.RUnlock()
-
-	if err != nil {
-		s.logger.Error("Failed to submit metadata job",
-			zap.Uint("video_id", videoID),
-			zap.Error(err),
-		)
-		return err
-	}
-
-	if s.jobHistory != nil {
-		videoTitle := ""
-		if v, err := s.repo.GetByID(videoID); err == nil {
-			videoTitle = v.Title
-		}
-		s.jobHistory.RecordJobStart(job.GetID(), videoID, videoTitle, "metadata")
-	}
-
-	return nil
-}
-
-func (s *VideoProcessingService) processPoolResults(pool *jobs.WorkerPool) {
-	for result := range pool.Results() {
-		switch result.Status {
-		case jobs.JobStatusCompleted:
-			s.handleCompleted(result)
-		case jobs.JobStatusFailed:
-			s.handleFailed(result)
-		case jobs.JobStatusCancelled:
-			s.logger.Warn("Job cancelled",
-				zap.String("job_id", result.JobID),
-				zap.String("phase", result.Phase),
-				zap.Uint("video_id", result.VideoID),
-			)
-		}
-	}
-}
-
-func (s *VideoProcessingService) handleCompleted(result jobs.JobResult) {
-	s.logger.Info("Job phase completed",
-		zap.String("job_id", result.JobID),
-		zap.String("phase", result.Phase),
-		zap.Uint("video_id", result.VideoID),
-	)
-
-	if s.jobHistory != nil {
-		s.jobHistory.RecordJobComplete(result.JobID)
-	}
-
-	switch result.Phase {
-	case "metadata":
-		s.onMetadataComplete(result)
-	case "thumbnail":
-		s.onThumbnailComplete(result)
-	case "sprites":
-		s.onSpritesComplete(result)
-	}
-}
-
-func (s *VideoProcessingService) onMetadataComplete(result jobs.JobResult) {
-	metadataJob, ok := result.Data.(*jobs.MetadataJob)
-	if !ok {
-		s.logger.Error("Invalid metadata job result data", zap.Uint("video_id", result.VideoID))
-		return
-	}
-
-	meta := metadataJob.GetResult()
-	if meta == nil {
-		s.logger.Error("Metadata result is nil", zap.Uint("video_id", result.VideoID))
-		return
-	}
-
-	// Re-index video after metadata extraction (duration/resolution now available)
-	if s.indexer != nil {
-		if video, err := s.repo.GetByID(result.VideoID); err == nil {
-			if err := s.indexer.UpdateVideoIndex(video); err != nil {
-				s.logger.Warn("Failed to update video in search index after metadata",
-					zap.Uint("video_id", result.VideoID),
-					zap.Error(err),
-				)
-			}
-		}
-	}
-
-	s.eventBus.Publish(VideoEvent{
-		Type:    "video:metadata_complete",
-		VideoID: result.VideoID,
-		Data: map[string]any{
-			"duration": meta.Duration,
-			"width":    meta.Width,
-			"height":   meta.Height,
-		},
-	})
-
-	// Determine which phases should be triggered after metadata
-	phasesToTrigger := s.getPhasesTriggeredAfter("metadata")
-
-	// If no triggers configured, nothing follows metadata automatically
-	if len(phasesToTrigger) == 0 {
-		s.logger.Info("No phases configured to trigger after metadata",
-			zap.Uint("video_id", result.VideoID),
-		)
-		// Check if video is complete (no auto phases follow)
-		s.checkAllPhasesComplete(result.VideoID, "metadata")
-		return
-	}
-
-	// Initialize phase tracking for this video
-	s.phases.Store(result.VideoID, &phaseState{})
-
-	// Retrieve the video path from the metadata job
-	videoPath := metadataJob.GetVideoPath()
-
-	// Read runtime quality config
-	s.poolMu.RLock()
-	qualitySm := s.processingQualityConfig.FrameQualitySm
-	qualityLg := s.processingQualityConfig.FrameQualityLg
-	qualitySprites := s.processingQualityConfig.FrameQualitySprites
-	spritesConcurrency := s.processingQualityConfig.SpritesConcurrency
-	s.poolMu.RUnlock()
-
-	submitThumbnail := false
-	submitSprites := false
-	for _, phase := range phasesToTrigger {
-		if phase == "thumbnail" {
-			submitThumbnail = true
-		}
-		if phase == "sprites" {
-			submitSprites = true
-		}
-	}
-
-	var thumbnailJob *jobs.ThumbnailJob
-	var spritesJob *jobs.SpritesJob
-
-	if submitThumbnail {
-		thumbnailJob = jobs.NewThumbnailJob(
-			result.VideoID,
-			videoPath,
-			s.config.ThumbnailDir,
-			meta.TileWidth,
-			meta.TileHeight,
-			meta.TileWidthLarge,
-			meta.TileHeightLarge,
-			meta.Duration,
-			qualitySm,
-			qualityLg,
-			s.repo,
-			s.logger,
-		)
-
-		s.poolMu.RLock()
-		thumbnailErr := s.thumbnailPool.Submit(thumbnailJob)
-		s.poolMu.RUnlock()
-
-		if thumbnailErr != nil {
-			s.logger.Error("Failed to submit thumbnail job",
-				zap.Uint("video_id", result.VideoID),
-				zap.Error(thumbnailErr),
-			)
-			s.repo.UpdateProcessingStatus(result.VideoID, "failed", "failed to submit thumbnail job")
-			return
-		}
-	}
-
-	if submitSprites {
-		spritesJob = jobs.NewSpritesJob(
-			result.VideoID,
-			videoPath,
-			s.config.SpriteDir,
-			s.config.VttDir,
-			meta.TileWidth,
-			meta.TileHeight,
-			meta.Duration,
-			s.config.FrameInterval,
-			qualitySprites,
-			s.config.GridCols,
-			s.config.GridRows,
-			spritesConcurrency,
-			s.repo,
-			s.logger,
-		)
-
-		s.poolMu.RLock()
-		spritesErr := s.spritesPool.Submit(spritesJob)
-		s.poolMu.RUnlock()
-
-		if spritesErr != nil {
-			s.logger.Error("Failed to submit sprites job",
-				zap.Uint("video_id", result.VideoID),
-				zap.Error(spritesErr),
-			)
-			s.repo.UpdateProcessingStatus(result.VideoID, "failed", "failed to submit sprites job")
-			return
-		}
-	}
-
-	if s.jobHistory != nil {
-		videoTitle := ""
-		if v, err := s.repo.GetByID(result.VideoID); err == nil {
-			videoTitle = v.Title
-		}
-		if thumbnailJob != nil {
-			s.jobHistory.RecordJobStart(thumbnailJob.GetID(), result.VideoID, videoTitle, "thumbnail")
-		}
-		if spritesJob != nil {
-			s.jobHistory.RecordJobStart(spritesJob.GetID(), result.VideoID, videoTitle, "sprites")
-		}
-	}
-
-	s.logger.Info("Submitted trigger-based jobs after metadata",
-		zap.Uint("video_id", result.VideoID),
-		zap.Bool("thumbnail", submitThumbnail),
-		zap.Bool("sprites", submitSprites),
-	)
-}
-
-func (s *VideoProcessingService) onThumbnailComplete(result jobs.JobResult) {
-	thumbnailJob, ok := result.Data.(*jobs.ThumbnailJob)
-	if ok {
-		thumbResult := thumbnailJob.GetResult()
-		if thumbResult != nil {
-			s.eventBus.Publish(VideoEvent{
-				Type:    "video:thumbnail_complete",
-				VideoID: result.VideoID,
-				Data: map[string]any{
-					"thumbnail_path": thumbResult.ThumbnailPath,
-				},
-			})
-		}
-	}
-
-	// Trigger any phases configured to run after thumbnail
-	for _, phase := range s.getPhasesTriggeredAfter("thumbnail") {
-		if err := s.SubmitPhase(result.VideoID, phase); err != nil {
-			s.logger.Error("Failed to submit phase after thumbnail",
-				zap.Uint("video_id", result.VideoID),
-				zap.String("phase", phase),
-				zap.Error(err),
-			)
-		}
-	}
-
-	s.checkAllPhasesComplete(result.VideoID, "thumbnail")
-}
-
-func (s *VideoProcessingService) onSpritesComplete(result jobs.JobResult) {
-	spritesJob, ok := result.Data.(*jobs.SpritesJob)
-	if ok {
-		spritesResult := spritesJob.GetResult()
-		if spritesResult != nil {
-			s.eventBus.Publish(VideoEvent{
-				Type:    "video:sprites_complete",
-				VideoID: result.VideoID,
-				Data: map[string]any{
-					"vtt_path":          spritesResult.VttPath,
-					"sprite_sheet_path": spritesResult.SpriteSheetPath,
-				},
-			})
-		}
-	}
-
-	// Trigger any phases configured to run after sprites
-	for _, phase := range s.getPhasesTriggeredAfter("sprites") {
-		if err := s.SubmitPhase(result.VideoID, phase); err != nil {
-			s.logger.Error("Failed to submit phase after sprites",
-				zap.Uint("video_id", result.VideoID),
-				zap.String("phase", phase),
-				zap.Error(err),
-			)
-		}
-	}
-
-	s.checkAllPhasesComplete(result.VideoID, "sprites")
-}
-
-func (s *VideoProcessingService) checkAllPhasesComplete(videoID uint, completedPhase string) {
-	val, ok := s.phases.Load(videoID)
-	if !ok {
-		// No phase state means this was a standalone trigger (manual/scheduled)
-		// or metadata completed with no auto-follow phases
-		if completedPhase == "metadata" {
-			// Check if neither thumbnail nor sprites are auto-dispatched
-			phasesAfter := s.getPhasesTriggeredAfter("metadata")
-			if len(phasesAfter) == 0 {
-				if err := s.repo.UpdateProcessingStatus(videoID, "completed", ""); err != nil {
-					s.logger.Error("Failed to update processing status to completed",
-						zap.Uint("video_id", videoID),
-						zap.Error(err),
-					)
-					return
-				}
-				s.eventBus.Publish(VideoEvent{
-					Type:    "video:completed",
-					VideoID: videoID,
-				})
-			}
-		}
-		return
-	}
-
-	state := val.(*phaseState)
-
-	// Determine which phases are part of the auto-pipeline
-	phasesAfterMeta := s.getPhasesTriggeredAfter("metadata")
-	thumbnailInPipeline := false
-	spritesInPipeline := false
-	for _, p := range phasesAfterMeta {
-		if p == "thumbnail" {
-			thumbnailInPipeline = true
-		}
-		if p == "sprites" {
-			spritesInPipeline = true
-		}
-	}
-
-	switch completedPhase {
-	case "thumbnail":
-		state.thumbnailDone = true
-	case "sprites":
-		state.spritesDone = true
-	}
-
-	// Check completion: only phases in the pipeline matter
-	thumbnailReady := !thumbnailInPipeline || state.thumbnailDone
-	spritesReady := !spritesInPipeline || state.spritesDone
-
-	if thumbnailReady && spritesReady {
-		s.phases.Delete(videoID)
-
-		if err := s.repo.UpdateProcessingStatus(videoID, "completed", ""); err != nil {
-			s.logger.Error("Failed to update processing status to completed",
-				zap.Uint("video_id", videoID),
-				zap.Error(err),
-			)
-			return
-		}
-
-		s.eventBus.Publish(VideoEvent{
-			Type:    "video:completed",
-			VideoID: videoID,
-		})
-
-		s.logger.Info("All processing phases completed for video",
-			zap.Uint("video_id", videoID),
-		)
-	}
-}
-
-func (s *VideoProcessingService) handleFailed(result jobs.JobResult) {
-	s.logger.Error("Job phase failed",
-		zap.String("job_id", result.JobID),
-		zap.String("phase", result.Phase),
-		zap.Uint("video_id", result.VideoID),
-		zap.Error(result.Error),
-	)
-
-	if s.jobHistory != nil && result.Error != nil {
-		s.jobHistory.RecordJobFailed(result.JobID, result.Error)
-	}
-
-	s.phases.Delete(result.VideoID)
-
-	s.eventBus.Publish(VideoEvent{
-		Type:    "video:failed",
-		VideoID: result.VideoID,
-		Data: map[string]any{
-			"error": result.Error.Error(),
-			"phase": result.Phase,
-		},
-	})
-}
-
+// Stop stops all worker pools
 func (s *VideoProcessingService) Stop() {
 	s.logger.Info("Stopping video processing service")
-	s.metadataPool.Stop()
-	s.thumbnailPool.Stop()
-	s.spritesPool.Stop()
+	s.poolManager.Stop()
 }
 
-func (s *VideoProcessingService) RefreshTriggerCache() error {
-	if s.triggerConfigRepo == nil {
-		return nil
-	}
-	configs, err := s.triggerConfigRepo.GetAll()
-	if err != nil {
-		return fmt.Errorf("failed to load trigger configs: %w", err)
-	}
-	s.triggerCacheMu.Lock()
-	s.triggerCache = configs
-	s.triggerCacheMu.Unlock()
-	return nil
+// SubmitVideo submits a new video for processing
+func (s *VideoProcessingService) SubmitVideo(videoID uint, videoPath string) error {
+	return s.jobSubmitter.SubmitVideo(videoID, videoPath)
 }
 
-func (s *VideoProcessingService) getTriggerForPhase(phase string) *data.TriggerConfigRecord {
-	s.triggerCacheMu.RLock()
-	defer s.triggerCacheMu.RUnlock()
-	for i := range s.triggerCache {
-		if s.triggerCache[i].Phase == phase {
-			return &s.triggerCache[i]
-		}
-	}
-	return nil
-}
-
-func (s *VideoProcessingService) shouldAutoDispatch(phase string) bool {
-	trigger := s.getTriggerForPhase(phase)
-	if trigger == nil {
-		// Default behavior: metadata=on_import, thumbnail/sprites=after_job(metadata)
-		return true
-	}
-	return trigger.TriggerType == "on_import" || trigger.TriggerType == "after_job"
-}
-
-func (s *VideoProcessingService) getPhasesTriggeredAfter(completedPhase string) []string {
-	s.triggerCacheMu.RLock()
-	defer s.triggerCacheMu.RUnlock()
-
-	var phases []string
-	for _, cfg := range s.triggerCache {
-		if cfg.TriggerType == "after_job" && cfg.AfterPhase != nil && *cfg.AfterPhase == completedPhase {
-			phases = append(phases, cfg.Phase)
-		}
-	}
-	return phases
-}
-
+// SubmitPhase submits a specific phase for a video
 func (s *VideoProcessingService) SubmitPhase(videoID uint, phase string) error {
-	video, err := s.repo.GetByID(videoID)
-	if err != nil {
-		return fmt.Errorf("failed to get video: %w", err)
-	}
-
-	s.poolMu.RLock()
-	dimSm := s.processingQualityConfig.MaxFrameDimensionSm
-	dimLg := s.processingQualityConfig.MaxFrameDimensionLg
-	qualitySm := s.processingQualityConfig.FrameQualitySm
-	qualityLg := s.processingQualityConfig.FrameQualityLg
-	qualitySprites := s.processingQualityConfig.FrameQualitySprites
-	spritesConcurrency := s.processingQualityConfig.SpritesConcurrency
-	s.poolMu.RUnlock()
-
-	switch phase {
-	case "metadata":
-		job := jobs.NewMetadataJob(videoID, video.StoredPath, dimSm, dimLg, s.repo, s.logger)
-		s.poolMu.RLock()
-		err = s.metadataPool.Submit(job)
-		s.poolMu.RUnlock()
-		if err != nil {
-			return fmt.Errorf("failed to submit metadata job: %w", err)
-		}
-		if s.jobHistory != nil {
-			s.jobHistory.RecordJobStart(job.GetID(), videoID, video.Title, "metadata")
-		}
-
-	case "thumbnail":
-		if video.Duration == 0 {
-			return fmt.Errorf("metadata must be extracted before thumbnail generation")
-		}
-		tileWidthLg, tileHeightLg := ffmpeg.CalculateTileDimensions(video.Width, video.Height, s.config.MaxFrameDimensionLarge)
-		thumbnailJob := jobs.NewThumbnailJob(
-			videoID, video.StoredPath, s.config.ThumbnailDir,
-			video.ThumbnailWidth, video.ThumbnailHeight,
-			tileWidthLg, tileHeightLg,
-			video.Duration, qualitySm, qualityLg, s.repo, s.logger,
-		)
-		s.poolMu.RLock()
-		err = s.thumbnailPool.Submit(thumbnailJob)
-		s.poolMu.RUnlock()
-		if err != nil {
-			return fmt.Errorf("failed to submit thumbnail job: %w", err)
-		}
-		if s.jobHistory != nil {
-			s.jobHistory.RecordJobStart(thumbnailJob.GetID(), videoID, video.Title, "thumbnail")
-		}
-
-	case "sprites":
-		if video.Duration == 0 {
-			return fmt.Errorf("metadata must be extracted before sprite generation")
-		}
-		spritesJob := jobs.NewSpritesJob(
-			videoID, video.StoredPath, s.config.SpriteDir, s.config.VttDir,
-			video.ThumbnailWidth, video.ThumbnailHeight, video.Duration,
-			s.config.FrameInterval, qualitySprites, s.config.GridCols, s.config.GridRows,
-			spritesConcurrency, s.repo, s.logger,
-		)
-		s.poolMu.RLock()
-		err = s.spritesPool.Submit(spritesJob)
-		s.poolMu.RUnlock()
-		if err != nil {
-			return fmt.Errorf("failed to submit sprites job: %w", err)
-		}
-		if s.jobHistory != nil {
-			s.jobHistory.RecordJobStart(spritesJob.GetID(), videoID, video.Title, "sprites")
-		}
-
-	default:
-		return fmt.Errorf("unknown phase: %s", phase)
-	}
-
-	s.logger.Info("Phase submitted",
-		zap.Uint("video_id", videoID),
-		zap.String("phase", phase),
-	)
-	return nil
+	return s.jobSubmitter.SubmitPhase(videoID, phase)
 }
 
+// SubmitPhaseWithRetry submits a phase for processing with retry tracking
+func (s *VideoProcessingService) SubmitPhaseWithRetry(videoID uint, phase string, retryCount, maxRetries int) error {
+	return s.jobSubmitter.SubmitPhaseWithRetry(videoID, phase, retryCount, maxRetries)
+}
+
+// SubmitBulkPhase submits a processing phase for multiple videos
+func (s *VideoProcessingService) SubmitBulkPhase(phase string, mode string) (*BulkPhaseResult, error) {
+	return s.jobSubmitter.SubmitBulkPhase(phase, mode)
+}
+
+// CancelJob cancels a running job by its ID
+func (s *VideoProcessingService) CancelJob(jobID string) error {
+	return s.poolManager.CancelJob(jobID)
+}
+
+// GetJob retrieves a job by its ID from any pool
+func (s *VideoProcessingService) GetJob(jobID string) (jobs.Job, bool) {
+	return s.poolManager.GetJob(jobID)
+}
+
+// GetPoolConfig returns the current pool configuration
 func (s *VideoProcessingService) GetPoolConfig() PoolConfig {
-	s.poolMu.RLock()
-	defer s.poolMu.RUnlock()
-	return PoolConfig{
-		MetadataWorkers:  s.metadataPool.ActiveWorkers(),
-		ThumbnailWorkers: s.thumbnailPool.ActiveWorkers(),
-		SpritesWorkers:   s.spritesPool.ActiveWorkers(),
-	}
+	return s.poolManager.GetPoolConfig()
 }
 
+// GetQueueStatus returns the current queue status
 func (s *VideoProcessingService) GetQueueStatus() QueueStatus {
-	s.poolMu.RLock()
-	defer s.poolMu.RUnlock()
-	return QueueStatus{
-		MetadataQueued:  s.metadataPool.QueueSize(),
-		ThumbnailQueued: s.thumbnailPool.QueueSize(),
-		SpritesQueued:   s.spritesPool.QueueSize(),
-	}
+	return s.poolManager.GetQueueStatus()
 }
 
+// UpdatePoolConfig updates the pool configuration
 func (s *VideoProcessingService) UpdatePoolConfig(cfg PoolConfig) error {
-	s.poolMu.Lock()
-	defer s.poolMu.Unlock()
-
-	if cfg.MetadataWorkers < 1 || cfg.MetadataWorkers > 10 {
-		return fmt.Errorf("metadata_workers must be between 1 and 10")
-	}
-	if cfg.ThumbnailWorkers < 1 || cfg.ThumbnailWorkers > 10 {
-		return fmt.Errorf("thumbnail_workers must be between 1 and 10")
-	}
-	if cfg.SpritesWorkers < 1 || cfg.SpritesWorkers > 10 {
-		return fmt.Errorf("sprites_workers must be between 1 and 10")
-	}
-
-	// Resize metadata pool if needed
-	if cfg.MetadataWorkers != s.metadataPool.ActiveWorkers() {
-		newPool := jobs.NewWorkerPool(cfg.MetadataWorkers, 100)
-		newPool.SetLogger(s.logger.With(zap.String("pool", "metadata")))
-		newPool.Start()
-		go s.processPoolResults(newPool)
-
-		oldPool := s.metadataPool
-		s.metadataPool = newPool
-		oldPool.Stop()
-
-		s.logger.Info("Resized metadata pool", zap.Int("workers", cfg.MetadataWorkers))
-	}
-
-	// Resize thumbnail pool if needed
-	if cfg.ThumbnailWorkers != s.thumbnailPool.ActiveWorkers() {
-		newPool := jobs.NewWorkerPool(cfg.ThumbnailWorkers, 100)
-		newPool.SetLogger(s.logger.With(zap.String("pool", "thumbnail")))
-		newPool.Start()
-		go s.processPoolResults(newPool)
-
-		oldPool := s.thumbnailPool
-		s.thumbnailPool = newPool
-		oldPool.Stop()
-
-		s.logger.Info("Resized thumbnail pool", zap.Int("workers", cfg.ThumbnailWorkers))
-	}
-
-	// Resize sprites pool if needed
-	if cfg.SpritesWorkers != s.spritesPool.ActiveWorkers() {
-		newPool := jobs.NewWorkerPool(cfg.SpritesWorkers, 100)
-		newPool.SetLogger(s.logger.With(zap.String("pool", "sprites")))
-		newPool.Start()
-		go s.processPoolResults(newPool)
-
-		oldPool := s.spritesPool
-		s.spritesPool = newPool
-		oldPool.Stop()
-
-		s.logger.Info("Resized sprites pool", zap.Int("workers", cfg.SpritesWorkers))
-	}
-
-	return nil
+	return s.poolManager.UpdatePoolConfig(cfg)
 }
 
+// GetProcessingQualityConfig returns the current quality configuration
 func (s *VideoProcessingService) GetProcessingQualityConfig() ProcessingQualityConfig {
-	s.poolMu.RLock()
-	defer s.poolMu.RUnlock()
-	return s.processingQualityConfig
+	return s.poolManager.GetQualityConfig()
 }
 
-var validDimensionsSm = map[int]bool{160: true, 240: true, 320: true, 480: true}
-var validDimensionsLg = map[int]bool{640: true, 720: true, 960: true, 1280: true, 1920: true}
-
+// UpdateProcessingQualityConfig updates the quality configuration
 func (s *VideoProcessingService) UpdateProcessingQualityConfig(cfg ProcessingQualityConfig) error {
-	if !validDimensionsSm[cfg.MaxFrameDimensionSm] {
-		return fmt.Errorf("max_frame_dimension_sm must be one of: 160, 240, 320, 480")
-	}
-	if !validDimensionsLg[cfg.MaxFrameDimensionLg] {
-		return fmt.Errorf("max_frame_dimension_lg must be one of: 640, 720, 960, 1280, 1920")
-	}
-	if cfg.FrameQualitySm < 1 || cfg.FrameQualitySm > 100 {
-		return fmt.Errorf("frame_quality_sm must be between 1 and 100")
-	}
-	if cfg.FrameQualityLg < 1 || cfg.FrameQualityLg > 100 {
-		return fmt.Errorf("frame_quality_lg must be between 1 and 100")
-	}
-	if cfg.FrameQualitySprites < 1 || cfg.FrameQualitySprites > 100 {
-		return fmt.Errorf("frame_quality_sprites must be between 1 and 100")
-	}
-	if cfg.SpritesConcurrency < 0 || cfg.SpritesConcurrency > 64 {
-		return fmt.Errorf("sprites_concurrency must be between 0 and 64 (0 = auto)")
-	}
-
-	s.poolMu.Lock()
-	s.processingQualityConfig = cfg
-	s.poolMu.Unlock()
-
-	s.logger.Info("Updated processing quality config",
-		zap.Int("max_frame_dimension_sm", cfg.MaxFrameDimensionSm),
-		zap.Int("max_frame_dimension_lg", cfg.MaxFrameDimensionLg),
-		zap.Int("frame_quality_sm", cfg.FrameQualitySm),
-		zap.Int("frame_quality_lg", cfg.FrameQualityLg),
-		zap.Int("frame_quality_sprites", cfg.FrameQualitySprites),
-		zap.Int("sprites_concurrency", cfg.SpritesConcurrency),
-	)
-
-	return nil
+	return s.poolManager.UpdateQualityConfig(cfg)
 }
 
+// RefreshTriggerCache reloads the trigger configuration from the database
+func (s *VideoProcessingService) RefreshTriggerCache() error {
+	return s.phaseTracker.RefreshTriggerCache()
+}
+
+// LogStatus logs the status of all pools
 func (s *VideoProcessingService) LogStatus() {
 	s.logger.Info("Video processing service status")
-	s.poolMu.RLock()
-	defer s.poolMu.RUnlock()
-	s.metadataPool.LogStatus()
-	s.thumbnailPool.LogStatus()
-	s.spritesPool.LogStatus()
+	s.poolManager.LogStatus()
 }

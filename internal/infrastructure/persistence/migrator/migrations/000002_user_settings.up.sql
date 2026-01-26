@@ -5,7 +5,7 @@ CREATE TABLE user_settings (
     user_id BIGINT NOT NULL,
     autoplay BOOLEAN NOT NULL DEFAULT false,
     default_volume INTEGER NOT NULL DEFAULT 100,
-    loop BOOLEAN NOT NULL DEFAULT false,
+    loop BOOLEAN NOT NULL DEFAULT true,
     videos_per_page INTEGER NOT NULL DEFAULT 20,
     default_sort_order VARCHAR(50) NOT NULL DEFAULT 'created_at_desc',
     CONSTRAINT fk_user_settings_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,

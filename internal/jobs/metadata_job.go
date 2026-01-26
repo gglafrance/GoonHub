@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"context"
 	"fmt"
 	"goonhub/internal/data"
 	"goonhub/pkg/ffmpeg"
@@ -37,6 +38,8 @@ type MetadataJob struct {
 	error                  error
 	cancelled              atomic.Bool
 	result                 *MetadataResult
+	ctx                    context.Context
+	cancelFn               context.CancelFunc
 }
 
 func NewMetadataJob(
@@ -69,9 +72,20 @@ func (j *MetadataJob) GetVideoPath() string       { return j.videoPath }
 
 func (j *MetadataJob) Cancel() {
 	j.cancelled.Store(true)
+	if j.cancelFn != nil {
+		j.cancelFn()
+	}
 }
 
 func (j *MetadataJob) Execute() error {
+	return j.ExecuteWithContext(context.Background())
+}
+
+func (j *MetadataJob) ExecuteWithContext(ctx context.Context) error {
+	// Create a cancellable context for this execution
+	j.ctx, j.cancelFn = context.WithCancel(ctx)
+	defer j.cancelFn()
+
 	startTime := time.Now()
 	j.status = JobStatusRunning
 
@@ -91,14 +105,27 @@ func (j *MetadataJob) Execute() error {
 		return err
 	}
 
-	if j.cancelled.Load() {
+	// Check for cancellation
+	if j.cancelled.Load() || j.ctx.Err() != nil {
 		j.status = JobStatusCancelled
 		j.repo.UpdateProcessingStatus(j.videoID, string(JobStatusCancelled), "job was cancelled")
 		return fmt.Errorf("job cancelled")
 	}
 
-	metadata, err := ffmpeg.GetMetadata(j.videoPath)
+	metadata, err := ffmpeg.GetMetadataWithContext(j.ctx, j.videoPath)
 	if err != nil {
+		// Check if this was a timeout or cancellation
+		if j.ctx.Err() == context.DeadlineExceeded {
+			j.status = JobStatusTimedOut
+			j.error = fmt.Errorf("metadata extraction timed out")
+			j.repo.UpdateProcessingStatus(j.videoID, string(JobStatusTimedOut), "metadata extraction timed out")
+			return j.error
+		}
+		if j.ctx.Err() == context.Canceled || j.cancelled.Load() {
+			j.status = JobStatusCancelled
+			j.repo.UpdateProcessingStatus(j.videoID, string(JobStatusCancelled), "job was cancelled")
+			return fmt.Errorf("job cancelled")
+		}
 		j.logger.Error("Failed to get video metadata",
 			zap.Uint("video_id", j.videoID),
 			zap.Error(err),

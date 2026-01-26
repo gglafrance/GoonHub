@@ -23,4 +23,4 @@ CREATE TABLE trigger_config (
 INSERT INTO trigger_config (phase, trigger_type, after_phase) VALUES
     ('metadata', 'on_import', NULL),
     ('thumbnail', 'after_job', 'metadata'),
-    ('sprites', 'after_job', 'metadata');
+    ('sprites', 'manual', NULL);

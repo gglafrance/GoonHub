@@ -48,3 +48,4 @@ tmp/
 *.db
 .claude/settings.json
 docker/config.prod.yaml
+docker/config-dev.yaml

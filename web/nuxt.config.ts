@@ -62,6 +62,10 @@ export default defineNuxtConfig({
                     target: 'http://localhost:8080',
                     changeOrigin: true,
                 },
+                '/actor-images': {
+                    target: 'http://localhost:8080',
+                    changeOrigin: true,
+                },
             },
         },
     },

@@ -409,16 +409,19 @@ async function removeTag(tagId: number) {
                     />
                 </div>
             </div>
+
+            <!-- Actors section -->
+            <WatchActors />
         </div>
 
         <!-- Right column: Rating & Actions -->
         <div class="flex shrink-0 flex-col items-center gap-2.5">
             <!-- Stars -->
-            <div class="flex items-center gap-[3px]" @mouseleave="onStarLeave">
+            <div class="flex items-center gap-0.75" @mouseleave="onStarLeave">
                 <div
                     v-for="star in 5"
                     :key="star"
-                    class="relative h-[18px] w-[18px] cursor-pointer"
+                    class="relative h-4.5 w-4.5 cursor-pointer"
                 >
                     <div
                         class="absolute inset-y-0 left-0 z-10 w-1/2"

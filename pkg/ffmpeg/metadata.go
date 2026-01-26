@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -34,6 +35,10 @@ type ffprobeOutput struct {
 }
 
 func GetMetadata(videoPath string) (*VideoMetadata, error) {
+	return GetMetadataWithContext(context.Background(), videoPath)
+}
+
+func GetMetadataWithContext(ctx context.Context, videoPath string) (*VideoMetadata, error) {
 	args := []string{
 		"-v", "quiet",
 		"-print_format", "json",
@@ -42,9 +47,12 @@ func GetMetadata(videoPath string) (*VideoMetadata, error) {
 		videoPath,
 	}
 
-	cmd := exec.Command(FFprobePath(), args...)
+	cmd := exec.CommandContext(ctx, FFprobePath(), args...)
 	output, err := cmd.Output()
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		return nil, fmt.Errorf("ffprobe failed: %w", err)
 	}
 

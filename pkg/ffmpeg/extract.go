@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,9 +10,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 func ExtractThumbnail(videoPath, outputPath, seekPosition string, width, height, quality int) error {
+	return ExtractThumbnailWithContext(context.Background(), videoPath, outputPath, seekPosition, width, height, quality)
+}
+
+func ExtractThumbnailWithContext(ctx context.Context, videoPath, outputPath, seekPosition string, width, height, quality int) error {
 	args := GetDefaultArgs()
 	args = append(args, []string{
 		"-ss", seekPosition,
@@ -23,8 +29,11 @@ func ExtractThumbnail(videoPath, outputPath, seekPosition string, width, height,
 		outputPath,
 	}...)
 
-	cmd := exec.Command(FFMpegPath(), args...)
+	cmd := exec.CommandContext(ctx, FFMpegPath(), args...)
 	if output, err := cmd.CombinedOutput(); err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		return fmt.Errorf("ffmpeg failed: %w, output: %s", err, string(output))
 	}
 
@@ -162,7 +171,17 @@ func ResizeImageToWebp(inputPath, outputPath string, width, height, quality int)
 }
 
 func ExtractSpriteSheets(videoPath, outputDir string, videoID int, width, height, gridCols, gridRows, interval, quality, concurrency int) ([]string, error) {
-	metadata, err := GetMetadata(videoPath)
+	return ExtractSpriteSheetsWithContext(context.Background(), videoPath, outputDir, videoID, width, height, gridCols, gridRows, interval, quality, concurrency)
+}
+
+func ExtractSpriteSheetsWithContext(ctx context.Context, videoPath, outputDir string, videoID int, width, height, gridCols, gridRows, interval, quality, concurrency int) ([]string, error) {
+	return ExtractSpriteSheetsWithProgress(ctx, videoPath, outputDir, videoID, width, height, gridCols, gridRows, interval, quality, concurrency, nil)
+}
+
+// ExtractSpriteSheetsWithProgress extracts sprite sheets with optional progress reporting.
+// The progress callback receives progress values from 0-100.
+func ExtractSpriteSheetsWithProgress(ctx context.Context, videoPath, outputDir string, videoID int, width, height, gridCols, gridRows, interval, quality, concurrency int, progressCallback func(progress int)) ([]string, error) {
+	metadata, err := GetMetadataWithContext(ctx, videoPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get video metadata: %w", err)
 	}
@@ -205,12 +224,28 @@ func ExtractSpriteSheets(videoPath, outputDir string, videoID int, width, height
 	var wg sync.WaitGroup
 	errChan := make(chan error, totalFrames)
 
+	// Atomic counter for tracking completed frames
+	var completedFrames int64
+
 	for i := 0; i < totalFrames; i++ {
 		wg.Add(1)
 		go func(frameIndex int) {
 			defer wg.Done()
-			semaphore <- struct{}{}
+
+			// Check for context cancellation before acquiring semaphore
+			select {
+			case <-ctx.Done():
+				errChan <- ctx.Err()
+				return
+			case semaphore <- struct{}{}:
+			}
 			defer func() { <-semaphore }()
+
+			// Check again after acquiring semaphore
+			if ctx.Err() != nil {
+				errChan <- ctx.Err()
+				return
+			}
 
 			ts := frameIndex * interval
 			framePath := filepath.Join(tmpDir, fmt.Sprintf("frame_%04d.webp", frameIndex))
@@ -227,9 +262,21 @@ func ExtractSpriteSheets(videoPath, outputDir string, videoID int, width, height
 				framePath,
 			)
 
-			cmd := exec.Command(FFMpegPath(), args...)
+			cmd := exec.CommandContext(ctx, FFMpegPath(), args...)
 			if output, err := cmd.CombinedOutput(); err != nil {
+				if ctx.Err() != nil {
+					errChan <- ctx.Err()
+					return
+				}
 				errChan <- fmt.Errorf("ffmpeg failed extracting frame at %ds: %w, output: %s", ts, err, string(output))
+				return
+			}
+
+			// Report progress (0-80% for frame extraction phase)
+			completed := atomic.AddInt64(&completedFrames, 1)
+			if progressCallback != nil {
+				progress := int(float64(completed) / float64(totalFrames) * 80)
+				progressCallback(progress)
 			}
 		}(i)
 	}
@@ -237,13 +284,23 @@ func ExtractSpriteSheets(videoPath, outputDir string, videoID int, width, height
 	wg.Wait()
 	close(errChan)
 
+	// Check for context cancellation first
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
 	if err := <-errChan; err != nil {
 		return nil, err
 	}
 
-	// Phase 2: Tile extracted frames into sprite sheets
+	// Phase 2: Tile extracted frames into sprite sheets (80-100% progress)
 	var spriteSheets []string
 	for sheetIndex := 0; sheetIndex < totalSheets; sheetIndex++ {
+		// Check for context cancellation between sheets
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
 		spriteName := fmt.Sprintf("%d_sheet_%03d.webp", videoID, sheetIndex+1)
 		spritePath := filepath.Join(outputDir, spriteName)
 
@@ -279,14 +336,23 @@ func ExtractSpriteSheets(videoPath, outputDir string, videoID int, width, height
 			spritePath,
 		)
 
-		cmd := exec.Command(FFMpegPath(), args...)
+		cmd := exec.CommandContext(ctx, FFMpegPath(), args...)
 		output, cmdErr := cmd.CombinedOutput()
 		os.RemoveAll(sheetDir)
 		if cmdErr != nil {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
 			return nil, fmt.Errorf("ffmpeg failed tiling sprite sheet %d: %w, output: %s", sheetIndex+1, cmdErr, string(output))
 		}
 
 		spriteSheets = append(spriteSheets, spriteName)
+
+		// Report progress (80-100% for tiling phase)
+		if progressCallback != nil {
+			progress := 80 + int(float64(sheetIndex+1)/float64(totalSheets)*20)
+			progressCallback(progress)
+		}
 	}
 
 	return spriteSheets, nil

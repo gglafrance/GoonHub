@@ -11,11 +11,12 @@ import (
 )
 
 type JobHistoryService struct {
-	repo      data.JobHistoryRepository
-	retention time.Duration
-	retentionStr string
-	logger    *zap.Logger
-	cancel    context.CancelFunc
+	repo           data.JobHistoryRepository
+	retention      time.Duration
+	retentionStr   string
+	logger         *zap.Logger
+	cancel         context.CancelFunc
+	retryScheduler *RetryScheduler
 }
 
 func NewJobHistoryService(repo data.JobHistoryRepository, cfg config.ProcessingConfig, logger *zap.Logger) *JobHistoryService {
@@ -82,6 +83,28 @@ func (s *JobHistoryService) RecordJobFailed(jobID string, jobErr error) {
 	}
 }
 
+func (s *JobHistoryService) RecordJobCancelled(jobID string) {
+	now := time.Now()
+	errMsg := "job was cancelled"
+	if err := s.repo.UpdateStatus(jobID, "cancelled", &errMsg, &now); err != nil {
+		s.logger.Error("Failed to record job cancellation",
+			zap.String("job_id", jobID),
+			zap.Error(err),
+		)
+	}
+}
+
+func (s *JobHistoryService) RecordJobTimedOut(jobID string) {
+	now := time.Now()
+	errMsg := "job timed out"
+	if err := s.repo.UpdateStatus(jobID, "timed_out", &errMsg, &now); err != nil {
+		s.logger.Error("Failed to record job timeout",
+			zap.String("job_id", jobID),
+			zap.Error(err),
+		)
+	}
+}
+
 func (s *JobHistoryService) StartCleanupTicker() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
@@ -136,4 +159,90 @@ func (s *JobHistoryService) ListActiveJobs() ([]data.JobHistory, error) {
 
 func (s *JobHistoryService) GetRetention() string {
 	return s.retentionStr
+}
+
+// SetRetryScheduler sets the retry scheduler for handling failed jobs.
+func (s *JobHistoryService) SetRetryScheduler(scheduler *RetryScheduler) {
+	s.retryScheduler = scheduler
+}
+
+// RecordJobStartWithRetry records a job start with retry configuration.
+// retryCount is the current retry attempt (0 for first attempt, inherited from previous failed job).
+func (s *JobHistoryService) RecordJobStartWithRetry(jobID string, videoID uint, videoTitle string, phase string, maxRetries int, retryCount int) {
+	now := time.Now()
+	record := &data.JobHistory{
+		JobID:       jobID,
+		VideoID:     videoID,
+		VideoTitle:  videoTitle,
+		Phase:       phase,
+		Status:      "running",
+		StartedAt:   now,
+		CreatedAt:   now,
+		MaxRetries:  maxRetries,
+		RetryCount:  retryCount,
+		IsRetryable: true,
+	}
+	if err := s.repo.Create(record); err != nil {
+		s.logger.Error("Failed to record job start",
+			zap.String("job_id", jobID),
+			zap.Uint("video_id", videoID),
+			zap.Int("retry_count", retryCount),
+			zap.Error(err),
+		)
+	}
+}
+
+// UpdateProgress updates the progress of a running job.
+func (s *JobHistoryService) UpdateProgress(jobID string, progress int) {
+	if err := s.repo.UpdateProgress(jobID, progress); err != nil {
+		s.logger.Error("Failed to update job progress",
+			zap.String("job_id", jobID),
+			zap.Int("progress", progress),
+			zap.Error(err),
+		)
+	}
+}
+
+// RecordJobFailedWithRetry records a job failure and schedules a retry if configured.
+func (s *JobHistoryService) RecordJobFailedWithRetry(jobID string, videoID uint, phase string, jobErr error) {
+	now := time.Now()
+	errMsg := jobErr.Error()
+
+	// Get the current job to check retry count
+	job, err := s.repo.GetByJobID(jobID)
+	if err != nil {
+		s.logger.Error("Failed to get job for retry handling",
+			zap.String("job_id", jobID),
+			zap.Error(err),
+		)
+		// Fall back to basic failure recording
+		if updateErr := s.repo.UpdateStatus(jobID, "failed", &errMsg, &now); updateErr != nil {
+			s.logger.Error("Failed to record job failure", zap.String("job_id", jobID), zap.Error(updateErr))
+		}
+		return
+	}
+
+	// Update status to failed
+	if err := s.repo.UpdateStatus(jobID, "failed", &errMsg, &now); err != nil {
+		s.logger.Error("Failed to record job failure",
+			zap.String("job_id", jobID),
+			zap.Error(err),
+		)
+		return
+	}
+
+	// If retry scheduler is configured and job is retryable, schedule retry
+	if s.retryScheduler != nil && job.IsRetryable {
+		if err := s.retryScheduler.ScheduleRetry(jobID, phase, videoID, job.RetryCount, errMsg); err != nil {
+			s.logger.Error("Failed to schedule retry",
+				zap.String("job_id", jobID),
+				zap.Error(err),
+			)
+		}
+	}
+}
+
+// GetByJobID retrieves a job by its ID.
+func (s *JobHistoryService) GetByJobID(jobID string) (*data.JobHistory, error) {
+	return s.repo.GetByJobID(jobID)
 }

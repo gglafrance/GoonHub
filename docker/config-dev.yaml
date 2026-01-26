@@ -10,7 +10,7 @@ server:
   idle_timeout: 120s
 
 database:
-  host: postgres
+  host: localhost
   port: 5432
   user: goonhub
   password: goonhub_dev_password
@@ -30,7 +30,7 @@ auth:
   token_duration: 24h
 
 meilisearch:
-  host: "http://meilisearch:7700"
+  host: "http://localhost:7700"
   api_key: "goonhub_dev_master_key"
   index_name: "videos"
 
@@ -45,11 +45,14 @@ processing:
   thumbnail_workers: 1
   sprites_workers: 1
   thumbnail_seek: "00:00:05"
-  frame_output_dir: "/app/data/frames"
-  thumbnail_dir: "/app/data/thumbnails"
-  sprite_dir: "/app/data/sprites"
-  vtt_dir: "/app/data/vtt"
+  frame_output_dir: "./data/frames"
+  thumbnail_dir: "./data/thumbnails"
+  sprite_dir: "./data/sprites"
+  vtt_dir: "./data/vtt"
   grid_cols: 12
   grid_rows: 8
-  sprites_concurrency: 0
+  sprites_concurrency: 4
   job_history_retention: "7d"
+  metadata_timeout: 5m
+  thumbnail_timeout: 2m
+  sprites_timeout: 30m

@@ -4,11 +4,16 @@ export interface JobHistory {
     video_id: number;
     video_title: string;
     phase: 'metadata' | 'thumbnail' | 'sprites';
-    status: 'running' | 'completed' | 'failed';
+    status: 'running' | 'completed' | 'failed' | 'cancelled' | 'timed_out';
     error_message?: string;
     started_at: string;
     completed_at?: string;
     created_at: string;
+    retry_count: number;
+    max_retries: number;
+    next_retry_at?: string;
+    progress: number;
+    is_retryable: boolean;
 }
 
 export interface PoolConfig {
@@ -49,9 +54,59 @@ export interface JobListResponse {
 
 export interface TriggerConfig {
     id: number;
-    phase: 'metadata' | 'thumbnail' | 'sprites';
+    phase: 'metadata' | 'thumbnail' | 'sprites' | 'scan';
     trigger_type: 'on_import' | 'after_job' | 'manual' | 'scheduled';
     after_phase: string | null;
     cron_expression: string | null;
+    updated_at: string;
+}
+
+export interface BulkJobRequest {
+    phase: 'metadata' | 'thumbnail' | 'sprites';
+    mode: 'missing' | 'all';
+}
+
+export interface BulkJobResponse {
+    message: string;
+    submitted: number;
+    skipped: number;
+    errors: number;
+}
+
+export interface DLQEntry {
+    id: number;
+    job_id: string;
+    video_id: number;
+    video_title: string;
+    phase: 'metadata' | 'thumbnail' | 'sprites';
+    original_error: string;
+    failure_count: number;
+    last_error: string;
+    status: 'pending_review' | 'retrying' | 'abandoned';
+    created_at: string;
+    updated_at: string;
+    abandoned_at?: string;
+}
+
+export interface DLQListResponse {
+    data: DLQEntry[];
+    total: number;
+    page: number;
+    limit: number;
+    stats: {
+        pending_review: number;
+        retrying: number;
+        abandoned: number;
+        total: number;
+    };
+}
+
+export interface RetryConfig {
+    id: number;
+    phase: 'metadata' | 'thumbnail' | 'sprites' | 'scan';
+    max_retries: number;
+    initial_delay_seconds: number;
+    max_delay_seconds: number;
+    backoff_factor: number;
     updated_at: string;
 }
