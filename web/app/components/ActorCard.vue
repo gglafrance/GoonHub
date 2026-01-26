@@ -8,6 +8,33 @@ const props = defineProps<{
 const imageUrl = computed(() => {
     return props.actor.image_url || null;
 });
+
+const genderInfo = computed(() => {
+    const gender = props.actor.gender?.toLowerCase();
+    if (!gender) return null;
+
+    const genderMap: Record<string, { icon: string; label: string; color: string }> = {
+        male: { icon: 'mdi:gender-male', label: 'Male', color: 'text-blue-400' },
+        female: { icon: 'mdi:gender-female', label: 'Female', color: 'text-pink-400' },
+        transgender_male: {
+            icon: 'mdi:gender-transgender',
+            label: 'Trans Male',
+            color: 'text-cyan-400',
+        },
+        transgender_female: {
+            icon: 'mdi:gender-transgender',
+            label: 'Trans Female',
+            color: 'text-fuchsia-400',
+        },
+        non_binary: {
+            icon: 'mdi:gender-non-binary',
+            label: 'Non-binary',
+            color: 'text-purple-400',
+        },
+    };
+
+    return genderMap[gender] || null;
+});
 </script>
 
 <template>
@@ -33,6 +60,16 @@ const imageUrl = computed(() => {
                     justify-center transition-colors"
             >
                 <Icon name="heroicons:user" size="48" />
+            </div>
+
+            <!-- Gender badge -->
+            <div
+                v-if="genderInfo"
+                :title="genderInfo.label"
+                class="bg-void/90 absolute top-1.5 left-1.5 flex items-center justify-center rounded
+                    p-1 backdrop-blur-sm"
+            >
+                <Icon :name="genderInfo.icon" :class="genderInfo.color" size="14" />
             </div>
 
             <!-- Video count badge -->
