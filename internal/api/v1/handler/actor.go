@@ -3,7 +3,9 @@ package handler
 import (
 	"fmt"
 	"goonhub/internal/api/v1/request"
+	"goonhub/internal/api/v1/response"
 	"goonhub/internal/core"
+	"goonhub/internal/data"
 	"io"
 	"net/http"
 	"os"
@@ -40,11 +42,26 @@ func (h *ActorHandler) ListActors(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":  actors,
+		"data":  toActorListItems(actors),
 		"total": total,
 		"page":  page,
 		"limit": limit,
 	})
+}
+
+func toActorListItems(actors []data.ActorWithCount) []response.ActorListItem {
+	items := make([]response.ActorListItem, len(actors))
+	for i, a := range actors {
+		items[i] = response.ActorListItem{
+			ID:         a.ID,
+			UUID:       a.UUID,
+			Name:       a.Name,
+			ImageURL:   a.ImageURL,
+			Gender:     a.Gender,
+			VideoCount: a.VideoCount,
+		}
+	}
+	return items
 }
 
 func (h *ActorHandler) GetActorByUUID(c *gin.Context) {

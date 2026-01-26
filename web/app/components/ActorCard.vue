@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { Actor } from '~/types/actor';
+import type { ActorListItem } from '~/types/actor';
 
 const props = defineProps<{
-    actor: Actor;
+    actor: ActorListItem;
 }>();
 
 const imageUrl = computed(() => {
@@ -91,12 +91,6 @@ const genderInfo = computed(() => {
             >
                 {{ actor.name }}
             </h3>
-            <div
-                v-if="actor.nationality || actor.birthplace"
-                class="text-dim mt-0.5 truncate text-xs"
-            >
-                {{ actor.nationality || actor.birthplace }}
-            </div>
         </div>
     </NuxtLink>
 </template>
