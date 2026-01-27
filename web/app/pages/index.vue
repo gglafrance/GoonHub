@@ -1,18 +1,57 @@
 <script setup lang="ts">
 const store = useVideoStore();
+const route = useRoute();
+const router = useRouter();
 
 useHead({ title: 'Library' });
 
-// Initial load
-onMounted(() => {
-    store.loadVideos();
+// Get initial page from query parameter
+const getPageFromQuery = (): number => {
+    const pageParam = route.query.page;
+    if (pageParam) {
+        const parsed = parseInt(pageParam as string, 10);
+        if (!isNaN(parsed) && parsed >= 1) {
+            return parsed;
+        }
+    }
+    return 1;
+};
+
+// Update URL query parameter
+const updatePageQuery = (page: number) => {
+    const query = { ...route.query };
+    if (page === 1) {
+        delete query.page;
+    } else {
+        query.page = String(page);
+    }
+    router.replace({ query });
+};
+
+// Track if initial load has completed to avoid duplicate fetches
+const initialLoadDone = ref(false);
+
+// Initial load with page from URL
+onMounted(async () => {
+    const initialPage = getPageFromQuery();
+    // Set currentPage before loading to prevent watcher from triggering
+    store.currentPage = initialPage;
+    await store.loadVideos(initialPage);
+    // Update URL if API returned a different page (e.g., invalid page requested)
+    if (store.currentPage !== initialPage) {
+        updatePageQuery(store.currentPage);
+    }
+    initialLoadDone.value = true;
 });
 
-// Watch page changes
+// Watch page changes and sync URL (only after initial load)
 watch(
     () => store.currentPage,
-    (newPage) => {
-        store.loadVideos(newPage);
+    (newPage, oldPage) => {
+        if (initialLoadDone.value && newPage !== oldPage) {
+            store.loadVideos(newPage);
+            updatePageQuery(newPage);
+        }
     },
 );
 
