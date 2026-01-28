@@ -51,7 +51,9 @@ const isPortrait = computed(() => {
 
 const vttUrl = computed(() => {
     if (!props.video?.vtt_path) return null;
-    return `/vtt/${props.video.id}`;
+    const base = `/vtt/${props.video.id}`;
+    const v = props.video.updated_at ? new Date(props.video.updated_at).getTime() : '';
+    return v ? `${base}?v=${v}` : base;
 });
 
 onMounted(async () => {

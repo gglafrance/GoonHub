@@ -45,7 +45,10 @@ const streamUrl = computed(() => {
 const posterUrl = computed(() => {
     if (!video.value || !video.value.thumbnail_path) return '';
     const base = `/thumbnails/${video.value.id}?size=lg`;
-    return thumbnailVersion.value ? `${base}&v=${thumbnailVersion.value}` : base;
+    const v =
+        thumbnailVersion.value ||
+        (video.value.updated_at ? new Date(video.value.updated_at).getTime() : 0);
+    return v ? `${base}&v=${v}` : base;
 });
 
 onMounted(async () => {

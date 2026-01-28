@@ -5,6 +5,7 @@ export interface Video {
     size: number;
     view_count: number;
     created_at: string;
+    updated_at?: string;
     duration: number;
     width?: number;
     height?: number;

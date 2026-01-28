@@ -57,7 +57,9 @@ function getSpriteStyle(cue: VttCue) {
 const currentThumbnailUrl = computed(() => {
     if (!video?.value?.thumbnail_path) return null;
     const base = `/thumbnails/${video.value.id}?size=lg`;
-    const v = thumbnailVersion?.value;
+    const v =
+        thumbnailVersion?.value ||
+        (video.value.updated_at ? new Date(video.value.updated_at).getTime() : 0);
     return v ? `${base}&v=${v}` : base;
 });
 

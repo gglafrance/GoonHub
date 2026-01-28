@@ -10,7 +10,10 @@ const { formatDuration, formatSize } = useFormatter();
 const isProcessing = computed(() => isVideoProcessing(props.video));
 
 const thumbnailUrl = computed(() => {
-    return props.video.thumbnail_path ? `/thumbnails/${props.video.id}` : null;
+    if (!props.video.thumbnail_path) return null;
+    const base = `/thumbnails/${props.video.id}`;
+    const v = props.video.updated_at ? new Date(props.video.updated_at).getTime() : '';
+    return v ? `${base}?v=${v}` : base;
 });
 </script>
 
