@@ -28,3 +28,12 @@ type SearchVideosRequest struct {
 	MinJizzCount int     `form:"min_jizz_count"`
 	MaxJizzCount int     `form:"max_jizz_count"`
 }
+
+type ApplySceneMetadataRequest struct {
+	Title        *string  `json:"title,omitempty"`
+	Description  *string  `json:"description,omitempty"`
+	Studio       *string  `json:"studio,omitempty"`
+	ThumbnailURL *string  `json:"thumbnail_url,omitempty"`
+	ActorIDs     []uint   `json:"actor_ids,omitempty"`
+	TagNames     []string `json:"tag_names,omitempty"`
+}

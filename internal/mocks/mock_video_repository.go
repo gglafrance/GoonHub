@@ -260,6 +260,20 @@ func (mr *MockVideoRepositoryMockRecorder) UpdateProcessingStatus(id, status, er
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProcessingStatus", reflect.TypeOf((*MockVideoRepository)(nil).UpdateProcessingStatus), id, status, errorMsg)
 }
 
+// UpdateSceneMetadata mocks base method.
+func (m *MockVideoRepository) UpdateSceneMetadata(id uint, title, description, studio string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSceneMetadata", id, title, description, studio)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateSceneMetadata indicates an expected call of UpdateSceneMetadata.
+func (mr *MockVideoRepositoryMockRecorder) UpdateSceneMetadata(id, title, description, studio any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSceneMetadata", reflect.TypeOf((*MockVideoRepository)(nil).UpdateSceneMetadata), id, title, description, studio)
+}
+
 // UpdateSprites mocks base method.
 func (m *MockVideoRepository) UpdateSprites(id uint, spriteSheetPath, vttPath string, spriteSheetCount int) error {
 	m.ctrl.T.Helper()

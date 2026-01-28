@@ -455,3 +455,61 @@ func (h *VideoHandler) UploadThumbnail(c *gin.Context) {
 		"thumbnail_height": video.ThumbnailHeight,
 	})
 }
+
+func (h *VideoHandler) ApplySceneMetadata(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		return
+	}
+
+	var req request.ApplySceneMetadataRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	video, err := h.Service.GetVideo(uint(id))
+	if err != nil {
+		if strings.Contains(err.Error(), "record not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get video"})
+		return
+	}
+
+	// Build the update values, using existing values if not provided
+	title := video.Title
+	description := video.Description
+	studio := video.Studio
+
+	if req.Title != nil {
+		title = *req.Title
+	}
+	if req.Description != nil {
+		description = *req.Description
+	}
+	if req.Studio != nil {
+		studio = *req.Studio
+	}
+
+	updatedVideo, err := h.Service.UpdateSceneMetadata(uint(id), title, description, studio)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update scene metadata"})
+		return
+	}
+
+	// Import thumbnail from URL if provided
+	if req.ThumbnailURL != nil && *req.ThumbnailURL != "" {
+		if err := h.Service.SetThumbnailFromURL(uint(id), *req.ThumbnailURL); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to import thumbnail: %v", err)})
+			return
+		}
+		// Re-fetch to include updated thumbnail
+		updatedVideo, _ = h.Service.GetVideo(uint(id))
+	}
+
+	c.JSON(http.StatusOK, updatedVideo)
+}

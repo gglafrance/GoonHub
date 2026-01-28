@@ -70,6 +70,7 @@ type VideoRepository interface {
 	GetVideosNeedingPhase(phase string) ([]Video, error)
 	Delete(id uint) error
 	UpdateDetails(id uint, title, description string) error
+	UpdateSceneMetadata(id uint, title, description, studio string) error
 	ExistsByStoredPath(path string) (bool, error)
 }
 
@@ -245,6 +246,11 @@ func (r *VideoRepositoryImpl) Delete(id uint) error {
 func (r *VideoRepositoryImpl) UpdateDetails(id uint, title, description string) error {
 	return r.DB.Model(&Video{}).Where("id = ?", id).
 		Updates(map[string]interface{}{"title": title, "description": description}).Error
+}
+
+func (r *VideoRepositoryImpl) UpdateSceneMetadata(id uint, title, description, studio string) error {
+	return r.DB.Model(&Video{}).Where("id = ?", id).
+		Updates(map[string]interface{}{"title": title, "description": description, "studio": studio}).Error
 }
 
 func (r *VideoRepositoryImpl) GetDistinctStudios() ([]string, error) {

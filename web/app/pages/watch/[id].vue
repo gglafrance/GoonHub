@@ -19,8 +19,11 @@ const resumePosition = ref(0);
 const showResumePrompt = ref(false);
 const startTime = ref(0);
 
+const thumbnailVersion = ref(0);
+
 provide('getPlayerTime', () => playerRef.value?.getCurrentTime() ?? 0);
 provide('watchVideo', video);
+provide('thumbnailVersion', thumbnailVersion);
 provide('seekToTime', (time: number) => {
     startTime.value = time;
     showResumePrompt.value = false;
@@ -41,7 +44,8 @@ const streamUrl = computed(() => {
 
 const posterUrl = computed(() => {
     if (!video.value || !video.value.thumbnail_path) return '';
-    return `/thumbnails/${video.value.id}?size=lg`;
+    const base = `/thumbnails/${video.value.id}?size=lg`;
+    return thumbnailVersion.value ? `${base}&v=${thumbnailVersion.value}` : base;
 });
 
 onMounted(async () => {

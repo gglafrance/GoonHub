@@ -111,6 +111,7 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					admin.GET("/trigger-config", triggerConfigHandler.GetTriggerConfig)
 					admin.PUT("/trigger-config", triggerConfigHandler.UpdateTriggerConfig)
 					admin.POST("/videos/:id/process/:phase", jobHandler.TriggerPhase)
+					admin.PUT("/videos/:id/scene-metadata", videoHandler.ApplySceneMetadata)
 					admin.POST("/jobs/bulk", jobHandler.TriggerBulkPhase)
 					admin.POST("/jobs/:id/cancel", jobHandler.CancelJob)
 					admin.GET("/dlq", dlqHandler.ListDLQ)
@@ -138,6 +139,8 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					admin.GET("/porndb/status", pornDBHandler.GetStatus)
 					admin.GET("/porndb/performers", pornDBHandler.SearchPerformers)
 					admin.GET("/porndb/performers/:id", pornDBHandler.GetPerformer)
+					admin.GET("/porndb/scenes", pornDBHandler.SearchScenes)
+					admin.GET("/porndb/scenes/:id", pornDBHandler.GetScene)
 				}
 			}
 		}

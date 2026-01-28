@@ -823,6 +823,54 @@ export const useApi = () => {
         return result.data;
     };
 
+    const searchPornDBScenes = async (params: {
+        q?: string;
+        title?: string;
+        year?: number;
+        site?: string;
+    }) => {
+        const searchParams = new URLSearchParams();
+        if (params.q) searchParams.set('q', params.q);
+        if (params.title) searchParams.set('title', params.title);
+        if (params.year) searchParams.set('year', params.year.toString());
+        if (params.site) searchParams.set('site', params.site);
+
+        const response = await fetch(`/api/v1/admin/porndb/scenes?${searchParams}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        const result = await handleResponse(response);
+        return result.data || [];
+    };
+
+    const getPornDBScene = async (id: string) => {
+        const response = await fetch(`/api/v1/admin/porndb/scenes/${id}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        const result = await handleResponse(response);
+        return result.data;
+    };
+
+    const applySceneMetadata = async (
+        videoId: number,
+        data: {
+            title?: string;
+            description?: string;
+            studio?: string;
+            thumbnail_url?: string;
+            actor_ids?: number[];
+            tag_names?: string[];
+        },
+    ) => {
+        const response = await fetch(`/api/v1/admin/videos/${videoId}/scene-metadata`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(data),
+        });
+        return handleResponse(response);
+    };
+
     return {
         uploadVideo,
         fetchVideos,
@@ -902,5 +950,8 @@ export const useApi = () => {
         getPornDBStatus,
         searchPornDBPerformers,
         getPornDBPerformer,
+        searchPornDBScenes,
+        getPornDBScene,
+        applySceneMetadata,
     };
 };

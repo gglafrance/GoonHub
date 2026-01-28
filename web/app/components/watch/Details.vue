@@ -3,6 +3,8 @@ import type { Video } from '~/types/video';
 import type { Tag } from '~/types/tag';
 
 const video = inject<Ref<Video | null>>('watchVideo');
+const thumbnailVersion = inject<Ref<number>>('thumbnailVersion');
+const authStore = useAuthStore();
 const {
     fetchTags,
     fetchVideoTags,
@@ -13,10 +15,50 @@ const {
     deleteVideoRating,
     toggleVideoLike,
     incrementJizzed,
+    fetchVideo,
+    getPornDBStatus,
 } = useApi();
 
 const loading = ref(false);
 const error = ref<string | null>(null);
+
+// Fetch metadata modal state
+const showFetchMetadataModal = ref(false);
+const pornDBConfigured = ref(false);
+const checkingPornDB = ref(false);
+
+const isAdmin = computed(() => authStore.user?.role === 'admin');
+
+async function checkPornDBStatus() {
+    if (!isAdmin.value) return;
+    checkingPornDB.value = true;
+    try {
+        const status = await getPornDBStatus();
+        pornDBConfigured.value = status.configured;
+    } catch {
+        pornDBConfigured.value = false;
+    } finally {
+        checkingPornDB.value = false;
+    }
+}
+
+async function handleMetadataApplied() {
+    // Refresh video data after metadata is applied
+    if (video?.value) {
+        try {
+            const updated = await fetchVideo(video.value.id);
+            if (video.value) {
+                Object.assign(video.value, updated);
+            }
+            // Bust thumbnail cache in case it was updated
+            if (thumbnailVersion) {
+                thumbnailVersion.value = Date.now();
+            }
+        } catch {
+            // Silently fail refresh
+        }
+    }
+}
 
 const allTags = ref<Tag[]>([]);
 const allTagsLoaded = ref(false);
@@ -57,7 +99,7 @@ const availableTags = computed(() =>
 const displayRating = computed(() => (isHovering.value ? hoverRating.value : currentRating.value));
 
 onMounted(async () => {
-    await Promise.all([loadVideoTags(), loadInteractions()]);
+    await Promise.all([loadVideoTags(), loadInteractions(), checkPornDBStatus()]);
 });
 
 async function loadInteractions() {
@@ -412,17 +454,24 @@ async function removeTag(tagId: number) {
 
             <!-- Actors section -->
             <WatchActors />
+
+            <!-- Fetch Metadata button (admin only, PornDB configured) -->
+            <button
+                v-if="isAdmin && pornDBConfigured"
+                @click="showFetchMetadataModal = true"
+                class="border-border hover:border-lava/40 hover:text-lava text-dim flex items-center
+                    gap-2 rounded-lg border px-3 py-2 text-xs transition-colors"
+            >
+                <Icon name="heroicons:cloud-arrow-down" size="14" />
+                Fetch Scene Metadata
+            </button>
         </div>
 
         <!-- Right column: Rating & Actions -->
         <div class="flex shrink-0 flex-col items-center gap-2.5">
             <!-- Stars -->
             <div class="flex items-center gap-0.75" @mouseleave="onStarLeave">
-                <div
-                    v-for="star in 5"
-                    :key="star"
-                    class="relative h-4.5 w-4.5 cursor-pointer"
-                >
+                <div v-for="star in 5" :key="star" class="relative h-4.5 w-4.5 cursor-pointer">
                     <div
                         class="absolute inset-y-0 left-0 z-10 w-1/2"
                         @mouseenter="onStarHover(star, true)"
@@ -550,6 +599,15 @@ async function removeTag(tagId: number) {
             </div>
         </div>
     </div>
+
+    <!-- Fetch Scene Metadata Modal -->
+    <WatchFetchSceneMetadataModal
+        v-if="video"
+        :visible="showFetchMetadataModal"
+        :video="video"
+        @close="showFetchMetadataModal = false"
+        @applied="handleMetadataApplied"
+    />
 </template>
 
 <style scoped>
