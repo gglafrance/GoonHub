@@ -1,7 +1,9 @@
 package core
 
 import (
+	"errors"
 	"fmt"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/data"
 	"goonhub/pkg/ffmpeg"
 	"io"
@@ -16,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 type VideoService struct {
@@ -76,7 +79,7 @@ func (s *VideoService) ValidateExtension(filename string) bool {
 
 func (s *VideoService) UploadVideo(file *multipart.FileHeader, title string) (*data.Video, error) {
 	if !s.ValidateExtension(file.Filename) {
-		return nil, fmt.Errorf("invalid file extension")
+		return nil, apperrors.ErrInvalidFileExtension
 	}
 
 	src, err := file.Open()
@@ -126,15 +129,17 @@ func (s *VideoService) UploadVideo(file *multipart.FileHeader, title string) (*d
 	}
 
 	if s.ProcessingService != nil {
-		go func(videoID uint, videoPath string) {
-			if err := s.ProcessingService.SubmitVideo(videoID, videoPath); err != nil {
-				s.logger.Error("Failed to submit video for processing",
-					zap.Uint("video_id", videoID),
-					zap.String("video_path", videoPath),
-					zap.Error(err),
-				)
-			}
-		}(video.ID, storedPath)
+		// Submit video for processing synchronously - this is just a queue operation,
+		// not the actual processing work, so it's safe to block briefly
+		if err := s.ProcessingService.SubmitVideo(video.ID, storedPath); err != nil {
+			s.logger.Error("Failed to submit video for processing",
+				zap.Uint("video_id", video.ID),
+				zap.String("video_path", storedPath),
+				zap.Error(err),
+			)
+			// Don't fail the upload - video is saved but processing won't start automatically
+			// Users can manually trigger processing via the admin API
+		}
 	}
 
 	// Index video in search engine
@@ -169,7 +174,14 @@ func (s *VideoService) GetDistinctActors() ([]string, error) {
 }
 
 func (s *VideoService) GetVideo(id uint) (*data.Video, error) {
-	return s.Repo.GetByID(id)
+	video, err := s.Repo.GetByID(id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrVideoNotFound(id)
+		}
+		return nil, apperrors.NewInternalError("failed to get video", err)
+	}
+	return video, nil
 }
 
 func (s *VideoService) UpdateVideoDetails(id uint, title, description string, releaseDate *time.Time) (*data.Video, error) {
@@ -221,11 +233,14 @@ func (s *VideoService) UpdateSceneMetadata(id uint, title, description, studio s
 func (s *VideoService) DeleteVideo(id uint) error {
 	video, err := s.Repo.GetByID(id)
 	if err != nil {
-		return err
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.ErrVideoNotFound(id)
+		}
+		return apperrors.NewInternalError("failed to get video", err)
 	}
 
 	if err := s.Repo.Delete(id); err != nil {
-		return err
+		return apperrors.NewInternalError("failed to delete video", err)
 	}
 
 	// Remove from search index
@@ -270,11 +285,14 @@ var allowedImageExtensions = map[string]bool{
 func (s *VideoService) SetThumbnailFromTimecode(videoID uint, timecode float64) error {
 	video, err := s.Repo.GetByID(videoID)
 	if err != nil {
-		return fmt.Errorf("failed to get video: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.ErrVideoNotFound(videoID)
+		}
+		return apperrors.NewInternalError("failed to get video", err)
 	}
 
 	if video.Width == 0 || video.Height == 0 {
-		return fmt.Errorf("video dimensions not available, metadata must be extracted first")
+		return apperrors.ErrVideoDimensionsNotAvailable
 	}
 
 	qualityConfig := s.ProcessingService.GetProcessingQualityConfig()
@@ -319,16 +337,19 @@ func (s *VideoService) SetThumbnailFromTimecode(videoID uint, timecode float64) 
 func (s *VideoService) SetThumbnailFromUpload(videoID uint, file *multipart.FileHeader) error {
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	if !allowedImageExtensions[ext] {
-		return fmt.Errorf("invalid image extension, allowed: .jpg, .jpeg, .png, .webp")
+		return apperrors.ErrInvalidImageExtension
 	}
 
 	video, err := s.Repo.GetByID(videoID)
 	if err != nil {
-		return fmt.Errorf("failed to get video: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.ErrVideoNotFound(videoID)
+		}
+		return apperrors.NewInternalError("failed to get video", err)
 	}
 
 	if video.Width == 0 || video.Height == 0 {
-		return fmt.Errorf("video dimensions not available, metadata must be extracted first")
+		return apperrors.ErrVideoDimensionsNotAvailable
 	}
 
 	// Save uploaded file to temp location
@@ -358,11 +379,14 @@ func (s *VideoService) SetThumbnailFromUpload(videoID uint, file *multipart.File
 func (s *VideoService) SetThumbnailFromURL(videoID uint, imageURL string) error {
 	video, err := s.Repo.GetByID(videoID)
 	if err != nil {
-		return fmt.Errorf("failed to get video: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.ErrVideoNotFound(videoID)
+		}
+		return apperrors.NewInternalError("failed to get video", err)
 	}
 
 	if video.Width == 0 || video.Height == 0 {
-		return fmt.Errorf("video dimensions not available, metadata must be extracted first")
+		return apperrors.ErrVideoDimensionsNotAvailable
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}

@@ -76,6 +76,8 @@ type ProcessingConfig struct {
 	ThumbnailWorkers       int           `mapstructure:"thumbnail_workers"`         // concurrent thumbnail jobs
 	SpritesWorkers         int           `mapstructure:"sprites_workers"`           // concurrent sprites jobs
 	ThumbnailSeek          string        `mapstructure:"thumbnail_seek"`            // "00:00:05" or "5%"
+	VideoDir               string        `mapstructure:"video_dir"`                 // directory for video files
+	MetadataDir            string        `mapstructure:"metadata_dir"`              // base directory for metadata (thumbnails, sprites, vtt)
 	FrameOutputDir         string        `mapstructure:"frame_output_dir"`          // relative to app root
 	ThumbnailDir           string        `mapstructure:"thumbnail_dir"`             // relative to app root
 	SpriteDir              string        `mapstructure:"sprite_dir"`                // relative to app root
@@ -136,6 +138,8 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("processing.thumbnail_workers", 1)
 	v.SetDefault("processing.sprites_workers", 1)
 	v.SetDefault("processing.thumbnail_seek", "00:00:05")
+	v.SetDefault("processing.video_dir", "./data/videos")
+	v.SetDefault("processing.metadata_dir", "./data/metadata")
 	v.SetDefault("processing.frame_output_dir", "./data/metadata/frames")
 	v.SetDefault("processing.thumbnail_dir", "./data/metadata/thumbnails")
 	v.SetDefault("processing.sprite_dir", "./data/metadata/sprites")

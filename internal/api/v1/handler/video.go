@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/request"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
 	"goonhub/internal/data"
 	"io"
@@ -45,7 +47,7 @@ func (h *VideoHandler) UploadVideo(c *gin.Context) {
 
 	video, err := h.Service.UploadVideo(file, title)
 	if err != nil {
-		if err.Error() == "invalid file extension" {
+		if errors.Is(err, apperrors.ErrInvalidFileExtension) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -208,7 +210,7 @@ func (h *VideoHandler) DeleteVideo(c *gin.Context) {
 	}
 
 	if err := h.Service.DeleteVideo(uint(id)); err != nil {
-		if err.Error() == "record not found" {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
 			return
 		}
@@ -229,7 +231,7 @@ func (h *VideoHandler) GetVideo(c *gin.Context) {
 
 	video, err := h.Service.GetVideo(uint(id))
 	if err != nil {
-		if err.Error() == "record not found" {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
 			return
 		}
@@ -250,7 +252,7 @@ func (h *VideoHandler) StreamVideo(c *gin.Context) {
 
 	video, err := h.Service.GetVideo(uint(id))
 	if err != nil {
-		if err.Error() == "record not found" {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
 			return
 		}
@@ -420,7 +422,7 @@ func (h *VideoHandler) UpdateVideoDetails(c *gin.Context) {
 
 	video, err := h.Service.UpdateVideoDetails(uint(id), req.Title, req.Description, releaseDate)
 	if err != nil {
-		if strings.Contains(err.Error(), "record not found") {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
 			return
 		}
@@ -451,7 +453,7 @@ func (h *VideoHandler) UploadThumbnail(c *gin.Context) {
 	}
 
 	if err := h.Service.SetThumbnailFromUpload(uint(id), file); err != nil {
-		if strings.Contains(err.Error(), "invalid image extension") {
+		if errors.Is(err, apperrors.ErrInvalidImageExtension) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -488,7 +490,7 @@ func (h *VideoHandler) ApplySceneMetadata(c *gin.Context) {
 
 	video, err := h.Service.GetVideo(uint(id))
 	if err != nil {
-		if strings.Contains(err.Error(), "record not found") {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
 			return
 		}

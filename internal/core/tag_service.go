@@ -1,11 +1,13 @@
 package core
 
 import (
-	"fmt"
+	"errors"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/data"
 	"regexp"
 
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 var colorRegex = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
@@ -36,17 +38,17 @@ func (s *TagService) ListTags() ([]data.TagWithCount, error) {
 
 func (s *TagService) CreateTag(name, color string) (*data.Tag, error) {
 	if name == "" {
-		return nil, fmt.Errorf("tag name is required")
+		return nil, apperrors.NewValidationErrorWithField("name", "tag name is required")
 	}
 	if len(name) > 100 {
-		return nil, fmt.Errorf("tag name must be 100 characters or less")
+		return nil, apperrors.NewValidationErrorWithField("name", "tag name must be 100 characters or less")
 	}
 
 	if color == "" {
 		color = "#6B7280"
 	}
 	if !colorRegex.MatchString(color) {
-		return nil, fmt.Errorf("invalid color format, must be a hex color like #6B7280")
+		return nil, apperrors.NewValidationErrorWithField("color", "invalid color format, must be a hex color like #6B7280")
 	}
 
 	tag := &data.Tag{
@@ -55,7 +57,8 @@ func (s *TagService) CreateTag(name, color string) (*data.Tag, error) {
 	}
 
 	if err := s.tagRepo.Create(tag); err != nil {
-		return nil, fmt.Errorf("failed to create tag: %w", err)
+		// Check for unique constraint violation (tag already exists)
+		return nil, apperrors.ErrTagAlreadyExists(name)
 	}
 
 	s.logger.Info("Tag created", zap.String("name", name), zap.String("color", color))
@@ -64,11 +67,14 @@ func (s *TagService) CreateTag(name, color string) (*data.Tag, error) {
 
 func (s *TagService) DeleteTag(id uint) error {
 	if _, err := s.tagRepo.GetByID(id); err != nil {
-		return fmt.Errorf("tag not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.ErrTagNotFound(id)
+		}
+		return apperrors.NewInternalError("failed to find tag", err)
 	}
 
 	if err := s.tagRepo.Delete(id); err != nil {
-		return fmt.Errorf("failed to delete tag: %w", err)
+		return apperrors.NewInternalError("failed to delete tag", err)
 	}
 
 	s.logger.Info("Tag deleted", zap.Uint("id", id))
@@ -77,7 +83,10 @@ func (s *TagService) DeleteTag(id uint) error {
 
 func (s *TagService) GetVideoTags(videoID uint) ([]data.Tag, error) {
 	if _, err := s.videoRepo.GetByID(videoID); err != nil {
-		return nil, fmt.Errorf("video not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrVideoNotFound(videoID)
+		}
+		return nil, apperrors.NewInternalError("failed to find video", err)
 	}
 
 	return s.tagRepo.GetVideoTags(videoID)
@@ -90,11 +99,14 @@ func (s *TagService) GetTagsByNames(names []string) ([]data.Tag, error) {
 func (s *TagService) SetVideoTags(videoID uint, tagIDs []uint) ([]data.Tag, error) {
 	video, err := s.videoRepo.GetByID(videoID)
 	if err != nil {
-		return nil, fmt.Errorf("video not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrVideoNotFound(videoID)
+		}
+		return nil, apperrors.NewInternalError("failed to find video", err)
 	}
 
 	if err := s.tagRepo.SetVideoTags(videoID, tagIDs); err != nil {
-		return nil, fmt.Errorf("failed to set video tags: %w", err)
+		return nil, apperrors.NewInternalError("failed to set video tags", err)
 	}
 
 	// Re-index video in search engine after tag changes

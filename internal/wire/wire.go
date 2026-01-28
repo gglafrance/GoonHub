@@ -304,9 +304,7 @@ func provideAdminService(userRepo data.UserRepository, roleRepo data.RoleReposit
 // --- Video & Content Services ---
 
 func provideVideoService(repo data.VideoRepository, cfg *config.Config, processingService *core.VideoProcessingService, eventBus *core.EventBus, logger *logging.Logger) *core.VideoService {
-	videoPath := "./data/videos"
-	metadataPath := "./data/metadata"
-	return core.NewVideoService(repo, videoPath, metadataPath, processingService, eventBus, logger.Logger)
+	return core.NewVideoService(repo, cfg.Processing.VideoDir, cfg.Processing.MetadataDir, processingService, eventBus, logger.Logger)
 }
 
 func provideTagService(tagRepo data.TagRepository, videoRepo data.VideoRepository, logger *logging.Logger) *core.TagService {

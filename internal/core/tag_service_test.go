@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/data"
 	"goonhub/internal/mocks"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 func newTestTagService(t *testing.T) (*TagService, *mocks.MockTagRepository, *mocks.MockVideoRepository) {
@@ -74,6 +76,9 @@ func TestCreateTag_EmptyName(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for empty name")
 	}
+	if !apperrors.IsValidation(err) {
+		t.Fatalf("expected validation error, got: %v", err)
+	}
 	if !strings.Contains(err.Error(), "tag name is required") {
 		t.Fatalf("expected 'tag name is required' error, got: %v", err)
 	}
@@ -87,6 +92,9 @@ func TestCreateTag_NameTooLong(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for long name")
 	}
+	if !apperrors.IsValidation(err) {
+		t.Fatalf("expected validation error, got: %v", err)
+	}
 	if !strings.Contains(err.Error(), "100 characters or less") {
 		t.Fatalf("expected length error, got: %v", err)
 	}
@@ -98,6 +106,9 @@ func TestCreateTag_InvalidColor(t *testing.T) {
 	_, err := svc.CreateTag("Test", "invalid")
 	if err == nil {
 		t.Fatal("expected error for invalid color")
+	}
+	if !apperrors.IsValidation(err) {
+		t.Fatalf("expected validation error, got: %v", err)
 	}
 	if !strings.Contains(err.Error(), "invalid color format") {
 		t.Fatalf("expected color format error, got: %v", err)
@@ -133,8 +144,9 @@ func TestCreateTag_Duplicate(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for duplicate tag")
 	}
-	if !strings.Contains(err.Error(), "failed to create tag") {
-		t.Fatalf("expected wrapped error, got: %v", err)
+	// Now returns a conflict error
+	if !apperrors.IsConflict(err) {
+		t.Fatalf("expected conflict error, got: %v", err)
 	}
 }
 
@@ -153,14 +165,14 @@ func TestDeleteTag_Success(t *testing.T) {
 func TestDeleteTag_NotFound(t *testing.T) {
 	svc, tagRepo, _ := newTestTagService(t)
 
-	tagRepo.EXPECT().GetByID(uint(99)).Return(nil, fmt.Errorf("record not found"))
+	tagRepo.EXPECT().GetByID(uint(99)).Return(nil, gorm.ErrRecordNotFound)
 
 	err := svc.DeleteTag(99)
 	if err == nil {
 		t.Fatal("expected error for non-existent tag")
 	}
-	if !strings.Contains(err.Error(), "tag not found") {
-		t.Fatalf("expected 'tag not found' error, got: %v", err)
+	if !apperrors.IsNotFound(err) {
+		t.Fatalf("expected not found error, got: %v", err)
 	}
 }
 
@@ -184,14 +196,14 @@ func TestGetVideoTags_Success(t *testing.T) {
 func TestGetVideoTags_VideoNotFound(t *testing.T) {
 	svc, _, videoRepo := newTestTagService(t)
 
-	videoRepo.EXPECT().GetByID(uint(99)).Return(nil, fmt.Errorf("record not found"))
+	videoRepo.EXPECT().GetByID(uint(99)).Return(nil, gorm.ErrRecordNotFound)
 
 	_, err := svc.GetVideoTags(99)
 	if err == nil {
 		t.Fatal("expected error for non-existent video")
 	}
-	if !strings.Contains(err.Error(), "video not found") {
-		t.Fatalf("expected 'video not found' error, got: %v", err)
+	if !apperrors.IsNotFound(err) {
+		t.Fatalf("expected not found error, got: %v", err)
 	}
 }
 
@@ -217,14 +229,14 @@ func TestSetVideoTags_Success(t *testing.T) {
 func TestSetVideoTags_VideoNotFound(t *testing.T) {
 	svc, _, videoRepo := newTestTagService(t)
 
-	videoRepo.EXPECT().GetByID(uint(99)).Return(nil, fmt.Errorf("record not found"))
+	videoRepo.EXPECT().GetByID(uint(99)).Return(nil, gorm.ErrRecordNotFound)
 
 	_, err := svc.SetVideoTags(99, []uint{1})
 	if err == nil {
 		t.Fatal("expected error for non-existent video")
 	}
-	if !strings.Contains(err.Error(), "video not found") {
-		t.Fatalf("expected 'video not found' error, got: %v", err)
+	if !apperrors.IsNotFound(err) {
+		t.Fatalf("expected not found error, got: %v", err)
 	}
 }
 

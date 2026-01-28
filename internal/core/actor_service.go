@@ -1,12 +1,14 @@
 package core
 
 import (
-	"fmt"
+	"errors"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/data"
 	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 type ActorService struct {
@@ -79,10 +81,10 @@ type UpdateActorInput struct {
 
 func (s *ActorService) Create(input CreateActorInput) (*data.Actor, error) {
 	if input.Name == "" {
-		return nil, fmt.Errorf("actor name is required")
+		return nil, apperrors.NewValidationErrorWithField("name", "actor name is required")
 	}
 	if len(input.Name) > 255 {
-		return nil, fmt.Errorf("actor name must be 255 characters or less")
+		return nil, apperrors.NewValidationErrorWithField("name", "actor name must be 255 characters or less")
 	}
 
 	actor := &data.Actor{
@@ -111,7 +113,7 @@ func (s *ActorService) Create(input CreateActorInput) (*data.Actor, error) {
 	}
 
 	if err := s.actorRepo.Create(actor); err != nil {
-		return nil, fmt.Errorf("failed to create actor: %w", err)
+		return nil, apperrors.NewInternalError("failed to create actor", err)
 	}
 
 	s.logger.Info("Actor created", zap.String("name", input.Name), zap.String("uuid", actor.UUID.String()))
@@ -121,7 +123,10 @@ func (s *ActorService) Create(input CreateActorInput) (*data.Actor, error) {
 func (s *ActorService) GetByID(id uint) (*data.Actor, error) {
 	actor, err := s.actorRepo.GetByID(id)
 	if err != nil {
-		return nil, fmt.Errorf("actor not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrActorNotFound(id)
+		}
+		return nil, apperrors.NewInternalError("failed to find actor", err)
 	}
 	return actor, nil
 }
@@ -129,7 +134,10 @@ func (s *ActorService) GetByID(id uint) (*data.Actor, error) {
 func (s *ActorService) GetByUUID(uuid string) (*data.ActorWithCount, error) {
 	actor, err := s.actorRepo.GetByUUID(uuid)
 	if err != nil {
-		return nil, fmt.Errorf("actor not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrActorNotFoundByName(uuid)
+		}
+		return nil, apperrors.NewInternalError("failed to find actor", err)
 	}
 
 	videoCount, err := s.actorRepo.GetVideoCount(actor.ID)
@@ -147,15 +155,18 @@ func (s *ActorService) GetByUUID(uuid string) (*data.ActorWithCount, error) {
 func (s *ActorService) Update(id uint, input UpdateActorInput) (*data.Actor, error) {
 	actor, err := s.actorRepo.GetByID(id)
 	if err != nil {
-		return nil, fmt.Errorf("actor not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrActorNotFound(id)
+		}
+		return nil, apperrors.NewInternalError("failed to find actor", err)
 	}
 
 	if input.Name != nil {
 		if *input.Name == "" {
-			return nil, fmt.Errorf("actor name is required")
+			return nil, apperrors.NewValidationErrorWithField("name", "actor name is required")
 		}
 		if len(*input.Name) > 255 {
-			return nil, fmt.Errorf("actor name must be 255 characters or less")
+			return nil, apperrors.NewValidationErrorWithField("name", "actor name must be 255 characters or less")
 		}
 		actor.Name = *input.Name
 	}
@@ -221,7 +232,7 @@ func (s *ActorService) Update(id uint, input UpdateActorInput) (*data.Actor, err
 	}
 
 	if err := s.actorRepo.Update(actor); err != nil {
-		return nil, fmt.Errorf("failed to update actor: %w", err)
+		return nil, apperrors.NewInternalError("failed to update actor", err)
 	}
 
 	s.logger.Info("Actor updated", zap.Uint("id", id), zap.String("name", actor.Name))
@@ -230,11 +241,14 @@ func (s *ActorService) Update(id uint, input UpdateActorInput) (*data.Actor, err
 
 func (s *ActorService) Delete(id uint) error {
 	if _, err := s.actorRepo.GetByID(id); err != nil {
-		return fmt.Errorf("actor not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.ErrActorNotFound(id)
+		}
+		return apperrors.NewInternalError("failed to find actor", err)
 	}
 
 	if err := s.actorRepo.Delete(id); err != nil {
-		return fmt.Errorf("failed to delete actor: %w", err)
+		return apperrors.NewInternalError("failed to delete actor", err)
 	}
 
 	s.logger.Info("Actor deleted", zap.Uint("id", id))
@@ -257,7 +271,10 @@ func (s *ActorService) List(page, limit int, query string) ([]data.ActorWithCoun
 
 func (s *ActorService) GetVideoActors(videoID uint) ([]data.Actor, error) {
 	if _, err := s.videoRepo.GetByID(videoID); err != nil {
-		return nil, fmt.Errorf("video not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrVideoNotFound(videoID)
+		}
+		return nil, apperrors.NewInternalError("failed to find video", err)
 	}
 
 	return s.actorRepo.GetVideoActors(videoID)
@@ -266,11 +283,14 @@ func (s *ActorService) GetVideoActors(videoID uint) ([]data.Actor, error) {
 func (s *ActorService) SetVideoActors(videoID uint, actorIDs []uint) ([]data.Actor, error) {
 	video, err := s.videoRepo.GetByID(videoID)
 	if err != nil {
-		return nil, fmt.Errorf("video not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrVideoNotFound(videoID)
+		}
+		return nil, apperrors.NewInternalError("failed to find video", err)
 	}
 
 	if err := s.actorRepo.SetVideoActors(videoID, actorIDs); err != nil {
-		return nil, fmt.Errorf("failed to set video actors: %w", err)
+		return nil, apperrors.NewInternalError("failed to set video actors", err)
 	}
 
 	// Re-index video in search engine after actor changes
@@ -295,7 +315,10 @@ func (s *ActorService) GetActorVideos(actorID uint, page, limit int) ([]data.Vid
 	}
 
 	if _, err := s.actorRepo.GetByID(actorID); err != nil {
-		return nil, 0, fmt.Errorf("actor not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, 0, apperrors.ErrActorNotFound(actorID)
+		}
+		return nil, 0, apperrors.NewInternalError("failed to find actor", err)
 	}
 
 	return s.actorRepo.GetActorVideos(actorID, page, limit)
@@ -304,12 +327,15 @@ func (s *ActorService) GetActorVideos(actorID uint, page, limit int) ([]data.Vid
 func (s *ActorService) UpdateImageURL(id uint, imageURL string) (*data.Actor, error) {
 	actor, err := s.actorRepo.GetByID(id)
 	if err != nil {
-		return nil, fmt.Errorf("actor not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrActorNotFound(id)
+		}
+		return nil, apperrors.NewInternalError("failed to find actor", err)
 	}
 
 	actor.ImageURL = imageURL
 	if err := s.actorRepo.Update(actor); err != nil {
-		return nil, fmt.Errorf("failed to update actor image: %w", err)
+		return nil, apperrors.NewInternalError("failed to update actor image", err)
 	}
 
 	s.logger.Info("Actor image updated", zap.Uint("id", id), zap.String("image_url", imageURL))

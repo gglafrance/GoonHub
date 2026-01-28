@@ -336,18 +336,16 @@ func (s *ScanService) createVideoFromPath(path string, storagePath *data.Storage
 		}
 	}
 
-	// Submit for processing
-	// NOTE: Explicitly capture videoID and videoPath to avoid potential closure issues
-	// where values might not be captured at goroutine creation time
+	// Submit for processing synchronously - this is just a queue operation,
+	// not the actual processing work, so it's safe to block briefly
 	if s.processingService != nil {
-		go func(videoID uint, videoPath string) {
-			if err := s.processingService.SubmitVideo(videoID, videoPath); err != nil {
-				s.logger.Warn("Failed to submit video for processing",
-					zap.Uint("video_id", videoID),
-					zap.Error(err),
-				)
-			}
-		}(video.ID, path)
+		if err := s.processingService.SubmitVideo(video.ID, path); err != nil {
+			s.logger.Warn("Failed to submit video for processing",
+				zap.Uint("video_id", video.ID),
+				zap.Error(err),
+			)
+			// Don't fail the scan - video is saved but processing won't start automatically
+		}
 	}
 
 	return video, nil

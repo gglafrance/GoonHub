@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"goonhub/internal/api/v1/request"
 	"goonhub/internal/api/v1/response"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
 	"goonhub/internal/data"
 	"io"
@@ -73,7 +74,7 @@ func (h *ActorHandler) GetActorByUUID(c *gin.Context) {
 
 	actor, err := h.Service.GetByUUID(uuidStr)
 	if err != nil {
-		if err.Error() == "actor not found" {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Actor not found"})
 			return
 		}
@@ -96,7 +97,7 @@ func (h *ActorHandler) GetActorVideos(c *gin.Context) {
 
 	actor, err := h.Service.GetByUUID(uuidStr)
 	if err != nil {
-		if err.Error() == "actor not found" {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Actor not found"})
 			return
 		}
@@ -162,7 +163,7 @@ func (h *ActorHandler) CreateActor(c *gin.Context) {
 
 	actor, err := h.Service.Create(input)
 	if err != nil {
-		if strings.Contains(err.Error(), "required") || strings.Contains(err.Error(), "characters or less") {
+		if apperrors.IsValidation(err) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -224,11 +225,11 @@ func (h *ActorHandler) UpdateActor(c *gin.Context) {
 
 	actor, err := h.Service.Update(uint(id), input)
 	if err != nil {
-		if err.Error() == "actor not found" {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Actor not found"})
 			return
 		}
-		if strings.Contains(err.Error(), "required") || strings.Contains(err.Error(), "characters or less") {
+		if apperrors.IsValidation(err) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -248,7 +249,7 @@ func (h *ActorHandler) DeleteActor(c *gin.Context) {
 	}
 
 	if err := h.Service.Delete(uint(id)); err != nil {
-		if err.Error() == "actor not found" {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Actor not found"})
 			return
 		}
@@ -323,7 +324,7 @@ func (h *ActorHandler) UploadActorImage(c *gin.Context) {
 	actor, err := h.Service.UpdateImageURL(uint(id), imageURL)
 	if err != nil {
 		os.Remove(destPath)
-		if err.Error() == "actor not found" {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Actor not found"})
 			return
 		}
@@ -344,7 +345,7 @@ func (h *ActorHandler) GetVideoActors(c *gin.Context) {
 
 	actors, err := h.Service.GetVideoActors(uint(id))
 	if err != nil {
-		if err.Error() == "video not found" {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
 			return
 		}
@@ -371,7 +372,7 @@ func (h *ActorHandler) SetVideoActors(c *gin.Context) {
 
 	actors, err := h.Service.SetVideoActors(uint(id), req.ActorIDs)
 	if err != nil {
-		if err.Error() == "video not found" {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
 			return
 		}
