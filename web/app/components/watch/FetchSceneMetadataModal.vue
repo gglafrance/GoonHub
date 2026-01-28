@@ -75,6 +75,7 @@ async function onApply(fields: {
             description?: string;
             studio?: string;
             thumbnail_url?: string;
+            tag_names?: string[];
         } = {};
 
         if (fields.title && selectedScene.value.title) {
@@ -91,6 +92,9 @@ async function onApply(fields: {
             if (thumbnailUrl) {
                 payload.thumbnail_url = thumbnailUrl;
             }
+        }
+        if (fields.tags && selectedScene.value.tags?.length) {
+            payload.tag_names = selectedScene.value.tags.map((t: any) => t.name);
         }
 
         // Apply basic metadata

@@ -4,6 +4,7 @@ import type { Tag } from '~/types/tag';
 
 const video = inject<Ref<Video | null>>('watchVideo');
 const thumbnailVersion = inject<Ref<number>>('thumbnailVersion');
+const detailsRefreshKey = inject<Ref<number>>('detailsRefreshKey');
 const authStore = useAuthStore();
 const {
     fetchTags,
@@ -53,6 +54,12 @@ async function handleMetadataApplied() {
             // Bust thumbnail cache in case it was updated
             if (thumbnailVersion) {
                 thumbnailVersion.value = Date.now();
+            }
+            // Reload tags since metadata apply may have changed them
+            await loadVideoTags();
+            // Signal child components (e.g. Actors) to refresh
+            if (detailsRefreshKey) {
+                detailsRefreshKey.value++;
             }
         } catch {
             // Silently fail refresh

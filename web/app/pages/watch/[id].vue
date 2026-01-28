@@ -20,10 +20,12 @@ const showResumePrompt = ref(false);
 const startTime = ref(0);
 
 const thumbnailVersion = ref(0);
+const detailsRefreshKey = ref(0);
 
 provide('getPlayerTime', () => playerRef.value?.getCurrentTime() ?? 0);
 provide('watchVideo', video);
 provide('thumbnailVersion', thumbnailVersion);
+provide('detailsRefreshKey', detailsRefreshKey);
 provide('seekToTime', (time: number) => {
     startTime.value = time;
     showResumePrompt.value = false;

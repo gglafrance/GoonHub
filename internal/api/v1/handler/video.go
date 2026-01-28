@@ -511,5 +511,47 @@ func (h *VideoHandler) ApplySceneMetadata(c *gin.Context) {
 		updatedVideo, _ = h.Service.GetVideo(uint(id))
 	}
 
+	// Import tags if provided (best-effort, skip on errors)
+	if len(req.TagNames) > 0 {
+		if existingTags, err := h.TagService.GetTagsByNames(req.TagNames); err == nil {
+			// Build set of existing tag names for fast lookup
+			existingNames := make(map[string]struct{}, len(existingTags))
+			allTagIDs := make([]uint, 0, len(req.TagNames))
+			for _, t := range existingTags {
+				existingNames[t.Name] = struct{}{}
+				allTagIDs = append(allTagIDs, t.ID)
+			}
+
+			// Create missing tags
+			for _, name := range req.TagNames {
+				if _, found := existingNames[name]; !found {
+					newTag, err := h.TagService.CreateTag(name, "")
+					if err != nil {
+						continue
+					}
+					allTagIDs = append(allTagIDs, newTag.ID)
+				}
+			}
+
+			// Merge with current video tags to avoid overwriting manually-assigned tags
+			if currentTags, err := h.TagService.GetVideoTags(uint(id)); err == nil {
+				seen := make(map[uint]struct{}, len(allTagIDs))
+				for _, tid := range allTagIDs {
+					seen[tid] = struct{}{}
+				}
+				for _, ct := range currentTags {
+					if _, exists := seen[ct.ID]; !exists {
+						allTagIDs = append(allTagIDs, ct.ID)
+					}
+				}
+			}
+
+			if _, err := h.TagService.SetVideoTags(uint(id), allTagIDs); err == nil {
+				// Re-fetch to include updated tags
+				updatedVideo, _ = h.Service.GetVideo(uint(id))
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, updatedVideo)
 }

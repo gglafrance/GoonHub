@@ -252,12 +252,9 @@ onMounted(() => {
                         v-model="selectedFields.tags"
                         type="checkbox"
                         class="accent-lava mt-0.5 h-4 w-4 shrink-0 rounded"
-                        disabled
                     />
                     <div class="min-w-0 flex-1">
-                        <p class="text-dim text-xs font-medium">
-                            Tags ({{ scene.tags.length }}) - Coming soon
-                        </p>
+                        <p class="text-dim text-xs font-medium">Tags ({{ scene.tags.length }})</p>
                         <div class="mt-2 flex flex-wrap gap-1">
                             <span
                                 v-for="tag in scene.tags.slice(0, 15)"

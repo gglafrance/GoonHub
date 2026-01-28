@@ -3,6 +3,7 @@ import type { Video } from '~/types/video';
 import type { Actor } from '~/types/actor';
 
 const video = inject<Ref<Video | null>>('watchVideo');
+const detailsRefreshKey = inject<Ref<number>>('detailsRefreshKey');
 const api = useApi();
 
 const loading = ref(false);
@@ -25,6 +26,14 @@ const availableActors = computed(() =>
 onMounted(async () => {
     await loadVideoActors();
 });
+
+// Reload actors when metadata is applied externally (e.g. scene metadata fetch)
+watch(
+    () => detailsRefreshKey?.value,
+    () => {
+        loadVideoActors();
+    },
+);
 
 async function loadVideoActors() {
     if (!video?.value) return;
