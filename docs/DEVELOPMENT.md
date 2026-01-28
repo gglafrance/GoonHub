@@ -153,9 +153,9 @@ All values can be set in the YAML file or overridden with `GOONHUB_` prefixed en
 | `processing.sprites_workers` | `1` | Concurrent sprite sheet generation jobs |
 | `processing.thumbnail_seek` | `00:00:05` | Timestamp for thumbnail extraction |
 | `processing.frame_output_dir` | `./data/frames` | Frame extraction output directory |
-| `processing.thumbnail_dir` | `./data/thumbnails` | Thumbnail output directory |
-| `processing.sprite_dir` | `./data/sprites` | Sprite sheet output directory |
-| `processing.vtt_dir` | `./data/vtt` | VTT file output directory |
+| `processing.thumbnail_dir` | `./data/metadata/thumbnails` | Thumbnail output directory |
+| `processing.sprite_dir` | `./data/metadata/sprites` | Sprite sheet output directory |
+| `processing.vtt_dir` | `./data/metadata/vtt` | VTT file output directory |
 | `processing.grid_cols` | `12` | Sprite sheet grid columns |
 | `processing.grid_rows` | `8` | Sprite sheet grid rows |
 | `processing.sprites_concurrency` | `0` | Parallel ffmpeg processes for sprites (0=auto) |

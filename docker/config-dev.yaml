@@ -20,7 +20,7 @@ database:
   host: localhost
   port: 5432
   user: goonhub
-  # password: set via GOONHUB_DATABASE_PASSWORD env var (default: goonhub_dev_password)
+  password: goonhub_dev_password
   dbname: goonhub
   sslmode: disable
   max_open_conns: 25
@@ -31,14 +31,14 @@ log:
   format: console
 
 auth:
-  # paseto_secret: set via GOONHUB_AUTH_PASETO_SECRET env var (auto-generated if empty in dev)
+  paseto_secret: 2q4iZ8XcP43Necm7jmHjOxgd7pQinvBT%
   admin_username: admin
-  # admin_password: set via GOONHUB_AUTH_ADMIN_PASSWORD env var (REQUIRED - must change!)
+  admin_password: admin
   token_duration: 24h
 
 meilisearch:
   host: "http://localhost:7700"
-  # api_key: set via GOONHUB_MEILISEARCH_API_KEY env var
+  api_key: goonhub_dev_master_key
   index_name: "videos"
 
 processing:
@@ -52,10 +52,10 @@ processing:
   thumbnail_workers: 1
   sprites_workers: 1
   thumbnail_seek: "00:00:05"
-  frame_output_dir: "./data/frames"
-  thumbnail_dir: "./data/thumbnails"
-  sprite_dir: "./data/sprites"
-  vtt_dir: "./data/vtt"
+  frame_output_dir: "./data/metadata/frames"
+  thumbnail_dir: "./data/metadata/thumbnails"
+  sprite_dir: "./data/metadata/sprites"
+  vtt_dir: "./data/metadata/vtt"
   grid_cols: 12
   grid_rows: 8
   sprites_concurrency: 4
@@ -65,4 +65,4 @@ processing:
   sprites_timeout: 30m
 
 porndb:
-  # api_key: set via GOONHUB_PORNDB_API_KEY env var (optional)
+  api_key: <YOUR_PORNDB_API_KEY_HERE> # Optional, for metadata fetching
