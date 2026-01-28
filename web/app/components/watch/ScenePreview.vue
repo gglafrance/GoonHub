@@ -17,6 +17,7 @@ const emit = defineEmits<{
             thumbnail: boolean;
             performers: boolean;
             tags: boolean;
+            release_date: boolean;
         },
     ];
     close: [];
@@ -29,6 +30,7 @@ const selectedFields = ref({
     thumbnail: false,
     performers: false,
     tags: false,
+    release_date: false,
 });
 
 function formatDuration(seconds: number): string {
@@ -45,6 +47,7 @@ onMounted(() => {
         thumbnail: !props.video?.thumbnail_path && !!(props.scene.image || props.scene.poster),
         performers: (props.scene.performers?.length ?? 0) > 0,
         tags: (props.scene.tags?.length ?? 0) > 0,
+        release_date: !!props.scene.date && !props.video?.release_date,
     };
 });
 </script>
@@ -144,6 +147,33 @@ onMounted(() => {
                             <div>
                                 <span class="text-dim">New:</span>
                                 <span class="text-lava ml-1">{{ scene.site.name }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </label>
+
+                <!-- Release Date -->
+                <label
+                    v-if="scene.date"
+                    class="border-border bg-surface flex items-start gap-3 rounded-lg border p-3"
+                >
+                    <input
+                        v-model="selectedFields.release_date"
+                        type="checkbox"
+                        class="accent-lava mt-0.5 h-4 w-4 shrink-0 rounded"
+                    />
+                    <div class="min-w-0 flex-1">
+                        <p class="text-xs font-medium text-white">Release Date</p>
+                        <div class="mt-1.5 space-y-1 text-[11px]">
+                            <div>
+                                <span class="text-dim">Current:</span>
+                                <span class="ml-1 text-white/70">{{
+                                    video?.release_date || '(empty)'
+                                }}</span>
+                            </div>
+                            <div>
+                                <span class="text-dim">New:</span>
+                                <span class="text-lava ml-1">{{ scene.date }}</span>
                             </div>
                         </div>
                     </div>

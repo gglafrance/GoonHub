@@ -61,6 +61,7 @@ async function onApply(fields: {
     thumbnail: boolean;
     performers: boolean;
     tags: boolean;
+    release_date: boolean;
 }) {
     if (!props.video || !selectedScene.value) return;
 
@@ -76,6 +77,8 @@ async function onApply(fields: {
             studio?: string;
             thumbnail_url?: string;
             tag_names?: string[];
+            release_date?: string;
+            porndb_scene_id?: string;
         } = {};
 
         if (fields.title && selectedScene.value.title) {
@@ -96,6 +99,11 @@ async function onApply(fields: {
         if (fields.tags && selectedScene.value.tags?.length) {
             payload.tag_names = selectedScene.value.tags.map((t: any) => t.name);
         }
+        if (fields.release_date && selectedScene.value.date) {
+            payload.release_date = selectedScene.value.date;
+        }
+        // Always include PornDB scene ID when applying metadata
+        payload.porndb_scene_id = selectedScene.value.id;
 
         // Apply basic metadata
         if (Object.keys(payload).length > 0) {

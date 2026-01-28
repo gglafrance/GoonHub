@@ -83,6 +83,10 @@ const saving = ref(false);
 const saved = ref(false);
 let savedTimeout: ReturnType<typeof setTimeout> | null = null;
 
+const editingReleaseDate = ref(false);
+const editReleaseDate = ref('');
+const releaseDateInputRef = ref<HTMLInputElement | null>(null);
+
 const titleInputRef = ref<HTMLInputElement | null>(null);
 const descriptionInputRef = ref<HTMLTextAreaElement | null>(null);
 
@@ -225,6 +229,44 @@ async function saveDescription() {
     if (!video?.value) return;
     if (editDescription.value === (video.value.description || '')) return;
     await saveDetails(video.value.title || '', editDescription.value);
+}
+
+function startEditReleaseDate() {
+    editReleaseDate.value = video?.value?.release_date?.split('T')[0] || '';
+    editingReleaseDate.value = true;
+    nextTick(() => releaseDateInputRef.value?.focus());
+}
+
+async function saveReleaseDate() {
+    editingReleaseDate.value = false;
+    if (!video?.value) return;
+    const current = video.value.release_date?.split('T')[0] || '';
+    if (editReleaseDate.value === current) return;
+
+    saving.value = true;
+    error.value = null;
+
+    try {
+        const dateValue = editReleaseDate.value || null;
+        const updated = await updateVideoDetails(
+            video.value.id,
+            video.value.title,
+            video.value.description || '',
+            dateValue,
+        );
+        if (video.value) {
+            video.value.release_date = updated.release_date;
+        }
+        saved.value = true;
+        if (savedTimeout) clearTimeout(savedTimeout);
+        savedTimeout = setTimeout(() => {
+            saved.value = false;
+        }, 2000);
+    } catch (err: unknown) {
+        error.value = err instanceof Error ? err.message : 'Failed to save release date';
+    } finally {
+        saving.value = false;
+    }
 }
 
 async function saveDetails(title: string, description: string) {
@@ -395,6 +437,50 @@ async function removeTag(tagId: number) {
                 >
                     {{ video?.description || 'No description' }}
                 </p>
+            </div>
+
+            <!-- Release Date -->
+            <div class="space-y-1">
+                <h3 class="text-dim text-[11px] font-medium tracking-wider uppercase">
+                    Release Date
+                </h3>
+
+                <input
+                    v-if="editingReleaseDate"
+                    ref="releaseDateInputRef"
+                    v-model="editReleaseDate"
+                    @blur="saveReleaseDate"
+                    @keydown.enter="($event.target as HTMLInputElement).blur()"
+                    type="date"
+                    class="border-border focus:border-lava/50 -mx-2 w-auto rounded-md border
+                        bg-white/3 px-2 py-1 text-sm text-white transition-colors outline-none"
+                />
+                <p
+                    v-else
+                    @click="startEditReleaseDate"
+                    class="text-dim -mx-2 cursor-pointer rounded-md px-2 py-1 text-sm
+                        transition-colors hover:bg-white/3 hover:text-white"
+                    :class="{ 'text-white': video?.release_date }"
+                >
+                    {{ video?.release_date ? video.release_date.split('T')[0] : 'No release date' }}
+                </p>
+            </div>
+
+            <!-- PornDB Link -->
+            <div v-if="video?.porndb_scene_id" class="space-y-1">
+                <h3 class="text-dim text-[11px] font-medium tracking-wider uppercase">
+                    PornDB Scene
+                </h3>
+                <a
+                    :href="`https://theporndb.net/scenes/${video.porndb_scene_id}`"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-lava hover:text-lava-glow -mx-2 inline-flex items-center gap-1.5
+                        rounded-md px-2 py-1 text-sm transition-colors hover:bg-white/3"
+                >
+                    View on ThePornDB
+                    <Icon name="heroicons:arrow-top-right-on-square" size="12" />
+                </a>
             </div>
 
             <!-- Tags section -->

@@ -402,7 +402,23 @@ func (h *VideoHandler) UpdateVideoDetails(c *gin.Context) {
 		return
 	}
 
-	video, err := h.Service.UpdateVideoDetails(uint(id), req.Title, req.Description)
+	var releaseDate *time.Time
+	if req.ReleaseDate != nil {
+		if *req.ReleaseDate == "" {
+			// Empty string means clear the date
+			zero := time.Time{}
+			releaseDate = &zero
+		} else {
+			parsed, err := time.Parse("2006-01-02", *req.ReleaseDate)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid release_date format, expected YYYY-MM-DD"})
+				return
+			}
+			releaseDate = &parsed
+		}
+	}
+
+	video, err := h.Service.UpdateVideoDetails(uint(id), req.Title, req.Description, releaseDate)
 	if err != nil {
 		if strings.Contains(err.Error(), "record not found") {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
@@ -495,7 +511,22 @@ func (h *VideoHandler) ApplySceneMetadata(c *gin.Context) {
 		studio = *req.Studio
 	}
 
-	updatedVideo, err := h.Service.UpdateSceneMetadata(uint(id), title, description, studio)
+	var releaseDate *time.Time
+	if req.ReleaseDate != nil && *req.ReleaseDate != "" {
+		parsed, err := time.Parse("2006-01-02", *req.ReleaseDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid release_date format, expected YYYY-MM-DD"})
+			return
+		}
+		releaseDate = &parsed
+	}
+
+	porndbSceneID := ""
+	if req.PornDBSceneID != nil {
+		porndbSceneID = *req.PornDBSceneID
+	}
+
+	updatedVideo, err := h.Service.UpdateSceneMetadata(uint(id), title, description, studio, releaseDate, porndbSceneID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update scene metadata"})
 		return

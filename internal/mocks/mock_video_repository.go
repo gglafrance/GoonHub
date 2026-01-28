@@ -12,6 +12,7 @@ package mocks
 import (
 	data "goonhub/internal/data"
 	reflect "reflect"
+	time "time"
 
 	gomock "go.uber.org/mock/gomock"
 )
@@ -219,17 +220,17 @@ func (mr *MockVideoRepositoryMockRecorder) UpdateBasicMetadata(id, duration, wid
 }
 
 // UpdateDetails mocks base method.
-func (m *MockVideoRepository) UpdateDetails(id uint, title, description string) error {
+func (m *MockVideoRepository) UpdateDetails(id uint, title, description string, releaseDate *time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateDetails", id, title, description)
+	ret := m.ctrl.Call(m, "UpdateDetails", id, title, description, releaseDate)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateDetails indicates an expected call of UpdateDetails.
-func (mr *MockVideoRepositoryMockRecorder) UpdateDetails(id, title, description any) *gomock.Call {
+func (mr *MockVideoRepositoryMockRecorder) UpdateDetails(id, title, description, releaseDate any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDetails", reflect.TypeOf((*MockVideoRepository)(nil).UpdateDetails), id, title, description)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDetails", reflect.TypeOf((*MockVideoRepository)(nil).UpdateDetails), id, title, description, releaseDate)
 }
 
 // UpdateMetadata mocks base method.
@@ -261,17 +262,17 @@ func (mr *MockVideoRepositoryMockRecorder) UpdateProcessingStatus(id, status, er
 }
 
 // UpdateSceneMetadata mocks base method.
-func (m *MockVideoRepository) UpdateSceneMetadata(id uint, title, description, studio string) error {
+func (m *MockVideoRepository) UpdateSceneMetadata(id uint, title, description, studio string, releaseDate *time.Time, porndbSceneID string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateSceneMetadata", id, title, description, studio)
+	ret := m.ctrl.Call(m, "UpdateSceneMetadata", id, title, description, studio, releaseDate, porndbSceneID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateSceneMetadata indicates an expected call of UpdateSceneMetadata.
-func (mr *MockVideoRepositoryMockRecorder) UpdateSceneMetadata(id, title, description, studio any) *gomock.Call {
+func (mr *MockVideoRepositoryMockRecorder) UpdateSceneMetadata(id, title, description, studio, releaseDate, porndbSceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSceneMetadata", reflect.TypeOf((*MockVideoRepository)(nil).UpdateSceneMetadata), id, title, description, studio)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSceneMetadata", reflect.TypeOf((*MockVideoRepository)(nil).UpdateSceneMetadata), id, title, description, studio, releaseDate, porndbSceneID)
 }
 
 // UpdateSprites mocks base method.

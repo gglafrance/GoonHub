@@ -172,8 +172,8 @@ func (s *VideoService) GetVideo(id uint) (*data.Video, error) {
 	return s.Repo.GetByID(id)
 }
 
-func (s *VideoService) UpdateVideoDetails(id uint, title, description string) (*data.Video, error) {
-	if err := s.Repo.UpdateDetails(id, title, description); err != nil {
+func (s *VideoService) UpdateVideoDetails(id uint, title, description string, releaseDate *time.Time) (*data.Video, error) {
+	if err := s.Repo.UpdateDetails(id, title, description, releaseDate); err != nil {
 		return nil, fmt.Errorf("failed to update video details: %w", err)
 	}
 
@@ -195,8 +195,8 @@ func (s *VideoService) UpdateVideoDetails(id uint, title, description string) (*
 	return video, nil
 }
 
-func (s *VideoService) UpdateSceneMetadata(id uint, title, description, studio string) (*data.Video, error) {
-	if err := s.Repo.UpdateSceneMetadata(id, title, description, studio); err != nil {
+func (s *VideoService) UpdateSceneMetadata(id uint, title, description, studio string, releaseDate *time.Time, porndbSceneID string) (*data.Video, error) {
+	if err := s.Repo.UpdateSceneMetadata(id, title, description, studio, releaseDate, porndbSceneID); err != nil {
 		return nil, fmt.Errorf("failed to update scene metadata: %w", err)
 	}
 

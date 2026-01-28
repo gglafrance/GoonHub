@@ -388,11 +388,20 @@ export const useApi = () => {
         return handleResponse(response);
     };
 
-    const updateVideoDetails = async (videoId: number, title: string, description: string) => {
+    const updateVideoDetails = async (
+        videoId: number,
+        title: string,
+        description: string,
+        releaseDate?: string | null,
+    ) => {
+        const payload: Record<string, unknown> = { title, description };
+        if (releaseDate !== undefined) {
+            payload.release_date = releaseDate;
+        }
         const response = await fetch(`/api/v1/videos/${videoId}/details`, {
             method: 'PUT',
             headers: getAuthHeaders(),
-            body: JSON.stringify({ title, description }),
+            body: JSON.stringify(payload),
         });
         return handleResponse(response);
     };
@@ -861,6 +870,8 @@ export const useApi = () => {
             thumbnail_url?: string;
             actor_ids?: number[];
             tag_names?: string[];
+            release_date?: string;
+            porndb_scene_id?: string;
         },
     ) => {
         const response = await fetch(`/api/v1/admin/videos/${videoId}/scene-metadata`, {

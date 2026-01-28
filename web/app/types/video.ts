@@ -28,6 +28,8 @@ export interface Video {
     bit_rate?: number;
     video_codec?: string;
     audio_codec?: string;
+    release_date?: string;
+    porndb_scene_id?: string;
 }
 
 export interface VideoListResponse {

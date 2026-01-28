@@ -40,6 +40,8 @@ type Video struct {
 	VideoCodec       string         `json:"video_codec"`
 	AudioCodec       string         `json:"audio_codec"`
 	StoragePathID    *uint          `json:"storage_path_id"`
+	ReleaseDate      *time.Time     `json:"release_date" gorm:"type:date"`
+	PornDBSceneID    string         `json:"porndb_scene_id" gorm:"column:porndb_scene_id"`
 }
 
 type Tag struct {

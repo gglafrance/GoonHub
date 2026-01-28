@@ -136,7 +136,13 @@ type pornDBSceneRaw struct {
 	Duration    int    `json:"duration,omitempty"`
 	Image       string `json:"image,omitempty"`
 	Poster      string `json:"poster,omitempty"`
-	Site        *struct {
+	Background  *struct {
+		Full   string `json:"full,omitempty"`
+		Large  string `json:"large,omitempty"`
+		Medium string `json:"medium,omitempty"`
+		Small  string `json:"small,omitempty"`
+	} `json:"background,omitempty"`
+	Site *struct {
 		Name string `json:"name"`
 		URL  string `json:"url,omitempty"`
 	} `json:"site,omitempty"`
@@ -319,13 +325,18 @@ func (s *PornDBService) GetPerformerDetails(id string) (*PornDBPerformerDetails,
 
 // convertRawSceneToScene converts a raw scene response to a PornDBScene
 func convertRawSceneToScene(raw pornDBSceneRaw) PornDBScene {
+	image := raw.Image
+	if raw.Background != nil && raw.Background.Large != "" {
+		image = raw.Background.Large
+	}
+
 	scene := PornDBScene{
 		ID:          raw.ID,
 		Title:       raw.Title,
 		Description: raw.Description,
 		Date:        raw.Date,
 		Duration:    raw.Duration,
-		Image:       raw.Image,
+		Image:       image,
 		Poster:      raw.Poster,
 	}
 

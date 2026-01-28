@@ -1,8 +1,9 @@
 package request
 
 type UpdateVideoDetailsRequest struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
+	Title       string  `json:"title"`
+	Description string  `json:"description"`
+	ReleaseDate *string `json:"release_date,omitempty"`
 }
 
 type SetRatingRequest struct {
@@ -30,10 +31,12 @@ type SearchVideosRequest struct {
 }
 
 type ApplySceneMetadataRequest struct {
-	Title        *string  `json:"title,omitempty"`
-	Description  *string  `json:"description,omitempty"`
-	Studio       *string  `json:"studio,omitempty"`
-	ThumbnailURL *string  `json:"thumbnail_url,omitempty"`
-	ActorIDs     []uint   `json:"actor_ids,omitempty"`
-	TagNames     []string `json:"tag_names,omitempty"`
+	Title         *string  `json:"title,omitempty"`
+	Description   *string  `json:"description,omitempty"`
+	Studio        *string  `json:"studio,omitempty"`
+	ThumbnailURL  *string  `json:"thumbnail_url,omitempty"`
+	ActorIDs      []uint   `json:"actor_ids,omitempty"`
+	TagNames      []string `json:"tag_names,omitempty"`
+	ReleaseDate   *string  `json:"release_date,omitempty"`
+	PornDBSceneID *string  `json:"porndb_scene_id,omitempty"`
 }
