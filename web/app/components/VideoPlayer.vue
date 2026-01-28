@@ -26,17 +26,12 @@ const videoElement = ref<HTMLVideoElement>();
 const player = shallowRef<Player | null>(null);
 const { vttCues, loadVttCues } = useVttParser();
 const { setup: setupThumbnailPreview } = useThumbnailPreview(player, vttCues);
-const { recordWatch } = useApi();
-const authStore = useAuthStore();
 
-// Watch tracking state
-const hasRecordedView = ref(false);
-const cumulativeWatchTime = ref(0);
-const lastTimeUpdate = ref(0);
-const lastSaveTime = ref(0);
-const VIEW_THRESHOLD_SECONDS = 5;
-const SAVE_DEBOUNCE_MS = 10000; // Only save every 10 seconds at most
-const COMPLETION_THRESHOLD_SECONDS = 5; // Consider completed if within this many seconds of end
+const videoRef = computed(() => props.video);
+const { hasRecordedView, setupTracking, cleanup } = useWatchTracking({
+    player,
+    video: videoRef,
+});
 
 const aspectRatio = computed(() => {
     if (props.video?.width && props.video?.height) {
@@ -58,9 +53,6 @@ const vttUrl = computed(() => {
 
 onMounted(async () => {
     if (!videoElement.value) return;
-
-    // Add event listener after validation to prevent memory leak on early return
-    window.addEventListener('beforeunload', handleBeforeUnload);
 
     player.value = videojs(videoElement.value, {
         controls: true,
@@ -96,42 +88,16 @@ onMounted(async () => {
     const volume = props.defaultVolume != null ? props.defaultVolume / 100 : 1;
     player.value.volume(volume);
 
-    player.value.on('play', () => {
-        lastTimeUpdate.value = player.value?.currentTime() ?? 0;
-        emit('play');
-    });
-    player.value.on('pause', () => {
-        emit('pause');
-        // Don't save on every pause - we save on unmount/beforeunload
-    });
+    player.value.on('play', () => emit('play'));
+    player.value.on('pause', () => emit('pause'));
     player.value.on('error', (e: unknown) => emit('error', e));
 
-    // Track watch time
-    player.value.on('timeupdate', () => {
-        const currentTime = player.value?.currentTime() ?? 0;
-        const delta = currentTime - lastTimeUpdate.value;
+    // Set up watch tracking (handles timeupdate, ended, and beforeunload)
+    setupTracking();
 
-        // Only count forward progress (not seeking backwards)
-        if (delta > 0 && delta < 2) {
-            cumulativeWatchTime.value += delta;
-        }
-        lastTimeUpdate.value = currentTime;
-
-        // Record view after threshold
-        if (
-            !hasRecordedView.value &&
-            cumulativeWatchTime.value >= VIEW_THRESHOLD_SECONDS &&
-            props.video
-        ) {
-            hasRecordedView.value = true;
-            recordViewEvent();
-        }
-    });
-
-    player.value.on('ended', () => {
-        if (props.video) {
-            saveProgress(true);
-        }
+    // Emit viewRecorded when first recorded
+    watch(hasRecordedView, (recorded) => {
+        if (recorded) emit('viewRecorded');
     });
 
     player.value.ready(() => {
@@ -152,68 +118,6 @@ onMounted(async () => {
         }
     });
 });
-
-// Record view event (after 5 seconds of watch time)
-const recordViewEvent = async () => {
-    if (!props.video) return;
-
-    try {
-        const currentTime = Math.floor(player.value?.currentTime() ?? 0);
-        const duration = Math.floor(cumulativeWatchTime.value);
-        await recordWatch(props.video.id, duration, currentTime, false);
-        emit('viewRecorded');
-    } catch {
-        // Silently fail - view tracking is not critical
-    }
-};
-
-// Save progress (debounced to prevent too many API calls)
-const saveProgress = async (completed = false, force = false) => {
-    if (!props.video || !hasRecordedView.value) return;
-
-    // Debounce saves unless forced (for unmount/beforeunload) or completed
-    const now = Date.now();
-    if (!force && !completed && now - lastSaveTime.value < SAVE_DEBOUNCE_MS) {
-        return;
-    }
-    lastSaveTime.value = now;
-
-    try {
-        const currentTime = Math.floor(player.value?.currentTime() ?? 0);
-        const duration = Math.floor(cumulativeWatchTime.value);
-        await recordWatch(props.video.id, duration, currentTime, completed);
-    } catch {
-        // Silently fail
-    }
-};
-
-// Save progress on page unload using fetch with keepalive (sendBeacon doesn't support auth headers)
-const handleBeforeUnload = () => {
-    if (!props.video || !hasRecordedView.value) return;
-
-    const currentTime = Math.floor(player.value?.currentTime() ?? 0);
-    const duration = Math.floor(cumulativeWatchTime.value);
-    const videoDuration = props.video.duration ?? 0;
-    const completed =
-        videoDuration > 0 && currentTime >= videoDuration - COMPLETION_THRESHOLD_SECONDS;
-
-    // Use fetch with keepalive and credentials to include HTTP-only auth cookie
-    fetch(`/api/v1/videos/${props.video.id}/watch`, {
-        method: 'POST',
-        keepalive: true,
-        credentials: 'include', // Send HTTP-only auth cookie
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            duration,
-            position: currentTime,
-            completed,
-        }),
-    }).catch(() => {
-        // Silently fail - page is unloading anyway
-    });
-};
 
 watch(
     () => props.videoUrl,
@@ -251,8 +155,7 @@ defineExpose({
 });
 
 onBeforeUnmount(() => {
-    window.removeEventListener('beforeunload', handleBeforeUnload);
-    saveProgress(false, true); // Force save on unmount
+    cleanup();
     if (player.value) {
         player.value.dispose();
     }
