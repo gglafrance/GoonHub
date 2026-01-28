@@ -4,7 +4,122 @@ interface VideoEventData {
     data?: Record<string, any>;
 }
 
-export const useSSE = () => {
+type FieldExtractor = (event: VideoEventData) => Record<string, any>;
+
+const EVENT_HANDLERS: Record<string, FieldExtractor> = {
+    'video:metadata_complete': (e) => ({
+        duration: e.data?.duration,
+        width: e.data?.width,
+        height: e.data?.height,
+        processing_status: 'processing',
+    }),
+    'video:thumbnail_complete': (e) => ({
+        thumbnail_path: e.data?.thumbnail_path,
+    }),
+    'video:sprites_complete': (e) => ({
+        vtt_path: e.data?.vtt_path,
+        sprite_sheet_path: e.data?.sprite_sheet_path,
+    }),
+    'video:completed': () => ({
+        processing_status: 'completed',
+    }),
+    'video:failed': (e) => ({
+        processing_status: 'failed',
+        processing_error: e.data?.error,
+    }),
+    'video:cancelled': () => ({
+        processing_status: 'cancelled',
+    }),
+    'video:timed_out': () => ({
+        processing_status: 'timed_out',
+    }),
+};
+
+function handleSSEEvent(
+    eventType: string,
+    rawData: string,
+    videoStore: ReturnType<typeof useVideoStore>,
+) {
+    const handler = EVENT_HANDLERS[eventType];
+    if (!handler) return;
+
+    const event: VideoEventData = JSON.parse(rawData);
+    videoStore.updateVideoFields(event.video_id, handler(event));
+}
+
+function supportsSharedWorker(): boolean {
+    return typeof SharedWorker !== 'undefined' && typeof BroadcastChannel !== 'undefined';
+}
+
+function useSSESharedWorker() {
+    const authStore = useAuthStore();
+    const videoStore = useVideoStore();
+
+    let channel: BroadcastChannel | null = null;
+    let worker: SharedWorker | null = null;
+    let joined = false;
+
+    function onChannelMessage(e: MessageEvent) {
+        const { type, eventType, data } = e.data;
+
+        if (type === 'sse-event') {
+            handleSSEEvent(eventType, data, videoStore);
+        } else if (type === 'sse-reconnecting') {
+            videoStore.loadVideos(videoStore.currentPage);
+        }
+    }
+
+    function onBeforeUnload() {
+        if (channel && joined) {
+            channel.postMessage({ type: 'tab-leave' });
+            joined = false;
+        }
+    }
+
+    function connect() {
+        if (!authStore.isAuthenticated) return;
+        disconnect();
+
+        worker = new SharedWorker('/sse-worker.js', { name: 'sse-worker' });
+        channel = new BroadcastChannel('sse-events');
+        channel.onmessage = onChannelMessage;
+
+        channel.postMessage({ type: 'tab-join' });
+        channel.postMessage({ type: 'connect' });
+        joined = true;
+
+        window.addEventListener('beforeunload', onBeforeUnload);
+    }
+
+    function disconnect() {
+        window.removeEventListener('beforeunload', onBeforeUnload);
+
+        if (channel) {
+            if (joined) {
+                channel.postMessage({ type: 'tab-leave' });
+                joined = false;
+            }
+            channel.onmessage = null;
+            channel.close();
+            channel = null;
+        }
+
+        if (worker) {
+            worker = null;
+        }
+    }
+
+    function disconnectAll() {
+        if (channel) {
+            channel.postMessage({ type: 'disconnect' });
+        }
+        disconnect();
+    }
+
+    return { connect, disconnect: disconnectAll };
+}
+
+function useSSEFallback() {
     const authStore = useAuthStore();
     const videoStore = useVideoStore();
 
@@ -17,8 +132,6 @@ export const useSSE = () => {
         if (!authStore.isAuthenticated) return;
         disconnect();
 
-        // Use credentials to send HTTP-only cookies for authentication
-        // No longer passing token in URL to prevent exposure in logs/history
         const url = '/api/v1/events';
         eventSource = new EventSource(url, { withCredentials: true });
 
@@ -26,59 +139,12 @@ export const useSSE = () => {
             reconnectDelay = 1000;
         };
 
-        eventSource.addEventListener('video:metadata_complete', (e: MessageEvent) => {
-            const event: VideoEventData = JSON.parse(e.data);
-            videoStore.updateVideoFields(event.video_id, {
-                duration: event.data?.duration,
-                width: event.data?.width,
-                height: event.data?.height,
-                processing_status: 'processing',
+        for (const [eventType, handler] of Object.entries(EVENT_HANDLERS)) {
+            eventSource.addEventListener(eventType, (e: MessageEvent) => {
+                const event: VideoEventData = JSON.parse(e.data);
+                videoStore.updateVideoFields(event.video_id, handler(event));
             });
-        });
-
-        eventSource.addEventListener('video:thumbnail_complete', (e: MessageEvent) => {
-            const event: VideoEventData = JSON.parse(e.data);
-            videoStore.updateVideoFields(event.video_id, {
-                thumbnail_path: event.data?.thumbnail_path,
-            });
-        });
-
-        eventSource.addEventListener('video:sprites_complete', (e: MessageEvent) => {
-            const event: VideoEventData = JSON.parse(e.data);
-            videoStore.updateVideoFields(event.video_id, {
-                vtt_path: event.data?.vtt_path,
-                sprite_sheet_path: event.data?.sprite_sheet_path,
-            });
-        });
-
-        eventSource.addEventListener('video:completed', (e: MessageEvent) => {
-            const event: VideoEventData = JSON.parse(e.data);
-            videoStore.updateVideoFields(event.video_id, {
-                processing_status: 'completed',
-            });
-        });
-
-        eventSource.addEventListener('video:failed', (e: MessageEvent) => {
-            const event: VideoEventData = JSON.parse(e.data);
-            videoStore.updateVideoFields(event.video_id, {
-                processing_status: 'failed',
-                processing_error: event.data?.error,
-            });
-        });
-
-        eventSource.addEventListener('video:cancelled', (e: MessageEvent) => {
-            const event: VideoEventData = JSON.parse(e.data);
-            videoStore.updateVideoFields(event.video_id, {
-                processing_status: 'cancelled',
-            });
-        });
-
-        eventSource.addEventListener('video:timed_out', (e: MessageEvent) => {
-            const event: VideoEventData = JSON.parse(e.data);
-            videoStore.updateVideoFields(event.video_id, {
-                processing_status: 'timed_out',
-            });
-        });
+        }
 
         eventSource.onerror = () => {
             eventSource?.close();
@@ -112,4 +178,11 @@ export const useSSE = () => {
     }
 
     return { connect, disconnect };
+}
+
+export const useSSE = () => {
+    if (import.meta.client && supportsSharedWorker()) {
+        return useSSESharedWorker();
+    }
+    return useSSEFallback();
 };
