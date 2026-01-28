@@ -108,6 +108,8 @@ const connectSSE = () => {
             scanStatus.value.current_scan.files_found = data.files_found;
             scanStatus.value.current_scan.videos_added = data.videos_added;
             scanStatus.value.current_scan.videos_skipped = data.videos_skipped;
+            scanStatus.value.current_scan.videos_removed = data.videos_removed;
+            scanStatus.value.current_scan.videos_moved = data.videos_moved;
             scanStatus.value.current_scan.errors = data.errors;
             scanStatus.value.current_scan.current_path = data.current_path;
             scanStatus.value.current_scan.current_file = data.current_file;
@@ -118,6 +120,20 @@ const connectSSE = () => {
         if (scanStatus.value.current_scan) {
             scanStatus.value.current_scan.videos_added =
                 (scanStatus.value.current_scan.videos_added || 0) + 1;
+        }
+    });
+
+    eventSource.addEventListener('scan:video_removed', () => {
+        if (scanStatus.value.current_scan) {
+            scanStatus.value.current_scan.videos_removed =
+                (scanStatus.value.current_scan.videos_removed || 0) + 1;
+        }
+    });
+
+    eventSource.addEventListener('scan:video_moved', () => {
+        if (scanStatus.value.current_scan) {
+            scanStatus.value.current_scan.videos_moved =
+                (scanStatus.value.current_scan.videos_moved || 0) + 1;
         }
     });
 
@@ -310,7 +326,7 @@ const phaseDescription = (phase: string): string => {
                     <span class="text-xs font-medium text-white">Scanning in progress...</span>
                 </div>
 
-                <div class="mb-3 grid grid-cols-4 gap-4">
+                <div class="mb-3 grid grid-cols-3 gap-4 sm:grid-cols-6">
                     <div>
                         <div class="text-dim text-[10px] tracking-wider uppercase">Found</div>
                         <div class="text-lg font-semibold text-white">
@@ -321,6 +337,32 @@ const phaseDescription = (phase: string): string => {
                         <div class="text-dim text-[10px] tracking-wider uppercase">Added</div>
                         <div class="text-emerald text-lg font-semibold">
                             {{ scanStatus.current_scan.videos_added }}
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-dim text-[10px] tracking-wider uppercase">Moved</div>
+                        <div
+                            class="text-lg font-semibold"
+                            :class="
+                                scanStatus.current_scan.videos_moved > 0
+                                    ? 'text-blue-400'
+                                    : 'text-dim'
+                            "
+                        >
+                            {{ scanStatus.current_scan.videos_moved || 0 }}
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-dim text-[10px] tracking-wider uppercase">Missing</div>
+                        <div
+                            class="text-lg font-semibold"
+                            :class="
+                                scanStatus.current_scan.videos_removed > 0
+                                    ? 'text-amber-500'
+                                    : 'text-dim'
+                            "
+                        >
+                            {{ scanStatus.current_scan.videos_removed || 0 }}
                         </div>
                     </div>
                     <div>
@@ -361,6 +403,8 @@ const phaseDescription = (phase: string): string => {
                                 <th class="pr-3 pb-2 font-medium">Status</th>
                                 <th class="pr-3 pb-2 font-medium">Found</th>
                                 <th class="pr-3 pb-2 font-medium">Added</th>
+                                <th class="pr-3 pb-2 font-medium">Moved</th>
+                                <th class="pr-3 pb-2 font-medium">Missing</th>
                                 <th class="pr-3 pb-2 font-medium">Duration</th>
                             </tr>
                         </thead>
@@ -384,6 +428,18 @@ const phaseDescription = (phase: string): string => {
                                 </td>
                                 <td class="text-dim py-2 pr-3">{{ scan.files_found }}</td>
                                 <td class="text-emerald py-2 pr-3">{{ scan.videos_added }}</td>
+                                <td
+                                    class="py-2 pr-3"
+                                    :class="scan.videos_moved > 0 ? 'text-blue-400' : 'text-dim'"
+                                >
+                                    {{ scan.videos_moved || 0 }}
+                                </td>
+                                <td
+                                    class="py-2 pr-3"
+                                    :class="scan.videos_removed > 0 ? 'text-amber-500' : 'text-dim'"
+                                >
+                                    {{ scan.videos_removed || 0 }}
+                                </td>
                                 <td class="text-dim py-2 pr-3">
                                     {{ formatDuration(scan.started_at, scan.completed_at) }}
                                 </td>

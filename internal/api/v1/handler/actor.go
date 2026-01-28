@@ -42,6 +42,11 @@ func (h *ActorHandler) ListActors(c *gin.Context) {
 		return
 	}
 
+	// log all actors objects for debugging
+	for _, a := range actors {
+		fmt.Printf("%+v\n", a)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"data":  toActorListItems(actors),
 		"total": total,

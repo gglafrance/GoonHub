@@ -38,8 +38,9 @@ func (r *TagRepositoryImpl) ListWithCounts() ([]TagWithCount, error) {
 	var tags []TagWithCount
 	err := r.DB.
 		Table("tags").
-		Select("tags.*, COALESCE(COUNT(video_tags.id), 0) as video_count").
+		Select("tags.*, COALESCE(COUNT(videos.id), 0) as video_count").
 		Joins("LEFT JOIN video_tags ON video_tags.tag_id = tags.id").
+		Joins("LEFT JOIN videos ON videos.id = video_tags.video_id AND videos.deleted_at IS NULL").
 		Group("tags.id").
 		Order("tags.name asc").
 		Find(&tags).Error

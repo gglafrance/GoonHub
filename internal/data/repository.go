@@ -59,6 +59,7 @@ type VideoRepository interface {
 	GetByID(id uint) (*Video, error)
 	GetByIDs(ids []uint) ([]Video, error)
 	GetAll() ([]Video, error)
+	GetAllWithStoragePath() ([]Video, error)
 	GetDistinctStudios() ([]string, error)
 	GetDistinctActors() ([]string, error)
 	UpdateMetadata(id uint, duration int, width, height int, thumbnailPath string, spriteSheetPath string, vttPath string, spriteSheetCount int, thumbnailWidth int, thumbnailHeight int) error
@@ -72,6 +73,10 @@ type VideoRepository interface {
 	UpdateDetails(id uint, title, description string, releaseDate *time.Time) error
 	UpdateSceneMetadata(id uint, title, description, studio string, releaseDate *time.Time, porndbSceneID string) error
 	ExistsByStoredPath(path string) (bool, error)
+	MarkAsMissing(id uint) error
+	Restore(id uint) error
+	UpdateStoredPath(id uint, newPath string, storagePathID *uint) error
+	GetBySizeAndFilename(size int64, filename string) (*Video, error)
 }
 
 type VideoRepositoryImpl struct {
@@ -292,6 +297,47 @@ func (r *VideoRepositoryImpl) ExistsByStoredPath(path string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (r *VideoRepositoryImpl) GetAllWithStoragePath() ([]Video, error) {
+	var videos []Video
+	if err := r.DB.Where("storage_path_id IS NOT NULL").Find(&videos).Error; err != nil {
+		return nil, err
+	}
+	return videos, nil
+}
+
+func (r *VideoRepositoryImpl) MarkAsMissing(id uint) error {
+	// Soft delete the video - sets deleted_at to current timestamp
+	return r.DB.Delete(&Video{}, id).Error
+}
+
+func (r *VideoRepositoryImpl) Restore(id uint) error {
+	// Restore a soft-deleted video by clearing deleted_at
+	return r.DB.Unscoped().Model(&Video{}).Where("id = ?", id).Update("deleted_at", nil).Error
+}
+
+func (r *VideoRepositoryImpl) UpdateStoredPath(id uint, newPath string, storagePathID *uint) error {
+	updates := map[string]interface{}{
+		"stored_path": newPath,
+	}
+	if storagePathID != nil {
+		updates["storage_path_id"] = *storagePathID
+	}
+	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (r *VideoRepositoryImpl) GetBySizeAndFilename(size int64, filename string) (*Video, error) {
+	var video Video
+	// Use Unscoped to include soft-deleted records - allows finding moved files that were previously marked as missing
+	err := r.DB.Unscoped().Where("size = ? AND original_filename = ?", size, filename).First(&video).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &video, nil
 }
 
 type UserRepositoryImpl struct {

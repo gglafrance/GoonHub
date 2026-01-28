@@ -75,8 +75,9 @@ func (r *ActorRepositoryImpl) List(page, limit int) ([]ActorWithCount, int64, er
 
 	err := r.DB.
 		Table("actors").
-		Select("actors.*, COALESCE(COUNT(video_actors.id), 0) as video_count").
+		Select("actors.*, COALESCE(COUNT(videos.id), 0) as video_count").
 		Joins("LEFT JOIN video_actors ON video_actors.actor_id = actors.id").
+		Joins("LEFT JOIN videos ON videos.id = video_actors.video_id AND videos.deleted_at IS NULL").
 		Where("actors.deleted_at IS NULL").
 		Group("actors.id").
 		Order("actors.name ASC").
@@ -106,6 +107,7 @@ func (r *ActorRepositoryImpl) Search(query string, page, limit int) ([]ActorWith
 		Table("actors").
 		Select("actors.*, COALESCE(COUNT(video_actors.id), 0) as video_count").
 		Joins("LEFT JOIN video_actors ON video_actors.actor_id = actors.id").
+		Joins("LEFT JOIN videos ON videos.id = video_actors.video_id AND videos.deleted_at IS NULL").
 		Where("actors.deleted_at IS NULL").
 		Where("actors.name ILIKE ?", searchPattern).
 		Group("actors.id").

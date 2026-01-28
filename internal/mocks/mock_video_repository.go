@@ -99,6 +99,21 @@ func (mr *MockVideoRepositoryMockRecorder) GetAll() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAll", reflect.TypeOf((*MockVideoRepository)(nil).GetAll))
 }
 
+// GetAllWithStoragePath mocks base method.
+func (m *MockVideoRepository) GetAllWithStoragePath() ([]data.Video, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllWithStoragePath")
+	ret0, _ := ret[0].([]data.Video)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllWithStoragePath indicates an expected call of GetAllWithStoragePath.
+func (mr *MockVideoRepositoryMockRecorder) GetAllWithStoragePath() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllWithStoragePath", reflect.TypeOf((*MockVideoRepository)(nil).GetAllWithStoragePath))
+}
+
 // GetByID mocks base method.
 func (m *MockVideoRepository) GetByID(id uint) (*data.Video, error) {
 	m.ctrl.T.Helper()
@@ -127,6 +142,21 @@ func (m *MockVideoRepository) GetByIDs(ids []uint) ([]data.Video, error) {
 func (mr *MockVideoRepositoryMockRecorder) GetByIDs(ids any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByIDs", reflect.TypeOf((*MockVideoRepository)(nil).GetByIDs), ids)
+}
+
+// GetBySizeAndFilename mocks base method.
+func (m *MockVideoRepository) GetBySizeAndFilename(size int64, filename string) (*data.Video, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBySizeAndFilename", size, filename)
+	ret0, _ := ret[0].(*data.Video)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetBySizeAndFilename indicates an expected call of GetBySizeAndFilename.
+func (mr *MockVideoRepositoryMockRecorder) GetBySizeAndFilename(size, filename any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBySizeAndFilename", reflect.TypeOf((*MockVideoRepository)(nil).GetBySizeAndFilename), size, filename)
 }
 
 // GetDistinctActors mocks base method.
@@ -203,6 +233,34 @@ func (m *MockVideoRepository) List(page, limit int) ([]data.Video, int64, error)
 func (mr *MockVideoRepositoryMockRecorder) List(page, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockVideoRepository)(nil).List), page, limit)
+}
+
+// MarkAsMissing mocks base method.
+func (m *MockVideoRepository) MarkAsMissing(id uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkAsMissing", id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MarkAsMissing indicates an expected call of MarkAsMissing.
+func (mr *MockVideoRepositoryMockRecorder) MarkAsMissing(id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAsMissing", reflect.TypeOf((*MockVideoRepository)(nil).MarkAsMissing), id)
+}
+
+// Restore mocks base method.
+func (m *MockVideoRepository) Restore(id uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Restore", id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Restore indicates an expected call of Restore.
+func (mr *MockVideoRepositoryMockRecorder) Restore(id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restore", reflect.TypeOf((*MockVideoRepository)(nil).Restore), id)
 }
 
 // UpdateBasicMetadata mocks base method.
@@ -287,6 +345,20 @@ func (m *MockVideoRepository) UpdateSprites(id uint, spriteSheetPath, vttPath st
 func (mr *MockVideoRepositoryMockRecorder) UpdateSprites(id, spriteSheetPath, vttPath, spriteSheetCount any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSprites", reflect.TypeOf((*MockVideoRepository)(nil).UpdateSprites), id, spriteSheetPath, vttPath, spriteSheetCount)
+}
+
+// UpdateStoredPath mocks base method.
+func (m *MockVideoRepository) UpdateStoredPath(id uint, newPath string, storagePathID *uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateStoredPath", id, newPath, storagePathID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateStoredPath indicates an expected call of UpdateStoredPath.
+func (mr *MockVideoRepositoryMockRecorder) UpdateStoredPath(id, newPath, storagePathID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStoredPath", reflect.TypeOf((*MockVideoRepository)(nil).UpdateStoredPath), id, newPath, storagePathID)
 }
 
 // UpdateThumbnail mocks base method.
