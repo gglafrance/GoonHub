@@ -14,6 +14,7 @@
  * - useApiStorage() for storage paths and scanning
  * - useApiDLQ() for dead letter queue operations
  * - useApiExplorer() for folder browsing and bulk editing
+ * - useApiSavedSearches() for saved search templates
  */
 export const useApi = () => {
     const videos = useApiVideos();
@@ -27,6 +28,7 @@ export const useApi = () => {
     const storage = useApiStorage();
     const dlq = useApiDLQ();
     const explorer = useApiExplorer();
+    const savedSearches = useApiSavedSearches();
 
     return {
         // Video operations
@@ -152,5 +154,12 @@ export const useApi = () => {
         bulkUpdateActors: explorer.bulkUpdateActors,
         bulkUpdateStudio: explorer.bulkUpdateStudio,
         getFolderVideoIDs: explorer.getFolderVideoIDs,
+
+        // Saved search operations
+        fetchSavedSearches: savedSearches.fetchSavedSearches,
+        fetchSavedSearch: savedSearches.fetchSavedSearch,
+        createSavedSearch: savedSearches.createSavedSearch,
+        updateSavedSearch: savedSearches.updateSavedSearch,
+        deleteSavedSearch: savedSearches.deleteSavedSearch,
     };
 };

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { SavedSearch, SavedSearchFilters } from '~/types/saved_search';
+
 const searchStore = useSearchStore();
 const route = useRoute();
 const router = useRouter();
@@ -10,6 +12,11 @@ definePageMeta({
 });
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Saved searches state
+const savedSearchesPanel = ref<{ reload: () => Promise<void> } | null>(null);
+const showSaveModal = ref(false);
+const currentFilters = computed(() => searchStore.getCurrentFilters());
 
 const syncFromUrl = () => {
     const q = route.query;
@@ -104,22 +111,56 @@ onMounted(() => {
     searchStore.loadFilterOptions();
     searchStore.search();
 });
+
+const handleLoadSavedSearch = (filters: SavedSearchFilters) => {
+    searchStore.loadFilters(filters);
+    syncToUrl();
+    searchStore.search();
+};
+
+const handleSearchSaved = (search: SavedSearch) => {
+    showSaveModal.value = false;
+    savedSearchesPanel.value?.reload();
+};
 </script>
 
 <template>
     <div class="mx-auto max-w-415 px-4 py-6 sm:px-5">
-        <div class="mb-5">
-            <SearchBar />
+        <div class="mb-5 flex items-center gap-3">
+            <div class="min-w-0 flex-1">
+                <SearchBar />
+            </div>
+            <button
+                v-if="searchStore.hasActiveFilters"
+                @click="showSaveModal = true"
+                class="border-border bg-surface hover:border-lava/40 hover:bg-lava/10 flex shrink-0
+                    items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium text-white
+                    transition-all"
+                title="Save current search"
+            >
+                <Icon name="heroicons:bookmark" size="14" />
+                <span class="hidden sm:inline">Save</span>
+            </button>
         </div>
 
         <SearchActiveFilters class="mb-4" />
 
         <div class="flex gap-5">
-            <SearchFilters class="hidden w-56 shrink-0 lg:block" />
+            <aside class="hidden w-56 shrink-0 lg:block">
+                <SearchSavedSearchesPanel ref="savedSearchesPanel" @load="handleLoadSavedSearch" />
+                <SearchFilters />
+            </aside>
 
             <div class="min-w-0 flex-1">
                 <SearchResults />
             </div>
         </div>
+
+        <SearchSaveSearchModal
+            :visible="showSaveModal"
+            :filters="currentFilters"
+            @close="showSaveModal = false"
+            @saved="handleSearchSaved"
+        />
     </div>
 </template>

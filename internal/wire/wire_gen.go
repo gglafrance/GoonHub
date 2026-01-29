@@ -116,8 +116,11 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	explorerHandler := provideExplorerHandler(explorerService)
 	pornDBService := providePornDBService(configConfig, logger)
 	pornDBHandler := providePornDBHandler(pornDBService)
+	savedSearchRepository := provideSavedSearchRepository(db)
+	savedSearchService := provideSavedSearchService(savedSearchRepository, logger)
+	savedSearchHandler := provideSavedSearchHandler(savedSearchService)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, authService, rbacService, ipRateLimiter)
+	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, authService, rbacService, ipRateLimiter)
 	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService)
 	return serverServer, nil
 }
@@ -210,6 +213,10 @@ func provideScanHistoryRepository(db *gorm.DB) data.ScanHistoryRepository {
 
 func provideExplorerRepository(db *gorm.DB) data.ExplorerRepository {
 	return data.NewExplorerRepository(db)
+}
+
+func provideSavedSearchRepository(db *gorm.DB) data.SavedSearchRepository {
+	return data.NewSavedSearchRepository(db)
 }
 
 func provideMeilisearchClient(cfg *config.Config, logger *logging.Logger) (*meilisearch.Client, error) {
@@ -330,6 +337,10 @@ func providePornDBService(cfg *config.Config, logger *logging.Logger) *core.Porn
 	return core.NewPornDBService(cfg.PornDB.APIKey, logger.Logger)
 }
 
+func provideSavedSearchService(repo data.SavedSearchRepository, logger *logging.Logger) *core.SavedSearchService {
+	return core.NewSavedSearchService(repo, logger.Logger)
+}
+
 func provideRateLimiter(cfg *config.Config) *middleware.IPRateLimiter {
 	rl := rate.Every(time.Minute / time.Duration(cfg.Auth.LoginRateLimit))
 	return middleware.NewIPRateLimiter(rl, cfg.Auth.LoginRateBurst)
@@ -428,6 +439,10 @@ func providePornDBHandler(pornDBService *core.PornDBService) *handler.PornDBHand
 	return handler.NewPornDBHandler(pornDBService)
 }
 
+func provideSavedSearchHandler(service *core.SavedSearchService) *handler.SavedSearchHandler {
+	return handler.NewSavedSearchHandler(service)
+}
+
 func provideRouter(
 	logger *logging.Logger,
 	cfg *config.Config,
@@ -454,6 +469,7 @@ func provideRouter(
 	scanHandler *handler.ScanHandler,
 	explorerHandler *handler.ExplorerHandler,
 	pornDBHandler *handler.PornDBHandler,
+	savedSearchHandler *handler.SavedSearchHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -464,7 +480,7 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		explorerHandler, pornDBHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, savedSearchHandler, authService, rbacService, rateLimiter,
 	)
 }
 

@@ -68,6 +68,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideScanHistoryRepository,
 		provideExplorerRepository,
 
+		// Saved Search Repository
+		provideSavedSearchRepository,
+
 		// ============================================================
 		// EXTERNAL SERVICES
 		// ============================================================
@@ -113,6 +116,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// External API Services
 		providePornDBService,
 
+		// Saved Search Service
+		provideSavedSearchService,
+
 		// ============================================================
 		// API LAYER - MIDDLEWARE
 		// ============================================================
@@ -154,6 +160,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// External API Handlers
 		providePornDBHandler,
+
+		// Saved Search Handler
+		provideSavedSearchHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -262,6 +271,10 @@ func provideScanHistoryRepository(db *gorm.DB) data.ScanHistoryRepository {
 
 func provideExplorerRepository(db *gorm.DB) data.ExplorerRepository {
 	return data.NewExplorerRepository(db)
+}
+
+func provideSavedSearchRepository(db *gorm.DB) data.SavedSearchRepository {
+	return data.NewSavedSearchRepository(db)
 }
 
 // ============================================================================
@@ -402,6 +415,10 @@ func providePornDBService(cfg *config.Config, logger *logging.Logger) *core.Porn
 	return core.NewPornDBService(cfg.PornDB.APIKey, logger.Logger)
 }
 
+func provideSavedSearchService(repo data.SavedSearchRepository, logger *logging.Logger) *core.SavedSearchService {
+	return core.NewSavedSearchService(repo, logger.Logger)
+}
+
 // ============================================================================
 // API MIDDLEWARE PROVIDERS
 // ============================================================================
@@ -518,6 +535,10 @@ func providePornDBHandler(pornDBService *core.PornDBService) *handler.PornDBHand
 	return handler.NewPornDBHandler(pornDBService)
 }
 
+func provideSavedSearchHandler(service *core.SavedSearchService) *handler.SavedSearchHandler {
+	return handler.NewSavedSearchHandler(service)
+}
+
 // ============================================================================
 // ROUTER & SERVER PROVIDERS
 // ============================================================================
@@ -548,6 +569,7 @@ func provideRouter(
 	scanHandler *handler.ScanHandler,
 	explorerHandler *handler.ExplorerHandler,
 	pornDBHandler *handler.PornDBHandler,
+	savedSearchHandler *handler.SavedSearchHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -558,7 +580,7 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		explorerHandler, pornDBHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, savedSearchHandler, authService, rbacService, rateLimiter,
 	)
 }
 

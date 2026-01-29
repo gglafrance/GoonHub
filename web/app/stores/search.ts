@@ -1,4 +1,5 @@
 import type { Video, VideoFilterOptions } from '~/types/video';
+import type { SavedSearchFilters } from '~/types/saved_search';
 
 export const useSearchStore = defineStore('search', () => {
     const api = useApi();
@@ -128,6 +129,51 @@ export const useSearchStore = defineStore('search', () => {
         matchType.value = 'broad';
     };
 
+    // Export current filters as SavedSearchFilters object (omit pagination)
+    const getCurrentFilters = (): SavedSearchFilters => {
+        const filters: SavedSearchFilters = {};
+
+        if (query.value) filters.query = query.value;
+        if (matchType.value !== 'broad') filters.match_type = matchType.value;
+        if (selectedTags.value.length > 0) filters.selected_tags = [...selectedTags.value];
+        if (selectedActors.value.length > 0) filters.selected_actors = [...selectedActors.value];
+        if (studio.value) filters.studio = studio.value;
+        if (resolution.value) filters.resolution = resolution.value;
+        if (minDuration.value > 0) filters.min_duration = minDuration.value;
+        if (maxDuration.value > 0) filters.max_duration = maxDuration.value;
+        if (minDate.value) filters.min_date = minDate.value;
+        if (maxDate.value) filters.max_date = maxDate.value;
+        if (liked.value) filters.liked = true;
+        if (minRating.value > 0) filters.min_rating = minRating.value;
+        if (maxRating.value > 0) filters.max_rating = maxRating.value;
+        if (minJizzCount.value > 0) filters.min_jizz_count = minJizzCount.value;
+        if (maxJizzCount.value > 0) filters.max_jizz_count = maxJizzCount.value;
+        if (sort.value) filters.sort = sort.value;
+
+        return filters;
+    };
+
+    // Load filters from a SavedSearchFilters object
+    const loadFilters = (filters: SavedSearchFilters) => {
+        query.value = filters.query || '';
+        matchType.value = (filters.match_type as 'broad' | 'strict' | 'frequency') || 'broad';
+        selectedTags.value = filters.selected_tags || [];
+        selectedActors.value = filters.selected_actors || [];
+        studio.value = filters.studio || '';
+        resolution.value = filters.resolution || '';
+        minDuration.value = filters.min_duration || 0;
+        maxDuration.value = filters.max_duration || 0;
+        minDate.value = filters.min_date || '';
+        maxDate.value = filters.max_date || '';
+        liked.value = filters.liked || false;
+        minRating.value = filters.min_rating || 0;
+        maxRating.value = filters.max_rating || 0;
+        minJizzCount.value = filters.min_jizz_count || 0;
+        maxJizzCount.value = filters.max_jizz_count || 0;
+        sort.value = filters.sort || '';
+        page.value = 1; // Reset pagination when loading filters
+    };
+
     return {
         query,
         selectedTags,
@@ -156,5 +202,7 @@ export const useSearchStore = defineStore('search', () => {
         search,
         loadFilterOptions,
         resetFilters,
+        getCurrentFilters,
+        loadFilters,
     };
 });
