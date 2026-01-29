@@ -24,13 +24,22 @@ const thumbnailUrl = computed(() => {
             block overflow-hidden rounded-lg border transition-all duration-200"
     >
         <div class="bg-void relative h-45 w-[320px]">
+            <!-- Blurred background (stretched to fill) -->
             <img
                 v-if="thumbnailUrl"
                 :src="thumbnailUrl"
-                width="320"
-                height="180"
-                class="absolute inset-0 h-45 w-[320px] transition-transform duration-300
-                    group-hover:scale-[1.03]"
+                class="absolute inset-0 h-full w-full scale-110 object-cover blur-xl"
+                alt=""
+                aria-hidden="true"
+                loading="lazy"
+            />
+
+            <!-- Main thumbnail (maintains aspect ratio) -->
+            <img
+                v-if="thumbnailUrl"
+                :src="thumbnailUrl"
+                class="absolute inset-0 z-10 h-full w-full object-contain transition-transform
+                    duration-300 group-hover:scale-[1.03]"
                 :alt="video.title"
                 loading="lazy"
             />
@@ -50,7 +59,7 @@ const thumbnailUrl = computed(() => {
             <!-- Duration badge -->
             <div
                 v-if="video.duration > 0"
-                class="bg-void/90 absolute right-1.5 bottom-1.5 rounded px-1.5 py-0.5 font-mono
+                class="bg-void/90 absolute right-1.5 bottom-1.5 z-20 rounded px-1.5 py-0.5 font-mono
                     text-[10px] font-medium text-white backdrop-blur-sm"
             >
                 {{ formatDuration(video.duration) }}
@@ -58,7 +67,7 @@ const thumbnailUrl = computed(() => {
 
             <!-- Hover overlay -->
             <div
-                class="bg-lava/0 group-hover:bg-lava/5 absolute inset-0 transition-colors
+                class="bg-lava/0 group-hover:bg-lava/5 absolute inset-0 z-20 transition-colors
                     duration-200"
             ></div>
         </div>
