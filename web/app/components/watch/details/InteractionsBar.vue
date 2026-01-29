@@ -44,31 +44,25 @@ watch(
 </script>
 
 <template>
-    <div class="flex items-center gap-2">
+    <div class="flex w-full items-center justify-center gap-3">
         <!-- Like -->
         <button
             @click="toggleLike"
-            class="group flex flex-col items-center gap-1 rounded-lg border px-3 py-2
-                transition-all duration-200"
-            :class="[
-                liked
-                    ? 'border-lava/20 bg-lava/[0.03]'
-                    : `border-border hover:border-border-hover bg-white/[0.02]
-                        hover:bg-white/[0.04]`,
-            ]"
+            class="group flex flex-col items-center gap-0.5 transition-all duration-200"
+            title="Like this video"
         >
             <div
                 class="transition-all duration-200"
                 :class="[
-                    liked ? 'text-lava' : 'text-white/20 group-hover:text-white/40',
+                    liked ? 'text-lava' : 'text-white/25 group-hover:text-white/50',
                     likeAnimating ? 'scale-125' : 'scale-100',
                 ]"
             >
-                <Icon :name="liked ? 'heroicons:heart-solid' : 'heroicons:heart'" size="16" />
+                <Icon :name="liked ? 'heroicons:heart-solid' : 'heroicons:heart'" size="18" />
             </div>
             <span
-                class="text-[10px] font-medium transition-colors duration-200"
-                :class="[liked ? 'text-lava/60' : 'text-white/25 group-hover:text-white/40']"
+                class="text-[9px] font-medium transition-colors duration-200"
+                :class="[liked ? 'text-lava/70' : 'text-white/25 group-hover:text-white/40']"
             >
                 {{ liked ? 'Liked' : 'Like' }}
             </span>
@@ -77,28 +71,22 @@ watch(
         <!-- Jizz -->
         <button
             @click="incrementJizzed"
-            class="group flex flex-col items-center gap-1 rounded-lg border px-3 py-2
-                transition-all duration-200"
-            :class="[
-                jizzedCount > 0
-                    ? 'border-white/20 bg-white/[0.05]'
-                    : `border-border hover:border-border-hover bg-white/[0.02]
-                        hover:bg-white/[0.04]`,
-            ]"
+            class="group flex flex-col items-center gap-0.5 transition-all duration-200"
+            title="Track completion"
         >
             <div
                 class="transition-all duration-200"
                 :class="[
-                    jizzedCount > 0 ? 'text-white' : 'text-white/20 group-hover:text-white/40',
+                    jizzedCount > 0 ? 'text-white' : 'text-white/25 group-hover:text-white/50',
                     jizzedAnimating ? 'scale-125' : 'scale-100',
                 ]"
             >
-                <Icon name="fluent-emoji-high-contrast:sweat-droplets" size="16" />
+                <Icon name="fluent-emoji-high-contrast:sweat-droplets" size="18" />
             </div>
             <span
-                class="text-[10px] font-medium tabular-nums transition-colors duration-200"
+                class="text-[9px] font-medium tabular-nums transition-colors duration-200"
                 :class="[
-                    jizzedCount > 0 ? 'text-white/60' : 'text-white/25 group-hover:text-white/40',
+                    jizzedCount > 0 ? 'text-white/70' : 'text-white/25 group-hover:text-white/40',
                 ]"
             >
                 {{ jizzedCount > 0 ? jizzedCount : 'Jizz' }}

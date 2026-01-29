@@ -51,14 +51,14 @@ watch(
             @blur="save"
             @keydown.enter="($event.target as HTMLInputElement).blur()"
             type="text"
-            class="border-border focus:border-lava/50 -mx-2 w-[calc(100%+16px)] rounded-md border
-                bg-white/3 px-2 py-1 text-sm text-white transition-colors outline-none"
+            class="border-border focus:border-lava/50 w-full rounded-md border bg-white/5 px-2
+                py-1.5 text-base font-medium text-white transition-colors outline-none"
         />
         <p
             v-else
             @click="startEditing"
-            class="text-dim -mx-2 cursor-pointer rounded-md px-2 py-1 text-sm transition-colors
-                hover:bg-white/3 hover:text-white"
+            class="text-dim -mx-2 cursor-pointer rounded-md px-2 py-1.5 text-base font-medium
+                transition-colors hover:bg-white/3 hover:text-white"
             :class="{ 'text-white': title }"
         >
             {{ title || 'Untitled' }}

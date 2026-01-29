@@ -56,15 +56,14 @@ watch(
             @blur="save"
             @input="autoResize"
             rows="2"
-            class="border-border focus:border-lava/50 -mx-2 w-[calc(100%+16px)] resize-none
-                rounded-md border bg-white/3 px-2 py-1 text-sm text-white transition-colors
-                outline-none"
+            class="border-border focus:border-lava/50 w-full resize-none rounded-md border
+                bg-white/5 px-2 py-1.5 text-sm text-white/80 transition-colors outline-none"
         />
         <p
             v-else
             @click="startEditing"
-            class="text-dim -mx-2 cursor-pointer rounded-md px-2 py-1 text-sm whitespace-pre-wrap
-                transition-colors hover:bg-white/3 hover:text-white"
+            class="text-dim -mx-2 min-h-8 cursor-pointer rounded-md px-2 py-1.5 text-sm
+                whitespace-pre-wrap transition-colors hover:bg-white/3 hover:text-white"
             :class="{ 'text-white/70': description }"
         >
             {{ description || 'No description' }}

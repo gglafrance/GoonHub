@@ -141,16 +141,16 @@ async function onStudioCreated(studio: Studio) {
             <LoadingSpinner />
         </div>
 
-        <div v-else class="flex flex-wrap gap-2">
+        <div v-else>
             <!-- Current studio card -->
-            <div v-if="videoStudio" class="group relative">
+            <div v-if="videoStudio" class="group relative inline-flex">
                 <NuxtLink
                     :to="`/studios/${videoStudio.uuid}`"
-                    class="border-border bg-surface hover:border-lava/40 flex items-center gap-3
-                        overflow-hidden rounded-lg border px-3 py-2 transition-colors"
+                    class="hover:border-lava/40 flex items-center gap-2 rounded-md px-1 py-0.5
+                        transition-colors hover:bg-white/3"
                 >
                     <!-- Logo -->
-                    <div class="bg-void relative h-10 w-10 shrink-0 overflow-hidden rounded">
+                    <div class="bg-void relative h-8 w-8 shrink-0 overflow-hidden rounded">
                         <img
                             v-if="videoStudio.logo"
                             :src="videoStudio.logo"
@@ -158,15 +158,15 @@ async function onStudioCreated(studio: Studio) {
                             class="h-full w-full object-contain p-0.5"
                         />
                         <div v-else class="text-dim flex h-full w-full items-center justify-center">
-                            <Icon name="heroicons:building-office-2" size="18" />
+                            <Icon name="heroicons:building-office-2" size="14" />
                         </div>
                     </div>
                     <!-- Name -->
-                    <div>
-                        <p class="text-xs font-medium text-white/90">
+                    <div class="min-w-0">
+                        <p class="truncate text-sm font-medium text-white/90">
                             {{ videoStudio.name }}
                         </p>
-                        <p v-if="videoStudio.short_name" class="text-dim text-[10px]">
+                        <p v-if="videoStudio.short_name" class="text-dim truncate text-[10px]">
                             {{ videoStudio.short_name }}
                         </p>
                     </div>
@@ -175,12 +175,12 @@ async function onStudioCreated(studio: Studio) {
                 <button
                     ref="anchorRef"
                     @click="onChangeStudioClick"
-                    class="bg-void/80 hover:bg-lava absolute -top-1 -right-1 flex h-5 w-5
+                    class="bg-void/80 hover:bg-lava absolute -top-1 -right-1 flex h-4 w-4
                         items-center justify-center rounded-full opacity-0 backdrop-blur-sm
                         transition-all group-hover:opacity-100"
                     title="Change studio"
                 >
-                    <Icon name="heroicons:pencil-square" size="12" class="text-white" />
+                    <Icon name="heroicons:pencil-square" size="10" class="text-white" />
                 </button>
             </div>
 
@@ -189,20 +189,20 @@ async function onStudioCreated(studio: Studio) {
                 v-else
                 ref="anchorRef"
                 @click="onChangeStudioClick"
-                class="border-border hover:border-lava/40 text-dim hover:text-lava flex h-14 w-28
-                    flex-col items-center justify-center rounded-lg border border-dashed
-                    transition-colors"
+                class="hover:border-lava/40 text-dim hover:text-lava -mx-1 flex items-center gap-2
+                    rounded-md border border-transparent px-1 py-1 text-sm transition-colors
+                    hover:bg-white/3"
                 :disabled="loadingAllStudios"
                 title="Add studio"
             >
                 <Icon
                     v-if="loadingAllStudios"
                     name="heroicons:arrow-path"
-                    size="20"
+                    size="14"
                     class="animate-spin"
                 />
-                <Icon v-else name="heroicons:plus" size="20" />
-                <span class="mt-1 text-[10px]">Add</span>
+                <Icon v-else name="heroicons:plus-circle" size="14" />
+                <span>Add studio</span>
             </button>
 
             <WatchStudioPicker

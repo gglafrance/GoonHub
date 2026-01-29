@@ -144,74 +144,116 @@ onMounted(async () => {
 </script>
 
 <template>
-    <div class="flex min-h-64 gap-6">
-        <!-- Left column: existing content -->
-        <div class="min-w-0 flex-1 space-y-4">
-            <!-- Error -->
-            <div
-                v-if="error"
-                class="border-lava/30 bg-lava/5 flex items-center gap-2 rounded-lg border px-3 py-2"
-            >
-                <Icon name="heroicons:exclamation-triangle" size="14" class="text-lava" />
-                <span class="text-xs text-red-300">{{ error }}</span>
-            </div>
-
-            <!-- Title -->
-            <WatchDetailsTitleEditor :title="video?.title || ''" :saved="saved" @save="saveTitle" />
-
-            <!-- Description -->
-            <WatchDetailsDescriptionEditor
-                :description="video?.description || ''"
-                @save="saveDescription"
-            />
-
-            <!-- Release Date -->
-            <WatchDetailsReleaseDateEditor
-                :release-date="video?.release_date || null"
-                @save="saveReleaseDate"
-            />
-
-            <!-- PornDB Link -->
-            <WatchDetailsPornDBStatus
-                v-if="video?.porndb_scene_id"
-                :scene-id="video.porndb_scene_id"
-            />
-
-            <!-- Tags section -->
-            <WatchDetailsTagManager v-if="video" ref="tagManagerRef" :video-id="video.id" />
-
-            <!-- Actors section -->
-            <WatchActors />
-
-            <!-- Studio section -->
-            <WatchStudio />
-
-            <!-- Fetch Metadata button (admin only, PornDB configured) -->
-            <button
-                v-if="isAdmin && pornDBConfigured"
-                @click="showFetchMetadataModal = true"
-                class="border-border hover:border-lava/40 hover:text-lava text-dim flex items-center
-                    gap-2 rounded-lg border px-3 py-2 text-xs transition-colors"
-            >
-                <Icon name="heroicons:cloud-arrow-down" size="14" />
-                Fetch Scene Metadata
-            </button>
+    <div class="space-y-5">
+        <!-- Error -->
+        <div
+            v-if="error"
+            class="border-lava/30 bg-lava/5 flex items-center gap-2 rounded-lg border px-3 py-2"
+        >
+            <Icon name="heroicons:exclamation-triangle" size="14" class="text-lava" />
+            <span class="text-xs text-red-300">{{ error }}</span>
         </div>
 
-        <!-- Right column: Rating & Actions -->
-        <div class="flex shrink-0 flex-col items-center gap-2.5">
-            <WatchDetailsRatingPanel
-                v-if="video"
-                :video-id="video.id"
-                :initial-rating="initialRating"
-            />
+        <!-- Top section: Title/Description + Engagement -->
+        <div class="flex gap-5">
+            <!-- Left: Title & Description card -->
+            <div class="border-border/50 bg-surface/30 min-w-0 flex-1 rounded-xl border p-4">
+                <div class="space-y-4">
+                    <!-- Title -->
+                    <WatchDetailsTitleEditor
+                        :title="video?.title || ''"
+                        :saved="saved"
+                        @save="saveTitle"
+                    />
 
-            <WatchDetailsInteractionsBar
-                v-if="video"
-                :video-id="video.id"
-                :initial-liked="initialLiked"
-                :initial-jizzed-count="initialJizzedCount"
-            />
+                    <!-- Description -->
+                    <WatchDetailsDescriptionEditor
+                        :description="video?.description || ''"
+                        @save="saveDescription"
+                    />
+                </div>
+            </div>
+
+            <!-- Right: Engagement card -->
+            <div
+                class="border-border/50 bg-surface/30 flex w-36 shrink-0 flex-col items-center
+                    justify-center gap-4 rounded-xl border p-4"
+            >
+                <div class="text-dim text-[10px] font-medium tracking-wider uppercase">
+                    Your Rating
+                </div>
+                <WatchDetailsRatingPanel
+                    v-if="video"
+                    :video-id="video.id"
+                    :initial-rating="initialRating"
+                />
+                <div class="bg-border/50 h-px w-full" />
+                <WatchDetailsInteractionsBar
+                    v-if="video"
+                    :video-id="video.id"
+                    :initial-liked="initialLiked"
+                    :initial-jizzed-count="initialJizzedCount"
+                />
+            </div>
+        </div>
+
+        <!-- Metadata row -->
+        <div class="flex flex-wrap gap-3">
+            <!-- Release Date -->
+            <div class="border-border/50 bg-surface/30 w-40 shrink-0 rounded-lg border p-3">
+                <WatchDetailsReleaseDateEditor
+                    :release-date="video?.release_date || null"
+                    @save="saveReleaseDate"
+                />
+            </div>
+
+            <!-- Studio -->
+            <div class="border-border/50 bg-surface/30 min-w-48 flex-1 rounded-lg border p-3">
+                <WatchStudio />
+            </div>
+
+            <!-- PornDB -->
+            <div class="border-border/50 bg-surface/30 w-44 shrink-0 rounded-lg border p-3">
+                <div class="space-y-2">
+                    <h3 class="text-dim text-[11px] font-medium tracking-wider uppercase">
+                        PornDB
+                    </h3>
+                    <!-- Linked scene -->
+                    <a
+                        v-if="video?.porndb_scene_id"
+                        :href="`https://theporndb.net/scenes/${video.porndb_scene_id}`"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-lava hover:text-lava-glow inline-flex items-center gap-1.5
+                            text-xs transition-colors"
+                    >
+                        View scene
+                        <Icon name="heroicons:arrow-top-right-on-square" size="10" />
+                    </a>
+                    <p v-else class="text-dim text-xs">Not linked</p>
+                    <!-- Fetch/Refresh button -->
+                    <button
+                        v-if="isAdmin && pornDBConfigured"
+                        @click="showFetchMetadataModal = true"
+                        class="hover:border-lava/40 hover:text-lava text-dim flex w-full
+                            items-center justify-center gap-2 rounded-md border border-dashed
+                            border-white/10 px-2 py-1.5 text-xs transition-colors"
+                    >
+                        <Icon name="heroicons:cloud-arrow-down" size="12" />
+                        {{ video?.porndb_scene_id ? 'Refresh' : 'Fetch' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tags section -->
+        <div class="border-border/50 bg-surface/30 rounded-xl border p-4">
+            <WatchDetailsTagManager v-if="video" ref="tagManagerRef" :video-id="video.id" />
+        </div>
+
+        <!-- Actors section -->
+        <div class="border-border/50 bg-surface/30 rounded-xl border p-4">
+            <WatchActors />
         </div>
     </div>
 
