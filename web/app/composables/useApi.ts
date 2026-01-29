@@ -9,6 +9,7 @@
  * - useApiJobs() for job history and config
  * - useApiTags() for tag operations
  * - useApiActors() for actor operations
+ * - useApiStudios() for studio operations
  * - useApiPornDB() for PornDB integration
  * - useApiStorage() for storage paths and scanning
  * - useApiDLQ() for dead letter queue operations
@@ -21,6 +22,7 @@ export const useApi = () => {
     const jobs = useApiJobs();
     const tags = useApiTags();
     const actors = useApiActors();
+    const studios = useApiStudios();
     const porndb = useApiPornDB();
     const storage = useApiStorage();
     const dlq = useApiDLQ();
@@ -102,12 +104,29 @@ export const useApi = () => {
         deleteActorRating: actors.deleteActorRating,
         toggleActorLike: actors.toggleActorLike,
 
+        // Studio operations
+        fetchStudios: studios.fetchStudios,
+        fetchStudioByUUID: studios.fetchStudioByUUID,
+        fetchStudioVideos: studios.fetchStudioVideos,
+        createStudio: studios.createStudio,
+        updateStudio: studios.updateStudio,
+        deleteStudio: studios.deleteStudio,
+        uploadStudioLogo: studios.uploadStudioLogo,
+        fetchVideoStudio: studios.fetchVideoStudio,
+        setVideoStudio: studios.setVideoStudio,
+        fetchStudioInteractions: studios.fetchStudioInteractions,
+        setStudioRating: studios.setStudioRating,
+        deleteStudioRating: studios.deleteStudioRating,
+        toggleStudioLike: studios.toggleStudioLike,
+
         // PornDB operations
         getPornDBStatus: porndb.getPornDBStatus,
         searchPornDBPerformers: porndb.searchPornDBPerformers,
         getPornDBPerformer: porndb.getPornDBPerformer,
         searchPornDBScenes: porndb.searchPornDBScenes,
         getPornDBScene: porndb.getPornDBScene,
+        searchPornDBSites: porndb.searchPornDBSites,
+        getPornDBSite: porndb.getPornDBSite,
         applySceneMetadata: porndb.applySceneMetadata,
 
         // Storage operations

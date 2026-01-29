@@ -22,6 +22,8 @@ const selectedScene = ref<PornDBScene | null>(null);
 const applyingBasic = ref(false);
 const applyError = ref('');
 const performersToMatch = ref<PornDBScene['performers']>([]);
+const siteToMatch = ref<string | null>(null);
+const shouldMatchStudio = ref(false);
 
 // Phase title
 const phaseTitle = computed(() => {
@@ -40,6 +42,8 @@ watch(
             applyingBasic.value = false;
             applyError.value = '';
             performersToMatch.value = [];
+            siteToMatch.value = null;
+            shouldMatchStudio.value = false;
         }
     },
 );
@@ -70,11 +74,10 @@ async function onApply(fields: {
     applyError.value = '';
 
     try {
-        // Build the update payload
+        // Build the update payload (NOT including studio - that uses matching flow)
         const payload: {
             title?: string;
             description?: string;
-            studio?: string;
             thumbnail_url?: string;
             tag_names?: string[];
             release_date?: string;
@@ -86,9 +89,6 @@ async function onApply(fields: {
         }
         if (fields.description && selectedScene.value.description) {
             payload.description = selectedScene.value.description;
-        }
-        if (fields.studio && selectedScene.value.site?.name) {
-            payload.studio = selectedScene.value.site.name;
         }
         if (fields.thumbnail) {
             const thumbnailUrl = selectedScene.value.image || selectedScene.value.poster;
@@ -112,9 +112,18 @@ async function onApply(fields: {
 
         applyingBasic.value = false;
 
-        // Handle performers if selected
+        // Remember if we need to match studio (after performers)
+        if (fields.studio && selectedScene.value.site?.name) {
+            shouldMatchStudio.value = true;
+            siteToMatch.value = selectedScene.value.site.name;
+        }
+
+        // Handle performers first if selected
         if (fields.performers && selectedScene.value.performers?.length) {
             performersToMatch.value = [...selectedScene.value.performers];
+        } else if (shouldMatchStudio.value && siteToMatch.value) {
+            // No performers to match, go directly to studio matching
+            // (siteToMatch is already set, flow will render)
         } else {
             emit('applied');
             emit('close');
@@ -126,11 +135,26 @@ async function onApply(fields: {
 }
 
 function onActorMatchDone() {
+    // After performers, check if we need to match studio
+    performersToMatch.value = [];
+    if (shouldMatchStudio.value && siteToMatch.value) {
+        // Studio matching will now render
+    } else {
+        emit('applied');
+        emit('close');
+    }
+}
+
+function onActorMatchError(message: string) {
+    applyError.value = message;
+}
+
+function onStudioMatchDone() {
     emit('applied');
     emit('close');
 }
 
-function onActorMatchError(message: string) {
+function onStudioMatchError(message: string) {
     applyError.value = message;
 }
 
@@ -207,6 +231,21 @@ function handleClose() {
                         :performers="performersToMatch"
                         @done="onActorMatchDone"
                         @error="onActorMatchError"
+                    />
+
+                    <!-- Studio matching sub-flow (after performers are done) -->
+                    <WatchStudioMatchFlow
+                        v-else-if="
+                            shouldMatchStudio &&
+                            siteToMatch &&
+                            performersToMatch &&
+                            performersToMatch.length === 0 &&
+                            video
+                        "
+                        :video-id="video.id"
+                        :site-name="siteToMatch"
+                        @done="onStudioMatchDone"
+                        @error="onStudioMatchError"
                     />
                 </div>
             </div>

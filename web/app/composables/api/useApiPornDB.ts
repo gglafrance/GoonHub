@@ -60,6 +60,25 @@ export const useApiPornDB = () => {
         return result.data;
     };
 
+    const searchPornDBSites = async (query: string) => {
+        const params = new URLSearchParams({ q: query });
+        const response = await fetch(`/api/v1/admin/porndb/sites?${params}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        const result = await handleResponse(response);
+        return result.data || [];
+    };
+
+    const getPornDBSite = async (id: string) => {
+        const response = await fetch(`/api/v1/admin/porndb/sites/${id}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        const result = await handleResponse(response);
+        return result.data;
+    };
+
     const applySceneMetadata = async (
         videoId: number,
         data: {
@@ -87,6 +106,8 @@ export const useApiPornDB = () => {
         getPornDBPerformer,
         searchPornDBScenes,
         getPornDBScene,
+        searchPornDBSites,
+        getPornDBSite,
         applySceneMetadata,
     };
 };

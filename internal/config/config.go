@@ -83,6 +83,7 @@ type ProcessingConfig struct {
 	SpriteDir              string        `mapstructure:"sprite_dir"`                // relative to app root
 	VttDir                 string        `mapstructure:"vtt_dir"`                   // relative to app root
 	ActorImageDir          string        `mapstructure:"actor_image_dir"`           // directory for actor images
+	StudioLogoDir          string        `mapstructure:"studio_logo_dir"`           // directory for studio logos
 	GridCols               int           `mapstructure:"grid_cols"`                 // number of columns in sprite sheet
 	GridRows               int           `mapstructure:"grid_rows"`                 // number of rows in sprite sheet
 	SpritesConcurrency     int           `mapstructure:"sprites_concurrency"`       // concurrent ffmpeg processes for sprite extraction (0 = auto)
@@ -145,6 +146,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("processing.sprite_dir", "./data/metadata/sprites")
 	v.SetDefault("processing.vtt_dir", "./data/metadata/vtt")
 	v.SetDefault("processing.actor_image_dir", "./data/metadata/actors")
+	v.SetDefault("processing.studio_logo_dir", "./data/metadata/studios")
 	v.SetDefault("processing.grid_cols", 12)
 	v.SetDefault("processing.grid_rows", 8)
 	v.SetDefault("processing.sprites_concurrency", 0)

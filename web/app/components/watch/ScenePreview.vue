@@ -137,18 +137,17 @@ onMounted(() => {
                     />
                     <div class="min-w-0 flex-1">
                         <p class="text-xs font-medium text-white">Studio</p>
-                        <div class="mt-1.5 space-y-1 text-[11px]">
-                            <div>
-                                <span class="text-dim">Current:</span>
-                                <span class="ml-1 text-white/70">{{
-                                    video?.studio || '(empty)'
-                                }}</span>
-                            </div>
-                            <div>
-                                <span class="text-dim">New:</span>
-                                <span class="text-lava ml-1">{{ scene.site.name }}</span>
+                        <div class="mt-1.5">
+                            <div
+                                class="border-border flex items-center gap-1.5 rounded-full border
+                                    px-2 py-0.5 text-[11px] text-white"
+                            >
+                                {{ scene.site.name }}
                             </div>
                         </div>
+                        <p class="text-dim mt-1.5 text-[10px]">
+                            You'll be able to match to an existing studio or create a new one.
+                        </p>
                     </div>
                 </label>
 

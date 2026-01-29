@@ -71,6 +71,21 @@ func ErrActorAlreadyExists(name string) *ConflictError {
 	return NewConflictError("actor", fmt.Sprintf("actor '%s' already exists", name))
 }
 
+// ErrStudioNotFound creates a NotFoundError for a studio.
+func ErrStudioNotFound(id uint) *NotFoundError {
+	return NewNotFoundError("studio", id)
+}
+
+// ErrStudioNotFoundByName creates a NotFoundError for a studio by name.
+func ErrStudioNotFoundByName(name string) *NotFoundError {
+	return NewNotFoundError("studio", name)
+}
+
+// ErrStudioAlreadyExists is returned when trying to create a duplicate studio.
+func ErrStudioAlreadyExists(name string) *ConflictError {
+	return NewConflictError("studio", fmt.Sprintf("studio '%s' already exists", name))
+}
+
 // ErrVideoProcessingFailed creates an internal error for processing failures.
 func ErrVideoProcessingFailed(videoID uint, cause error) *InternalError {
 	return NewInternalError(fmt.Sprintf("failed to process video %d", videoID), cause)

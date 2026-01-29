@@ -46,9 +46,29 @@ export interface PornDBScene {
     tags?: PornDBTag[];
 }
 
+// Lightweight site for scene responses
 export interface PornDBSite {
     name: string;
     url?: string;
+}
+
+// Full site details for site search/fetch
+export interface PornDBSiteDetails {
+    id: string;
+    uuid?: string;
+    slug?: string;
+    name: string;
+    short_name?: string;
+    url?: string;
+    description?: string;
+    rating?: number;
+    logo?: string;
+    favicon?: string;
+    poster?: string;
+    network?: string;
+    parent?: string;
+    network_id?: string;
+    parent_id?: string;
 }
 
 export interface PornDBScenePerformer {

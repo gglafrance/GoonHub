@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -57,6 +57,8 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					videos.GET("/:id/history", middleware.RequirePermission(rbacService, "videos:view"), watchHistoryHandler.GetVideoHistory)
 					videos.GET("/:id/actors", middleware.RequirePermission(rbacService, "videos:view"), actorHandler.GetVideoActors)
 					videos.PUT("/:id/actors", middleware.RequirePermission(rbacService, "videos:upload"), actorHandler.SetVideoActors)
+					videos.GET("/:id/studio", middleware.RequirePermission(rbacService, "videos:view"), studioHandler.GetVideoStudio)
+					videos.PUT("/:id/studio", middleware.RequirePermission(rbacService, "videos:upload"), studioHandler.SetVideoStudio)
 				}
 
 				history := protected.Group("/history")
@@ -80,6 +82,17 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					actors.PUT("/:uuid/rating", actorInteractionHandler.SetRating)
 					actors.DELETE("/:uuid/rating", actorInteractionHandler.DeleteRating)
 					actors.POST("/:uuid/like", actorInteractionHandler.ToggleLike)
+				}
+
+				studios := protected.Group("/studios")
+				{
+					studios.GET("", studioHandler.ListStudios)
+					studios.GET("/:uuid", studioHandler.GetStudioByUUID)
+					studios.GET("/:uuid/videos", studioHandler.GetStudioVideos)
+					studios.GET("/:uuid/interactions", studioInteractionHandler.GetInteractions)
+					studios.PUT("/:uuid/rating", studioInteractionHandler.SetRating)
+					studios.DELETE("/:uuid/rating", studioInteractionHandler.DeleteRating)
+					studios.POST("/:uuid/like", studioInteractionHandler.ToggleLike)
 				}
 
 				explorer := protected.Group("/explorer")
@@ -147,12 +160,20 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					admin.DELETE("/actors/:id", actorHandler.DeleteActor)
 					admin.POST("/actors/:id/image", actorHandler.UploadActorImage)
 
+					// Studios management
+					admin.POST("/studios", studioHandler.CreateStudio)
+					admin.PUT("/studios/:id", studioHandler.UpdateStudio)
+					admin.DELETE("/studios/:id", studioHandler.DeleteStudio)
+					admin.POST("/studios/:id/logo", studioHandler.UploadStudioLogo)
+
 					// PornDB integration
 					admin.GET("/porndb/status", pornDBHandler.GetStatus)
 					admin.GET("/porndb/performers", pornDBHandler.SearchPerformers)
 					admin.GET("/porndb/performers/:id", pornDBHandler.GetPerformer)
 					admin.GET("/porndb/scenes", pornDBHandler.SearchScenes)
 					admin.GET("/porndb/scenes/:id", pornDBHandler.GetScene)
+					admin.GET("/porndb/sites", pornDBHandler.SearchSites)
+					admin.GET("/porndb/sites/:id", pornDBHandler.GetSite)
 				}
 			}
 		}

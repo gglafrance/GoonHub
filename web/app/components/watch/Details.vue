@@ -157,11 +157,7 @@ onMounted(async () => {
             </div>
 
             <!-- Title -->
-            <WatchDetailsTitleEditor
-                :title="video?.title || ''"
-                :saved="saved"
-                @save="saveTitle"
-            />
+            <WatchDetailsTitleEditor :title="video?.title || ''" :saved="saved" @save="saveTitle" />
 
             <!-- Description -->
             <WatchDetailsDescriptionEditor
@@ -186,6 +182,9 @@ onMounted(async () => {
 
             <!-- Actors section -->
             <WatchActors />
+
+            <!-- Studio section -->
+            <WatchStudio />
 
             <!-- Fetch Metadata button (admin only, PornDB configured) -->
             <button
