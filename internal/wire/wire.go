@@ -64,6 +64,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Storage & Scan Repositories
 		provideStoragePathRepository,
 		provideScanHistoryRepository,
+		provideExplorerRepository,
 
 		// ============================================================
 		// EXTERNAL SERVICES
@@ -103,6 +104,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Storage & Scan Services
 		provideStoragePathService,
 		provideScanService,
+		provideExplorerService,
 
 		// External API Services
 		providePornDBService,
@@ -142,6 +144,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideSSEHandler,
 		provideStoragePathHandler,
 		provideScanHandler,
+		provideExplorerHandler,
 
 		// External API Handlers
 		providePornDBHandler,
@@ -241,6 +244,10 @@ func provideStoragePathRepository(db *gorm.DB) data.StoragePathRepository {
 
 func provideScanHistoryRepository(db *gorm.DB) data.ScanHistoryRepository {
 	return data.NewScanHistoryRepository(db)
+}
+
+func provideExplorerRepository(db *gorm.DB) data.ExplorerRepository {
+	return data.NewExplorerRepository(db)
 }
 
 // ============================================================================
@@ -363,6 +370,10 @@ func provideScanService(storagePathService *core.StoragePathService, videoRepo d
 	return core.NewScanService(storagePathService, videoRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
 }
 
+func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, videoRepo data.VideoRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config) *core.ExplorerService {
+	return core.NewExplorerService(explorerRepo, storagePathRepo, videoRepo, tagRepo, actorRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir)
+}
+
 // --- External API Services ---
 
 func providePornDBService(cfg *config.Config, logger *logging.Logger) *core.PornDBService {
@@ -467,6 +478,10 @@ func provideScanHandler(scanService *core.ScanService) *handler.ScanHandler {
 	return handler.NewScanHandler(scanService)
 }
 
+func provideExplorerHandler(explorerService *core.ExplorerService) *handler.ExplorerHandler {
+	return handler.NewExplorerHandler(explorerService)
+}
+
 // --- External API Handlers ---
 
 func providePornDBHandler(pornDBService *core.PornDBService) *handler.PornDBHandler {
@@ -499,6 +514,7 @@ func provideRouter(
 	watchHistoryHandler *handler.WatchHistoryHandler,
 	storagePathHandler *handler.StoragePathHandler,
 	scanHandler *handler.ScanHandler,
+	explorerHandler *handler.ExplorerHandler,
 	pornDBHandler *handler.PornDBHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
@@ -510,7 +526,7 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, interactionHandler,
 		actorInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		pornDBHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, authService, rbacService, rateLimiter,
 	)
 }
 
@@ -526,12 +542,13 @@ func provideServer(
 	tagService *core.TagService,
 	searchService *core.SearchService,
 	scanService *core.ScanService,
+	explorerService *core.ExplorerService,
 	retryScheduler *core.RetryScheduler,
 	dlqService *core.DLQService,
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, triggerScheduler,
-		videoService, tagService, searchService, scanService, retryScheduler, dlqService,
+		videoService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
 	)
 }

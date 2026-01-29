@@ -2,11 +2,13 @@ package data
 
 import (
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type ActorRepository interface {
 	Create(actor *Actor) error
 	GetByID(id uint) (*Actor, error)
+	GetByIDs(ids []uint) ([]Actor, error)
 	GetByUUID(uuid string) (*Actor, error)
 	Update(actor *Actor) error
 	Delete(id uint) error
@@ -18,6 +20,11 @@ type ActorRepository interface {
 	SetVideoActors(videoID uint, actorIDs []uint) error
 	GetActorVideos(actorID uint, page, limit int) ([]Video, int64, error)
 	GetVideoCount(actorID uint) (int64, error)
+
+	// Bulk operations
+	BulkAddActorsToVideos(videoIDs []uint, actorIDs []uint) error
+	BulkRemoveActorsFromVideos(videoIDs []uint, actorIDs []uint) error
+	BulkReplaceActorsForVideos(videoIDs []uint, actorIDs []uint) error
 }
 
 type ActorRepositoryImpl struct {
@@ -38,6 +45,17 @@ func (r *ActorRepositoryImpl) GetByID(id uint) (*Actor, error) {
 		return nil, err
 	}
 	return &actor, nil
+}
+
+func (r *ActorRepositoryImpl) GetByIDs(ids []uint) ([]Actor, error) {
+	if len(ids) == 0 {
+		return []Actor{}, nil
+	}
+	var actors []Actor
+	if err := r.DB.Where("id IN ?", ids).Find(&actors).Error; err != nil {
+		return nil, err
+	}
+	return actors, nil
 }
 
 func (r *ActorRepositoryImpl) GetByUUID(uuid string) (*Actor, error) {
@@ -200,4 +218,70 @@ func (r *ActorRepositoryImpl) GetVideoCount(actorID uint) (int64, error) {
 		return 0, err
 	}
 	return count, nil
+}
+
+// BulkAddActorsToVideos adds actors to multiple videos (skips existing associations)
+func (r *ActorRepositoryImpl) BulkAddActorsToVideos(videoIDs []uint, actorIDs []uint) error {
+	if len(videoIDs) == 0 || len(actorIDs) == 0 {
+		return nil
+	}
+
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		// Build all associations
+		videoActors := make([]VideoActor, 0, len(videoIDs)*len(actorIDs))
+		for _, videoID := range videoIDs {
+			for _, actorID := range actorIDs {
+				videoActors = append(videoActors, VideoActor{
+					VideoID: videoID,
+					ActorID: actorID,
+				})
+			}
+		}
+
+		// Insert with ON CONFLICT DO NOTHING to skip existing
+		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&videoActors).Error
+	})
+}
+
+// BulkRemoveActorsFromVideos removes specific actors from multiple videos
+func (r *ActorRepositoryImpl) BulkRemoveActorsFromVideos(videoIDs []uint, actorIDs []uint) error {
+	if len(videoIDs) == 0 || len(actorIDs) == 0 {
+		return nil
+	}
+
+	return r.DB.
+		Where("video_id IN ?", videoIDs).
+		Where("actor_id IN ?", actorIDs).
+		Delete(&VideoActor{}).Error
+}
+
+// BulkReplaceActorsForVideos replaces all actors for multiple videos
+func (r *ActorRepositoryImpl) BulkReplaceActorsForVideos(videoIDs []uint, actorIDs []uint) error {
+	if len(videoIDs) == 0 {
+		return nil
+	}
+
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		// Delete all existing associations for these videos
+		if err := tx.Where("video_id IN ?", videoIDs).Delete(&VideoActor{}).Error; err != nil {
+			return err
+		}
+
+		if len(actorIDs) == 0 {
+			return nil
+		}
+
+		// Build all new associations
+		videoActors := make([]VideoActor, 0, len(videoIDs)*len(actorIDs))
+		for _, videoID := range videoIDs {
+			for _, actorID := range actorIDs {
+				videoActors = append(videoActors, VideoActor{
+					VideoID: videoID,
+					ActorID: actorID,
+				})
+			}
+		}
+
+		return tx.Create(&videoActors).Error
+	})
 }

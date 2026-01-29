@@ -15,6 +15,7 @@ import (
 type VideoIndexer interface {
 	IndexVideo(video *data.Video) error
 	UpdateVideoIndex(video *data.Video) error
+	BulkUpdateVideoIndex(videos []data.Video) error
 	DeleteVideoIndex(id uint) error
 }
 
@@ -52,8 +53,13 @@ func (s *SearchService) Search(params data.VideoSearchParams) ([]data.Video, int
 		return nil, 0, fmt.Errorf("meilisearch is not configured")
 	}
 
-	// Handle user-specific filters by pre-querying PostgreSQL for video IDs
+	// Start with VideoIDs pre-filter if provided (e.g., folder search)
 	var preFilteredIDs []uint
+	if len(params.VideoIDs) > 0 {
+		preFilteredIDs = params.VideoIDs
+	}
+
+	// Handle user-specific filters by pre-querying PostgreSQL for video IDs
 	if s.hasUserFilters(params) {
 		ids, err := s.getUserFilteredIDs(params)
 		if err != nil {
@@ -63,7 +69,15 @@ func (s *SearchService) Search(params data.VideoSearchParams) ([]data.Video, int
 		if len(ids) == 0 {
 			return []data.Video{}, 0, nil
 		}
-		preFilteredIDs = ids
+		// Intersect with folder pre-filter if present
+		if len(preFilteredIDs) > 0 {
+			preFilteredIDs = intersect(preFilteredIDs, ids)
+			if len(preFilteredIDs) == 0 {
+				return []data.Video{}, 0, nil
+			}
+		} else {
+			preFilteredIDs = ids
+		}
 	}
 
 	// Build Meilisearch search params
@@ -264,6 +278,56 @@ func (s *SearchService) IndexVideo(video *data.Video) error {
 // UpdateVideoIndex updates a video in the Meilisearch index.
 func (s *SearchService) UpdateVideoIndex(video *data.Video) error {
 	return s.IndexVideo(video)
+}
+
+// BulkUpdateVideoIndex updates multiple videos in the Meilisearch index efficiently.
+func (s *SearchService) BulkUpdateVideoIndex(videos []data.Video) error {
+	if s.meiliClient == nil || len(videos) == 0 {
+		return nil
+	}
+
+	// Get video IDs
+	videoIDs := make([]uint, len(videos))
+	for i, v := range videos {
+		videoIDs[i] = v.ID
+	}
+
+	// Fetch all tags for all videos in a single query
+	tagsByVideo, err := s.tagRepo.GetVideoTagsMultiple(videoIDs)
+	if err != nil {
+		s.logger.Warn("failed to get video tags for bulk indexing", zap.Error(err))
+		tagsByVideo = make(map[uint][]data.Tag)
+	}
+
+	// Build documents
+	docs := make([]meilisearch.VideoDocument, len(videos))
+	for i, video := range videos {
+		tags := tagsByVideo[video.ID]
+		tagIDs := make([]uint, len(tags))
+		tagNames := make([]string, len(tags))
+		for j, tag := range tags {
+			tagIDs[j] = tag.ID
+			tagNames[j] = tag.Name
+		}
+
+		docs[i] = meilisearch.VideoDocument{
+			ID:               video.ID,
+			Title:            video.Title,
+			OriginalFilename: video.OriginalFilename,
+			Description:      video.Description,
+			Studio:           video.Studio,
+			Actors:           video.Actors,
+			TagIDs:           tagIDs,
+			TagNames:         tagNames,
+			Duration:         float64(video.Duration),
+			Height:           video.Height,
+			CreatedAt:        video.CreatedAt.Unix(),
+			ProcessingStatus: video.ProcessingStatus,
+		}
+	}
+
+	// Bulk index
+	return s.meiliClient.BulkIndex(docs)
 }
 
 // DeleteVideoIndex removes a video from the Meilisearch index.

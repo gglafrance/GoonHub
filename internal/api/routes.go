@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, pornDBHandler *handler.PornDBHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -80,6 +80,18 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					actors.PUT("/:uuid/rating", actorInteractionHandler.SetRating)
 					actors.DELETE("/:uuid/rating", actorInteractionHandler.DeleteRating)
 					actors.POST("/:uuid/like", actorInteractionHandler.ToggleLike)
+				}
+
+				explorer := protected.Group("/explorer")
+				{
+					explorer.GET("/storage-paths", explorerHandler.GetStoragePaths)
+					explorer.GET("/folders/:storagePathID/*path", explorerHandler.GetFolderContents)
+					explorer.POST("/bulk/tags", explorerHandler.BulkUpdateTags)
+					explorer.POST("/bulk/actors", explorerHandler.BulkUpdateActors)
+					explorer.POST("/bulk/studio", explorerHandler.BulkUpdateStudio)
+					explorer.DELETE("/bulk/videos", middleware.RequirePermission(rbacService, "videos:delete"), explorerHandler.BulkDeleteVideos)
+					explorer.POST("/folder/video-ids", explorerHandler.GetFolderVideoIDs)
+					explorer.POST("/search", explorerHandler.SearchInFolder)
 				}
 
 				settings := protected.Group("/settings")

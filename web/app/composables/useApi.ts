@@ -12,6 +12,7 @@
  * - useApiPornDB() for PornDB integration
  * - useApiStorage() for storage paths and scanning
  * - useApiDLQ() for dead letter queue operations
+ * - useApiExplorer() for folder browsing and bulk editing
  */
 export const useApi = () => {
     const videos = useApiVideos();
@@ -23,6 +24,7 @@ export const useApi = () => {
     const porndb = useApiPornDB();
     const storage = useApiStorage();
     const dlq = useApiDLQ();
+    const explorer = useApiExplorer();
 
     return {
         // Video operations
@@ -123,5 +125,13 @@ export const useApi = () => {
         fetchDLQ: dlq.fetchDLQ,
         retryFromDLQ: dlq.retryFromDLQ,
         abandonDLQ: dlq.abandonDLQ,
+
+        // Explorer operations
+        getExplorerStoragePaths: explorer.getStoragePaths,
+        getExplorerFolderContents: explorer.getFolderContents,
+        bulkUpdateTags: explorer.bulkUpdateTags,
+        bulkUpdateActors: explorer.bulkUpdateActors,
+        bulkUpdateStudio: explorer.bulkUpdateStudio,
+        getFolderVideoIDs: explorer.getFolderVideoIDs,
     };
 };

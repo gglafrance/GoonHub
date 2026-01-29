@@ -41,6 +41,20 @@ func (m *MockVideoRepository) EXPECT() *MockVideoRepositoryMockRecorder {
 	return m.recorder
 }
 
+// BulkUpdateStudio mocks base method.
+func (m *MockVideoRepository) BulkUpdateStudio(videoIDs []uint, studio string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BulkUpdateStudio", videoIDs, studio)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BulkUpdateStudio indicates an expected call of BulkUpdateStudio.
+func (mr *MockVideoRepositoryMockRecorder) BulkUpdateStudio(videoIDs, studio any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkUpdateStudio", reflect.TypeOf((*MockVideoRepository)(nil).BulkUpdateStudio), videoIDs, studio)
+}
+
 // Create mocks base method.
 func (m *MockVideoRepository) Create(video *data.Video) error {
 	m.ctrl.T.Helper()

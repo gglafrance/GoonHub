@@ -105,11 +105,14 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	scanHistoryRepository := provideScanHistoryRepository(db)
 	scanService := provideScanService(storagePathService, videoRepository, scanHistoryRepository, videoProcessingService, eventBus, logger)
 	scanHandler := provideScanHandler(scanService)
+	explorerRepository := provideExplorerRepository(db)
+	explorerService := provideExplorerService(explorerRepository, storagePathRepository, videoRepository, tagRepository, actorRepository, eventBus, logger, configConfig)
+	explorerHandler := provideExplorerHandler(explorerService)
 	pornDBService := providePornDBService(configConfig, logger)
 	pornDBHandler := providePornDBHandler(pornDBService)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, interactionHandler, actorInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, pornDBHandler, authService, rbacService, ipRateLimiter)
-	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService, scanService, retryScheduler, dlqService)
+	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, interactionHandler, actorInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, authService, rbacService, ipRateLimiter)
+	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService)
 	return serverServer, nil
 }
 
@@ -189,6 +192,10 @@ func provideStoragePathRepository(db *gorm.DB) data.StoragePathRepository {
 
 func provideScanHistoryRepository(db *gorm.DB) data.ScanHistoryRepository {
 	return data.NewScanHistoryRepository(db)
+}
+
+func provideExplorerRepository(db *gorm.DB) data.ExplorerRepository {
+	return data.NewExplorerRepository(db)
 }
 
 func provideMeilisearchClient(cfg *config.Config, logger *logging.Logger) (*meilisearch.Client, error) {
@@ -293,6 +300,10 @@ func provideScanService(storagePathService *core.StoragePathService, videoRepo d
 	return core.NewScanService(storagePathService, videoRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
 }
 
+func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, videoRepo data.VideoRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config) *core.ExplorerService {
+	return core.NewExplorerService(explorerRepo, storagePathRepo, videoRepo, tagRepo, actorRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir)
+}
+
 func providePornDBService(cfg *config.Config, logger *logging.Logger) *core.PornDBService {
 	return core.NewPornDBService(cfg.PornDB.APIKey, logger.Logger)
 }
@@ -379,6 +390,10 @@ func provideScanHandler(scanService *core.ScanService) *handler.ScanHandler {
 	return handler.NewScanHandler(scanService)
 }
 
+func provideExplorerHandler(explorerService *core.ExplorerService) *handler.ExplorerHandler {
+	return handler.NewExplorerHandler(explorerService)
+}
+
 func providePornDBHandler(pornDBService *core.PornDBService) *handler.PornDBHandler {
 	return handler.NewPornDBHandler(pornDBService)
 }
@@ -405,6 +420,7 @@ func provideRouter(
 	watchHistoryHandler *handler.WatchHistoryHandler,
 	storagePathHandler *handler.StoragePathHandler,
 	scanHandler *handler.ScanHandler,
+	explorerHandler *handler.ExplorerHandler,
 	pornDBHandler *handler.PornDBHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
@@ -416,7 +432,7 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, interactionHandler,
 		actorInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		pornDBHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, authService, rbacService, rateLimiter,
 	)
 }
 
@@ -432,12 +448,13 @@ func provideServer(
 	tagService *core.TagService,
 	searchService *core.SearchService,
 	scanService *core.ScanService,
+	explorerService *core.ExplorerService,
 	retryScheduler *core.RetryScheduler,
 	dlqService *core.DLQService,
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, triggerScheduler,
-		videoService, tagService, searchService, scanService, retryScheduler, dlqService,
+		videoService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
 	)
 }

@@ -40,6 +40,48 @@ func (m *MockTagRepository) EXPECT() *MockTagRepositoryMockRecorder {
 	return m.recorder
 }
 
+// BulkAddTagsToVideos mocks base method.
+func (m *MockTagRepository) BulkAddTagsToVideos(videoIDs, tagIDs []uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BulkAddTagsToVideos", videoIDs, tagIDs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BulkAddTagsToVideos indicates an expected call of BulkAddTagsToVideos.
+func (mr *MockTagRepositoryMockRecorder) BulkAddTagsToVideos(videoIDs, tagIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkAddTagsToVideos", reflect.TypeOf((*MockTagRepository)(nil).BulkAddTagsToVideos), videoIDs, tagIDs)
+}
+
+// BulkRemoveTagsFromVideos mocks base method.
+func (m *MockTagRepository) BulkRemoveTagsFromVideos(videoIDs, tagIDs []uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BulkRemoveTagsFromVideos", videoIDs, tagIDs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BulkRemoveTagsFromVideos indicates an expected call of BulkRemoveTagsFromVideos.
+func (mr *MockTagRepositoryMockRecorder) BulkRemoveTagsFromVideos(videoIDs, tagIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkRemoveTagsFromVideos", reflect.TypeOf((*MockTagRepository)(nil).BulkRemoveTagsFromVideos), videoIDs, tagIDs)
+}
+
+// BulkReplaceTagsForVideos mocks base method.
+func (m *MockTagRepository) BulkReplaceTagsForVideos(videoIDs, tagIDs []uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BulkReplaceTagsForVideos", videoIDs, tagIDs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BulkReplaceTagsForVideos indicates an expected call of BulkReplaceTagsForVideos.
+func (mr *MockTagRepositoryMockRecorder) BulkReplaceTagsForVideos(videoIDs, tagIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkReplaceTagsForVideos", reflect.TypeOf((*MockTagRepository)(nil).BulkReplaceTagsForVideos), videoIDs, tagIDs)
+}
+
 // Create mocks base method.
 func (m *MockTagRepository) Create(tag *data.Tag) error {
 	m.ctrl.T.Helper()
@@ -83,6 +125,21 @@ func (mr *MockTagRepositoryMockRecorder) GetByID(id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByID", reflect.TypeOf((*MockTagRepository)(nil).GetByID), id)
 }
 
+// GetByIDs mocks base method.
+func (m *MockTagRepository) GetByIDs(ids []uint) ([]data.Tag, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByIDs", ids)
+	ret0, _ := ret[0].([]data.Tag)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByIDs indicates an expected call of GetByIDs.
+func (mr *MockTagRepositoryMockRecorder) GetByIDs(ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByIDs", reflect.TypeOf((*MockTagRepository)(nil).GetByIDs), ids)
+}
+
 // GetByNames mocks base method.
 func (m *MockTagRepository) GetByNames(names []string) ([]data.Tag, error) {
 	m.ctrl.T.Helper()
@@ -111,6 +168,21 @@ func (m *MockTagRepository) GetVideoTags(videoID uint) ([]data.Tag, error) {
 func (mr *MockTagRepositoryMockRecorder) GetVideoTags(videoID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideoTags", reflect.TypeOf((*MockTagRepository)(nil).GetVideoTags), videoID)
+}
+
+// GetVideoTagsMultiple mocks base method.
+func (m *MockTagRepository) GetVideoTagsMultiple(videoIDs []uint) (map[uint][]data.Tag, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetVideoTagsMultiple", videoIDs)
+	ret0, _ := ret[0].(map[uint][]data.Tag)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetVideoTagsMultiple indicates an expected call of GetVideoTagsMultiple.
+func (mr *MockTagRepositoryMockRecorder) GetVideoTagsMultiple(videoIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideoTagsMultiple", reflect.TypeOf((*MockTagRepository)(nil).GetVideoTagsMultiple), videoIDs)
 }
 
 // List mocks base method.

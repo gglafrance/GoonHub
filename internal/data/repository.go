@@ -51,6 +51,7 @@ type VideoSearchParams struct {
 	MaxRating    float64
 	MinJizzCount int
 	MaxJizzCount int
+	VideoIDs     []uint // Pre-filter to specific video IDs (e.g., folder search)
 }
 
 type VideoRepository interface {
@@ -77,6 +78,7 @@ type VideoRepository interface {
 	Restore(id uint) error
 	UpdateStoredPath(id uint, newPath string, storagePathID *uint) error
 	GetBySizeAndFilename(size int64, filename string) (*Video, error)
+	BulkUpdateStudio(videoIDs []uint, studio string) error
 }
 
 type VideoRepositoryImpl struct {
@@ -338,6 +340,13 @@ func (r *VideoRepositoryImpl) GetBySizeAndFilename(size int64, filename string) 
 		return nil, err
 	}
 	return &video, nil
+}
+
+func (r *VideoRepositoryImpl) BulkUpdateStudio(videoIDs []uint, studio string) error {
+	if len(videoIDs) == 0 {
+		return nil
+	}
+	return r.DB.Model(&Video{}).Where("id IN ?", videoIDs).Update("studio", studio).Error
 }
 
 type UserRepositoryImpl struct {
