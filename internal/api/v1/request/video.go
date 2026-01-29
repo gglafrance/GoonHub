@@ -28,6 +28,7 @@ type SearchVideosRequest struct {
 	MaxRating    float64 `form:"max_rating"`
 	MinJizzCount int     `form:"min_jizz_count"`
 	MaxJizzCount int     `form:"max_jizz_count"`
+	MatchType    string  `form:"match_type"`
 }
 
 type ApplySceneMetadataRequest struct {

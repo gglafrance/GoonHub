@@ -32,26 +32,27 @@ type RevokedTokenRepository interface {
 }
 
 type VideoSearchParams struct {
-	Page         int
-	Limit        int
-	Query        string
-	TagIDs       []uint
-	Actors       []string
-	Studio       string
-	MinDuration  int
-	MaxDuration  int
-	MinDate      *time.Time
-	MaxDate      *time.Time
-	MinHeight    int
-	MaxHeight    int
-	Sort         string
-	UserID       uint
-	Liked        *bool
-	MinRating    float64
-	MaxRating    float64
-	MinJizzCount int
-	MaxJizzCount int
-	VideoIDs     []uint // Pre-filter to specific video IDs (e.g., folder search)
+	Page             int
+	Limit            int
+	Query            string
+	TagIDs           []uint
+	Actors           []string
+	Studio           string
+	MinDuration      int
+	MaxDuration      int
+	MinDate          *time.Time
+	MaxDate          *time.Time
+	MinHeight        int
+	MaxHeight        int
+	Sort             string
+	UserID           uint
+	Liked            *bool
+	MinRating        float64
+	MaxRating        float64
+	MinJizzCount     int
+	MaxJizzCount     int
+	VideoIDs         []uint // Pre-filter to specific video IDs (e.g., folder search)
+	MatchingStrategy string // Meilisearch matching strategy: "last", "all", or "frequency"
 }
 
 type VideoRepository interface {

@@ -34,6 +34,7 @@ type SearchParams struct {
 	SortDir          string
 	Offset           int
 	Limit            int
+	MatchingStrategy string // Meilisearch matching strategy: "last", "all", or "frequency"
 }
 
 // SearchResult contains the result of a search query.

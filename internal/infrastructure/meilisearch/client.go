@@ -198,6 +198,10 @@ func (c *Client) Search(params SearchParams) (*SearchResult, error) {
 		searchReq.Sort = sort
 	}
 
+	if params.MatchingStrategy != "" {
+		searchReq.MatchingStrategy = params.MatchingStrategy
+	}
+
 	result, err := index.Search(params.Query, searchReq)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)

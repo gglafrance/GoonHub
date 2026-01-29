@@ -180,13 +180,14 @@ func (s *SearchService) getUserFilteredIDs(params data.VideoSearchParams) ([]uin
 // buildMeiliParams converts VideoSearchParams to Meilisearch SearchParams.
 func (s *SearchService) buildMeiliParams(params data.VideoSearchParams, preFilteredIDs []uint) meilisearch.SearchParams {
 	meiliParams := meilisearch.SearchParams{
-		Query:    params.Query,
-		TagIDs:   params.TagIDs,
-		Actors:   params.Actors,
-		Studio:   params.Studio,
-		VideoIDs: preFilteredIDs,
-		Offset:   (params.Page - 1) * params.Limit,
-		Limit:    params.Limit,
+		Query:            params.Query,
+		TagIDs:           params.TagIDs,
+		Actors:           params.Actors,
+		Studio:           params.Studio,
+		VideoIDs:         preFilteredIDs,
+		Offset:           (params.Page - 1) * params.Limit,
+		Limit:            params.Limit,
+		MatchingStrategy: params.MatchingStrategy,
 	}
 
 	if params.MinDuration > 0 {

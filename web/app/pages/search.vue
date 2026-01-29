@@ -29,6 +29,9 @@ const syncFromUrl = () => {
     searchStore.maxRating = q.max_rating ? Number(q.max_rating) : 0;
     searchStore.minJizzCount = q.min_jizz_count ? Number(q.min_jizz_count) : 0;
     searchStore.maxJizzCount = q.max_jizz_count ? Number(q.max_jizz_count) : 0;
+    const matchType = q.match_type as string;
+    searchStore.matchType =
+        matchType === 'strict' || matchType === 'frequency' ? matchType : 'broad';
 };
 
 const syncToUrl = () => {
@@ -49,6 +52,7 @@ const syncToUrl = () => {
     if (searchStore.maxRating > 0) query.max_rating = String(searchStore.maxRating);
     if (searchStore.minJizzCount > 0) query.min_jizz_count = String(searchStore.minJizzCount);
     if (searchStore.maxJizzCount > 0) query.max_jizz_count = String(searchStore.maxJizzCount);
+    if (searchStore.matchType !== 'broad') query.match_type = searchStore.matchType;
 
     router.replace({ query });
 };
@@ -84,6 +88,7 @@ watch(
         searchStore.maxRating,
         searchStore.minJizzCount,
         searchStore.maxJizzCount,
+        searchStore.matchType,
     ],
     () => {
         searchStore.page = 1;
@@ -107,7 +112,7 @@ onMounted(() => {
             <SearchBar />
         </div>
 
-        <SearchActiveFilters v-if="searchStore.hasActiveFilters" class="mb-4" />
+        <SearchActiveFilters class="mb-4" />
 
         <div class="flex gap-5">
             <SearchFilters class="hidden w-56 shrink-0 lg:block" />

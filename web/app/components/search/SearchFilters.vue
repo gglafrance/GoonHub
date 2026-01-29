@@ -34,6 +34,9 @@ const studioOptions = computed(() =>
         </div>
 
         <div v-show="showFilters" class="space-y-1">
+            <!-- Match Type -->
+            <SearchFiltersFilterMatchType />
+
             <!-- Tags -->
             <SearchFiltersFilterTags />
 

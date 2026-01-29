@@ -86,20 +86,32 @@ func (h *VideoHandler) ListVideos(c *gin.Context) {
 		userID = payload.UserID
 	}
 
+	// Map frontend match_type to Meilisearch matching strategy
+	var matchingStrategy string
+	switch req.MatchType {
+	case "strict":
+		matchingStrategy = "all"
+	case "frequency":
+		matchingStrategy = "frequency"
+	default:
+		matchingStrategy = "last"
+	}
+
 	params := data.VideoSearchParams{
-		Page:         req.Page,
-		Limit:        req.Limit,
-		Query:        req.Query,
-		Studio:       req.Studio,
-		MinDuration:  req.MinDuration,
-		MaxDuration:  req.MaxDuration,
-		Sort:         req.Sort,
-		UserID:       userID,
-		Liked:        req.Liked,
-		MinRating:    req.MinRating,
-		MaxRating:    req.MaxRating,
-		MinJizzCount: req.MinJizzCount,
-		MaxJizzCount: req.MaxJizzCount,
+		Page:             req.Page,
+		Limit:            req.Limit,
+		Query:            req.Query,
+		Studio:           req.Studio,
+		MinDuration:      req.MinDuration,
+		MaxDuration:      req.MaxDuration,
+		Sort:             req.Sort,
+		UserID:           userID,
+		Liked:            req.Liked,
+		MinRating:        req.MinRating,
+		MaxRating:        req.MaxRating,
+		MinJizzCount:     req.MinJizzCount,
+		MaxJizzCount:     req.MaxJizzCount,
+		MatchingStrategy: matchingStrategy,
 	}
 
 	if req.Tags != "" {

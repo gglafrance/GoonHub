@@ -16,6 +16,7 @@ export const useSearchStore = defineStore('search', () => {
     const sort = ref('');
     const page = ref(1);
     const limit = ref(20);
+    const matchType = ref<'broad' | 'strict' | 'frequency'>('broad');
 
     // User interaction filters
     const liked = ref(false);
@@ -52,7 +53,8 @@ export const useSearchStore = defineStore('search', () => {
             minRating.value > 0 ||
             maxRating.value > 0 ||
             minJizzCount.value > 0 ||
-            maxJizzCount.value > 0
+            maxJizzCount.value > 0 ||
+            matchType.value !== 'broad'
         );
     });
 
@@ -81,6 +83,7 @@ export const useSearchStore = defineStore('search', () => {
             if (maxRating.value > 0) params.max_rating = maxRating.value;
             if (minJizzCount.value > 0) params.min_jizz_count = minJizzCount.value;
             if (maxJizzCount.value > 0) params.max_jizz_count = maxJizzCount.value;
+            if (matchType.value !== 'broad') params.match_type = matchType.value;
 
             const result = await api.searchVideos(params);
             videos.value = result.data;
@@ -122,6 +125,7 @@ export const useSearchStore = defineStore('search', () => {
         maxRating.value = 0;
         minJizzCount.value = 0;
         maxJizzCount.value = 0;
+        matchType.value = 'broad';
     };
 
     return {
@@ -142,6 +146,7 @@ export const useSearchStore = defineStore('search', () => {
         maxRating,
         minJizzCount,
         maxJizzCount,
+        matchType,
         videos,
         total,
         isLoading,
