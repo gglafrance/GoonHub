@@ -100,6 +100,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideStudioInteractionService,
 		provideSearchService,
 		provideWatchHistoryService,
+		provideRelatedVideosService,
 
 		// Processing & Job Services
 		provideVideoProcessingService,
@@ -379,6 +380,10 @@ func provideWatchHistoryService(repo data.WatchHistoryRepository, videoRepo data
 	return core.NewWatchHistoryService(repo, videoRepo, searchService, logger.Logger)
 }
 
+func provideRelatedVideosService(videoRepo data.VideoRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, studioRepo data.StudioRepository, logger *logging.Logger) *core.RelatedVideosService {
+	return core.NewRelatedVideosService(videoRepo, tagRepo, actorRepo, studioRepo, logger.Logger)
+}
+
 // --- Processing & Job Services ---
 
 func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository) *core.VideoProcessingService {
@@ -481,8 +486,8 @@ func provideSettingsHandler(settingsService *core.SettingsService) *handler.Sett
 
 // --- Video & Content Handlers ---
 
-func provideVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService) *handler.VideoHandler {
-	return handler.NewVideoHandler(service, processingService, tagService, searchService)
+func provideVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedVideosService *core.RelatedVideosService) *handler.VideoHandler {
+	return handler.NewVideoHandler(service, processingService, tagService, searchService, relatedVideosService)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {

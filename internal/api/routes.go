@@ -59,6 +59,7 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					videos.PUT("/:id/actors", middleware.RequirePermission(rbacService, "videos:upload"), actorHandler.SetVideoActors)
 					videos.GET("/:id/studio", middleware.RequirePermission(rbacService, "videos:view"), studioHandler.GetVideoStudio)
 					videos.PUT("/:id/studio", middleware.RequirePermission(rbacService, "videos:upload"), studioHandler.SetVideoStudio)
+					videos.GET("/:id/related", middleware.RequirePermission(rbacService, "videos:view"), videoHandler.GetRelatedVideos)
 				}
 
 				history := protected.Group("/history")

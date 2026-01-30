@@ -316,6 +316,9 @@ definePageMeta({
                     <VideoMetadata :video="video" />
                 </div>
             </div>
+
+            <!-- Related Videos -->
+            <WatchRelatedVideos v-if="video && !isProcessing && !hasProcessingError" />
         </div>
     </div>
 </template>

@@ -22,6 +22,7 @@ type TagRepository interface {
 	GetVideoTags(videoID uint) ([]Tag, error)
 	GetVideoTagsMultiple(videoIDs []uint) (map[uint][]Tag, error)
 	SetVideoTags(videoID uint, tagIDs []uint) error
+	GetVideoIDsByTag(tagID uint, limit int) ([]uint, error)
 
 	// Bulk operations
 	BulkAddTagsToVideos(videoIDs []uint, tagIDs []uint) error
@@ -186,6 +187,24 @@ func (r *TagRepositoryImpl) SetVideoTags(videoID uint, tagIDs []uint) error {
 
 		return tx.Create(&videoTags).Error
 	})
+}
+
+// GetVideoIDsByTag returns video IDs that have the given tag.
+func (r *TagRepositoryImpl) GetVideoIDsByTag(tagID uint, limit int) ([]uint, error) {
+	var videoIDs []uint
+	err := r.DB.
+		Table("video_tags").
+		Select("video_tags.video_id").
+		Joins("JOIN videos ON videos.id = video_tags.video_id").
+		Where("video_tags.tag_id = ?", tagID).
+		Where("videos.deleted_at IS NULL").
+		Order("videos.created_at DESC").
+		Limit(limit).
+		Pluck("video_id", &videoIDs).Error
+	if err != nil {
+		return nil, err
+	}
+	return videoIDs, nil
 }
 
 // BulkAddTagsToVideos adds tags to multiple videos (skips existing associations)

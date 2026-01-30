@@ -220,6 +220,15 @@ export const useApiVideos = () => {
         return handleResponse(response);
     };
 
+    const fetchRelatedVideos = async (videoId: number, limit = 12) => {
+        const params = new URLSearchParams({ limit: limit.toString() });
+        const response = await fetch(`/api/v1/videos/${videoId}/related?${params}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
     return {
         uploadVideo,
         fetchVideos,
@@ -241,5 +250,6 @@ export const useApiVideos = () => {
         getResumePosition,
         getVideoWatchHistory,
         getUserWatchHistory,
+        fetchRelatedVideos,
     };
 };
