@@ -1,8 +1,9 @@
 package response
 
+// AuthResponse is returned after successful login
+// SECURITY: Token is only transmitted via HTTP-only cookie, never in response body
 type AuthResponse struct {
-	Token string      `json:"token"`
-	User  UserSummary `json:"user"`
+	User UserSummary `json:"user"`
 }
 
 type UserSummary struct {

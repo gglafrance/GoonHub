@@ -10,6 +10,8 @@ const sortOptions = [
     { value: 'title_desc', label: 'Title Z-A' },
     { value: 'duration_asc', label: 'Shortest' },
     { value: 'duration_desc', label: 'Longest' },
+    { value: 'view_count_desc', label: 'Most Viewed' },
+    { value: 'view_count_asc', label: 'Least Viewed' },
 ];
 </script>
 
@@ -25,9 +27,9 @@ const sortOptions = [
                 v-model="searchStore.query"
                 type="text"
                 placeholder="Search videos..."
-                class="border-border bg-surface text-sm text-white placeholder:text-dim w-full
-                    rounded-lg border py-2 pr-3 pl-9 transition-colors
-                    focus:border-white/20 focus:outline-none"
+                class="border-border bg-surface placeholder:text-dim w-full rounded-lg border py-2
+                    pr-3 pl-9 text-sm text-white transition-colors focus:border-white/20
+                    focus:outline-none"
             />
         </div>
 

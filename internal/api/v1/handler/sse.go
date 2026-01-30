@@ -26,13 +26,15 @@ func NewSSEHandler(eventBus *core.EventBus, authService *core.AuthService, logge
 }
 
 func (h *SSEHandler) Stream(c *gin.Context) {
-	token := c.Query("token")
-	if token == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "token query parameter required"})
+	// Get token from HTTP-only cookie only (query parameter auth removed for security)
+	// Query params are logged in server access logs, browser history, and HTTP referrers
+	token, err := c.Cookie(AuthCookieName)
+	if err != nil || token == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
 		return
 	}
 
-	_, err := h.authService.ValidateToken(token)
+	_, err = h.authService.ValidateToken(token)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return

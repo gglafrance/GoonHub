@@ -35,8 +35,8 @@ type pornDBPerformerExtras struct {
 	Nationality     string `json:"nationality,omitempty"`
 	HairColour      string `json:"hair_colour,omitempty"`
 	EyeColour       string `json:"eye_colour,omitempty"`
-	Weight          string `json:"weight,omitempty"`          // e.g. "50kg"
-	Height          string `json:"height,omitempty"`          // e.g. "160cm"
+	Weight          string `json:"weight,omitempty"` // e.g. "50kg"
+	Height          string `json:"height,omitempty"` // e.g. "160cm"
 	Measurements    string `json:"measurements,omitempty"`
 	Cupsize         string `json:"cupsize,omitempty"`
 	Tattoos         string `json:"tattoos,omitempty"`
@@ -85,12 +85,103 @@ type PornDBPerformerDetails struct {
 	SameSexOnly     *bool  `json:"same_sex_only,omitempty"`
 }
 
+// PornDBScene represents a scene from ThePornDB
+type PornDBScene struct {
+	ID          string                 `json:"id"`
+	Title       string                 `json:"title"`
+	Description string                 `json:"description,omitempty"`
+	Date        string                 `json:"date,omitempty"`
+	Duration    int                    `json:"duration,omitempty"`
+	Image       string                 `json:"image,omitempty"`
+	Poster      string                 `json:"poster,omitempty"`
+	Site        *PornDBSite            `json:"site,omitempty"`
+	Performers  []PornDBScenePerformer `json:"performers,omitempty"`
+	Tags        []PornDBTag            `json:"tags,omitempty"`
+	Parse       string                 `json:"parse,omitempty"`
+}
+
+// PornDBSite represents a site/studio from ThePornDB (lightweight for scene responses)
+type PornDBSite struct {
+	Name string `json:"name"`
+	URL  string `json:"url,omitempty"`
+}
+
+// PornDBSiteDetails represents detailed site information from ThePornDB
+type PornDBSiteDetails struct {
+	ID          string   `json:"id"`
+	UUID        string   `json:"uuid,omitempty"`
+	Slug        string   `json:"slug,omitempty"`
+	Name        string   `json:"name"`
+	ShortName   string   `json:"short_name,omitempty"`
+	URL         string   `json:"url,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Rating      *float64 `json:"rating,omitempty"`
+	Logo        string   `json:"logo,omitempty"`
+	Favicon     string   `json:"favicon,omitempty"`
+	Poster      string   `json:"poster,omitempty"`
+	Network     string   `json:"network,omitempty"`
+	Parent      string   `json:"parent,omitempty"`
+	NetworkID   string   `json:"network_id,omitempty"`
+	ParentID    string   `json:"parent_id,omitempty"`
+}
+
+// PornDBScenePerformer represents a performer in a scene
+type PornDBScenePerformer struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Image string `json:"image,omitempty"`
+}
+
+// PornDBTag represents a tag from ThePornDB
+type PornDBTag struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 type pornDBSearchResponse struct {
 	Data []PornDBPerformer `json:"data"`
 }
 
 type pornDBPerformerResponse struct {
 	Data pornDBPerformerRaw `json:"data"`
+}
+
+// pornDBSceneRaw is the raw API response structure for a scene
+type pornDBSceneRaw struct {
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description,omitempty"`
+	Date        string `json:"date,omitempty"`
+	Duration    int    `json:"duration,omitempty"`
+	Image       string `json:"image,omitempty"`
+	Poster      string `json:"poster,omitempty"`
+	Background  *struct {
+		Full   string `json:"full,omitempty"`
+		Large  string `json:"large,omitempty"`
+		Medium string `json:"medium,omitempty"`
+		Small  string `json:"small,omitempty"`
+	} `json:"background,omitempty"`
+	Site *struct {
+		Name string `json:"name"`
+		URL  string `json:"url,omitempty"`
+	} `json:"site,omitempty"`
+	Performers []struct {
+		ID    string `json:"id"`
+		Name  string `json:"name"`
+		Image string `json:"image,omitempty"`
+	} `json:"performers,omitempty"`
+	Tags []struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	} `json:"tags,omitempty"`
+}
+
+type pornDBSceneSearchResponse struct {
+	Data []pornDBSceneRaw `json:"data"`
+}
+
+type pornDBSceneResponse struct {
+	Data pornDBSceneRaw `json:"data"`
 }
 
 // PornDBService handles communication with ThePornDB API
@@ -249,4 +340,309 @@ func (s *PornDBService) GetPerformerDetails(id string) (*PornDBPerformerDetails,
 	}
 
 	return details, nil
+}
+
+// convertRawSceneToScene converts a raw scene response to a PornDBScene
+func convertRawSceneToScene(raw pornDBSceneRaw) PornDBScene {
+	image := raw.Image
+	if raw.Background != nil && raw.Background.Large != "" {
+		image = raw.Background.Large
+	}
+
+	scene := PornDBScene{
+		ID:          raw.ID,
+		Title:       raw.Title,
+		Description: raw.Description,
+		Date:        raw.Date,
+		Duration:    raw.Duration,
+		Image:       image,
+		Poster:      raw.Poster,
+	}
+
+	if raw.Site != nil {
+		scene.Site = &PornDBSite{
+			Name: raw.Site.Name,
+			URL:  raw.Site.URL,
+		}
+	}
+
+	for _, p := range raw.Performers {
+		scene.Performers = append(scene.Performers, PornDBScenePerformer{
+			ID:    p.ID,
+			Name:  p.Name,
+			Image: p.Image,
+		})
+	}
+
+	for _, t := range raw.Tags {
+		scene.Tags = append(scene.Tags, PornDBTag{
+			ID:   t.ID,
+			Name: t.Name,
+		})
+	}
+
+	return scene
+}
+
+// SceneSearchOptions contains optional search parameters for scene search
+type SceneSearchOptions struct {
+	Query string // General text search (q)
+	Title string // Scene title
+	Year  int    // Release year
+	Site  string // Studio/site name
+}
+
+// IsEmpty returns true if no search parameters are set
+func (o SceneSearchOptions) IsEmpty() bool {
+	return o.Query == "" && o.Title == "" && o.Year == 0 && o.Site == ""
+}
+
+// SearchScenes searches for scenes with optional filters
+func (s *PornDBService) SearchScenes(opts SceneSearchOptions) ([]PornDBScene, error) {
+	if !s.IsConfigured() {
+		return nil, fmt.Errorf("PornDB API key is not configured")
+	}
+
+	params := url.Values{}
+	if opts.Query != "" {
+		params.Set("q", opts.Query)
+	}
+	if opts.Title != "" {
+		params.Set("parse", opts.Title)
+	}
+	if opts.Year > 0 {
+		params.Set("year", strconv.Itoa(opts.Year))
+	}
+	if opts.Site != "" {
+		params.Set("site", opts.Site)
+	}
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/scenes?%s", pornDBBaseURL, params.Encode()), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.apiKey))
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		s.logger.Warn("PornDB scene search failed",
+			zap.Int("status", resp.StatusCode),
+			zap.String("body", string(body)),
+		)
+		return nil, fmt.Errorf("PornDB API returned status %d", resp.StatusCode)
+	}
+
+	var result pornDBSceneSearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	scenes := make([]PornDBScene, 0, len(result.Data))
+	for _, raw := range result.Data {
+		scenes = append(scenes, convertRawSceneToScene(raw))
+	}
+
+	return scenes, nil
+}
+
+// GetSceneDetails fetches detailed information about a scene
+func (s *PornDBService) GetSceneDetails(id string) (*PornDBScene, error) {
+	if !s.IsConfigured() {
+		return nil, fmt.Errorf("PornDB API key is not configured")
+	}
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/scenes/%s", pornDBBaseURL, id), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.apiKey))
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		s.logger.Warn("PornDB get scene failed",
+			zap.String("id", id),
+			zap.Int("status", resp.StatusCode),
+			zap.String("body", string(body)),
+		)
+		return nil, fmt.Errorf("PornDB API returned status %d", resp.StatusCode)
+	}
+
+	var result pornDBSceneResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	scene := convertRawSceneToScene(result.Data)
+	return &scene, nil
+}
+
+// pornDBSiteRaw is the raw API response structure for a site
+type pornDBSiteRaw struct {
+	ID        json.Number `json:"id"`
+	UUID      string      `json:"uuid,omitempty"`
+	Slug      string      `json:"slug,omitempty"`
+	Name      string      `json:"name"`
+	ShortName string      `json:"short_name,omitempty"`
+	URL       string      `json:"url,omitempty"`
+	Bio       string      `json:"bio,omitempty"`
+	Rating    json.Number `json:"rating,omitempty"`
+	Logo      string      `json:"logo,omitempty"`
+	Favicon   string      `json:"favicon,omitempty"`
+	Poster    string      `json:"poster,omitempty"`
+	Network   *struct {
+		ID   json.Number `json:"id"`
+		Name string      `json:"name"`
+	} `json:"network,omitempty"`
+	Parent *struct {
+		ID   json.Number `json:"id"`
+		Name string      `json:"name"`
+	} `json:"parent,omitempty"`
+}
+
+type pornDBSiteSearchResponse struct {
+	Data []pornDBSiteRaw `json:"data"`
+}
+
+type pornDBSiteResponse struct {
+	Data pornDBSiteRaw `json:"data"`
+}
+
+func convertRawSiteToSiteDetails(raw pornDBSiteRaw) PornDBSiteDetails {
+	site := PornDBSiteDetails{
+		ID:          string(raw.ID),
+		UUID:        raw.UUID,
+		Slug:        raw.Slug,
+		Name:        raw.Name,
+		ShortName:   raw.ShortName,
+		URL:         raw.URL,
+		Description: raw.Bio,
+		Logo:        raw.Logo,
+		Favicon:     raw.Favicon,
+		Poster:      raw.Poster,
+	}
+
+	if raw.Rating != "" {
+		if rating, err := raw.Rating.Float64(); err == nil {
+			site.Rating = &rating
+		}
+	}
+
+	if raw.Network != nil {
+		site.Network = raw.Network.Name
+		site.NetworkID = string(raw.Network.ID)
+	}
+
+	if raw.Parent != nil {
+		site.Parent = raw.Parent.Name
+		site.ParentID = string(raw.Parent.ID)
+	}
+
+	return site
+}
+
+// SearchSites searches for sites/studios by name
+func (s *PornDBService) SearchSites(query string) ([]PornDBSiteDetails, error) {
+	if !s.IsConfigured() {
+		return nil, fmt.Errorf("PornDB API key is not configured")
+	}
+
+	params := url.Values{}
+	params.Set("q", query)
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/sites?%s", pornDBBaseURL, params.Encode()), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.apiKey))
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		s.logger.Warn("PornDB site search failed",
+			zap.Int("status", resp.StatusCode),
+			zap.String("body", string(body)),
+		)
+		return nil, fmt.Errorf("PornDB API returned status %d", resp.StatusCode)
+	}
+
+	var result pornDBSiteSearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	sites := make([]PornDBSiteDetails, 0, len(result.Data))
+	for _, raw := range result.Data {
+		sites = append(sites, convertRawSiteToSiteDetails(raw))
+	}
+
+	return sites, nil
+}
+
+// GetSiteDetails fetches detailed information about a site
+func (s *PornDBService) GetSiteDetails(id string) (*PornDBSiteDetails, error) {
+	if !s.IsConfigured() {
+		return nil, fmt.Errorf("PornDB API key is not configured")
+	}
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/sites/%s", pornDBBaseURL, id), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.apiKey))
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		s.logger.Warn("PornDB get site failed",
+			zap.String("id", id),
+			zap.Int("status", resp.StatusCode),
+			zap.String("body", string(body)),
+		)
+		return nil, fmt.Errorf("PornDB API returned status %d", resp.StatusCode)
+	}
+
+	var result pornDBSiteResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	site := convertRawSiteToSiteDetails(result.Data)
+	return &site, nil
 }

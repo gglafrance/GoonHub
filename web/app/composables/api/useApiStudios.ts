@@ -1,0 +1,152 @@
+/**
+ * Studio-related API operations: CRUD, associations, and interactions.
+ */
+export const useApiStudios = () => {
+    const { fetchOptions, getAuthHeaders, handleResponse, handleResponseWithNoContent } =
+        useApiCore();
+
+    // Studio CRUD
+    const fetchStudios = async (page = 1, limit = 20, query?: string) => {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+        });
+        if (query) {
+            params.set('q', query);
+        }
+        const response = await fetch(`/api/v1/studios?${params}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const fetchStudioByUUID = async (uuid: string) => {
+        const response = await fetch(`/api/v1/studios/${uuid}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const fetchStudioVideos = async (uuid: string, page = 1, limit = 20) => {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+        });
+        const response = await fetch(`/api/v1/studios/${uuid}/videos?${params}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const createStudio = async (data: Record<string, unknown>) => {
+        const response = await fetch('/api/v1/admin/studios', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(data),
+        });
+        return handleResponse(response);
+    };
+
+    const updateStudio = async (id: number, data: Record<string, unknown>) => {
+        const response = await fetch(`/api/v1/admin/studios/${id}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(data),
+        });
+        return handleResponse(response);
+    };
+
+    const deleteStudio = async (id: number) => {
+        const response = await fetch(`/api/v1/admin/studios/${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const uploadStudioLogo = async (id: number, file: File) => {
+        const formData = new FormData();
+        formData.append('logo', file);
+
+        const response = await fetch(`/api/v1/admin/studios/${id}/logo`, {
+            method: 'POST',
+            body: formData,
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    // Video-Studio association (one-to-many: video has one studio)
+    const fetchVideoStudio = async (videoId: number) => {
+        const response = await fetch(`/api/v1/videos/${videoId}/studio`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const setVideoStudio = async (videoId: number, studioId: number | null) => {
+        const response = await fetch(`/api/v1/videos/${videoId}/studio`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ studio_id: studioId }),
+        });
+        return handleResponse(response);
+    };
+
+    // Studio interactions (use UUID for routes)
+    const fetchStudioInteractions = async (studioUuid: string) => {
+        const response = await fetch(`/api/v1/studios/${studioUuid}/interactions`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const setStudioRating = async (studioUuid: string, rating: number) => {
+        const response = await fetch(`/api/v1/studios/${studioUuid}/rating`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ rating }),
+        });
+        return handleResponse(response);
+    };
+
+    const deleteStudioRating = async (studioUuid: string) => {
+        const response = await fetch(`/api/v1/studios/${studioUuid}/rating`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        await handleResponseWithNoContent(response);
+    };
+
+    const toggleStudioLike = async (studioUuid: string) => {
+        const response = await fetch(`/api/v1/studios/${studioUuid}/like`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    return {
+        fetchStudios,
+        fetchStudioByUUID,
+        fetchStudioVideos,
+        createStudio,
+        updateStudio,
+        deleteStudio,
+        uploadStudioLogo,
+        fetchVideoStudio,
+        setVideoStudio,
+        fetchStudioInteractions,
+        setStudioRating,
+        deleteStudioRating,
+        toggleStudioLike,
+    };
+};

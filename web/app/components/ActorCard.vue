@@ -1,12 +1,34 @@
 <script setup lang="ts">
-import type { Actor } from '~/types/actor';
+import type { ActorListItem } from '~/types/actor';
 
 const props = defineProps<{
-    actor: Actor;
+    actor: ActorListItem;
 }>();
 
 const imageUrl = computed(() => {
     return props.actor.image_url || null;
+});
+
+const genderInfo = computed(() => {
+    const gender = props.actor.gender?.toLowerCase();
+    if (!gender) return null;
+
+    const genderMap: Record<string, { icon: string; label: string; color: string }> = {
+        male: { icon: 'mdi:gender-male', label: 'Male', color: 'text-blue-400' },
+        female: { icon: 'mdi:gender-female', label: 'Female', color: 'text-pink-400' },
+        trans: {
+            icon: 'mdi:gender-transgender',
+            label: 'Trans',
+            color: 'text-fuchsia-400',
+        },
+        'non-binary': {
+            icon: 'mdi:gender-non-binary',
+            label: 'Non-binary',
+            color: 'text-purple-400',
+        },
+    };
+
+    return genderMap[gender] || null;
 });
 </script>
 
@@ -35,6 +57,16 @@ const imageUrl = computed(() => {
                 <Icon name="heroicons:user" size="48" />
             </div>
 
+            <!-- Gender badge -->
+            <div
+                v-if="genderInfo"
+                :title="genderInfo.label"
+                class="bg-void/90 absolute top-1.5 left-1.5 flex items-center justify-center rounded
+                    p-1 backdrop-blur-sm"
+            >
+                <Icon :name="genderInfo.icon" :class="genderInfo.color" size="14" />
+            </div>
+
             <!-- Video count badge -->
             <div
                 v-if="actor.video_count !== undefined && actor.video_count > 0"
@@ -59,12 +91,6 @@ const imageUrl = computed(() => {
             >
                 {{ actor.name }}
             </h3>
-            <div
-                v-if="actor.nationality || actor.birthplace"
-                class="text-dim mt-0.5 truncate text-xs"
-            >
-                {{ actor.nationality || actor.birthplace }}
-            </div>
         </div>
     </NuxtLink>
 </template>

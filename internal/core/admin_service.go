@@ -3,10 +3,52 @@ package core
 import (
 	"fmt"
 	"goonhub/internal/data"
+	"unicode"
 
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// Password validation constants
+const (
+	MinPasswordLength = 12
+	MaxPasswordLength = 128
+)
+
+// ValidatePassword checks password meets security requirements.
+// Returns nil if valid, error describing the issue otherwise.
+func ValidatePassword(password string) error {
+	if len(password) < MinPasswordLength {
+		return fmt.Errorf("password must be at least %d characters", MinPasswordLength)
+	}
+	if len(password) > MaxPasswordLength {
+		return fmt.Errorf("password must not exceed %d characters", MaxPasswordLength)
+	}
+
+	var hasUpper, hasLower, hasDigit bool
+	for _, c := range password {
+		switch {
+		case unicode.IsUpper(c):
+			hasUpper = true
+		case unicode.IsLower(c):
+			hasLower = true
+		case unicode.IsDigit(c):
+			hasDigit = true
+		}
+	}
+
+	if !hasUpper {
+		return fmt.Errorf("password must contain at least one uppercase letter")
+	}
+	if !hasLower {
+		return fmt.Errorf("password must contain at least one lowercase letter")
+	}
+	if !hasDigit {
+		return fmt.Errorf("password must contain at least one digit")
+	}
+
+	return nil
+}
 
 type AdminService struct {
 	userRepo data.UserRepository
@@ -37,6 +79,11 @@ func (s *AdminService) ListUsers(page, limit int) ([]data.User, int64, error) {
 }
 
 func (s *AdminService) CreateUser(username, password, role string) error {
+	// Validate password complexity
+	if err := ValidatePassword(password); err != nil {
+		return fmt.Errorf("password validation failed: %w", err)
+	}
+
 	if _, err := s.roleRepo.GetByName(role); err != nil {
 		return fmt.Errorf("invalid role: %s", role)
 	}
@@ -82,6 +129,11 @@ func (s *AdminService) UpdateUserRole(userID uint, newRole string) error {
 }
 
 func (s *AdminService) ResetUserPassword(userID uint, newPassword string) error {
+	// Validate password complexity
+	if err := ValidatePassword(newPassword); err != nil {
+		return fmt.Errorf("password validation failed: %w", err)
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { Video } from '~/types/video';
+import type { VideoListItem } from '~/types/video';
 
 defineProps<{
-    videos: Video[];
+    videos: VideoListItem[];
 }>();
 </script>
 

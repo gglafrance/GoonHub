@@ -3,6 +3,7 @@ package data
 import (
 	"time"
 
+	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
@@ -32,25 +33,27 @@ type RevokedTokenRepository interface {
 }
 
 type VideoSearchParams struct {
-	Page         int
-	Limit        int
-	Query        string
-	TagIDs       []uint
-	Actors       []string
-	Studio       string
-	MinDuration  int
-	MaxDuration  int
-	MinDate      *time.Time
-	MaxDate      *time.Time
-	MinHeight    int
-	MaxHeight    int
-	Sort         string
-	UserID       uint
-	Liked        *bool
-	MinRating    float64
-	MaxRating    float64
-	MinJizzCount int
-	MaxJizzCount int
+	Page             int
+	Limit            int
+	Query            string
+	TagIDs           []uint
+	Actors           []string
+	Studio           string
+	MinDuration      int
+	MaxDuration      int
+	MinDate          *time.Time
+	MaxDate          *time.Time
+	MinHeight        int
+	MaxHeight        int
+	Sort             string
+	UserID           uint
+	Liked            *bool
+	MinRating        float64
+	MaxRating        float64
+	MinJizzCount     int
+	MaxJizzCount     int
+	VideoIDs         []uint // Pre-filter to specific video IDs (e.g., folder search)
+	MatchingStrategy string // Meilisearch matching strategy: "last", "all", or "frequency"
 }
 
 type VideoRepository interface {
@@ -59,6 +62,7 @@ type VideoRepository interface {
 	GetByID(id uint) (*Video, error)
 	GetByIDs(ids []uint) ([]Video, error)
 	GetAll() ([]Video, error)
+	GetAllWithStoragePath() ([]Video, error)
 	GetDistinctStudios() ([]string, error)
 	GetDistinctActors() ([]string, error)
 	UpdateMetadata(id uint, duration int, width, height int, thumbnailPath string, spriteSheetPath string, vttPath string, spriteSheetCount int, thumbnailWidth int, thumbnailHeight int) error
@@ -69,8 +73,15 @@ type VideoRepository interface {
 	GetPendingProcessing() ([]Video, error)
 	GetVideosNeedingPhase(phase string) ([]Video, error)
 	Delete(id uint) error
-	UpdateDetails(id uint, title, description string) error
+	UpdateDetails(id uint, title, description string, releaseDate *time.Time) error
+	UpdateSceneMetadata(id uint, title, description, studio string, releaseDate *time.Time, porndbSceneID string) error
 	ExistsByStoredPath(path string) (bool, error)
+	MarkAsMissing(id uint) error
+	Restore(id uint) error
+	UpdateStoredPath(id uint, newPath string, storagePathID *uint) error
+	GetBySizeAndFilename(size int64, filename string) (*Video, error)
+	BulkUpdateStudio(videoIDs []uint, studio string) error
+	UpdateActors(id uint, actors []string) error
 }
 
 type VideoRepositoryImpl struct {
@@ -242,9 +253,24 @@ func (r *VideoRepositoryImpl) Delete(id uint) error {
 	return r.DB.Delete(&video).Error
 }
 
-func (r *VideoRepositoryImpl) UpdateDetails(id uint, title, description string) error {
-	return r.DB.Model(&Video{}).Where("id = ?", id).
-		Updates(map[string]interface{}{"title": title, "description": description}).Error
+func (r *VideoRepositoryImpl) UpdateDetails(id uint, title, description string, releaseDate *time.Time) error {
+	updates := map[string]interface{}{"title": title, "description": description}
+	if releaseDate != nil {
+		if releaseDate.IsZero() {
+			updates["release_date"] = nil
+		} else {
+			updates["release_date"] = releaseDate
+		}
+	}
+	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (r *VideoRepositoryImpl) UpdateSceneMetadata(id uint, title, description, studio string, releaseDate *time.Time, porndbSceneID string) error {
+	updates := map[string]interface{}{"title": title, "description": description, "studio": studio, "porndb_scene_id": porndbSceneID}
+	if releaseDate != nil {
+		updates["release_date"] = releaseDate
+	}
+	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
 }
 
 func (r *VideoRepositoryImpl) GetDistinctStudios() ([]string, error) {
@@ -262,8 +288,14 @@ func (r *VideoRepositoryImpl) GetDistinctStudios() ([]string, error) {
 
 func (r *VideoRepositoryImpl) GetDistinctActors() ([]string, error) {
 	var actors []string
-	err := r.DB.Raw("SELECT DISTINCT unnest(actors) AS actor FROM videos WHERE deleted_at IS NULL ORDER BY actor ASC").
-		Scan(&actors).Error
+	// Get actor names from the actors table (those with at least one video)
+	err := r.DB.Raw(`
+		SELECT DISTINCT a.name
+		FROM actors a
+		INNER JOIN video_actors va ON va.actor_id = a.id
+		INNER JOIN videos v ON v.id = va.video_id AND v.deleted_at IS NULL
+		ORDER BY a.name ASC
+	`).Scan(&actors).Error
 	if err != nil {
 		return nil, err
 	}
@@ -276,6 +308,58 @@ func (r *VideoRepositoryImpl) ExistsByStoredPath(path string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (r *VideoRepositoryImpl) GetAllWithStoragePath() ([]Video, error) {
+	var videos []Video
+	if err := r.DB.Where("storage_path_id IS NOT NULL").Find(&videos).Error; err != nil {
+		return nil, err
+	}
+	return videos, nil
+}
+
+func (r *VideoRepositoryImpl) MarkAsMissing(id uint) error {
+	// Soft delete the video - sets deleted_at to current timestamp
+	return r.DB.Delete(&Video{}, id).Error
+}
+
+func (r *VideoRepositoryImpl) Restore(id uint) error {
+	// Restore a soft-deleted video by clearing deleted_at
+	return r.DB.Unscoped().Model(&Video{}).Where("id = ?", id).Update("deleted_at", nil).Error
+}
+
+func (r *VideoRepositoryImpl) UpdateStoredPath(id uint, newPath string, storagePathID *uint) error {
+	updates := map[string]interface{}{
+		"stored_path": newPath,
+	}
+	if storagePathID != nil {
+		updates["storage_path_id"] = *storagePathID
+	}
+	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (r *VideoRepositoryImpl) GetBySizeAndFilename(size int64, filename string) (*Video, error) {
+	var video Video
+	// Use Unscoped to include soft-deleted records - allows finding moved files that were previously marked as missing
+	err := r.DB.Unscoped().Where("size = ? AND original_filename = ?", size, filename).First(&video).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &video, nil
+}
+
+func (r *VideoRepositoryImpl) BulkUpdateStudio(videoIDs []uint, studio string) error {
+	if len(videoIDs) == 0 {
+		return nil
+	}
+	return r.DB.Model(&Video{}).Where("id IN ?", videoIDs).Update("studio", studio).Error
+}
+
+func (r *VideoRepositoryImpl) UpdateActors(id uint, actors []string) error {
+	return r.DB.Model(&Video{}).Where("id = ?", id).Update("actors", pq.StringArray(actors)).Error
 }
 
 type UserRepositoryImpl struct {

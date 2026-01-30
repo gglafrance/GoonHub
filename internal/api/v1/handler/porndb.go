@@ -3,6 +3,7 @@ package handler
 import (
 	"goonhub/internal/core"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -69,5 +70,113 @@ func (h *PornDBHandler) GetPerformer(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": performer,
+	})
+}
+
+// SearchScenes searches for scenes with optional filters
+func (h *PornDBHandler) SearchScenes(c *gin.Context) {
+	opts := core.SceneSearchOptions{
+		Query: c.Query("q"),
+		Title: c.Query("title"),
+		Site:  c.Query("site"),
+	}
+
+	// Parse numeric params
+	if yearStr := c.Query("year"); yearStr != "" {
+		if year, err := strconv.Atoi(yearStr); err == nil && year > 0 {
+			opts.Year = year
+		}
+	}
+	// Require at least one search parameter
+	if opts.IsEmpty() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "At least one search parameter is required"})
+		return
+	}
+
+	if !h.Service.IsConfigured() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "PornDB integration is not configured"})
+		return
+	}
+
+	scenes, err := h.Service.SearchScenes(opts)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": scenes,
+	})
+}
+
+// GetScene returns detailed information about a scene
+func (h *PornDBHandler) GetScene(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Scene ID is required"})
+		return
+	}
+
+	if !h.Service.IsConfigured() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "PornDB integration is not configured"})
+		return
+	}
+
+	scene, err := h.Service.GetSceneDetails(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": scene,
+	})
+}
+
+// SearchSites searches for sites/studios by name
+func (h *PornDBHandler) SearchSites(c *gin.Context) {
+	query := c.Query("q")
+	if query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Query parameter 'q' is required"})
+		return
+	}
+
+	if !h.Service.IsConfigured() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "PornDB integration is not configured"})
+		return
+	}
+
+	sites, err := h.Service.SearchSites(query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": sites,
+	})
+}
+
+// GetSite returns detailed information about a site/studio
+func (h *PornDBHandler) GetSite(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Site ID is required"})
+		return
+	}
+
+	if !h.Service.IsConfigured() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "PornDB integration is not configured"})
+		return
+	}
+
+	site, err := h.Service.GetSiteDetails(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": site,
 	})
 }

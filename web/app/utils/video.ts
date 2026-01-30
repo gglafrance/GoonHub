@@ -1,6 +1,6 @@
-import type { Video } from '~/types/video';
+import type { Video, VideoListItem } from '~/types/video';
 
-export function isVideoProcessing(video: Video): boolean {
+export function isVideoProcessing(video: VideoListItem): boolean {
     return video.processing_status === 'pending' || video.processing_status === 'processing';
 }
 

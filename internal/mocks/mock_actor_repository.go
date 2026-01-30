@@ -40,6 +40,48 @@ func (m *MockActorRepository) EXPECT() *MockActorRepositoryMockRecorder {
 	return m.recorder
 }
 
+// BulkAddActorsToVideos mocks base method.
+func (m *MockActorRepository) BulkAddActorsToVideos(videoIDs, actorIDs []uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BulkAddActorsToVideos", videoIDs, actorIDs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BulkAddActorsToVideos indicates an expected call of BulkAddActorsToVideos.
+func (mr *MockActorRepositoryMockRecorder) BulkAddActorsToVideos(videoIDs, actorIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkAddActorsToVideos", reflect.TypeOf((*MockActorRepository)(nil).BulkAddActorsToVideos), videoIDs, actorIDs)
+}
+
+// BulkRemoveActorsFromVideos mocks base method.
+func (m *MockActorRepository) BulkRemoveActorsFromVideos(videoIDs, actorIDs []uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BulkRemoveActorsFromVideos", videoIDs, actorIDs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BulkRemoveActorsFromVideos indicates an expected call of BulkRemoveActorsFromVideos.
+func (mr *MockActorRepositoryMockRecorder) BulkRemoveActorsFromVideos(videoIDs, actorIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkRemoveActorsFromVideos", reflect.TypeOf((*MockActorRepository)(nil).BulkRemoveActorsFromVideos), videoIDs, actorIDs)
+}
+
+// BulkReplaceActorsForVideos mocks base method.
+func (m *MockActorRepository) BulkReplaceActorsForVideos(videoIDs, actorIDs []uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BulkReplaceActorsForVideos", videoIDs, actorIDs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BulkReplaceActorsForVideos indicates an expected call of BulkReplaceActorsForVideos.
+func (mr *MockActorRepositoryMockRecorder) BulkReplaceActorsForVideos(videoIDs, actorIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkReplaceActorsForVideos", reflect.TypeOf((*MockActorRepository)(nil).BulkReplaceActorsForVideos), videoIDs, actorIDs)
+}
+
 // Create mocks base method.
 func (m *MockActorRepository) Create(actor *data.Actor) error {
 	m.ctrl.T.Helper()
@@ -99,6 +141,21 @@ func (mr *MockActorRepositoryMockRecorder) GetByID(id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByID", reflect.TypeOf((*MockActorRepository)(nil).GetByID), id)
 }
 
+// GetByIDs mocks base method.
+func (m *MockActorRepository) GetByIDs(ids []uint) ([]data.Actor, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByIDs", ids)
+	ret0, _ := ret[0].([]data.Actor)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByIDs indicates an expected call of GetByIDs.
+func (mr *MockActorRepositoryMockRecorder) GetByIDs(ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByIDs", reflect.TypeOf((*MockActorRepository)(nil).GetByIDs), ids)
+}
+
 // GetByUUID mocks base method.
 func (m *MockActorRepository) GetByUUID(uuid string) (*data.Actor, error) {
 	m.ctrl.T.Helper()
@@ -127,6 +184,21 @@ func (m *MockActorRepository) GetVideoActors(videoID uint) ([]data.Actor, error)
 func (mr *MockActorRepositoryMockRecorder) GetVideoActors(videoID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideoActors", reflect.TypeOf((*MockActorRepository)(nil).GetVideoActors), videoID)
+}
+
+// GetVideoActorsMultiple mocks base method.
+func (m *MockActorRepository) GetVideoActorsMultiple(videoIDs []uint) (map[uint][]data.Actor, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetVideoActorsMultiple", videoIDs)
+	ret0, _ := ret[0].(map[uint][]data.Actor)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetVideoActorsMultiple indicates an expected call of GetVideoActorsMultiple.
+func (mr *MockActorRepositoryMockRecorder) GetVideoActorsMultiple(videoIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideoActorsMultiple", reflect.TypeOf((*MockActorRepository)(nil).GetVideoActorsMultiple), videoIDs)
 }
 
 // GetVideoCount mocks base method.

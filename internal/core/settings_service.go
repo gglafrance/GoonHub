@@ -24,6 +24,19 @@ var allowedSortOrders = map[string]bool{
 	"duration_desc":   true,
 	"size_asc":        true,
 	"size_desc":       true,
+	"view_count_desc": true,
+	"view_count_asc":  true,
+}
+
+var allowedSectionTypes = map[string]bool{
+	"latest":            true,
+	"actor":             true,
+	"studio":            true,
+	"tag":               true,
+	"saved_search":      true,
+	"continue_watching": true,
+	"most_viewed":       true,
+	"liked":             true,
 }
 
 type SettingsService struct {
@@ -52,9 +65,103 @@ func (s *SettingsService) GetSettings(userID uint) (*data.UserSettings, error) {
 			VideosPerPage:    20,
 			DefaultSortOrder: "created_at_desc",
 			DefaultTagSort:   "az",
+			HomepageConfig:   data.DefaultHomepageConfig(),
 		}, nil
 	}
 	return settings, nil
+}
+
+func (s *SettingsService) GetHomepageConfig(userID uint) (*data.HomepageConfig, error) {
+	settings, err := s.settingsRepo.GetByUserID(userID)
+	if err != nil {
+		config := data.DefaultHomepageConfig()
+		return &config, nil
+	}
+	return &settings.HomepageConfig, nil
+}
+
+func (s *SettingsService) UpdateHomepageConfig(userID uint, config data.HomepageConfig) (*data.UserSettings, error) {
+	if err := s.validateHomepageConfig(&config); err != nil {
+		return nil, err
+	}
+
+	settings, err := s.settingsRepo.GetByUserID(userID)
+	if err != nil {
+		settings = &data.UserSettings{UserID: userID, HomepageConfig: data.DefaultHomepageConfig()}
+	}
+
+	settings.HomepageConfig = config
+
+	if err := s.settingsRepo.Upsert(settings); err != nil {
+		return nil, fmt.Errorf("failed to update homepage config: %w", err)
+	}
+
+	return settings, nil
+}
+
+func (s *SettingsService) validateHomepageConfig(config *data.HomepageConfig) error {
+	if len(config.Sections) > 20 {
+		return fmt.Errorf("maximum of 20 sections allowed")
+	}
+
+	seenIDs := make(map[string]bool)
+	for i, section := range config.Sections {
+		if section.ID == "" {
+			return fmt.Errorf("section %d: id is required", i)
+		}
+		if seenIDs[section.ID] {
+			return fmt.Errorf("section %d: duplicate id '%s'", i, section.ID)
+		}
+		seenIDs[section.ID] = true
+
+		if !allowedSectionTypes[section.Type] {
+			return fmt.Errorf("section %d: invalid type '%s'", i, section.Type)
+		}
+
+		if section.Title == "" {
+			return fmt.Errorf("section %d: title is required", i)
+		}
+		if len(section.Title) > 100 {
+			return fmt.Errorf("section %d: title must be 100 characters or less", i)
+		}
+
+		if section.Limit < 1 || section.Limit > 50 {
+			return fmt.Errorf("section %d: limit must be between 1 and 50", i)
+		}
+
+		if section.Sort != "" && !allowedSortOrders[section.Sort] {
+			return fmt.Errorf("section %d: invalid sort order '%s'", i, section.Sort)
+		}
+
+		// Validate type-specific config
+		if err := s.validateSectionConfig(&section); err != nil {
+			return fmt.Errorf("section %d: %w", i, err)
+		}
+	}
+
+	return nil
+}
+
+func (s *SettingsService) validateSectionConfig(section *data.HomepageSection) error {
+	switch section.Type {
+	case "actor":
+		if _, ok := section.Config["actor_uuid"]; !ok {
+			return fmt.Errorf("actor section requires actor_uuid in config")
+		}
+	case "studio":
+		if _, ok := section.Config["studio_uuid"]; !ok {
+			return fmt.Errorf("studio section requires studio_uuid in config")
+		}
+	case "tag":
+		if _, ok := section.Config["tag_id"]; !ok {
+			return fmt.Errorf("tag section requires tag_id in config")
+		}
+	case "saved_search":
+		if _, ok := section.Config["saved_search_uuid"]; !ok {
+			return fmt.Errorf("saved_search section requires saved_search_uuid in config")
+		}
+	}
+	return nil
 }
 
 func (s *SettingsService) UpdatePlayerSettings(userID uint, autoplay bool, volume int, loop bool) (*data.UserSettings, error) {

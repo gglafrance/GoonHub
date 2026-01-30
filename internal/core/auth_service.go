@@ -5,12 +5,125 @@ import (
 	"encoding/hex"
 	"fmt"
 	"goonhub/internal/data"
+	"sync"
 	"time"
 
 	"github.com/o1egl/paseto"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// loginAttempt tracks failed login attempts for a username
+type loginAttempt struct {
+	count    int
+	lockedAt time.Time
+}
+
+// AccountLockout manages per-user failed login tracking
+type AccountLockout struct {
+	mu        sync.RWMutex
+	attempts  map[string]*loginAttempt
+	threshold int
+	duration  time.Duration
+}
+
+// NewAccountLockout creates a new account lockout tracker
+func NewAccountLockout(threshold int, duration time.Duration) *AccountLockout {
+	return &AccountLockout{
+		attempts:  make(map[string]*loginAttempt),
+		threshold: threshold,
+		duration:  duration,
+	}
+}
+
+// IsLocked checks if the username is currently locked out
+func (l *AccountLockout) IsLocked(username string) bool {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	attempt, exists := l.attempts[username]
+	if !exists {
+		return false
+	}
+
+	if attempt.count < l.threshold {
+		return false
+	}
+
+	// Check if lockout has expired
+	if time.Since(attempt.lockedAt) > l.duration {
+		return false
+	}
+
+	return true
+}
+
+// RecordFailure records a failed login attempt, returns true if account becomes locked
+func (l *AccountLockout) RecordFailure(username string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	attempt, exists := l.attempts[username]
+	if !exists {
+		attempt = &loginAttempt{}
+		l.attempts[username] = attempt
+	}
+
+	// If lockout expired, reset the counter
+	if attempt.count >= l.threshold && time.Since(attempt.lockedAt) > l.duration {
+		attempt.count = 0
+	}
+
+	attempt.count++
+
+	if attempt.count >= l.threshold {
+		attempt.lockedAt = time.Now()
+		return true
+	}
+
+	return false
+}
+
+// RecordSuccess clears failed attempts on successful login
+func (l *AccountLockout) RecordSuccess(username string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	delete(l.attempts, username)
+}
+
+// Cleanup removes expired lockout entries
+func (l *AccountLockout) Cleanup() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	now := time.Now()
+	for username, attempt := range l.attempts {
+		// Remove entries that have expired their lockout and have been idle
+		if attempt.count >= l.threshold && now.Sub(attempt.lockedAt) > l.duration*2 {
+			delete(l.attempts, username)
+		} else if attempt.count < l.threshold && now.Sub(attempt.lockedAt) > l.duration {
+			// Remove entries with few attempts that are old
+			delete(l.attempts, username)
+		}
+	}
+}
+
+// GetRemainingLockoutTime returns how long until the lockout expires
+func (l *AccountLockout) GetRemainingLockoutTime(username string) time.Duration {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	attempt, exists := l.attempts[username]
+	if !exists || attempt.count < l.threshold {
+		return 0
+	}
+
+	remaining := l.duration - time.Since(attempt.lockedAt)
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
+}
 
 type AuthService struct {
 	repo        data.UserRepository
@@ -19,6 +132,7 @@ type AuthService struct {
 	tokenTTL    time.Duration
 	logger      *zap.Logger
 	v2          *paseto.V2
+	lockout     *AccountLockout
 }
 
 type UserPayload struct {
@@ -29,28 +143,79 @@ type UserPayload struct {
 	ExpiresAt int64  `json:"exp"`
 }
 
-func NewAuthService(repo data.UserRepository, revokedRepo data.RevokedTokenRepository, pasetoSecret string, tokenTTL time.Duration, logger *zap.Logger) *AuthService {
+// ErrPasetoKeyTooShort is returned when the PASETO secret is less than 32 bytes
+var ErrPasetoKeyTooShort = fmt.Errorf("PASETO secret must be at least 32 bytes (or 64 hex characters)")
+
+func NewAuthService(repo data.UserRepository, revokedRepo data.RevokedTokenRepository, pasetoSecret string, tokenTTL time.Duration, lockoutThreshold int, lockoutDuration time.Duration, logger *zap.Logger) (*AuthService, error) {
+	// PASETO v2 requires exactly 32 bytes for the symmetric key.
+	// The secret may be:
+	// - A 64-character hex string (32 bytes hex-encoded) - decode it
+	// - A 32-byte raw string - use directly
+	// SECURITY: Reject secrets shorter than 32 bytes to prevent weak key usage
+	var key []byte
+	if len(pasetoSecret) == 64 {
+		// Assume hex-encoded, try to decode
+		decoded, err := hex.DecodeString(pasetoSecret)
+		if err == nil && len(decoded) == 32 {
+			key = decoded
+		} else {
+			// Not valid hex, use first 32 bytes
+			key = []byte(pasetoSecret)[:32]
+		}
+	} else if len(pasetoSecret) >= 32 {
+		// Use first 32 bytes
+		key = []byte(pasetoSecret)[:32]
+	} else {
+		// SECURITY: Reject short secrets - padding with zeros is cryptographically weak
+		return nil, ErrPasetoKeyTooShort
+	}
+
 	return &AuthService{
 		repo:        repo,
 		revokedRepo: revokedRepo,
-		pasetoKey:   []byte(pasetoSecret),
+		pasetoKey:   key,
 		tokenTTL:    tokenTTL,
 		logger:      logger,
 		v2:          paseto.NewV2(),
-	}
+		lockout:     NewAccountLockout(lockoutThreshold, lockoutDuration),
+	}, nil
 }
 
+// ErrInvalidCredentials is returned for all authentication failures to prevent user enumeration
+var ErrInvalidCredentials = fmt.Errorf("invalid credentials")
+
 func (s *AuthService) Login(username, password string) (string, *data.User, error) {
+	// Check if account is locked out
+	// SECURITY: Return generic error to prevent timing attacks and lockout enumeration
+	if s.lockout.IsLocked(username) {
+		remaining := s.lockout.GetRemainingLockoutTime(username)
+		s.logger.Warn("Login attempt on locked account",
+			zap.String("username", username),
+			zap.Duration("remaining_lockout", remaining),
+		)
+		return "", nil, ErrInvalidCredentials
+	}
+
 	user, err := s.repo.GetByUsername(username)
 	if err != nil {
-		s.logger.Error("User not found", zap.String("username", username))
-		return "", nil, fmt.Errorf("invalid credentials")
+		// Use constant-time-ish behavior: still record failure and log generically
+		s.lockout.RecordFailure(username)
+		s.logger.Debug("Login failed", zap.String("username", username))
+		return "", nil, ErrInvalidCredentials
 	}
 
 	if err := s.checkPassword(user.Password, password); err != nil {
-		s.logger.Error("Invalid password", zap.String("username", username))
-		return "", nil, fmt.Errorf("invalid credentials")
+		locked := s.lockout.RecordFailure(username)
+		if locked {
+			s.logger.Warn("Account locked due to failed attempts", zap.String("username", username))
+		} else {
+			s.logger.Debug("Login failed", zap.String("username", username))
+		}
+		return "", nil, ErrInvalidCredentials
 	}
+
+	// Clear failed attempts on successful login
+	s.lockout.RecordSuccess(username)
 
 	token, err := s.generateToken(user)
 	if err != nil {
@@ -64,6 +229,22 @@ func (s *AuthService) Login(username, password string) (string, *data.User, erro
 
 	s.logger.Info("User logged in", zap.String("username", username), zap.Uint("user_id", user.ID))
 	return token, user, nil
+}
+
+// StartLockoutCleanup starts a background goroutine to clean up old lockout entries
+func (s *AuthService) StartLockoutCleanup(interval time.Duration, done <-chan struct{}) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				s.lockout.Cleanup()
+			case <-done:
+				return
+			}
+		}
+	}()
 }
 
 func (s *AuthService) ValidateToken(token string) (*UserPayload, error) {

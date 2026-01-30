@@ -3,6 +3,7 @@ import type { Video } from '~/types/video';
 import type { VttCue } from '~/composables/useVttParser';
 
 const video = inject<Ref<Video | null>>('watchVideo');
+const thumbnailVersion = inject<Ref<number>>('thumbnailVersion');
 const getPlayerTime = inject<() => number>('getPlayerTime', () => 0);
 const { extractThumbnail, uploadThumbnail } = useApi();
 const { formatDuration } = useFormatter();
@@ -20,8 +21,6 @@ const spritesLoading = ref(false);
 
 const currentTime = ref(0);
 const timeInterval = ref<ReturnType<typeof setInterval> | null>(null);
-
-const cacheBust = ref(0);
 
 // Calculate the full sprite sheet grid dimensions.
 // All sheets have the same pixel dimensions (the last one is padded with black),
@@ -58,7 +57,10 @@ function getSpriteStyle(cue: VttCue) {
 const currentThumbnailUrl = computed(() => {
     if (!video?.value?.thumbnail_path) return null;
     const base = `/thumbnails/${video.value.id}?size=lg`;
-    return cacheBust.value ? `${base}&v=${cacheBust.value}` : base;
+    const v =
+        thumbnailVersion?.value ||
+        (video.value.updated_at ? new Date(video.value.updated_at).getTime() : 0);
+    return v ? `${base}&v=${v}` : base;
 });
 
 const formattedTime = computed(() => formatDuration(Math.floor(currentTime.value)));
@@ -175,7 +177,7 @@ async function handleUpload() {
     try {
         await uploadThumbnail(video.value.id, uploadFile.value);
         message.value = 'Thumbnail updated from upload';
-        cacheBust.value = Date.now();
+        if (thumbnailVersion) thumbnailVersion.value = Date.now();
         clearUpload();
     } catch (err: unknown) {
         error.value = err instanceof Error ? err.message : 'Failed to upload thumbnail';
@@ -196,7 +198,7 @@ async function handleExtractFromPlayer() {
     try {
         await extractThumbnail(video.value.id, time);
         message.value = `Thumbnail extracted at ${formatDuration(Math.floor(time))}`;
-        cacheBust.value = Date.now();
+        if (thumbnailVersion) thumbnailVersion.value = Date.now();
     } catch (err: unknown) {
         error.value = err instanceof Error ? err.message : 'Failed to extract thumbnail';
     } finally {
@@ -213,7 +215,7 @@ async function handleSpriteClick(cue: VttCue) {
     try {
         await extractThumbnail(video.value.id, cue.start);
         message.value = `Thumbnail extracted at ${formatDuration(Math.floor(cue.start))}`;
-        cacheBust.value = Date.now();
+        if (thumbnailVersion) thumbnailVersion.value = Date.now();
     } catch (err: unknown) {
         error.value = err instanceof Error ? err.message : 'Failed to extract thumbnail';
     } finally {

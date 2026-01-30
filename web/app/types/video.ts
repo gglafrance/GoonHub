@@ -1,20 +1,28 @@
-export interface Video {
+// VideoListItem is a lightweight video representation for list/grid displays.
+// Used by: homepage sections, search results, actor/studio videos, explorer, history
+export interface VideoListItem {
     id: number;
     title: string;
-    original_filename: string;
-    size: number;
-    view_count: number;
-    created_at: string;
     duration: number;
+    size: number;
+    thumbnail_path: string;
+    processing_status: string;
+    created_at: string;
+    updated_at: string;
+}
+
+// Video is the full video representation with all metadata.
+// Used by: video player page, video details editor
+export interface Video extends VideoListItem {
+    original_filename: string;
+    view_count: number;
     width?: number;
     height?: number;
-    thumbnail_path?: string;
     sprite_sheet_path?: string;
     vtt_path?: string;
     sprite_sheet_count?: number;
     thumbnail_width?: number;
     thumbnail_height?: number;
-    processing_status?: string;
     processing_error?: string;
     file_created_at?: string;
     description?: string;
@@ -27,10 +35,12 @@ export interface Video {
     bit_rate?: number;
     video_codec?: string;
     audio_codec?: string;
+    release_date?: string;
+    porndb_scene_id?: string;
 }
 
 export interface VideoListResponse {
-    data: Video[];
+    data: VideoListItem[];
     total: number;
     page: number;
     limit: number;

@@ -4,8 +4,8 @@ export interface User {
     role: 'admin' | 'user';
 }
 
+// SECURITY: Token is transmitted only via HTTP-only cookie, never in response body
 export interface AuthResponse {
-    token: string;
     user: User;
 }
 

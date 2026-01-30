@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/request"
+	"goonhub/internal/api/v1/response"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
 	"goonhub/internal/data"
 	"io"
@@ -45,7 +48,7 @@ func (h *VideoHandler) UploadVideo(c *gin.Context) {
 
 	video, err := h.Service.UploadVideo(file, title)
 	if err != nil {
-		if err.Error() == "invalid file extension" {
+		if errors.Is(err, apperrors.ErrInvalidFileExtension) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -84,20 +87,32 @@ func (h *VideoHandler) ListVideos(c *gin.Context) {
 		userID = payload.UserID
 	}
 
+	// Map frontend match_type to Meilisearch matching strategy
+	var matchingStrategy string
+	switch req.MatchType {
+	case "strict":
+		matchingStrategy = "all"
+	case "frequency":
+		matchingStrategy = "frequency"
+	default:
+		matchingStrategy = "last"
+	}
+
 	params := data.VideoSearchParams{
-		Page:         req.Page,
-		Limit:        req.Limit,
-		Query:        req.Query,
-		Studio:       req.Studio,
-		MinDuration:  req.MinDuration,
-		MaxDuration:  req.MaxDuration,
-		Sort:         req.Sort,
-		UserID:       userID,
-		Liked:        req.Liked,
-		MinRating:    req.MinRating,
-		MaxRating:    req.MaxRating,
-		MinJizzCount: req.MinJizzCount,
-		MaxJizzCount: req.MaxJizzCount,
+		Page:             req.Page,
+		Limit:            req.Limit,
+		Query:            req.Query,
+		Studio:           req.Studio,
+		MinDuration:      req.MinDuration,
+		MaxDuration:      req.MaxDuration,
+		Sort:             req.Sort,
+		UserID:           userID,
+		Liked:            req.Liked,
+		MinRating:        req.MinRating,
+		MaxRating:        req.MaxRating,
+		MinJizzCount:     req.MinJizzCount,
+		MaxJizzCount:     req.MaxJizzCount,
+		MatchingStrategy: matchingStrategy,
 	}
 
 	if req.Tags != "" {
@@ -144,7 +159,7 @@ func (h *VideoHandler) ListVideos(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":  videos,
+		"data":  response.ToVideoListItems(videos),
 		"total": total,
 		"page":  req.Page,
 		"limit": req.Limit,
@@ -208,7 +223,7 @@ func (h *VideoHandler) DeleteVideo(c *gin.Context) {
 	}
 
 	if err := h.Service.DeleteVideo(uint(id)); err != nil {
-		if err.Error() == "record not found" {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
 			return
 		}
@@ -229,7 +244,7 @@ func (h *VideoHandler) GetVideo(c *gin.Context) {
 
 	video, err := h.Service.GetVideo(uint(id))
 	if err != nil {
-		if err.Error() == "record not found" {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
 			return
 		}
@@ -250,7 +265,7 @@ func (h *VideoHandler) StreamVideo(c *gin.Context) {
 
 	video, err := h.Service.GetVideo(uint(id))
 	if err != nil {
-		if err.Error() == "record not found" {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
 			return
 		}
@@ -402,9 +417,25 @@ func (h *VideoHandler) UpdateVideoDetails(c *gin.Context) {
 		return
 	}
 
-	video, err := h.Service.UpdateVideoDetails(uint(id), req.Title, req.Description)
+	var releaseDate *time.Time
+	if req.ReleaseDate != nil {
+		if *req.ReleaseDate == "" {
+			// Empty string means clear the date
+			zero := time.Time{}
+			releaseDate = &zero
+		} else {
+			parsed, err := time.Parse("2006-01-02", *req.ReleaseDate)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid release_date format, expected YYYY-MM-DD"})
+				return
+			}
+			releaseDate = &parsed
+		}
+	}
+
+	video, err := h.Service.UpdateVideoDetails(uint(id), req.Title, req.Description, releaseDate)
 	if err != nil {
-		if strings.Contains(err.Error(), "record not found") {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
 			return
 		}
@@ -435,7 +466,7 @@ func (h *VideoHandler) UploadThumbnail(c *gin.Context) {
 	}
 
 	if err := h.Service.SetThumbnailFromUpload(uint(id), file); err != nil {
-		if strings.Contains(err.Error(), "invalid image extension") {
+		if errors.Is(err, apperrors.ErrInvalidImageExtension) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -454,4 +485,119 @@ func (h *VideoHandler) UploadThumbnail(c *gin.Context) {
 		"thumbnail_width":  video.ThumbnailWidth,
 		"thumbnail_height": video.ThumbnailHeight,
 	})
+}
+
+func (h *VideoHandler) ApplySceneMetadata(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		return
+	}
+
+	var req request.ApplySceneMetadataRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	video, err := h.Service.GetVideo(uint(id))
+	if err != nil {
+		if apperrors.IsNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get video"})
+		return
+	}
+
+	// Build the update values, using existing values if not provided
+	title := video.Title
+	description := video.Description
+	studio := video.Studio
+
+	if req.Title != nil {
+		title = *req.Title
+	}
+	if req.Description != nil {
+		description = *req.Description
+	}
+	if req.Studio != nil {
+		studio = *req.Studio
+	}
+
+	var releaseDate *time.Time
+	if req.ReleaseDate != nil && *req.ReleaseDate != "" {
+		parsed, err := time.Parse("2006-01-02", *req.ReleaseDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid release_date format, expected YYYY-MM-DD"})
+			return
+		}
+		releaseDate = &parsed
+	}
+
+	porndbSceneID := ""
+	if req.PornDBSceneID != nil {
+		porndbSceneID = *req.PornDBSceneID
+	}
+
+	updatedVideo, err := h.Service.UpdateSceneMetadata(uint(id), title, description, studio, releaseDate, porndbSceneID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update scene metadata"})
+		return
+	}
+
+	// Import thumbnail from URL if provided
+	if req.ThumbnailURL != nil && *req.ThumbnailURL != "" {
+		if err := h.Service.SetThumbnailFromURL(uint(id), *req.ThumbnailURL); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to import thumbnail: %v", err)})
+			return
+		}
+		// Re-fetch to include updated thumbnail
+		updatedVideo, _ = h.Service.GetVideo(uint(id))
+	}
+
+	// Import tags if provided (best-effort, skip on errors)
+	if len(req.TagNames) > 0 {
+		if existingTags, err := h.TagService.GetTagsByNames(req.TagNames); err == nil {
+			// Build set of existing tag names for fast lookup
+			existingNames := make(map[string]struct{}, len(existingTags))
+			allTagIDs := make([]uint, 0, len(req.TagNames))
+			for _, t := range existingTags {
+				existingNames[t.Name] = struct{}{}
+				allTagIDs = append(allTagIDs, t.ID)
+			}
+
+			// Create missing tags
+			for _, name := range req.TagNames {
+				if _, found := existingNames[name]; !found {
+					newTag, err := h.TagService.CreateTag(name, "")
+					if err != nil {
+						continue
+					}
+					allTagIDs = append(allTagIDs, newTag.ID)
+				}
+			}
+
+			// Merge with current video tags to avoid overwriting manually-assigned tags
+			if currentTags, err := h.TagService.GetVideoTags(uint(id)); err == nil {
+				seen := make(map[uint]struct{}, len(allTagIDs))
+				for _, tid := range allTagIDs {
+					seen[tid] = struct{}{}
+				}
+				for _, ct := range currentTags {
+					if _, exists := seen[ct.ID]; !exists {
+						allTagIDs = append(allTagIDs, ct.ID)
+					}
+				}
+			}
+
+			if _, err := h.TagService.SetVideoTags(uint(id), allTagIDs); err == nil {
+				// Re-fetch to include updated tags
+				updatedVideo, _ = h.Service.GetVideo(uint(id))
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, updatedVideo)
 }

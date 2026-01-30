@@ -119,14 +119,14 @@ func TestDeleteVideo_RepoInteraction(t *testing.T) {
 func TestUpdateVideoDetails_Success(t *testing.T) {
 	svc, videoRepo := newTestVideoService(t)
 
-	videoRepo.EXPECT().UpdateDetails(uint(1), "New Title", "New Description").Return(nil)
+	videoRepo.EXPECT().UpdateDetails(uint(1), "New Title", "New Description", gomock.Any()).Return(nil)
 	videoRepo.EXPECT().GetByID(uint(1)).Return(&data.Video{
 		ID:          1,
 		Title:       "New Title",
 		Description: "New Description",
 	}, nil)
 
-	video, err := svc.UpdateVideoDetails(1, "New Title", "New Description")
+	video, err := svc.UpdateVideoDetails(1, "New Title", "New Description", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -141,9 +141,9 @@ func TestUpdateVideoDetails_Success(t *testing.T) {
 func TestUpdateVideoDetails_UpdateFails(t *testing.T) {
 	svc, videoRepo := newTestVideoService(t)
 
-	videoRepo.EXPECT().UpdateDetails(uint(1), "Title", "Desc").Return(fmt.Errorf("db error"))
+	videoRepo.EXPECT().UpdateDetails(uint(1), "Title", "Desc", gomock.Any()).Return(fmt.Errorf("db error"))
 
-	_, err := svc.UpdateVideoDetails(1, "Title", "Desc")
+	_, err := svc.UpdateVideoDetails(1, "Title", "Desc", nil)
 	if err == nil {
 		t.Fatal("expected error when update fails")
 	}

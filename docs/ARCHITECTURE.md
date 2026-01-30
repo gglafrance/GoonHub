@@ -387,7 +387,7 @@ On receiving SIGINT or SIGTERM:
 
 ## Static Asset Serving
 
-Generated assets (thumbnails, sprites, VTT files) are served directly by the Gin router from the **configured directories** (set via `processing.thumbnail_dir`, `processing.sprite_dir`, `processing.vtt_dir` in config). Default paths: `./data/thumbnails`, `./data/sprites`, `./data/vtt`.
+Generated assets (thumbnails, sprites, VTT files) are served directly by the Gin router from the **configured directories** (set via `processing.thumbnail_dir`, `processing.sprite_dir`, `processing.vtt_dir` in config). Default paths: `./data/metadata/thumbnails`, `./data/metadata/sprites`, `./data/metadata/vtt`.
 
 | Path | Content | Cache |
 |------|---------|-------|

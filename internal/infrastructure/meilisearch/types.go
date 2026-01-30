@@ -14,6 +14,7 @@ type VideoDocument struct {
 	Height           int      `json:"height"`
 	CreatedAt        int64    `json:"created_at"`
 	ProcessingStatus string   `json:"processing_status"`
+	ViewCount        int      `json:"view_count"`
 }
 
 // SearchParams contains parameters for searching videos.
@@ -34,6 +35,7 @@ type SearchParams struct {
 	SortDir          string
 	Offset           int
 	Limit            int
+	MatchingStrategy string // Meilisearch matching strategy: "last", "all", or "frequency"
 }
 
 // SearchResult contains the result of a search query.

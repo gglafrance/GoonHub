@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, pornDBHandler *handler.PornDBHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -41,7 +41,7 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					videos.PUT("/:id/thumbnail", middleware.RequirePermission(rbacService, "videos:upload"), videoHandler.ExtractThumbnail)
 					videos.POST("/:id/thumbnail/upload", middleware.RequirePermission(rbacService, "videos:upload"), videoHandler.UploadThumbnail)
 					videos.PUT("/:id/details", middleware.RequirePermission(rbacService, "videos:upload"), videoHandler.UpdateVideoDetails)
-				videos.DELETE("/:id", middleware.RequirePermission(rbacService, "videos:delete"), videoHandler.DeleteVideo)
+					videos.DELETE("/:id", middleware.RequirePermission(rbacService, "videos:delete"), videoHandler.DeleteVideo)
 					videos.GET("/:id/tags", middleware.RequirePermission(rbacService, "videos:view"), tagHandler.GetVideoTags)
 					videos.PUT("/:id/tags", middleware.RequirePermission(rbacService, "videos:upload"), tagHandler.SetVideoTags)
 					videos.GET("/:id/interactions", interactionHandler.GetInteractions)
@@ -57,6 +57,8 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					videos.GET("/:id/history", middleware.RequirePermission(rbacService, "videos:view"), watchHistoryHandler.GetVideoHistory)
 					videos.GET("/:id/actors", middleware.RequirePermission(rbacService, "videos:view"), actorHandler.GetVideoActors)
 					videos.PUT("/:id/actors", middleware.RequirePermission(rbacService, "videos:upload"), actorHandler.SetVideoActors)
+					videos.GET("/:id/studio", middleware.RequirePermission(rbacService, "videos:view"), studioHandler.GetVideoStudio)
+					videos.PUT("/:id/studio", middleware.RequirePermission(rbacService, "videos:upload"), studioHandler.SetVideoStudio)
 				}
 
 				history := protected.Group("/history")
@@ -82,6 +84,29 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					actors.POST("/:uuid/like", actorInteractionHandler.ToggleLike)
 				}
 
+				studios := protected.Group("/studios")
+				{
+					studios.GET("", studioHandler.ListStudios)
+					studios.GET("/:uuid", studioHandler.GetStudioByUUID)
+					studios.GET("/:uuid/videos", studioHandler.GetStudioVideos)
+					studios.GET("/:uuid/interactions", studioInteractionHandler.GetInteractions)
+					studios.PUT("/:uuid/rating", studioInteractionHandler.SetRating)
+					studios.DELETE("/:uuid/rating", studioInteractionHandler.DeleteRating)
+					studios.POST("/:uuid/like", studioInteractionHandler.ToggleLike)
+				}
+
+				explorer := protected.Group("/explorer")
+				{
+					explorer.GET("/storage-paths", explorerHandler.GetStoragePaths)
+					explorer.GET("/folders/:storagePathID/*path", explorerHandler.GetFolderContents)
+					explorer.POST("/bulk/tags", explorerHandler.BulkUpdateTags)
+					explorer.POST("/bulk/actors", explorerHandler.BulkUpdateActors)
+					explorer.POST("/bulk/studio", explorerHandler.BulkUpdateStudio)
+					explorer.DELETE("/bulk/videos", middleware.RequirePermission(rbacService, "videos:delete"), explorerHandler.BulkDeleteVideos)
+					explorer.POST("/folder/video-ids", explorerHandler.GetFolderVideoIDs)
+					explorer.POST("/search", explorerHandler.SearchInFolder)
+				}
+
 				settings := protected.Group("/settings")
 				{
 					settings.GET("", settingsHandler.GetSettings)
@@ -90,6 +115,23 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					settings.PUT("/tags", settingsHandler.UpdateTagSettings)
 					settings.PUT("/password", settingsHandler.ChangePassword)
 					settings.PUT("/username", settingsHandler.ChangeUsername)
+					settings.GET("/homepage", settingsHandler.GetHomepageConfig)
+					settings.PUT("/homepage", settingsHandler.UpdateHomepageConfig)
+				}
+
+				homepage := protected.Group("/homepage")
+				{
+					homepage.GET("", homepageHandler.GetHomepageData)
+					homepage.GET("/sections/:id", homepageHandler.GetSectionData)
+				}
+
+				savedSearches := protected.Group("/saved-searches")
+				{
+					savedSearches.GET("", savedSearchHandler.List)
+					savedSearches.GET("/:uuid", savedSearchHandler.GetByUUID)
+					savedSearches.POST("", savedSearchHandler.Create)
+					savedSearches.PUT("/:uuid", savedSearchHandler.Update)
+					savedSearches.DELETE("/:uuid", savedSearchHandler.Delete)
 				}
 
 				admin := protected.Group("/admin")
@@ -111,6 +153,7 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					admin.GET("/trigger-config", triggerConfigHandler.GetTriggerConfig)
 					admin.PUT("/trigger-config", triggerConfigHandler.UpdateTriggerConfig)
 					admin.POST("/videos/:id/process/:phase", jobHandler.TriggerPhase)
+					admin.PUT("/videos/:id/scene-metadata", videoHandler.ApplySceneMetadata)
 					admin.POST("/jobs/bulk", jobHandler.TriggerBulkPhase)
 					admin.POST("/jobs/:id/cancel", jobHandler.CancelJob)
 					admin.GET("/dlq", dlqHandler.ListDLQ)
@@ -134,10 +177,20 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					admin.DELETE("/actors/:id", actorHandler.DeleteActor)
 					admin.POST("/actors/:id/image", actorHandler.UploadActorImage)
 
+					// Studios management
+					admin.POST("/studios", studioHandler.CreateStudio)
+					admin.PUT("/studios/:id", studioHandler.UpdateStudio)
+					admin.DELETE("/studios/:id", studioHandler.DeleteStudio)
+					admin.POST("/studios/:id/logo", studioHandler.UploadStudioLogo)
+
 					// PornDB integration
 					admin.GET("/porndb/status", pornDBHandler.GetStatus)
 					admin.GET("/porndb/performers", pornDBHandler.SearchPerformers)
 					admin.GET("/porndb/performers/:id", pornDBHandler.GetPerformer)
+					admin.GET("/porndb/scenes", pornDBHandler.SearchScenes)
+					admin.GET("/porndb/scenes/:id", pornDBHandler.GetScene)
+					admin.GET("/porndb/sites", pornDBHandler.SearchSites)
+					admin.GET("/porndb/sites/:id", pornDBHandler.GetSite)
 				}
 			}
 		}

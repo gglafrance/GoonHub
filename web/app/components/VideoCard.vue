@@ -1,8 +1,19 @@
 <script setup lang="ts">
-import type { Video } from '~/types/video';
+import type { VideoListItem } from '~/types/video';
+import type { WatchProgress } from '~/types/homepage';
 
 const props = defineProps<{
-    video: Video;
+    video: VideoListItem;
+    progress?: WatchProgress;
+    fluid?: boolean;
+    completed?: boolean;
+    rating?: number;
+}>();
+
+const isPerfectRating = computed(() => props.rating === 5);
+
+const slots = defineSlots<{
+    footer?: () => unknown;
 }>();
 
 const { formatDuration, formatSize } = useFormatter();
@@ -10,8 +21,18 @@ const { formatDuration, formatSize } = useFormatter();
 const isProcessing = computed(() => isVideoProcessing(props.video));
 
 const thumbnailUrl = computed(() => {
-    return props.video.thumbnail_path ? `/thumbnails/${props.video.id}` : null;
+    if (!props.video.thumbnail_path) return null;
+    const base = `/thumbnails/${props.video.id}`;
+    const v = props.video.updated_at ? new Date(props.video.updated_at).getTime() : '';
+    return v ? `${base}?v=${v}` : base;
 });
+
+const progressPercent = computed(() => {
+    if (!props.progress || props.progress.duration <= 0) return 0;
+    return Math.min(100, (props.progress.last_position / props.progress.duration) * 100);
+});
+
+const hasProgress = computed(() => props.progress && progressPercent.value > 0);
 </script>
 
 <template>
@@ -19,15 +40,25 @@ const thumbnailUrl = computed(() => {
         :to="`/watch/${video.id}`"
         class="group border-border bg-surface hover:border-border-hover hover:bg-elevated relative
             block overflow-hidden rounded-lg border transition-all duration-200"
+        :class="fluid ? 'w-full' : 'w-[320px]'"
     >
-        <div class="bg-void relative h-45 w-[320px]">
+        <div class="bg-void relative" :class="fluid ? 'aspect-video w-full' : 'h-45'">
+            <!-- Blurred background (stretched to fill) -->
             <img
                 v-if="thumbnailUrl"
                 :src="thumbnailUrl"
-                width="320"
-                height="180"
-                class="absolute inset-0 h-45 w-[320px] transition-transform duration-300
-                    group-hover:scale-[1.03]"
+                class="absolute inset-0 h-full w-full scale-110 object-cover blur-xl"
+                alt=""
+                aria-hidden="true"
+                loading="lazy"
+            />
+
+            <!-- Main thumbnail (maintains aspect ratio) -->
+            <img
+                v-if="thumbnailUrl"
+                :src="thumbnailUrl"
+                class="absolute inset-0 z-10 h-full w-full object-contain transition-transform
+                    duration-300 group-hover:scale-[1.03]"
                 :alt="video.title"
                 loading="lazy"
             />
@@ -47,15 +78,44 @@ const thumbnailUrl = computed(() => {
             <!-- Duration badge -->
             <div
                 v-if="video.duration > 0"
-                class="bg-void/90 absolute right-1.5 bottom-1.5 rounded px-1.5 py-0.5 font-mono
+                class="bg-void/90 absolute right-1.5 z-20 rounded px-1.5 py-0.5 font-mono
                     text-[10px] font-medium text-white backdrop-blur-sm"
+                :class="hasProgress ? 'bottom-3' : 'bottom-1.5'"
             >
                 {{ formatDuration(video.duration) }}
             </div>
 
+            <!-- Completed/Watched badge -->
+            <div
+                v-if="completed"
+                class="absolute top-1.5 right-1.5 z-20 rounded bg-emerald-500/90 px-1.5 py-0.5
+                    text-[9px] font-semibold text-white backdrop-blur-sm"
+            >
+                Watched
+            </div>
+
+            <!-- 5-star rating badge -->
+            <div
+                v-if="isPerfectRating"
+                class="absolute top-1.5 left-1.5 z-20 flex h-6 w-6 items-center justify-center
+                    rounded-full bg-amber-400/90 backdrop-blur-sm"
+            >
+                <Icon name="heroicons:star-solid" size="14" class="text-amber-900" />
+            </div>
+
+            <!-- Watch progress bar -->
+            <div v-if="hasProgress" class="absolute right-0 bottom-0 left-0 z-20 h-1">
+                <div class="h-full w-full bg-white/20">
+                    <div
+                        class="bg-lava h-full transition-all"
+                        :style="{ width: `${progressPercent}%` }"
+                    ></div>
+                </div>
+            </div>
+
             <!-- Hover overlay -->
             <div
-                class="bg-lava/0 group-hover:bg-lava/5 absolute inset-0 transition-colors
+                class="bg-lava/0 group-hover:bg-lava/5 absolute inset-0 z-20 transition-colors
                     duration-200"
             ></div>
         </div>
@@ -69,8 +129,10 @@ const thumbnailUrl = computed(() => {
                 {{ video.title }}
             </h3>
             <div class="text-dim mt-1.5 flex items-center justify-between font-mono text-[10px]">
-                <span>{{ formatSize(video.size) }}</span>
-                <NuxtTime :datetime="video.created_at" format="short" />
+                <slot name="footer">
+                    <span>{{ formatSize(video.size) }}</span>
+                    <NuxtTime :datetime="video.created_at" format="short" />
+                </slot>
             </div>
         </div>
     </NuxtLink>

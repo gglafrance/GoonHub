@@ -29,8 +29,11 @@ type Server struct {
 	tagService        *core.TagService
 	searchService     *core.SearchService
 	scanService       *core.ScanService
+	explorerService   *core.ExplorerService
 	retryScheduler    *core.RetryScheduler
 	dlqService        *core.DLQService
+	actorService      *core.ActorService
+	studioService     *core.StudioService
 	srv               *http.Server
 }
 
@@ -46,8 +49,11 @@ func NewHTTPServer(
 	tagService *core.TagService,
 	searchService *core.SearchService,
 	scanService *core.ScanService,
+	explorerService *core.ExplorerService,
 	retryScheduler *core.RetryScheduler,
 	dlqService *core.DLQService,
+	actorService *core.ActorService,
+	studioService *core.StudioService,
 ) *Server {
 	return &Server{
 		router:            router,
@@ -61,8 +67,11 @@ func NewHTTPServer(
 		tagService:        tagService,
 		searchService:     searchService,
 		scanService:       scanService,
+		explorerService:   explorerService,
 		retryScheduler:    retryScheduler,
 		dlqService:        dlqService,
+		actorService:      actorService,
+		studioService:     studioService,
 	}
 }
 
@@ -84,6 +93,16 @@ func (s *Server) Start() error {
 		}
 		if s.scanService != nil {
 			s.scanService.SetIndexer(s.searchService)
+		}
+		if s.explorerService != nil {
+			s.explorerService.SetIndexer(s.searchService)
+			s.explorerService.SetSearchService(s.searchService)
+		}
+		if s.actorService != nil {
+			s.actorService.SetIndexer(s.searchService)
+		}
+		if s.studioService != nil {
+			s.studioService.SetIndexer(s.searchService)
 		}
 		s.logger.Info("Search indexer wired to services")
 	}
@@ -139,9 +158,23 @@ func (s *Server) Start() error {
 	}
 
 	go func() {
-		s.logger.Info("Starting server", zap.String("port", s.cfg.Server.Port))
-		if err := s.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			s.logger.Fatal("Server start failed", zap.Error(err))
+		// Check if TLS is configured
+		if s.cfg.Server.TLSCertFile != "" && s.cfg.Server.TLSKeyFile != "" {
+			s.logger.Info("Starting HTTPS server",
+				zap.String("port", s.cfg.Server.Port),
+				zap.String("cert", s.cfg.Server.TLSCertFile),
+			)
+			if err := s.srv.ListenAndServeTLS(s.cfg.Server.TLSCertFile, s.cfg.Server.TLSKeyFile); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				s.logger.Fatal("HTTPS server start failed", zap.Error(err))
+			}
+		} else {
+			s.logger.Info("Starting HTTP server", zap.String("port", s.cfg.Server.Port))
+			if s.cfg.Environment == "production" {
+				s.logger.Warn("Running HTTP without TLS in production - configure tls_cert_file and tls_key_file for HTTPS")
+			}
+			if err := s.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				s.logger.Fatal("HTTP server start failed", zap.Error(err))
+			}
 		}
 	}()
 

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
 	"net/http"
 	"strconv"
@@ -40,15 +41,15 @@ func (h *TagHandler) CreateTag(c *gin.Context) {
 
 	tag, err := h.Service.CreateTag(req.Name, req.Color)
 	if err != nil {
-		if err.Error() == "tag name is required" || err.Error() == "tag name must be 100 characters or less" {
+		if apperrors.IsValidation(err) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		if err.Error() == "invalid color format, must be a hex color like #FF4D4D" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if apperrors.IsConflict(err) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Tag already exists"})
 			return
 		}
-		c.JSON(http.StatusConflict, gin.H{"error": "Tag already exists"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create tag"})
 		return
 	}
 
@@ -64,7 +65,7 @@ func (h *TagHandler) DeleteTag(c *gin.Context) {
 	}
 
 	if err := h.Service.DeleteTag(uint(id)); err != nil {
-		if err.Error() == "tag not found" {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Tag not found"})
 			return
 		}
@@ -85,7 +86,7 @@ func (h *TagHandler) GetVideoTags(c *gin.Context) {
 
 	tags, err := h.Service.GetVideoTags(uint(id))
 	if err != nil {
-		if err.Error() == "video not found" {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
 			return
 		}
@@ -116,7 +117,7 @@ func (h *TagHandler) SetVideoTags(c *gin.Context) {
 
 	tags, err := h.Service.SetVideoTags(uint(id), req.TagIDs)
 	if err != nil {
-		if err.Error() == "video not found" {
+		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
 			return
 		}

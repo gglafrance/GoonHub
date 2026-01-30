@@ -7,19 +7,21 @@ import (
 )
 
 type ScanHistory struct {
-	ID           uint       `gorm:"primarykey" json:"id"`
-	Status       string     `gorm:"not null;default:'running'" json:"status"`
-	StartedAt    time.Time  `gorm:"not null;default:now()" json:"started_at"`
-	CompletedAt  *time.Time `json:"completed_at"`
-	PathsScanned int        `gorm:"not null;default:0" json:"paths_scanned"`
-	FilesFound   int        `gorm:"not null;default:0" json:"files_found"`
-	VideosAdded  int        `gorm:"not null;default:0" json:"videos_added"`
-	VideosSkipped int       `gorm:"not null;default:0" json:"videos_skipped"`
-	Errors       int        `gorm:"not null;default:0" json:"errors"`
-	ErrorMessage *string    `gorm:"type:text" json:"error_message,omitempty"`
-	CurrentPath  *string    `gorm:"size:500" json:"current_path,omitempty"`
-	CurrentFile  *string    `gorm:"size:500" json:"current_file,omitempty"`
-	CreatedAt    time.Time  `gorm:"not null;default:now()" json:"created_at"`
+	ID            uint       `gorm:"primarykey" json:"id"`
+	Status        string     `gorm:"not null;default:'running'" json:"status"`
+	StartedAt     time.Time  `gorm:"not null;default:now()" json:"started_at"`
+	CompletedAt   *time.Time `json:"completed_at"`
+	PathsScanned  int        `gorm:"not null;default:0" json:"paths_scanned"`
+	FilesFound    int        `gorm:"not null;default:0" json:"files_found"`
+	VideosAdded   int        `gorm:"not null;default:0" json:"videos_added"`
+	VideosSkipped int        `gorm:"not null;default:0" json:"videos_skipped"`
+	VideosRemoved int        `gorm:"not null;default:0" json:"videos_removed"`
+	VideosMoved   int        `gorm:"not null;default:0" json:"videos_moved"`
+	Errors        int        `gorm:"not null;default:0" json:"errors"`
+	ErrorMessage  *string    `gorm:"type:text" json:"error_message,omitempty"`
+	CurrentPath   *string    `gorm:"size:500" json:"current_path,omitempty"`
+	CurrentFile   *string    `gorm:"size:500" json:"current_file,omitempty"`
+	CreatedAt     time.Time  `gorm:"not null;default:now()" json:"created_at"`
 }
 
 func (ScanHistory) TableName() string {

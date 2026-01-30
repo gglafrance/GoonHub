@@ -55,35 +55,6 @@ func (mr *MockWatchHistoryRepositoryMockRecorder) GetLastWatch(userID, videoID a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastWatch", reflect.TypeOf((*MockWatchHistoryRepository)(nil).GetLastWatch), userID, videoID)
 }
 
-// HasViewedWithin24Hours mocks base method.
-func (m *MockWatchHistoryRepository) HasViewedWithin24Hours(userID, videoID uint) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasViewedWithin24Hours", userID, videoID)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// HasViewedWithin24Hours indicates an expected call of HasViewedWithin24Hours.
-func (mr *MockWatchHistoryRepositoryMockRecorder) HasViewedWithin24Hours(userID, videoID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasViewedWithin24Hours", reflect.TypeOf((*MockWatchHistoryRepository)(nil).HasViewedWithin24Hours), userID, videoID)
-}
-
-// IncrementVideoViewCount mocks base method.
-func (m *MockWatchHistoryRepository) IncrementVideoViewCount(videoID uint) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IncrementVideoViewCount", videoID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// IncrementVideoViewCount indicates an expected call of IncrementVideoViewCount.
-func (mr *MockWatchHistoryRepositoryMockRecorder) IncrementVideoViewCount(videoID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementVideoViewCount", reflect.TypeOf((*MockWatchHistoryRepository)(nil).IncrementVideoViewCount), videoID)
-}
-
 // ListUserHistory mocks base method.
 func (m *MockWatchHistoryRepository) ListUserHistory(userID uint, page, limit int) ([]data.UserVideoWatch, int64, error) {
 	m.ctrl.T.Helper()
@@ -127,4 +98,19 @@ func (m *MockWatchHistoryRepository) RecordWatch(userID, videoID uint, duration,
 func (mr *MockWatchHistoryRepositoryMockRecorder) RecordWatch(userID, videoID, duration, position, completed any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordWatch", reflect.TypeOf((*MockWatchHistoryRepository)(nil).RecordWatch), userID, videoID, duration, position, completed)
+}
+
+// TryIncrementViewCount mocks base method.
+func (m *MockWatchHistoryRepository) TryIncrementViewCount(userID, videoID uint) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TryIncrementViewCount", userID, videoID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// TryIncrementViewCount indicates an expected call of TryIncrementViewCount.
+func (mr *MockWatchHistoryRepositoryMockRecorder) TryIncrementViewCount(userID, videoID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryIncrementViewCount", reflect.TypeOf((*MockWatchHistoryRepository)(nil).TryIncrementViewCount), userID, videoID)
 }

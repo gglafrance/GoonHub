@@ -32,3 +32,52 @@ export interface PornDBPerformerDetails {
     fake_boobs?: boolean;
     same_sex_only?: boolean;
 }
+
+export interface PornDBScene {
+    id: string;
+    title: string;
+    description?: string;
+    date?: string;
+    duration?: number;
+    image?: string;
+    poster?: string;
+    site?: PornDBSite;
+    performers?: PornDBScenePerformer[];
+    tags?: PornDBTag[];
+}
+
+// Lightweight site for scene responses
+export interface PornDBSite {
+    name: string;
+    url?: string;
+}
+
+// Full site details for site search/fetch
+export interface PornDBSiteDetails {
+    id: string;
+    uuid?: string;
+    slug?: string;
+    name: string;
+    short_name?: string;
+    url?: string;
+    description?: string;
+    rating?: number;
+    logo?: string;
+    favicon?: string;
+    poster?: string;
+    network?: string;
+    parent?: string;
+    network_id?: string;
+    parent_id?: string;
+}
+
+export interface PornDBScenePerformer {
+    id: string;
+    name: string;
+    image?: string;
+}
+
+export interface PornDBTag {
+    id: number;
+    name: string;
+}

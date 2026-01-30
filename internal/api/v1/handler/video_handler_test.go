@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/mock/gomock"
+	"gorm.io/gorm"
 )
 
 func init() {
@@ -185,7 +186,8 @@ func TestStreamVideo_RangeExceedsFile(t *testing.T) {
 func TestStreamVideo_VideoNotFound(t *testing.T) {
 	handler, videoRepo, _ := newTestVideoHandler(t)
 
-	videoRepo.EXPECT().GetByID(uint(999)).Return(nil, fmt.Errorf("record not found"))
+	// Use gorm.ErrRecordNotFound which is what the service now checks for
+	videoRepo.EXPECT().GetByID(uint(999)).Return(nil, gorm.ErrRecordNotFound)
 
 	router := gin.New()
 	router.GET("/stream/:id", handler.StreamVideo)

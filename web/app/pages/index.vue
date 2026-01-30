@@ -1,20 +1,15 @@
 <script setup lang="ts">
-const store = useVideoStore();
+const homepageStore = useHomepageStore();
 
 useHead({ title: 'Library' });
 
-// Initial load
-onMounted(() => {
-    store.loadVideos();
+onMounted(async () => {
+    await homepageStore.loadHomepage();
 });
 
-// Watch page changes
-watch(
-    () => store.currentPage,
-    (newPage) => {
-        store.loadVideos(newPage);
-    },
-);
+const handleRefreshSection = async (sectionId: string) => {
+    await homepageStore.refreshSection(sectionId);
+};
 
 definePageMeta({
     middleware: ['auth'],
@@ -25,33 +20,37 @@ definePageMeta({
     <div class="min-h-screen px-4 py-6 sm:px-5">
         <div class="mx-auto max-w-415">
             <!-- Upload Section -->
-            <VideoUpload />
+            <VideoUpload v-if="homepageStore.config?.show_upload !== false" />
 
-            <!-- Content Area -->
-            <div class="mt-8">
-                <div class="mb-4 flex items-center justify-between">
-                    <h2 class="text-sm font-semibold tracking-wide text-white uppercase">
-                        Library
-                    </h2>
-                    <span
-                        class="border-border bg-panel text-dim rounded-full border px-2.5 py-0.5
-                            font-mono text-[11px]"
-                    >
-                        {{ store.total }} videos
-                    </span>
-                </div>
+            <!-- Loading State -->
+            <div
+                v-if="homepageStore.isLoading && !homepageStore.config"
+                class="mt-8 flex h-64 items-center justify-center"
+            >
+                <LoadingSpinner label="Loading homepage..." />
+            </div>
 
-                <!-- Loading State -->
-                <div
-                    v-if="store.isLoading && store.videos.length === 0"
-                    class="flex h-64 items-center justify-center"
-                >
-                    <LoadingSpinner label="Loading library..." />
-                </div>
+            <!-- Error State -->
+            <div
+                v-else-if="homepageStore.error"
+                class="border-lava/20 bg-lava/5 text-lava mt-8 rounded-lg border px-4 py-3 text-sm"
+            >
+                {{ homepageStore.error }}
+            </div>
+
+            <!-- Dynamic Sections -->
+            <div v-else class="mt-8">
+                <HomepageSection
+                    v-for="section in homepageStore.enabledSections"
+                    :key="section.id"
+                    :section="section"
+                    :data="homepageStore.getSectionData(section.id)"
+                    @refresh="handleRefreshSection"
+                />
 
                 <!-- Empty State -->
                 <div
-                    v-else-if="store.videos.length === 0"
+                    v-if="homepageStore.enabledSections.length === 0 && homepageStore.config"
                     class="border-border flex h-64 flex-col items-center justify-center rounded-xl
                         border border-dashed text-center"
                 >
@@ -59,21 +58,16 @@ definePageMeta({
                         class="bg-panel border-border flex h-10 w-10 items-center justify-center
                             rounded-lg border"
                     >
-                        <Icon name="heroicons:film" size="20" class="text-dim" />
+                        <Icon name="heroicons:squares-2x2" size="20" class="text-dim" />
                     </div>
-                    <p class="text-muted mt-3 text-sm">No videos yet</p>
-                    <p class="text-dim mt-1 text-xs">Upload your first video to get started</p>
-                </div>
-
-                <!-- Video Grid -->
-                <div v-else>
-                    <VideoGrid :videos="store.videos" />
-
-                    <Pagination
-                        v-model="store.currentPage"
-                        :total="store.total"
-                        :limit="store.limit"
-                    />
+                    <p class="text-muted mt-3 text-sm">No sections configured</p>
+                    <p class="text-dim mt-1 text-xs">
+                        Go to
+                        <NuxtLink to="/settings?tab=homepage" class="text-lava hover:underline">
+                            Settings
+                        </NuxtLink>
+                        to customize your homepage
+                    </p>
                 </div>
             </div>
         </div>

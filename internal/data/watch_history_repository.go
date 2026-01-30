@@ -13,8 +13,10 @@ type WatchHistoryRepository interface {
 	GetLastWatch(userID, videoID uint) (*UserVideoWatch, error)
 	ListUserHistory(userID uint, page, limit int) ([]UserVideoWatch, int64, error)
 	ListVideoWatches(userID, videoID uint, limit int) ([]UserVideoWatch, error)
-	HasViewedWithin24Hours(userID, videoID uint) (bool, error)
-	IncrementVideoViewCount(videoID uint) error
+	// TryIncrementViewCount atomically checks if a view should be counted (not counted in last 24h)
+	// and increments the video view count if so. Returns true if the count was incremented.
+	// This prevents race conditions from concurrent requests.
+	TryIncrementViewCount(userID, videoID uint) (bool, error)
 }
 
 type WatchHistoryRepositoryImpl struct {
@@ -132,21 +134,44 @@ func (r *WatchHistoryRepositoryImpl) ListVideoWatches(userID, videoID uint, limi
 	return watches, nil
 }
 
-func (r *WatchHistoryRepositoryImpl) HasViewedWithin24Hours(userID, videoID uint) (bool, error) {
-	var count int64
-	cutoff := time.Now().UTC().Add(-24 * time.Hour)
-	err := r.DB.Model(&UserVideoWatch{}).
-		Where("user_id = ? AND video_id = ? AND watched_at > ?", userID, videoID, cutoff).
-		Count(&count).Error
-	if err != nil {
-		return false, err
-	}
-	return count > 0, nil
-}
+// TryIncrementViewCount atomically checks if the user has had a view counted in the last 24 hours.
+// If not, it records the view and increments the video's view count.
+// Returns true if the view count was incremented, false if already counted recently.
+// Uses a single transaction with INSERT ON CONFLICT to prevent race conditions.
+func (r *WatchHistoryRepositoryImpl) TryIncrementViewCount(userID, videoID uint) (bool, error) {
+	var incremented bool
 
-func (r *WatchHistoryRepositoryImpl) IncrementVideoViewCount(videoID uint) error {
-	return r.DB.Model(&Video{}).Where("id = ?", videoID).
-		UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error
+	err := r.DB.Transaction(func(tx *gorm.DB) error {
+		now := time.Now().UTC()
+		cutoff := now.Add(-24 * time.Hour)
+
+		// Atomic upsert: insert new record or update if last_counted_at > 24h ago
+		// Using raw SQL for the atomic ON CONFLICT with WHERE clause
+		result := tx.Exec(`
+			INSERT INTO user_video_view_counts (user_id, video_id, last_counted_at, created_at)
+			VALUES (?, ?, ?, ?)
+			ON CONFLICT (user_id, video_id) DO UPDATE
+			SET last_counted_at = EXCLUDED.last_counted_at
+			WHERE user_video_view_counts.last_counted_at < ?
+		`, userID, videoID, now, now, cutoff)
+
+		if result.Error != nil {
+			return result.Error
+		}
+
+		// If a row was affected (inserted or updated), increment the view count
+		if result.RowsAffected > 0 {
+			if err := tx.Model(&Video{}).Where("id = ?", videoID).
+				UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error; err != nil {
+				return err
+			}
+			incremented = true
+		}
+
+		return nil
+	})
+
+	return incremented, err
 }
 
 var _ WatchHistoryRepository = (*WatchHistoryRepositoryImpl)(nil)

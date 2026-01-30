@@ -1,7 +1,19 @@
+// Lightweight actor for list views
+export interface ActorListItem {
+    id: number;
+    uuid: string;
+    name: string;
+    image_url: string;
+    gender: string;
+    video_count: number;
+}
+
+// Full actor details for detail views
 export interface Actor {
     id: number;
     uuid: string;
     created_at: string;
+    updated_at: string;
     name: string;
     image_url?: string;
     gender?: string;
@@ -27,7 +39,7 @@ export interface Actor {
 }
 
 export interface ActorListResponse {
-    data: Actor[];
+    data: ActorListItem[];
     total: number;
     page: number;
     limit: number;

@@ -14,19 +14,12 @@ export default defineNuxtConfig({
 
     vue: {
         compilerOptions: {
-            isCustomElement: (tag) => 
-                tag.startsWith('media-') || 
-                tag === 'videojs-video' || 
-                tag === 'media-theme',
+            isCustomElement: (tag) =>
+                tag.startsWith('media-') || tag === 'videojs-video' || tag === 'media-theme',
         },
     },
 
-    modules: [
-        '@nuxt/eslint',
-        '@pinia/nuxt',
-        '@nuxt/icon',
-        '@pinia-plugin-persistedstate/nuxt',
-    ],
+    modules: ['@nuxt/eslint', '@pinia/nuxt', '@nuxt/icon', '@pinia-plugin-persistedstate/nuxt'],
 
     css: ['./app/assets/css/main.css'],
 
@@ -68,5 +61,12 @@ export default defineNuxtConfig({
                 },
             },
         },
+    },
+
+    imports: {
+        dirs: [
+            // Scan all subdirectories of composables/
+            'composables/**',
+        ],
     },
 });

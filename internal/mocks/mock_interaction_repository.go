@@ -158,6 +158,21 @@ func (mr *MockInteractionRepositoryMockRecorder) GetRating(userID, videoID any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRating", reflect.TypeOf((*MockInteractionRepository)(nil).GetRating), userID, videoID)
 }
 
+// GetRatingsByVideoIDs mocks base method.
+func (m *MockInteractionRepository) GetRatingsByVideoIDs(userID uint, videoIDs []uint) (map[uint]float64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRatingsByVideoIDs", userID, videoIDs)
+	ret0, _ := ret[0].(map[uint]float64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetRatingsByVideoIDs indicates an expected call of GetRatingsByVideoIDs.
+func (mr *MockInteractionRepositoryMockRecorder) GetRatingsByVideoIDs(userID, videoIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRatingsByVideoIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetRatingsByVideoIDs), userID, videoIDs)
+}
+
 // IncrementJizzed mocks base method.
 func (m *MockInteractionRepository) IncrementJizzed(userID, videoID uint) (int, error) {
 	m.ctrl.T.Helper()

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Actor } from '~/types/actor';
+import type { Actor, ActorListItem } from '~/types/actor';
 
 useHead({ title: 'Actors' });
 
@@ -7,7 +7,7 @@ const api = useApi();
 const router = useRouter();
 const authStore = useAuthStore();
 
-const actors = ref<Actor[]>([]);
+const actors = ref<ActorListItem[]>([]);
 const total = ref(0);
 const currentPage = ref(1);
 const limit = ref(20);

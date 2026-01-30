@@ -72,3 +72,17 @@ type ActorInteractions struct {
 	Rating float64
 	Liked  bool
 }
+
+// UserVideoViewCount tracks when view counts were last incremented per user+video
+// Used for atomic 24-hour deduplication to prevent race conditions
+type UserVideoViewCount struct {
+	ID            uint      `gorm:"primarykey" json:"id"`
+	UserID        uint      `gorm:"not null" json:"user_id"`
+	VideoID       uint      `gorm:"not null" json:"video_id"`
+	LastCountedAt time.Time `gorm:"not null;default:now()" json:"last_counted_at"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+func (UserVideoViewCount) TableName() string {
+	return "user_video_view_counts"
+}

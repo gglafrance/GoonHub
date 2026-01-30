@@ -105,6 +105,26 @@ const authStore = useAuthStore();
                         <Icon name="heroicons:user-group" size="14" />
                         <span>Actors</span>
                     </NuxtLink>
+
+                    <NuxtLink
+                        to="/studios"
+                        class="text-dim flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px]
+                            font-medium transition-all hover:bg-white/5 hover:text-white"
+                        active-class="!text-lava bg-lava/10"
+                    >
+                        <Icon name="heroicons:building-office-2" size="14" />
+                        <span>Studios</span>
+                    </NuxtLink>
+
+                    <NuxtLink
+                        to="/explorer"
+                        class="text-dim flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px]
+                            font-medium transition-all hover:bg-white/5 hover:text-white"
+                        active-class="!text-lava bg-lava/10"
+                    >
+                        <Icon name="heroicons:folder" size="14" />
+                        <span>Explorer</span>
+                    </NuxtLink>
                 </div>
             </div>
         </nav>
