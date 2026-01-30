@@ -17,6 +17,7 @@ type ActorRepository interface {
 
 	// Video associations
 	GetVideoActors(videoID uint) ([]Actor, error)
+	GetVideoActorsMultiple(videoIDs []uint) (map[uint][]Actor, error)
 	SetVideoActors(videoID uint, actorIDs []uint) error
 	GetActorVideos(actorID uint, page, limit int) ([]Video, int64, error)
 	GetVideoCount(actorID uint) (int64, error)
@@ -152,6 +153,43 @@ func (r *ActorRepositoryImpl) GetVideoActors(videoID uint) ([]Actor, error) {
 		return nil, err
 	}
 	return actors, nil
+}
+
+// GetVideoActorsMultiple returns actors for multiple videos in a single query
+func (r *ActorRepositoryImpl) GetVideoActorsMultiple(videoIDs []uint) (map[uint][]Actor, error) {
+	if len(videoIDs) == 0 {
+		return make(map[uint][]Actor), nil
+	}
+
+	// Query all video_actors for the given videos with their actors
+	type videoActorResult struct {
+		VideoID uint
+		Actor
+	}
+
+	var results []videoActorResult
+	err := r.DB.
+		Table("video_actors").
+		Select("video_actors.video_id, actors.*").
+		Joins("JOIN actors ON actors.id = video_actors.actor_id").
+		Where("video_actors.video_id IN ?", videoIDs).
+		Where("actors.deleted_at IS NULL").
+		Order("actors.name asc").
+		Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Group by video ID
+	actorsByVideo := make(map[uint][]Actor)
+	for _, videoID := range videoIDs {
+		actorsByVideo[videoID] = []Actor{}
+	}
+	for _, r := range results {
+		actorsByVideo[r.VideoID] = append(actorsByVideo[r.VideoID], r.Actor)
+	}
+
+	return actorsByVideo, nil
 }
 
 func (r *ActorRepositoryImpl) SetVideoActors(videoID uint, actorIDs []uint) error {

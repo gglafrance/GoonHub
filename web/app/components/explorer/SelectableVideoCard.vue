@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { Video } from '~/types/video';
+import type { VideoListItem } from '~/types/video';
 
 const props = defineProps<{
-    video: Video;
+    video: VideoListItem;
 }>();
 
 const explorerStore = useExplorerStore();
@@ -44,7 +44,8 @@ const handleCardClick = (event: MouseEvent) => {
             :class="
                 isSelected
                     ? 'bg-lava border-lava text-white'
-                    : 'border-white/30 bg-void/60 text-transparent hover:border-white/50 group-hover:text-white/50'
+                    : `bg-void/60 border-white/30 text-transparent group-hover:text-white/50
+                        hover:border-white/50`
             "
         >
             <Icon name="heroicons:check" size="12" />
@@ -95,13 +96,13 @@ const handleCardClick = (event: MouseEvent) => {
                 <!-- Selected overlay -->
                 <div
                     v-if="isSelected"
-                    class="bg-lava/10 absolute inset-0 pointer-events-none"
+                    class="bg-lava/10 pointer-events-none absolute inset-0"
                 ></div>
 
                 <!-- Hover overlay -->
                 <div
-                    class="bg-lava/0 group-hover:bg-lava/5 absolute inset-0 transition-colors
-                        duration-200 pointer-events-none"
+                    class="bg-lava/0 group-hover:bg-lava/5 pointer-events-none absolute inset-0
+                        transition-colors duration-200"
                 ></div>
             </div>
 
@@ -113,7 +114,9 @@ const handleCardClick = (event: MouseEvent) => {
                 >
                     {{ video.title }}
                 </h3>
-                <div class="text-dim mt-1.5 flex items-center justify-between font-mono text-[10px]">
+                <div
+                    class="text-dim mt-1.5 flex items-center justify-between font-mono text-[10px]"
+                >
                     <span>{{ formatSize(video.size) }}</span>
                     <NuxtTime :datetime="video.created_at" format="short" />
                 </div>

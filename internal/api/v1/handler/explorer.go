@@ -65,7 +65,7 @@ func (h *ExplorerHandler) GetFolderContents(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, contents)
+	response.OK(c, response.ToFolderContentsResponse(contents))
 }
 
 // BulkUpdateTags updates tags for multiple videos
@@ -206,5 +206,5 @@ func (h *ExplorerHandler) SearchInFolder(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, result)
+	response.OK(c, response.ToFolderSearchResponse(result))
 }

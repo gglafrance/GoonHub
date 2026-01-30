@@ -95,6 +95,7 @@ func (c *Client) EnsureIndex() error {
 		"created_at",
 		"title",
 		"duration",
+		"view_count",
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update sortable attributes: %w", err)
@@ -302,6 +303,8 @@ func (c *Client) buildSort(params SearchParams) []string {
 		sortField = "title"
 	case "duration", "length":
 		sortField = "duration"
+	case "view_count", "views":
+		sortField = "view_count"
 	default:
 		// For relevance or unknown, don't specify sort (use default ranking)
 		return nil

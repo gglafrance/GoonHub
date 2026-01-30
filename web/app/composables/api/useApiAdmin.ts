@@ -77,6 +77,23 @@ export const useApiAdmin = () => {
         return handleResponse(response);
     };
 
+    const getSearchStatus = async () => {
+        const response = await fetch('/api/v1/admin/search/status', {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const triggerReindex = async () => {
+        const response = await fetch('/api/v1/admin/search/reindex', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
     return {
         fetchAdminUsers,
         createUser,
@@ -86,5 +103,7 @@ export const useApiAdmin = () => {
         fetchRoles,
         fetchPermissions,
         syncRolePermissions,
+        getSearchStatus,
+        triggerReindex,
     };
 };

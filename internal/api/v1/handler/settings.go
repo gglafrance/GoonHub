@@ -1,12 +1,14 @@
 package handler
 
 import (
-	"goonhub/internal/api/middleware"
-	"goonhub/internal/api/v1/request"
-	"goonhub/internal/core"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"goonhub/internal/api/middleware"
+	"goonhub/internal/api/v1/request"
+	"goonhub/internal/core"
+	"goonhub/internal/data"
 )
 
 type SettingsHandler struct {
@@ -141,4 +143,65 @@ func (h *SettingsHandler) ChangeUsername(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Username changed successfully"})
+}
+
+func (h *SettingsHandler) GetHomepageConfig(c *gin.Context) {
+	userPayload, err := middleware.GetUserFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	config, err := h.SettingsService.GetHomepageConfig(userPayload.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch homepage config"})
+		return
+	}
+
+	c.JSON(http.StatusOK, config)
+}
+
+func (h *SettingsHandler) UpdateHomepageConfig(c *gin.Context) {
+	userPayload, err := middleware.GetUserFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	var req request.UpdateHomepageConfigRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// Convert request to data model
+	config := h.convertRequestToConfig(req)
+
+	settings, err := h.SettingsService.UpdateHomepageConfig(userPayload.UserID, config)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, settings.HomepageConfig)
+}
+
+func (h *SettingsHandler) convertRequestToConfig(req request.UpdateHomepageConfigRequest) data.HomepageConfig {
+	sections := make([]data.HomepageSection, len(req.Sections))
+	for i, s := range req.Sections {
+		sections[i] = data.HomepageSection{
+			ID:      s.ID,
+			Type:    s.Type,
+			Title:   s.Title,
+			Enabled: s.Enabled,
+			Limit:   s.Limit,
+			Order:   s.Order,
+			Sort:    s.Sort,
+			Config:  s.Config,
+		}
+	}
+	return data.HomepageConfig{
+		ShowUpload: req.ShowUpload,
+		Sections:   sections,
+	}
 }

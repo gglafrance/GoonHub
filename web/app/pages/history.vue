@@ -12,6 +12,9 @@ const total = ref(0);
 const page = ref(1);
 const limit = 20;
 
+// Filter out entries where video was deleted
+const validEntries = computed(() => entries.value.filter((e) => e.video));
+
 const loadHistory = async (newPage = 1) => {
     isLoading.value = true;
     try {
@@ -26,15 +29,12 @@ const loadHistory = async (newPage = 1) => {
     }
 };
 
-const getThumbnailUrl = (entry: WatchHistoryEntry): string | null => {
-    if (!entry.video?.thumbnail_path) return null;
-    return `/thumbnails/${entry.video.id}`;
-};
-
-const getProgressPercentage = (entry: WatchHistoryEntry): number => {
-    if (!entry.video?.duration || entry.video.duration === 0) return 0;
-    if (entry.watch.completed) return 100;
-    return Math.min((entry.watch.last_position / entry.video.duration) * 100, 100);
+const getProgress = (entry: WatchHistoryEntry) => {
+    if (entry.watch.completed || !entry.video?.duration) return undefined;
+    return {
+        last_position: entry.watch.last_position,
+        duration: entry.video.duration,
+    };
 };
 
 watch(
@@ -113,90 +113,21 @@ definePageMeta({
             <!-- History Grid -->
             <div v-else>
                 <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                    <NuxtLink
-                        v-for="entry in entries"
+                    <VideoCard
+                        v-for="entry in validEntries"
                         :key="entry.watch.id"
-                        :to="`/watch/${entry.watch.video_id}`"
-                        class="group border-border bg-surface hover:border-border-hover
-                            hover:bg-elevated relative block overflow-hidden rounded-lg border
-                            transition-all duration-200"
+                        :video="entry.video!"
+                        :progress="getProgress(entry)"
+                        :completed="entry.watch.completed"
+                        fluid
                     >
-                        <div class="bg-void relative aspect-video w-full">
-                            <img
-                                v-if="getThumbnailUrl(entry)"
-                                :src="getThumbnailUrl(entry)!"
-                                class="absolute inset-0 h-full w-full object-contain
-                                    transition-transform duration-300 group-hover:scale-[1.03]"
-                                :alt="entry.video?.title || 'Video'"
-                                loading="lazy"
-                            />
-
-                            <div
-                                v-else
-                                class="text-dim group-hover:text-lava absolute inset-0 flex
-                                    items-center justify-center transition-colors"
-                            >
-                                <Icon name="heroicons:play" size="32" />
-                            </div>
-
-                            <!-- Duration badge -->
-                            <div
-                                v-if="entry.video?.duration && entry.video.duration > 0"
-                                class="bg-void/90 absolute right-1.5 bottom-1.5 rounded px-1.5
-                                    py-0.5 font-mono text-[10px] font-medium text-white
-                                    backdrop-blur-sm"
-                            >
-                                {{ formatDuration(entry.video.duration) }}
-                            </div>
-
-                            <!-- Completed badge -->
-                            <div
-                                v-if="entry.watch.completed"
-                                class="absolute top-1.5 right-1.5 rounded bg-emerald-500/90 px-1.5
-                                    py-0.5 text-[9px] font-semibold text-white backdrop-blur-sm"
-                            >
-                                Watched
-                            </div>
-
-                            <!-- Progress bar -->
-                            <div
-                                v-if="!entry.watch.completed && getProgressPercentage(entry) > 0"
-                                class="absolute right-0 bottom-0 left-0 h-0.5 bg-white/20"
-                            >
-                                <div
-                                    class="bg-lava h-full"
-                                    :style="{ width: `${getProgressPercentage(entry)}%` }"
-                                ></div>
-                            </div>
-
-                            <!-- Hover overlay -->
-                            <div
-                                class="bg-lava/0 group-hover:bg-lava/5 absolute inset-0
-                                    transition-colors duration-200"
-                            ></div>
-                        </div>
-
-                        <div class="p-3">
-                            <h3
-                                class="truncate text-xs font-medium text-white/90 transition-colors
-                                    group-hover:text-white"
-                                :title="entry.video?.title"
-                            >
-                                {{ entry.video?.title || 'Unknown Video' }}
-                            </h3>
-                            <div
-                                class="text-dim mt-1.5 flex items-center justify-between font-mono
-                                    text-[10px]"
-                            >
-                                <NuxtTime :datetime="new Date(entry.watch.watched_at)" relative />
-                                <span
-                                    v-if="!entry.watch.completed && entry.watch.last_position > 0"
-                                >
-                                    {{ formatDuration(entry.watch.last_position) }}
-                                </span>
-                            </div>
-                        </div>
-                    </NuxtLink>
+                        <template #footer>
+                            <NuxtTime :datetime="new Date(entry.watch.watched_at)" relative />
+                            <span v-if="!entry.watch.completed && entry.watch.last_position > 0">
+                                {{ formatDuration(entry.watch.last_position) }}
+                            </span>
+                        </template>
+                    </VideoCard>
                 </div>
 
                 <Pagination v-model="page" :total="total" :limit="limit" />

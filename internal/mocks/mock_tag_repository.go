@@ -155,6 +155,21 @@ func (mr *MockTagRepositoryMockRecorder) GetByNames(names any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByNames", reflect.TypeOf((*MockTagRepository)(nil).GetByNames), names)
 }
 
+// GetIDsByNames mocks base method.
+func (m *MockTagRepository) GetIDsByNames(names []string) ([]uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetIDsByNames", names)
+	ret0, _ := ret[0].([]uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetIDsByNames indicates an expected call of GetIDsByNames.
+func (mr *MockTagRepositoryMockRecorder) GetIDsByNames(names any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIDsByNames", reflect.TypeOf((*MockTagRepository)(nil).GetIDsByNames), names)
+}
+
 // GetVideoTags mocks base method.
 func (m *MockTagRepository) GetVideoTags(videoID uint) ([]data.Tag, error) {
 	m.ctrl.T.Helper()

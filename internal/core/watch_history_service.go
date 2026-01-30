@@ -12,13 +12,15 @@ import (
 type WatchHistoryService struct {
 	repo      data.WatchHistoryRepository
 	videoRepo data.VideoRepository
+	indexer   VideoIndexer
 	logger    *zap.Logger
 }
 
-func NewWatchHistoryService(repo data.WatchHistoryRepository, videoRepo data.VideoRepository, logger *zap.Logger) *WatchHistoryService {
+func NewWatchHistoryService(repo data.WatchHistoryRepository, videoRepo data.VideoRepository, indexer VideoIndexer, logger *zap.Logger) *WatchHistoryService {
 	return &WatchHistoryService{
 		repo:      repo,
 		videoRepo: videoRepo,
+		indexer:   indexer,
 		logger:    logger,
 	}
 }
@@ -28,7 +30,8 @@ type WatchHistoryEntry struct {
 	Video *data.Video         `json:"video,omitempty"`
 }
 
-// RecordWatch records a watch event and increments view count if not viewed in last 24h
+// RecordWatch records a watch event and increments view count if not viewed in last 24h.
+// Uses atomic database operations to prevent race conditions from concurrent requests.
 func (s *WatchHistoryService) RecordWatch(userID, videoID uint, duration, position int, completed bool) error {
 	// Verify video exists
 	_, err := s.videoRepo.GetByID(videoID)
@@ -39,18 +42,7 @@ func (s *WatchHistoryService) RecordWatch(userID, videoID uint, duration, positi
 		return fmt.Errorf("failed to verify video: %w", err)
 	}
 
-	// Check if user has viewed this video in the last 24 hours
-	hasViewed, err := s.repo.HasViewedWithin24Hours(userID, videoID)
-	if err != nil {
-		s.logger.Error("Failed to check view history",
-			zap.Uint("user_id", userID),
-			zap.Uint("video_id", videoID),
-			zap.Error(err),
-		)
-		return err
-	}
-
-	// Record the watch
+	// Record the watch session
 	if err := s.repo.RecordWatch(userID, videoID, duration, position, completed); err != nil {
 		s.logger.Error("Failed to record watch",
 			zap.Uint("user_id", userID),
@@ -60,19 +52,30 @@ func (s *WatchHistoryService) RecordWatch(userID, videoID uint, duration, positi
 		return err
 	}
 
-	// Increment view count if not viewed in last 24h
-	if !hasViewed {
-		if err := s.repo.IncrementVideoViewCount(videoID); err != nil {
-			s.logger.Warn("Failed to increment view count",
-				zap.Uint("video_id", videoID),
-				zap.Error(err),
-			)
-			// Don't fail the request for this
-		} else {
-			s.logger.Debug("Incremented view count",
-				zap.Uint("video_id", videoID),
-				zap.Uint("user_id", userID),
-			)
+	// Atomically try to increment view count (handles 24h deduplication)
+	incremented, err := s.repo.TryIncrementViewCount(userID, videoID)
+	if err != nil {
+		s.logger.Warn("Failed to increment view count",
+			zap.Uint("video_id", videoID),
+			zap.Error(err),
+		)
+		// Don't fail the request for this
+	} else if incremented {
+		s.logger.Debug("Incremented view count",
+			zap.Uint("video_id", videoID),
+			zap.Uint("user_id", userID),
+		)
+		// Update search index with new view count
+		if s.indexer != nil {
+			video, err := s.videoRepo.GetByID(videoID)
+			if err == nil {
+				if err := s.indexer.UpdateVideoIndex(video); err != nil {
+					s.logger.Warn("Failed to update video in search index after view count increment",
+						zap.Uint("video_id", videoID),
+						zap.Error(err),
+					)
+				}
+			}
 		}
 	}
 

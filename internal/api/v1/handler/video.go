@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/request"
+	"goonhub/internal/api/v1/response"
 	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
 	"goonhub/internal/data"
@@ -158,7 +159,7 @@ func (h *VideoHandler) ListVideos(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":  videos,
+		"data":  response.ToVideoListItems(videos),
 		"total": total,
 		"page":  req.Page,
 		"limit": req.Limit,

@@ -3,6 +3,7 @@ package handler
 import (
 	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/request"
+	"goonhub/internal/api/v1/response"
 	"goonhub/internal/core"
 	"net/http"
 	"strconv"
@@ -133,7 +134,7 @@ func (h *WatchHistoryHandler) GetUserHistory(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"entries": entries,
+		"entries": response.ToWatchHistoryEntriesResponse(entries),
 		"total":   total,
 		"page":    page,
 		"limit":   limit,

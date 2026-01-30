@@ -16,6 +16,7 @@ type TagRepository interface {
 	GetByID(id uint) (*Tag, error)
 	GetByIDs(ids []uint) ([]Tag, error)
 	GetByNames(names []string) ([]Tag, error)
+	GetIDsByNames(names []string) ([]uint, error)
 	Create(tag *Tag) error
 	Delete(id uint) error
 	GetVideoTags(videoID uint) ([]Tag, error)
@@ -88,6 +89,17 @@ func (r *TagRepositoryImpl) GetByNames(names []string) ([]Tag, error) {
 		return nil, err
 	}
 	return tags, nil
+}
+
+func (r *TagRepositoryImpl) GetIDsByNames(names []string) ([]uint, error) {
+	if len(names) == 0 {
+		return []uint{}, nil
+	}
+	var ids []uint
+	if err := r.DB.Model(&Tag{}).Where("name IN ?", names).Pluck("id", &ids).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 func (r *TagRepositoryImpl) Create(tag *Tag) error {

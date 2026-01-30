@@ -111,7 +111,7 @@ func (h *StudioHandler) GetStudioVideos(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":  videos,
+		"data":  response.ToVideoListItems(videos),
 		"total": total,
 		"page":  page,
 		"limit": limit,

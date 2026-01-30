@@ -32,6 +32,8 @@ type Server struct {
 	explorerService   *core.ExplorerService
 	retryScheduler    *core.RetryScheduler
 	dlqService        *core.DLQService
+	actorService      *core.ActorService
+	studioService     *core.StudioService
 	srv               *http.Server
 }
 
@@ -50,6 +52,8 @@ func NewHTTPServer(
 	explorerService *core.ExplorerService,
 	retryScheduler *core.RetryScheduler,
 	dlqService *core.DLQService,
+	actorService *core.ActorService,
+	studioService *core.StudioService,
 ) *Server {
 	return &Server{
 		router:            router,
@@ -66,6 +70,8 @@ func NewHTTPServer(
 		explorerService:   explorerService,
 		retryScheduler:    retryScheduler,
 		dlqService:        dlqService,
+		actorService:      actorService,
+		studioService:     studioService,
 	}
 }
 
@@ -91,6 +97,12 @@ func (s *Server) Start() error {
 		if s.explorerService != nil {
 			s.explorerService.SetIndexer(s.searchService)
 			s.explorerService.SetSearchService(s.searchService)
+		}
+		if s.actorService != nil {
+			s.actorService.SetIndexer(s.searchService)
+		}
+		if s.studioService != nil {
+			s.studioService.SetIndexer(s.searchService)
 		}
 		s.logger.Info("Search indexer wired to services")
 	}

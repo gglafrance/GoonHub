@@ -1,4 +1,4 @@
-import type { Video } from './video';
+import type { VideoListItem } from './video';
 
 export interface UserVideoWatch {
     id: number;
@@ -14,7 +14,7 @@ export interface UserVideoWatch {
 
 export interface WatchHistoryEntry {
     watch: UserVideoWatch;
-    video?: Video;
+    video?: VideoListItem;
 }
 
 export interface WatchHistoryResponse {

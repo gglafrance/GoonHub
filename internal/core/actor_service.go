@@ -281,8 +281,7 @@ func (s *ActorService) GetVideoActors(videoID uint) ([]data.Actor, error) {
 }
 
 func (s *ActorService) SetVideoActors(videoID uint, actorIDs []uint) ([]data.Actor, error) {
-	video, err := s.videoRepo.GetByID(videoID)
-	if err != nil {
+	if _, err := s.videoRepo.GetByID(videoID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, apperrors.ErrVideoNotFound(videoID)
 		}
@@ -293,17 +292,39 @@ func (s *ActorService) SetVideoActors(videoID uint, actorIDs []uint) ([]data.Act
 		return nil, apperrors.NewInternalError("failed to set video actors", err)
 	}
 
+	// Get actor names for the denormalized field
+	actors, err := s.actorRepo.GetVideoActors(videoID)
+	if err != nil {
+		return nil, apperrors.NewInternalError("failed to get video actors", err)
+	}
+
+	// Sync denormalized actors field on video
+	actorNames := make([]string, len(actors))
+	for i, actor := range actors {
+		actorNames[i] = actor.Name
+	}
+	if err := s.videoRepo.UpdateActors(videoID, actorNames); err != nil {
+		s.logger.Warn("Failed to update denormalized actors field",
+			zap.Uint("video_id", videoID),
+			zap.Error(err),
+		)
+	}
+
 	// Re-index video in search engine after actor changes
 	if s.indexer != nil {
-		if err := s.indexer.UpdateVideoIndex(video); err != nil {
-			s.logger.Warn("Failed to update video in search index after actor change",
-				zap.Uint("video_id", videoID),
-				zap.Error(err),
-			)
+		// Fetch fresh video with updated actors
+		video, err := s.videoRepo.GetByID(videoID)
+		if err == nil {
+			if err := s.indexer.UpdateVideoIndex(video); err != nil {
+				s.logger.Warn("Failed to update video in search index after actor change",
+					zap.Uint("video_id", videoID),
+					zap.Error(err),
+				)
+			}
 		}
 	}
 
-	return s.actorRepo.GetVideoActors(videoID)
+	return actors, nil
 }
 
 func (s *ActorService) GetActorVideos(actorID uint, page, limit int) ([]data.Video, int64, error) {

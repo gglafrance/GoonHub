@@ -277,6 +277,20 @@ func (mr *MockVideoRepositoryMockRecorder) Restore(id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restore", reflect.TypeOf((*MockVideoRepository)(nil).Restore), id)
 }
 
+// UpdateActors mocks base method.
+func (m *MockVideoRepository) UpdateActors(id uint, actors []string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateActors", id, actors)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateActors indicates an expected call of UpdateActors.
+func (mr *MockVideoRepositoryMockRecorder) UpdateActors(id, actors any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateActors", reflect.TypeOf((*MockVideoRepository)(nil).UpdateActors), id, actors)
+}
+
 // UpdateBasicMetadata mocks base method.
 func (m *MockVideoRepository) UpdateBasicMetadata(id uint, duration, width, height int, frameRate float64, bitRate int64, videoCodec, audioCodec string) error {
 	m.ctrl.T.Helper()

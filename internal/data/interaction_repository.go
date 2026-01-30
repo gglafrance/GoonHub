@@ -18,6 +18,7 @@ type InteractionRepository interface {
 	UpsertRating(userID, videoID uint, rating float64) error
 	DeleteRating(userID, videoID uint) error
 	GetRating(userID, videoID uint) (*UserVideoRating, error)
+	GetRatingsByVideoIDs(userID uint, videoIDs []uint) (map[uint]float64, error)
 	SetLike(userID, videoID uint) error
 	DeleteLike(userID, videoID uint) error
 	IsLiked(userID, videoID uint) (bool, error)
@@ -60,6 +61,24 @@ func (r *InteractionRepositoryImpl) GetRating(userID, videoID uint) (*UserVideoR
 		return nil, err
 	}
 	return &rating, nil
+}
+
+func (r *InteractionRepositoryImpl) GetRatingsByVideoIDs(userID uint, videoIDs []uint) (map[uint]float64, error) {
+	if len(videoIDs) == 0 {
+		return make(map[uint]float64), nil
+	}
+
+	var ratings []UserVideoRating
+	err := r.DB.Where("user_id = ? AND video_id IN ?", userID, videoIDs).Find(&ratings).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[uint]float64)
+	for _, r := range ratings {
+		result[r.VideoID] = r.Rating
+	}
+	return result, nil
 }
 
 func (r *InteractionRepositoryImpl) SetLike(userID, videoID uint) error {

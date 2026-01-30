@@ -23,3 +23,19 @@ type ChangePasswordRequest struct {
 type ChangeUsernameRequest struct {
 	Username string `json:"username" binding:"required,min=3"`
 }
+
+type UpdateHomepageConfigRequest struct {
+	ShowUpload bool                       `json:"show_upload"`
+	Sections   []HomepageSectionRequest   `json:"sections" binding:"required,dive"`
+}
+
+type HomepageSectionRequest struct {
+	ID      string                 `json:"id" binding:"required"`
+	Type    string                 `json:"type" binding:"required,oneof=latest actor studio tag saved_search continue_watching most_viewed liked"`
+	Title   string                 `json:"title" binding:"required,max=100"`
+	Enabled bool                   `json:"enabled"`
+	Limit   int                    `json:"limit" binding:"required,min=1,max=50"`
+	Order   int                    `json:"order" binding:"min=0"`
+	Sort    string                 `json:"sort"`
+	Config  map[string]interface{} `json:"config"`
+}

@@ -56,7 +56,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		return nil, err
 	}
 	interactionRepository := provideInteractionRepository(db)
-	searchService := provideSearchService(client, videoRepository, interactionRepository, tagRepository, logger)
+	actorRepository := provideActorRepository(db)
+	searchService := provideSearchService(client, videoRepository, interactionRepository, tagRepository, actorRepository, logger)
 	videoHandler := provideVideoHandler(videoService, videoProcessingService, tagService, searchService)
 	userRepository := provideUserRepository(db)
 	revokedTokenRepository := provideRevokedTokenRepository(db)
@@ -87,7 +88,6 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	retryConfigHandler := provideRetryConfigHandler(retryConfigRepository, retryScheduler)
 	sseHandler := provideSSEHandler(eventBus, authService, logger)
 	tagHandler := provideTagHandler(tagService)
-	actorRepository := provideActorRepository(db)
 	actorService := provideActorService(actorRepository, videoRepository, logger)
 	actorHandler := provideActorHandler(actorService, configConfig)
 	studioRepository := provideStudioRepository(db)
@@ -103,7 +103,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	studioInteractionHandler := provideStudioInteractionHandler(studioInteractionService, studioRepository)
 	searchHandler := provideSearchHandler(searchService)
 	watchHistoryRepository := provideWatchHistoryRepository(db)
-	watchHistoryService := provideWatchHistoryService(watchHistoryRepository, videoRepository, logger)
+	watchHistoryService := provideWatchHistoryService(watchHistoryRepository, videoRepository, searchService, logger)
 	watchHistoryHandler := provideWatchHistoryHandler(watchHistoryService)
 	storagePathRepository := provideStoragePathRepository(db)
 	storagePathService := provideStoragePathService(storagePathRepository, logger)
@@ -119,9 +119,11 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	savedSearchRepository := provideSavedSearchRepository(db)
 	savedSearchService := provideSavedSearchService(savedSearchRepository, logger)
 	savedSearchHandler := provideSavedSearchHandler(savedSearchService)
+	homepageService := provideHomepageService(settingsService, searchService, savedSearchService, watchHistoryRepository, interactionRepository, videoRepository, tagRepository, actorRepository, studioRepository, logger)
+	homepageHandler := provideHomepageHandler(homepageService)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, authService, rbacService, ipRateLimiter)
-	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService)
+	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, authService, rbacService, ipRateLimiter)
+	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService)
 	return serverServer, nil
 }
 
@@ -293,12 +295,12 @@ func provideStudioInteractionService(repo data.StudioInteractionRepository, logg
 	return core.NewStudioInteractionService(repo, logger.Logger)
 }
 
-func provideSearchService(meiliClient *meilisearch.Client, videoRepo data.VideoRepository, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, logger *logging.Logger) *core.SearchService {
-	return core.NewSearchService(meiliClient, videoRepo, interactionRepo, tagRepo, logger.Logger)
+func provideSearchService(meiliClient *meilisearch.Client, videoRepo data.VideoRepository, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, logger *logging.Logger) *core.SearchService {
+	return core.NewSearchService(meiliClient, videoRepo, interactionRepo, tagRepo, actorRepo, logger.Logger)
 }
 
-func provideWatchHistoryService(repo data.WatchHistoryRepository, videoRepo data.VideoRepository, logger *logging.Logger) *core.WatchHistoryService {
-	return core.NewWatchHistoryService(repo, videoRepo, logger.Logger)
+func provideWatchHistoryService(repo data.WatchHistoryRepository, videoRepo data.VideoRepository, searchService *core.SearchService, logger *logging.Logger) *core.WatchHistoryService {
+	return core.NewWatchHistoryService(repo, videoRepo, searchService, logger.Logger)
 }
 
 func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository) *core.VideoProcessingService {
@@ -339,6 +341,32 @@ func providePornDBService(cfg *config.Config, logger *logging.Logger) *core.Porn
 
 func provideSavedSearchService(repo data.SavedSearchRepository, logger *logging.Logger) *core.SavedSearchService {
 	return core.NewSavedSearchService(repo, logger.Logger)
+}
+
+func provideHomepageService(
+	settingsService *core.SettingsService,
+	searchService *core.SearchService,
+	savedSearchService *core.SavedSearchService,
+	watchHistoryRepo data.WatchHistoryRepository,
+	interactionRepo data.InteractionRepository,
+	videoRepo data.VideoRepository,
+	tagRepo data.TagRepository,
+	actorRepo data.ActorRepository,
+	studioRepo data.StudioRepository,
+	logger *logging.Logger,
+) *core.HomepageService {
+	return core.NewHomepageService(
+		settingsService,
+		searchService,
+		savedSearchService,
+		watchHistoryRepo,
+		interactionRepo,
+		videoRepo,
+		tagRepo,
+		actorRepo,
+		studioRepo,
+		logger.Logger,
+	)
 }
 
 func provideRateLimiter(cfg *config.Config) *middleware.IPRateLimiter {
@@ -443,6 +471,10 @@ func provideSavedSearchHandler(service *core.SavedSearchService) *handler.SavedS
 	return handler.NewSavedSearchHandler(service)
 }
 
+func provideHomepageHandler(homepageService *core.HomepageService) *handler.HomepageHandler {
+	return handler.NewHomepageHandler(homepageService)
+}
+
 func provideRouter(
 	logger *logging.Logger,
 	cfg *config.Config,
@@ -470,6 +502,7 @@ func provideRouter(
 	explorerHandler *handler.ExplorerHandler,
 	pornDBHandler *handler.PornDBHandler,
 	savedSearchHandler *handler.SavedSearchHandler,
+	homepageHandler *handler.HomepageHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -480,7 +513,7 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		explorerHandler, pornDBHandler, savedSearchHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, authService, rbacService, rateLimiter,
 	)
 }
 
@@ -499,10 +532,13 @@ func provideServer(
 	explorerService *core.ExplorerService,
 	retryScheduler *core.RetryScheduler,
 	dlqService *core.DLQService,
+	actorService *core.ActorService,
+	studioService *core.StudioService,
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, triggerScheduler,
 		videoService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
+		actorService, studioService,
 	)
 }

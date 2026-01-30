@@ -3,6 +3,7 @@ package data
 import (
 	"time"
 
+	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
@@ -80,6 +81,7 @@ type VideoRepository interface {
 	UpdateStoredPath(id uint, newPath string, storagePathID *uint) error
 	GetBySizeAndFilename(size int64, filename string) (*Video, error)
 	BulkUpdateStudio(videoIDs []uint, studio string) error
+	UpdateActors(id uint, actors []string) error
 }
 
 type VideoRepositoryImpl struct {
@@ -286,8 +288,14 @@ func (r *VideoRepositoryImpl) GetDistinctStudios() ([]string, error) {
 
 func (r *VideoRepositoryImpl) GetDistinctActors() ([]string, error) {
 	var actors []string
-	err := r.DB.Raw("SELECT DISTINCT unnest(actors) AS actor FROM videos WHERE deleted_at IS NULL ORDER BY actor ASC").
-		Scan(&actors).Error
+	// Get actor names from the actors table (those with at least one video)
+	err := r.DB.Raw(`
+		SELECT DISTINCT a.name
+		FROM actors a
+		INNER JOIN video_actors va ON va.actor_id = a.id
+		INNER JOIN videos v ON v.id = va.video_id AND v.deleted_at IS NULL
+		ORDER BY a.name ASC
+	`).Scan(&actors).Error
 	if err != nil {
 		return nil, err
 	}
@@ -348,6 +356,10 @@ func (r *VideoRepositoryImpl) BulkUpdateStudio(videoIDs []uint, studio string) e
 		return nil
 	}
 	return r.DB.Model(&Video{}).Where("id IN ?", videoIDs).Update("studio", studio).Error
+}
+
+func (r *VideoRepositoryImpl) UpdateActors(id uint, actors []string) error {
+	return r.DB.Model(&Video{}).Where("id = ?", id).Update("actors", pq.StringArray(actors)).Error
 }
 
 type UserRepositoryImpl struct {

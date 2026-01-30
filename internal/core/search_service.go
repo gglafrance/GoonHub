@@ -27,6 +27,7 @@ type SearchService struct {
 	videoRepo       data.VideoRepository
 	interactionRepo data.InteractionRepository
 	tagRepo         data.TagRepository
+	actorRepo       data.ActorRepository
 	logger          *zap.Logger
 }
 
@@ -36,6 +37,7 @@ func NewSearchService(
 	videoRepo data.VideoRepository,
 	interactionRepo data.InteractionRepository,
 	tagRepo data.TagRepository,
+	actorRepo data.ActorRepository,
 	logger *zap.Logger,
 ) *SearchService {
 	return &SearchService{
@@ -43,6 +45,7 @@ func NewSearchService(
 		videoRepo:       videoRepo,
 		interactionRepo: interactionRepo,
 		tagRepo:         tagRepo,
+		actorRepo:       actorRepo,
 		logger:          logger,
 	}
 }
@@ -232,12 +235,49 @@ func (s *SearchService) buildMeiliParams(params data.VideoSearchParams, preFilte
 	case "created_at_asc":
 		meiliParams.Sort = "created_at"
 		meiliParams.SortDir = "asc"
+	case "view_count_desc":
+		meiliParams.Sort = "view_count"
+		meiliParams.SortDir = "desc"
+	case "view_count_asc":
+		meiliParams.Sort = "view_count"
+		meiliParams.SortDir = "asc"
 	default:
 		meiliParams.Sort = "created_at"
 		meiliParams.SortDir = "desc"
 	}
 
 	return meiliParams
+}
+
+// buildVideoDocument creates a Meilisearch document from a video with its tags and actors.
+func buildVideoDocument(video *data.Video, tags []data.Tag, actors []data.Actor) meilisearch.VideoDocument {
+	tagIDs := make([]uint, len(tags))
+	tagNames := make([]string, len(tags))
+	for i, tag := range tags {
+		tagIDs[i] = tag.ID
+		tagNames[i] = tag.Name
+	}
+
+	actorNames := make([]string, len(actors))
+	for i, actor := range actors {
+		actorNames[i] = actor.Name
+	}
+
+	return meilisearch.VideoDocument{
+		ID:               video.ID,
+		Title:            video.Title,
+		OriginalFilename: video.OriginalFilename,
+		Description:      video.Description,
+		Studio:           video.Studio,
+		Actors:           actorNames,
+		TagIDs:           tagIDs,
+		TagNames:         tagNames,
+		Duration:         float64(video.Duration),
+		Height:           video.Height,
+		CreatedAt:        video.CreatedAt.Unix(),
+		ProcessingStatus: video.ProcessingStatus,
+		ViewCount:        int(video.ViewCount),
+	}
 }
 
 // IndexVideo adds or updates a video in the Meilisearch index.
@@ -251,29 +291,12 @@ func (s *SearchService) IndexVideo(video *data.Video) error {
 		s.logger.Warn("failed to get video tags for indexing", zap.Uint("video_id", video.ID), zap.Error(err))
 	}
 
-	tagIDs := make([]uint, len(tags))
-	tagNames := make([]string, len(tags))
-	for i, tag := range tags {
-		tagIDs[i] = tag.ID
-		tagNames[i] = tag.Name
+	actors, err := s.actorRepo.GetVideoActors(video.ID)
+	if err != nil {
+		s.logger.Warn("failed to get video actors for indexing", zap.Uint("video_id", video.ID), zap.Error(err))
 	}
 
-	doc := meilisearch.VideoDocument{
-		ID:               video.ID,
-		Title:            video.Title,
-		OriginalFilename: video.OriginalFilename,
-		Description:      video.Description,
-		Studio:           video.Studio,
-		Actors:           video.Actors,
-		TagIDs:           tagIDs,
-		TagNames:         tagNames,
-		Duration:         float64(video.Duration),
-		Height:           video.Height,
-		CreatedAt:        video.CreatedAt.Unix(),
-		ProcessingStatus: video.ProcessingStatus,
-	}
-
-	return s.meiliClient.IndexVideo(doc)
+	return s.meiliClient.IndexVideo(buildVideoDocument(video, tags, actors))
 }
 
 // UpdateVideoIndex updates a video in the Meilisearch index.
@@ -300,31 +323,17 @@ func (s *SearchService) BulkUpdateVideoIndex(videos []data.Video) error {
 		tagsByVideo = make(map[uint][]data.Tag)
 	}
 
+	// Fetch all actors for all videos in a single query
+	actorsByVideo, err := s.actorRepo.GetVideoActorsMultiple(videoIDs)
+	if err != nil {
+		s.logger.Warn("failed to get video actors for bulk indexing", zap.Error(err))
+		actorsByVideo = make(map[uint][]data.Actor)
+	}
+
 	// Build documents
 	docs := make([]meilisearch.VideoDocument, len(videos))
 	for i, video := range videos {
-		tags := tagsByVideo[video.ID]
-		tagIDs := make([]uint, len(tags))
-		tagNames := make([]string, len(tags))
-		for j, tag := range tags {
-			tagIDs[j] = tag.ID
-			tagNames[j] = tag.Name
-		}
-
-		docs[i] = meilisearch.VideoDocument{
-			ID:               video.ID,
-			Title:            video.Title,
-			OriginalFilename: video.OriginalFilename,
-			Description:      video.Description,
-			Studio:           video.Studio,
-			Actors:           video.Actors,
-			TagIDs:           tagIDs,
-			TagNames:         tagNames,
-			Duration:         float64(video.Duration),
-			Height:           video.Height,
-			CreatedAt:        video.CreatedAt.Unix(),
-			ProcessingStatus: video.ProcessingStatus,
-		}
+		docs[i] = buildVideoDocument(&video, tagsByVideo[video.ID], actorsByVideo[video.ID])
 	}
 
 	// Bulk index
@@ -364,34 +373,29 @@ func (s *SearchService) ReindexAll() error {
 		}
 		batch := videos[i:end]
 
-		docs := make([]meilisearch.VideoDocument, 0, len(batch))
-		for _, video := range batch {
-			tags, err := s.tagRepo.GetVideoTags(video.ID)
-			if err != nil {
-				s.logger.Warn("failed to get video tags for reindexing", zap.Uint("video_id", video.ID), zap.Error(err))
-			}
+		// Get video IDs for this batch
+		batchIDs := make([]uint, len(batch))
+		for j, v := range batch {
+			batchIDs[j] = v.ID
+		}
 
-			tagIDs := make([]uint, len(tags))
-			tagNames := make([]string, len(tags))
-			for j, tag := range tags {
-				tagIDs[j] = tag.ID
-				tagNames[j] = tag.Name
-			}
+		// Fetch all tags for this batch in a single query
+		tagsByVideo, err := s.tagRepo.GetVideoTagsMultiple(batchIDs)
+		if err != nil {
+			s.logger.Warn("failed to get video tags for reindexing batch", zap.Error(err))
+			tagsByVideo = make(map[uint][]data.Tag)
+		}
 
-			docs = append(docs, meilisearch.VideoDocument{
-				ID:               video.ID,
-				Title:            video.Title,
-				OriginalFilename: video.OriginalFilename,
-				Description:      video.Description,
-				Studio:           video.Studio,
-				Actors:           video.Actors,
-				TagIDs:           tagIDs,
-				TagNames:         tagNames,
-				Duration:         float64(video.Duration),
-				Height:           video.Height,
-				CreatedAt:        video.CreatedAt.Unix(),
-				ProcessingStatus: video.ProcessingStatus,
-			})
+		// Fetch all actors for this batch in a single query
+		actorsByVideo, err := s.actorRepo.GetVideoActorsMultiple(batchIDs)
+		if err != nil {
+			s.logger.Warn("failed to get video actors for reindexing batch", zap.Error(err))
+			actorsByVideo = make(map[uint][]data.Actor)
+		}
+
+		docs := make([]meilisearch.VideoDocument, len(batch))
+		for i, video := range batch {
+			docs[i] = buildVideoDocument(&video, tagsByVideo[video.ID], actorsByVideo[video.ID])
 		}
 
 		if err := s.meiliClient.BulkIndex(docs); err != nil {

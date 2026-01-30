@@ -55,16 +55,7 @@ const handleSavePlayer = async () => {
                         <div class="text-sm text-white">Autoplay</div>
                         <div class="text-dim text-xs">Automatically play videos when opened</div>
                     </div>
-                    <button
-                        @click="playerAutoplay = !playerAutoplay"
-                        class="relative h-5 w-9 rounded-full transition-colors"
-                        :class="playerAutoplay ? 'bg-emerald' : 'bg-border'"
-                    >
-                        <div
-                            class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform"
-                            :class="playerAutoplay ? 'translate-x-4' : 'translate-x-0.5'"
-                        ></div>
-                    </button>
+                    <UiToggle v-model="playerAutoplay" />
                 </div>
 
                 <!-- Loop Toggle -->
@@ -73,16 +64,7 @@ const handleSavePlayer = async () => {
                         <div class="text-sm text-white">Loop</div>
                         <div class="text-dim text-xs">Loop videos when they finish</div>
                     </div>
-                    <button
-                        @click="playerLoop = !playerLoop"
-                        class="relative h-5 w-9 rounded-full transition-colors"
-                        :class="playerLoop ? 'bg-emerald' : 'bg-border'"
-                    >
-                        <div
-                            class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform"
-                            :class="playerLoop ? 'translate-x-4' : 'translate-x-0.5'"
-                        ></div>
-                    </button>
+                    <UiToggle v-model="playerLoop" />
                 </div>
 
                 <!-- Volume Slider -->

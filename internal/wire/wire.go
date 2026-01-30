@@ -119,6 +119,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Saved Search Service
 		provideSavedSearchService,
 
+		// Homepage Service
+		provideHomepageService,
+
 		// ============================================================
 		// API LAYER - MIDDLEWARE
 		// ============================================================
@@ -163,6 +166,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Saved Search Handler
 		provideSavedSearchHandler,
+
+		// Homepage Handler
+		provideHomepageHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -365,12 +371,12 @@ func provideStudioInteractionService(repo data.StudioInteractionRepository, logg
 	return core.NewStudioInteractionService(repo, logger.Logger)
 }
 
-func provideSearchService(meiliClient *meilisearch.Client, videoRepo data.VideoRepository, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, logger *logging.Logger) *core.SearchService {
-	return core.NewSearchService(meiliClient, videoRepo, interactionRepo, tagRepo, logger.Logger)
+func provideSearchService(meiliClient *meilisearch.Client, videoRepo data.VideoRepository, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, logger *logging.Logger) *core.SearchService {
+	return core.NewSearchService(meiliClient, videoRepo, interactionRepo, tagRepo, actorRepo, logger.Logger)
 }
 
-func provideWatchHistoryService(repo data.WatchHistoryRepository, videoRepo data.VideoRepository, logger *logging.Logger) *core.WatchHistoryService {
-	return core.NewWatchHistoryService(repo, videoRepo, logger.Logger)
+func provideWatchHistoryService(repo data.WatchHistoryRepository, videoRepo data.VideoRepository, searchService *core.SearchService, logger *logging.Logger) *core.WatchHistoryService {
+	return core.NewWatchHistoryService(repo, videoRepo, searchService, logger.Logger)
 }
 
 // --- Processing & Job Services ---
@@ -417,6 +423,32 @@ func providePornDBService(cfg *config.Config, logger *logging.Logger) *core.Porn
 
 func provideSavedSearchService(repo data.SavedSearchRepository, logger *logging.Logger) *core.SavedSearchService {
 	return core.NewSavedSearchService(repo, logger.Logger)
+}
+
+func provideHomepageService(
+	settingsService *core.SettingsService,
+	searchService *core.SearchService,
+	savedSearchService *core.SavedSearchService,
+	watchHistoryRepo data.WatchHistoryRepository,
+	interactionRepo data.InteractionRepository,
+	videoRepo data.VideoRepository,
+	tagRepo data.TagRepository,
+	actorRepo data.ActorRepository,
+	studioRepo data.StudioRepository,
+	logger *logging.Logger,
+) *core.HomepageService {
+	return core.NewHomepageService(
+		settingsService,
+		searchService,
+		savedSearchService,
+		watchHistoryRepo,
+		interactionRepo,
+		videoRepo,
+		tagRepo,
+		actorRepo,
+		studioRepo,
+		logger.Logger,
+	)
 }
 
 // ============================================================================
@@ -539,6 +571,10 @@ func provideSavedSearchHandler(service *core.SavedSearchService) *handler.SavedS
 	return handler.NewSavedSearchHandler(service)
 }
 
+func provideHomepageHandler(homepageService *core.HomepageService) *handler.HomepageHandler {
+	return handler.NewHomepageHandler(homepageService)
+}
+
 // ============================================================================
 // ROUTER & SERVER PROVIDERS
 // ============================================================================
@@ -570,6 +606,7 @@ func provideRouter(
 	explorerHandler *handler.ExplorerHandler,
 	pornDBHandler *handler.PornDBHandler,
 	savedSearchHandler *handler.SavedSearchHandler,
+	homepageHandler *handler.HomepageHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -580,7 +617,7 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		explorerHandler, pornDBHandler, savedSearchHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, authService, rbacService, rateLimiter,
 	)
 }
 
@@ -599,10 +636,13 @@ func provideServer(
 	explorerService *core.ExplorerService,
 	retryScheduler *core.RetryScheduler,
 	dlqService *core.DLQService,
+	actorService *core.ActorService,
+	studioService *core.StudioService,
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, triggerScheduler,
 		videoService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
+		actorService, studioService,
 	)
 }

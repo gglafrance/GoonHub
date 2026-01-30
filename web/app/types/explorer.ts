@@ -1,4 +1,4 @@
-import type { Video } from './video';
+import type { VideoListItem } from './video';
 import type { StoragePath } from './storage';
 
 export interface FolderInfo {
@@ -21,7 +21,7 @@ export interface FolderContentsResponse {
     storage_path: StoragePath;
     current_path: string;
     subfolders: FolderInfo[];
-    videos: Video[];
+    videos: VideoListItem[];
     total_videos: number;
     page: number;
     limit: number;
@@ -85,7 +85,7 @@ export interface FolderSearchRequest {
 }
 
 export interface FolderSearchResponse {
-    videos: import('./video').Video[];
+    videos: VideoListItem[];
     total: number;
     page: number;
     limit: number;

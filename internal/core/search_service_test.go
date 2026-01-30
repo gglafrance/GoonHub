@@ -12,7 +12,7 @@ func TestSearchService_Search_RequiresMeilisearch(t *testing.T) {
 	logger := zap.NewNop()
 
 	// Create search service without Meilisearch client (nil)
-	service := NewSearchService(nil, nil, nil, nil, logger)
+	service := NewSearchService(nil, nil, nil, nil, nil, logger)
 
 	params := data.VideoSearchParams{
 		Page:  1,

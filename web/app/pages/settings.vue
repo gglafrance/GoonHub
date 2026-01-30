@@ -6,11 +6,11 @@ const router = useRouter();
 
 useHead({ title: 'Settings' });
 
-type TabType = 'account' | 'player' | 'app' | 'tags' | 'users' | 'jobs' | 'storage';
+type TabType = 'account' | 'player' | 'app' | 'homepage' | 'tags' | 'users' | 'jobs' | 'storage';
 const activeTab = ref<TabType>('account');
 
 const availableTabs = computed(() => {
-    const tabs: TabType[] = ['account', 'player', 'app', 'tags'];
+    const tabs: TabType[] = ['account', 'player', 'app', 'homepage', 'tags'];
     if (authStore.user?.role === 'admin') {
         tabs.push('users');
         tabs.push('jobs');
@@ -64,6 +64,7 @@ definePageMeta({
         <SettingsAccount v-if="activeTab === 'account'" />
         <SettingsPlayer v-if="activeTab === 'player'" />
         <SettingsApp v-if="activeTab === 'app'" />
+        <SettingsHomepage v-if="activeTab === 'homepage'" />
         <SettingsTags v-if="activeTab === 'tags'" />
         <SettingsUsers v-if="activeTab === 'users'" />
         <SettingsJobs v-if="activeTab === 'jobs'" />

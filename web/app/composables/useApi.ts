@@ -70,6 +70,8 @@ export const useApi = () => {
         fetchRoles: admin.fetchRoles,
         fetchPermissions: admin.fetchPermissions,
         syncRolePermissions: admin.syncRolePermissions,
+        getSearchStatus: admin.getSearchStatus,
+        triggerReindex: admin.triggerReindex,
 
         // Job operations
         fetchJobs: jobs.fetchJobs,
