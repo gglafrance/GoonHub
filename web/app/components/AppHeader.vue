@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const authStore = useAuthStore();
+const showShortcuts = ref(false);
 </script>
 
 <template>
@@ -46,6 +47,16 @@ const authStore = useAuthStore();
                                 </div>
                             </div>
                         </div>
+
+                        <button
+                            class="border-border text-dim hover:border-lava/30 hover:text-lava flex
+                                h-7 w-7 items-center justify-center rounded-md border
+                                transition-all"
+                            title="Keyboard shortcuts"
+                            @click="showShortcuts = true"
+                        >
+                            <Icon name="heroicons:command-line" size="16" />
+                        </button>
 
                         <NuxtLink
                             to="/settings"
@@ -138,5 +149,8 @@ const authStore = useAuthStore();
                 </div>
             </div>
         </nav>
+
+        <!-- Keyboard Shortcuts Modal -->
+        <KeyboardShortcutsModal :visible="showShortcuts" @close="showShortcuts = false" />
     </div>
 </template>

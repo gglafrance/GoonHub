@@ -8,6 +8,7 @@ const { formatDuration } = useFormatter();
 const getPlayerTime = inject<() => number>('getPlayerTime');
 const seekToTime = inject<(time: number) => void>('seekToTime');
 const refreshMarkers = inject<() => Promise<void>>('refreshMarkers');
+const pendingMarkerAdd = inject<Ref<boolean>>('pendingMarkerAdd');
 
 const videoId = computed(() => parseInt(route.params.id as string));
 
@@ -253,34 +254,27 @@ const getThumbnailUrl = (marker: Marker) => {
     return `/marker-thumbnails/${marker.id}`;
 };
 
-const handleKeydown = (e: KeyboardEvent) => {
-    // Ignore if typing in an input/textarea or if modifier keys are pressed
-    const target = e.target as HTMLElement;
-    if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable ||
-        e.ctrlKey ||
-        e.metaKey ||
-        e.altKey
-    ) {
-        return;
-    }
-
-    // 'M' key to add marker at current time
-    if (e.key === 'm' || e.key === 'M') {
-        e.preventDefault();
-        handleAddMarker();
-    }
-};
+// Watch for pending marker add trigger from parent (when M key is pressed globally)
+watch(
+    () => pendingMarkerAdd?.value,
+    (pending) => {
+        if (pending) {
+            handleAddMarker();
+            // Reset the trigger
+            if (pendingMarkerAdd) {
+                pendingMarkerAdd.value = false;
+            }
+        }
+    },
+);
 
 onMounted(() => {
     loadMarkers();
-    window.addEventListener('keydown', handleKeydown);
-});
-
-onUnmounted(() => {
-    window.removeEventListener('keydown', handleKeydown);
+    // Check if there's a pending marker add on mount (M was pressed before tab opened)
+    if (pendingMarkerAdd?.value) {
+        handleAddMarker();
+        pendingMarkerAdd.value = false;
+    }
 });
 </script>
 

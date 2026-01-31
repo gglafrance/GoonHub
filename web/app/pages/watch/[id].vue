@@ -49,6 +49,13 @@ const forceAutoplay = ref(false);
 const thumbnailVersion = ref(0);
 const detailsRefreshKey = ref(0);
 
+// Keyboard shortcuts for video player
+useVideoPlayerShortcuts({
+    player: computed(() => playerRef.value?.player ?? null),
+    video: video,
+    onTheaterModeToggle: () => settingsStore.toggleTheaterMode(),
+});
+
 const videoId = computed(() => parseInt(route.params.id as string));
 
 const isProcessing = computed(() => video.value?.processing_status === 'pending');
@@ -155,6 +162,10 @@ const goBack = () => {
     router.push('/');
 };
 
+// Tab state for DetailTabs (allows switching tabs from keyboard shortcuts)
+const activeTab = ref<'jobs' | 'thumbnail' | 'details' | 'history' | 'markers'>('details');
+const pendingMarkerAdd = ref(false);
+
 provide('getPlayerTime', () => playerRef.value?.getCurrentTime() ?? 0);
 provide('watchVideo', video);
 provide('thumbnailVersion', thumbnailVersion);
@@ -164,6 +175,38 @@ provide('seekToTime', (time: number) => {
     showResumePrompt.value = false;
 });
 provide('refreshMarkers', loadMarkers);
+provide('activeTab', activeTab);
+provide('pendingMarkerAdd', pendingMarkerAdd);
+
+// Handle 'M' key globally to add markers (even when Markers tab is not open)
+const handleMarkerShortcut = (e: KeyboardEvent) => {
+    const target = e.target as HTMLElement;
+    if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey
+    ) {
+        return;
+    }
+
+    if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        // Switch to markers tab and trigger marker add
+        activeTab.value = 'markers';
+        pendingMarkerAdd.value = true;
+    }
+};
+
+onMounted(() => {
+    window.addEventListener('keydown', handleMarkerShortcut);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('keydown', handleMarkerShortcut);
+});
 
 onMounted(async () => {
     await loadVideo();

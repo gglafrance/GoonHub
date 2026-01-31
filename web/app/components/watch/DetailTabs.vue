@@ -1,5 +1,10 @@
 <script setup lang="ts">
-const activeTab = ref<'jobs' | 'thumbnail' | 'details' | 'history' | 'markers'>('details');
+type TabType = 'jobs' | 'thumbnail' | 'details' | 'history' | 'markers';
+
+// Inject activeTab from parent (watch page) or use local state
+const injectedActiveTab = inject<Ref<TabType> | undefined>('activeTab', undefined);
+const localActiveTab = ref<TabType>('details');
+const activeTab = injectedActiveTab ?? localActiveTab;
 </script>
 
 <template>
