@@ -172,6 +172,8 @@ watch(
 
 defineExpose({
     getCurrentTime: () => player.value?.currentTime() ?? 0,
+    player,
+    vttCues,
 });
 
 onBeforeUnmount(() => {

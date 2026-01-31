@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Video } from '~/types/video';
 import type { Marker } from '~/types/marker';
+import type { VttCue } from '~/composables/useVttParser';
 
 const route = useRoute();
 const router = useRouter();
@@ -35,7 +36,12 @@ watch(
     { immediate: true },
 );
 const playerError = ref<unknown>(null);
-const playerRef = ref<{ getCurrentTime: () => number } | null>(null);
+const playerRef = ref<{
+    getCurrentTime: () => number;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    player?: any;
+    vttCues?: VttCue[];
+} | null>(null);
 const resumePosition = ref(0);
 const showResumePrompt = ref(false);
 const startTime = ref(0);
@@ -65,6 +71,22 @@ const posterUrl = computed(() => {
         (video.value.updated_at ? new Date(video.value.updated_at).getTime() : 0);
     return v ? `${base}&v=${v}` : base;
 });
+
+// Ambient glow effect
+const playerVttCues = ref<VttCue[]>([]);
+const isVideoPlaying = ref(false);
+const { glowStyle } = useAmbientGlow(playerRef, playerVttCues, posterUrl, isVideoPlaying);
+
+// Sync vttCues when they become available (loaded asynchronously by VideoPlayer)
+watch(
+    () => playerRef.value?.vttCues,
+    (cues) => {
+        if (cues && cues.length > 0) {
+            playerVttCues.value = cues;
+        }
+    },
+    { immediate: true },
+);
 
 const loadMarkers = async () => {
     if (!video.value) return;
@@ -179,7 +201,7 @@ definePageMeta({
     <div class="min-h-screen">
         <!-- Back Navigation Bar -->
         <div
-            class="border-border bg-void/90 sticky top-12 z-40 border-b px-4 py-2.5 backdrop-blur-md
+            class="border-border bg-void/10 sticky top-12 z-40 border-b px-4 py-2.5 backdrop-blur-md
                 sm:px-5"
         >
             <div class="mx-auto flex max-w-415 items-center justify-between">
@@ -286,78 +308,92 @@ definePageMeta({
                         </Transition>
 
                         <div
-                            class="border-border bg-void relative overflow-hidden rounded-xl border"
+                            class="player-glow-container relative"
                             :class="{ 'mx-auto max-w-xl': isPortrait }"
+                            :style="glowStyle"
                         >
-                            <!-- Resume Prompt (overlaid on video) -->
-                            <Transition
-                                enter-active-class="transition duration-200 ease-out"
-                                enter-from-class="opacity-0"
-                                enter-to-class="opacity-100"
-                                leave-active-class="transition duration-150 ease-in"
-                                leave-from-class="opacity-100"
-                                leave-to-class="opacity-0"
+                            <!-- Glow layers -->
+                            <div class="player-glow player-glow--primary" aria-hidden="true" />
+                            <div class="player-glow player-glow--secondary" aria-hidden="true" />
+
+                            <div
+                                class="border-border bg-void relative z-10 overflow-hidden
+                                    rounded-xl border"
                             >
-                                <div
-                                    v-if="showResumePrompt"
-                                    class="absolute inset-x-0 top-0 z-20 p-3"
+                                <!-- Resume Prompt (overlaid on video) -->
+                                <Transition
+                                    enter-active-class="transition duration-200 ease-out"
+                                    enter-from-class="opacity-0"
+                                    enter-to-class="opacity-100"
+                                    leave-active-class="transition duration-150 ease-in"
+                                    leave-from-class="opacity-100"
+                                    leave-to-class="opacity-0"
                                 >
                                     <div
-                                        class="border-lava/30 bg-void/75 rounded-lg border px-4 py-3
-                                            backdrop-blur-md"
+                                        v-if="showResumePrompt"
+                                        class="absolute inset-x-0 top-0 z-20 p-3"
                                     >
-                                        <div class="flex items-center justify-between">
-                                            <div class="flex items-center gap-3">
-                                                <Icon
-                                                    name="heroicons:play-circle"
-                                                    size="20"
-                                                    class="text-lava"
-                                                />
-                                                <div>
-                                                    <span class="text-xs font-medium text-white">
-                                                        Resume watching?
-                                                    </span>
-                                                    <span class="text-dim ml-2 text-[11px]">
-                                                        You left off at
-                                                        {{ formatDuration(resumePosition) }}
-                                                    </span>
+                                        <div
+                                            class="border-lava/30 bg-void/75 rounded-lg border px-4
+                                                py-3 backdrop-blur-md"
+                                        >
+                                            <div class="flex items-center justify-between">
+                                                <div class="flex items-center gap-3">
+                                                    <Icon
+                                                        name="heroicons:play-circle"
+                                                        size="20"
+                                                        class="text-lava"
+                                                    />
+                                                    <div>
+                                                        <span
+                                                            class="text-xs font-medium text-white"
+                                                        >
+                                                            Resume watching?
+                                                        </span>
+                                                        <span class="text-dim ml-2 text-[11px]">
+                                                            You left off at
+                                                            {{ formatDuration(resumePosition) }}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div class="flex items-center gap-2">
-                                                <button
-                                                    class="text-dim px-3 py-1.5 text-[11px]
-                                                        font-medium transition-colors
-                                                        hover:text-white"
-                                                    @click="handleStartOver"
-                                                >
-                                                    Start Over
-                                                </button>
-                                                <button
-                                                    class="bg-lava hover:bg-lava/80 rounded-md px-3
-                                                        py-1.5 text-[11px] font-medium text-white
-                                                        transition-colors"
-                                                    @click="handleResume"
-                                                >
-                                                    Resume
-                                                </button>
+                                                <div class="flex items-center gap-2">
+                                                    <button
+                                                        class="text-dim px-3 py-1.5 text-[11px]
+                                                            font-medium transition-colors
+                                                            hover:text-white"
+                                                        @click="handleStartOver"
+                                                    >
+                                                        Start Over
+                                                    </button>
+                                                    <button
+                                                        class="bg-lava hover:bg-lava/80 rounded-md
+                                                            px-3 py-1.5 text-[11px] font-medium
+                                                            text-white transition-colors"
+                                                        @click="handleResume"
+                                                    >
+                                                        Resume
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            </Transition>
+                                </Transition>
 
-                            <VideoPlayer
-                                ref="playerRef"
-                                :video-url="streamUrl"
-                                :poster-url="posterUrl"
-                                :video="video"
-                                :markers="markers"
-                                :autoplay="forceAutoplay || settingsStore.autoplay"
-                                :loop="settingsStore.loop"
-                                :default-volume="settingsStore.defaultVolume"
-                                :start-time="startTime"
-                                @error="playerError = $event"
-                            />
+                                <VideoPlayer
+                                    ref="playerRef"
+                                    :video-url="streamUrl"
+                                    :poster-url="posterUrl"
+                                    :video="video"
+                                    :markers="markers"
+                                    :autoplay="forceAutoplay || settingsStore.autoplay"
+                                    :loop="settingsStore.loop"
+                                    :default-volume="settingsStore.defaultVolume"
+                                    :start-time="startTime"
+                                    @play="isVideoPlaying = true"
+                                    @pause="isVideoPlaying = false"
+                                    @error="playerError = $event"
+                                />
+                            </div>
                         </div>
 
                         <!-- Mobile Metadata -->
@@ -393,3 +429,41 @@ definePageMeta({
         </div>
     </div>
 </template>
+
+<style scoped>
+.player-glow-container {
+    --glow-color-primary: rgb(255, 77, 77);
+    --glow-color-secondary: rgb(255, 45, 45);
+    --glow-opacity: 1;
+}
+
+.player-glow {
+    position: absolute;
+    inset: -60px;
+    border-radius: 32px;
+    pointer-events: none;
+    z-index: 0;
+    filter: blur(40px);
+    transition:
+        background 0.3s ease-out,
+        opacity 0.3s ease-out;
+}
+
+.player-glow--primary {
+    background: radial-gradient(
+        ellipse 150% 125% at 50% 50%,
+        var(--glow-color-primary) 0%,
+        transparent 60%
+    );
+    opacity: var(--glow-opacity);
+}
+
+.player-glow--secondary {
+    background: radial-gradient(
+        ellipse 80% 100% at 30% 70%,
+        var(--glow-color-secondary) 0%,
+        transparent 50%
+    );
+    opacity: calc(var(--glow-opacity) * 0.7);
+}
+</style>

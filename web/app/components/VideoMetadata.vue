@@ -32,7 +32,7 @@ const getResolutionLabel = (h?: number): string => {
 <template>
     <div class="sticky top-28 space-y-3">
         <!-- Info Section -->
-        <div class="border-border bg-surface/50 rounded-xl border p-4 backdrop-blur-sm">
+        <div class="border-border bg-surface/30 rounded-xl border p-4 backdrop-blur-sm">
             <h1 class="text-sm leading-snug font-semibold text-white">
                 {{ video.title }}
             </h1>
@@ -76,7 +76,7 @@ const getResolutionLabel = (h?: number): string => {
         <!-- Technical Section -->
         <div
             v-if="video.width || video.frame_rate || video.bit_rate || video.video_codec"
-            class="border-border bg-surface/50 rounded-xl border p-4 backdrop-blur-sm"
+            class="border-border bg-surface/30 rounded-xl border p-4 backdrop-blur-sm"
         >
             <span class="text-dim text-[10px] font-medium tracking-wider uppercase">Technical</span>
             <div class="mt-2 space-y-0">
@@ -139,7 +139,7 @@ const getResolutionLabel = (h?: number): string => {
         </div>
 
         <!-- File Section -->
-        <div class="border-border bg-surface/50 rounded-xl border p-4 backdrop-blur-sm">
+        <div class="border-border bg-surface/30 rounded-xl border p-4 backdrop-blur-sm">
             <span class="text-dim text-[10px] font-medium tracking-wider uppercase">File</span>
             <div class="mt-2 space-y-0">
                 <div class="border-border border-b py-2.5">
@@ -164,7 +164,7 @@ const getResolutionLabel = (h?: number): string => {
         </div>
 
         <!-- Actions -->
-        <div class="border-border bg-surface/50 rounded-xl border p-3 backdrop-blur-sm">
+        <div class="border-border bg-surface/30 rounded-xl border p-3 backdrop-blur-sm">
             <div class="flex gap-2">
                 <button
                     class="border-border bg-panel text-dim hover:border-border-hover flex-1
