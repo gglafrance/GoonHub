@@ -216,136 +216,365 @@ onBeforeUnmount(() => {
 }
 
 :deep(.video-js) {
-    font-family: 'Outfit', system-ui, sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
     --primary-color: #ff4d4d;
     --text-color: #ffffff;
 }
 
+/* Big Play Button */
 :deep(.vjs-big-play-button) {
-    background-color: rgba(255, 77, 77, 0.9);
-    border: none;
+    background: rgba(255, 77, 77, 0.15);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 77, 77, 0.4);
     border-radius: 50%;
-    width: 56px;
-    height: 56px;
-    line-height: 56px;
-    margin-left: -28px;
-    margin-top: -28px;
-    transition: all 0.2s ease;
-    box-shadow: 0 0 30px rgba(255, 77, 77, 0.3);
+    width: 72px;
+    height: 72px;
+    line-height: 72px;
+    margin-left: -36px;
+    margin-top: -36px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow:
+        0 0 40px rgba(255, 77, 77, 0.2),
+        inset 0 0 20px rgba(255, 77, 77, 0.1);
 }
 
 :deep(.vjs-big-play-button:hover) {
-    background-color: #ff6b6b;
-    transform: scale(1.1);
-    box-shadow: 0 0 40px rgba(255, 77, 77, 0.5);
+    background: rgba(255, 77, 77, 0.25);
+    border-color: rgba(255, 77, 77, 0.6);
+    transform: scale(1.08);
+    box-shadow:
+        0 0 60px rgba(255, 77, 77, 0.35),
+        inset 0 0 30px rgba(255, 77, 77, 0.15);
 }
 
+:deep(.vjs-big-play-button .vjs-icon-placeholder::before) {
+    font-size: 36px;
+    color: #ff4d4d;
+    filter: drop-shadow(0 0 8px rgba(255, 77, 77, 0.5));
+}
+
+/* ========================================
+   FLOATING CONTROL BAR
+   ======================================== */
 :deep(.vjs-control-bar) {
-    background: linear-gradient(to top, rgba(5, 5, 5, 0.95) 0%, rgba(5, 5, 5, 0) 100%);
-    backdrop-filter: blur(8px);
-    height: 40px;
-    font-size: 11px;
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    right: 16px;
+    width: auto;
+    height: 48px;
+    background: rgba(8, 8, 8, 0.85);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 0 6px;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+    opacity: 0;
+    transform: translateY(8px);
+    display: flex;
+    align-items: center;
+    gap: 2px;
 }
 
+:deep(.video-js:hover .vjs-control-bar),
+:deep(.video-js.vjs-user-active .vjs-control-bar),
+:deep(.video-js.vjs-paused .vjs-control-bar) {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Control buttons base styling */
+:deep(.vjs-control) {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.7);
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+:deep(.vjs-control:hover) {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+:deep(.vjs-control:active) {
+    transform: scale(0.95);
+}
+
+/* Play/Pause button - slightly larger */
+:deep(.vjs-play-control) {
+    width: 40px;
+    height: 40px;
+    margin-right: 2px;
+}
+
+:deep(.vjs-play-control:hover) {
+    color: #ff4d4d;
+    background: rgba(255, 77, 77, 0.12);
+}
+
+:deep(.vjs-play-control .vjs-icon-placeholder::before) {
+    font-size: 22px;
+    line-height: 40px;
+}
+
+/* Volume Panel */
+
+:deep(.vjs-mute-control) {
+    width: 36px;
+    height: 36px;
+}
+
+:deep(.vjs-mute-control .vjs-icon-placeholder::before) {
+    font-size: 18px;
+    line-height: 36px;
+}
+
+/* Time display */
+:deep(.vjs-time-control) {
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 48px;
+    padding: 0 6px;
+    color: rgba(255, 255, 255, 0.6);
+    min-width: auto;
+    flex-shrink: 0;
+}
+
+:deep(.vjs-current-time) {
+    color: #ffffff;
+    margin-right: auto;
+    padding-left: 25px;
+    padding-right: 25px;
+}
+
+:deep(.vjs-time-divider) {
+    padding: 0 2px;
+    min-width: auto;
+    color: rgba(255, 255, 255, 0.3);
+}
+
+:deep(.vjs-duration) {
+    padding-left: 25px;
+    padding-right: 25px;
+}
+
+:deep(.vjs-remaining-time) {
+    display: none;
+}
+
+/* ========================================
+   PROGRESS BAR - Above controls
+   ======================================== */
 :deep(.vjs-progress-control) {
-    height: 100%;
+    position: absolute;
+    top: -2px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    height: 10px;
+    flex: none;
+    order: -1;
 }
 
 :deep(.vjs-progress-control .vjs-progress-holder) {
     margin: 0;
-    height: 3px;
-    padding-top: 18px;
-    padding-bottom: 18px;
+    height: 4px;
+    padding-top: 3px;
+    padding-bottom: 3px;
     background-clip: content-box;
+    background: rgba(255, 255, 255, 0.12);
     border-radius: 2px;
+    transition: height 0.15s ease;
+}
+
+:deep(.vjs-progress-control:hover .vjs-progress-holder) {
+    height: 6px;
 }
 
 :deep(.vjs-progress-control .vjs-play-progress),
 :deep(.vjs-progress-control .vjs-load-progress) {
-    top: 18px;
-    height: 3px;
+    top: 0px;
+    height: 5px;
     border-radius: 2px;
+    transition: height 0.15s ease;
 }
 
-:deep(.vjs-progress-control .vjs-play-progress::before) {
-    font-size: 10px;
-    color: #ff4d4d;
+:deep(.vjs-progress-control:hover .vjs-play-progress),
+:deep(.vjs-progress-control:hover .vjs-load-progress) {
+    top: 0px;
+    height: 6px;
 }
 
 :deep(.vjs-play-progress) {
-    background-color: #ff4d4d;
-    box-shadow: 0 0 8px rgba(255, 77, 77, 0.5);
+    background: linear-gradient(90deg, #ff4d4d, #ff6b6b);
+    box-shadow: 0 0 12px rgba(255, 77, 77, 0.4);
 }
 
-:deep(.vjs-slider) {
-    background-color: rgba(255, 255, 255, 0.1);
-    border-radius: 2px;
+:deep(.vjs-play-progress::before) {
+    content: '';
+    position: absolute;
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%) scale(0);
+    width: 12px;
+    height: 12px;
+    background: #ffffff;
+    border-radius: 50%;
+    box-shadow:
+        0 0 8px rgba(255, 77, 77, 0.6),
+        0 2px 4px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s ease;
+}
+
+:deep(.vjs-progress-control:hover .vjs-play-progress::before) {
+    transform: translateY(-50%) scale(1);
 }
 
 :deep(.vjs-load-progress) {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.2);
 }
 
-:deep(.vjs-control) {
-    color: rgba(255, 255, 255, 0.7);
+:deep(.vjs-slider) {
+    background-color: transparent;
 }
 
-:deep(.vjs-control:hover) {
-    color: #ff4d4d;
-}
-
-:deep(.vjs-time-control) {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
-    line-height: 40px;
-    padding: 0 4px;
+/* Playback Rate */
+:deep(.vjs-playback-rate) {
+    width: auto;
+    min-width: 44px;
 }
 
 :deep(.vjs-playback-rate-value) {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
-    line-height: 40px;
-}
-
-:deep(.vjs-volume-panel) {
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
     font-size: 11px;
+    font-weight: 600;
+    line-height: 36px;
+    color: rgba(255, 255, 255, 0.7);
 }
 
+:deep(.vjs-playback-rate:hover .vjs-playback-rate-value) {
+    color: #ff4d4d;
+}
+
+:deep(.vjs-menu) {
+    left: 40%;
+    transform: translateX(-50%);
+    bottom: 75%;
+    margin-bottom: 8px;
+}
+
+:deep(.vjs-menu-content) {
+    background: rgba(8, 8, 8, 0.6) !important;
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 2px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    width: 48px !important;
+}
+
+:deep(.vjs-menu-item) {
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    font-size: 11px;
+    padding: 4px 20px;
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.7);
+    transition: all 0.1s ease;
+}
+
+:deep(.vjs-menu-item:hover) {
+    background: rgba(255, 77, 77, 0.15);
+    color: #ffffff;
+}
+
+:deep(.vjs-menu-item.vjs-selected) {
+    background: rgba(255, 77, 77, 0.2);
+    color: #ff4d4d;
+}
+
+/* PiP and Fullscreen */
+:deep(.vjs-picture-in-picture-control),
+:deep(.vjs-fullscreen-control) {
+    width: 36px;
+    height: 36px;
+}
+
+:deep(.vjs-picture-in-picture-control .vjs-icon-placeholder::before),
+:deep(.vjs-fullscreen-control .vjs-icon-placeholder::before) {
+    font-size: 18px;
+    line-height: 36px;
+}
+
+:deep(.vjs-fullscreen-control:hover) {
+    color: #ff4d4d;
+    background: rgba(255, 77, 77, 0.12);
+}
+
+/* Icon alignment fix */
+:deep(.vjs-icon-placeholder) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: none;
+}
+
+:deep(.vjs-icon-placeholder::before) {
+    position: static;
+    display: block;
+}
+
+/* ========================================
+   THUMBNAIL PREVIEW
+   ======================================== */
 :deep(.vjs-thumb-preview) {
     position: absolute;
     bottom: 100%;
-    margin-bottom: 28px;
+    margin-bottom: 20px;
     pointer-events: none;
-    border: 1px solid rgba(255, 77, 77, 0.5);
-    border-radius: 4px;
+    border: 1px solid rgba(255, 77, 77, 0.3);
+    border-radius: 8px;
     overflow: hidden;
     box-shadow:
-        0 4px 20px rgba(0, 0, 0, 0.8),
-        0 0 15px rgba(255, 77, 77, 0.15);
+        0 8px 32px rgba(0, 0, 0, 0.6),
+        0 0 20px rgba(255, 77, 77, 0.1);
     z-index: 10;
-    background: #050505;
+    background: #0a0a0a;
 }
 
 :deep(.vjs-thumb-preview img) {
     display: block;
 }
 
-/* Marker tick container */
+/* ========================================
+   MARKER INDICATORS
+   ======================================== */
 :deep(.vjs-marker-container) {
     position: absolute;
-    top: 18px;
+    top: 0px;
     left: 0;
     right: 0;
-    height: 3px;
+    height: 4px;
     pointer-events: none;
     z-index: 5;
 }
 
-/* Individual marker tick - larger hover zone with smaller visual dot */
+:deep(.vjs-progress-control:hover .vjs-marker-container) {
+    top: 0px;
+    height: 6px;
+}
+
 :deep(.vjs-marker-tick) {
     position: absolute;
-    width: 21px;
-    height: 21px;
+    width: 17px;
+    height: 17px;
     transform: translate(-50%, -50%);
     top: 50%;
     cursor: pointer;
@@ -357,44 +586,45 @@ onBeforeUnmount(() => {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 6px;
-    height: 6px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     transform: translate(-50%, -50%);
     background-color: var(--marker-color, #ffffff);
-    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
-    transition:
-        transform 0.15s ease,
-        box-shadow 0.15s ease;
+    box-shadow:
+        0 0 6px rgba(0, 0, 0, 0.5),
+        0 0 12px var(--marker-color, rgba(255, 255, 255, 0.3));
+    transition: all 0.15s ease;
 }
 
 :deep(.vjs-marker-tick:hover::before) {
-    transform: translate(-50%, -50%) scale(1.5);
-    box-shadow: 0 0 8px var(--marker-color, #ffffff);
+    transform: translate(-50%, -50%) scale(1.4);
+    box-shadow:
+        0 0 8px rgba(0, 0, 0, 0.5),
+        0 0 16px var(--marker-color, rgba(255, 255, 255, 0.5));
 }
 
-/* Tooltip container - matches sprite preview style */
+/* Marker Tooltip */
 :deep(.vjs-marker-tooltip) {
     position: absolute;
     bottom: 100%;
     left: 50%;
     transform: translateX(-50%);
-    margin-bottom: 28px;
-    background: #050505;
-    border: 1px solid rgba(255, 77, 77, 0.5);
-    border-radius: 4px;
+    margin-bottom: 20px;
+    background: rgba(8, 8, 8, 0.95);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 77, 77, 0.3);
+    border-radius: 10px;
     overflow: hidden;
-    width: 320px;
+    width: 280px;
     opacity: 0;
     visibility: hidden;
-    transition:
-        opacity 0.15s ease,
-        visibility 0.15s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     pointer-events: none;
     z-index: 20;
     box-shadow:
-        0 4px 20px rgba(0, 0, 0, 0.8),
-        0 0 15px rgba(255, 77, 77, 0.15);
+        0 8px 32px rgba(0, 0, 0, 0.6),
+        0 0 20px rgba(255, 77, 77, 0.1);
 }
 
 :deep(.vjs-marker-tick:hover .vjs-marker-tooltip) {
@@ -402,53 +632,71 @@ onBeforeUnmount(() => {
     visibility: visible;
 }
 
-/* Tooltip thumbnail */
 :deep(.vjs-marker-tooltip-img) {
-    width: 320px;
-    height: 180px;
+    width: 280px;
+    height: 158px;
     object-fit: cover;
     display: block;
 }
 
-/* Tooltip placeholder when no thumbnail */
 :deep(.vjs-marker-tooltip-placeholder) {
-    width: 320px;
-    height: 180px;
-    background: linear-gradient(135deg, rgba(255, 77, 77, 0.1) 0%, rgba(255, 77, 77, 0.05) 100%);
+    width: 280px;
+    height: 158px;
+    background: linear-gradient(135deg, rgba(255, 77, 77, 0.08) 0%, rgba(255, 77, 77, 0.03) 100%);
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
-/* Tooltip info container */
 :deep(.vjs-marker-tooltip-info) {
-    padding: 6px 8px;
-    background: linear-gradient(to bottom, rgba(255, 77, 77, 0.05), transparent);
+    padding: 10px 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* Tooltip label */
 :deep(.vjs-marker-tooltip-label) {
-    font-size: 11px;
+    font-size: 12px;
     color: white;
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
 }
 
-/* Tooltip timestamp */
 :deep(.vjs-marker-tooltip-time) {
-    font-size: 10px;
-    font-family: 'JetBrains Mono', monospace;
-    color: rgba(255, 255, 255, 0.6);
+    font-size: 11px;
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    color: rgba(255, 255, 255, 0.5);
 }
 
-:deep(.vjs-icon-placeholder) {
-    transform: translateY(-15px);
+/* ========================================
+   LOADING SPINNER
+   ======================================== */
+:deep(.vjs-loading-spinner) {
+    border: none;
+    background: rgba(8, 8, 8, 0.6);
+    backdrop-filter: blur(8px);
+    border-radius: 50%;
+    width: 64px;
+    height: 64px;
+    margin-left: -32px;
+    margin-top: -32px;
 }
 
-:deep(.vjs-volume-control) {
-    transform: translateY(5px);
+:deep(.vjs-loading-spinner::before) {
+    border-color: rgba(255, 77, 77, 0.3);
+}
+
+:deep(.vjs-loading-spinner::after) {
+    border-top-color: #ff4d4d;
+}
+
+/* Hide text track display from control bar area */
+:deep(.vjs-text-track-display) {
+    bottom: 80px;
+}
+
+:deep(.vjs-fullscreen .vjs-text-track-display) {
+    bottom: 100px;
 }
 </style>
