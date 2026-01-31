@@ -16,6 +16,24 @@ const error = ref<string | null>(null);
 
 const pageTitle = computed(() => video.value?.title || 'Watch');
 useHead({ title: pageTitle });
+
+// Dynamic OG metadata
+watch(
+    video,
+    (v) => {
+        if (v) {
+            useSeoMeta({
+                title: v.title,
+                ogTitle: v.title,
+                description: v.description || `Watch ${v.title} on GoonHub`,
+                ogDescription: v.description || `Watch ${v.title} on GoonHub`,
+                ogImage: v.thumbnail_path ? `/thumbnails/${v.id}?size=lg` : undefined,
+                ogType: 'video.other',
+            });
+        }
+    },
+    { immediate: true },
+);
 const playerError = ref<unknown>(null);
 const playerRef = ref<{ getCurrentTime: () => number } | null>(null);
 const resumePosition = ref(0);

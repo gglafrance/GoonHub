@@ -31,6 +31,24 @@ const likeAnimating = ref(false);
 const pageTitle = computed(() => actor.value?.name || 'Actor');
 useHead({ title: pageTitle });
 
+// Dynamic OG metadata
+watch(
+    actor,
+    (a) => {
+        if (a) {
+            useSeoMeta({
+                title: a.name,
+                ogTitle: a.name,
+                description: `${a.name} - ${a.video_count} videos on GoonHub`,
+                ogDescription: `${a.name} - ${a.video_count} videos on GoonHub`,
+                ogImage: a.image_url || undefined,
+                ogType: 'profile',
+            });
+        }
+    },
+    { immediate: true },
+);
+
 const actorUuid = computed(() => route.params.uuid as string);
 
 const isAdmin = computed(() => authStore.user?.role === 'admin');

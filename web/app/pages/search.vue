@@ -7,6 +7,13 @@ const router = useRouter();
 
 useHead({ title: 'Search' });
 
+useSeoMeta({
+    title: 'Search',
+    ogTitle: 'Search - GoonHub',
+    description: 'Search your video library',
+    ogDescription: 'Search your video library',
+});
+
 definePageMeta({
     middleware: ['auth'],
 });

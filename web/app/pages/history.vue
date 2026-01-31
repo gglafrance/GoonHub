@@ -6,6 +6,13 @@ const { formatDuration } = useFormatter();
 
 useHead({ title: 'Watch History' });
 
+useSeoMeta({
+    title: 'Watch History',
+    ogTitle: 'Watch History - GoonHub',
+    description: 'Your recently watched videos',
+    ogDescription: 'Your recently watched videos',
+});
+
 const entries = ref<WatchHistoryEntry[]>([]);
 const isLoading = ref(true);
 const total = ref(0);

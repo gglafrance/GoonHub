@@ -3,6 +3,13 @@ import type { Actor, ActorListItem } from '~/types/actor';
 
 useHead({ title: 'Actors' });
 
+useSeoMeta({
+    title: 'Actors',
+    ogTitle: 'Actors - GoonHub',
+    description: 'Browse actors in your video library',
+    ogDescription: 'Browse actors in your video library',
+});
+
 const api = useApi();
 const router = useRouter();
 const authStore = useAuthStore();

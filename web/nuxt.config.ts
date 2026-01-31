@@ -9,6 +9,17 @@ export default defineNuxtConfig({
         head: {
             title: 'GoonHub',
             titleTemplate: '%s - GoonHub',
+            link: [
+                { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+                { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+                { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+            ],
+            meta: [
+                { name: 'description', content: 'GoonHub - Your personal video library' },
+                { property: 'og:site_name', content: 'GoonHub' },
+                { property: 'og:type', content: 'website' },
+                { name: 'theme-color', content: '#0F0F0F' },
+            ],
         },
     },
 

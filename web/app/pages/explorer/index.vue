@@ -1,6 +1,13 @@
 <script setup lang="ts">
 useHead({ title: 'Explorer' });
 
+useSeoMeta({
+    title: 'Explorer',
+    ogTitle: 'Explorer - GoonHub',
+    description: 'Browse your video storage paths',
+    ogDescription: 'Browse your video storage paths',
+});
+
 const explorerStore = useExplorerStore();
 
 onMounted(async () => {

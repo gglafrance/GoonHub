@@ -3,6 +3,13 @@ const homepageStore = useHomepageStore();
 
 useHead({ title: 'Library' });
 
+useSeoMeta({
+    title: 'Library',
+    ogTitle: 'Library - GoonHub',
+    description: 'Browse your personal video library',
+    ogDescription: 'Browse your personal video library',
+});
+
 onMounted(async () => {
     await homepageStore.loadHomepage();
 });

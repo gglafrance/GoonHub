@@ -3,6 +3,13 @@ import type { Studio, StudioListItem } from '~/types/studio';
 
 useHead({ title: 'Studios' });
 
+useSeoMeta({
+    title: 'Studios',
+    ogTitle: 'Studios - GoonHub',
+    description: 'Browse studios in your video library',
+    ogDescription: 'Browse studios in your video library',
+});
+
 const api = useApi();
 const router = useRouter();
 const authStore = useAuthStore();

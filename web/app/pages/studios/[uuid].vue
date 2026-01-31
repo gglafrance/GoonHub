@@ -31,6 +31,24 @@ const likeAnimating = ref(false);
 const pageTitle = computed(() => studio.value?.name || 'Studio');
 useHead({ title: pageTitle });
 
+// Dynamic OG metadata
+watch(
+    studio,
+    (s) => {
+        if (s) {
+            useSeoMeta({
+                title: s.name,
+                ogTitle: s.name,
+                description: s.description || `${s.name} - ${s.video_count} videos on GoonHub`,
+                ogDescription: s.description || `${s.name} - ${s.video_count} videos on GoonHub`,
+                ogImage: s.logo || undefined,
+                ogType: 'website',
+            });
+        }
+    },
+    { immediate: true },
+);
+
 const studioUuid = computed(() => route.params.uuid as string);
 
 const isAdmin = computed(() => authStore.user?.role === 'admin');

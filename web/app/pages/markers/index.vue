@@ -3,6 +3,13 @@ import type { MarkerLabelGroup } from '~/types/marker';
 
 useHead({ title: 'Markers' });
 
+useSeoMeta({
+    title: 'Markers',
+    ogTitle: 'Markers - GoonHub',
+    description: 'Browse video markers and bookmarks',
+    ogDescription: 'Browse video markers and bookmarks',
+});
+
 const { fetchLabelGroups } = useApiMarkers();
 
 const groups = ref<MarkerLabelGroup[]>([]);

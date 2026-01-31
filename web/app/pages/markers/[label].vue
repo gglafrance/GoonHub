@@ -18,6 +18,22 @@ const label = computed(() => decodeURIComponent(route.params.label as string));
 const pageTitle = computed(() => label.value || 'Markers');
 useHead({ title: pageTitle });
 
+// Dynamic OG metadata
+watch(
+    [label, total],
+    ([l, t]) => {
+        if (l) {
+            useSeoMeta({
+                title: l,
+                ogTitle: `${l} - Markers`,
+                description: `${l} - ${t} markers on GoonHub`,
+                ogDescription: `${l} - ${t} markers on GoonHub`,
+            });
+        }
+    },
+    { immediate: true },
+);
+
 const loadMarkers = async (page = 1) => {
     isLoading.value = true;
     error.value = null;

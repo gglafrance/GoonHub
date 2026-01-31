@@ -3,6 +3,13 @@ const authStore = useAuthStore();
 
 useHead({ title: 'Login' });
 
+useSeoMeta({
+    title: 'Login',
+    ogTitle: 'Login - GoonHub',
+    description: 'Sign in to access your video library',
+    ogDescription: 'Sign in to access your video library',
+});
+
 const username = ref('');
 const password = ref('');
 const isLoading = ref(false);
