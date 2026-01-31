@@ -39,6 +39,12 @@ type MarkerWithVideo struct {
 	Tags       []MarkerTagInfo `json:"tags,omitempty" gorm:"-"`
 }
 
+// MarkerWithTags extends UserVideoMarker with tags
+type MarkerWithTags struct {
+	UserVideoMarker
+	Tags []MarkerTagInfo `json:"tags" gorm:"-"`
+}
+
 // MarkerLabelTag represents the default tags for a marker label (per user)
 type MarkerLabelTag struct {
 	ID        uint      `gorm:"primarykey" json:"id"`

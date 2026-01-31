@@ -461,7 +461,7 @@ onMounted(() => {
                 </div>
 
                 <!-- Tags -->
-                <MarkersMarkerTagEditor :marker-id="marker.id" />
+                <MarkersMarkerTagEditor :marker-id="marker.id" :initial-tags="marker.tags" />
             </div>
         </div>
 

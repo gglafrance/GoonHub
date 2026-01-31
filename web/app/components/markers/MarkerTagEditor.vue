@@ -4,6 +4,7 @@ import type { Tag } from '~/types/tag';
 
 const props = defineProps<{
     markerId: number;
+    initialTags?: MarkerTagInfo[];
 }>();
 
 const { fetchMarkerTags, setMarkerTags } = useApiMarkers();
@@ -31,8 +32,23 @@ const individualTags = computed(() => markerTags.value.filter((t) => !t.is_from_
 const labelTags = computed(() => markerTags.value.filter((t) => t.is_from_label));
 
 onMounted(() => {
-    loadMarkerTags();
+    // Use initialTags if provided, otherwise fetch from API
+    if (props.initialTags) {
+        markerTags.value = props.initialTags;
+    } else {
+        loadMarkerTags();
+    }
 });
+
+// Watch for initialTags changes (e.g., when parent refetches markers)
+watch(
+    () => props.initialTags,
+    (newTags) => {
+        if (newTags !== undefined) {
+            markerTags.value = newTags;
+        }
+    },
+);
 
 async function loadMarkerTags() {
     loading.value = true;

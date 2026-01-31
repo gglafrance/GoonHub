@@ -8,6 +8,7 @@ export interface Marker {
     thumbnail_path: string;
     created_at: string;
     updated_at: string;
+    tags?: MarkerTagInfo[];
 }
 
 export interface CreateMarkerRequest {

@@ -39,7 +39,7 @@ func NewMarkerService(markerRepo data.MarkerRepository, videoRepo data.VideoRepo
 	}
 }
 
-func (s *MarkerService) ListMarkers(userID, videoID uint) ([]data.UserVideoMarker, error) {
+func (s *MarkerService) ListMarkers(userID, videoID uint) ([]data.MarkerWithTags, error) {
 	// Verify video exists before returning markers
 	_, err := s.videoRepo.GetByID(videoID)
 	if err != nil {
@@ -55,7 +55,38 @@ func (s *MarkerService) ListMarkers(userID, videoID uint) ([]data.UserVideoMarke
 		s.logger.Error("failed to list markers", zap.Uint("userID", userID), zap.Uint("videoID", videoID), zap.Error(err))
 		return nil, apperrors.NewInternalError("failed to list markers", err)
 	}
-	return markers, nil
+
+	// Build result with tags
+	result := make([]data.MarkerWithTags, len(markers))
+	for i, m := range markers {
+		result[i] = data.MarkerWithTags{
+			UserVideoMarker: m,
+			Tags:            []data.MarkerTagInfo{}, // default empty slice
+		}
+	}
+
+	// Batch fetch tags for all markers
+	if len(markers) > 0 {
+		markerIDs := make([]uint, len(markers))
+		for i, m := range markers {
+			markerIDs[i] = m.ID
+		}
+
+		tagsMap, err := s.markerRepo.GetMarkerTagsMultiple(markerIDs)
+		if err != nil {
+			s.logger.Warn("failed to batch fetch marker tags", zap.Uint("videoID", videoID), zap.Error(err))
+			// Continue without tags - not a critical failure
+		} else {
+			// Populate tags on each marker
+			for i := range result {
+				if tags, ok := tagsMap[result[i].ID]; ok {
+					result[i].Tags = tags
+				}
+			}
+		}
+	}
+
+	return result, nil
 }
 
 func (s *MarkerService) CreateMarker(userID, videoID uint, timestamp int, label, color string) (*data.UserVideoMarker, error) {
