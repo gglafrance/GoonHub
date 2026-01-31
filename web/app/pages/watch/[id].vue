@@ -257,7 +257,10 @@ definePageMeta({
             </div>
 
             <!-- Video Player & Content -->
-            <div v-else-if="video" class="grid gap-5 xl:grid-cols-[1fr_280px]">
+            <div
+                v-else-if="video"
+                :class="['grid gap-5', settingsStore.theaterMode ? '' : 'xl:grid-cols-[1fr_280px]']"
+            >
                 <div class="min-w-0 space-y-4">
                     <!-- Processing State -->
                     <div v-if="isProcessing" class="space-y-4">
@@ -369,7 +372,7 @@ definePageMeta({
                 </div>
 
                 <!-- Sidebar Metadata (Desktop) -->
-                <div class="hidden xl:block">
+                <div v-if="!settingsStore.theaterMode" class="hidden xl:block">
                     <VideoMetadata :video="video" />
                 </div>
             </div>

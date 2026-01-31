@@ -6,6 +6,60 @@ import type { Marker } from '~/types/marker';
 
 type Player = ReturnType<typeof videojs>;
 
+// Theater mode button interface for type safety
+interface TheaterModeButtonInstance {
+    setTheaterMode: (active: boolean) => void;
+    _onToggle: (() => void) | null;
+}
+
+// Register theater mode button component
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ButtonClass = videojs.getComponent('Button') as any;
+
+if (ButtonClass) {
+    class TheaterModeButton extends ButtonClass {
+        private _theaterMode: boolean = false;
+        public _onToggle: (() => void) | null = null;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        constructor(player: Player, options?: any) {
+            super(player, options);
+            this._theaterMode = options?.theaterMode ?? false;
+            this._onToggle = options?.onToggle ?? null;
+            this.controlText(this._theaterMode ? 'Exit Theater Mode' : 'Theater Mode');
+            this.updateIcon();
+        }
+
+        buildCSSClass() {
+            return `vjs-theater-mode-control ${super.buildCSSClass()}`;
+        }
+
+        handleClick() {
+            if (this._onToggle) {
+                this._onToggle();
+            }
+        }
+
+        setTheaterMode(active: boolean) {
+            this._theaterMode = active;
+            this.controlText(active ? 'Exit Theater Mode' : 'Theater Mode');
+            this.updateIcon();
+        }
+
+        updateIcon() {
+            const el = this.el();
+            if (el) {
+                el.innerHTML = this._theaterMode
+                    ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="vjs-theater-icon"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>`
+                    : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="vjs-theater-icon"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>`;
+            }
+        }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    videojs.registerComponent('TheaterModeButton', TheaterModeButton as any);
+}
+
 const props = defineProps<{
     videoUrl: string;
     posterUrl?: string;
@@ -26,6 +80,8 @@ const emit = defineEmits<{
 
 const videoElement = ref<HTMLVideoElement>();
 const player = shallowRef<Player | null>(null);
+const settingsStore = useSettingsStore();
+const theaterModeButton = shallowRef<TheaterModeButtonInstance | null>(null);
 const { vttCues, loadVttCues } = useVttParser();
 const { setup: setupThumbnailPreview } = useThumbnailPreview(player, vttCues);
 const {
@@ -89,10 +145,26 @@ onMounted(async () => {
                 'remainingTimeDisplay',
                 'playbackRateMenuButton',
                 'pipToggle',
+                'TheaterModeButton',
                 'fullscreenToggle',
             ],
         },
     });
+
+    // Get reference to theater mode button and configure it
+    const controlBar = player.value.getChild('controlBar');
+    if (controlBar) {
+        const btn = controlBar.getChild('TheaterModeButton') as unknown as
+            | TheaterModeButtonInstance
+            | undefined;
+        if (btn) {
+            theaterModeButton.value = btn;
+            btn.setTheaterMode(settingsStore.theaterMode);
+            btn._onToggle = () => {
+                settingsStore.toggleTheaterMode();
+            };
+        }
+    }
 
     // Set initial volume (video.js uses 0-1 range)
     const volume = props.defaultVolume != null ? props.defaultVolume / 100 : 1;
@@ -166,6 +238,16 @@ watch(
             player.value.play()?.catch(() => {
                 // Autoplay may be blocked
             });
+        }
+    },
+);
+
+// Sync theater mode button state when store changes
+watch(
+    () => settingsStore.theaterMode,
+    (isTheaterMode) => {
+        if (theaterModeButton.value) {
+            theaterModeButton.value.setTheaterMode(isTheaterMode);
         }
     },
 );
@@ -300,10 +382,6 @@ onBeforeUnmount(() => {
 :deep(.vjs-control:hover) {
     color: #ffffff;
     background: rgba(255, 255, 255, 0.08);
-}
-
-:deep(.vjs-control:active) {
-    transform: scale(0.95);
 }
 
 /* Play/Pause button - slightly larger */
@@ -444,6 +522,9 @@ onBeforeUnmount(() => {
 :deep(.vjs-slider) {
     background-color: transparent;
 }
+:deep(.vjs-slidding) {
+    width: 100%;
+}
 
 /* Playback Rate */
 :deep(.vjs-playback-rate) {
@@ -500,8 +581,9 @@ onBeforeUnmount(() => {
     color: #ff4d4d;
 }
 
-/* PiP and Fullscreen */
+/* PiP, Theater Mode, and Fullscreen */
 :deep(.vjs-picture-in-picture-control),
+:deep(.vjs-theater-mode-control),
 :deep(.vjs-fullscreen-control) {
     width: 36px;
     height: 36px;
@@ -511,6 +593,22 @@ onBeforeUnmount(() => {
 :deep(.vjs-fullscreen-control .vjs-icon-placeholder::before) {
     font-size: 18px;
     line-height: 36px;
+}
+
+:deep(.vjs-theater-mode-control) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+:deep(.vjs-theater-mode-control .vjs-theater-icon) {
+    width: 14px;
+    height: 14px;
+}
+
+:deep(.vjs-theater-mode-control:hover) {
+    color: #ff4d4d;
+    background: rgba(255, 77, 77, 0.12);
 }
 
 :deep(.vjs-fullscreen-control:hover) {

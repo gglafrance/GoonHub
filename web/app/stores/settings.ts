@@ -7,6 +7,7 @@ export const useSettingsStore = defineStore(
         const settings = ref<UserSettings | null>(null);
         const isLoading = ref(false);
         const error = ref<string | null>(null);
+        const theaterMode = ref(false);
 
         const {
             fetchSettings: apiFetchSettings,
@@ -94,6 +95,10 @@ export const useSettingsStore = defineStore(
             }
         };
 
+        const toggleTheaterMode = () => {
+            theaterMode.value = !theaterMode.value;
+        };
+
         return {
             settings,
             isLoading,
@@ -104,10 +109,12 @@ export const useSettingsStore = defineStore(
             videosPerPage,
             defaultSortOrder,
             defaultTagSort,
+            theaterMode,
             loadSettings,
             updatePlayer,
             updateApp,
             updateTags,
+            toggleTheaterMode,
         };
     },
     {
@@ -126,7 +133,7 @@ export const useSettingsStore = defineStore(
                     }
                 },
             },
-            pick: ['settings'],
+            pick: ['settings', 'theaterMode'],
         },
     },
 );
