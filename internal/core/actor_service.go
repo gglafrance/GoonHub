@@ -255,7 +255,7 @@ func (s *ActorService) Delete(id uint) error {
 	return nil
 }
 
-func (s *ActorService) List(page, limit int, query string) ([]data.ActorWithCount, int64, error) {
+func (s *ActorService) List(page, limit int, query, sort string) ([]data.ActorWithCount, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -264,9 +264,9 @@ func (s *ActorService) List(page, limit int, query string) ([]data.ActorWithCoun
 	}
 
 	if query != "" {
-		return s.actorRepo.Search(query, page, limit)
+		return s.actorRepo.Search(query, page, limit, sort)
 	}
-	return s.actorRepo.List(page, limit)
+	return s.actorRepo.List(page, limit, sort)
 }
 
 func (s *ActorService) GetVideoActors(videoID uint) ([]data.Actor, error) {

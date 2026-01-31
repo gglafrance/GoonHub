@@ -19,9 +19,19 @@ const total = ref(0);
 const currentPage = ref(1);
 const limit = ref(20);
 const searchQuery = ref('');
+const sortOrder = ref('name_asc');
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 const showCreateModal = ref(false);
+
+const sortOptions = [
+    { value: 'name_asc', label: 'Name A-Z' },
+    { value: 'name_desc', label: 'Name Z-A' },
+    { value: 'video_count_desc', label: 'Most Videos' },
+    { value: 'video_count_asc', label: 'Least Videos' },
+    { value: 'created_at_desc', label: 'Newest' },
+    { value: 'created_at_asc', label: 'Oldest' },
+];
 
 const isAdmin = computed(() => authStore.user?.role === 'admin');
 
@@ -31,7 +41,7 @@ const loadActors = async (page = 1) => {
     isLoading.value = true;
     error.value = null;
     try {
-        const response = await api.fetchActors(page, limit.value, searchQuery.value);
+        const response = await api.fetchActors(page, limit.value, searchQuery.value, sortOrder.value);
         actors.value = response.data;
         total.value = response.total;
         currentPage.value = page;
@@ -60,6 +70,10 @@ watch(searchQuery, () => {
     searchTimeout = setTimeout(() => {
         loadActors(1);
     }, 300);
+});
+
+watch(sortOrder, () => {
+    loadActors(1);
 });
 
 const handleActorCreated = (newActor: Actor) => {
@@ -98,9 +112,9 @@ definePageMeta({
                     </div>
                 </div>
 
-                <!-- Search bar -->
-                <div class="mt-4">
-                    <div class="relative">
+                <!-- Search bar and sort -->
+                <div class="mt-4 flex gap-3">
+                    <div class="relative flex-1">
                         <Icon
                             name="heroicons:magnifying-glass"
                             size="16"
@@ -115,6 +129,16 @@ definePageMeta({
                                 placeholder-white/40 transition-all focus:ring-2 focus:outline-none"
                         />
                     </div>
+
+                    <select
+                        v-model="sortOrder"
+                        class="border-border bg-panel text-dim rounded-lg border px-3 py-2 text-xs
+                            transition-colors focus:border-white/20 focus:outline-none"
+                    >
+                        <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">
+                            {{ opt.label }}
+                        </option>
+                    </select>
                 </div>
             </div>
 

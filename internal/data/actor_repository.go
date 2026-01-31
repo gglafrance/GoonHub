@@ -12,8 +12,8 @@ type ActorRepository interface {
 	GetByUUID(uuid string) (*Actor, error)
 	Update(actor *Actor) error
 	Delete(id uint) error
-	List(page, limit int) ([]ActorWithCount, int64, error)
-	Search(query string, page, limit int) ([]ActorWithCount, int64, error)
+	List(page, limit int, sort string) ([]ActorWithCount, int64, error)
+	Search(query string, page, limit int, sort string) ([]ActorWithCount, int64, error)
 
 	// Video associations
 	GetVideoActors(videoID uint) ([]Actor, error)
@@ -82,7 +82,25 @@ func (r *ActorRepositoryImpl) Delete(id uint) error {
 	return nil
 }
 
-func (r *ActorRepositoryImpl) List(page, limit int) ([]ActorWithCount, int64, error) {
+// actorSortMap maps sort parameter values to SQL ORDER BY clauses.
+// This whitelist approach prevents SQL injection.
+var actorSortMap = map[string]string{
+	"name_asc":         "actors.name ASC",
+	"name_desc":        "actors.name DESC",
+	"video_count_asc":  "video_count ASC",
+	"video_count_desc": "video_count DESC",
+	"created_at_asc":   "actors.created_at ASC",
+	"created_at_desc":  "actors.created_at DESC",
+}
+
+func getActorOrderClause(sort string) string {
+	if clause, ok := actorSortMap[sort]; ok {
+		return clause
+	}
+	return "actors.name ASC" // default sort
+}
+
+func (r *ActorRepositoryImpl) List(page, limit int, sort string) ([]ActorWithCount, int64, error) {
 	var actors []ActorWithCount
 	var total int64
 
@@ -92,6 +110,8 @@ func (r *ActorRepositoryImpl) List(page, limit int) ([]ActorWithCount, int64, er
 		return nil, 0, err
 	}
 
+	orderClause := getActorOrderClause(sort)
+
 	err := r.DB.
 		Table("actors").
 		Select("actors.*, COALESCE(COUNT(videos.id), 0) as video_count").
@@ -99,7 +119,7 @@ func (r *ActorRepositoryImpl) List(page, limit int) ([]ActorWithCount, int64, er
 		Joins("LEFT JOIN videos ON videos.id = video_actors.video_id AND videos.deleted_at IS NULL").
 		Where("actors.deleted_at IS NULL").
 		Group("actors.id").
-		Order("actors.name ASC").
+		Order(orderClause).
 		Limit(limit).
 		Offset(offset).
 		Find(&actors).Error
@@ -110,7 +130,7 @@ func (r *ActorRepositoryImpl) List(page, limit int) ([]ActorWithCount, int64, er
 	return actors, total, nil
 }
 
-func (r *ActorRepositoryImpl) Search(query string, page, limit int) ([]ActorWithCount, int64, error) {
+func (r *ActorRepositoryImpl) Search(query string, page, limit int, sort string) ([]ActorWithCount, int64, error) {
 	var actors []ActorWithCount
 	var total int64
 
@@ -122,6 +142,8 @@ func (r *ActorRepositoryImpl) Search(query string, page, limit int) ([]ActorWith
 		return nil, 0, err
 	}
 
+	orderClause := getActorOrderClause(sort)
+
 	err := r.DB.
 		Table("actors").
 		Select("actors.*, COALESCE(COUNT(video_actors.id), 0) as video_count").
@@ -130,7 +152,7 @@ func (r *ActorRepositoryImpl) Search(query string, page, limit int) ([]ActorWith
 		Where("actors.deleted_at IS NULL").
 		Where("actors.name ILIKE ?", searchPattern).
 		Group("actors.id").
-		Order("actors.name ASC").
+		Order(orderClause).
 		Limit(limit).
 		Offset(offset).
 		Find(&actors).Error

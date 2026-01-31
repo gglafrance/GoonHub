@@ -35,8 +35,9 @@ func (h *ActorHandler) ListActors(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	query := c.Query("q")
+	sort := c.Query("sort")
 
-	actors, total, err := h.Service.List(page, limit, query)
+	actors, total, err := h.Service.List(page, limit, query, sort)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list actors"})
 		return
