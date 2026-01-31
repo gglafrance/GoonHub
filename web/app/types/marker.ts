@@ -35,6 +35,15 @@ export interface MarkerLabelGroup {
 
 export interface MarkerWithVideo extends Marker {
     video_title: string;
+    tags?: MarkerTagInfo[];
+}
+
+// Tag info with metadata about source
+export interface MarkerTagInfo {
+    id: number;
+    name: string;
+    color: string;
+    is_from_label: boolean;
 }
 
 // API Response Types
@@ -54,4 +63,22 @@ export interface PaginatedResponse<T> {
         total_items: number;
         total_pages: number;
     };
+}
+
+// Request types for tag operations
+export interface SetLabelTagsRequest {
+    tag_ids: number[];
+}
+
+export interface SetMarkerTagsRequest {
+    tag_ids: number[];
+}
+
+// Response types for tag operations
+export interface LabelTagsResponse {
+    tags: import('~/types/tag').Tag[];
+}
+
+export interface MarkerTagsResponse {
+    tags: MarkerTagInfo[];
 }

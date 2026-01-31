@@ -123,7 +123,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	homepageService := provideHomepageService(settingsService, searchService, savedSearchService, watchHistoryRepository, interactionRepository, videoRepository, tagRepository, actorRepository, studioRepository, logger)
 	homepageHandler := provideHomepageHandler(homepageService)
 	markerRepository := provideMarkerRepository(db)
-	markerService := provideMarkerService(markerRepository, videoRepository, configConfig, logger)
+	markerService := provideMarkerService(markerRepository, videoRepository, tagRepository, configConfig, logger)
 	markerHandler := provideMarkerHandler(markerService)
 	ipRateLimiter := provideRateLimiter(configConfig)
 	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, authService, rbacService, ipRateLimiter)
@@ -381,8 +381,8 @@ func provideHomepageService(
 	)
 }
 
-func provideMarkerService(markerRepo data.MarkerRepository, videoRepo data.VideoRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
-	return core.NewMarkerService(markerRepo, videoRepo, cfg, logger.Logger)
+func provideMarkerService(markerRepo data.MarkerRepository, videoRepo data.VideoRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
+	return core.NewMarkerService(markerRepo, videoRepo, tagRepo, cfg, logger.Logger)
 }
 
 func provideRateLimiter(cfg *config.Config) *middleware.IPRateLimiter {

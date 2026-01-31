@@ -469,8 +469,8 @@ func provideHomepageService(
 	)
 }
 
-func provideMarkerService(markerRepo data.MarkerRepository, videoRepo data.VideoRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
-	return core.NewMarkerService(markerRepo, videoRepo, cfg, logger.Logger)
+func provideMarkerService(markerRepo data.MarkerRepository, videoRepo data.VideoRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
+	return core.NewMarkerService(markerRepo, videoRepo, tagRepo, cfg, logger.Logger)
 }
 
 // ============================================================================

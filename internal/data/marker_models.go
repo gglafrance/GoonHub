@@ -35,5 +35,40 @@ type MarkerLabelGroup struct {
 // MarkerWithVideo extends UserVideoMarker with video information
 type MarkerWithVideo struct {
 	UserVideoMarker
-	VideoTitle string `json:"video_title"`
+	VideoTitle string          `json:"video_title"`
+	Tags       []MarkerTagInfo `json:"tags,omitempty" gorm:"-"`
+}
+
+// MarkerLabelTag represents the default tags for a marker label (per user)
+type MarkerLabelTag struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	UserID    uint      `gorm:"not null" json:"user_id"`
+	Label     string    `gorm:"size:100;not null" json:"label"`
+	TagID     uint      `gorm:"not null" json:"tag_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (MarkerLabelTag) TableName() string {
+	return "marker_label_tags"
+}
+
+// MarkerTag represents a tag on an individual marker
+type MarkerTag struct {
+	ID          uint      `gorm:"primarykey" json:"id"`
+	MarkerID    uint      `gorm:"not null" json:"marker_id"`
+	TagID       uint      `gorm:"not null" json:"tag_id"`
+	IsFromLabel bool      `gorm:"not null;default:false" json:"is_from_label"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+func (MarkerTag) TableName() string {
+	return "marker_tags"
+}
+
+// MarkerTagInfo represents a tag with metadata about its source
+type MarkerTagInfo struct {
+	ID          uint   `json:"id"`
+	Name        string `json:"name"`
+	Color       string `json:"color"`
+	IsFromLabel bool   `json:"is_from_label"`
 }

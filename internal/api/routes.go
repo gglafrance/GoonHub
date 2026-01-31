@@ -144,6 +144,11 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					markers.GET("", markerHandler.ListLabelGroups)
 					markers.GET("/labels", markerHandler.ListLabelSuggestions)
 					markers.GET("/by-label", markerHandler.ListMarkersByLabel)
+					markers.GET("/label-tags", markerHandler.GetLabelTags)
+					markers.PUT("/label-tags", markerHandler.SetLabelTags)
+					markers.GET("/:markerID/tags", markerHandler.GetMarkerTags)
+					markers.PUT("/:markerID/tags", markerHandler.SetMarkerTags)
+					markers.POST("/:markerID/tags", markerHandler.AddMarkerTags)
 				}
 
 				admin := protected.Group("/admin")

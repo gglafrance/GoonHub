@@ -11,13 +11,18 @@ import type {
     UpdateMarkerRequest,
     MarkerLabelGroup,
     MarkerWithVideo,
+    MarkerTagInfo,
     MarkersResponse,
     LabelSuggestionsResponse,
+    LabelTagsResponse,
+    MarkerTagsResponse,
     PaginatedResponse,
 } from '~/types/marker';
+import type { Tag } from '~/types/tag';
 
 export const useApiMarkers = () => {
-    const { fetchOptions, getAuthHeaders, handleResponse, handleResponseWithNoContent } = useApiCore();
+    const { fetchOptions, getAuthHeaders, handleResponse, handleResponseWithNoContent } =
+        useApiCore();
 
     const fetchMarkers = async (videoId: number): Promise<MarkersResponse> => {
         const response = await fetch(`/api/v1/videos/${videoId}/markers`, {
@@ -40,7 +45,7 @@ export const useApiMarkers = () => {
     const updateMarker = async (
         videoId: number,
         markerId: number,
-        data: UpdateMarkerRequest
+        data: UpdateMarkerRequest,
     ): Promise<Marker> => {
         const response = await fetch(`/api/v1/videos/${videoId}/markers/${markerId}`, {
             method: 'PUT',
@@ -71,7 +76,7 @@ export const useApiMarkers = () => {
     const fetchLabelGroups = async (
         page: number = 1,
         limit: number = 20,
-        sort: string = 'count_desc'
+        sort: string = 'count_desc',
     ): Promise<PaginatedResponse<MarkerLabelGroup>> => {
         const params = new URLSearchParams({
             page: String(page),
@@ -88,7 +93,7 @@ export const useApiMarkers = () => {
     const fetchMarkersByLabel = async (
         label: string,
         page: number = 1,
-        limit: number = 20
+        limit: number = 20,
     ): Promise<PaginatedResponse<MarkerWithVideo>> => {
         const params = new URLSearchParams({
             label,
@@ -102,6 +107,61 @@ export const useApiMarkers = () => {
         return handleResponse(response);
     };
 
+    // Label tag methods
+    const fetchLabelTags = async (label: string): Promise<Tag[]> => {
+        const params = new URLSearchParams({ label });
+        const response = await fetch(`/api/v1/markers/label-tags?${params}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        const data: LabelTagsResponse = await handleResponse(response);
+        return data.tags || [];
+    };
+
+    const setLabelTags = async (label: string, tagIds: number[]): Promise<Tag[]> => {
+        const params = new URLSearchParams({ label });
+        const response = await fetch(`/api/v1/markers/label-tags?${params}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ tag_ids: tagIds }),
+            ...fetchOptions(),
+        });
+        const data: LabelTagsResponse = await handleResponse(response);
+        return data.tags || [];
+    };
+
+    // Individual marker tag methods
+    const fetchMarkerTags = async (markerId: number): Promise<MarkerTagInfo[]> => {
+        const response = await fetch(`/api/v1/markers/${markerId}/tags`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        const data: MarkerTagsResponse = await handleResponse(response);
+        return data.tags || [];
+    };
+
+    const setMarkerTags = async (markerId: number, tagIds: number[]): Promise<MarkerTagInfo[]> => {
+        const response = await fetch(`/api/v1/markers/${markerId}/tags`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ tag_ids: tagIds }),
+            ...fetchOptions(),
+        });
+        const data: MarkerTagsResponse = await handleResponse(response);
+        return data.tags || [];
+    };
+
+    const addMarkerTags = async (markerId: number, tagIds: number[]): Promise<MarkerTagInfo[]> => {
+        const response = await fetch(`/api/v1/markers/${markerId}/tags`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ tag_ids: tagIds }),
+            ...fetchOptions(),
+        });
+        const data: MarkerTagsResponse = await handleResponse(response);
+        return data.tags || [];
+    };
+
     return {
         fetchMarkers,
         createMarker,
@@ -110,5 +170,12 @@ export const useApiMarkers = () => {
         fetchLabelSuggestions,
         fetchLabelGroups,
         fetchMarkersByLabel,
+        // Label tag methods
+        fetchLabelTags,
+        setLabelTags,
+        // Marker tag methods
+        fetchMarkerTags,
+        setMarkerTags,
+        addMarkerTags,
     };
 };

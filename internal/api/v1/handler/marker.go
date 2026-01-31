@@ -203,3 +203,149 @@ func (h *MarkerHandler) ListMarkersByLabel(c *gin.Context) {
 
 	response.OK(c, response.NewPaginatedResponse(markers, page, limit, total))
 }
+
+// GetLabelTags returns the default tags for a label
+func (h *MarkerHandler) GetLabelTags(c *gin.Context) {
+	userID, ok := h.requireAuth(c)
+	if !ok {
+		return
+	}
+
+	label := c.Query("label")
+	if label == "" {
+		response.BadRequest(c, "label query parameter is required")
+		return
+	}
+
+	tags, err := h.service.GetLabelTags(userID, label)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, gin.H{"tags": tags})
+}
+
+// SetLabelTags sets the default tags for a label
+func (h *MarkerHandler) SetLabelTags(c *gin.Context) {
+	userID, ok := h.requireAuth(c)
+	if !ok {
+		return
+	}
+
+	label := c.Query("label")
+	if label == "" {
+		response.BadRequest(c, "label query parameter is required")
+		return
+	}
+
+	var req request.SetLabelTagsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request body")
+		return
+	}
+
+	if err := h.service.SetLabelTags(userID, label, req.TagIDs); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	// Return the updated tags
+	tags, err := h.service.GetLabelTags(userID, label)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, gin.H{"tags": tags})
+}
+
+// GetMarkerTags returns tags for a specific marker
+func (h *MarkerHandler) GetMarkerTags(c *gin.Context) {
+	userID, ok := h.requireAuth(c)
+	if !ok {
+		return
+	}
+
+	markerID, err := strconv.ParseUint(c.Param("markerID"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid marker ID")
+		return
+	}
+
+	tags, err := h.service.GetMarkerTags(userID, uint(markerID))
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, gin.H{"tags": tags})
+}
+
+// SetMarkerTags sets individual tags on a marker
+func (h *MarkerHandler) SetMarkerTags(c *gin.Context) {
+	userID, ok := h.requireAuth(c)
+	if !ok {
+		return
+	}
+
+	markerID, err := strconv.ParseUint(c.Param("markerID"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid marker ID")
+		return
+	}
+
+	var req request.SetMarkerTagsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request body")
+		return
+	}
+
+	if err := h.service.SetMarkerTags(userID, uint(markerID), req.TagIDs); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	// Return the updated tags
+	tags, err := h.service.GetMarkerTags(userID, uint(markerID))
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, gin.H{"tags": tags})
+}
+
+// AddMarkerTags adds tags to a marker
+func (h *MarkerHandler) AddMarkerTags(c *gin.Context) {
+	userID, ok := h.requireAuth(c)
+	if !ok {
+		return
+	}
+
+	markerID, err := strconv.ParseUint(c.Param("markerID"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid marker ID")
+		return
+	}
+
+	var req request.SetMarkerTagsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request body")
+		return
+	}
+
+	if err := h.service.AddMarkerTags(userID, uint(markerID), req.TagIDs); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	// Return the updated tags
+	tags, err := h.service.GetMarkerTags(userID, uint(markerID))
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, gin.H{"tags": tags})
+}

@@ -391,7 +391,7 @@ onUnmounted(() => {
                 </button>
 
                 <!-- Label & Actions -->
-                <div class="flex items-center gap-2 p-2 pt-0.5">
+                <div class="flex items-center gap-2 p-2 py-0.5">
                     <!-- Label (editable) -->
                     <div class="min-w-0 flex-1">
                         <template v-if="editingMarkerId === marker.id">
@@ -465,6 +465,9 @@ onUnmounted(() => {
                         <Icon name="heroicons:trash" size="12" />
                     </button>
                 </div>
+
+                <!-- Tags -->
+                <MarkersMarkerTagEditor :marker-id="marker.id" />
             </div>
         </div>
 

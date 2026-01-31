@@ -24,14 +24,16 @@ const markerThumbnailQuality = 75
 type MarkerService struct {
 	markerRepo         data.MarkerRepository
 	videoRepo          data.VideoRepository
+	tagRepo            data.TagRepository
 	markerThumbnailDir string
 	logger             *zap.Logger
 }
 
-func NewMarkerService(markerRepo data.MarkerRepository, videoRepo data.VideoRepository, cfg *config.Config, logger *zap.Logger) *MarkerService {
+func NewMarkerService(markerRepo data.MarkerRepository, videoRepo data.VideoRepository, tagRepo data.TagRepository, cfg *config.Config, logger *zap.Logger) *MarkerService {
 	return &MarkerService{
 		markerRepo:         markerRepo,
 		videoRepo:          videoRepo,
+		tagRepo:            tagRepo,
 		markerThumbnailDir: cfg.Processing.MarkerThumbnailDir,
 		logger:             logger,
 	}
@@ -109,6 +111,16 @@ func (s *MarkerService) CreateMarker(userID, videoID uint, timestamp int, label,
 	if err := s.markerRepo.Create(marker); err != nil {
 		s.logger.Error("failed to create marker", zap.Uint("userID", userID), zap.Uint("videoID", videoID), zap.Error(err))
 		return nil, apperrors.NewInternalError("failed to create marker", err)
+	}
+
+	// Apply label tags if the marker has a label
+	if label != "" {
+		if err := s.markerRepo.ApplyLabelTagsToMarker(userID, marker.ID, label); err != nil {
+			s.logger.Warn("failed to apply label tags to marker",
+				zap.Uint("markerID", marker.ID),
+				zap.String("label", label),
+				zap.Error(err))
+		}
 	}
 
 	// Generate thumbnail (best effort - marker is still useful without it)
@@ -358,5 +370,152 @@ func (s *MarkerService) generateThumbnail(marker *data.UserVideoMarker, video *d
 		return fmt.Errorf("failed to update marker with thumbnail path: %w", err)
 	}
 
+	return nil
+}
+
+// GetLabelTags returns the default tags for a label
+func (s *MarkerService) GetLabelTags(userID uint, label string) ([]data.Tag, error) {
+	if label == "" {
+		return nil, apperrors.NewValidationError("label is required")
+	}
+
+	tags, err := s.markerRepo.GetLabelTags(userID, label)
+	if err != nil {
+		s.logger.Error("failed to get label tags", zap.Uint("userID", userID), zap.String("label", label), zap.Error(err))
+		return nil, apperrors.NewInternalError("failed to get label tags", err)
+	}
+	// Ensure non-nil slice for JSON serialization
+	if tags == nil {
+		tags = []data.Tag{}
+	}
+	return tags, nil
+}
+
+// SetLabelTags sets the default tags for a label and syncs to all existing markers
+func (s *MarkerService) SetLabelTags(userID uint, label string, tagIDs []uint) error {
+	if label == "" {
+		return apperrors.NewValidationError("label is required")
+	}
+
+	// Validate that all tag IDs exist
+	if len(tagIDs) > 0 {
+		tags, err := s.tagRepo.GetByIDs(tagIDs)
+		if err != nil {
+			s.logger.Error("failed to validate tags", zap.Uint("userID", userID), zap.Error(err))
+			return apperrors.NewInternalError("failed to validate tags", err)
+		}
+		if len(tags) != len(tagIDs) {
+			return apperrors.NewValidationError("one or more tags do not exist")
+		}
+	}
+
+	if err := s.markerRepo.SetLabelTags(userID, label, tagIDs); err != nil {
+		s.logger.Error("failed to set label tags", zap.Uint("userID", userID), zap.String("label", label), zap.Error(err))
+		return apperrors.NewInternalError("failed to set label tags", err)
+	}
+
+	s.logger.Info("set label tags",
+		zap.Uint("userID", userID),
+		zap.String("label", label),
+		zap.Int("tagCount", len(tagIDs)))
+
+	return nil
+}
+
+// GetMarkerTags returns tags for a specific marker
+func (s *MarkerService) GetMarkerTags(userID, markerID uint) ([]data.MarkerTagInfo, error) {
+	// Verify ownership
+	marker, err := s.markerRepo.GetByID(markerID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperrors.NewNotFoundError("marker", markerID)
+		}
+		s.logger.Error("failed to get marker", zap.Uint("markerID", markerID), zap.Error(err))
+		return nil, apperrors.NewInternalError("failed to get marker", err)
+	}
+
+	if marker.UserID != userID {
+		return nil, apperrors.NewForbiddenError("you do not own this marker")
+	}
+
+	tags, err := s.markerRepo.GetMarkerTags(markerID)
+	if err != nil {
+		s.logger.Error("failed to get marker tags", zap.Uint("markerID", markerID), zap.Error(err))
+		return nil, apperrors.NewInternalError("failed to get marker tags", err)
+	}
+	// Ensure non-nil slice for JSON serialization
+	if tags == nil {
+		tags = []data.MarkerTagInfo{}
+	}
+	return tags, nil
+}
+
+// SetMarkerTags sets individual (non-label-derived) tags on a marker
+func (s *MarkerService) SetMarkerTags(userID, markerID uint, tagIDs []uint) error {
+	// Verify ownership
+	marker, err := s.markerRepo.GetByID(markerID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return apperrors.NewNotFoundError("marker", markerID)
+		}
+		s.logger.Error("failed to get marker", zap.Uint("markerID", markerID), zap.Error(err))
+		return apperrors.NewInternalError("failed to get marker", err)
+	}
+
+	if marker.UserID != userID {
+		return apperrors.NewForbiddenError("you do not own this marker")
+	}
+
+	// Validate that all tag IDs exist
+	if len(tagIDs) > 0 {
+		tags, err := s.tagRepo.GetByIDs(tagIDs)
+		if err != nil {
+			s.logger.Error("failed to validate tags", zap.Uint("markerID", markerID), zap.Error(err))
+			return apperrors.NewInternalError("failed to validate tags", err)
+		}
+		if len(tags) != len(tagIDs) {
+			return apperrors.NewValidationError("one or more tags do not exist")
+		}
+	}
+
+	if err := s.markerRepo.SetMarkerTags(markerID, tagIDs); err != nil {
+		s.logger.Error("failed to set marker tags", zap.Uint("markerID", markerID), zap.Error(err))
+		return apperrors.NewInternalError("failed to set marker tags", err)
+	}
+	return nil
+}
+
+// AddMarkerTags adds individual tags to a marker
+func (s *MarkerService) AddMarkerTags(userID, markerID uint, tagIDs []uint) error {
+	// Verify ownership
+	marker, err := s.markerRepo.GetByID(markerID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return apperrors.NewNotFoundError("marker", markerID)
+		}
+		s.logger.Error("failed to get marker", zap.Uint("markerID", markerID), zap.Error(err))
+		return apperrors.NewInternalError("failed to get marker", err)
+	}
+
+	if marker.UserID != userID {
+		return apperrors.NewForbiddenError("you do not own this marker")
+	}
+
+	// Validate that all tag IDs exist
+	if len(tagIDs) > 0 {
+		tags, err := s.tagRepo.GetByIDs(tagIDs)
+		if err != nil {
+			s.logger.Error("failed to validate tags", zap.Uint("markerID", markerID), zap.Error(err))
+			return apperrors.NewInternalError("failed to validate tags", err)
+		}
+		if len(tags) != len(tagIDs) {
+			return apperrors.NewValidationError("one or more tags do not exist")
+		}
+	}
+
+	if err := s.markerRepo.AddMarkerTags(markerID, tagIDs); err != nil {
+		s.logger.Error("failed to add marker tags", zap.Uint("markerID", markerID), zap.Error(err))
+		return apperrors.NewInternalError("failed to add marker tags", err)
+	}
 	return nil
 }

@@ -90,7 +90,7 @@ definePageMeta({
             </button>
 
             <!-- Header -->
-            <div class="mb-6">
+            <div class="mb-4">
                 <div class="flex items-center justify-between">
                     <h1 class="text-lg font-semibold text-white">{{ label }}</h1>
                     <span
@@ -101,6 +101,9 @@ definePageMeta({
                     </span>
                 </div>
             </div>
+
+            <!-- Label Tag Manager -->
+            <MarkersLabelTagManager :label="label" class="mb-6" />
 
             <!-- Error -->
             <ErrorAlert v-if="error" :message="error" class="mb-4" />
