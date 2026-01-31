@@ -59,6 +59,10 @@ export default defineNuxtConfig({
                     target: 'http://localhost:8080',
                     changeOrigin: true,
                 },
+                '/marker-thumbnails': {
+                    target: 'http://localhost:8080',
+                    changeOrigin: true,
+                },
             },
         },
     },

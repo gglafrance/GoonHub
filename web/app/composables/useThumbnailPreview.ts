@@ -27,6 +27,13 @@ export function useThumbnailPreview(player: Ref<Player | null>, vttCues: Ref<Vtt
         const onMouseMove = (e: MouseEvent) => {
             if (vttCues.value.length === 0) return;
 
+            // Don't show sprite preview when hovering a marker tick
+            const target = e.target as HTMLElement;
+            if (target.closest('.vjs-marker-tick')) {
+                thumbEl.style.display = 'none';
+                return;
+            }
+
             const seekBarRect = seekBar.el().getBoundingClientRect();
             const percent = (e.clientX - seekBarRect.left) / seekBarRect.width;
             const duration = player.value!.duration();

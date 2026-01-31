@@ -63,8 +63,8 @@ function updatePosition() {
     if (!props.anchorEl) return;
     const rect = props.anchorEl.getBoundingClientRect();
     dropdownStyle.value = {
-        top: `${rect.bottom + window.scrollY + 6}px`,
-        left: `${rect.left + window.scrollX}px`,
+        top: `${rect.bottom + 6}px`,
+        left: `${rect.left}px`,
     };
 }
 
@@ -86,8 +86,10 @@ watch(
         if (open) {
             updatePosition();
             setTimeout(() => document.addEventListener('click', onClickOutside), 0);
+            window.addEventListener('scroll', updatePosition, true);
         } else {
             document.removeEventListener('click', onClickOutside);
+            window.removeEventListener('scroll', updatePosition, true);
             searchQuery.value = '';
         }
     },
@@ -95,6 +97,7 @@ watch(
 
 onBeforeUnmount(() => {
     document.removeEventListener('click', onClickOutside);
+    window.removeEventListener('scroll', updatePosition, true);
 });
 </script>
 

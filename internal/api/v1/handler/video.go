@@ -22,18 +22,20 @@ import (
 )
 
 type VideoHandler struct {
-	Service           *core.VideoService
-	ProcessingService *core.VideoProcessingService
-	TagService        *core.TagService
-	SearchService     *core.SearchService
+	Service              *core.VideoService
+	ProcessingService    *core.VideoProcessingService
+	TagService           *core.TagService
+	SearchService        *core.SearchService
+	RelatedVideosService *core.RelatedVideosService
 }
 
-func NewVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService) *VideoHandler {
+func NewVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedVideosService *core.RelatedVideosService) *VideoHandler {
 	return &VideoHandler{
-		Service:           service,
-		ProcessingService: processingService,
-		TagService:        tagService,
-		SearchService:     searchService,
+		Service:              service,
+		ProcessingService:    processingService,
+		TagService:           tagService,
+		SearchService:        searchService,
+		RelatedVideosService: relatedVideosService,
 	}
 }
 
@@ -600,4 +602,46 @@ func (h *VideoHandler) ApplySceneMetadata(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, updatedVideo)
+}
+
+func (h *VideoHandler) GetRelatedVideos(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		return
+	}
+
+	// Parse optional limit parameter
+	limit := 15
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+	if limit > 50 {
+		limit = 50
+	}
+
+	// Verify the video exists
+	_, err = h.Service.GetVideo(uint(id))
+	if err != nil {
+		if apperrors.IsNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get video"})
+		return
+	}
+
+	videos, err := h.RelatedVideosService.GetRelatedVideos(uint(id), limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get related videos"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  response.ToVideoListItems(videos),
+		"total": len(videos),
+	})
 }

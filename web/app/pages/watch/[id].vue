@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import type { Video } from '~/types/video';
+import type { Marker } from '~/types/marker';
 
 const route = useRoute();
 const router = useRouter();
 const { fetchVideo, getResumePosition } = useApi();
+const { fetchMarkers } = useApiMarkers();
 const settingsStore = useSettingsStore();
 const { formatDuration } = useFormatter();
 
 const video = ref<Video | null>(null);
+const markers = ref<Marker[]>([]);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 
@@ -18,18 +21,10 @@ const playerRef = ref<{ getCurrentTime: () => number } | null>(null);
 const resumePosition = ref(0);
 const showResumePrompt = ref(false);
 const startTime = ref(0);
+const forceAutoplay = ref(false);
 
 const thumbnailVersion = ref(0);
 const detailsRefreshKey = ref(0);
-
-provide('getPlayerTime', () => playerRef.value?.getCurrentTime() ?? 0);
-provide('watchVideo', video);
-provide('thumbnailVersion', thumbnailVersion);
-provide('detailsRefreshKey', detailsRefreshKey);
-provide('seekToTime', (time: number) => {
-    startTime.value = time;
-    showResumePrompt.value = false;
-});
 
 const videoId = computed(() => parseInt(route.params.id as string));
 
@@ -53,16 +48,15 @@ const posterUrl = computed(() => {
     return v ? `${base}&v=${v}` : base;
 });
 
-onMounted(async () => {
-    await loadVideo();
-});
-
-watch(
-    () => route.params.id,
-    async () => {
-        await loadVideo();
-    },
-);
+const loadMarkers = async () => {
+    if (!video.value) return;
+    try {
+        const data = await fetchMarkers(video.value.id);
+        markers.value = data.markers || [];
+    } catch {
+        // Silent fail - markers are optional
+    }
+};
 
 const loadVideo = async () => {
     try {
@@ -71,10 +65,27 @@ const loadVideo = async () => {
         showResumePrompt.value = false;
         resumePosition.value = 0;
         startTime.value = 0;
+        markers.value = [];
 
         video.value = await fetchVideo(videoId.value);
 
-        // Fetch resume position
+        // Load markers after video is loaded
+        await loadMarkers();
+
+        // Check for timestamp query parameter (e.g., ?t=120)
+        const queryTime = route.query.t;
+        if (queryTime) {
+            const timestamp = parseInt(queryTime as string, 10);
+            if (!isNaN(timestamp) && timestamp >= 0) {
+                startTime.value = timestamp;
+                forceAutoplay.value = true;
+                // Skip resume prompt when navigating to specific timestamp
+                return;
+            }
+        }
+        forceAutoplay.value = false;
+
+        // Fetch resume position (only if no timestamp query param)
         try {
             const res = await getResumePosition(videoId.value);
             if (res.position > 0) {
@@ -104,6 +115,42 @@ const handleStartOver = () => {
 const goBack = () => {
     router.push('/');
 };
+
+provide('getPlayerTime', () => playerRef.value?.getCurrentTime() ?? 0);
+provide('watchVideo', video);
+provide('thumbnailVersion', thumbnailVersion);
+provide('detailsRefreshKey', detailsRefreshKey);
+provide('seekToTime', (time: number) => {
+    startTime.value = time;
+    showResumePrompt.value = false;
+});
+provide('refreshMarkers', loadMarkers);
+
+onMounted(async () => {
+    await loadVideo();
+});
+
+watch(
+    () => route.params.id,
+    async () => {
+        await loadVideo();
+    },
+);
+
+// Handle timestamp query parameter changes (e.g., clicking different markers for same video)
+watch(
+    () => route.query.t,
+    (newTime) => {
+        if (newTime) {
+            const timestamp = parseInt(newTime as string, 10);
+            if (!isNaN(timestamp) && timestamp >= 0) {
+                startTime.value = timestamp;
+                forceAutoplay.value = true;
+                showResumePrompt.value = false;
+            }
+        }
+    },
+);
 
 definePageMeta({
     middleware: ['auth'],
@@ -220,68 +267,74 @@ definePageMeta({
                             </div>
                         </Transition>
 
-                        <!-- Resume Prompt -->
-                        <Transition
-                            enter-active-class="transition duration-200 ease-out"
-                            enter-from-class="transform -translate-y-2 opacity-0"
-                            enter-to-class="transform translate-y-0 opacity-100"
-                            leave-active-class="transition duration-150 ease-in"
-                            leave-from-class="transform translate-y-0 opacity-100"
-                            leave-to-class="transform -translate-y-2 opacity-0"
-                        >
-                            <div
-                                v-if="showResumePrompt"
-                                class="border-lava/30 bg-lava/5 rounded-lg border px-4 py-3
-                                    backdrop-blur-sm"
-                            >
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-3">
-                                        <Icon
-                                            name="heroicons:play-circle"
-                                            size="20"
-                                            class="text-lava"
-                                        />
-                                        <div>
-                                            <span class="text-xs font-medium text-white">
-                                                Resume watching?
-                                            </span>
-                                            <span class="text-dim ml-2 text-[11px]">
-                                                You left off at
-                                                {{ formatDuration(resumePosition) }}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <button
-                                            class="text-dim px-3 py-1.5 text-[11px] font-medium
-                                                transition-colors hover:text-white"
-                                            @click="handleStartOver"
-                                        >
-                                            Start Over
-                                        </button>
-                                        <button
-                                            class="bg-lava hover:bg-lava/80 rounded-md px-3 py-1.5
-                                                text-[11px] font-medium text-white
-                                                transition-colors"
-                                            @click="handleResume"
-                                        >
-                                            Resume
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </Transition>
-
                         <div
-                            class="border-border bg-void overflow-hidden rounded-xl border"
+                            class="border-border bg-void relative overflow-hidden rounded-xl border"
                             :class="{ 'mx-auto max-w-xl': isPortrait }"
                         >
+                            <!-- Resume Prompt (overlaid on video) -->
+                            <Transition
+                                enter-active-class="transition duration-200 ease-out"
+                                enter-from-class="opacity-0"
+                                enter-to-class="opacity-100"
+                                leave-active-class="transition duration-150 ease-in"
+                                leave-from-class="opacity-100"
+                                leave-to-class="opacity-0"
+                            >
+                                <div
+                                    v-if="showResumePrompt"
+                                    class="absolute inset-x-0 top-0 z-20 p-3"
+                                >
+                                    <div
+                                        class="border-lava/30 bg-void/75 rounded-lg border px-4 py-3
+                                            backdrop-blur-md"
+                                    >
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex items-center gap-3">
+                                                <Icon
+                                                    name="heroicons:play-circle"
+                                                    size="20"
+                                                    class="text-lava"
+                                                />
+                                                <div>
+                                                    <span class="text-xs font-medium text-white">
+                                                        Resume watching?
+                                                    </span>
+                                                    <span class="text-dim ml-2 text-[11px]">
+                                                        You left off at
+                                                        {{ formatDuration(resumePosition) }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <button
+                                                    class="text-dim px-3 py-1.5 text-[11px]
+                                                        font-medium transition-colors
+                                                        hover:text-white"
+                                                    @click="handleStartOver"
+                                                >
+                                                    Start Over
+                                                </button>
+                                                <button
+                                                    class="bg-lava hover:bg-lava/80 rounded-md px-3
+                                                        py-1.5 text-[11px] font-medium text-white
+                                                        transition-colors"
+                                                    @click="handleResume"
+                                                >
+                                                    Resume
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </Transition>
+
                             <VideoPlayer
                                 ref="playerRef"
                                 :video-url="streamUrl"
                                 :poster-url="posterUrl"
                                 :video="video"
-                                :autoplay="settingsStore.autoplay"
+                                :markers="markers"
+                                :autoplay="forceAutoplay || settingsStore.autoplay"
                                 :loop="settingsStore.loop"
                                 :default-volume="settingsStore.defaultVolume"
                                 :start-time="startTime"
@@ -316,6 +369,9 @@ definePageMeta({
                     <VideoMetadata :video="video" />
                 </div>
             </div>
+
+            <!-- Related Videos -->
+            <WatchRelatedVideos v-if="video && !isProcessing && !hasProcessingError" />
         </div>
     </div>
 </template>

@@ -58,7 +58,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	interactionRepository := provideInteractionRepository(db)
 	actorRepository := provideActorRepository(db)
 	searchService := provideSearchService(client, videoRepository, interactionRepository, tagRepository, actorRepository, logger)
-	videoHandler := provideVideoHandler(videoService, videoProcessingService, tagService, searchService)
+	studioRepository := provideStudioRepository(db)
+	relatedVideosService := provideRelatedVideosService(videoRepository, tagRepository, actorRepository, studioRepository, logger)
+	videoHandler := provideVideoHandler(videoService, videoProcessingService, tagService, searchService, relatedVideosService)
 	userRepository := provideUserRepository(db)
 	revokedTokenRepository := provideRevokedTokenRepository(db)
 	authService, err := provideAuthService(userRepository, revokedTokenRepository, configConfig, logger)
@@ -90,7 +92,6 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	tagHandler := provideTagHandler(tagService)
 	actorService := provideActorService(actorRepository, videoRepository, logger)
 	actorHandler := provideActorHandler(actorService, configConfig)
-	studioRepository := provideStudioRepository(db)
 	studioService := provideStudioService(studioRepository, videoRepository, logger)
 	studioHandler := provideStudioHandler(studioService, configConfig)
 	interactionService := provideInteractionService(interactionRepository, logger)
@@ -121,8 +122,11 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	savedSearchHandler := provideSavedSearchHandler(savedSearchService)
 	homepageService := provideHomepageService(settingsService, searchService, savedSearchService, watchHistoryRepository, interactionRepository, videoRepository, tagRepository, actorRepository, studioRepository, logger)
 	homepageHandler := provideHomepageHandler(homepageService)
+	markerRepository := provideMarkerRepository(db)
+	markerService := provideMarkerService(markerRepository, videoRepository, configConfig, logger)
+	markerHandler := provideMarkerHandler(markerService)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, authService, rbacService, ipRateLimiter)
+	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, authService, rbacService, ipRateLimiter)
 	serverServer := provideServer(engine, logger, configConfig, videoProcessingService, userService, jobHistoryService, triggerScheduler, videoService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService)
 	return serverServer, nil
 }
@@ -221,6 +225,10 @@ func provideSavedSearchRepository(db *gorm.DB) data.SavedSearchRepository {
 	return data.NewSavedSearchRepository(db)
 }
 
+func provideMarkerRepository(db *gorm.DB) data.MarkerRepository {
+	return data.NewMarkerRepository(db)
+}
+
 func provideMeilisearchClient(cfg *config.Config, logger *logging.Logger) (*meilisearch.Client, error) {
 	client, err := meilisearch.NewClient(
 		cfg.Meilisearch.Host,
@@ -303,6 +311,10 @@ func provideWatchHistoryService(repo data.WatchHistoryRepository, videoRepo data
 	return core.NewWatchHistoryService(repo, videoRepo, searchService, logger.Logger)
 }
 
+func provideRelatedVideosService(videoRepo data.VideoRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, studioRepo data.StudioRepository, logger *logging.Logger) *core.RelatedVideosService {
+	return core.NewRelatedVideosService(videoRepo, tagRepo, actorRepo, studioRepo, logger.Logger)
+}
+
 func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository) *core.VideoProcessingService {
 	return core.NewVideoProcessingService(repo, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo, triggerConfigRepo)
 }
@@ -369,6 +381,10 @@ func provideHomepageService(
 	)
 }
 
+func provideMarkerService(markerRepo data.MarkerRepository, videoRepo data.VideoRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
+	return core.NewMarkerService(markerRepo, videoRepo, cfg, logger.Logger)
+}
+
 func provideRateLimiter(cfg *config.Config) *middleware.IPRateLimiter {
 	rl := rate.Every(time.Minute / time.Duration(cfg.Auth.LoginRateLimit))
 	return middleware.NewIPRateLimiter(rl, cfg.Auth.LoginRateBurst)
@@ -387,8 +403,8 @@ func provideSettingsHandler(settingsService *core.SettingsService) *handler.Sett
 	return handler.NewSettingsHandler(settingsService)
 }
 
-func provideVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService) *handler.VideoHandler {
-	return handler.NewVideoHandler(service, processingService, tagService, searchService)
+func provideVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedVideosService *core.RelatedVideosService) *handler.VideoHandler {
+	return handler.NewVideoHandler(service, processingService, tagService, searchService, relatedVideosService)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
@@ -475,6 +491,10 @@ func provideHomepageHandler(homepageService *core.HomepageService) *handler.Home
 	return handler.NewHomepageHandler(homepageService)
 }
 
+func provideMarkerHandler(markerService *core.MarkerService) *handler.MarkerHandler {
+	return handler.NewMarkerHandler(markerService)
+}
+
 func provideRouter(
 	logger *logging.Logger,
 	cfg *config.Config,
@@ -503,6 +523,7 @@ func provideRouter(
 	pornDBHandler *handler.PornDBHandler,
 	savedSearchHandler *handler.SavedSearchHandler,
 	homepageHandler *handler.HomepageHandler,
+	markerHandler *handler.MarkerHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -513,7 +534,7 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, authService, rbacService, rateLimiter,
 	)
 }
 

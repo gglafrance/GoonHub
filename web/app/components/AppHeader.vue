@@ -125,6 +125,16 @@ const authStore = useAuthStore();
                         <Icon name="heroicons:folder" size="14" />
                         <span>Explorer</span>
                     </NuxtLink>
+
+                    <NuxtLink
+                        to="/markers"
+                        class="text-dim flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px]
+                            font-medium transition-all hover:bg-white/5 hover:text-white"
+                        active-class="!text-lava bg-lava/10"
+                    >
+                        <Icon name="heroicons:bookmark" size="14" />
+                        <span>Markers</span>
+                    </NuxtLink>
                 </div>
             </div>
         </nav>

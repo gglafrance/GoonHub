@@ -15,6 +15,7 @@
  * - useApiDLQ() for dead letter queue operations
  * - useApiExplorer() for folder browsing and bulk editing
  * - useApiSavedSearches() for saved search templates
+ * - useApiMarkers() for video marker operations
  */
 export const useApi = () => {
     const videos = useApiVideos();
@@ -29,6 +30,7 @@ export const useApi = () => {
     const dlq = useApiDLQ();
     const explorer = useApiExplorer();
     const savedSearches = useApiSavedSearches();
+    const markers = useApiMarkers();
 
     return {
         // Video operations
@@ -163,5 +165,14 @@ export const useApi = () => {
         createSavedSearch: savedSearches.createSavedSearch,
         updateSavedSearch: savedSearches.updateSavedSearch,
         deleteSavedSearch: savedSearches.deleteSavedSearch,
+
+        // Marker operations
+        fetchMarkers: markers.fetchMarkers,
+        createMarker: markers.createMarker,
+        updateMarker: markers.updateMarker,
+        deleteMarker: markers.deleteMarker,
+        fetchLabelSuggestions: markers.fetchLabelSuggestions,
+        fetchLabelGroups: markers.fetchLabelGroups,
+        fetchMarkersByLabel: markers.fetchMarkersByLabel,
     };
 };

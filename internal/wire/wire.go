@@ -71,6 +71,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Saved Search Repository
 		provideSavedSearchRepository,
 
+		// Marker Repository
+		provideMarkerRepository,
+
 		// ============================================================
 		// EXTERNAL SERVICES
 		// ============================================================
@@ -100,6 +103,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideStudioInteractionService,
 		provideSearchService,
 		provideWatchHistoryService,
+		provideRelatedVideosService,
 
 		// Processing & Job Services
 		provideVideoProcessingService,
@@ -121,6 +125,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Homepage Service
 		provideHomepageService,
+
+		// Marker Service
+		provideMarkerService,
 
 		// ============================================================
 		// API LAYER - MIDDLEWARE
@@ -169,6 +176,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Homepage Handler
 		provideHomepageHandler,
+
+		// Marker Handler
+		provideMarkerHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -283,6 +293,10 @@ func provideSavedSearchRepository(db *gorm.DB) data.SavedSearchRepository {
 	return data.NewSavedSearchRepository(db)
 }
 
+func provideMarkerRepository(db *gorm.DB) data.MarkerRepository {
+	return data.NewMarkerRepository(db)
+}
+
 // ============================================================================
 // EXTERNAL SERVICE PROVIDERS
 // ============================================================================
@@ -379,6 +393,10 @@ func provideWatchHistoryService(repo data.WatchHistoryRepository, videoRepo data
 	return core.NewWatchHistoryService(repo, videoRepo, searchService, logger.Logger)
 }
 
+func provideRelatedVideosService(videoRepo data.VideoRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, studioRepo data.StudioRepository, logger *logging.Logger) *core.RelatedVideosService {
+	return core.NewRelatedVideosService(videoRepo, tagRepo, actorRepo, studioRepo, logger.Logger)
+}
+
 // --- Processing & Job Services ---
 
 func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository) *core.VideoProcessingService {
@@ -451,6 +469,10 @@ func provideHomepageService(
 	)
 }
 
+func provideMarkerService(markerRepo data.MarkerRepository, videoRepo data.VideoRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
+	return core.NewMarkerService(markerRepo, videoRepo, cfg, logger.Logger)
+}
+
 // ============================================================================
 // API MIDDLEWARE PROVIDERS
 // ============================================================================
@@ -481,8 +503,8 @@ func provideSettingsHandler(settingsService *core.SettingsService) *handler.Sett
 
 // --- Video & Content Handlers ---
 
-func provideVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService) *handler.VideoHandler {
-	return handler.NewVideoHandler(service, processingService, tagService, searchService)
+func provideVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedVideosService *core.RelatedVideosService) *handler.VideoHandler {
+	return handler.NewVideoHandler(service, processingService, tagService, searchService, relatedVideosService)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
@@ -575,6 +597,10 @@ func provideHomepageHandler(homepageService *core.HomepageService) *handler.Home
 	return handler.NewHomepageHandler(homepageService)
 }
 
+func provideMarkerHandler(markerService *core.MarkerService) *handler.MarkerHandler {
+	return handler.NewMarkerHandler(markerService)
+}
+
 // ============================================================================
 // ROUTER & SERVER PROVIDERS
 // ============================================================================
@@ -607,6 +633,7 @@ func provideRouter(
 	pornDBHandler *handler.PornDBHandler,
 	savedSearchHandler *handler.SavedSearchHandler,
 	homepageHandler *handler.HomepageHandler,
+	markerHandler *handler.MarkerHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -617,7 +644,7 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, authService, rbacService, rateLimiter,
 	)
 }
 
