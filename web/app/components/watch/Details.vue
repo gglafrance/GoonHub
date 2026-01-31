@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import type { Video } from '~/types/video';
+import type { WatchPageData } from '~/composables/useWatchPageData';
+import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
 const video = inject<Ref<Video | null>>('watchVideo');
 const thumbnailVersion = inject<Ref<number>>('thumbnailVersion');
 const detailsRefreshKey = inject<Ref<number>>('detailsRefreshKey');
 const authStore = useAuthStore();
-const { updateVideoDetails, fetchVideoInteractions, fetchVideo, getPornDBStatus } = useApi();
+const { updateVideoDetails, fetchVideo } = useApi();
+
+// Inject centralized watch page data
+const watchPageData = inject<WatchPageData>(WATCH_PAGE_DATA_KEY);
 
 const error = ref<string | null>(null);
 const saving = ref(false);
@@ -14,43 +19,22 @@ let savedTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // Fetch metadata modal state
 const showFetchMetadataModal = ref(false);
-const pornDBConfigured = ref(false);
-const checkingPornDB = ref(false);
-
-// Interactions state
-const initialRating = ref(0);
-const initialLiked = ref(false);
-const initialJizzedCount = ref(0);
 
 // Tag manager ref for reloading
 const tagManagerRef = ref<{ reload: () => void } | null>(null);
 
 const isAdmin = computed(() => authStore.user?.role === 'admin');
 
-async function checkPornDBStatus() {
-    if (!isAdmin.value) return;
-    checkingPornDB.value = true;
-    try {
-        const status = await getPornDBStatus();
-        pornDBConfigured.value = status.configured;
-    } catch {
-        pornDBConfigured.value = false;
-    } finally {
-        checkingPornDB.value = false;
-    }
-}
+// Loading state for interactions
+const interactionsLoading = computed(() => watchPageData?.loading.details ?? true);
 
-async function loadInteractions() {
-    if (!video?.value) return;
-    try {
-        const res = await fetchVideoInteractions(video.value.id);
-        initialRating.value = res.rating || 0;
-        initialLiked.value = res.liked || false;
-        initialJizzedCount.value = res.jizzed_count || 0;
-    } catch {
-        // Silently fail for interactions
-    }
-}
+// Interactions from centralized data (with fallback for backwards compatibility)
+const initialRating = computed(() => watchPageData?.interactions.value?.rating ?? 0);
+const initialLiked = computed(() => watchPageData?.interactions.value?.liked ?? false);
+const initialJizzedCount = computed(() => watchPageData?.interactions.value?.jizzed_count ?? 0);
+
+// PornDB status from centralized data
+const pornDBConfigured = computed(() => watchPageData?.pornDBConfigured.value ?? false);
 
 async function handleMetadataApplied() {
     // Refresh video data after metadata is applied
@@ -66,7 +50,13 @@ async function handleMetadataApplied() {
             }
             // Reload tags since metadata apply may have changed them
             tagManagerRef.value?.reload();
-            // Signal child components (e.g. Actors) to refresh
+            // Refresh centralized data for studio, tags, actors
+            await Promise.all([
+                watchPageData?.refreshStudio(),
+                watchPageData?.refreshTags(),
+                watchPageData?.refreshActors(),
+            ]);
+            // Signal child components (e.g. Actors) to refresh via legacy key
             if (detailsRefreshKey) {
                 detailsRefreshKey.value++;
             }
@@ -137,10 +127,6 @@ function showSavedIndicator() {
         saved.value = false;
     }, 2000);
 }
-
-onMounted(async () => {
-    await Promise.all([loadInteractions(), checkPornDBStatus()]);
-});
 </script>
 
 <template>
@@ -176,20 +162,48 @@ onMounted(async () => {
 
             <!-- Right: Engagement card -->
             <div
-                class="border-border/50 bg-surface/30 flex w-36 shrink-0 flex-col items-center
-                    justify-center gap-4 rounded-xl border p-4"
+                class="border-border/50 bg-surface/30 flex min-h-46 w-36 shrink-0 flex-col
+                    items-center justify-center gap-4 rounded-xl border p-4"
             >
                 <div class="text-dim text-[10px] font-medium tracking-wider uppercase">
                     Your Rating
                 </div>
+
+                <!-- Rating skeleton or content -->
+                <div v-if="interactionsLoading" class="flex flex-col items-center gap-2.5">
+                    <div class="flex items-center gap-0.75">
+                        <div
+                            v-for="i in 5"
+                            :key="i"
+                            class="bg-border/30 h-4.5 w-4.5 animate-pulse rounded"
+                        />
+                    </div>
+                    <div class="bg-border/30 h-3 w-6 animate-pulse rounded" />
+                </div>
                 <WatchDetailsRatingPanel
-                    v-if="video"
+                    v-else-if="video"
                     :video-id="video.id"
                     :initial-rating="initialRating"
                 />
+
                 <div class="bg-border/50 h-px w-full" />
+
+                <!-- Interactions skeleton or content -->
+                <div
+                    v-if="interactionsLoading"
+                    class="flex w-full items-center justify-center gap-3"
+                >
+                    <div class="flex flex-col items-center gap-0.5">
+                        <div class="bg-border/30 h-4.5 w-4.5 animate-pulse rounded" />
+                        <div class="bg-border/30 h-2.5 w-6 animate-pulse rounded" />
+                    </div>
+                    <div class="flex flex-col items-center gap-0.5">
+                        <div class="bg-border/30 h-4.5 w-4.5 animate-pulse rounded" />
+                        <div class="bg-border/30 h-2.5 w-6 animate-pulse rounded" />
+                    </div>
+                </div>
                 <WatchDetailsInteractionsBar
-                    v-if="video"
+                    v-else-if="video"
                     :video-id="video.id"
                     :initial-liked="initialLiked"
                     :initial-jizzed-count="initialJizzedCount"

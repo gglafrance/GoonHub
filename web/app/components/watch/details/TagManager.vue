@@ -1,42 +1,31 @@
 <script setup lang="ts">
 import type { Tag } from '~/types/tag';
+import type { WatchPageData } from '~/composables/useWatchPageData';
+import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
 const props = defineProps<{
     videoId: number;
 }>();
 
-const { fetchTags, fetchVideoTags, setVideoTags } = useApiTags();
+const { fetchTags, setVideoTags } = useApiTags();
 
-const loading = ref(false);
+// Inject centralized watch page data
+const watchPageData = inject<WatchPageData>(WATCH_PAGE_DATA_KEY);
+
 const error = ref<string | null>(null);
 const allTags = ref<Tag[]>([]);
 const allTagsLoaded = ref(false);
 const loadingAllTags = ref(false);
-const videoTags = ref<Tag[]>([]);
 const showTagPicker = ref(false);
 const anchorRef = ref<HTMLElement | null>(null);
+
+// Use centralized data for loading state and video tags
+const loading = computed(() => watchPageData?.loading.details ?? false);
+const videoTags = computed(() => watchPageData?.tags.value ?? []);
 
 const availableTags = computed(() =>
     allTags.value.filter((t) => !videoTags.value.some((vt) => vt.id === t.id)),
 );
-
-onMounted(() => {
-    loadVideoTags();
-});
-
-async function loadVideoTags() {
-    loading.value = true;
-    error.value = null;
-
-    try {
-        const res = await fetchVideoTags(props.videoId);
-        videoTags.value = res.data || [];
-    } catch (err: unknown) {
-        error.value = err instanceof Error ? err.message : 'Failed to load tags';
-    } finally {
-        loading.value = false;
-    }
-}
 
 async function loadAllTags() {
     if (allTagsLoaded.value || loadingAllTags.value) return;
@@ -69,7 +58,8 @@ async function addTag(tagId: number) {
 
     try {
         const res = await setVideoTags(props.videoId, newIds);
-        videoTags.value = res.data || [];
+        // Update centralized data
+        watchPageData?.setTags(res.data || []);
     } catch (err: unknown) {
         error.value = err instanceof Error ? err.message : 'Failed to update tags';
     }
@@ -82,14 +72,15 @@ async function removeTag(tagId: number) {
 
     try {
         const res = await setVideoTags(props.videoId, newIds);
-        videoTags.value = res.data || [];
+        // Update centralized data
+        watchPageData?.setTags(res.data || []);
     } catch (err: unknown) {
         error.value = err instanceof Error ? err.message : 'Failed to update tags';
     }
 }
 
 // Expose reload method for parent to call after metadata update
-const reload = () => loadVideoTags();
+const reload = () => watchPageData?.refreshTags();
 defineExpose({ reload });
 </script>
 
@@ -140,8 +131,8 @@ defineExpose({ reload });
             <button
                 ref="anchorRef"
                 @click="onAddTagClick"
-                class="border-border hover:border-border-hover flex h-5 w-5 items-center justify-center
-                    rounded-full border transition-colors"
+                class="border-border hover:border-border-hover flex h-5 w-5 items-center
+                    justify-center rounded-full border transition-colors"
                 :disabled="loadingAllTags"
                 title="Add tag"
             >

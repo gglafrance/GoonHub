@@ -1,55 +1,29 @@
 <script setup lang="ts">
 import type { Video } from '~/types/video';
 import type { Studio, StudioListItem } from '~/types/studio';
+import type { WatchPageData } from '~/composables/useWatchPageData';
+import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
 const video = inject<Ref<Video | null>>('watchVideo');
-const detailsRefreshKey = inject<Ref<number>>('detailsRefreshKey');
-const { fetchStudios, fetchVideoStudio, setVideoStudio } = useApiStudios();
+const { fetchStudios, setVideoStudio } = useApiStudios();
 
-const loading = ref(false);
+// Inject centralized watch page data
+const watchPageData = inject<WatchPageData>(WATCH_PAGE_DATA_KEY);
+
 const error = ref<string | null>(null);
 
 const allStudios = ref<StudioListItem[]>([]);
 const allStudiosLoaded = ref(false);
 const loadingAllStudios = ref(false);
-const videoStudio = ref<Studio | null>(null);
 const showStudioPicker = ref(false);
 const showCreateModal = ref(false);
 const createStudioName = ref('');
 
 const anchorRef = ref<HTMLElement | null>(null);
 
-onMounted(async () => {
-    await loadVideoStudio();
-});
-
-// Reload studio when metadata is applied externally (e.g. scene metadata fetch)
-watch(
-    () => detailsRefreshKey?.value,
-    () => {
-        loadVideoStudio();
-    },
-);
-
-async function loadVideoStudio() {
-    if (!video?.value) return;
-    loading.value = true;
-    error.value = null;
-
-    try {
-        const res = await fetchVideoStudio(video.value.id);
-        videoStudio.value = res.data || null;
-    } catch (err: unknown) {
-        // 404 means no studio assigned, that's fine
-        if (err instanceof Error && err.message.includes('not found')) {
-            videoStudio.value = null;
-        } else {
-            error.value = err instanceof Error ? err.message : 'Failed to load studio';
-        }
-    } finally {
-        loading.value = false;
-    }
-}
+// Use centralized data for loading state and video studio
+const loading = computed(() => watchPageData?.loading.details ?? false);
+const videoStudio = computed(() => watchPageData?.studio.value ?? null);
 
 async function loadAllStudios() {
     if (allStudiosLoaded.value || loadingAllStudios.value) return;
@@ -82,7 +56,8 @@ async function selectStudio(studioId: number) {
 
     try {
         const res = await setVideoStudio(video.value.id, studioId);
-        videoStudio.value = res.data || null;
+        // Update centralized data
+        watchPageData?.setStudio(res.data || null);
     } catch (err: unknown) {
         error.value = err instanceof Error ? err.message : 'Failed to update studio';
     }
@@ -95,7 +70,8 @@ async function clearStudio() {
 
     try {
         await setVideoStudio(video.value.id, null);
-        videoStudio.value = null;
+        // Update centralized data
+        watchPageData?.setStudio(null);
     } catch (err: unknown) {
         error.value = err instanceof Error ? err.message : 'Failed to remove studio';
     }

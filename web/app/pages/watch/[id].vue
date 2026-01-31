@@ -1,18 +1,23 @@
 <script setup lang="ts">
-import type { Video } from '~/types/video';
-import type { Marker } from '~/types/marker';
 import type { VttCue } from '~/composables/useVttParser';
+import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
 const route = useRoute();
 const router = useRouter();
-const { fetchVideo, getResumePosition } = useApi();
-const { fetchMarkers } = useApiMarkers();
 const settingsStore = useSettingsStore();
 
-const video = ref<Video | null>(null);
-const markers = ref<Marker[]>([]);
-const isLoading = ref(true);
-const error = ref<string | null>(null);
+const videoId = computed(() => parseInt(route.params.id as string));
+
+// Centralized data loading with priority tiers
+const watchPageData = useWatchPageData(videoId);
+const { video, markers, resumePosition, loading, error, refreshMarkers } = watchPageData;
+
+// Provide the entire data object to child components
+provide(WATCH_PAGE_DATA_KEY, watchPageData);
+
+// Legacy provides for backwards compatibility during migration
+provide('watchVideo', video);
+provide('refreshMarkers', refreshMarkers);
 
 const pageTitle = computed(() => video.value?.title || 'Watch');
 useHead({ title: pageTitle });
@@ -34,6 +39,7 @@ watch(
     },
     { immediate: true },
 );
+
 const playerError = ref<unknown>(null);
 const playerRef = ref<{
     getCurrentTime: () => number;
@@ -41,7 +47,6 @@ const playerRef = ref<{
     player?: any;
     vttCues?: VttCue[];
 } | null>(null);
-const resumePosition = ref(0);
 const showResumePrompt = ref(false);
 const startTime = ref(0);
 const forceAutoplay = ref(false);
@@ -55,8 +60,6 @@ useVideoPlayerShortcuts({
     video: video,
     onTheaterModeToggle: () => settingsStore.toggleTheaterMode(),
 });
-
-const videoId = computed(() => parseInt(route.params.id as string));
 
 const isProcessing = computed(() => video.value?.processing_status === 'pending');
 const hasProcessingError = computed(() => (video.value ? hasVideoError(video.value) : false));
@@ -94,59 +97,39 @@ watch(
     { immediate: true },
 );
 
-const loadMarkers = async () => {
-    if (!video.value) return;
-    try {
-        const data = await fetchMarkers(video.value.id);
-        markers.value = data.markers || [];
-    } catch {
-        // Silent fail - markers are optional
-    }
-};
-
-const loadVideo = async () => {
-    try {
-        isLoading.value = true;
-        error.value = null;
-        showResumePrompt.value = false;
-        resumePosition.value = 0;
-        startTime.value = 0;
-        markers.value = [];
-
-        video.value = await fetchVideo(videoId.value);
-
-        // Load markers after video is loaded
-        await loadMarkers();
-
-        // Check for timestamp query parameter (e.g., ?t=120)
-        const queryTime = route.query.t;
-        if (queryTime) {
-            const timestamp = parseInt(queryTime as string, 10);
-            if (!isNaN(timestamp) && timestamp >= 0) {
-                startTime.value = timestamp;
-                forceAutoplay.value = true;
-                // Skip resume prompt when navigating to specific timestamp
-                return;
-            }
+// Handle resume prompt based on centralized data
+watch(
+    resumePosition,
+    (position) => {
+        // Only show prompt if we have a position and no timestamp query param
+        if (position > 0 && !route.query.t) {
+            showResumePrompt.value = true;
         }
-        forceAutoplay.value = false;
+    },
+    { immediate: true },
+);
 
-        // Fetch resume position (only if no timestamp query param)
-        try {
-            const res = await getResumePosition(videoId.value);
-            if (res.position > 0) {
-                resumePosition.value = res.position;
-                showResumePrompt.value = true;
-            }
-        } catch {
-            // Ignore errors - resume is optional
+// Load data on mount and when video ID changes
+async function loadPage() {
+    // Reset UI state
+    showResumePrompt.value = false;
+    startTime.value = 0;
+    forceAutoplay.value = false;
+
+    // Load all data via centralized composable
+    await watchPageData.refreshAll();
+
+    // Check for timestamp query parameter (e.g., ?t=120)
+    const queryTime = route.query.t;
+    if (queryTime) {
+        const timestamp = parseInt(queryTime as string, 10);
+        if (!isNaN(timestamp) && timestamp >= 0) {
+            startTime.value = timestamp;
+            forceAutoplay.value = true;
+            showResumePrompt.value = false;
         }
-    } catch (err: unknown) {
-        error.value = err instanceof Error ? err.message : 'Failed to load video';
-    } finally {
-        isLoading.value = false;
     }
-};
+}
 
 const handleResume = () => {
     startTime.value = resumePosition.value;
@@ -167,14 +150,12 @@ const activeTab = ref<'jobs' | 'thumbnail' | 'details' | 'history' | 'markers'>(
 const pendingMarkerAdd = ref(false);
 
 provide('getPlayerTime', () => playerRef.value?.getCurrentTime() ?? 0);
-provide('watchVideo', video);
 provide('thumbnailVersion', thumbnailVersion);
 provide('detailsRefreshKey', detailsRefreshKey);
 provide('seekToTime', (time: number) => {
     startTime.value = time;
     showResumePrompt.value = false;
 });
-provide('refreshMarkers', loadMarkers);
 provide('activeTab', activeTab);
 provide('pendingMarkerAdd', pendingMarkerAdd);
 
@@ -202,20 +183,17 @@ const handleMarkerShortcut = (e: KeyboardEvent) => {
 
 onMounted(() => {
     window.addEventListener('keydown', handleMarkerShortcut);
+    loadPage();
 });
 
 onUnmounted(() => {
     window.removeEventListener('keydown', handleMarkerShortcut);
 });
 
-onMounted(async () => {
-    await loadVideo();
-});
-
 watch(
     () => route.params.id,
-    async () => {
-        await loadVideo();
+    () => {
+        loadPage();
     },
 );
 
@@ -270,7 +248,7 @@ definePageMeta({
 
         <div class="mx-auto max-w-415 p-4 sm:px-5 lg:py-6">
             <!-- Loading State -->
-            <div v-if="isLoading" class="flex h-[70vh] items-center justify-center">
+            <div v-if="loading.video" class="flex h-[70vh] items-center justify-center">
                 <LoadingSpinner label="Loading..." />
             </div>
 

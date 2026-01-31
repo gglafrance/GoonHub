@@ -1,42 +1,13 @@
 <script setup lang="ts">
-import type { Video, VideoListItem } from '~/types/video';
+import type { WatchPageData } from '~/composables/useWatchPageData';
+import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
-const { fetchRelatedVideos } = useApiVideos();
+// Inject centralized watch page data
+const watchPageData = inject<WatchPageData>(WATCH_PAGE_DATA_KEY);
 
-const video = inject<Ref<Video | null>>('watchVideo');
-
-const relatedVideos = ref<VideoListItem[]>([]);
-const isLoading = ref(false);
-const error = ref<string | null>(null);
-
-const INITIAL_LIMIT = 15;
-
-const loadRelatedVideos = async () => {
-    if (!video?.value?.id) return;
-
-    isLoading.value = true;
-    error.value = null;
-
-    try {
-        const response = await fetchRelatedVideos(video.value.id, INITIAL_LIMIT);
-        relatedVideos.value = response.data || [];
-    } catch (err) {
-        error.value = err instanceof Error ? err.message : 'Failed to load related videos';
-    } finally {
-        isLoading.value = false;
-    }
-};
-
-onMounted(() => {
-    loadRelatedVideos();
-});
-
-watch(
-    () => video?.value?.id,
-    () => {
-        loadRelatedVideos();
-    },
-);
+// Use centralized data for related videos and loading state
+const relatedVideos = computed(() => watchPageData?.relatedVideos.value ?? []);
+const isLoading = computed(() => watchPageData?.loading.related ?? false);
 </script>
 
 <template>
@@ -64,15 +35,6 @@ watch(
                 border"
         >
             <LoadingSpinner />
-        </div>
-
-        <!-- Error State -->
-        <div
-            v-else-if="error"
-            class="border-border bg-surface/50 flex h-48 items-center justify-center rounded-xl
-                border"
-        >
-            <span class="text-dim text-xs">{{ error }}</span>
         </div>
 
         <!-- Related Videos Grid -->
