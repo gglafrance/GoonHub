@@ -29,6 +29,9 @@ type MarkerRepository interface {
 	SyncMarkerTagsFromLabel(userID uint, label string) error
 	ApplyLabelTagsToMarker(userID uint, markerID uint, label string) error
 	GetMarkerIDsByLabel(userID uint, label string) ([]uint, error)
+
+	// Search filter methods
+	GetVideoIDsByLabels(userID uint, labels []string) ([]uint, error)
 }
 
 type MarkerRepositoryImpl struct {
@@ -459,6 +462,23 @@ func (r *MarkerRepositoryImpl) GetMarkerIDsByLabel(userID uint, label string) ([
 		return nil, err
 	}
 	return markerIDs, nil
+}
+
+// GetVideoIDsByLabels returns distinct video IDs that have markers with any of the given labels for a user
+func (r *MarkerRepositoryImpl) GetVideoIDsByLabels(userID uint, labels []string) ([]uint, error) {
+	if len(labels) == 0 {
+		return []uint{}, nil
+	}
+
+	var videoIDs []uint
+	err := r.DB.Model(&UserVideoMarker{}).
+		Select("DISTINCT video_id").
+		Where("user_id = ? AND label IN ?", userID, labels).
+		Pluck("video_id", &videoIDs).Error
+	if err != nil {
+		return nil, err
+	}
+	return videoIDs, nil
 }
 
 // Ensure MarkerRepositoryImpl implements MarkerRepository

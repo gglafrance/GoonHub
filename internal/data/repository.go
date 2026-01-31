@@ -52,8 +52,9 @@ type VideoSearchParams struct {
 	MaxRating        float64
 	MinJizzCount     int
 	MaxJizzCount     int
-	VideoIDs         []uint // Pre-filter to specific video IDs (e.g., folder search)
-	MatchingStrategy string // Meilisearch matching strategy: "last", "all", or "frequency"
+	VideoIDs         []uint   // Pre-filter to specific video IDs (e.g., folder search)
+	MatchingStrategy string   // Meilisearch matching strategy: "last", "all", or "frequency"
+	MarkerLabels     []string // Filter to videos with markers having these labels (user-specific)
 }
 
 type VideoRepository interface {

@@ -29,6 +29,7 @@ type SearchVideosRequest struct {
 	MinJizzCount int     `form:"min_jizz_count"`
 	MaxJizzCount int     `form:"max_jizz_count"`
 	MatchType    string  `form:"match_type"`
+	MarkerLabels string  `form:"marker_labels"` // Comma-separated list of marker labels
 }
 
 type ApplySceneMetadataRequest struct {

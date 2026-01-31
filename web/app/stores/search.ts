@@ -25,6 +25,7 @@ export const useSearchStore = defineStore('search', () => {
     const maxRating = ref(0);
     const minJizzCount = ref(0);
     const maxJizzCount = ref(0);
+    const selectedMarkerLabels = ref<string[]>([]);
 
     // Results state
     const videos = ref<Video[]>([]);
@@ -37,6 +38,7 @@ export const useSearchStore = defineStore('search', () => {
         studios: [],
         actors: [],
         tags: [],
+        marker_labels: [],
     });
 
     const hasActiveFilters = computed(() => {
@@ -55,6 +57,7 @@ export const useSearchStore = defineStore('search', () => {
             maxRating.value > 0 ||
             minJizzCount.value > 0 ||
             maxJizzCount.value > 0 ||
+            selectedMarkerLabels.value.length > 0 ||
             matchType.value !== 'broad'
         );
     });
@@ -84,6 +87,8 @@ export const useSearchStore = defineStore('search', () => {
             if (maxRating.value > 0) params.max_rating = maxRating.value;
             if (minJizzCount.value > 0) params.min_jizz_count = minJizzCount.value;
             if (maxJizzCount.value > 0) params.max_jizz_count = maxJizzCount.value;
+            if (selectedMarkerLabels.value.length > 0)
+                params.marker_labels = selectedMarkerLabels.value.join(',');
             if (matchType.value !== 'broad') params.match_type = matchType.value;
 
             const result = await api.searchVideos(params);
@@ -103,6 +108,7 @@ export const useSearchStore = defineStore('search', () => {
                 studios: result.studios || [],
                 actors: result.actors || [],
                 tags: result.tags || [],
+                marker_labels: result.marker_labels || [],
             };
         } catch (e: any) {
             console.error('Failed to load filter options:', e);
@@ -126,6 +132,7 @@ export const useSearchStore = defineStore('search', () => {
         maxRating.value = 0;
         minJizzCount.value = 0;
         maxJizzCount.value = 0;
+        selectedMarkerLabels.value = [];
         matchType.value = 'broad';
     };
 
@@ -148,6 +155,8 @@ export const useSearchStore = defineStore('search', () => {
         if (maxRating.value > 0) filters.max_rating = maxRating.value;
         if (minJizzCount.value > 0) filters.min_jizz_count = minJizzCount.value;
         if (maxJizzCount.value > 0) filters.max_jizz_count = maxJizzCount.value;
+        if (selectedMarkerLabels.value.length > 0)
+            filters.selected_marker_labels = [...selectedMarkerLabels.value];
         if (sort.value) filters.sort = sort.value;
 
         return filters;
@@ -170,6 +179,7 @@ export const useSearchStore = defineStore('search', () => {
         maxRating.value = filters.max_rating || 0;
         minJizzCount.value = filters.min_jizz_count || 0;
         maxJizzCount.value = filters.max_jizz_count || 0;
+        selectedMarkerLabels.value = filters.selected_marker_labels || [];
         sort.value = filters.sort || '';
         page.value = 1; // Reset pagination when loading filters
     };
@@ -192,6 +202,7 @@ export const useSearchStore = defineStore('search', () => {
         maxRating,
         minJizzCount,
         maxJizzCount,
+        selectedMarkerLabels,
         matchType,
         videos,
         total,

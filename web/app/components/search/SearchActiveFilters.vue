@@ -8,6 +8,10 @@ const removeTag = (tag: string) => {
 const removeActor = (actor: string) => {
     searchStore.selectedActors = searchStore.selectedActors.filter((a) => a !== actor);
 };
+
+const removeMarkerLabel = (label: string) => {
+    searchStore.selectedMarkerLabels = searchStore.selectedMarkerLabels.filter((l) => l !== label);
+};
 </script>
 
 <template>
@@ -47,6 +51,19 @@ const removeActor = (actor: string) => {
         >
             {{ actor }}
             <button @click="removeActor(actor)" class="text-dim hover:text-white">
+                <Icon name="heroicons:x-mark" size="12" />
+            </button>
+        </span>
+
+        <span
+            v-for="label in searchStore.selectedMarkerLabels"
+            :key="'marker-' + label"
+            class="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-0.5 text-[11px]
+                font-medium text-white"
+        >
+            <Icon name="heroicons:bookmark" size="10" class="opacity-50" />
+            {{ label }}
+            <button @click="removeMarkerLabel(label)" class="text-dim hover:text-white">
                 <Icon name="heroicons:x-mark" size="12" />
             </button>
         </span>

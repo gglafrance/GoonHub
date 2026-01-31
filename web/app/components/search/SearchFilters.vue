@@ -36,6 +36,9 @@ const resolutionOptions = [
             <!-- Tags -->
             <SearchFiltersFilterTags />
 
+            <!-- Marker Labels -->
+            <SearchFiltersFilterMarkerLabels />
+
             <!-- Actors -->
             <SearchFiltersFilterActors />
 

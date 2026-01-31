@@ -43,6 +43,9 @@ const syncFromUrl = () => {
     searchStore.maxRating = q.max_rating ? Number(q.max_rating) : 0;
     searchStore.minJizzCount = q.min_jizz_count ? Number(q.min_jizz_count) : 0;
     searchStore.maxJizzCount = q.max_jizz_count ? Number(q.max_jizz_count) : 0;
+    searchStore.selectedMarkerLabels = q.marker_labels
+        ? (q.marker_labels as string).split(',')
+        : [];
     const matchType = q.match_type as string;
     searchStore.matchType =
         matchType === 'strict' || matchType === 'frequency' ? matchType : 'broad';
@@ -66,6 +69,8 @@ const syncToUrl = () => {
     if (searchStore.maxRating > 0) query.max_rating = String(searchStore.maxRating);
     if (searchStore.minJizzCount > 0) query.min_jizz_count = String(searchStore.minJizzCount);
     if (searchStore.maxJizzCount > 0) query.max_jizz_count = String(searchStore.maxJizzCount);
+    if (searchStore.selectedMarkerLabels.length > 0)
+        query.marker_labels = searchStore.selectedMarkerLabels.join(',');
     if (searchStore.matchType !== 'broad') query.match_type = searchStore.matchType;
 
     router.replace({ query });
@@ -102,6 +107,7 @@ watch(
         searchStore.maxRating,
         searchStore.minJizzCount,
         searchStore.maxJizzCount,
+        searchStore.selectedMarkerLabels,
         searchStore.matchType,
     ],
     () => {

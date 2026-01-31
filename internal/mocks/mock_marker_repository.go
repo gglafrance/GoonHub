@@ -263,6 +263,21 @@ func (mr *MockMarkerRepositoryMockRecorder) GetMarkersByLabelForUser(userID, lab
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMarkersByLabelForUser", reflect.TypeOf((*MockMarkerRepository)(nil).GetMarkersByLabelForUser), userID, label, offset, limit)
 }
 
+// GetVideoIDsByLabels mocks base method.
+func (m *MockMarkerRepository) GetVideoIDsByLabels(userID uint, labels []string) ([]uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetVideoIDsByLabels", userID, labels)
+	ret0, _ := ret[0].([]uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetVideoIDsByLabels indicates an expected call of GetVideoIDsByLabels.
+func (mr *MockMarkerRepositoryMockRecorder) GetVideoIDsByLabels(userID, labels any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideoIDsByLabels", reflect.TypeOf((*MockMarkerRepository)(nil).GetVideoIDsByLabels), userID, labels)
+}
+
 // SetLabelTags mocks base method.
 func (m *MockMarkerRepository) SetLabelTags(userID uint, label string, tagIDs []uint) error {
 	m.ctrl.T.Helper()

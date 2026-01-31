@@ -27,15 +27,17 @@ type VideoHandler struct {
 	TagService           *core.TagService
 	SearchService        *core.SearchService
 	RelatedVideosService *core.RelatedVideosService
+	MarkerService        *core.MarkerService
 }
 
-func NewVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedVideosService *core.RelatedVideosService) *VideoHandler {
+func NewVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedVideosService *core.RelatedVideosService, markerService *core.MarkerService) *VideoHandler {
 	return &VideoHandler{
 		Service:              service,
 		ProcessingService:    processingService,
 		TagService:           tagService,
 		SearchService:        searchService,
 		RelatedVideosService: relatedVideosService,
+		MarkerService:        markerService,
 	}
 }
 
@@ -133,6 +135,10 @@ func (h *VideoHandler) ListVideos(c *gin.Context) {
 		params.Actors = strings.Split(req.Actors, ",")
 	}
 
+	if req.MarkerLabels != "" {
+		params.MarkerLabels = strings.Split(req.MarkerLabels, ",")
+	}
+
 	if req.MinDate != "" {
 		t, err := time.Parse("2006-01-02", req.MinDate)
 		if err == nil {
@@ -187,10 +193,25 @@ func (h *VideoHandler) GetFilterOptions(c *gin.Context) {
 		return
 	}
 
+	// Get user-specific marker labels (if authenticated)
+	var markerLabels []gin.H
+	if payload, err := middleware.GetUserFromContext(c); err == nil {
+		labels, err := h.MarkerService.GetLabelSuggestions(payload.UserID, 100)
+		if err == nil {
+			for _, label := range labels {
+				markerLabels = append(markerLabels, gin.H{
+					"label": label.Label,
+					"count": label.Count,
+				})
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"studios": studios,
-		"actors":  actors,
-		"tags":    tags,
+		"studios":       studios,
+		"actors":        actors,
+		"tags":          tags,
+		"marker_labels": markerLabels,
 	})
 }
 

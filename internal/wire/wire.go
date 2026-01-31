@@ -385,8 +385,8 @@ func provideStudioInteractionService(repo data.StudioInteractionRepository, logg
 	return core.NewStudioInteractionService(repo, logger.Logger)
 }
 
-func provideSearchService(meiliClient *meilisearch.Client, videoRepo data.VideoRepository, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, logger *logging.Logger) *core.SearchService {
-	return core.NewSearchService(meiliClient, videoRepo, interactionRepo, tagRepo, actorRepo, logger.Logger)
+func provideSearchService(meiliClient *meilisearch.Client, videoRepo data.VideoRepository, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, markerRepo data.MarkerRepository, logger *logging.Logger) *core.SearchService {
+	return core.NewSearchService(meiliClient, videoRepo, interactionRepo, tagRepo, actorRepo, markerRepo, logger.Logger)
 }
 
 func provideWatchHistoryService(repo data.WatchHistoryRepository, videoRepo data.VideoRepository, searchService *core.SearchService, logger *logging.Logger) *core.WatchHistoryService {
@@ -503,8 +503,8 @@ func provideSettingsHandler(settingsService *core.SettingsService) *handler.Sett
 
 // --- Video & Content Handlers ---
 
-func provideVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedVideosService *core.RelatedVideosService) *handler.VideoHandler {
-	return handler.NewVideoHandler(service, processingService, tagService, searchService, relatedVideosService)
+func provideVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedVideosService *core.RelatedVideosService, markerService *core.MarkerService) *handler.VideoHandler {
+	return handler.NewVideoHandler(service, processingService, tagService, searchService, relatedVideosService, markerService)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {

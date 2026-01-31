@@ -73,8 +73,14 @@ export interface TagOption {
     video_count: number;
 }
 
+export interface MarkerLabelOption {
+    label: string;
+    count: number;
+}
+
 export interface VideoFilterOptions {
     studios: string[];
     actors: string[];
     tags: TagOption[];
+    marker_labels: MarkerLabelOption[];
 }

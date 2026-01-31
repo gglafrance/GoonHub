@@ -12,7 +12,7 @@ func TestSearchService_Search_RequiresMeilisearch(t *testing.T) {
 	logger := zap.NewNop()
 
 	// Create search service without Meilisearch client (nil)
-	service := NewSearchService(nil, nil, nil, nil, nil, logger)
+	service := NewSearchService(nil, nil, nil, nil, nil, nil, logger)
 
 	params := data.VideoSearchParams{
 		Page:  1,
@@ -74,6 +74,16 @@ func TestSearchService_hasUserFilters(t *testing.T) {
 			name:     "max jizz count filter",
 			params:   data.VideoSearchParams{UserID: 1, MaxJizzCount: 10},
 			expected: true,
+		},
+		{
+			name:     "marker labels filter",
+			params:   data.VideoSearchParams{UserID: 1, MarkerLabels: []string{"favorite", "watch later"}},
+			expected: true,
+		},
+		{
+			name:     "empty marker labels",
+			params:   data.VideoSearchParams{UserID: 1, MarkerLabels: []string{}},
+			expected: false,
 		},
 	}
 

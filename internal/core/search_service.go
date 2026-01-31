@@ -20,7 +20,7 @@ type VideoIndexer interface {
 }
 
 // SearchService orchestrates search operations using Meilisearch.
-// User-specific filters (liked, rating, jizz_count) are handled by pre-querying
+// User-specific filters (liked, rating, jizz_count, marker_labels) are handled by pre-querying
 // PostgreSQL for matching video IDs, then passing those as filters to Meilisearch.
 type SearchService struct {
 	meiliClient     *meilisearch.Client
@@ -28,6 +28,7 @@ type SearchService struct {
 	interactionRepo data.InteractionRepository
 	tagRepo         data.TagRepository
 	actorRepo       data.ActorRepository
+	markerRepo      data.MarkerRepository
 	logger          *zap.Logger
 }
 
@@ -38,6 +39,7 @@ func NewSearchService(
 	interactionRepo data.InteractionRepository,
 	tagRepo data.TagRepository,
 	actorRepo data.ActorRepository,
+	markerRepo data.MarkerRepository,
 	logger *zap.Logger,
 ) *SearchService {
 	return &SearchService{
@@ -46,6 +48,7 @@ func NewSearchService(
 		interactionRepo: interactionRepo,
 		tagRepo:         tagRepo,
 		actorRepo:       actorRepo,
+		markerRepo:      markerRepo,
 		logger:          logger,
 	}
 }
@@ -113,7 +116,8 @@ func (s *SearchService) hasUserFilters(params data.VideoSearchParams) bool {
 	}
 	return (params.Liked != nil && *params.Liked) ||
 		params.MinRating > 0 || params.MaxRating > 0 ||
-		params.MinJizzCount > 0 || params.MaxJizzCount > 0
+		params.MinJizzCount > 0 || params.MaxJizzCount > 0 ||
+		len(params.MarkerLabels) > 0
 }
 
 // getUserFilteredIDs queries PostgreSQL for video IDs matching user-specific filters.
@@ -128,6 +132,9 @@ func (s *SearchService) getUserFilteredIDs(params data.VideoSearchParams) ([]uin
 		filterCount++
 	}
 	if params.MinJizzCount > 0 || params.MaxJizzCount > 0 {
+		filterCount++
+	}
+	if len(params.MarkerLabels) > 0 {
 		filterCount++
 	}
 	needsIntersection := filterCount > 1
@@ -167,6 +174,21 @@ func (s *SearchService) getUserFilteredIDs(params data.VideoSearchParams) ([]uin
 		ids, err := s.interactionRepo.GetJizzedVideoIDs(params.UserID, params.MinJizzCount, params.MaxJizzCount)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get jizzed video IDs: %w", err)
+		}
+		if needsIntersection && result == nil {
+			result = ids
+		} else if needsIntersection {
+			result = intersect(result, ids)
+		} else {
+			return ids, nil
+		}
+	}
+
+	// Get video IDs with markers matching specified labels
+	if len(params.MarkerLabels) > 0 {
+		ids, err := s.markerRepo.GetVideoIDsByLabels(params.UserID, params.MarkerLabels)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get marker video IDs: %w", err)
 		}
 		if needsIntersection && result == nil {
 			result = ids

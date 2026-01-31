@@ -57,10 +57,12 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	}
 	interactionRepository := provideInteractionRepository(db)
 	actorRepository := provideActorRepository(db)
-	searchService := provideSearchService(client, videoRepository, interactionRepository, tagRepository, actorRepository, logger)
+	markerRepository := provideMarkerRepository(db)
+	searchService := provideSearchService(client, videoRepository, interactionRepository, tagRepository, actorRepository, markerRepository, logger)
 	studioRepository := provideStudioRepository(db)
 	relatedVideosService := provideRelatedVideosService(videoRepository, tagRepository, actorRepository, studioRepository, logger)
-	videoHandler := provideVideoHandler(videoService, videoProcessingService, tagService, searchService, relatedVideosService)
+	markerService := provideMarkerService(markerRepository, videoRepository, tagRepository, configConfig, logger)
+	videoHandler := provideVideoHandler(videoService, videoProcessingService, tagService, searchService, relatedVideosService, markerService)
 	userRepository := provideUserRepository(db)
 	revokedTokenRepository := provideRevokedTokenRepository(db)
 	authService, err := provideAuthService(userRepository, revokedTokenRepository, configConfig, logger)
@@ -122,8 +124,6 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	savedSearchHandler := provideSavedSearchHandler(savedSearchService)
 	homepageService := provideHomepageService(settingsService, searchService, savedSearchService, watchHistoryRepository, interactionRepository, videoRepository, tagRepository, actorRepository, studioRepository, logger)
 	homepageHandler := provideHomepageHandler(homepageService)
-	markerRepository := provideMarkerRepository(db)
-	markerService := provideMarkerService(markerRepository, videoRepository, tagRepository, configConfig, logger)
 	markerHandler := provideMarkerHandler(markerService)
 	ipRateLimiter := provideRateLimiter(configConfig)
 	engine := provideRouter(logger, configConfig, videoHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, authService, rbacService, ipRateLimiter)
@@ -303,8 +303,8 @@ func provideStudioInteractionService(repo data.StudioInteractionRepository, logg
 	return core.NewStudioInteractionService(repo, logger.Logger)
 }
 
-func provideSearchService(meiliClient *meilisearch.Client, videoRepo data.VideoRepository, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, logger *logging.Logger) *core.SearchService {
-	return core.NewSearchService(meiliClient, videoRepo, interactionRepo, tagRepo, actorRepo, logger.Logger)
+func provideSearchService(meiliClient *meilisearch.Client, videoRepo data.VideoRepository, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, markerRepo data.MarkerRepository, logger *logging.Logger) *core.SearchService {
+	return core.NewSearchService(meiliClient, videoRepo, interactionRepo, tagRepo, actorRepo, markerRepo, logger.Logger)
 }
 
 func provideWatchHistoryService(repo data.WatchHistoryRepository, videoRepo data.VideoRepository, searchService *core.SearchService, logger *logging.Logger) *core.WatchHistoryService {
@@ -403,8 +403,8 @@ func provideSettingsHandler(settingsService *core.SettingsService) *handler.Sett
 	return handler.NewSettingsHandler(settingsService)
 }
 
-func provideVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedVideosService *core.RelatedVideosService) *handler.VideoHandler {
-	return handler.NewVideoHandler(service, processingService, tagService, searchService, relatedVideosService)
+func provideVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedVideosService *core.RelatedVideosService, markerService *core.MarkerService) *handler.VideoHandler {
+	return handler.NewVideoHandler(service, processingService, tagService, searchService, relatedVideosService, markerService)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
