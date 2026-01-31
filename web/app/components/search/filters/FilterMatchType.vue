@@ -35,6 +35,7 @@ const matchOptions = [
 <template>
     <SearchFiltersFilterSection
         title="Match Type"
+        icon="heroicons:adjustments-horizontal"
         :collapsed="collapsed"
         :badge="badge"
         @toggle="collapsed = !collapsed"
@@ -61,7 +62,8 @@ const matchOptions = [
         <!-- Help panel toggle -->
         <button
             @click="showHelp = !showHelp"
-            class="text-dim hover:text-lava mt-3 flex items-center gap-1 text-[10px] transition-colors"
+            class="text-dim hover:text-lava mt-3 flex items-center gap-1 text-[10px]
+                transition-colors"
         >
             <Icon
                 :name="showHelp ? 'heroicons:chevron-up' : 'heroicons:information-circle'"
@@ -71,7 +73,7 @@ const matchOptions = [
         </button>
 
         <!-- Help panel -->
-        <div v-if="showHelp" class="bg-white/5 mt-2 rounded-md p-2.5">
+        <div v-if="showHelp" class="mt-2 rounded-md bg-white/5 p-2.5">
             <h4 class="mb-1.5 text-[10px] font-semibold tracking-wide text-white uppercase">
                 Quote Syntax
             </h4>

@@ -9,6 +9,7 @@ const badge = computed(() => (searchStore.liked ? 'Yes' : undefined));
 <template>
     <SearchFiltersFilterSection
         title="Liked"
+        icon="heroicons:heart"
         :collapsed="collapsed"
         :badge="badge"
         @toggle="collapsed = !collapsed"

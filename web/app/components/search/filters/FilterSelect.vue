@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const props = defineProps<{
     title: string;
+    icon: string;
     modelValue: string;
     options: { value: string; label: string }[];
     placeholder?: string;
@@ -19,6 +20,7 @@ const badge = computed(() => (props.modelValue ? props.modelValue : undefined));
 <template>
     <SearchFiltersFilterSection
         :title="title"
+        :icon="icon"
         :collapsed="collapsed"
         :badge="badge"
         @toggle="collapsed = !collapsed"

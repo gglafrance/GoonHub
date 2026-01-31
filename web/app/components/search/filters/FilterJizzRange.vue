@@ -18,6 +18,7 @@ const badge = computed(() => {
 <template>
     <SearchFiltersFilterSection
         title="Jizz Count"
+        icon="fluent-emoji-high-contrast:sweat-droplets"
         :collapsed="collapsed"
         :badge="badge"
         @toggle="collapsed = !collapsed"
@@ -28,8 +29,8 @@ const badge = computed(() => {
                 type="number"
                 min="0"
                 placeholder="Min"
-                class="border-border bg-surface text-dim w-full rounded-md border px-2 py-1.5 text-xs
-                    focus:border-white/20 focus:outline-none"
+                class="border-border bg-surface text-dim w-full rounded-md border px-2 py-1.5
+                    text-xs focus:border-white/20 focus:outline-none"
             />
             <span class="text-dim text-[10px]">-</span>
             <input
@@ -37,8 +38,8 @@ const badge = computed(() => {
                 type="number"
                 min="0"
                 placeholder="Max"
-                class="border-border bg-surface text-dim w-full rounded-md border px-2 py-1.5 text-xs
-                    focus:border-white/20 focus:outline-none"
+                class="border-border bg-surface text-dim w-full rounded-md border px-2 py-1.5
+                    text-xs focus:border-white/20 focus:outline-none"
             />
         </div>
     </SearchFiltersFilterSection>

@@ -18,6 +18,7 @@ const badge = computed(() => {
 <template>
     <SearchFiltersFilterSection
         title="Rating"
+        icon="heroicons:star"
         :collapsed="collapsed"
         :badge="badge"
         @toggle="collapsed = !collapsed"
@@ -30,8 +31,8 @@ const badge = computed(() => {
                 max="5"
                 step="0.5"
                 placeholder="Min"
-                class="border-border bg-surface text-dim w-full rounded-md border px-2 py-1.5 text-xs
-                    focus:border-white/20 focus:outline-none"
+                class="border-border bg-surface text-dim w-full rounded-md border px-2 py-1.5
+                    text-xs focus:border-white/20 focus:outline-none"
             />
             <span class="text-dim text-[10px]">-</span>
             <input
@@ -41,8 +42,8 @@ const badge = computed(() => {
                 max="5"
                 step="0.5"
                 placeholder="Max"
-                class="border-border bg-surface text-dim w-full rounded-md border px-2 py-1.5 text-xs
-                    focus:border-white/20 focus:outline-none"
+                class="border-border bg-surface text-dim w-full rounded-md border px-2 py-1.5
+                    text-xs focus:border-white/20 focus:outline-none"
             />
         </div>
         <p class="text-dim mt-1.5 text-[10px]">Scale: 0.5 - 5</p>
