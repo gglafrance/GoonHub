@@ -18,6 +18,7 @@ const emit = defineEmits<{
             performers: boolean;
             tags: boolean;
             release_date: boolean;
+            markers: boolean;
         },
     ];
     close: [];
@@ -31,9 +32,10 @@ const selectedFields = ref({
     performers: false,
     tags: false,
     release_date: false,
+    markers: false,
 });
 
-function formatDuration(seconds: number): string {
+function formatTime(seconds: number): string {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -48,6 +50,7 @@ onMounted(() => {
         performers: (props.scene.performers?.length ?? 0) > 0,
         tags: (props.scene.tags?.length ?? 0) > 0,
         release_date: !!props.scene.date && !props.video?.release_date,
+        markers: (props.scene.markers?.length ?? 0) > 0,
     };
 });
 </script>
@@ -86,7 +89,7 @@ onMounted(() => {
                     </span>
                     <span v-if="scene.duration" class="flex items-center gap-1">
                         <Icon name="heroicons:clock" size="12" />
-                        {{ formatDuration(scene.duration) }}
+                        {{ formatTime(scene.duration) }}
                     </span>
                 </div>
             </div>
@@ -296,6 +299,43 @@ onMounted(() => {
                                 +{{ scene.tags.length - 15 }} more
                             </span>
                         </div>
+                    </div>
+                </label>
+
+                <!-- Markers (full width) -->
+                <label
+                    v-if="scene.markers?.length"
+                    class="border-border bg-surface flex items-start gap-3 rounded-lg border p-3
+                        lg:col-span-2"
+                >
+                    <input
+                        v-model="selectedFields.markers"
+                        type="checkbox"
+                        class="accent-lava mt-0.5 h-4 w-4 shrink-0 rounded"
+                    />
+                    <div class="min-w-0 flex-1">
+                        <p class="text-xs font-medium text-white">
+                            Markers ({{ scene.markers.length }})
+                        </p>
+                        <div class="mt-2 flex flex-wrap gap-1.5">
+                            <span
+                                v-for="marker in scene.markers.slice(0, 10)"
+                                :key="marker.id"
+                                class="border-border flex items-center gap-1.5 rounded-full border
+                                    px-2 py-0.5 text-[11px] text-white"
+                            >
+                                <span class="text-lava font-mono text-[10px]">
+                                    {{ formatTime(marker.start_time) }}
+                                </span>
+                                {{ marker.title }}
+                            </span>
+                            <span v-if="scene.markers.length > 10" class="text-dim text-[10px]">
+                                +{{ scene.markers.length - 10 }} more
+                            </span>
+                        </div>
+                        <p class="text-dim mt-1.5 text-[10px]">
+                            Import scene markers as video bookmarks
+                        </p>
                     </div>
                 </label>
             </div>

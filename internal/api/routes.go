@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -60,6 +60,10 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					videos.GET("/:id/studio", middleware.RequirePermission(rbacService, "videos:view"), studioHandler.GetVideoStudio)
 					videos.PUT("/:id/studio", middleware.RequirePermission(rbacService, "videos:upload"), studioHandler.SetVideoStudio)
 					videos.GET("/:id/related", middleware.RequirePermission(rbacService, "videos:view"), videoHandler.GetRelatedVideos)
+					videos.GET("/:id/markers", middleware.RequirePermission(rbacService, "videos:view"), markerHandler.ListMarkers)
+					videos.POST("/:id/markers", middleware.RequirePermission(rbacService, "videos:view"), markerHandler.CreateMarker)
+					videos.PUT("/:id/markers/:markerID", middleware.RequirePermission(rbacService, "videos:view"), markerHandler.UpdateMarker)
+					videos.DELETE("/:id/markers/:markerID", middleware.RequirePermission(rbacService, "videos:view"), markerHandler.DeleteMarker)
 				}
 
 				history := protected.Group("/history")
@@ -133,6 +137,13 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					savedSearches.POST("", savedSearchHandler.Create)
 					savedSearches.PUT("/:uuid", savedSearchHandler.Update)
 					savedSearches.DELETE("/:uuid", savedSearchHandler.Delete)
+				}
+
+				markers := protected.Group("/markers")
+				{
+					markers.GET("", markerHandler.ListLabelGroups)
+					markers.GET("/labels", markerHandler.ListLabelSuggestions)
+					markers.GET("/by-label", markerHandler.ListMarkersByLabel)
 				}
 
 				admin := protected.Group("/admin")

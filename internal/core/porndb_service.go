@@ -97,6 +97,7 @@ type PornDBScene struct {
 	Site        *PornDBSite            `json:"site,omitempty"`
 	Performers  []PornDBScenePerformer `json:"performers,omitempty"`
 	Tags        []PornDBTag            `json:"tags,omitempty"`
+	Markers     []PornDBMarker         `json:"markers,omitempty"`
 	Parse       string                 `json:"parse,omitempty"`
 }
 
@@ -138,6 +139,15 @@ type PornDBTag struct {
 	Name string `json:"name"`
 }
 
+// PornDBMarker represents a marker/chapter from ThePornDB
+type PornDBMarker struct {
+	ID        int    `json:"id"`
+	Title     string `json:"title"`
+	StartTime int    `json:"start_time"`
+	EndTime   *int   `json:"end_time,omitempty"`
+	CreatedAt string `json:"created_at,omitempty"`
+}
+
 type pornDBSearchResponse struct {
 	Data []PornDBPerformer `json:"data"`
 }
@@ -174,6 +184,13 @@ type pornDBSceneRaw struct {
 		ID   int    `json:"id"`
 		Name string `json:"name"`
 	} `json:"tags,omitempty"`
+	Markers []struct {
+		ID        int    `json:"id"`
+		Title     string `json:"title"`
+		StartTime int    `json:"start_time"`
+		EndTime   *int   `json:"end_time,omitempty"`
+		CreatedAt string `json:"created_at,omitempty"`
+	} `json:"markers,omitempty"`
 }
 
 type pornDBSceneSearchResponse struct {
@@ -378,6 +395,16 @@ func convertRawSceneToScene(raw pornDBSceneRaw) PornDBScene {
 		scene.Tags = append(scene.Tags, PornDBTag{
 			ID:   t.ID,
 			Name: t.Name,
+		})
+	}
+
+	for _, m := range raw.Markers {
+		scene.Markers = append(scene.Markers, PornDBMarker{
+			ID:        m.ID,
+			Title:     m.Title,
+			StartTime: m.StartTime,
+			EndTime:   m.EndTime,
+			CreatedAt: m.CreatedAt,
 		})
 	}
 

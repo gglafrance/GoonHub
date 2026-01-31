@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import type { Video } from '~/types/video';
+import type { Marker } from '~/types/marker';
 
 const route = useRoute();
 const router = useRouter();
 const { fetchVideo, getResumePosition } = useApi();
+const { fetchMarkers } = useApiMarkers();
 const settingsStore = useSettingsStore();
 const { formatDuration } = useFormatter();
 
 const video = ref<Video | null>(null);
+const markers = ref<Marker[]>([]);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 
@@ -18,18 +21,10 @@ const playerRef = ref<{ getCurrentTime: () => number } | null>(null);
 const resumePosition = ref(0);
 const showResumePrompt = ref(false);
 const startTime = ref(0);
+const forceAutoplay = ref(false);
 
 const thumbnailVersion = ref(0);
 const detailsRefreshKey = ref(0);
-
-provide('getPlayerTime', () => playerRef.value?.getCurrentTime() ?? 0);
-provide('watchVideo', video);
-provide('thumbnailVersion', thumbnailVersion);
-provide('detailsRefreshKey', detailsRefreshKey);
-provide('seekToTime', (time: number) => {
-    startTime.value = time;
-    showResumePrompt.value = false;
-});
 
 const videoId = computed(() => parseInt(route.params.id as string));
 
@@ -53,16 +48,15 @@ const posterUrl = computed(() => {
     return v ? `${base}&v=${v}` : base;
 });
 
-onMounted(async () => {
-    await loadVideo();
-});
-
-watch(
-    () => route.params.id,
-    async () => {
-        await loadVideo();
-    },
-);
+const loadMarkers = async () => {
+    if (!video.value) return;
+    try {
+        const data = await fetchMarkers(video.value.id);
+        markers.value = data.markers || [];
+    } catch {
+        // Silent fail - markers are optional
+    }
+};
 
 const loadVideo = async () => {
     try {
@@ -71,10 +65,27 @@ const loadVideo = async () => {
         showResumePrompt.value = false;
         resumePosition.value = 0;
         startTime.value = 0;
+        markers.value = [];
 
         video.value = await fetchVideo(videoId.value);
 
-        // Fetch resume position
+        // Load markers after video is loaded
+        await loadMarkers();
+
+        // Check for timestamp query parameter (e.g., ?t=120)
+        const queryTime = route.query.t;
+        if (queryTime) {
+            const timestamp = parseInt(queryTime as string, 10);
+            if (!isNaN(timestamp) && timestamp >= 0) {
+                startTime.value = timestamp;
+                forceAutoplay.value = true;
+                // Skip resume prompt when navigating to specific timestamp
+                return;
+            }
+        }
+        forceAutoplay.value = false;
+
+        // Fetch resume position (only if no timestamp query param)
         try {
             const res = await getResumePosition(videoId.value);
             if (res.position > 0) {
@@ -104,6 +115,42 @@ const handleStartOver = () => {
 const goBack = () => {
     router.push('/');
 };
+
+provide('getPlayerTime', () => playerRef.value?.getCurrentTime() ?? 0);
+provide('watchVideo', video);
+provide('thumbnailVersion', thumbnailVersion);
+provide('detailsRefreshKey', detailsRefreshKey);
+provide('seekToTime', (time: number) => {
+    startTime.value = time;
+    showResumePrompt.value = false;
+});
+provide('refreshMarkers', loadMarkers);
+
+onMounted(async () => {
+    await loadVideo();
+});
+
+watch(
+    () => route.params.id,
+    async () => {
+        await loadVideo();
+    },
+);
+
+// Handle timestamp query parameter changes (e.g., clicking different markers for same video)
+watch(
+    () => route.query.t,
+    (newTime) => {
+        if (newTime) {
+            const timestamp = parseInt(newTime as string, 10);
+            if (!isNaN(timestamp) && timestamp >= 0) {
+                startTime.value = timestamp;
+                forceAutoplay.value = true;
+                showResumePrompt.value = false;
+            }
+        }
+    },
+);
 
 definePageMeta({
     middleware: ['auth'],
@@ -286,7 +333,8 @@ definePageMeta({
                                 :video-url="streamUrl"
                                 :poster-url="posterUrl"
                                 :video="video"
-                                :autoplay="settingsStore.autoplay"
+                                :markers="markers"
+                                :autoplay="forceAutoplay || settingsStore.autoplay"
                                 :loop="settingsStore.loop"
                                 :default-volume="settingsStore.defaultVolume"
                                 :start-time="startTime"

@@ -71,6 +71,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Saved Search Repository
 		provideSavedSearchRepository,
 
+		// Marker Repository
+		provideMarkerRepository,
+
 		// ============================================================
 		// EXTERNAL SERVICES
 		// ============================================================
@@ -123,6 +126,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Homepage Service
 		provideHomepageService,
 
+		// Marker Service
+		provideMarkerService,
+
 		// ============================================================
 		// API LAYER - MIDDLEWARE
 		// ============================================================
@@ -170,6 +176,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Homepage Handler
 		provideHomepageHandler,
+
+		// Marker Handler
+		provideMarkerHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -282,6 +291,10 @@ func provideExplorerRepository(db *gorm.DB) data.ExplorerRepository {
 
 func provideSavedSearchRepository(db *gorm.DB) data.SavedSearchRepository {
 	return data.NewSavedSearchRepository(db)
+}
+
+func provideMarkerRepository(db *gorm.DB) data.MarkerRepository {
+	return data.NewMarkerRepository(db)
 }
 
 // ============================================================================
@@ -456,6 +469,10 @@ func provideHomepageService(
 	)
 }
 
+func provideMarkerService(markerRepo data.MarkerRepository, videoRepo data.VideoRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
+	return core.NewMarkerService(markerRepo, videoRepo, cfg, logger.Logger)
+}
+
 // ============================================================================
 // API MIDDLEWARE PROVIDERS
 // ============================================================================
@@ -580,6 +597,10 @@ func provideHomepageHandler(homepageService *core.HomepageService) *handler.Home
 	return handler.NewHomepageHandler(homepageService)
 }
 
+func provideMarkerHandler(markerService *core.MarkerService) *handler.MarkerHandler {
+	return handler.NewMarkerHandler(markerService)
+}
+
 // ============================================================================
 // ROUTER & SERVER PROVIDERS
 // ============================================================================
@@ -612,6 +633,7 @@ func provideRouter(
 	pornDBHandler *handler.PornDBHandler,
 	savedSearchHandler *handler.SavedSearchHandler,
 	homepageHandler *handler.HomepageHandler,
+	markerHandler *handler.MarkerHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -622,7 +644,7 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, authService, rbacService, rateLimiter,
 	)
 }
 

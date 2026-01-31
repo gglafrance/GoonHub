@@ -44,6 +44,7 @@ export interface PornDBScene {
     site?: PornDBSite;
     performers?: PornDBScenePerformer[];
     tags?: PornDBTag[];
+    markers?: PornDBMarker[];
 }
 
 // Lightweight site for scene responses
@@ -80,4 +81,12 @@ export interface PornDBScenePerformer {
 export interface PornDBTag {
     id: number;
     name: string;
+}
+
+export interface PornDBMarker {
+    id: number;
+    title: string;
+    start_time: number;
+    end_time?: number | null;
+    created_at?: string;
 }

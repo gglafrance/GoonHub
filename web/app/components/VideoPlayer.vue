@@ -2,6 +2,7 @@
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import type { Video } from '~/types/video';
+import type { Marker } from '~/types/marker';
 
 type Player = ReturnType<typeof videojs>;
 
@@ -13,6 +14,7 @@ const props = defineProps<{
     defaultVolume?: number;
     video?: Video;
     startTime?: number;
+    markers?: Marker[];
 }>();
 
 const emit = defineEmits<{
@@ -26,6 +28,14 @@ const videoElement = ref<HTMLVideoElement>();
 const player = shallowRef<Player | null>(null);
 const { vttCues, loadVttCues } = useVttParser();
 const { setup: setupThumbnailPreview } = useThumbnailPreview(player, vttCues);
+const {
+    setup: setupMarkerIndicators,
+    cleanup: cleanupMarkerIndicators,
+    update: updateMarkerIndicators,
+} = useMarkerIndicators(
+    player,
+    computed(() => props.markers ?? []),
+);
 
 const videoRef = computed(() => props.video);
 const { hasRecordedView, setupTracking, cleanup } = useWatchTracking({
@@ -102,6 +112,7 @@ onMounted(async () => {
 
     player.value.ready(() => {
         setupThumbnailPreview();
+        setupMarkerIndicators();
         if (vttUrl.value) {
             loadVttCues(vttUrl.value);
         }
@@ -137,6 +148,15 @@ watch(vttUrl, (newVttUrl) => {
     }
 });
 
+// Watch for marker changes
+watch(
+    () => props.markers,
+    () => {
+        updateMarkerIndicators();
+    },
+    { deep: true },
+);
+
 // Watch for startTime changes (e.g., when user clicks Resume)
 watch(
     () => props.startTime,
@@ -156,6 +176,7 @@ defineExpose({
 
 onBeforeUnmount(() => {
     cleanup();
+    cleanupMarkerIndicators();
     if (player.value) {
         player.value.dispose();
     }
@@ -245,7 +266,6 @@ onBeforeUnmount(() => {
 }
 
 :deep(.vjs-progress-control .vjs-play-progress::before) {
-    top: -4px;
     font-size: 10px;
     color: #ff4d4d;
 }
@@ -292,7 +312,7 @@ onBeforeUnmount(() => {
 :deep(.vjs-thumb-preview) {
     position: absolute;
     bottom: 100%;
-    margin-bottom: 6px;
+    margin-bottom: 28px;
     pointer-events: none;
     border: 1px solid rgba(255, 77, 77, 0.5);
     border-radius: 4px;
@@ -306,5 +326,127 @@ onBeforeUnmount(() => {
 
 :deep(.vjs-thumb-preview img) {
     display: block;
+}
+
+/* Marker tick container */
+:deep(.vjs-marker-container) {
+    position: absolute;
+    top: 18px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    pointer-events: none;
+    z-index: 5;
+}
+
+/* Individual marker tick - larger hover zone with smaller visual dot */
+:deep(.vjs-marker-tick) {
+    position: absolute;
+    width: 21px;
+    height: 21px;
+    transform: translate(-50%, -50%);
+    top: 50%;
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+:deep(.vjs-marker-tick::before) {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    background-color: var(--marker-color, #ffffff);
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+    transition:
+        transform 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+:deep(.vjs-marker-tick:hover::before) {
+    transform: translate(-50%, -50%) scale(1.5);
+    box-shadow: 0 0 8px var(--marker-color, #ffffff);
+}
+
+/* Tooltip container - matches sprite preview style */
+:deep(.vjs-marker-tooltip) {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 28px;
+    background: #050505;
+    border: 1px solid rgba(255, 77, 77, 0.5);
+    border-radius: 4px;
+    overflow: hidden;
+    width: 320px;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+        opacity 0.15s ease,
+        visibility 0.15s ease;
+    pointer-events: none;
+    z-index: 20;
+    box-shadow:
+        0 4px 20px rgba(0, 0, 0, 0.8),
+        0 0 15px rgba(255, 77, 77, 0.15);
+}
+
+:deep(.vjs-marker-tick:hover .vjs-marker-tooltip) {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Tooltip thumbnail */
+:deep(.vjs-marker-tooltip-img) {
+    width: 320px;
+    height: 180px;
+    object-fit: cover;
+    display: block;
+}
+
+/* Tooltip placeholder when no thumbnail */
+:deep(.vjs-marker-tooltip-placeholder) {
+    width: 320px;
+    height: 180px;
+    background: linear-gradient(135deg, rgba(255, 77, 77, 0.1) 0%, rgba(255, 77, 77, 0.05) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Tooltip info container */
+:deep(.vjs-marker-tooltip-info) {
+    padding: 6px 8px;
+    background: linear-gradient(to bottom, rgba(255, 77, 77, 0.05), transparent);
+}
+
+/* Tooltip label */
+:deep(.vjs-marker-tooltip-label) {
+    font-size: 11px;
+    color: white;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+}
+
+/* Tooltip timestamp */
+:deep(.vjs-marker-tooltip-time) {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+:deep(.vjs-icon-placeholder) {
+    transform: translateY(-15px);
+}
+
+:deep(.vjs-volume-control) {
+    transform: translateY(5px);
 }
 </style>

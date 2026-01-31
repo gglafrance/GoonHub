@@ -66,6 +66,7 @@ async function onApply(fields: {
     performers: boolean;
     tags: boolean;
     release_date: boolean;
+    markers: boolean;
 }) {
     if (!props.video || !selectedScene.value) return;
 
@@ -108,6 +109,22 @@ async function onApply(fields: {
         // Apply basic metadata
         if (Object.keys(payload).length > 0) {
             await api.applySceneMetadata(props.video.id, payload);
+        }
+
+        // Import markers if selected
+        if (fields.markers && selectedScene.value.markers?.length) {
+            const { createMarker } = useApiMarkers();
+            for (const marker of selectedScene.value.markers) {
+                try {
+                    await createMarker(props.video.id, {
+                        timestamp: marker.start_time,
+                        label: marker.title,
+                    });
+                } catch {
+                    // Log but don't fail entire import
+                    console.warn(`Failed to import marker: ${marker.title}`);
+                }
+            }
         }
 
         applyingBasic.value = false;

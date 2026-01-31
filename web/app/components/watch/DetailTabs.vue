@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const activeTab = ref<'jobs' | 'thumbnail' | 'details' | 'history'>('details');
+const activeTab = ref<'jobs' | 'thumbnail' | 'details' | 'history' | 'markers'>('details');
 </script>
 
 <template>
@@ -50,6 +50,17 @@ const activeTab = ref<'jobs' | 'thumbnail' | 'details' | 'history'>('details');
             >
                 History
             </button>
+            <button
+                @click="activeTab = 'markers'"
+                :class="[
+                    'border-b-2 px-3 pb-2.5 text-[11px] font-medium transition-colors',
+                    activeTab === 'markers'
+                        ? 'border-lava text-white'
+                        : 'text-dim border-transparent hover:text-white',
+                ]"
+            >
+                Markers
+            </button>
         </div>
 
         <!-- Tab content -->
@@ -58,6 +69,7 @@ const activeTab = ref<'jobs' | 'thumbnail' | 'details' | 'history'>('details');
             <WatchThumbnail v-if="activeTab === 'thumbnail'" />
             <WatchJobs v-if="activeTab === 'jobs'" />
             <WatchHistory v-if="activeTab === 'history'" />
+            <WatchMarkers v-if="activeTab === 'markers'" />
         </div>
     </div>
 </template>

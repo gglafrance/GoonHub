@@ -91,8 +91,10 @@ watch(
         if (open) {
             updatePosition();
             setTimeout(() => document.addEventListener('click', onClickOutside), 0);
+            window.addEventListener('scroll', updatePosition, true);
         } else {
             document.removeEventListener('click', onClickOutside);
+            window.removeEventListener('scroll', updatePosition, true);
             searchQuery.value = '';
         }
     },
@@ -100,6 +102,7 @@ watch(
 
 onBeforeUnmount(() => {
     document.removeEventListener('click', onClickOutside);
+    window.removeEventListener('scroll', updatePosition, true);
 });
 </script>
 
