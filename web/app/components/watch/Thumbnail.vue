@@ -65,20 +65,39 @@ const currentThumbnailUrl = computed(() => {
 
 const formattedTime = computed(() => formatDuration(Math.floor(currentTime.value)));
 
-onMounted(async () => {
+function startTimeInterval() {
+    if (timeInterval.value) return;
     timeInterval.value = setInterval(() => {
         currentTime.value = getPlayerTime();
     }, 500);
+}
+
+function stopTimeInterval() {
+    if (timeInterval.value) {
+        clearInterval(timeInterval.value);
+        timeInterval.value = null;
+    }
+}
+
+onMounted(async () => {
+    startTimeInterval();
 
     if (video?.value?.vtt_path) {
         await loadSpriteCues();
     }
 });
 
+// KeepAlive lifecycle hooks - pause/resume interval when tab is inactive/active
+onActivated(() => {
+    startTimeInterval();
+});
+
+onDeactivated(() => {
+    stopTimeInterval();
+});
+
 onBeforeUnmount(() => {
-    if (timeInterval.value) {
-        clearInterval(timeInterval.value);
-    }
+    stopTimeInterval();
     if (uploadPreview.value) {
         URL.revokeObjectURL(uploadPreview.value);
     }

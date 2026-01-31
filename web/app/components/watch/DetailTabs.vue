@@ -1,10 +1,28 @@
 <script setup lang="ts">
+import type { Component } from 'vue';
+import WatchDetails from './Details.vue';
+import WatchThumbnail from './Thumbnail.vue';
+import WatchJobs from './Jobs.vue';
+import WatchHistory from './History.vue';
+import WatchMarkers from './Markers.vue';
+
 type TabType = 'jobs' | 'thumbnail' | 'details' | 'history' | 'markers';
 
 // Inject activeTab from parent (watch page) or use local state
 const injectedActiveTab = inject<Ref<TabType> | undefined>('activeTab', undefined);
 const localActiveTab = ref<TabType>('details');
 const activeTab = injectedActiveTab ?? localActiveTab;
+
+// Map tab names to components for KeepAlive caching
+const tabComponentMap: Record<TabType, Component> = {
+    details: WatchDetails,
+    thumbnail: WatchThumbnail,
+    jobs: WatchJobs,
+    history: WatchHistory,
+    markers: WatchMarkers,
+};
+
+const currentComponent = computed(() => tabComponentMap[activeTab.value]);
 </script>
 
 <template>
@@ -68,13 +86,11 @@ const activeTab = injectedActiveTab ?? localActiveTab;
             </button>
         </div>
 
-        <!-- Tab content -->
+        <!-- Tab content - KeepAlive caches component state to avoid re-fetching data on tab switch -->
         <div class="p-4">
-            <WatchDetails v-if="activeTab === 'details'" />
-            <WatchThumbnail v-if="activeTab === 'thumbnail'" />
-            <WatchJobs v-if="activeTab === 'jobs'" />
-            <WatchHistory v-if="activeTab === 'history'" />
-            <WatchMarkers v-if="activeTab === 'markers'" />
+            <KeepAlive>
+                <component :is="currentComponent" :key="activeTab" />
+            </KeepAlive>
         </div>
     </div>
 </template>
