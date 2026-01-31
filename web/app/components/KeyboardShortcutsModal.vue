@@ -47,6 +47,13 @@ const shortcuts = [
         category: 'Markers',
         items: [{ keys: ['M'], description: 'Add marker at current time' }],
     },
+    {
+        category: 'Navigation',
+        items: [
+            { keys: ['['], description: 'Previous page' },
+            { keys: [']'], description: 'Next page' },
+        ],
+    },
 ];
 
 const handleKeydown = (e: KeyboardEvent) => {
