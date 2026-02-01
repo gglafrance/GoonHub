@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -180,6 +181,65 @@ func (pm *PoolManager) Stop() {
 	pm.metadataPool.Stop()
 	pm.thumbnailPool.Stop()
 	pm.spritesPool.Stop()
+}
+
+// GracefulStop performs graceful shutdown of all worker pools.
+// It waits for in-flight jobs to complete (up to timeout) and returns
+// a map of phase -> buffered job IDs that were never executed.
+func (pm *PoolManager) GracefulStop(timeout time.Duration) map[string][]string {
+	pm.logger.Info("Starting graceful shutdown of pool manager",
+		zap.Duration("timeout", timeout),
+	)
+
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	// Divide timeout equally among pools (parallel shutdown)
+	// Each pool gets the full timeout since they run in parallel
+	result := make(map[string][]string)
+
+	// Use channels to collect results from parallel graceful stops
+	type poolResult struct {
+		phase  string
+		jobIDs []string
+	}
+	resultChan := make(chan poolResult, 3)
+
+	// Gracefully stop all pools in parallel
+	go func() {
+		jobIDs := pm.metadataPool.GracefulStop(timeout)
+		resultChan <- poolResult{phase: "metadata", jobIDs: jobIDs}
+	}()
+	go func() {
+		jobIDs := pm.thumbnailPool.GracefulStop(timeout)
+		resultChan <- poolResult{phase: "thumbnail", jobIDs: jobIDs}
+	}()
+	go func() {
+		jobIDs := pm.spritesPool.GracefulStop(timeout)
+		resultChan <- poolResult{phase: "sprites", jobIDs: jobIDs}
+	}()
+
+	// Collect results
+	for i := 0; i < 3; i++ {
+		res := <-resultChan
+		if len(res.jobIDs) > 0 {
+			result[res.phase] = res.jobIDs
+		}
+	}
+
+	totalReclaimed := 0
+	for _, ids := range result {
+		totalReclaimed += len(ids)
+	}
+
+	pm.logger.Info("Pool manager graceful shutdown complete",
+		zap.Int("total_jobs_reclaimed", totalReclaimed),
+		zap.Int("metadata_reclaimed", len(result["metadata"])),
+		zap.Int("thumbnail_reclaimed", len(result["thumbnail"])),
+		zap.Int("sprites_reclaimed", len(result["sprites"])),
+	)
+
+	return result
 }
 
 // migrateOldThumbnails renames legacy {id}_thumb.webp files to the new {id}_thumb_sm.webp naming.

@@ -26,6 +26,11 @@ type JobHistoryRepository interface {
 	CountPendingByPhase() (map[string]int, error)
 	ExistsPendingOrRunning(sceneID uint, phase string) (bool, error)
 	MarkOrphanedRunningAsFailed(olderThan time.Duration) (int64, error)
+
+	// Graceful shutdown methods
+	ResetJobsToPending(jobIDs []string) (int64, error)
+	MarkRunningAsInterrupted() (int64, error)
+	MarkStuckPendingJobsAsFailed(olderThan time.Duration) (int64, error)
 }
 
 type JobHistoryRepositoryImpl struct {
@@ -242,6 +247,58 @@ func (r *JobHistoryRepositoryImpl) MarkOrphanedRunningAsFailed(olderThan time.Du
 
 	result := r.DB.Model(&JobHistory{}).
 		Where("status = ? AND started_at < ?", JobStatusRunning, cutoff).
+		Updates(map[string]any{
+			"status":        JobStatusFailed,
+			"error_message": errMsg,
+			"completed_at":  time.Now(),
+			"is_retryable":  true,
+		})
+
+	return result.RowsAffected, result.Error
+}
+
+// ResetJobsToPending resets jobs by their IDs back to pending status.
+// Used during graceful shutdown to reclaim jobs that were in channel buffers.
+// Note: We keep the original started_at value since the column is NOT NULL.
+// When the job is re-claimed, ClaimPendingJobs will update started_at.
+func (r *JobHistoryRepositoryImpl) ResetJobsToPending(jobIDs []string) (int64, error) {
+	if len(jobIDs) == 0 {
+		return 0, nil
+	}
+
+	result := r.DB.Model(&JobHistory{}).
+		Where("job_id IN ?", jobIDs).
+		Update("status", JobStatusPending)
+
+	return result.RowsAffected, result.Error
+}
+
+// MarkRunningAsInterrupted marks all currently running jobs as failed due to server shutdown.
+// These jobs will be retryable so the retry scheduler can pick them up.
+func (r *JobHistoryRepositoryImpl) MarkRunningAsInterrupted() (int64, error) {
+	errMsg := "Job interrupted by server shutdown"
+	now := time.Now()
+
+	result := r.DB.Model(&JobHistory{}).
+		Where("status = ?", JobStatusRunning).
+		Updates(map[string]any{
+			"status":        JobStatusFailed,
+			"error_message": errMsg,
+			"completed_at":  now,
+			"is_retryable":  true,
+		})
+
+	return result.RowsAffected, result.Error
+}
+
+// MarkStuckPendingJobsAsFailed marks pending jobs that have been stuck for too long as failed.
+// This handles edge cases where jobs got stuck in pending state.
+func (r *JobHistoryRepositoryImpl) MarkStuckPendingJobsAsFailed(olderThan time.Duration) (int64, error) {
+	cutoff := time.Now().Add(-olderThan)
+	errMsg := "Stuck pending job recovered after server restart"
+
+	result := r.DB.Model(&JobHistory{}).
+		Where("status = ? AND created_at < ?", JobStatusPending, cutoff).
 		Updates(map[string]any{
 			"status":        JobStatusFailed,
 			"error_message": errMsg,

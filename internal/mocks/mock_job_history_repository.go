@@ -247,6 +247,51 @@ func (mr *MockJobHistoryRepositoryMockRecorder) MarkOrphanedRunningAsFailed(olde
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkOrphanedRunningAsFailed", reflect.TypeOf((*MockJobHistoryRepository)(nil).MarkOrphanedRunningAsFailed), olderThan)
 }
 
+// MarkRunningAsInterrupted mocks base method.
+func (m *MockJobHistoryRepository) MarkRunningAsInterrupted() (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkRunningAsInterrupted")
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkRunningAsInterrupted indicates an expected call of MarkRunningAsInterrupted.
+func (mr *MockJobHistoryRepositoryMockRecorder) MarkRunningAsInterrupted() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkRunningAsInterrupted", reflect.TypeOf((*MockJobHistoryRepository)(nil).MarkRunningAsInterrupted))
+}
+
+// MarkStuckPendingJobsAsFailed mocks base method.
+func (m *MockJobHistoryRepository) MarkStuckPendingJobsAsFailed(olderThan time.Duration) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkStuckPendingJobsAsFailed", olderThan)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkStuckPendingJobsAsFailed indicates an expected call of MarkStuckPendingJobsAsFailed.
+func (mr *MockJobHistoryRepositoryMockRecorder) MarkStuckPendingJobsAsFailed(olderThan any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkStuckPendingJobsAsFailed", reflect.TypeOf((*MockJobHistoryRepository)(nil).MarkStuckPendingJobsAsFailed), olderThan)
+}
+
+// ResetJobsToPending mocks base method.
+func (m *MockJobHistoryRepository) ResetJobsToPending(jobIDs []string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResetJobsToPending", jobIDs)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResetJobsToPending indicates an expected call of ResetJobsToPending.
+func (mr *MockJobHistoryRepositoryMockRecorder) ResetJobsToPending(jobIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetJobsToPending", reflect.TypeOf((*MockJobHistoryRepository)(nil).ResetJobsToPending), jobIDs)
+}
+
 // UpdateProgress mocks base method.
 func (m *MockJobHistoryRepository) UpdateProgress(jobID string, progress int) error {
 	m.ctrl.T.Helper()

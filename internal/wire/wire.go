@@ -665,6 +665,7 @@ func provideServer(
 	processingService *core.SceneProcessingService,
 	userService *core.UserService,
 	jobHistoryService *core.JobHistoryService,
+	jobHistoryRepo data.JobHistoryRepository,
 	jobQueueFeeder *core.JobQueueFeeder,
 	triggerScheduler *core.TriggerScheduler,
 	sceneService *core.SceneService,
@@ -679,7 +680,7 @@ func provideServer(
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
-		processingService, userService, jobHistoryService, jobQueueFeeder, triggerScheduler,
+		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
 		actorService, studioService,
 	)

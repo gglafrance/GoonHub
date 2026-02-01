@@ -23,6 +23,10 @@ type JobQueueFeeder struct {
 	batchSize        int
 	channelThreshold int // Feed when channel has space below this threshold
 
+	// Configurable timeouts for orphan/stuck job recovery
+	orphanTimeout    time.Duration
+	stuckPendingTime time.Duration
+
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -43,7 +47,19 @@ func NewJobQueueFeeder(
 		pollInterval:     2 * time.Second,
 		batchSize:        50,
 		channelThreshold: 800, // Feed when channel has < 800 of 1000 capacity
+		orphanTimeout:    30 * time.Second,
+		stuckPendingTime: 10 * time.Minute,
 	}
+}
+
+// SetOrphanTimeout sets the timeout for detecting orphaned running jobs
+func (f *JobQueueFeeder) SetOrphanTimeout(d time.Duration) {
+	f.orphanTimeout = d
+}
+
+// SetStuckPendingTime sets the threshold for detecting stuck pending jobs
+func (f *JobQueueFeeder) SetStuckPendingTime(d time.Duration) {
+	f.stuckPendingTime = d
 }
 
 // Start starts the feeder goroutines for each processing phase
@@ -77,19 +93,25 @@ func (f *JobQueueFeeder) Stop() {
 
 // recoverOrphanedJobs marks jobs that were running when the server crashed as failed
 func (f *JobQueueFeeder) recoverOrphanedJobs() {
-	// Jobs running for more than 5 minutes are likely orphaned
-	orphanTimeout := 5 * time.Minute
-
-	count, err := f.repo.MarkOrphanedRunningAsFailed(orphanTimeout)
+	// Recover orphaned running jobs (using configurable timeout, default 30s)
+	count, err := f.repo.MarkOrphanedRunningAsFailed(f.orphanTimeout)
 	if err != nil {
-		f.logger.Error("Failed to recover orphaned jobs", zap.Error(err))
-		return
+		f.logger.Error("Failed to recover orphaned running jobs", zap.Error(err))
+	} else if count > 0 {
+		f.logger.Info("Recovered orphaned running jobs from previous run",
+			zap.Int64("count", count),
+			zap.Duration("timeout", f.orphanTimeout),
+		)
 	}
 
-	if count > 0 {
-		f.logger.Info("Recovered orphaned jobs from previous run",
-			zap.Int64("count", count),
-			zap.Duration("timeout", orphanTimeout),
+	// Recover stuck pending jobs (jobs stuck in pending state for too long)
+	stuckCount, err := f.repo.MarkStuckPendingJobsAsFailed(f.stuckPendingTime)
+	if err != nil {
+		f.logger.Error("Failed to recover stuck pending jobs", zap.Error(err))
+	} else if stuckCount > 0 {
+		f.logger.Info("Recovered stuck pending jobs from previous run",
+			zap.Int64("count", stuckCount),
+			zap.Duration("threshold", f.stuckPendingTime),
 		)
 	}
 }

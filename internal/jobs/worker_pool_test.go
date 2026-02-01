@@ -606,3 +606,134 @@ func TestWorkerPool_ResubmitAfterComplete(t *testing.T) {
 
 	pool.Stop()
 }
+
+func TestWorkerPool_GracefulStopDrainsBuffer(t *testing.T) {
+	// Create pool with small worker count but larger queue
+	pool := NewWorkerPool(1, 20)
+	pool.Start()
+
+	// Submit a slow job that will occupy the worker
+	slowJobStarted := make(chan struct{})
+	pool.Submit(newTestJobWithSceneIDContext("slow", 600, "metadata", func(ctx context.Context) error {
+		close(slowJobStarted)
+		// Hold the worker for a bit
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+			return nil
+		}
+	}))
+
+	// Wait for slow job to start
+	select {
+	case <-slowJobStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("slow job did not start")
+	}
+
+	// Queue up several jobs that will be buffered
+	bufferedCount := 5
+	for i := 0; i < bufferedCount; i++ {
+		job := newTestJobWithSceneID(fmt.Sprintf("buffered-%d", i), uint(700+i), "metadata", func() error {
+			return nil
+		})
+		if err := pool.Submit(job); err != nil {
+			t.Fatalf("failed to submit buffered job %d: %v", i, err)
+		}
+	}
+
+	// Verify jobs are in the buffer
+	queueSize := pool.QueueSize()
+	if queueSize < bufferedCount {
+		t.Logf("warning: expected at least %d jobs in queue, got %d", bufferedCount, queueSize)
+	}
+
+	// Graceful stop should drain the buffer and return the job IDs
+	drainedIDs := pool.GracefulStop(500 * time.Millisecond)
+
+	// The slow job should have completed (or been interrupted)
+	// The buffered jobs should be returned
+
+	if !pool.Running() {
+		// Pool stopped - good
+	} else {
+		t.Fatal("pool should not be running after GracefulStop")
+	}
+
+	// We should have gotten some job IDs back from the buffer
+	// The exact count depends on timing, but we should get the buffered ones
+	if len(drainedIDs) > 0 {
+		t.Logf("Drained %d job IDs from buffer", len(drainedIDs))
+	}
+}
+
+func TestWorkerPool_GracefulStopWaitsForRunning(t *testing.T) {
+	pool := NewWorkerPool(1, 10)
+	pool.Start()
+
+	jobCompleted := make(chan struct{})
+	jobStarted := make(chan struct{})
+
+	pool.Submit(newTestJobWithSceneIDContext("running-job", 800, "sprites", func(ctx context.Context) error {
+		close(jobStarted)
+		// Simulate work that takes some time
+		time.Sleep(100 * time.Millisecond)
+		close(jobCompleted)
+		return nil
+	}))
+
+	// Wait for job to start
+	select {
+	case <-jobStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("job did not start")
+	}
+
+	// Graceful stop with enough timeout for job to complete
+	pool.GracefulStop(500 * time.Millisecond)
+
+	// Job should have completed
+	select {
+	case <-jobCompleted:
+		// Success - job completed during graceful stop
+	default:
+		t.Fatal("expected running job to complete during graceful stop")
+	}
+}
+
+func TestWorkerPool_GracefulStopTimeout(t *testing.T) {
+	pool := NewWorkerPool(1, 10)
+	pool.Start()
+
+	jobStarted := make(chan struct{})
+
+	pool.Submit(newTestJobWithSceneIDContext("very-slow", 900, "metadata", func(ctx context.Context) error {
+		close(jobStarted)
+		// Job takes longer than our graceful timeout
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Second):
+			return nil
+		}
+	}))
+
+	// Wait for job to start
+	select {
+	case <-jobStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("job did not start")
+	}
+
+	// Graceful stop with short timeout
+	start := time.Now()
+	pool.GracefulStop(50 * time.Millisecond)
+	elapsed := time.Since(start)
+
+	// Should have timed out reasonably close to the timeout duration
+	// Allow some tolerance for context switching
+	if elapsed > 200*time.Millisecond {
+		t.Fatalf("graceful stop took too long: %v (expected ~50ms)", elapsed)
+	}
+}

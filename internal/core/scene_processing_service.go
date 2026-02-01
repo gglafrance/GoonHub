@@ -5,6 +5,7 @@ import (
 	"goonhub/internal/core/processing"
 	"goonhub/internal/data"
 	"goonhub/internal/jobs"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -137,6 +138,14 @@ func (s *SceneProcessingService) Start() {
 func (s *SceneProcessingService) Stop() {
 	s.logger.Info("Stopping scene processing service")
 	s.poolManager.Stop()
+}
+
+// GracefulStop performs graceful shutdown of all worker pools.
+// It waits for in-flight jobs to complete (up to timeout) and returns
+// a map of phase -> buffered job IDs that were never executed.
+func (s *SceneProcessingService) GracefulStop(timeout time.Duration) map[string][]string {
+	s.logger.Info("Gracefully stopping scene processing service", zap.Duration("timeout", timeout))
+	return s.poolManager.GracefulStop(timeout)
 }
 
 // SubmitScene submits a new scene for processing
