@@ -403,6 +403,9 @@ func provideRateLimiter(cfg *config.Config) *middleware.IPRateLimiter {
 
 func provideAuthHandler(authService *core.AuthService, userService *core.UserService, cfg *config.Config) *handler.AuthHandler {
 	secureCookies := cfg.Environment == "production"
+	if cfg.Server.SecureCookies != nil {
+		secureCookies = *cfg.Server.SecureCookies
+	}
 	return handler.NewAuthHandlerWithConfig(authService, userService, cfg.Auth.TokenDuration, secureCookies)
 }
 
