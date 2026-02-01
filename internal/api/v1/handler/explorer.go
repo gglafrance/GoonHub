@@ -20,7 +20,7 @@ func NewExplorerHandler(service *core.ExplorerService) *ExplorerHandler {
 	}
 }
 
-// GetStoragePaths returns all storage paths with their video counts
+// GetStoragePaths returns all storage paths with their scene counts
 func (h *ExplorerHandler) GetStoragePaths(c *gin.Context) {
 	paths, err := h.Service.GetStoragePathsWithCounts()
 	if err != nil {
@@ -77,7 +77,7 @@ func (h *ExplorerHandler) BulkUpdateTags(c *gin.Context) {
 	}
 
 	updated, err := h.Service.BulkUpdateTags(core.BulkUpdateTagsRequest{
-		VideoIDs: req.VideoIDs,
+		SceneIDs: req.SceneIDs,
 		TagIDs:   req.TagIDs,
 		Mode:     req.Mode,
 	})
@@ -88,7 +88,7 @@ func (h *ExplorerHandler) BulkUpdateTags(c *gin.Context) {
 
 	response.OK(c, gin.H{
 		"updated":   updated,
-		"requested": len(req.VideoIDs),
+		"requested": len(req.SceneIDs),
 	})
 }
 
@@ -101,7 +101,7 @@ func (h *ExplorerHandler) BulkUpdateActors(c *gin.Context) {
 	}
 
 	updated, err := h.Service.BulkUpdateActors(core.BulkUpdateActorsRequest{
-		VideoIDs: req.VideoIDs,
+		SceneIDs: req.SceneIDs,
 		ActorIDs: req.ActorIDs,
 		Mode:     req.Mode,
 	})
@@ -112,7 +112,7 @@ func (h *ExplorerHandler) BulkUpdateActors(c *gin.Context) {
 
 	response.OK(c, gin.H{
 		"updated":   updated,
-		"requested": len(req.VideoIDs),
+		"requested": len(req.SceneIDs),
 	})
 }
 
@@ -125,7 +125,7 @@ func (h *ExplorerHandler) BulkUpdateStudio(c *gin.Context) {
 	}
 
 	updated, err := h.Service.BulkUpdateStudio(core.BulkUpdateStudioRequest{
-		VideoIDs: req.VideoIDs,
+		SceneIDs: req.SceneIDs,
 		Studio:   req.Studio,
 	})
 	if err != nil {
@@ -135,39 +135,39 @@ func (h *ExplorerHandler) BulkUpdateStudio(c *gin.Context) {
 
 	response.OK(c, gin.H{
 		"updated":   updated,
-		"requested": len(req.VideoIDs),
+		"requested": len(req.SceneIDs),
 	})
 }
 
-// GetFolderVideoIDs returns all video IDs in a folder
-func (h *ExplorerHandler) GetFolderVideoIDs(c *gin.Context) {
-	var req request.FolderVideoIDsRequest
+// GetFolderSceneIDs returns all scene IDs in a folder
+func (h *ExplorerHandler) GetFolderSceneIDs(c *gin.Context) {
+	var req request.FolderSceneIDsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
 
-	ids, err := h.Service.GetFolderVideoIDs(req.StoragePathID, req.FolderPath, req.Recursive)
+	ids, err := h.Service.GetFolderSceneIDs(req.StoragePathID, req.FolderPath, req.Recursive)
 	if err != nil {
 		response.Error(c, err)
 		return
 	}
 
 	response.OK(c, gin.H{
-		"video_ids": ids,
+		"scene_ids": ids,
 		"count":     len(ids),
 	})
 }
 
-// BulkDeleteVideos deletes multiple videos
-func (h *ExplorerHandler) BulkDeleteVideos(c *gin.Context) {
+// BulkDeleteScenes deletes multiple scenes
+func (h *ExplorerHandler) BulkDeleteScenes(c *gin.Context) {
 	var req request.BulkDeleteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
 
-	deleted, err := h.Service.BulkDeleteVideos(req.VideoIDs)
+	deleted, err := h.Service.BulkDeleteScenes(req.SceneIDs)
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -175,7 +175,7 @@ func (h *ExplorerHandler) BulkDeleteVideos(c *gin.Context) {
 
 	response.OK(c, gin.H{
 		"deleted":   deleted,
-		"requested": len(req.VideoIDs),
+		"requested": len(req.SceneIDs),
 	})
 }
 

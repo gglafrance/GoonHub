@@ -55,7 +55,7 @@ const handleSubmit = async () => {
 
     try {
         await bulkUpdateTags({
-            video_ids: explorerStore.getSelectedVideoIDs(),
+            scene_ids: explorerStore.getSelectedSceneIDs(),
             tag_ids: Array.from(selectedTagIDs.value),
             mode: mode.value,
         });
@@ -93,7 +93,7 @@ const handleSubmit = async () => {
                 <!-- Content -->
                 <div class="p-4">
                     <p class="text-dim mb-4 text-xs">
-                        Editing tags for {{ explorerStore.selectionCount }} videos
+                        Editing tags for {{ explorerStore.selectionCount }} scenes
                     </p>
 
                     <!-- Mode Selection -->

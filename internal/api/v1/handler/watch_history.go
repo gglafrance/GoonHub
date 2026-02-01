@@ -26,9 +26,9 @@ func (h *WatchHistoryHandler) RecordWatch(c *gin.Context) {
 		return
 	}
 
-	videoID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	sceneID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
@@ -38,7 +38,7 @@ func (h *WatchHistoryHandler) RecordWatch(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.RecordWatch(payload.UserID, uint(videoID), req.Duration, req.Position, req.Completed); err != nil {
+	if err := h.Service.RecordWatch(payload.UserID, uint(sceneID), req.Duration, req.Position, req.Completed); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record watch"})
 		return
 	}
@@ -53,13 +53,13 @@ func (h *WatchHistoryHandler) GetResumePosition(c *gin.Context) {
 		return
 	}
 
-	videoID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	sceneID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	position, err := h.Service.GetResumePosition(payload.UserID, uint(videoID))
+	position, err := h.Service.GetResumePosition(payload.UserID, uint(sceneID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get resume position"})
 		return
@@ -68,16 +68,16 @@ func (h *WatchHistoryHandler) GetResumePosition(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"position": position})
 }
 
-func (h *WatchHistoryHandler) GetVideoHistory(c *gin.Context) {
+func (h *WatchHistoryHandler) GetSceneHistory(c *gin.Context) {
 	payload, err := middleware.GetUserFromContext(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	videoID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	sceneID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
@@ -92,9 +92,9 @@ func (h *WatchHistoryHandler) GetVideoHistory(c *gin.Context) {
 		}
 	}
 
-	watches, err := h.Service.GetVideoHistory(payload.UserID, uint(videoID), limit)
+	watches, err := h.Service.GetSceneHistory(payload.UserID, uint(sceneID), limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get video history"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get scene history"})
 		return
 	}
 

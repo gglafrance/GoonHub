@@ -196,7 +196,7 @@ const triggerTypes = (phase: string) => {
         types.unshift({
             value: 'on_import',
             label: 'On Import',
-            description: 'Runs immediately when a video is uploaded',
+            description: 'Runs immediately when a scene is uploaded',
         });
     }
     return types;

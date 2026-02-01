@@ -14,14 +14,14 @@ useKeyboardShortcuts([
         key: 'a',
         ctrl: true,
         action: () => explorerStore.selectAllOnPage(),
-        description: 'Select all videos on current page',
+        description: 'Select all scenes on current page',
     },
     {
         key: 'a',
         ctrl: true,
         shift: true,
         action: () => explorerStore.selectAllInFolderRecursive(),
-        description: 'Select all videos including subfolders',
+        description: 'Select all scenes including subfolders',
     },
     {
         key: 'Escape',
@@ -35,7 +35,7 @@ useKeyboardShortcuts([
                 bulkToolbarRef.value.showDeleteModal = true;
             }
         },
-        description: 'Delete selected videos',
+        description: 'Delete selected scenes',
     },
 ]);
 
@@ -135,7 +135,7 @@ definePageMeta({
                         class="border-border bg-panel text-dim shrink-0 rounded-full border px-2.5
                             py-0.5 font-mono text-[11px]"
                     >
-                        {{ explorerStore.totalVideos }} videos
+                        {{ explorerStore.totalScenes }} scenes
                     </span>
                 </div>
             </div>

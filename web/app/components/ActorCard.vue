@@ -67,13 +67,13 @@ const genderInfo = computed(() => {
                 <Icon :name="genderInfo.icon" :class="genderInfo.color" size="14" />
             </div>
 
-            <!-- Video count badge -->
+            <!-- Scene count badge -->
             <div
-                v-if="actor.video_count !== undefined && actor.video_count > 0"
+                v-if="actor.scene_count !== undefined && actor.scene_count > 0"
                 class="bg-void/90 absolute right-1.5 bottom-1.5 rounded px-1.5 py-0.5 font-mono
                     text-[10px] font-medium text-white backdrop-blur-sm"
             >
-                {{ actor.video_count }} {{ actor.video_count === 1 ? 'video' : 'videos' }}
+                {{ actor.scene_count }} {{ actor.scene_count === 1 ? 'scene' : 'scenes' }}
             </div>
 
             <!-- Hover overlay -->

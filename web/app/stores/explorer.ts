@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import type { Video } from '~/types/video';
+import type { SceneListItem } from '~/types/scene';
 import type {
     StoragePathWithCount,
     FolderInfo,
@@ -17,21 +17,21 @@ export const useExplorerStore = defineStore('explorer', () => {
     const currentStoragePathID = ref<number | null>(null);
     const currentPath = ref('');
     const subfolders = ref<FolderInfo[]>([]);
-    const videos = ref<Video[]>([]);
-    const totalVideos = ref(0);
+    const scenes = ref<SceneListItem[]>([]);
+    const totalScenes = ref(0);
     const page = ref(1);
     const limit = ref(24);
     const isLoading = ref(false);
     const error = ref<string | null>(null);
 
     // Selection state
-    const selectedVideoIDs = ref<Set<number>>(new Set());
+    const selectedSceneIDs = ref<Set<number>>(new Set());
 
     // API
-    const { getStoragePaths, getFolderContents, getFolderVideoIDs, searchInFolder } = useApiExplorer();
+    const { getStoragePaths, getFolderContents, getFolderSceneIDs, searchInFolder } = useApiExplorer();
 
-    // Track if all folder videos are selected (across all pages)
-    const allFolderVideoIDs = ref<number[]>([]);
+    // Track if all folder scenes are selected (across all pages)
+    const allFolderSceneIDs = ref<number[]>([]);
     const isSelectingAll = ref(false);
 
     // Search state
@@ -64,15 +64,15 @@ export const useExplorerStore = defineStore('explorer', () => {
         return crumbs;
     });
 
-    const totalPages = computed(() => Math.ceil(totalVideos.value / limit.value));
+    const totalPages = computed(() => Math.ceil(totalScenes.value / limit.value));
 
-    const hasSelection = computed(() => selectedVideoIDs.value.size > 0);
-    const selectionCount = computed(() => selectedVideoIDs.value.size);
-    const allPageVideosSelected = computed(
-        () => videos.value.length > 0 && videos.value.every((v) => selectedVideoIDs.value.has(v.id)),
+    const hasSelection = computed(() => selectedSceneIDs.value.size > 0);
+    const selectionCount = computed(() => selectedSceneIDs.value.size);
+    const allPageScenesSelected = computed(
+        () => scenes.value.length > 0 && scenes.value.every((s) => selectedSceneIDs.value.has(s.id)),
     );
-    const allFolderVideosSelected = computed(
-        () => totalVideos.value > 0 && selectedVideoIDs.value.size === totalVideos.value,
+    const allFolderScenesSelected = computed(
+        () => totalScenes.value > 0 && selectedSceneIDs.value.size === totalScenes.value,
     );
 
     const isSearchActive = computed(
@@ -116,8 +116,8 @@ export const useExplorerStore = defineStore('explorer', () => {
             // At root of storage path, go back to storage path list
             currentStoragePathID.value = null;
             subfolders.value = [];
-            videos.value = [];
-            totalVideos.value = 0;
+            scenes.value = [];
+            totalScenes.value = 0;
             clearSelection();
             return;
         }
@@ -152,8 +152,8 @@ export const useExplorerStore = defineStore('explorer', () => {
             );
 
             subfolders.value = response.subfolders;
-            videos.value = response.videos;
-            totalVideos.value = response.total_videos;
+            scenes.value = response.scenes;
+            totalScenes.value = response.total_scenes;
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : 'Unknown error';
             if (message !== 'Unauthorized') {
@@ -170,21 +170,21 @@ export const useExplorerStore = defineStore('explorer', () => {
     };
 
     // Selection actions
-    const toggleVideoSelection = (videoID: number) => {
-        if (selectedVideoIDs.value.has(videoID)) {
-            selectedVideoIDs.value.delete(videoID);
+    const toggleSceneSelection = (sceneID: number) => {
+        if (selectedSceneIDs.value.has(sceneID)) {
+            selectedSceneIDs.value.delete(sceneID);
         } else {
-            selectedVideoIDs.value.add(videoID);
+            selectedSceneIDs.value.add(sceneID);
         }
         // Trigger reactivity
-        selectedVideoIDs.value = new Set(selectedVideoIDs.value);
+        selectedSceneIDs.value = new Set(selectedSceneIDs.value);
     };
 
     const selectAllOnPage = () => {
-        for (const video of videos.value) {
-            selectedVideoIDs.value.add(video.id);
+        for (const scene of scenes.value) {
+            selectedSceneIDs.value.add(scene.id);
         }
-        selectedVideoIDs.value = new Set(selectedVideoIDs.value);
+        selectedSceneIDs.value = new Set(selectedSceneIDs.value);
     };
 
     const selectAllInFolder = async () => {
@@ -192,13 +192,13 @@ export const useExplorerStore = defineStore('explorer', () => {
 
         isSelectingAll.value = true;
         try {
-            const response = await getFolderVideoIDs({
+            const response = await getFolderSceneIDs({
                 storage_path_id: currentStoragePathID.value,
                 folder_path: currentPath.value,
                 recursive: false,
             });
-            allFolderVideoIDs.value = response.video_ids;
-            selectedVideoIDs.value = new Set(response.video_ids);
+            allFolderSceneIDs.value = response.scene_ids;
+            selectedSceneIDs.value = new Set(response.scene_ids);
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : 'Unknown error';
             if (message !== 'Unauthorized') {
@@ -214,13 +214,13 @@ export const useExplorerStore = defineStore('explorer', () => {
 
         isSelectingAll.value = true;
         try {
-            const response = await getFolderVideoIDs({
+            const response = await getFolderSceneIDs({
                 storage_path_id: currentStoragePathID.value,
                 folder_path: currentPath.value,
                 recursive: true,
             });
-            allFolderVideoIDs.value = response.video_ids;
-            selectedVideoIDs.value = new Set(response.video_ids);
+            allFolderSceneIDs.value = response.scene_ids;
+            selectedSceneIDs.value = new Set(response.scene_ids);
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : 'Unknown error';
             if (message !== 'Unauthorized') {
@@ -232,8 +232,8 @@ export const useExplorerStore = defineStore('explorer', () => {
     };
 
     const clearSelection = () => {
-        selectedVideoIDs.value = new Set();
-        allFolderVideoIDs.value = [];
+        selectedSceneIDs.value = new Set();
+        allFolderSceneIDs.value = [];
     };
 
     // Search actions
@@ -258,8 +258,8 @@ export const useExplorerStore = defineStore('explorer', () => {
                 page: page.value,
                 limit: limit.value,
             });
-            videos.value = response.videos;
-            totalVideos.value = response.total;
+            scenes.value = response.scenes;
+            totalScenes.value = response.total;
             // Hide subfolders during search
             subfolders.value = [];
         } catch (e: unknown) {
@@ -280,12 +280,12 @@ export const useExplorerStore = defineStore('explorer', () => {
         await loadFolderContents();
     };
 
-    const isVideoSelected = (videoID: number) => {
-        return selectedVideoIDs.value.has(videoID);
+    const isSceneSelected = (sceneID: number) => {
+        return selectedSceneIDs.value.has(sceneID);
     };
 
-    const getSelectedVideoIDs = () => {
-        return Array.from(selectedVideoIDs.value);
+    const getSelectedSceneIDs = () => {
+        return Array.from(selectedSceneIDs.value);
     };
 
     // Reset state when leaving explorer
@@ -293,8 +293,8 @@ export const useExplorerStore = defineStore('explorer', () => {
         currentStoragePathID.value = null;
         currentPath.value = '';
         subfolders.value = [];
-        videos.value = [];
-        totalVideos.value = 0;
+        scenes.value = [];
+        totalScenes.value = 0;
         page.value = 1;
         clearSelection();
         error.value = null;
@@ -306,13 +306,13 @@ export const useExplorerStore = defineStore('explorer', () => {
         currentStoragePathID,
         currentPath,
         subfolders,
-        videos,
-        totalVideos,
+        scenes,
+        totalScenes,
         page,
         limit,
         isLoading,
         error,
-        selectedVideoIDs,
+        selectedSceneIDs,
         searchQuery,
         searchTags,
         searchActors,
@@ -324,8 +324,8 @@ export const useExplorerStore = defineStore('explorer', () => {
         totalPages,
         hasSelection,
         selectionCount,
-        allPageVideosSelected,
-        allFolderVideosSelected,
+        allPageScenesSelected,
+        allFolderScenesSelected,
         isSelectingAll,
         isSearchActive,
 
@@ -337,13 +337,13 @@ export const useExplorerStore = defineStore('explorer', () => {
         navigateToBreadcrumb,
         loadFolderContents,
         setPage,
-        toggleVideoSelection,
+        toggleSceneSelection,
         selectAllOnPage,
         selectAllInFolder,
         selectAllInFolderRecursive,
         clearSelection,
-        isVideoSelected,
-        getSelectedVideoIDs,
+        isSceneSelected,
+        getSelectedSceneIDs,
         performSearch,
         clearSearch,
         reset,

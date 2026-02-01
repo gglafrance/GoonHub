@@ -9,6 +9,8 @@ const emit = defineEmits<{
     (e: 'update:modelValue', page: number): void;
 }>();
 
+const { keys } = useKeyboardLayout();
+
 const totalPages = computed(() => Math.ceil(props.total / props.limit));
 
 const setPage = (page: number) => {
@@ -16,6 +18,28 @@ const setPage = (page: number) => {
         emit('update:modelValue', page);
     }
 };
+
+const handleKeydown = (e: KeyboardEvent) => {
+    // Skip if typing in input, textarea, or contenteditable
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+    }
+
+    if (e.key === keys.value.pagePrev) {
+        setPage(props.modelValue - 1);
+    } else if (e.key === keys.value.pageNext) {
+        setPage(props.modelValue + 1);
+    }
+};
+
+onMounted(() => {
+    window.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('keydown', handleKeydown);
+});
 </script>
 
 <template>

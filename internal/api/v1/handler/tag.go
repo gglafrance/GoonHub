@@ -76,52 +76,52 @@ func (h *TagHandler) DeleteTag(c *gin.Context) {
 	c.JSON(http.StatusNoContent, nil)
 }
 
-func (h *TagHandler) GetVideoTags(c *gin.Context) {
+func (h *TagHandler) GetSceneTags(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	tags, err := h.Service.GetVideoTags(uint(id))
+	tags, err := h.Service.GetSceneTags(uint(id))
 	if err != nil {
 		if apperrors.IsNotFound(err) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Scene not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get video tags"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get scene tags"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": tags})
 }
 
-type setVideoTagsRequest struct {
+type setSceneTagsRequest struct {
 	TagIDs []uint `json:"tag_ids"`
 }
 
-func (h *TagHandler) SetVideoTags(c *gin.Context) {
+func (h *TagHandler) SetSceneTags(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	var req setVideoTagsRequest
+	var req setSceneTagsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
-	tags, err := h.Service.SetVideoTags(uint(id), req.TagIDs)
+	tags, err := h.Service.SetSceneTags(uint(id), req.TagIDs)
 	if err != nil {
 		if apperrors.IsNotFound(err) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Scene not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set video tags"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set scene tags"})
 		return
 	}
 

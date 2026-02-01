@@ -5,7 +5,7 @@ export interface StudioListItem {
     name: string;
     short_name: string;
     logo: string;
-    video_count: number;
+    scene_count: number;
 }
 
 // Full studio details for detail views

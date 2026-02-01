@@ -4,9 +4,9 @@ import type {
     BulkUpdateTagsRequest,
     BulkUpdateActorsRequest,
     BulkUpdateStudioRequest,
-    FolderVideoIDsRequest,
+    FolderSceneIDsRequest,
     BulkUpdateResponse,
-    FolderVideoIDsResponse,
+    FolderSceneIDsResponse,
     BulkDeleteRequest,
     BulkDeleteResponse,
     FolderSearchRequest,
@@ -82,10 +82,10 @@ export const useApiExplorer = () => {
         return handleResponse(response);
     };
 
-    const getFolderVideoIDs = async (
-        request: FolderVideoIDsRequest,
-    ): Promise<FolderVideoIDsResponse> => {
-        const response = await fetch('/api/v1/explorer/folder/video-ids', {
+    const getFolderSceneIDs = async (
+        request: FolderSceneIDsRequest,
+    ): Promise<FolderSceneIDsResponse> => {
+        const response = await fetch('/api/v1/explorer/folder/scene-ids', {
             method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify(request),
@@ -93,8 +93,8 @@ export const useApiExplorer = () => {
         return handleResponse(response);
     };
 
-    const bulkDeleteVideos = async (request: BulkDeleteRequest): Promise<BulkDeleteResponse> => {
-        const response = await fetch('/api/v1/explorer/bulk/videos', {
+    const bulkDeleteScenes = async (request: BulkDeleteRequest): Promise<BulkDeleteResponse> => {
+        const response = await fetch('/api/v1/explorer/bulk/scenes', {
             method: 'DELETE',
             headers: getAuthHeaders(),
             body: JSON.stringify(request),
@@ -117,8 +117,8 @@ export const useApiExplorer = () => {
         bulkUpdateTags,
         bulkUpdateActors,
         bulkUpdateStudio,
-        getFolderVideoIDs,
-        bulkDeleteVideos,
+        getFolderSceneIDs,
+        bulkDeleteScenes,
         searchInFolder,
     };
 };

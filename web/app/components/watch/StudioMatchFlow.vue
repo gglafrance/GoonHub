@@ -3,7 +3,7 @@ import type { Studio, StudioListItem } from '~/types/studio';
 import type { PornDBSiteDetails } from '~/types/porndb';
 
 const props = defineProps<{
-    videoId: number;
+    sceneId: number;
     siteName: string;
 }>();
 
@@ -12,7 +12,7 @@ const emit = defineEmits<{
     error: [message: string];
 }>();
 
-const { fetchStudios, createStudio, setVideoStudio } = useApiStudios();
+const { fetchStudios, createStudio, setSceneStudio } = useApiStudios();
 const { searchPornDBSites, getPornDBSite } = useApiPornDB();
 
 const matchStep = ref<'search' | 'porndb' | 'create' | null>('search');
@@ -58,7 +58,7 @@ async function searchPornDBForSite() {
 async function selectLocalStudio(studio: StudioListItem) {
     searching.value = true;
     try {
-        await setVideoStudio(props.videoId, studio.id);
+        await setSceneStudio(props.sceneId, studio.id);
         emit('done');
     } catch (e: unknown) {
         emit('error', e instanceof Error ? e.message : 'Failed to assign studio');
@@ -87,7 +87,7 @@ async function selectPornDBSite(site: PornDBSiteDetails) {
             poster: details.poster,
             porndb_id: details.id,
         });
-        await setVideoStudio(props.videoId, newStudio.id);
+        await setSceneStudio(props.sceneId, newStudio.id);
         emit('done');
     } catch {
         // If fetching details fails, try basic creation
@@ -99,7 +99,7 @@ async function selectPornDBSite(site: PornDBSiteDetails) {
                 logo: site.logo,
                 porndb_id: site.id,
             });
-            await setVideoStudio(props.videoId, newStudio.id);
+            await setSceneStudio(props.sceneId, newStudio.id);
             emit('done');
         } catch (e: unknown) {
             emit('error', e instanceof Error ? e.message : 'Failed to create studio');
@@ -115,7 +115,7 @@ async function createStudioWithName() {
         const newStudio = await createStudio({
             name: props.siteName,
         });
-        await setVideoStudio(props.videoId, newStudio.id);
+        await setSceneStudio(props.sceneId, newStudio.id);
         emit('done');
     } catch (e: unknown) {
         emit('error', e instanceof Error ? e.message : 'Failed to create studio');
@@ -185,8 +185,8 @@ onMounted(() => {
                         <p class="truncate text-center text-xs font-medium text-white">
                             {{ studio.name }}
                         </p>
-                        <p v-if="studio.video_count" class="text-dim text-center text-[10px]">
-                            {{ studio.video_count }} video{{ studio.video_count === 1 ? '' : 's' }}
+                        <p v-if="studio.scene_count" class="text-dim text-center text-[10px]">
+                            {{ studio.scene_count }} scene{{ studio.scene_count === 1 ? '' : 's' }}
                         </p>
                     </div>
                 </div>

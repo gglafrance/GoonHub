@@ -3,7 +3,7 @@
  * Provides backwards compatibility for existing consumers.
  *
  * For new code, prefer importing domain-specific composables directly:
- * - useApiVideos() for video operations
+ * - useApiScenes() for scene operations
  * - useApiSettings() for user settings
  * - useApiAdmin() for user/role management
  * - useApiJobs() for job history and config
@@ -15,10 +15,10 @@
  * - useApiDLQ() for dead letter queue operations
  * - useApiExplorer() for folder browsing and bulk editing
  * - useApiSavedSearches() for saved search templates
- * - useApiMarkers() for video marker operations
+ * - useApiMarkers() for scene marker operations
  */
 export const useApi = () => {
-    const videos = useApiVideos();
+    const scenes = useApiScenes();
     const settings = useApiSettings();
     const admin = useApiAdmin();
     const jobs = useApiJobs();
@@ -33,27 +33,27 @@ export const useApi = () => {
     const markers = useApiMarkers();
 
     return {
-        // Video operations
-        uploadVideo: videos.uploadVideo,
-        fetchVideos: videos.fetchVideos,
-        searchVideos: videos.searchVideos,
-        fetchFilterOptions: videos.fetchFilterOptions,
-        fetchVideo: videos.fetchVideo,
-        updateVideoDetails: videos.updateVideoDetails,
-        extractThumbnail: videos.extractThumbnail,
-        uploadThumbnail: videos.uploadThumbnail,
-        fetchVideoInteractions: videos.fetchVideoInteractions,
-        fetchVideoRating: videos.fetchVideoRating,
-        setVideoRating: videos.setVideoRating,
-        deleteVideoRating: videos.deleteVideoRating,
-        fetchVideoLike: videos.fetchVideoLike,
-        toggleVideoLike: videos.toggleVideoLike,
-        fetchJizzedCount: videos.fetchJizzedCount,
-        incrementJizzed: videos.incrementJizzed,
-        recordWatch: videos.recordWatch,
-        getResumePosition: videos.getResumePosition,
-        getVideoWatchHistory: videos.getVideoWatchHistory,
-        getUserWatchHistory: videos.getUserWatchHistory,
+        // Scene operations
+        uploadScene: scenes.uploadScene,
+        fetchScenes: scenes.fetchScenes,
+        searchScenes: scenes.searchScenes,
+        fetchFilterOptions: scenes.fetchFilterOptions,
+        fetchScene: scenes.fetchScene,
+        updateSceneDetails: scenes.updateSceneDetails,
+        extractThumbnail: scenes.extractThumbnail,
+        uploadThumbnail: scenes.uploadThumbnail,
+        fetchSceneInteractions: scenes.fetchSceneInteractions,
+        fetchSceneRating: scenes.fetchSceneRating,
+        setSceneRating: scenes.setSceneRating,
+        deleteSceneRating: scenes.deleteSceneRating,
+        fetchSceneLike: scenes.fetchSceneLike,
+        toggleSceneLike: scenes.toggleSceneLike,
+        fetchJizzedCount: scenes.fetchJizzedCount,
+        incrementJizzed: scenes.incrementJizzed,
+        recordWatch: scenes.recordWatch,
+        getResumePosition: scenes.getResumePosition,
+        getSceneWatchHistory: scenes.getSceneWatchHistory,
+        getUserWatchHistory: scenes.getUserWatchHistory,
 
         // Settings operations
         fetchSettings: settings.fetchSettings,
@@ -83,7 +83,7 @@ export const useApi = () => {
         updateProcessingConfig: jobs.updateProcessingConfig,
         fetchTriggerConfig: jobs.fetchTriggerConfig,
         updateTriggerConfig: jobs.updateTriggerConfig,
-        triggerVideoPhase: jobs.triggerVideoPhase,
+        triggerScenePhase: jobs.triggerScenePhase,
         triggerBulkPhase: jobs.triggerBulkPhase,
         fetchRetryConfig: jobs.fetchRetryConfig,
         updateRetryConfig: jobs.updateRetryConfig,
@@ -92,19 +92,19 @@ export const useApi = () => {
         fetchTags: tags.fetchTags,
         createTag: tags.createTag,
         deleteTag: tags.deleteTag,
-        fetchVideoTags: tags.fetchVideoTags,
-        setVideoTags: tags.setVideoTags,
+        fetchSceneTags: tags.fetchSceneTags,
+        setSceneTags: tags.setSceneTags,
 
         // Actor operations
         fetchActors: actors.fetchActors,
         fetchActorByUUID: actors.fetchActorByUUID,
-        fetchActorVideos: actors.fetchActorVideos,
+        fetchActorScenes: actors.fetchActorScenes,
         createActor: actors.createActor,
         updateActor: actors.updateActor,
         deleteActor: actors.deleteActor,
         uploadActorImage: actors.uploadActorImage,
-        fetchVideoActors: actors.fetchVideoActors,
-        setVideoActors: actors.setVideoActors,
+        fetchSceneActors: actors.fetchSceneActors,
+        setSceneActors: actors.setSceneActors,
         fetchActorInteractions: actors.fetchActorInteractions,
         setActorRating: actors.setActorRating,
         deleteActorRating: actors.deleteActorRating,
@@ -113,13 +113,13 @@ export const useApi = () => {
         // Studio operations
         fetchStudios: studios.fetchStudios,
         fetchStudioByUUID: studios.fetchStudioByUUID,
-        fetchStudioVideos: studios.fetchStudioVideos,
+        fetchStudioScenes: studios.fetchStudioScenes,
         createStudio: studios.createStudio,
         updateStudio: studios.updateStudio,
         deleteStudio: studios.deleteStudio,
         uploadStudioLogo: studios.uploadStudioLogo,
-        fetchVideoStudio: studios.fetchVideoStudio,
-        setVideoStudio: studios.setVideoStudio,
+        fetchSceneStudio: studios.fetchSceneStudio,
+        setSceneStudio: studios.setSceneStudio,
         fetchStudioInteractions: studios.fetchStudioInteractions,
         setStudioRating: studios.setStudioRating,
         deleteStudioRating: studios.deleteStudioRating,
@@ -157,7 +157,7 @@ export const useApi = () => {
         bulkUpdateTags: explorer.bulkUpdateTags,
         bulkUpdateActors: explorer.bulkUpdateActors,
         bulkUpdateStudio: explorer.bulkUpdateStudio,
-        getFolderVideoIDs: explorer.getFolderVideoIDs,
+        getFolderSceneIDs: explorer.getFolderSceneIDs,
 
         // Saved search operations
         fetchSavedSearches: savedSearches.fetchSavedSearches,

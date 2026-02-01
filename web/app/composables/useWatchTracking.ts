@@ -1,30 +1,30 @@
 import type { ShallowRef } from 'vue';
 import type videojs from 'video.js';
-import type { Video } from '~/types/video';
+import type { Scene } from '~/types/scene';
 
 type Player = ReturnType<typeof videojs>;
 
 interface WatchTrackingOptions {
     player: ShallowRef<Player | null>;
-    video: Ref<Video | undefined>;
+    scene: Ref<Scene | undefined>;
     viewThresholdSeconds?: number;
     saveDebounceMs?: number;
     completionThresholdSeconds?: number;
 }
 
 /**
- * Composable for tracking video watch time and recording views.
+ * Composable for tracking scene watch time and recording views.
  */
 export const useWatchTracking = (options: WatchTrackingOptions) => {
     const {
         player,
-        video,
+        scene,
         viewThresholdSeconds = 5,
         saveDebounceMs = 10000,
         completionThresholdSeconds = 5,
     } = options;
 
-    const { recordWatch } = useApiVideos();
+    const { recordWatch } = useApiScenes();
 
     const hasRecordedView = ref(false);
     const cumulativeWatchTime = ref(0);
@@ -45,7 +45,7 @@ export const useWatchTracking = (options: WatchTrackingOptions) => {
         if (
             !hasRecordedView.value &&
             cumulativeWatchTime.value >= viewThresholdSeconds &&
-            video.value
+            scene.value
         ) {
             hasRecordedView.value = true;
             recordViewEvent();
@@ -57,19 +57,19 @@ export const useWatchTracking = (options: WatchTrackingOptions) => {
     };
 
     const recordViewEvent = async () => {
-        if (!video.value) return;
+        if (!scene.value) return;
 
         try {
             const currentTime = Math.floor(player.value?.currentTime() ?? 0);
             const duration = Math.floor(cumulativeWatchTime.value);
-            await recordWatch(video.value.id, duration, currentTime, false);
+            await recordWatch(scene.value.id, duration, currentTime, false);
         } catch {
             // Silently fail - view tracking is not critical
         }
     };
 
     const saveProgress = async (completed = false, force = false) => {
-        if (!video.value || !hasRecordedView.value) return;
+        if (!scene.value || !hasRecordedView.value) return;
 
         // Debounce saves unless forced (for unmount/beforeunload) or completed
         const now = Date.now();
@@ -81,23 +81,23 @@ export const useWatchTracking = (options: WatchTrackingOptions) => {
         try {
             const currentTime = Math.floor(player.value?.currentTime() ?? 0);
             const duration = Math.floor(cumulativeWatchTime.value);
-            await recordWatch(video.value.id, duration, currentTime, completed);
+            await recordWatch(scene.value.id, duration, currentTime, completed);
         } catch {
             // Silently fail
         }
     };
 
     const handleBeforeUnload = () => {
-        if (!video.value || !hasRecordedView.value) return;
+        if (!scene.value || !hasRecordedView.value) return;
 
         const currentTime = Math.floor(player.value?.currentTime() ?? 0);
         const duration = Math.floor(cumulativeWatchTime.value);
-        const videoDuration = video.value.duration ?? 0;
+        const sceneDuration = scene.value.duration ?? 0;
         const completed =
-            videoDuration > 0 && currentTime >= videoDuration - completionThresholdSeconds;
+            sceneDuration > 0 && currentTime >= sceneDuration - completionThresholdSeconds;
 
         // Use fetch with keepalive and credentials to include HTTP-only auth cookie
-        fetch(`/api/v1/videos/${video.value.id}/watch`, {
+        fetch(`/api/v1/scenes/${scene.value.id}/watch`, {
             method: 'POST',
             keepalive: true,
             credentials: 'include',
@@ -120,7 +120,7 @@ export const useWatchTracking = (options: WatchTrackingOptions) => {
         player.value.on('play', onPlay);
         player.value.on('timeupdate', onTimeUpdate);
         player.value.on('ended', () => {
-            if (video.value) {
+            if (scene.value) {
                 saveProgress(true);
             }
         });

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { Video } from '~/types/video';
+import type { Scene } from '~/types/scene';
 import type { PornDBScene } from '~/types/porndb';
 
 const props = defineProps<{
-    video: Video | null;
-    scene: PornDBScene;
+    scene: Scene | null;
+    porndbScene: PornDBScene;
 }>();
 
 const emit = defineEmits<{
@@ -43,14 +43,14 @@ function formatTime(seconds: number): string {
 
 onMounted(() => {
     selectedFields.value = {
-        title: !props.video?.title,
-        description: !props.video?.description,
-        studio: !props.video?.studio && !!props.scene.site?.name,
-        thumbnail: !props.video?.thumbnail_path && !!(props.scene.image || props.scene.poster),
-        performers: (props.scene.performers?.length ?? 0) > 0,
-        tags: (props.scene.tags?.length ?? 0) > 0,
-        release_date: !!props.scene.date && !props.video?.release_date,
-        markers: (props.scene.markers?.length ?? 0) > 0,
+        title: !props.scene?.title,
+        description: !props.scene?.description,
+        studio: !props.scene?.studio && !!props.porndbScene.site?.name,
+        thumbnail: !props.scene?.thumbnail_path && !!(props.porndbScene.image || props.porndbScene.poster),
+        performers: (props.porndbScene.performers?.length ?? 0) > 0,
+        tags: (props.porndbScene.tags?.length ?? 0) > 0,
+        release_date: !!props.porndbScene.date && !props.scene?.release_date,
+        markers: (props.porndbScene.markers?.length ?? 0) > 0,
     };
 });
 </script>
@@ -70,9 +70,9 @@ onMounted(() => {
         <div class="border-border bg-surface flex gap-4 rounded-lg border p-4">
             <div class="bg-void h-28 w-44 shrink-0 overflow-hidden rounded-lg">
                 <img
-                    v-if="scene.image || scene.poster"
-                    :src="scene.image || scene.poster"
-                    :alt="scene.title"
+                    v-if="porndbScene.image || porndbScene.poster"
+                    :src="porndbScene.image || porndbScene.poster"
+                    :alt="porndbScene.title"
                     class="h-full w-full object-cover"
                 />
                 <div v-else class="text-dim flex h-full w-full items-center justify-center">
@@ -80,16 +80,16 @@ onMounted(() => {
                 </div>
             </div>
             <div class="py-1">
-                <p class="text-sm font-medium text-white">{{ scene.title }}</p>
-                <p v-if="scene.site?.name" class="text-dim mt-0.5 text-xs">{{ scene.site.name }}</p>
+                <p class="text-sm font-medium text-white">{{ porndbScene.title }}</p>
+                <p v-if="porndbScene.site?.name" class="text-dim mt-0.5 text-xs">{{ porndbScene.site.name }}</p>
                 <div class="text-dim mt-2 flex flex-wrap gap-3 text-[11px]">
-                    <span v-if="scene.date" class="flex items-center gap-1">
+                    <span v-if="porndbScene.date" class="flex items-center gap-1">
                         <Icon name="heroicons:calendar" size="12" />
-                        {{ scene.date }}
+                        {{ porndbScene.date }}
                     </span>
-                    <span v-if="scene.duration" class="flex items-center gap-1">
+                    <span v-if="porndbScene.duration" class="flex items-center gap-1">
                         <Icon name="heroicons:clock" size="12" />
-                        {{ formatTime(scene.duration) }}
+                        {{ formatTime(porndbScene.duration) }}
                     </span>
                 </div>
             </div>
@@ -117,12 +117,12 @@ onMounted(() => {
                             <div>
                                 <span class="text-dim">Current:</span>
                                 <span class="ml-1 text-white/70">{{
-                                    video?.title || '(empty)'
+                                    scene?.title || '(empty)'
                                 }}</span>
                             </div>
                             <div>
                                 <span class="text-dim">New:</span>
-                                <span class="text-lava ml-1">{{ scene.title }}</span>
+                                <span class="text-lava ml-1">{{ porndbScene.title }}</span>
                             </div>
                         </div>
                     </div>
@@ -130,7 +130,7 @@ onMounted(() => {
 
                 <!-- Studio -->
                 <label
-                    v-if="scene.site?.name"
+                    v-if="porndbScene.site?.name"
                     class="border-border bg-surface flex items-start gap-3 rounded-lg border p-3"
                 >
                     <input
@@ -145,7 +145,7 @@ onMounted(() => {
                                 class="border-border flex items-center gap-1.5 rounded-full border
                                     px-2 py-0.5 text-[11px] text-white"
                             >
-                                {{ scene.site.name }}
+                                {{ porndbScene.site.name }}
                             </div>
                         </div>
                         <p class="text-dim mt-1.5 text-[10px]">
@@ -156,7 +156,7 @@ onMounted(() => {
 
                 <!-- Release Date -->
                 <label
-                    v-if="scene.date"
+                    v-if="porndbScene.date"
                     class="border-border bg-surface flex items-start gap-3 rounded-lg border p-3"
                 >
                     <input
@@ -170,12 +170,12 @@ onMounted(() => {
                             <div>
                                 <span class="text-dim">Current:</span>
                                 <span class="ml-1 text-white/70">{{
-                                    video?.release_date || '(empty)'
+                                    scene?.release_date || '(empty)'
                                 }}</span>
                             </div>
                             <div>
                                 <span class="text-dim">New:</span>
-                                <span class="text-lava ml-1">{{ scene.date }}</span>
+                                <span class="text-lava ml-1">{{ porndbScene.date }}</span>
                             </div>
                         </div>
                     </div>
@@ -183,7 +183,7 @@ onMounted(() => {
 
                 <!-- Thumbnail -->
                 <label
-                    v-if="scene.image || scene.poster"
+                    v-if="porndbScene.image || porndbScene.poster"
                     class="border-border bg-surface flex items-start gap-3 rounded-lg border p-3
                         lg:col-span-2"
                 >
@@ -197,13 +197,13 @@ onMounted(() => {
                         <div class="mt-1.5 flex items-center gap-3">
                             <div class="bg-void h-16 w-28 shrink-0 overflow-hidden rounded">
                                 <img
-                                    :src="(scene.image || scene.poster)!"
-                                    :alt="scene.title"
+                                    :src="(porndbScene.image || porndbScene.poster)!"
+                                    :alt="porndbScene.title"
                                     class="h-full w-full object-cover"
                                 />
                             </div>
                             <p class="text-dim text-[11px]">
-                                Import scene thumbnail as video thumbnail
+                                Import scene thumbnail as scene thumbnail
                             </p>
                         </div>
                     </div>
@@ -211,7 +211,7 @@ onMounted(() => {
 
                 <!-- Description (full width) -->
                 <label
-                    v-if="scene.description"
+                    v-if="porndbScene.description"
                     class="border-border bg-surface flex items-start gap-3 rounded-lg border p-3
                         lg:col-span-2"
                 >
@@ -226,12 +226,12 @@ onMounted(() => {
                             <div>
                                 <span class="text-dim">Current:</span>
                                 <p class="mt-0.5 line-clamp-3 text-white/70">
-                                    {{ video?.description || '(empty)' }}
+                                    {{ scene?.description || '(empty)' }}
                                 </p>
                             </div>
                             <div>
                                 <span class="text-dim">New:</span>
-                                <p class="text-lava mt-0.5 line-clamp-3">{{ scene.description }}</p>
+                                <p class="text-lava mt-0.5 line-clamp-3">{{ porndbScene.description }}</p>
                             </div>
                         </div>
                     </div>
@@ -239,7 +239,7 @@ onMounted(() => {
 
                 <!-- Performers (full width) -->
                 <label
-                    v-if="scene.performers?.length"
+                    v-if="porndbScene.performers?.length"
                     class="border-border bg-surface flex items-start gap-3 rounded-lg border p-3
                         lg:col-span-2"
                 >
@@ -250,11 +250,11 @@ onMounted(() => {
                     />
                     <div class="min-w-0 flex-1">
                         <p class="text-xs font-medium text-white">
-                            Performers ({{ scene.performers.length }})
+                            Performers ({{ porndbScene.performers.length }})
                         </p>
                         <div class="mt-2 flex flex-wrap gap-2">
                             <div
-                                v-for="performer in scene.performers"
+                                v-for="performer in porndbScene.performers"
                                 :key="performer.id"
                                 class="border-border flex items-center gap-1.5 rounded-full border
                                     px-2 py-0.5 text-[11px] text-white"
@@ -276,7 +276,7 @@ onMounted(() => {
 
                 <!-- Tags (full width) -->
                 <label
-                    v-if="scene.tags?.length"
+                    v-if="porndbScene.tags?.length"
                     class="border-border bg-surface flex items-start gap-3 rounded-lg border p-3
                         lg:col-span-2"
                 >
@@ -286,17 +286,17 @@ onMounted(() => {
                         class="accent-lava mt-0.5 h-4 w-4 shrink-0 rounded"
                     />
                     <div class="min-w-0 flex-1">
-                        <p class="text-dim text-xs font-medium">Tags ({{ scene.tags.length }})</p>
+                        <p class="text-dim text-xs font-medium">Tags ({{ porndbScene.tags.length }})</p>
                         <div class="mt-2 flex flex-wrap gap-1">
                             <span
-                                v-for="tag in scene.tags.slice(0, 15)"
+                                v-for="tag in porndbScene.tags.slice(0, 15)"
                                 :key="tag.id"
                                 class="text-dim rounded bg-white/5 px-1.5 py-0.5 text-[10px]"
                             >
                                 {{ tag.name }}
                             </span>
-                            <span v-if="scene.tags.length > 15" class="text-dim text-[10px]">
-                                +{{ scene.tags.length - 15 }} more
+                            <span v-if="porndbScene.tags.length > 15" class="text-dim text-[10px]">
+                                +{{ porndbScene.tags.length - 15 }} more
                             </span>
                         </div>
                     </div>
@@ -304,7 +304,7 @@ onMounted(() => {
 
                 <!-- Markers (full width) -->
                 <label
-                    v-if="scene.markers?.length"
+                    v-if="porndbScene.markers?.length"
                     class="border-border bg-surface flex items-start gap-3 rounded-lg border p-3
                         lg:col-span-2"
                 >
@@ -315,11 +315,11 @@ onMounted(() => {
                     />
                     <div class="min-w-0 flex-1">
                         <p class="text-xs font-medium text-white">
-                            Markers ({{ scene.markers.length }})
+                            Markers ({{ porndbScene.markers.length }})
                         </p>
                         <div class="mt-2 flex flex-wrap gap-1.5">
                             <span
-                                v-for="marker in scene.markers.slice(0, 10)"
+                                v-for="marker in porndbScene.markers.slice(0, 10)"
                                 :key="marker.id"
                                 class="border-border flex items-center gap-1.5 rounded-full border
                                     px-2 py-0.5 text-[11px] text-white"
@@ -329,12 +329,12 @@ onMounted(() => {
                                 </span>
                                 {{ marker.title }}
                             </span>
-                            <span v-if="scene.markers.length > 10" class="text-dim text-[10px]">
-                                +{{ scene.markers.length - 10 }} more
+                            <span v-if="porndbScene.markers.length > 10" class="text-dim text-[10px]">
+                                +{{ porndbScene.markers.length - 10 }} more
                             </span>
                         </div>
                         <p class="text-dim mt-1.5 text-[10px]">
-                            Import scene markers as video bookmarks
+                            Import scene markers as scene bookmarks
                         </p>
                     </div>
                 </label>

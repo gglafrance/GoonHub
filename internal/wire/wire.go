@@ -45,8 +45,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideRoleRepository,
 		providePermissionRepository,
 
-		// Video Repositories
-		provideVideoRepository,
+		// Scene Repositories
+		provideSceneRepository,
 		provideTagRepository,
 		provideActorRepository,
 		provideStudioRepository,
@@ -93,8 +93,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideRBACService,
 		provideAdminService,
 
-		// Video & Content Services
-		provideVideoService,
+		// Scene & Content Services
+		provideSceneService,
 		provideTagService,
 		provideActorService,
 		provideStudioService,
@@ -103,11 +103,13 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideStudioInteractionService,
 		provideSearchService,
 		provideWatchHistoryService,
-		provideRelatedVideosService,
+		provideRelatedScenesService,
 
 		// Processing & Job Services
-		provideVideoProcessingService,
+		provideSceneProcessingService,
 		provideJobHistoryService,
+		provideJobStatusService,
+		provideJobQueueFeeder,
 		provideTriggerScheduler,
 		provideRetryScheduler,
 		provideDLQService,
@@ -143,8 +145,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideAdminHandler,
 		provideSettingsHandler,
 
-		// Video & Content Handlers
-		provideVideoHandler,
+		// Scene & Content Handlers
+		provideSceneHandler,
 		provideTagHandler,
 		provideActorHandler,
 		provideStudioHandler,
@@ -179,6 +181,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Marker Handler
 		provideMarkerHandler,
+
+		// Import Handler
+		provideImportHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -215,10 +220,10 @@ func providePermissionRepository(db *gorm.DB) data.PermissionRepository {
 	return data.NewPermissionRepository(db)
 }
 
-// --- Video Repositories ---
+// --- Scene Repositories ---
 
-func provideVideoRepository(db *gorm.DB) data.VideoRepository {
-	return data.NewVideoRepository(db)
+func provideSceneRepository(db *gorm.DB) data.SceneRepository {
+	return data.NewSceneRepository(db)
 }
 
 func provideTagRepository(db *gorm.DB) data.TagRepository {
@@ -355,22 +360,22 @@ func provideAdminService(userRepo data.UserRepository, roleRepo data.RoleReposit
 	return core.NewAdminService(userRepo, roleRepo, rbac, logger.Logger)
 }
 
-// --- Video & Content Services ---
+// --- Scene & Content Services ---
 
-func provideVideoService(repo data.VideoRepository, cfg *config.Config, processingService *core.VideoProcessingService, eventBus *core.EventBus, logger *logging.Logger) *core.VideoService {
-	return core.NewVideoService(repo, cfg.Processing.VideoDir, cfg.Processing.MetadataDir, processingService, eventBus, logger.Logger)
+func provideSceneService(repo data.SceneRepository, cfg *config.Config, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger) *core.SceneService {
+	return core.NewSceneService(repo, cfg.Processing.VideoDir, cfg.Processing.MetadataDir, processingService, eventBus, logger.Logger)
 }
 
-func provideTagService(tagRepo data.TagRepository, videoRepo data.VideoRepository, logger *logging.Logger) *core.TagService {
-	return core.NewTagService(tagRepo, videoRepo, logger.Logger)
+func provideTagService(tagRepo data.TagRepository, sceneRepo data.SceneRepository, logger *logging.Logger) *core.TagService {
+	return core.NewTagService(tagRepo, sceneRepo, logger.Logger)
 }
 
-func provideActorService(actorRepo data.ActorRepository, videoRepo data.VideoRepository, logger *logging.Logger) *core.ActorService {
-	return core.NewActorService(actorRepo, videoRepo, logger.Logger)
+func provideActorService(actorRepo data.ActorRepository, sceneRepo data.SceneRepository, logger *logging.Logger) *core.ActorService {
+	return core.NewActorService(actorRepo, sceneRepo, logger.Logger)
 }
 
-func provideStudioService(studioRepo data.StudioRepository, videoRepo data.VideoRepository, logger *logging.Logger) *core.StudioService {
-	return core.NewStudioService(studioRepo, videoRepo, logger.Logger)
+func provideStudioService(studioRepo data.StudioRepository, sceneRepo data.SceneRepository, logger *logging.Logger) *core.StudioService {
+	return core.NewStudioService(studioRepo, sceneRepo, logger.Logger)
 }
 
 func provideInteractionService(repo data.InteractionRepository, logger *logging.Logger) *core.InteractionService {
@@ -385,38 +390,46 @@ func provideStudioInteractionService(repo data.StudioInteractionRepository, logg
 	return core.NewStudioInteractionService(repo, logger.Logger)
 }
 
-func provideSearchService(meiliClient *meilisearch.Client, videoRepo data.VideoRepository, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, logger *logging.Logger) *core.SearchService {
-	return core.NewSearchService(meiliClient, videoRepo, interactionRepo, tagRepo, actorRepo, logger.Logger)
+func provideSearchService(meiliClient *meilisearch.Client, sceneRepo data.SceneRepository, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, markerRepo data.MarkerRepository, logger *logging.Logger) *core.SearchService {
+	return core.NewSearchService(meiliClient, sceneRepo, interactionRepo, tagRepo, actorRepo, markerRepo, logger.Logger)
 }
 
-func provideWatchHistoryService(repo data.WatchHistoryRepository, videoRepo data.VideoRepository, searchService *core.SearchService, logger *logging.Logger) *core.WatchHistoryService {
-	return core.NewWatchHistoryService(repo, videoRepo, searchService, logger.Logger)
+func provideWatchHistoryService(repo data.WatchHistoryRepository, sceneRepo data.SceneRepository, searchService *core.SearchService, logger *logging.Logger) *core.WatchHistoryService {
+	return core.NewWatchHistoryService(repo, sceneRepo, searchService, logger.Logger)
 }
 
-func provideRelatedVideosService(videoRepo data.VideoRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, studioRepo data.StudioRepository, logger *logging.Logger) *core.RelatedVideosService {
-	return core.NewRelatedVideosService(videoRepo, tagRepo, actorRepo, studioRepo, logger.Logger)
+func provideRelatedScenesService(sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, studioRepo data.StudioRepository, logger *logging.Logger) *core.RelatedScenesService {
+	return core.NewRelatedScenesService(sceneRepo, tagRepo, actorRepo, studioRepo, logger.Logger)
 }
 
 // --- Processing & Job Services ---
 
-func provideVideoProcessingService(repo data.VideoRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository) *core.VideoProcessingService {
-	return core.NewVideoProcessingService(repo, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo, triggerConfigRepo)
+func provideSceneProcessingService(repo data.SceneRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository) *core.SceneProcessingService {
+	return core.NewSceneProcessingService(repo, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo, triggerConfigRepo)
 }
 
 func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config, logger *logging.Logger) *core.JobHistoryService {
 	return core.NewJobHistoryService(repo, cfg.Processing, logger.Logger)
 }
 
-func provideTriggerScheduler(triggerConfigRepo data.TriggerConfigRepository, videoRepo data.VideoRepository, processingService *core.VideoProcessingService, logger *logging.Logger) *core.TriggerScheduler {
-	return core.NewTriggerScheduler(triggerConfigRepo, videoRepo, processingService, logger.Logger)
+func provideJobStatusService(jobHistoryService *core.JobHistoryService, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobStatusService {
+	return core.NewJobStatusService(jobHistoryService, processingService, logger.Logger)
 }
 
-func provideRetryScheduler(jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, retryConfigRepo data.RetryConfigRepository, videoRepo data.VideoRepository, eventBus *core.EventBus, logger *logging.Logger) *core.RetryScheduler {
-	return core.NewRetryScheduler(jobHistoryRepo, dlqRepo, retryConfigRepo, videoRepo, eventBus, logger.Logger)
+func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobQueueFeeder {
+	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, processingService.GetPoolManager(), logger.Logger)
 }
 
-func provideDLQService(dlqRepo data.DLQRepository, jobHistoryRepo data.JobHistoryRepository, videoRepo data.VideoRepository, eventBus *core.EventBus, logger *logging.Logger) *core.DLQService {
-	return core.NewDLQService(dlqRepo, jobHistoryRepo, videoRepo, eventBus, logger.Logger)
+func provideTriggerScheduler(triggerConfigRepo data.TriggerConfigRepository, sceneRepo data.SceneRepository, processingService *core.SceneProcessingService, logger *logging.Logger) *core.TriggerScheduler {
+	return core.NewTriggerScheduler(triggerConfigRepo, sceneRepo, processingService, logger.Logger)
+}
+
+func provideRetryScheduler(jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, retryConfigRepo data.RetryConfigRepository, sceneRepo data.SceneRepository, eventBus *core.EventBus, logger *logging.Logger) *core.RetryScheduler {
+	return core.NewRetryScheduler(jobHistoryRepo, dlqRepo, retryConfigRepo, sceneRepo, eventBus, logger.Logger)
+}
+
+func provideDLQService(dlqRepo data.DLQRepository, jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, eventBus *core.EventBus, logger *logging.Logger) *core.DLQService {
+	return core.NewDLQService(dlqRepo, jobHistoryRepo, sceneRepo, eventBus, logger.Logger)
 }
 
 // --- Storage & Scan Services ---
@@ -425,12 +438,12 @@ func provideStoragePathService(repo data.StoragePathRepository, logger *logging.
 	return core.NewStoragePathService(repo, logger.Logger)
 }
 
-func provideScanService(storagePathService *core.StoragePathService, videoRepo data.VideoRepository, scanHistoryRepo data.ScanHistoryRepository, processingService *core.VideoProcessingService, eventBus *core.EventBus, logger *logging.Logger) *core.ScanService {
-	return core.NewScanService(storagePathService, videoRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
+func provideScanService(storagePathService *core.StoragePathService, sceneRepo data.SceneRepository, scanHistoryRepo data.ScanHistoryRepository, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger) *core.ScanService {
+	return core.NewScanService(storagePathService, sceneRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
 }
 
-func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, videoRepo data.VideoRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config) *core.ExplorerService {
-	return core.NewExplorerService(explorerRepo, storagePathRepo, videoRepo, tagRepo, actorRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir)
+func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config) *core.ExplorerService {
+	return core.NewExplorerService(explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir)
 }
 
 // --- External API Services ---
@@ -449,7 +462,7 @@ func provideHomepageService(
 	savedSearchService *core.SavedSearchService,
 	watchHistoryRepo data.WatchHistoryRepository,
 	interactionRepo data.InteractionRepository,
-	videoRepo data.VideoRepository,
+	sceneRepo data.SceneRepository,
 	tagRepo data.TagRepository,
 	actorRepo data.ActorRepository,
 	studioRepo data.StudioRepository,
@@ -461,7 +474,7 @@ func provideHomepageService(
 		savedSearchService,
 		watchHistoryRepo,
 		interactionRepo,
-		videoRepo,
+		sceneRepo,
 		tagRepo,
 		actorRepo,
 		studioRepo,
@@ -469,8 +482,8 @@ func provideHomepageService(
 	)
 }
 
-func provideMarkerService(markerRepo data.MarkerRepository, videoRepo data.VideoRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
-	return core.NewMarkerService(markerRepo, videoRepo, cfg, logger.Logger)
+func provideMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
+	return core.NewMarkerService(markerRepo, sceneRepo, tagRepo, cfg, logger.Logger)
 }
 
 // ============================================================================
@@ -501,10 +514,10 @@ func provideSettingsHandler(settingsService *core.SettingsService) *handler.Sett
 	return handler.NewSettingsHandler(settingsService)
 }
 
-// --- Video & Content Handlers ---
+// --- Scene & Content Handlers ---
 
-func provideVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedVideosService *core.RelatedVideosService) *handler.VideoHandler {
-	return handler.NewVideoHandler(service, processingService, tagService, searchService, relatedVideosService)
+func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService) *handler.SceneHandler {
+	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
@@ -541,19 +554,19 @@ func provideWatchHistoryHandler(service *core.WatchHistoryService) *handler.Watc
 
 // --- Job & Processing Handlers ---
 
-func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.VideoProcessingService) *handler.JobHandler {
+func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.SceneProcessingService) *handler.JobHandler {
 	return handler.NewJobHandler(jobHistoryService, processingService)
 }
 
-func providePoolConfigHandler(processingService *core.VideoProcessingService, poolConfigRepo data.PoolConfigRepository) *handler.PoolConfigHandler {
+func providePoolConfigHandler(processingService *core.SceneProcessingService, poolConfigRepo data.PoolConfigRepository) *handler.PoolConfigHandler {
 	return handler.NewPoolConfigHandler(processingService, poolConfigRepo)
 }
 
-func provideProcessingConfigHandler(processingService *core.VideoProcessingService, processingConfigRepo data.ProcessingConfigRepository) *handler.ProcessingConfigHandler {
+func provideProcessingConfigHandler(processingService *core.SceneProcessingService, processingConfigRepo data.ProcessingConfigRepository) *handler.ProcessingConfigHandler {
 	return handler.NewProcessingConfigHandler(processingService, processingConfigRepo)
 }
 
-func provideTriggerConfigHandler(triggerConfigRepo data.TriggerConfigRepository, processingService *core.VideoProcessingService, triggerScheduler *core.TriggerScheduler) *handler.TriggerConfigHandler {
+func provideTriggerConfigHandler(triggerConfigRepo data.TriggerConfigRepository, processingService *core.SceneProcessingService, triggerScheduler *core.TriggerScheduler) *handler.TriggerConfigHandler {
 	return handler.NewTriggerConfigHandler(triggerConfigRepo, processingService, triggerScheduler)
 }
 
@@ -567,8 +580,8 @@ func provideRetryConfigHandler(retryConfigRepo data.RetryConfigRepository, retry
 
 // --- Real-time & Storage Handlers ---
 
-func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, logger *logging.Logger) *handler.SSEHandler {
-	return handler.NewSSEHandler(eventBus, authService, logger.Logger)
+func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, logger *logging.Logger) *handler.SSEHandler {
+	return handler.NewSSEHandler(eventBus, authService, jobStatusService, logger.Logger)
 }
 
 func provideStoragePathHandler(service *core.StoragePathService) *handler.StoragePathHandler {
@@ -601,6 +614,10 @@ func provideMarkerHandler(markerService *core.MarkerService) *handler.MarkerHand
 	return handler.NewMarkerHandler(markerService)
 }
 
+func provideImportHandler(sceneRepo data.SceneRepository, markerRepo data.MarkerRepository, logger *logging.Logger) *handler.ImportHandler {
+	return handler.NewImportHandler(sceneRepo, markerRepo, logger.Logger)
+}
+
 // ============================================================================
 // ROUTER & SERVER PROVIDERS
 // ============================================================================
@@ -608,7 +625,7 @@ func provideMarkerHandler(markerService *core.MarkerService) *handler.MarkerHand
 func provideRouter(
 	logger *logging.Logger,
 	cfg *config.Config,
-	videoHandler *handler.VideoHandler,
+	sceneHandler *handler.SceneHandler,
 	authHandler *handler.AuthHandler,
 	settingsHandler *handler.SettingsHandler,
 	adminHandler *handler.AdminHandler,
@@ -634,17 +651,18 @@ func provideRouter(
 	savedSearchHandler *handler.SavedSearchHandler,
 	homepageHandler *handler.HomepageHandler,
 	markerHandler *handler.MarkerHandler,
+	importHandler *handler.ImportHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
 ) *gin.Engine {
 	return api.NewRouter(
 		logger, cfg,
-		videoHandler, authHandler, settingsHandler, adminHandler,
+		sceneHandler, authHandler, settingsHandler, adminHandler,
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, authService, rbacService, rateLimiter,
 	)
 }
 
@@ -652,11 +670,13 @@ func provideServer(
 	router *gin.Engine,
 	logger *logging.Logger,
 	cfg *config.Config,
-	processingService *core.VideoProcessingService,
+	processingService *core.SceneProcessingService,
 	userService *core.UserService,
 	jobHistoryService *core.JobHistoryService,
+	jobHistoryRepo data.JobHistoryRepository,
+	jobQueueFeeder *core.JobQueueFeeder,
 	triggerScheduler *core.TriggerScheduler,
-	videoService *core.VideoService,
+	sceneService *core.SceneService,
 	tagService *core.TagService,
 	searchService *core.SearchService,
 	scanService *core.ScanService,
@@ -668,8 +688,8 @@ func provideServer(
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
-		processingService, userService, jobHistoryService, triggerScheduler,
-		videoService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
+		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
+		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
 		actorService, studioService,
 	)
 }

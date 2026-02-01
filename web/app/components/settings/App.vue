@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import type { SortOrder } from '~/types/settings';
+import type { SortOrder, KeyboardLayout } from '~/types/settings';
 
 const settingsStore = useSettingsStore();
 const { message, error, clearMessages } = useSettingsMessage();
 const { triggerReindex } = useApiAdmin();
+const { layout: keyboardLayout, setLayout: setKeyboardLayout } = useKeyboardLayout();
 
 const appVideosPerPage = ref(20);
 const appSortOrder = ref<SortOrder>('created_at_desc');
@@ -104,6 +105,45 @@ const handleReindex = async () => {
                         Default Sort Order
                     </label>
                     <UiSelectMenu v-model="appSortOrder" :options="sortOptions" class="max-w-64" />
+                </div>
+
+                <!-- Keyboard Layout -->
+                <div>
+                    <label
+                        class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
+                            uppercase"
+                    >
+                        Keyboard Layout
+                    </label>
+                    <p class="text-dim mb-3 text-xs">
+                        Adjusts keyboard shortcuts for your keyboard layout
+                    </p>
+                    <div class="flex gap-2">
+                        <button
+                            @click="setKeyboardLayout('qwerty')"
+                            :class="[
+                                'rounded-lg border px-4 py-2 text-xs font-medium transition-all',
+                                keyboardLayout === 'qwerty'
+                                    ? 'border-lava bg-lava/10 text-lava'
+                                    : `border-border hover:border-border-hover text-muted
+                                        hover:text-white`,
+                            ]"
+                        >
+                            QWERTY
+                        </button>
+                        <button
+                            @click="setKeyboardLayout('azerty')"
+                            :class="[
+                                'rounded-lg border px-4 py-2 text-xs font-medium transition-all',
+                                keyboardLayout === 'azerty'
+                                    ? 'border-lava bg-lava/10 text-lava'
+                                    : `border-border hover:border-border-hover text-muted
+                                        hover:text-white`,
+                            ]"
+                        >
+                            AZERTY
+                        </button>
+                    </div>
                 </div>
 
                 <button

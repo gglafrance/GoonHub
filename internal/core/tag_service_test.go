@@ -13,21 +13,21 @@ import (
 	"gorm.io/gorm"
 )
 
-func newTestTagService(t *testing.T) (*TagService, *mocks.MockTagRepository, *mocks.MockVideoRepository) {
+func newTestTagService(t *testing.T) (*TagService, *mocks.MockTagRepository, *mocks.MockSceneRepository) {
 	ctrl := gomock.NewController(t)
 	tagRepo := mocks.NewMockTagRepository(ctrl)
-	videoRepo := mocks.NewMockVideoRepository(ctrl)
+	sceneRepo := mocks.NewMockSceneRepository(ctrl)
 
-	svc := NewTagService(tagRepo, videoRepo, zap.NewNop())
-	return svc, tagRepo, videoRepo
+	svc := NewTagService(tagRepo, sceneRepo, zap.NewNop())
+	return svc, tagRepo, sceneRepo
 }
 
 func TestListTags_Success(t *testing.T) {
 	svc, tagRepo, _ := newTestTagService(t)
 
 	expected := []data.TagWithCount{
-		{Tag: data.Tag{ID: 1, Name: "Amateur", Color: "#8B5CF6"}, VideoCount: 3},
-		{Tag: data.Tag{ID: 2, Name: "Favorite", Color: "#FF4D4D"}, VideoCount: 5},
+		{Tag: data.Tag{ID: 1, Name: "Amateur", Color: "#8B5CF6"}, SceneCount: 3},
+		{Tag: data.Tag{ID: 2, Name: "Favorite", Color: "#FF4D4D"}, SceneCount: 5},
 	}
 	tagRepo.EXPECT().ListWithCounts().Return(expected, nil)
 
@@ -41,8 +41,8 @@ func TestListTags_Success(t *testing.T) {
 	if tags[0].Name != "Amateur" {
 		t.Fatalf("expected first tag 'Amateur', got %q", tags[0].Name)
 	}
-	if tags[0].VideoCount != 3 {
-		t.Fatalf("expected first tag video_count 3, got %d", tags[0].VideoCount)
+	if tags[0].SceneCount != 3 {
+		t.Fatalf("expected first tag scene_count 3, got %d", tags[0].SceneCount)
 	}
 }
 
@@ -176,15 +176,15 @@ func TestDeleteTag_NotFound(t *testing.T) {
 	}
 }
 
-func TestGetVideoTags_Success(t *testing.T) {
-	svc, tagRepo, videoRepo := newTestTagService(t)
+func TestGetSceneTags_Success(t *testing.T) {
+	svc, tagRepo, sceneRepo := newTestTagService(t)
 
-	videoRepo.EXPECT().GetByID(uint(1)).Return(&data.Video{ID: 1}, nil)
-	tagRepo.EXPECT().GetVideoTags(uint(1)).Return([]data.Tag{
+	sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{ID: 1}, nil)
+	tagRepo.EXPECT().GetSceneTags(uint(1)).Return([]data.Tag{
 		{ID: 1, Name: "Favorite", Color: "#FF4D4D"},
 	}, nil)
 
-	tags, err := svc.GetVideoTags(1)
+	tags, err := svc.GetSceneTags(1)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -193,31 +193,31 @@ func TestGetVideoTags_Success(t *testing.T) {
 	}
 }
 
-func TestGetVideoTags_VideoNotFound(t *testing.T) {
-	svc, _, videoRepo := newTestTagService(t)
+func TestGetSceneTags_SceneNotFound(t *testing.T) {
+	svc, _, sceneRepo := newTestTagService(t)
 
-	videoRepo.EXPECT().GetByID(uint(99)).Return(nil, gorm.ErrRecordNotFound)
+	sceneRepo.EXPECT().GetByID(uint(99)).Return(nil, gorm.ErrRecordNotFound)
 
-	_, err := svc.GetVideoTags(99)
+	_, err := svc.GetSceneTags(99)
 	if err == nil {
-		t.Fatal("expected error for non-existent video")
+		t.Fatal("expected error for non-existent scene")
 	}
 	if !apperrors.IsNotFound(err) {
 		t.Fatalf("expected not found error, got: %v", err)
 	}
 }
 
-func TestSetVideoTags_Success(t *testing.T) {
-	svc, tagRepo, videoRepo := newTestTagService(t)
+func TestSetSceneTags_Success(t *testing.T) {
+	svc, tagRepo, sceneRepo := newTestTagService(t)
 
-	videoRepo.EXPECT().GetByID(uint(1)).Return(&data.Video{ID: 1}, nil)
-	tagRepo.EXPECT().SetVideoTags(uint(1), []uint{1, 2}).Return(nil)
-	tagRepo.EXPECT().GetVideoTags(uint(1)).Return([]data.Tag{
+	sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{ID: 1}, nil)
+	tagRepo.EXPECT().SetSceneTags(uint(1), []uint{1, 2}).Return(nil)
+	tagRepo.EXPECT().GetSceneTags(uint(1)).Return([]data.Tag{
 		{ID: 1, Name: "Favorite", Color: "#FF4D4D"},
 		{ID: 2, Name: "HD", Color: "#6366F1"},
 	}, nil)
 
-	tags, err := svc.SetVideoTags(1, []uint{1, 2})
+	tags, err := svc.SetSceneTags(1, []uint{1, 2})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -226,28 +226,28 @@ func TestSetVideoTags_Success(t *testing.T) {
 	}
 }
 
-func TestSetVideoTags_VideoNotFound(t *testing.T) {
-	svc, _, videoRepo := newTestTagService(t)
+func TestSetSceneTags_SceneNotFound(t *testing.T) {
+	svc, _, sceneRepo := newTestTagService(t)
 
-	videoRepo.EXPECT().GetByID(uint(99)).Return(nil, gorm.ErrRecordNotFound)
+	sceneRepo.EXPECT().GetByID(uint(99)).Return(nil, gorm.ErrRecordNotFound)
 
-	_, err := svc.SetVideoTags(99, []uint{1})
+	_, err := svc.SetSceneTags(99, []uint{1})
 	if err == nil {
-		t.Fatal("expected error for non-existent video")
+		t.Fatal("expected error for non-existent scene")
 	}
 	if !apperrors.IsNotFound(err) {
 		t.Fatalf("expected not found error, got: %v", err)
 	}
 }
 
-func TestSetVideoTags_EmptyTagIDs(t *testing.T) {
-	svc, tagRepo, videoRepo := newTestTagService(t)
+func TestSetSceneTags_EmptyTagIDs(t *testing.T) {
+	svc, tagRepo, sceneRepo := newTestTagService(t)
 
-	videoRepo.EXPECT().GetByID(uint(1)).Return(&data.Video{ID: 1}, nil)
-	tagRepo.EXPECT().SetVideoTags(uint(1), []uint{}).Return(nil)
-	tagRepo.EXPECT().GetVideoTags(uint(1)).Return([]data.Tag{}, nil)
+	sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{ID: 1}, nil)
+	tagRepo.EXPECT().SetSceneTags(uint(1), []uint{}).Return(nil)
+	tagRepo.EXPECT().GetSceneTags(uint(1)).Return([]data.Tag{}, nil)
 
-	tags, err := svc.SetVideoTags(1, []uint{})
+	tags, err := svc.SetSceneTags(1, []uint{})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}

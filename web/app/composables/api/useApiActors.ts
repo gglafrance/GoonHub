@@ -6,13 +6,16 @@ export const useApiActors = () => {
         useApiCore();
 
     // Actor CRUD
-    const fetchActors = async (page = 1, limit = 20, query?: string) => {
+    const fetchActors = async (page = 1, limit = 20, query?: string, sort?: string) => {
         const params = new URLSearchParams({
             page: page.toString(),
             limit: limit.toString(),
         });
         if (query) {
             params.set('q', query);
+        }
+        if (sort) {
+            params.set('sort', sort);
         }
         const response = await fetch(`/api/v1/actors?${params}`, {
             headers: getAuthHeaders(),
@@ -29,12 +32,12 @@ export const useApiActors = () => {
         return handleResponse(response);
     };
 
-    const fetchActorVideos = async (uuid: string, page = 1, limit = 20) => {
+    const fetchActorScenes = async (uuid: string, page = 1, limit = 20) => {
         const params = new URLSearchParams({
             page: page.toString(),
             limit: limit.toString(),
         });
-        const response = await fetch(`/api/v1/actors/${uuid}/videos?${params}`, {
+        const response = await fetch(`/api/v1/actors/${uuid}/scenes?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
@@ -80,17 +83,17 @@ export const useApiActors = () => {
         return handleResponse(response);
     };
 
-    // Actor-Video associations
-    const fetchVideoActors = async (videoId: number) => {
-        const response = await fetch(`/api/v1/videos/${videoId}/actors`, {
+    // Actor-Scene associations
+    const fetchSceneActors = async (sceneId: number) => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/actors`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
         return handleResponse(response);
     };
 
-    const setVideoActors = async (videoId: number, actorIds: number[]) => {
-        const response = await fetch(`/api/v1/videos/${videoId}/actors`, {
+    const setSceneActors = async (sceneId: number, actorIds: number[]) => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/actors`, {
             method: 'PUT',
             headers: getAuthHeaders(),
             body: JSON.stringify({ actor_ids: actorIds }),
@@ -137,13 +140,13 @@ export const useApiActors = () => {
     return {
         fetchActors,
         fetchActorByUUID,
-        fetchActorVideos,
+        fetchActorScenes,
         createActor,
         updateActor,
         deleteActor,
         uploadActorImage,
-        fetchVideoActors,
-        setVideoActors,
+        fetchSceneActors,
+        setSceneActors,
         fetchActorInteractions,
         setActorRating,
         deleteActorRating,

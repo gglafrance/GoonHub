@@ -39,7 +39,7 @@ func (s *Studio) BeforeCreate(tx *gorm.DB) error {
 
 type StudioWithCount struct {
 	Studio
-	VideoCount int64 `json:"video_count"`
+	SceneCount int64 `json:"scene_count"`
 }
 
 // Studio interaction models

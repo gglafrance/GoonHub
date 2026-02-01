@@ -7,31 +7,31 @@ import (
 	"go.uber.org/zap"
 )
 
-type VideoEvent struct {
+type SceneEvent struct {
 	Type    string `json:"type"`
-	VideoID uint   `json:"video_id"`
+	SceneID uint   `json:"scene_id"`
 	Data    any    `json:"data,omitempty"`
 }
 
 type EventBus struct {
 	mu          sync.RWMutex
-	subscribers map[string]chan VideoEvent
+	subscribers map[string]chan SceneEvent
 	logger      *zap.Logger
 }
 
 func NewEventBus(logger *zap.Logger) *EventBus {
 	return &EventBus{
-		subscribers: make(map[string]chan VideoEvent),
+		subscribers: make(map[string]chan SceneEvent),
 		logger:      logger.With(zap.String("component", "event_bus")),
 	}
 }
 
-func (eb *EventBus) Subscribe() (string, <-chan VideoEvent) {
+func (eb *EventBus) Subscribe() (string, <-chan SceneEvent) {
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
 
 	id := uuid.New().String()
-	ch := make(chan VideoEvent, 50)
+	ch := make(chan SceneEvent, 50)
 	eb.subscribers[id] = ch
 
 	eb.logger.Debug("New subscriber", zap.String("subscriber_id", id))
@@ -49,13 +49,13 @@ func (eb *EventBus) Unsubscribe(id string) {
 	}
 }
 
-func (eb *EventBus) Publish(event VideoEvent) {
+func (eb *EventBus) Publish(event SceneEvent) {
 	eb.mu.RLock()
 	defer eb.mu.RUnlock()
 
 	eb.logger.Debug("Publishing event",
 		zap.String("type", event.Type),
-		zap.Uint("video_id", event.VideoID),
+		zap.Uint("scene_id", event.SceneID),
 		zap.Int("subscriber_count", len(eb.subscribers)),
 	)
 

@@ -72,7 +72,7 @@ const activeJobsByPhase = computed(() => {
                                         running
                                     </span>
                                     <span class="text-[11px] text-white">{{
-                                        job.video_title || `Video #${job.video_id}`
+                                        job.scene_title || `Scene #${job.scene_id}`
                                     }}</span>
                                     <span v-if="job.retry_count > 0" class="text-dim text-[10px]">
                                         (retry {{ job.retry_count }}/{{ job.max_retries }})
@@ -112,7 +112,7 @@ const activeJobsByPhase = computed(() => {
                                     queued
                                 </span>
                                 <span class="text-[11px] text-white">{{
-                                    job.video_title || `Video #${job.video_id}`
+                                    job.scene_title || `Scene #${job.scene_id}`
                                 }}</span>
                             </div>
                             <span class="text-dim text-[10px]">{{

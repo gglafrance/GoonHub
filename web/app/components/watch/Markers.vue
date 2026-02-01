@@ -1,18 +1,25 @@
 <script setup lang="ts">
 import type { Marker, MarkerLabelSuggestion } from '~/types/marker';
+import type { WatchPageData } from '~/composables/useWatchPageData';
+import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
 const route = useRoute();
-const { fetchMarkers, createMarker, updateMarker, deleteMarker, fetchLabelSuggestions } =
-    useApiMarkers();
+const { createMarker, updateMarker, deleteMarker, fetchLabelSuggestions } = useApiMarkers();
 const { formatDuration } = useFormatter();
 const getPlayerTime = inject<() => number>('getPlayerTime');
 const seekToTime = inject<(time: number) => void>('seekToTime');
 const refreshMarkers = inject<() => Promise<void>>('refreshMarkers');
+const pendingMarkerAdd = inject<Ref<boolean>>('pendingMarkerAdd');
 
-const videoId = computed(() => parseInt(route.params.id as string));
+// Inject centralized watch page data
+const watchPageData = inject<WatchPageData>(WATCH_PAGE_DATA_KEY);
 
-const loading = ref(true);
-const markers = ref<Marker[]>([]);
+const sceneId = computed(() => parseInt(route.params.id as string));
+
+// Use centralized data for markers and loading state
+const loading = computed(() => watchPageData?.loading.player ?? true);
+const markers = computed(() => watchPageData?.markers.value ?? []);
+
 const newMarkerLabel = ref('');
 const saving = ref(false);
 const editInputRef = ref<HTMLInputElement[]>([]);
@@ -32,26 +39,13 @@ const showNewMarkerSuggestions = ref(false);
 const showEditSuggestions = ref(false);
 const selectedSuggestionIndex = ref(-1);
 
-const loadMarkers = async () => {
-    loading.value = true;
-    error.value = null;
-    try {
-        const data = await fetchMarkers(videoId.value);
-        markers.value = data.markers || [];
-    } catch (e) {
-        error.value = e instanceof Error ? e.message : 'Failed to load markers';
-    } finally {
-        loading.value = false;
-    }
-};
-
 const loadSuggestions = async () => {
     if (suggestionsLoaded.value) return;
     try {
         const data = await fetchLabelSuggestions();
         labelSuggestions.value = data.labels || [];
         suggestionsLoaded.value = true;
-    } catch (e) {
+    } catch {
         // Silently fail - autocomplete is a nice-to-have
     }
 };
@@ -142,11 +136,10 @@ const handleAddMarker = async () => {
     error.value = null;
 
     try {
-        const marker = await createMarker(videoId.value, {
+        const marker = await createMarker(sceneId.value, {
             timestamp: Math.floor(currentTime),
             label: newMarkerLabel.value.trim() || undefined,
         });
-        markers.value = [...markers.value, marker].sort((a, b) => a.timestamp - b.timestamp);
         newMarkerLabel.value = '';
         // Start editing the new marker's label
         editingMarkerId.value = marker.id;
@@ -203,13 +196,9 @@ const handleSaveEdit = async (marker: Marker) => {
 
     error.value = null;
     try {
-        const updated = await updateMarker(videoId.value, marker.id, {
+        await updateMarker(sceneId.value, marker.id, {
             label: editingLabel.value.trim(),
         });
-        const index = markers.value.findIndex((m) => m.id === marker.id);
-        if (index !== -1) {
-            markers.value[index] = updated;
-        }
         cancelEditing();
         // Refresh parent markers for timeline indicators
         refreshMarkers?.();
@@ -237,8 +226,7 @@ const confirmDelete = async () => {
     error.value = null;
 
     try {
-        await deleteMarker(videoId.value, markerId);
-        markers.value = markers.value.filter((m) => m.id !== markerId);
+        await deleteMarker(sceneId.value, markerId);
         // Refresh parent markers for timeline indicators
         refreshMarkers?.();
     } catch (e) {
@@ -253,34 +241,26 @@ const getThumbnailUrl = (marker: Marker) => {
     return `/marker-thumbnails/${marker.id}`;
 };
 
-const handleKeydown = (e: KeyboardEvent) => {
-    // Ignore if typing in an input/textarea or if modifier keys are pressed
-    const target = e.target as HTMLElement;
-    if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable ||
-        e.ctrlKey ||
-        e.metaKey ||
-        e.altKey
-    ) {
-        return;
-    }
-
-    // 'M' key to add marker at current time
-    if (e.key === 'm' || e.key === 'M') {
-        e.preventDefault();
-        handleAddMarker();
-    }
-};
+// Watch for pending marker add trigger from parent (when M key is pressed globally)
+watch(
+    () => pendingMarkerAdd?.value,
+    (pending) => {
+        if (pending) {
+            handleAddMarker();
+            // Reset the trigger
+            if (pendingMarkerAdd) {
+                pendingMarkerAdd.value = false;
+            }
+        }
+    },
+);
 
 onMounted(() => {
-    loadMarkers();
-    window.addEventListener('keydown', handleKeydown);
-});
-
-onUnmounted(() => {
-    window.removeEventListener('keydown', handleKeydown);
+    // Check if there's a pending marker add on mount (M was pressed before tab opened)
+    if (pendingMarkerAdd?.value) {
+        handleAddMarker();
+        pendingMarkerAdd.value = false;
+    }
 });
 </script>
 
@@ -391,7 +371,7 @@ onUnmounted(() => {
                 </button>
 
                 <!-- Label & Actions -->
-                <div class="flex items-center gap-2 p-2 pt-0.5">
+                <div class="flex items-center gap-2 p-2 py-0.5">
                     <!-- Label (editable) -->
                     <div class="min-w-0 flex-1">
                         <template v-if="editingMarkerId === marker.id">
@@ -465,6 +445,9 @@ onUnmounted(() => {
                         <Icon name="heroicons:trash" size="12" />
                     </button>
                 </div>
+
+                <!-- Tags -->
+                <MarkersMarkerTagEditor :marker-id="marker.id" :initial-tags="marker.tags" />
             </div>
         </div>
 

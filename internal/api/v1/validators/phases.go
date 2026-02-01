@@ -7,7 +7,7 @@ var (
 	// AllPhases includes all processing phases including scan
 	AllPhases = map[string]bool{"metadata": true, "thumbnail": true, "sprites": true, "scan": true}
 
-	// ProcessingPhases includes only video processing phases (not scan)
+	// ProcessingPhases includes only scene processing phases (not scan)
 	ProcessingPhases = map[string]bool{"metadata": true, "thumbnail": true, "sprites": true}
 
 	// TriggerTypes includes all valid trigger types
@@ -28,7 +28,7 @@ func ValidatePhase(phase string) error {
 	return nil
 }
 
-// ValidateProcessingPhase validates a phase is one of the video processing phases
+// ValidateProcessingPhase validates a phase is one of the scene processing phases
 func ValidateProcessingPhase(phase string) error {
 	if !ProcessingPhases[phase] {
 		return fmt.Errorf("phase must be one of: metadata, thumbnail, sprites")

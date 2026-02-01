@@ -10,19 +10,19 @@ import (
 // registryTestJob is a minimal Job implementation for registry testing
 type registryTestJob struct {
 	id      string
-	videoID uint
+	sceneID uint
 	phase   string
 }
 
-func newRegistryTestJob(id string, videoID uint, phase string) *registryTestJob {
-	return &registryTestJob{id: id, videoID: videoID, phase: phase}
+func newRegistryTestJob(id string, sceneID uint, phase string) *registryTestJob {
+	return &registryTestJob{id: id, sceneID: sceneID, phase: phase}
 }
 
 func (j *registryTestJob) Execute() error                            { return nil }
 func (j *registryTestJob) ExecuteWithContext(ctx context.Context) error { return nil }
 func (j *registryTestJob) Cancel()                                   {}
 func (j *registryTestJob) GetID() string                             { return j.id }
-func (j *registryTestJob) GetVideoID() uint                          { return j.videoID }
+func (j *registryTestJob) GetSceneID() uint                          { return j.sceneID }
 func (j *registryTestJob) GetPhase() string                          { return j.phase }
 func (j *registryTestJob) GetStatus() JobStatus                      { return JobStatusPending }
 func (j *registryTestJob) GetError() error                           { return nil }
@@ -57,7 +57,7 @@ func TestRegistry_RegisterDuplicate(t *testing.T) {
 	registry := NewJobRegistry()
 
 	job1 := newRegistryTestJob("job-1", 100, "metadata")
-	job2 := newRegistryTestJob("job-2", 100, "metadata") // Same video+phase
+	job2 := newRegistryTestJob("job-2", 100, "metadata") // Same scene+phase
 
 	// Register first job
 	existingID := registry.Register(job1)
@@ -65,7 +65,7 @@ func TestRegistry_RegisterDuplicate(t *testing.T) {
 		t.Fatalf("expected empty string for first job, got %s", existingID)
 	}
 
-	// Register second job with same video+phase should return existing job ID
+	// Register second job with same scene+phase should return existing job ID
 	existingID = registry.Register(job2)
 	if existingID != "job-1" {
 		t.Fatalf("expected existing job ID 'job-1', got %s", existingID)
@@ -96,7 +96,7 @@ func TestRegistry_RegisterDifferentPhase(t *testing.T) {
 	registry := NewJobRegistry()
 
 	job1 := newRegistryTestJob("job-1", 100, "metadata")
-	job2 := newRegistryTestJob("job-2", 100, "thumbnail") // Same video, different phase
+	job2 := newRegistryTestJob("job-2", 100, "thumbnail") // Same scene, different phase
 
 	// Register first job
 	existingID := registry.Register(job1)
@@ -139,10 +139,10 @@ func TestRegistry_Unregister(t *testing.T) {
 		t.Fatal("expected job to be unregistered")
 	}
 
-	// GetByVideoPhase should return false
-	_, ok = registry.GetByVideoPhase(100, "metadata")
+	// GetByScenePhase should return false
+	_, ok = registry.GetByScenePhase(100, "metadata")
 	if ok {
-		t.Fatal("expected video+phase to be unregistered")
+		t.Fatal("expected scene+phase to be unregistered")
 	}
 }
 
@@ -156,7 +156,7 @@ func TestRegistry_UnregisterAllowsResubmit(t *testing.T) {
 	registry.Register(job1)
 	registry.Unregister("job-1")
 
-	// Should be able to register new job for same video+phase
+	// Should be able to register new job for same scene+phase
 	existingID := registry.Register(job2)
 	if existingID != "" {
 		t.Fatalf("expected empty string after unregister, got %s", existingID)
@@ -172,29 +172,29 @@ func TestRegistry_UnregisterAllowsResubmit(t *testing.T) {
 	}
 }
 
-func TestRegistry_GetByVideoPhase(t *testing.T) {
+func TestRegistry_GetByScenePhase(t *testing.T) {
 	registry := NewJobRegistry()
 
 	job := newRegistryTestJob("job-1", 100, "metadata")
 	registry.Register(job)
 
-	// GetByVideoPhase should return the job
-	retrieved, ok := registry.GetByVideoPhase(100, "metadata")
+	// GetByScenePhase should return the job
+	retrieved, ok := registry.GetByScenePhase(100, "metadata")
 	if !ok {
-		t.Fatal("expected to find job by video+phase")
+		t.Fatal("expected to find job by scene+phase")
 	}
 	if retrieved.GetID() != "job-1" {
 		t.Fatalf("expected job ID 'job-1', got %s", retrieved.GetID())
 	}
 
-	// Different video should not find the job
-	_, ok = registry.GetByVideoPhase(200, "metadata")
+	// Different scene should not find the job
+	_, ok = registry.GetByScenePhase(200, "metadata")
 	if ok {
-		t.Fatal("expected no job for different video")
+		t.Fatal("expected no job for different scene")
 	}
 
 	// Different phase should not find the job
-	_, ok = registry.GetByVideoPhase(100, "thumbnail")
+	_, ok = registry.GetByScenePhase(100, "thumbnail")
 	if ok {
 		t.Fatal("expected no job for different phase")
 	}

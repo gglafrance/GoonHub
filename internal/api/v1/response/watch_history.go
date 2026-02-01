@@ -5,22 +5,22 @@ import (
 	"goonhub/internal/data"
 )
 
-// WatchHistoryEntryResponse represents a watch history entry with lightweight video data.
+// WatchHistoryEntryResponse represents a watch history entry with lightweight scene data.
 type WatchHistoryEntryResponse struct {
-	Watch data.UserVideoWatch `json:"watch"`
-	Video *VideoListItem      `json:"video,omitempty"`
+	Watch data.UserSceneWatch `json:"watch"`
+	Scene *SceneListItem      `json:"scene,omitempty"`
 }
 
 // ToWatchHistoryEntryResponse converts a service WatchHistoryEntry to the response type.
 func ToWatchHistoryEntryResponse(entry core.WatchHistoryEntry) WatchHistoryEntryResponse {
-	var video *VideoListItem
-	if entry.Video != nil {
-		item := ToVideoListItem(*entry.Video)
-		video = &item
+	var scene *SceneListItem
+	if entry.Scene != nil {
+		item := ToSceneListItem(*entry.Scene)
+		scene = &item
 	}
 	return WatchHistoryEntryResponse{
 		Watch: entry.Watch,
-		Video: video,
+		Scene: scene,
 	}
 }
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const props = defineProps<{
     title: string;
+    icon: string;
     collapsed: boolean;
     badge?: string | number;
 }>();
@@ -16,7 +17,10 @@ const emit = defineEmits<{
             @click="emit('toggle')"
             class="flex w-full items-center justify-between px-2.5 py-2"
         >
-            <span class="text-dim text-[11px] font-medium uppercase">{{ title }}</span>
+            <div class="flex items-center gap-1.5">
+                <Icon :name="icon" size="12" class="text-dim" />
+                <span class="text-dim text-[11px] font-medium uppercase">{{ title }}</span>
+            </div>
             <div class="flex items-center gap-1.5">
                 <span
                     v-if="badge"

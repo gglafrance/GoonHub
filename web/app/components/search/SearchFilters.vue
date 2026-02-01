@@ -12,10 +12,6 @@ const resolutionOptions = [
     { value: '480p', label: '480p' },
     { value: '360p', label: '360p' },
 ];
-
-const studioOptions = computed(() =>
-    searchStore.filterOptions.studios.map((s) => ({ value: s, label: s })),
-);
 </script>
 
 <template>
@@ -40,17 +36,14 @@ const studioOptions = computed(() =>
             <!-- Tags -->
             <SearchFiltersFilterTags />
 
+            <!-- Marker Labels -->
+            <SearchFiltersFilterMarkerLabels />
+
             <!-- Actors -->
             <SearchFiltersFilterActors />
 
             <!-- Studio -->
-            <SearchFiltersFilterSelect
-                v-if="searchStore.filterOptions.studios.length > 0"
-                title="Studio"
-                v-model="searchStore.studio"
-                :options="studioOptions"
-                placeholder="All Studios"
-            />
+            <SearchFiltersFilterStudio />
 
             <!-- Duration -->
             <SearchFiltersFilterDuration />
@@ -61,8 +54,10 @@ const studioOptions = computed(() =>
             <!-- Resolution -->
             <SearchFiltersFilterSelect
                 title="Resolution"
+                icon="heroicons:tv"
                 v-model="searchStore.resolution"
                 :options="resolutionOptions"
+                default-collapsed
             />
 
             <!-- Liked -->

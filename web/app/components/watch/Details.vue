@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import type { Video } from '~/types/video';
+import type { Scene } from '~/types/scene';
+import type { WatchPageData } from '~/composables/useWatchPageData';
+import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
-const video = inject<Ref<Video | null>>('watchVideo');
+const scene = inject<Ref<Scene | null>>('watchScene');
 const thumbnailVersion = inject<Ref<number>>('thumbnailVersion');
 const detailsRefreshKey = inject<Ref<number>>('detailsRefreshKey');
 const authStore = useAuthStore();
-const { updateVideoDetails, fetchVideoInteractions, fetchVideo, getPornDBStatus } = useApi();
+const { updateSceneDetails, fetchScene } = useApi();
+
+// Inject centralized watch page data
+const watchPageData = inject<WatchPageData>(WATCH_PAGE_DATA_KEY);
 
 const error = ref<string | null>(null);
 const saving = ref(false);
@@ -14,51 +19,30 @@ let savedTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // Fetch metadata modal state
 const showFetchMetadataModal = ref(false);
-const pornDBConfigured = ref(false);
-const checkingPornDB = ref(false);
-
-// Interactions state
-const initialRating = ref(0);
-const initialLiked = ref(false);
-const initialJizzedCount = ref(0);
 
 // Tag manager ref for reloading
 const tagManagerRef = ref<{ reload: () => void } | null>(null);
 
 const isAdmin = computed(() => authStore.user?.role === 'admin');
 
-async function checkPornDBStatus() {
-    if (!isAdmin.value) return;
-    checkingPornDB.value = true;
-    try {
-        const status = await getPornDBStatus();
-        pornDBConfigured.value = status.configured;
-    } catch {
-        pornDBConfigured.value = false;
-    } finally {
-        checkingPornDB.value = false;
-    }
-}
+// Loading state for interactions
+const interactionsLoading = computed(() => watchPageData?.loading.details ?? true);
 
-async function loadInteractions() {
-    if (!video?.value) return;
-    try {
-        const res = await fetchVideoInteractions(video.value.id);
-        initialRating.value = res.rating || 0;
-        initialLiked.value = res.liked || false;
-        initialJizzedCount.value = res.jizzed_count || 0;
-    } catch {
-        // Silently fail for interactions
-    }
-}
+// Interactions from centralized data (with fallback for backwards compatibility)
+const initialRating = computed(() => watchPageData?.interactions.value?.rating ?? 0);
+const initialLiked = computed(() => watchPageData?.interactions.value?.liked ?? false);
+const initialJizzedCount = computed(() => watchPageData?.interactions.value?.jizzed_count ?? 0);
+
+// PornDB status from centralized data
+const pornDBConfigured = computed(() => watchPageData?.pornDBConfigured.value ?? false);
 
 async function handleMetadataApplied() {
-    // Refresh video data after metadata is applied
-    if (video?.value) {
+    // Refresh scene data after metadata is applied
+    if (scene?.value) {
         try {
-            const updated = await fetchVideo(video.value.id);
-            if (video.value) {
-                Object.assign(video.value, updated);
+            const updated = await fetchScene(scene.value.id);
+            if (scene.value) {
+                Object.assign(scene.value, updated);
             }
             // Bust thumbnail cache in case it was updated
             if (thumbnailVersion) {
@@ -66,7 +50,13 @@ async function handleMetadataApplied() {
             }
             // Reload tags since metadata apply may have changed them
             tagManagerRef.value?.reload();
-            // Signal child components (e.g. Actors) to refresh
+            // Refresh centralized data for studio, tags, actors
+            await Promise.all([
+                watchPageData?.refreshStudio(),
+                watchPageData?.refreshTags(),
+                watchPageData?.refreshActors(),
+            ]);
+            // Signal child components (e.g. Actors) to refresh via legacy key
             if (detailsRefreshKey) {
                 detailsRefreshKey.value++;
             }
@@ -77,30 +67,30 @@ async function handleMetadataApplied() {
 }
 
 async function saveTitle(title: string) {
-    if (!video?.value) return;
-    await saveDetails(title, video.value.description || '');
+    if (!scene?.value) return;
+    await saveDetails(title, scene.value.description || '');
 }
 
 async function saveDescription(description: string) {
-    if (!video?.value) return;
-    await saveDetails(video.value.title || '', description);
+    if (!scene?.value) return;
+    await saveDetails(scene.value.title || '', description);
 }
 
 async function saveReleaseDate(releaseDate: string | null) {
-    if (!video?.value) return;
+    if (!scene?.value) return;
 
     saving.value = true;
     error.value = null;
 
     try {
-        const updated = await updateVideoDetails(
-            video.value.id,
-            video.value.title,
-            video.value.description || '',
+        const updated = await updateSceneDetails(
+            scene.value.id,
+            scene.value.title,
+            scene.value.description || '',
             releaseDate,
         );
-        if (video.value) {
-            video.value.release_date = updated.release_date;
+        if (scene.value) {
+            scene.value.release_date = updated.release_date;
         }
         showSavedIndicator();
     } catch (err: unknown) {
@@ -111,16 +101,16 @@ async function saveReleaseDate(releaseDate: string | null) {
 }
 
 async function saveDetails(title: string, description: string) {
-    if (!video?.value) return;
+    if (!scene?.value) return;
 
     saving.value = true;
     error.value = null;
 
     try {
-        const updated = await updateVideoDetails(video.value.id, title, description);
-        if (video.value) {
-            video.value.title = updated.title;
-            video.value.description = updated.description;
+        const updated = await updateSceneDetails(scene.value.id, title, description);
+        if (scene.value) {
+            scene.value.title = updated.title;
+            scene.value.description = updated.description;
         }
         showSavedIndicator();
     } catch (err: unknown) {
@@ -137,10 +127,6 @@ function showSavedIndicator() {
         saved.value = false;
     }, 2000);
 }
-
-onMounted(async () => {
-    await Promise.all([loadInteractions(), checkPornDBStatus()]);
-});
 </script>
 
 <template>
@@ -161,14 +147,14 @@ onMounted(async () => {
                 <div class="space-y-4">
                     <!-- Title -->
                     <WatchDetailsTitleEditor
-                        :title="video?.title || ''"
+                        :title="scene?.title || ''"
                         :saved="saved"
                         @save="saveTitle"
                     />
 
                     <!-- Description -->
                     <WatchDetailsDescriptionEditor
-                        :description="video?.description || ''"
+                        :description="scene?.description || ''"
                         @save="saveDescription"
                     />
                 </div>
@@ -176,21 +162,49 @@ onMounted(async () => {
 
             <!-- Right: Engagement card -->
             <div
-                class="border-border/50 bg-surface/30 flex w-36 shrink-0 flex-col items-center
-                    justify-center gap-4 rounded-xl border p-4"
+                class="border-border/50 bg-surface/30 flex min-h-46 w-36 shrink-0 flex-col
+                    items-center justify-center gap-4 rounded-xl border p-4"
             >
                 <div class="text-dim text-[10px] font-medium tracking-wider uppercase">
                     Your Rating
                 </div>
+
+                <!-- Rating skeleton or content -->
+                <div v-if="interactionsLoading" class="flex flex-col items-center gap-2.5">
+                    <div class="flex items-center gap-0.75">
+                        <div
+                            v-for="i in 5"
+                            :key="i"
+                            class="bg-border/30 h-4.5 w-4.5 animate-pulse rounded"
+                        />
+                    </div>
+                    <div class="bg-border/30 h-3 w-6 animate-pulse rounded" />
+                </div>
                 <WatchDetailsRatingPanel
-                    v-if="video"
-                    :video-id="video.id"
+                    v-else-if="scene"
+                    :scene-id="scene.id"
                     :initial-rating="initialRating"
                 />
+
                 <div class="bg-border/50 h-px w-full" />
+
+                <!-- Interactions skeleton or content -->
+                <div
+                    v-if="interactionsLoading"
+                    class="flex w-full items-center justify-center gap-3"
+                >
+                    <div class="flex flex-col items-center gap-0.5">
+                        <div class="bg-border/30 h-4.5 w-4.5 animate-pulse rounded" />
+                        <div class="bg-border/30 h-2.5 w-6 animate-pulse rounded" />
+                    </div>
+                    <div class="flex flex-col items-center gap-0.5">
+                        <div class="bg-border/30 h-4.5 w-4.5 animate-pulse rounded" />
+                        <div class="bg-border/30 h-2.5 w-6 animate-pulse rounded" />
+                    </div>
+                </div>
                 <WatchDetailsInteractionsBar
-                    v-if="video"
-                    :video-id="video.id"
+                    v-else-if="scene"
+                    :scene-id="scene.id"
                     :initial-liked="initialLiked"
                     :initial-jizzed-count="initialJizzedCount"
                 />
@@ -202,7 +216,7 @@ onMounted(async () => {
             <!-- Release Date -->
             <div class="border-border/50 bg-surface/30 w-40 shrink-0 rounded-lg border p-3">
                 <WatchDetailsReleaseDateEditor
-                    :release-date="video?.release_date || null"
+                    :release-date="scene?.release_date || null"
                     @save="saveReleaseDate"
                 />
             </div>
@@ -220,8 +234,8 @@ onMounted(async () => {
                     </h3>
                     <!-- Linked scene -->
                     <a
-                        v-if="video?.porndb_scene_id"
-                        :href="`https://theporndb.net/scenes/${video.porndb_scene_id}`"
+                        v-if="scene?.porndb_scene_id"
+                        :href="`https://theporndb.net/scenes/${scene.porndb_scene_id}`"
                         target="_blank"
                         rel="noopener noreferrer"
                         class="text-lava hover:text-lava-glow inline-flex items-center gap-1.5
@@ -240,7 +254,7 @@ onMounted(async () => {
                             border-white/10 px-2 py-1.5 text-xs transition-colors"
                     >
                         <Icon name="heroicons:cloud-arrow-down" size="12" />
-                        {{ video?.porndb_scene_id ? 'Refresh' : 'Fetch' }}
+                        {{ scene?.porndb_scene_id ? 'Refresh' : 'Fetch' }}
                     </button>
                 </div>
             </div>
@@ -248,7 +262,7 @@ onMounted(async () => {
 
         <!-- Tags section -->
         <div class="border-border/50 bg-surface/30 rounded-xl border p-4">
-            <WatchDetailsTagManager v-if="video" ref="tagManagerRef" :video-id="video.id" />
+            <WatchDetailsTagManager v-if="scene" ref="tagManagerRef" :scene-id="scene.id" />
         </div>
 
         <!-- Actors section -->
@@ -259,9 +273,9 @@ onMounted(async () => {
 
     <!-- Fetch Scene Metadata Modal -->
     <WatchFetchSceneMetadataModal
-        v-if="video"
+        v-if="scene"
         :visible="showFetchMetadataModal"
-        :video="video"
+        :scene="scene"
         @close="showFetchMetadataModal = false"
         @applied="handleMetadataApplied"
     />

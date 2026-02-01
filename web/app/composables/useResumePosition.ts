@@ -4,22 +4,22 @@ import type videojs from 'video.js';
 type Player = ReturnType<typeof videojs>;
 
 /**
- * Composable for handling video resume position.
+ * Composable for handling scene resume position.
  */
 export const useResumePosition = (
     player: ShallowRef<Player | null>,
-    videoId: Ref<number | undefined>,
+    sceneId: Ref<number | undefined>,
 ) => {
-    const { getResumePosition } = useApiVideos();
+    const { getResumePosition } = useApiScenes();
 
     const resumePosition = ref<number | null>(null);
     const showResumePrompt = ref(false);
 
     const loadResumePosition = async () => {
-        if (!videoId.value) return;
+        if (!sceneId.value) return;
 
         try {
-            const result = await getResumePosition(videoId.value);
+            const result = await getResumePosition(sceneId.value);
             if (result.position && result.position > 30) {
                 // Only show resume if more than 30 seconds in
                 resumePosition.value = result.position;

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 const searchStore = useSearchStore();
 
-const collapsed = ref(false);
+const collapsed = ref(true);
+const searchQuery = ref('');
 
 const toggleTag = (tagName: string) => {
     const idx = searchStore.selectedTags.indexOf(tagName);
@@ -12,6 +13,12 @@ const toggleTag = (tagName: string) => {
     }
 };
 
+const filteredTags = computed(() => {
+    if (!searchQuery.value) return searchStore.filterOptions.tags;
+    const q = searchQuery.value.toLowerCase();
+    return searchStore.filterOptions.tags.filter((t) => t.name.toLowerCase().includes(q));
+});
+
 const badge = computed(() =>
     searchStore.selectedTags.length > 0 ? searchStore.selectedTags.length : undefined,
 );
@@ -21,13 +28,24 @@ const badge = computed(() =>
     <SearchFiltersFilterSection
         v-if="searchStore.filterOptions.tags.length > 0"
         title="Tags"
+        icon="heroicons:tag"
         :collapsed="collapsed"
         :badge="badge"
         @toggle="collapsed = !collapsed"
     >
-        <div class="max-h-40 space-y-1 overflow-y-auto">
+        <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Search tags..."
+            class="border-border bg-surface text-dim mb-2 w-full rounded-md border px-2 py-1.5
+                text-xs placeholder-white/30 focus:border-white/20 focus:outline-none"
+        />
+        <div v-if="filteredTags.length === 0" class="text-dim px-2 py-1 text-xs">
+            No matching tags
+        </div>
+        <div v-else class="max-h-40 space-y-1 overflow-y-auto">
             <button
-                v-for="tag in searchStore.filterOptions.tags"
+                v-for="tag in filteredTags"
                 :key="tag.id"
                 @click="toggleTag(tag.name)"
                 class="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs
@@ -43,7 +61,7 @@ const badge = computed(() =>
                     :style="{ backgroundColor: tag.color }"
                 ></span>
                 <span class="flex-1 truncate">{{ tag.name }}</span>
-                <span class="text-[10px] opacity-50">{{ tag.video_count }}</span>
+                <span class="text-[10px] opacity-50">{{ tag.scene_count }}</span>
             </button>
         </div>
     </SearchFiltersFilterSection>

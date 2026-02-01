@@ -9,16 +9,16 @@ import (
 	"goonhub/internal/data"
 )
 
-// WatchProgress represents the watch progress for a video
+// WatchProgress represents the watch progress for a scene
 type WatchProgress struct {
 	LastPosition int `json:"last_position"`
 	Duration     int `json:"duration"`
 }
 
-// HomepageSectionData represents a section with its fetched video data
+// HomepageSectionData represents a section with its fetched scene data
 type HomepageSectionData struct {
 	Section       data.HomepageSection   `json:"section"`
-	Videos        []data.Video           `json:"videos"`
+	Scenes        []data.Scene           `json:"scenes"`
 	Total         int64                  `json:"total"`
 	WatchProgress map[uint]WatchProgress `json:"watch_progress,omitempty"`
 	Ratings       map[uint]float64       `json:"ratings,omitempty"`
@@ -37,7 +37,7 @@ type HomepageService struct {
 	savedSearchService *SavedSearchService
 	watchHistoryRepo   data.WatchHistoryRepository
 	interactionRepo    data.InteractionRepository
-	videoRepo          data.VideoRepository
+	sceneRepo          data.SceneRepository
 	tagRepo            data.TagRepository
 	actorRepo          data.ActorRepository
 	studioRepo         data.StudioRepository
@@ -51,7 +51,7 @@ func NewHomepageService(
 	savedSearchService *SavedSearchService,
 	watchHistoryRepo data.WatchHistoryRepository,
 	interactionRepo data.InteractionRepository,
-	videoRepo data.VideoRepository,
+	sceneRepo data.SceneRepository,
 	tagRepo data.TagRepository,
 	actorRepo data.ActorRepository,
 	studioRepo data.StudioRepository,
@@ -63,7 +63,7 @@ func NewHomepageService(
 		savedSearchService: savedSearchService,
 		watchHistoryRepo:   watchHistoryRepo,
 		interactionRepo:    interactionRepo,
-		videoRepo:          videoRepo,
+		sceneRepo:          sceneRepo,
 		tagRepo:            tagRepo,
 		actorRepo:          actorRepo,
 		studioRepo:         studioRepo,
@@ -106,7 +106,7 @@ func (s *HomepageService) GetHomepageData(userID uint) (*HomepageResponse, error
 			// Continue with empty section rather than failing entire request
 			sectionData = &HomepageSectionData{
 				Section: section,
-				Videos:  []data.Video{},
+				Scenes:  []data.Scene{},
 				Total:   0,
 			}
 		}
@@ -168,27 +168,27 @@ func (s *HomepageService) fetchSectionData(userID uint, section data.HomepageSec
 	}
 
 	// Enrich with ratings
-	if len(sectionData.Videos) > 0 {
-		sectionData.Ratings = s.fetchRatingsForVideos(userID, sectionData.Videos)
+	if len(sectionData.Scenes) > 0 {
+		sectionData.Ratings = s.fetchRatingsForScenes(userID, sectionData.Scenes)
 	}
 
 	return sectionData, nil
 }
 
-// fetchRatingsForVideos fetches user ratings for a list of videos
-func (s *HomepageService) fetchRatingsForVideos(userID uint, videos []data.Video) map[uint]float64 {
+// fetchRatingsForScenes fetches user ratings for a list of scenes
+func (s *HomepageService) fetchRatingsForScenes(userID uint, scenes []data.Scene) map[uint]float64 {
 	if s.interactionRepo == nil {
 		return nil
 	}
 
-	videoIDs := make([]uint, len(videos))
-	for i, v := range videos {
-		videoIDs[i] = v.ID
+	sceneIDs := make([]uint, len(scenes))
+	for i, v := range scenes {
+		sceneIDs[i] = v.ID
 	}
 
-	ratings, err := s.interactionRepo.GetRatingsByVideoIDs(userID, videoIDs)
+	ratings, err := s.interactionRepo.GetRatingsBySceneIDs(userID, sceneIDs)
 	if err != nil {
-		s.logger.Warn("failed to fetch ratings for videos", zap.Error(err))
+		s.logger.Warn("failed to fetch ratings for scenes", zap.Error(err))
 		return nil
 	}
 
@@ -201,21 +201,21 @@ func (s *HomepageService) fetchLatestSection(userID uint, section data.HomepageS
 		sortOrder = "created_at_desc"
 	}
 
-	params := data.VideoSearchParams{
+	params := data.SceneSearchParams{
 		Page:   1,
 		Limit:  section.Limit,
 		Sort:   sortOrder,
 		UserID: userID,
 	}
 
-	videos, total, err := s.searchService.Search(params)
+	scenes, total, err := s.searchService.Search(params)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
 	return &HomepageSectionData{
 		Section: section,
-		Videos:  videos,
+		Scenes:  scenes,
 		Total:   total,
 	}, nil
 }
@@ -237,7 +237,7 @@ func (s *HomepageService) fetchActorSection(userID uint, section data.HomepageSe
 		sortOrder = "created_at_desc"
 	}
 
-	params := data.VideoSearchParams{
+	params := data.SceneSearchParams{
 		Page:   1,
 		Limit:  section.Limit,
 		Sort:   sortOrder,
@@ -245,14 +245,14 @@ func (s *HomepageService) fetchActorSection(userID uint, section data.HomepageSe
 		UserID: userID,
 	}
 
-	videos, total, err := s.searchService.Search(params)
+	scenes, total, err := s.searchService.Search(params)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
 	return &HomepageSectionData{
 		Section: section,
-		Videos:  videos,
+		Scenes:  scenes,
 		Total:   total,
 	}, nil
 }
@@ -274,7 +274,7 @@ func (s *HomepageService) fetchStudioSection(userID uint, section data.HomepageS
 		sortOrder = "created_at_desc"
 	}
 
-	params := data.VideoSearchParams{
+	params := data.SceneSearchParams{
 		Page:   1,
 		Limit:  section.Limit,
 		Sort:   sortOrder,
@@ -282,14 +282,14 @@ func (s *HomepageService) fetchStudioSection(userID uint, section data.HomepageS
 		UserID: userID,
 	}
 
-	videos, total, err := s.searchService.Search(params)
+	scenes, total, err := s.searchService.Search(params)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
 	return &HomepageSectionData{
 		Section: section,
-		Videos:  videos,
+		Scenes:  scenes,
 		Total:   total,
 	}, nil
 }
@@ -314,7 +314,7 @@ func (s *HomepageService) fetchTagSection(userID uint, section data.HomepageSect
 		sortOrder = "created_at_desc"
 	}
 
-	params := data.VideoSearchParams{
+	params := data.SceneSearchParams{
 		Page:   1,
 		Limit:  section.Limit,
 		Sort:   sortOrder,
@@ -322,14 +322,14 @@ func (s *HomepageService) fetchTagSection(userID uint, section data.HomepageSect
 		UserID: userID,
 	}
 
-	videos, total, err := s.searchService.Search(params)
+	scenes, total, err := s.searchService.Search(params)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
 	return &HomepageSectionData{
 		Section: section,
-		Videos:  videos,
+		Scenes:  scenes,
 		Total:   total,
 	}, nil
 }
@@ -353,8 +353,8 @@ func (s *HomepageService) fetchSavedSearchSection(userID uint, section data.Home
 		sortOrder = "created_at_desc"
 	}
 
-	// Convert saved search filters to VideoSearchParams
-	params := data.VideoSearchParams{
+	// Convert saved search filters to SceneSearchParams
+	params := data.SceneSearchParams{
 		Page:   1,
 		Limit:  section.Limit,
 		Sort:   sortOrder,
@@ -404,20 +404,20 @@ func (s *HomepageService) fetchSavedSearchSection(userID uint, section data.Home
 		params.MaxJizzCount = *savedSearch.Filters.MaxJizzCount
 	}
 
-	videos, total, err := s.searchService.Search(params)
+	scenes, total, err := s.searchService.Search(params)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
 	return &HomepageSectionData{
 		Section: section,
-		Videos:  videos,
+		Scenes:  scenes,
 		Total:   total,
 	}, nil
 }
 
 func (s *HomepageService) fetchContinueWatchingSection(userID uint, section data.HomepageSection) (*HomepageSectionData, error) {
-	// Get videos with resume positions (not completed)
+	// Get scenes with resume positions (not completed)
 	// Fetch more than needed to filter for incomplete watches
 	watches, _, err := s.watchHistoryRepo.ListUserHistory(userID, 1, section.Limit*3)
 	if err != nil {
@@ -425,48 +425,48 @@ func (s *HomepageService) fetchContinueWatchingSection(userID uint, section data
 	}
 
 	// Filter to only incomplete watches with position > 0
-	// Also build a map of video ID -> last position
-	var videoIDs []uint
+	// Also build a map of scene ID -> last position
+	var sceneIDs []uint
 	watchPositions := make(map[uint]int)
 	for _, watch := range watches {
 		if !watch.Completed && watch.LastPosition > 0 {
-			videoIDs = append(videoIDs, watch.VideoID)
-			watchPositions[watch.VideoID] = watch.LastPosition
-			if len(videoIDs) >= section.Limit {
+			sceneIDs = append(sceneIDs, watch.SceneID)
+			watchPositions[watch.SceneID] = watch.LastPosition
+			if len(sceneIDs) >= section.Limit {
 				break
 			}
 		}
 	}
 
-	if len(videoIDs) == 0 {
+	if len(sceneIDs) == 0 {
 		return &HomepageSectionData{
 			Section: section,
-			Videos:  []data.Video{},
+			Scenes:  []data.Scene{},
 			Total:   0,
 		}, nil
 	}
 
-	videos, err := s.videoRepo.GetByIDs(videoIDs)
+	scenes, err := s.sceneRepo.GetByIDs(sceneIDs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get videos: %w", err)
+		return nil, fmt.Errorf("failed to get scenes: %w", err)
 	}
 
 	// Build watch progress map with position and duration
 	watchProgress := make(map[uint]WatchProgress)
-	for _, video := range videos {
-		if pos, ok := watchPositions[video.ID]; ok {
-			watchProgress[video.ID] = WatchProgress{
+	for _, scene := range scenes {
+		if pos, ok := watchPositions[scene.ID]; ok {
+			watchProgress[scene.ID] = WatchProgress{
 				LastPosition: pos,
-				Duration:     video.Duration,
+				Duration:     scene.Duration,
 			}
 		}
 	}
 
-	// Return the actual count of videos we found, not the unfiltered total
+	// Return the actual count of scenes we found, not the unfiltered total
 	return &HomepageSectionData{
 		Section:       section,
-		Videos:        videos,
-		Total:         int64(len(videos)),
+		Scenes:        scenes,
+		Total:         int64(len(scenes)),
 		WatchProgress: watchProgress,
 	}, nil
 }
@@ -477,21 +477,21 @@ func (s *HomepageService) fetchMostViewedSection(userID uint, section data.Homep
 		sortOrder = "view_count_desc"
 	}
 
-	params := data.VideoSearchParams{
+	params := data.SceneSearchParams{
 		Page:   1,
 		Limit:  section.Limit,
 		Sort:   sortOrder,
 		UserID: userID,
 	}
 
-	videos, total, err := s.searchService.Search(params)
+	scenes, total, err := s.searchService.Search(params)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
 	return &HomepageSectionData{
 		Section: section,
-		Videos:  videos,
+		Scenes:  scenes,
 		Total:   total,
 	}, nil
 }
@@ -503,7 +503,7 @@ func (s *HomepageService) fetchLikedSection(userID uint, section data.HomepageSe
 	}
 
 	liked := true
-	params := data.VideoSearchParams{
+	params := data.SceneSearchParams{
 		Page:   1,
 		Limit:  section.Limit,
 		Sort:   sortOrder,
@@ -511,15 +511,14 @@ func (s *HomepageService) fetchLikedSection(userID uint, section data.HomepageSe
 		Liked:  &liked,
 	}
 
-	videos, total, err := s.searchService.Search(params)
+	scenes, total, err := s.searchService.Search(params)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
 	return &HomepageSectionData{
 		Section: section,
-		Videos:  videos,
+		Scenes:  scenes,
 		Total:   total,
 	}, nil
 }
-

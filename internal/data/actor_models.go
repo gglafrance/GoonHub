@@ -47,11 +47,15 @@ func (a *Actor) BeforeCreate(tx *gorm.DB) error {
 
 type ActorWithCount struct {
 	Actor
-	VideoCount int64 `json:"video_count"`
+	SceneCount int64 `json:"scene_count"`
 }
 
-type VideoActor struct {
+type SceneActor struct {
 	ID      uint `gorm:"primarykey"`
-	VideoID uint `gorm:"not null"`
+	SceneID uint `gorm:"not null;column:scene_id"`
 	ActorID uint `gorm:"not null"`
+}
+
+func (SceneActor) TableName() string {
+	return "scene_actors"
 }

@@ -1,61 +1,40 @@
 <script setup lang="ts">
-import type { Video } from '~/types/video';
+import type { Scene } from '~/types/scene';
 import type { Actor } from '~/types/actor';
+import type { WatchPageData } from '~/composables/useWatchPageData';
+import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
-const video = inject<Ref<Video | null>>('watchVideo');
-const detailsRefreshKey = inject<Ref<number>>('detailsRefreshKey');
-const api = useApi();
+const scene = inject<Ref<Scene | null>>('watchScene');
+const { fetchActors, setSceneActors } = useApiActors();
 
-const loading = ref(false);
+// Inject centralized watch page data
+const watchPageData = inject<WatchPageData>(WATCH_PAGE_DATA_KEY);
+
 const error = ref<string | null>(null);
 
 const allActors = ref<Actor[]>([]);
 const allActorsLoaded = ref(false);
 const loadingAllActors = ref(false);
-const videoActors = ref<Actor[]>([]);
 const showActorPicker = ref(false);
 const showCreateModal = ref(false);
 const createActorName = ref('');
 
 const anchorRef = ref<HTMLElement | null>(null);
 
+// Use centralized data for loading state and scene actors
+const loading = computed(() => watchPageData?.loading.details ?? false);
+const sceneActors = computed(() => watchPageData?.actors.value ?? []);
+
 const availableActors = computed(() =>
-    allActors.value.filter((a) => !videoActors.value.some((va) => va.id === a.id)),
+    allActors.value.filter((a) => !sceneActors.value.some((sa) => sa.id === a.id)),
 );
-
-onMounted(async () => {
-    await loadVideoActors();
-});
-
-// Reload actors when metadata is applied externally (e.g. scene metadata fetch)
-watch(
-    () => detailsRefreshKey?.value,
-    () => {
-        loadVideoActors();
-    },
-);
-
-async function loadVideoActors() {
-    if (!video?.value) return;
-    loading.value = true;
-    error.value = null;
-
-    try {
-        const res = await api.fetchVideoActors(video.value.id);
-        videoActors.value = res.data || [];
-    } catch (err: unknown) {
-        error.value = err instanceof Error ? err.message : 'Failed to load actors';
-    } finally {
-        loading.value = false;
-    }
-}
 
 async function loadAllActors() {
     if (allActorsLoaded.value || loadingAllActors.value) return;
     loadingAllActors.value = true;
 
     try {
-        const res = await api.fetchActors(1, 100);
+        const res = await fetchActors(1, 100);
         allActors.value = res.data || [];
         allActorsLoaded.value = true;
     } catch (err: unknown) {
@@ -75,28 +54,30 @@ async function onAddActorClick() {
 }
 
 async function addActor(actorId: number) {
-    if (!video?.value) return;
+    if (!scene?.value) return;
     error.value = null;
 
-    const newIds = [...videoActors.value.map((a) => a.id), actorId];
+    const newIds = [...sceneActors.value.map((a) => a.id), actorId];
 
     try {
-        const res = await api.setVideoActors(video.value.id, newIds);
-        videoActors.value = res.data || [];
+        const res = await setSceneActors(scene.value.id, newIds);
+        // Update centralized data
+        watchPageData?.setActors(res.data || []);
     } catch (err: unknown) {
         error.value = err instanceof Error ? err.message : 'Failed to update actors';
     }
 }
 
 async function removeActor(actorId: number) {
-    if (!video?.value) return;
+    if (!scene?.value) return;
     error.value = null;
 
-    const newIds = videoActors.value.filter((a) => a.id !== actorId).map((a) => a.id);
+    const newIds = sceneActors.value.filter((a) => a.id !== actorId).map((a) => a.id);
 
     try {
-        const res = await api.setVideoActors(video.value.id, newIds);
-        videoActors.value = res.data || [];
+        const res = await setSceneActors(scene.value.id, newIds);
+        // Update centralized data
+        watchPageData?.setActors(res.data || []);
     } catch (err: unknown) {
         error.value = err instanceof Error ? err.message : 'Failed to update actors';
     }
@@ -113,7 +94,7 @@ async function onActorCreated(actor: Actor) {
     createActorName.value = '';
     // Add the new actor to the available list
     allActors.value.push(actor);
-    // Automatically add to video
+    // Automatically add to scene
     await addActor(actor.id);
 }
 </script>
@@ -138,7 +119,7 @@ async function onActorCreated(actor: Actor) {
         <!-- Actor cards grid -->
         <div v-else class="flex flex-wrap gap-2">
             <!-- Applied actors as vertical cards -->
-            <div v-for="actor in videoActors" :key="actor.id" class="group relative w-20">
+            <div v-for="actor in sceneActors" :key="actor.id" class="group relative w-20">
                 <NuxtLink
                     :to="`/actors/${actor.uuid}`"
                     class="border-border bg-surface hover:border-lava/40 block overflow-hidden
@@ -185,7 +166,7 @@ async function onActorCreated(actor: Actor) {
                 class="border-border hover:border-lava/40 text-dim hover:text-lava flex w-20
                     flex-col items-center justify-center rounded-lg border border-dashed
                     transition-colors"
-                :class="videoActors.length > 0 ? 'aspect-[2/3]' : 'h-20'"
+                :class="sceneActors.length > 0 ? 'aspect-[2/3]' : 'h-20'"
                 :disabled="loadingAllActors"
                 title="Add actor"
             >

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Actor, UpdateActorInput } from '~/types/actor';
-import type { Video } from '~/types/video';
+import type { Scene } from '~/types/scene';
 
 const route = useRoute();
 const router = useRouter();
@@ -8,12 +8,12 @@ const api = useApi();
 const authStore = useAuthStore();
 
 const actor = ref<Actor | null>(null);
-const videos = ref<Video[]>([]);
-const videosTotal = ref(0);
-const videosPage = ref(1);
-const videosLimit = ref(20);
+const scenes = ref<Scene[]>([]);
+const scenesTotal = ref(0);
+const scenesPage = ref(1);
+const scenesLimit = ref(20);
 const isLoading = ref(true);
-const isLoadingVideos = ref(false);
+const isLoadingScenes = ref(false);
 const error = ref<string | null>(null);
 const showEditModal = ref(false);
 const showCreateModal = ref(false);
@@ -31,6 +31,24 @@ const likeAnimating = ref(false);
 const pageTitle = computed(() => actor.value?.name || 'Actor');
 useHead({ title: pageTitle });
 
+// Dynamic OG metadata
+watch(
+    actor,
+    (a) => {
+        if (a) {
+            useSeoMeta({
+                title: a.name,
+                ogTitle: a.name,
+                description: `${a.name} - ${a.scene_count} scenes on GoonHub`,
+                ogDescription: `${a.name} - ${a.scene_count} scenes on GoonHub`,
+                ogImage: a.image_url || undefined,
+                ogType: 'profile',
+            });
+        }
+    },
+    { immediate: true },
+);
+
 const actorUuid = computed(() => route.params.uuid as string);
 
 const isAdmin = computed(() => authStore.user?.role === 'admin');
@@ -42,7 +60,7 @@ const loadActor = async () => {
         isLoading.value = true;
         error.value = null;
         actor.value = await api.fetchActorByUUID(actorUuid.value);
-        await Promise.all([loadVideos(), loadInteractions()]);
+        await Promise.all([loadScenes(), loadInteractions()]);
     } catch (err) {
         error.value = err instanceof Error ? err.message : 'Failed to load actor';
     } finally {
@@ -118,17 +136,17 @@ async function onLikeClick() {
     }
 }
 
-const loadVideos = async (page = 1) => {
+const loadScenes = async (page = 1) => {
     try {
-        isLoadingVideos.value = true;
-        const response = await api.fetchActorVideos(actorUuid.value, page, videosLimit.value);
-        videos.value = response.data;
-        videosTotal.value = response.total;
-        videosPage.value = page;
+        isLoadingScenes.value = true;
+        const response = await api.fetchActorScenes(actorUuid.value, page, scenesLimit.value);
+        scenes.value = response.data;
+        scenesTotal.value = response.total;
+        scenesPage.value = page;
     } catch {
-        // Ignore video loading errors
+        // Ignore scene loading errors
     } finally {
-        isLoadingVideos.value = false;
+        isLoadingScenes.value = false;
     }
 };
 
@@ -144,9 +162,9 @@ watch(
 );
 
 watch(
-    () => videosPage.value,
+    () => scenesPage.value,
     (newPage) => {
-        loadVideos(newPage);
+        loadScenes(newPage);
     },
 );
 
@@ -385,8 +403,8 @@ definePageMeta({
                         </div>
 
                         <div class="text-dim mt-1 text-sm">
-                            {{ actor.video_count }}
-                            {{ actor.video_count === 1 ? 'video' : 'videos' }}
+                            {{ actor.scene_count }}
+                            {{ actor.scene_count === 1 ? 'scene' : 'scenes' }}
                         </div>
 
                         <!-- Quick Info -->
@@ -527,39 +545,39 @@ definePageMeta({
                     </div>
                 </div>
 
-                <!-- Videos Section -->
+                <!-- Scenes Section -->
                 <div>
                     <div class="mb-4 flex items-center justify-between">
                         <h2 class="text-sm font-semibold tracking-wide text-white uppercase">
-                            Videos
+                            Scenes
                         </h2>
                         <span
                             class="border-border bg-panel text-dim rounded-full border px-2.5 py-0.5
                                 font-mono text-[11px]"
                         >
-                            {{ videosTotal }} videos
+                            {{ scenesTotal }} scenes
                         </span>
                     </div>
 
-                    <div v-if="isLoadingVideos" class="flex h-32 items-center justify-center">
-                        <LoadingSpinner label="Loading videos..." />
+                    <div v-if="isLoadingScenes" class="flex h-32 items-center justify-center">
+                        <LoadingSpinner label="Loading scenes..." />
                     </div>
 
                     <div
-                        v-else-if="videos.length === 0"
+                        v-else-if="scenes.length === 0"
                         class="border-border flex h-32 flex-col items-center justify-center
                             rounded-xl border border-dashed text-center"
                     >
                         <Icon name="heroicons:film" size="24" class="text-dim" />
-                        <p class="text-dim mt-2 text-sm">No videos found</p>
+                        <p class="text-dim mt-2 text-sm">No scenes found</p>
                     </div>
 
                     <div v-else>
-                        <VideoGrid :videos="videos" />
+                        <SceneGrid :scenes="scenes" />
                         <Pagination
-                            v-model="videosPage"
-                            :total="videosTotal"
-                            :limit="videosLimit"
+                            v-model="scenesPage"
+                            :total="scenesTotal"
+                            :limit="scenesLimit"
                         />
                     </div>
                 </div>

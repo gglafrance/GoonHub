@@ -8,13 +8,13 @@ import (
 	"gorm.io/gorm"
 )
 
-// ExplorerRepository provides folder-based video access
+// ExplorerRepository provides folder-based scene access
 type ExplorerRepository interface {
 	GetStoragePathsWithCounts() ([]StoragePathWithCount, error)
-	GetVideosByFolder(storagePathID uint, folderPath string, page, limit int) ([]Video, int64, error)
+	GetScenesByFolder(storagePathID uint, folderPath string, page, limit int) ([]Scene, int64, error)
 	GetSubfolders(storagePathID uint, parentPath string) ([]FolderInfo, error)
-	GetVideoIDsByFolder(storagePathID uint, folderPath string, recursive bool) ([]uint, error)
-	GetVideoCountByStoragePath(storagePathID uint) (int64, error)
+	GetSceneIDsByFolder(storagePathID uint, folderPath string, recursive bool) ([]uint, error)
+	GetSceneCountByStoragePath(storagePathID uint) (int64, error)
 }
 
 type ExplorerRepositoryImpl struct {
@@ -25,14 +25,14 @@ func NewExplorerRepository(db *gorm.DB) *ExplorerRepositoryImpl {
 	return &ExplorerRepositoryImpl{DB: db}
 }
 
-// GetStoragePathsWithCounts returns all storage paths with their video counts
+// GetStoragePathsWithCounts returns all storage paths with their scene counts
 func (r *ExplorerRepositoryImpl) GetStoragePathsWithCounts() ([]StoragePathWithCount, error) {
 	var results []StoragePathWithCount
 
 	err := r.DB.
 		Table("storage_paths").
-		Select("storage_paths.*, COALESCE(COUNT(videos.id), 0) as video_count").
-		Joins("LEFT JOIN videos ON videos.storage_path_id = storage_paths.id AND videos.deleted_at IS NULL").
+		Select("storage_paths.*, COALESCE(COUNT(scenes.id), 0) as scene_count").
+		Joins("LEFT JOIN scenes ON scenes.storage_path_id = storage_paths.id AND scenes.deleted_at IS NULL").
 		Group("storage_paths.id").
 		Order("storage_paths.is_default DESC, storage_paths.name ASC").
 		Find(&results).Error
@@ -43,9 +43,9 @@ func (r *ExplorerRepositoryImpl) GetStoragePathsWithCounts() ([]StoragePathWithC
 	return results, nil
 }
 
-// GetVideosByFolder returns videos in a specific folder (direct children only)
-func (r *ExplorerRepositoryImpl) GetVideosByFolder(storagePathID uint, folderPath string, page, limit int) ([]Video, int64, error) {
-	var videos []Video
+// GetScenesByFolder returns scenes in a specific folder (direct children only)
+func (r *ExplorerRepositoryImpl) GetScenesByFolder(storagePathID uint, folderPath string, page, limit int) ([]Scene, int64, error) {
+	var scenes []Scene
 	var total int64
 
 	offset := (page - 1) * limit
@@ -69,9 +69,9 @@ func (r *ExplorerRepositoryImpl) GetVideosByFolder(storagePathID uint, folderPat
 		fullPath = fullPath + string(filepath.Separator)
 	}
 
-	// Query for videos directly in this folder (not in subfolders)
-	// Match videos where stored_path starts with fullPath but has no more path separators after that
-	baseQuery := r.DB.Model(&Video{}).
+	// Query for scenes directly in this folder (not in subfolders)
+	// Match scenes where stored_path starts with fullPath but has no more path separators after that
+	baseQuery := r.DB.Model(&Scene{}).
 		Where("storage_path_id = ?", storagePathID).
 		Where("stored_path LIKE ?", fullPath+"%").
 		Where("stored_path NOT LIKE ?", fullPath+"%"+string(filepath.Separator)+"%")
@@ -84,11 +84,11 @@ func (r *ExplorerRepositoryImpl) GetVideosByFolder(storagePathID uint, folderPat
 		Limit(limit).
 		Offset(offset).
 		Order("title ASC, original_filename ASC").
-		Find(&videos).Error; err != nil {
+		Find(&scenes).Error; err != nil {
 		return nil, 0, err
 	}
 
-	return videos, total, nil
+	return scenes, total, nil
 }
 
 // GetSubfolders returns unique subfolders within a folder using SQL aggregation
@@ -113,13 +113,13 @@ func (r *ExplorerRepositoryImpl) GetSubfolders(storagePathID uint, parentPath st
 		fullParentPath = fullParentPath + string(filepath.Separator)
 	}
 
-	// Use SQL to extract subfolder names and aggregate video counts, duration, and size
+	// Use SQL to extract subfolder names and aggregate scene counts, duration, and size
 	// SUBSTRING extracts the relative path after the parent
 	// SPLIT_PART gets the first component (immediate subfolder)
 	// We filter to only include paths that have a '/' after the parent (i.e., are in subfolders)
 	type folderResult struct {
 		FolderName    string `gorm:"column:folder_name"`
-		VideoCount    int64  `gorm:"column:video_count"`
+		SceneCount    int64  `gorm:"column:scene_count"`
 		TotalDuration int64  `gorm:"column:total_duration"`
 		TotalSize     int64  `gorm:"column:total_size"`
 	}
@@ -133,14 +133,14 @@ func (r *ExplorerRepositoryImpl) GetSubfolders(storagePathID uint, parentPath st
 	// This is safe as pathLen is derived from database values, not user input
 	query := fmt.Sprintf(`
 		SELECT folder_name,
-		       COUNT(*) as video_count,
+		       COUNT(*) as scene_count,
 		       COALESCE(SUM(duration), 0) as total_duration,
 		       COALESCE(SUM(size), 0) as total_size
 		FROM (
 			SELECT SPLIT_PART(SUBSTRING(stored_path FROM %d), '/', 1) as folder_name,
 			       duration,
 			       size
-			FROM videos
+			FROM scenes
 			WHERE storage_path_id = ?
 			  AND stored_path LIKE ?
 			  AND POSITION('/' IN SUBSTRING(stored_path FROM %d)) > 0
@@ -169,7 +169,7 @@ func (r *ExplorerRepositoryImpl) GetSubfolders(storagePathID uint, parentPath st
 		folders = append(folders, FolderInfo{
 			Name:          r.FolderName,
 			Path:          folderFullPath,
-			VideoCount:    r.VideoCount,
+			SceneCount:    r.SceneCount,
 			TotalDuration: r.TotalDuration,
 			TotalSize:     r.TotalSize,
 		})
@@ -178,8 +178,8 @@ func (r *ExplorerRepositoryImpl) GetSubfolders(storagePathID uint, parentPath st
 	return folders, nil
 }
 
-// GetVideoIDsByFolder returns video IDs in a folder, optionally recursive
-func (r *ExplorerRepositoryImpl) GetVideoIDsByFolder(storagePathID uint, folderPath string, recursive bool) ([]uint, error) {
+// GetSceneIDsByFolder returns scene IDs in a folder, optionally recursive
+func (r *ExplorerRepositoryImpl) GetSceneIDsByFolder(storagePathID uint, folderPath string, recursive bool) ([]uint, error) {
 	// Get the storage path
 	var storagePath StoragePath
 	if err := r.DB.First(&storagePath, storagePathID).Error; err != nil {
@@ -200,7 +200,7 @@ func (r *ExplorerRepositoryImpl) GetVideoIDsByFolder(storagePathID uint, folderP
 	}
 
 	var ids []uint
-	query := r.DB.Model(&Video{}).
+	query := r.DB.Model(&Scene{}).
 		Where("storage_path_id = ?", storagePathID).
 		Where("stored_path LIKE ?", fullPath+"%")
 
@@ -216,10 +216,10 @@ func (r *ExplorerRepositoryImpl) GetVideoIDsByFolder(storagePathID uint, folderP
 	return ids, nil
 }
 
-// GetVideoCountByStoragePath returns total video count for a storage path
-func (r *ExplorerRepositoryImpl) GetVideoCountByStoragePath(storagePathID uint) (int64, error) {
+// GetSceneCountByStoragePath returns total scene count for a storage path
+func (r *ExplorerRepositoryImpl) GetSceneCountByStoragePath(storagePathID uint) (int64, error) {
 	var count int64
-	err := r.DB.Model(&Video{}).
+	err := r.DB.Model(&Scene{}).
 		Where("storage_path_id = ?", storagePathID).
 		Count(&count).Error
 	return count, err

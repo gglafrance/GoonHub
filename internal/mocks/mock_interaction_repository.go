@@ -41,192 +41,192 @@ func (m *MockInteractionRepository) EXPECT() *MockInteractionRepositoryMockRecor
 }
 
 // DeleteLike mocks base method.
-func (m *MockInteractionRepository) DeleteLike(userID, videoID uint) error {
+func (m *MockInteractionRepository) DeleteLike(userID, sceneID uint) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteLike", userID, videoID)
+	ret := m.ctrl.Call(m, "DeleteLike", userID, sceneID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteLike indicates an expected call of DeleteLike.
-func (mr *MockInteractionRepositoryMockRecorder) DeleteLike(userID, videoID any) *gomock.Call {
+func (mr *MockInteractionRepositoryMockRecorder) DeleteLike(userID, sceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLike", reflect.TypeOf((*MockInteractionRepository)(nil).DeleteLike), userID, videoID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLike", reflect.TypeOf((*MockInteractionRepository)(nil).DeleteLike), userID, sceneID)
 }
 
 // DeleteRating mocks base method.
-func (m *MockInteractionRepository) DeleteRating(userID, videoID uint) error {
+func (m *MockInteractionRepository) DeleteRating(userID, sceneID uint) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteRating", userID, videoID)
+	ret := m.ctrl.Call(m, "DeleteRating", userID, sceneID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteRating indicates an expected call of DeleteRating.
-func (mr *MockInteractionRepositoryMockRecorder) DeleteRating(userID, videoID any) *gomock.Call {
+func (mr *MockInteractionRepositoryMockRecorder) DeleteRating(userID, sceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRating", reflect.TypeOf((*MockInteractionRepository)(nil).DeleteRating), userID, videoID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRating", reflect.TypeOf((*MockInteractionRepository)(nil).DeleteRating), userID, sceneID)
 }
 
 // GetAllInteractions mocks base method.
-func (m *MockInteractionRepository) GetAllInteractions(userID, videoID uint) (*data.VideoInteractions, error) {
+func (m *MockInteractionRepository) GetAllInteractions(userID, sceneID uint) (*data.SceneInteractions, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllInteractions", userID, videoID)
-	ret0, _ := ret[0].(*data.VideoInteractions)
+	ret := m.ctrl.Call(m, "GetAllInteractions", userID, sceneID)
+	ret0, _ := ret[0].(*data.SceneInteractions)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAllInteractions indicates an expected call of GetAllInteractions.
-func (mr *MockInteractionRepositoryMockRecorder) GetAllInteractions(userID, videoID any) *gomock.Call {
+func (mr *MockInteractionRepositoryMockRecorder) GetAllInteractions(userID, sceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllInteractions", reflect.TypeOf((*MockInteractionRepository)(nil).GetAllInteractions), userID, videoID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllInteractions", reflect.TypeOf((*MockInteractionRepository)(nil).GetAllInteractions), userID, sceneID)
 }
 
 // GetJizzedCount mocks base method.
-func (m *MockInteractionRepository) GetJizzedCount(userID, videoID uint) (int, error) {
+func (m *MockInteractionRepository) GetJizzedCount(userID, sceneID uint) (int, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetJizzedCount", userID, videoID)
+	ret := m.ctrl.Call(m, "GetJizzedCount", userID, sceneID)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetJizzedCount indicates an expected call of GetJizzedCount.
-func (mr *MockInteractionRepositoryMockRecorder) GetJizzedCount(userID, videoID any) *gomock.Call {
+func (mr *MockInteractionRepositoryMockRecorder) GetJizzedCount(userID, sceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJizzedCount", reflect.TypeOf((*MockInteractionRepository)(nil).GetJizzedCount), userID, videoID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJizzedCount", reflect.TypeOf((*MockInteractionRepository)(nil).GetJizzedCount), userID, sceneID)
 }
 
-// GetJizzedVideoIDs mocks base method.
-func (m *MockInteractionRepository) GetJizzedVideoIDs(userID uint, minCount, maxCount int) ([]uint, error) {
+// GetJizzedSceneIDs mocks base method.
+func (m *MockInteractionRepository) GetJizzedSceneIDs(userID uint, minCount, maxCount int) ([]uint, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetJizzedVideoIDs", userID, minCount, maxCount)
+	ret := m.ctrl.Call(m, "GetJizzedSceneIDs", userID, minCount, maxCount)
 	ret0, _ := ret[0].([]uint)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetJizzedVideoIDs indicates an expected call of GetJizzedVideoIDs.
-func (mr *MockInteractionRepositoryMockRecorder) GetJizzedVideoIDs(userID, minCount, maxCount any) *gomock.Call {
+// GetJizzedSceneIDs indicates an expected call of GetJizzedSceneIDs.
+func (mr *MockInteractionRepositoryMockRecorder) GetJizzedSceneIDs(userID, minCount, maxCount any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJizzedVideoIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetJizzedVideoIDs), userID, minCount, maxCount)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJizzedSceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetJizzedSceneIDs), userID, minCount, maxCount)
 }
 
-// GetLikedVideoIDs mocks base method.
-func (m *MockInteractionRepository) GetLikedVideoIDs(userID uint) ([]uint, error) {
+// GetLikedSceneIDs mocks base method.
+func (m *MockInteractionRepository) GetLikedSceneIDs(userID uint) ([]uint, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetLikedVideoIDs", userID)
+	ret := m.ctrl.Call(m, "GetLikedSceneIDs", userID)
 	ret0, _ := ret[0].([]uint)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetLikedVideoIDs indicates an expected call of GetLikedVideoIDs.
-func (mr *MockInteractionRepositoryMockRecorder) GetLikedVideoIDs(userID any) *gomock.Call {
+// GetLikedSceneIDs indicates an expected call of GetLikedSceneIDs.
+func (mr *MockInteractionRepositoryMockRecorder) GetLikedSceneIDs(userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLikedVideoIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetLikedVideoIDs), userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLikedSceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetLikedSceneIDs), userID)
 }
 
-// GetRatedVideoIDs mocks base method.
-func (m *MockInteractionRepository) GetRatedVideoIDs(userID uint, minRating, maxRating float64) ([]uint, error) {
+// GetRatedSceneIDs mocks base method.
+func (m *MockInteractionRepository) GetRatedSceneIDs(userID uint, minRating, maxRating float64) ([]uint, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRatedVideoIDs", userID, minRating, maxRating)
+	ret := m.ctrl.Call(m, "GetRatedSceneIDs", userID, minRating, maxRating)
 	ret0, _ := ret[0].([]uint)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetRatedVideoIDs indicates an expected call of GetRatedVideoIDs.
-func (mr *MockInteractionRepositoryMockRecorder) GetRatedVideoIDs(userID, minRating, maxRating any) *gomock.Call {
+// GetRatedSceneIDs indicates an expected call of GetRatedSceneIDs.
+func (mr *MockInteractionRepositoryMockRecorder) GetRatedSceneIDs(userID, minRating, maxRating any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRatedVideoIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetRatedVideoIDs), userID, minRating, maxRating)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRatedSceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetRatedSceneIDs), userID, minRating, maxRating)
 }
 
 // GetRating mocks base method.
-func (m *MockInteractionRepository) GetRating(userID, videoID uint) (*data.UserVideoRating, error) {
+func (m *MockInteractionRepository) GetRating(userID, sceneID uint) (*data.UserSceneRating, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRating", userID, videoID)
-	ret0, _ := ret[0].(*data.UserVideoRating)
+	ret := m.ctrl.Call(m, "GetRating", userID, sceneID)
+	ret0, _ := ret[0].(*data.UserSceneRating)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetRating indicates an expected call of GetRating.
-func (mr *MockInteractionRepositoryMockRecorder) GetRating(userID, videoID any) *gomock.Call {
+func (mr *MockInteractionRepositoryMockRecorder) GetRating(userID, sceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRating", reflect.TypeOf((*MockInteractionRepository)(nil).GetRating), userID, videoID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRating", reflect.TypeOf((*MockInteractionRepository)(nil).GetRating), userID, sceneID)
 }
 
-// GetRatingsByVideoIDs mocks base method.
-func (m *MockInteractionRepository) GetRatingsByVideoIDs(userID uint, videoIDs []uint) (map[uint]float64, error) {
+// GetRatingsBySceneIDs mocks base method.
+func (m *MockInteractionRepository) GetRatingsBySceneIDs(userID uint, sceneIDs []uint) (map[uint]float64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRatingsByVideoIDs", userID, videoIDs)
+	ret := m.ctrl.Call(m, "GetRatingsBySceneIDs", userID, sceneIDs)
 	ret0, _ := ret[0].(map[uint]float64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetRatingsByVideoIDs indicates an expected call of GetRatingsByVideoIDs.
-func (mr *MockInteractionRepositoryMockRecorder) GetRatingsByVideoIDs(userID, videoIDs any) *gomock.Call {
+// GetRatingsBySceneIDs indicates an expected call of GetRatingsBySceneIDs.
+func (mr *MockInteractionRepositoryMockRecorder) GetRatingsBySceneIDs(userID, sceneIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRatingsByVideoIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetRatingsByVideoIDs), userID, videoIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRatingsBySceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetRatingsBySceneIDs), userID, sceneIDs)
 }
 
 // IncrementJizzed mocks base method.
-func (m *MockInteractionRepository) IncrementJizzed(userID, videoID uint) (int, error) {
+func (m *MockInteractionRepository) IncrementJizzed(userID, sceneID uint) (int, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IncrementJizzed", userID, videoID)
+	ret := m.ctrl.Call(m, "IncrementJizzed", userID, sceneID)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // IncrementJizzed indicates an expected call of IncrementJizzed.
-func (mr *MockInteractionRepositoryMockRecorder) IncrementJizzed(userID, videoID any) *gomock.Call {
+func (mr *MockInteractionRepositoryMockRecorder) IncrementJizzed(userID, sceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementJizzed", reflect.TypeOf((*MockInteractionRepository)(nil).IncrementJizzed), userID, videoID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementJizzed", reflect.TypeOf((*MockInteractionRepository)(nil).IncrementJizzed), userID, sceneID)
 }
 
 // IsLiked mocks base method.
-func (m *MockInteractionRepository) IsLiked(userID, videoID uint) (bool, error) {
+func (m *MockInteractionRepository) IsLiked(userID, sceneID uint) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsLiked", userID, videoID)
+	ret := m.ctrl.Call(m, "IsLiked", userID, sceneID)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // IsLiked indicates an expected call of IsLiked.
-func (mr *MockInteractionRepositoryMockRecorder) IsLiked(userID, videoID any) *gomock.Call {
+func (mr *MockInteractionRepositoryMockRecorder) IsLiked(userID, sceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsLiked", reflect.TypeOf((*MockInteractionRepository)(nil).IsLiked), userID, videoID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsLiked", reflect.TypeOf((*MockInteractionRepository)(nil).IsLiked), userID, sceneID)
 }
 
 // SetLike mocks base method.
-func (m *MockInteractionRepository) SetLike(userID, videoID uint) error {
+func (m *MockInteractionRepository) SetLike(userID, sceneID uint) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetLike", userID, videoID)
+	ret := m.ctrl.Call(m, "SetLike", userID, sceneID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SetLike indicates an expected call of SetLike.
-func (mr *MockInteractionRepositoryMockRecorder) SetLike(userID, videoID any) *gomock.Call {
+func (mr *MockInteractionRepositoryMockRecorder) SetLike(userID, sceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLike", reflect.TypeOf((*MockInteractionRepository)(nil).SetLike), userID, videoID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLike", reflect.TypeOf((*MockInteractionRepository)(nil).SetLike), userID, sceneID)
 }
 
 // UpsertRating mocks base method.
-func (m *MockInteractionRepository) UpsertRating(userID, videoID uint, rating float64) error {
+func (m *MockInteractionRepository) UpsertRating(userID, sceneID uint, rating float64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertRating", userID, videoID, rating)
+	ret := m.ctrl.Call(m, "UpsertRating", userID, sceneID, rating)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpsertRating indicates an expected call of UpsertRating.
-func (mr *MockInteractionRepositoryMockRecorder) UpsertRating(userID, videoID, rating any) *gomock.Call {
+func (mr *MockInteractionRepositoryMockRecorder) UpsertRating(userID, sceneID, rating any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertRating", reflect.TypeOf((*MockInteractionRepository)(nil).UpsertRating), userID, videoID, rating)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertRating", reflect.TypeOf((*MockInteractionRepository)(nil).UpsertRating), userID, sceneID, rating)
 }

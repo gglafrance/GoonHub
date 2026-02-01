@@ -3,6 +3,13 @@ import type { MarkerLabelGroup } from '~/types/marker';
 
 useHead({ title: 'Markers' });
 
+useSeoMeta({
+    title: 'Markers',
+    ogTitle: 'Markers - GoonHub',
+    description: 'Browse scene markers and bookmarks',
+    ogDescription: 'Browse scene markers and bookmarks',
+});
+
 const { fetchLabelGroups } = useApiMarkers();
 
 const groups = ref<MarkerLabelGroup[]>([]);
@@ -160,7 +167,7 @@ definePageMeta({
                     <Icon name="heroicons:bookmark" size="20" class="text-dim" />
                 </div>
                 <p class="text-muted mt-3 text-sm">No marker labels found</p>
-                <p class="text-dim mt-1 text-xs">Create markers on videos to see them here</p>
+                <p class="text-dim mt-1 text-xs">Create markers on scenes to see them here</p>
             </div>
 
             <!-- No search results -->

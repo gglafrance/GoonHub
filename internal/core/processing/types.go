@@ -31,7 +31,7 @@ type BulkPhaseResult struct {
 	Errors    int `json:"errors"`
 }
 
-// phaseState tracks completion of parallel phases for a video
+// phaseState tracks completion of parallel phases for a scene
 type PhaseState struct {
 	ThumbnailDone bool
 	SpritesDone   bool

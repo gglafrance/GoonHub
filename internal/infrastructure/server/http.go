@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"goonhub/internal/config"
 	"goonhub/internal/core"
+	"goonhub/internal/data"
 	"goonhub/internal/infrastructure/logging"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -21,11 +21,13 @@ type Server struct {
 	router            *gin.Engine
 	logger            *logging.Logger
 	cfg               *config.Config
-	processingService *core.VideoProcessingService
+	processingService *core.SceneProcessingService
 	userService       *core.UserService
 	jobHistoryService *core.JobHistoryService
+	jobHistoryRepo    data.JobHistoryRepository
+	jobQueueFeeder    *core.JobQueueFeeder
 	triggerScheduler  *core.TriggerScheduler
-	videoService      *core.VideoService
+	sceneService      *core.SceneService
 	tagService        *core.TagService
 	searchService     *core.SearchService
 	scanService       *core.ScanService
@@ -41,11 +43,13 @@ func NewHTTPServer(
 	router *gin.Engine,
 	logger *logging.Logger,
 	cfg *config.Config,
-	processingService *core.VideoProcessingService,
+	processingService *core.SceneProcessingService,
 	userService *core.UserService,
 	jobHistoryService *core.JobHistoryService,
+	jobHistoryRepo data.JobHistoryRepository,
+	jobQueueFeeder *core.JobQueueFeeder,
 	triggerScheduler *core.TriggerScheduler,
-	videoService *core.VideoService,
+	sceneService *core.SceneService,
 	tagService *core.TagService,
 	searchService *core.SearchService,
 	scanService *core.ScanService,
@@ -62,8 +66,10 @@ func NewHTTPServer(
 		processingService: processingService,
 		userService:       userService,
 		jobHistoryService: jobHistoryService,
+		jobHistoryRepo:    jobHistoryRepo,
+		jobQueueFeeder:    jobQueueFeeder,
 		triggerScheduler:  triggerScheduler,
-		videoService:      videoService,
+		sceneService:      sceneService,
 		tagService:        tagService,
 		searchService:     searchService,
 		scanService:       scanService,
@@ -82,8 +88,8 @@ func (s *Server) Start() error {
 
 	// Wire up search indexer to services that need it
 	if s.searchService != nil {
-		if s.videoService != nil {
-			s.videoService.SetIndexer(s.searchService)
+		if s.sceneService != nil {
+			s.sceneService.SetIndexer(s.searchService)
 		}
 		if s.tagService != nil {
 			s.tagService.SetIndexer(s.searchService)
@@ -117,19 +123,28 @@ func (s *Server) Start() error {
 		s.triggerScheduler.SetScanService(s.scanService)
 	}
 
+	// Configure job queue feeder with shutdown config timeouts
+	if s.jobQueueFeeder != nil {
+		s.jobQueueFeeder.SetOrphanTimeout(s.cfg.Shutdown.OrphanTimeout)
+		s.jobQueueFeeder.SetStuckPendingTime(s.cfg.Shutdown.StuckPendingTime)
+	}
+
 	if s.processingService != nil {
 		s.processingService.Start()
-		defer s.processingService.Stop()
+	}
+
+	// Start job queue feeder AFTER processing service starts
+	// The feeder moves pending jobs from DB to worker pools
+	if s.jobQueueFeeder != nil {
+		s.jobQueueFeeder.Start()
 	}
 
 	if s.jobHistoryService != nil {
 		s.jobHistoryService.StartCleanupTicker()
-		defer s.jobHistoryService.StopCleanupTicker()
 	}
 
 	if s.triggerScheduler != nil {
 		s.triggerScheduler.Start()
-		defer s.triggerScheduler.Stop()
 	}
 
 	// Wire up retry scheduler and DLQ service to processing service
@@ -137,7 +152,6 @@ func (s *Server) Start() error {
 		s.retryScheduler.SetProcessingService(s.processingService)
 		s.retryScheduler.SetJobHistoryService(s.jobHistoryService)
 		s.retryScheduler.Start()
-		defer s.retryScheduler.Stop()
 	}
 
 	if s.dlqService != nil {
@@ -182,15 +196,108 @@ func (s *Server) Start() error {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	s.logger.Info("Shutting down server...")
+	// ===========================================================================
+	// MULTI-PHASE GRACEFUL SHUTDOWN
+	// ===========================================================================
+	s.logger.Info("Initiating graceful shutdown...",
+		zap.Duration("graceful_timeout", s.cfg.Shutdown.GracefulTimeout),
+		zap.Duration("job_completion_wait", s.cfg.Shutdown.JobCompletionWait),
+	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// ---------------------------------------------------------------------------
+	// PHASE 1: STOP INTAKE
+	// Stop accepting new jobs - feeder, scheduler, retry all stop polling
+	// ---------------------------------------------------------------------------
+	s.logger.Info("PHASE 1: Stopping job intake...")
+
+	if s.jobQueueFeeder != nil {
+		s.jobQueueFeeder.Stop()
+		s.logger.Info("Job queue feeder stopped")
+	}
+
+	if s.triggerScheduler != nil {
+		s.triggerScheduler.Stop()
+		s.logger.Info("Trigger scheduler stopped")
+	}
+
+	if s.retryScheduler != nil {
+		s.retryScheduler.Stop()
+		s.logger.Info("Retry scheduler stopped")
+	}
+
+	// ---------------------------------------------------------------------------
+	// PHASE 2: COMPLETE IN-FLIGHT WORK
+	// Wait for currently executing jobs to finish (with timeout)
+	// Also drains channel buffers and returns those job IDs
+	// ---------------------------------------------------------------------------
+	s.logger.Info("PHASE 2: Waiting for in-flight jobs to complete...")
+
+	var bufferedJobs map[string][]string
+	if s.processingService != nil {
+		bufferedJobs = s.processingService.GracefulStop(s.cfg.Shutdown.JobCompletionWait)
+	}
+
+	// ---------------------------------------------------------------------------
+	// PHASE 3: RECLAIM BUFFERED JOBS
+	// Reset buffered jobs back to pending so they'll be picked up on restart
+	// Mark any remaining running jobs as failed (retryable)
+	// ---------------------------------------------------------------------------
+	s.logger.Info("PHASE 3: Reclaiming buffered jobs...")
+
+	if s.jobHistoryRepo != nil {
+		totalReclaimed := int64(0)
+		for phase, jobIDs := range bufferedJobs {
+			if len(jobIDs) > 0 {
+				count, err := s.jobHistoryRepo.ResetJobsToPending(jobIDs)
+				if err != nil {
+					s.logger.Error("Failed to reset buffered jobs to pending",
+						zap.String("phase", phase),
+						zap.Error(err),
+					)
+				} else {
+					totalReclaimed += count
+					s.logger.Info("Reset buffered jobs to pending",
+						zap.String("phase", phase),
+						zap.Int64("count", count),
+					)
+				}
+			}
+		}
+
+		// Mark any remaining running jobs as interrupted (failed but retryable)
+		interruptedCount, err := s.jobHistoryRepo.MarkRunningAsInterrupted()
+		if err != nil {
+			s.logger.Error("Failed to mark running jobs as interrupted", zap.Error(err))
+		} else if interruptedCount > 0 {
+			s.logger.Info("Marked running jobs as interrupted",
+				zap.Int64("count", interruptedCount),
+			)
+		}
+
+		s.logger.Info("Phase 3 complete",
+			zap.Int64("jobs_reset_to_pending", totalReclaimed),
+			zap.Int64("jobs_marked_interrupted", interruptedCount),
+		)
+	}
+
+	// ---------------------------------------------------------------------------
+	// PHASE 4: CLEANUP
+	// Stop remaining services and HTTP server
+	// ---------------------------------------------------------------------------
+	s.logger.Info("PHASE 4: Final cleanup...")
+
+	if s.jobHistoryService != nil {
+		s.jobHistoryService.StopCleanupTicker()
+	}
+
+	// Shutdown HTTP server with remaining graceful timeout
+	ctx, cancel := context.WithTimeout(context.Background(), s.cfg.Shutdown.GracefulTimeout)
 	defer cancel()
 
 	if err := s.srv.Shutdown(ctx); err != nil {
 		return fmt.Errorf("server forced to shutdown: %w", err)
 	}
 
-	s.logger.Info("Server exiting")
+	s.logger.Info("Server shutdown complete")
 	return nil
 }

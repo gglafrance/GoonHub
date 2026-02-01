@@ -17,72 +17,105 @@ import (
 	"gorm.io/gorm"
 )
 
-const maxMarkersPerVideo = 50
+const maxMarkersPerScene = 50
 const markerThumbnailMaxDimension = 320
 const markerThumbnailQuality = 75
 
 type MarkerService struct {
 	markerRepo         data.MarkerRepository
-	videoRepo          data.VideoRepository
+	sceneRepo          data.SceneRepository
+	tagRepo            data.TagRepository
 	markerThumbnailDir string
 	logger             *zap.Logger
 }
 
-func NewMarkerService(markerRepo data.MarkerRepository, videoRepo data.VideoRepository, cfg *config.Config, logger *zap.Logger) *MarkerService {
+func NewMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *zap.Logger) *MarkerService {
 	return &MarkerService{
 		markerRepo:         markerRepo,
-		videoRepo:          videoRepo,
+		sceneRepo:          sceneRepo,
+		tagRepo:            tagRepo,
 		markerThumbnailDir: cfg.Processing.MarkerThumbnailDir,
 		logger:             logger,
 	}
 }
 
-func (s *MarkerService) ListMarkers(userID, videoID uint) ([]data.UserVideoMarker, error) {
-	// Verify video exists before returning markers
-	_, err := s.videoRepo.GetByID(videoID)
+func (s *MarkerService) ListMarkers(userID, sceneID uint) ([]data.MarkerWithTags, error) {
+	// Verify scene exists before returning markers
+	_, err := s.sceneRepo.GetByID(sceneID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, apperrors.NewNotFoundError("video", videoID)
+			return nil, apperrors.NewNotFoundError("scene", sceneID)
 		}
-		s.logger.Error("failed to verify video exists", zap.Uint("videoID", videoID), zap.Error(err))
-		return nil, apperrors.NewInternalError("failed to verify video", err)
+		s.logger.Error("failed to verify scene exists", zap.Uint("sceneID", sceneID), zap.Error(err))
+		return nil, apperrors.NewInternalError("failed to verify scene", err)
 	}
 
-	markers, err := s.markerRepo.GetByUserAndVideo(userID, videoID)
+	markers, err := s.markerRepo.GetByUserAndScene(userID, sceneID)
 	if err != nil {
-		s.logger.Error("failed to list markers", zap.Uint("userID", userID), zap.Uint("videoID", videoID), zap.Error(err))
+		s.logger.Error("failed to list markers", zap.Uint("userID", userID), zap.Uint("sceneID", sceneID), zap.Error(err))
 		return nil, apperrors.NewInternalError("failed to list markers", err)
 	}
-	return markers, nil
-}
 
-func (s *MarkerService) CreateMarker(userID, videoID uint, timestamp int, label, color string) (*data.UserVideoMarker, error) {
-	// Validate video exists and get duration
-	video, err := s.videoRepo.GetByID(videoID)
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, apperrors.NewNotFoundError("video", videoID)
+	// Build result with tags
+	result := make([]data.MarkerWithTags, len(markers))
+	for i, m := range markers {
+		result[i] = data.MarkerWithTags{
+			UserSceneMarker: m,
+			Tags:            []data.MarkerTagInfo{}, // default empty slice
 		}
-		s.logger.Error("failed to get video", zap.Uint("videoID", videoID), zap.Error(err))
-		return nil, apperrors.NewInternalError("failed to get video", err)
 	}
 
-	// Validate timestamp is within video duration
+	// Batch fetch tags for all markers
+	if len(markers) > 0 {
+		markerIDs := make([]uint, len(markers))
+		for i, m := range markers {
+			markerIDs[i] = m.ID
+		}
+
+		tagsMap, err := s.markerRepo.GetMarkerTagsMultiple(markerIDs)
+		if err != nil {
+			s.logger.Warn("failed to batch fetch marker tags", zap.Uint("sceneID", sceneID), zap.Error(err))
+			// Continue without tags - not a critical failure
+		} else {
+			// Populate tags on each marker
+			for i := range result {
+				if tags, ok := tagsMap[result[i].ID]; ok {
+					result[i].Tags = tags
+				}
+			}
+		}
+	}
+
+	return result, nil
+}
+
+func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, label, color string) (*data.UserSceneMarker, error) {
+	// Validate scene exists and get duration
+	scene, err := s.sceneRepo.GetByID(sceneID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperrors.NewNotFoundError("scene", sceneID)
+		}
+		s.logger.Error("failed to get scene", zap.Uint("sceneID", sceneID), zap.Error(err))
+		return nil, apperrors.NewInternalError("failed to get scene", err)
+	}
+
+	// Validate timestamp is within scene duration
 	if timestamp < 0 {
 		return nil, apperrors.NewValidationError("timestamp must be non-negative")
 	}
-	if video.Duration > 0 && timestamp > video.Duration {
-		return nil, apperrors.NewValidationError(fmt.Sprintf("timestamp %d exceeds video duration %d", timestamp, video.Duration))
+	if scene.Duration > 0 && timestamp > scene.Duration {
+		return nil, apperrors.NewValidationError(fmt.Sprintf("timestamp %d exceeds scene duration %d", timestamp, scene.Duration))
 	}
 
 	// Check marker limit
-	count, err := s.markerRepo.CountByUserAndVideo(userID, videoID)
+	count, err := s.markerRepo.CountByUserAndScene(userID, sceneID)
 	if err != nil {
-		s.logger.Error("failed to count markers", zap.Uint("userID", userID), zap.Uint("videoID", videoID), zap.Error(err))
+		s.logger.Error("failed to count markers", zap.Uint("userID", userID), zap.Uint("sceneID", sceneID), zap.Error(err))
 		return nil, apperrors.NewInternalError("failed to count markers", err)
 	}
-	if count >= maxMarkersPerVideo {
-		return nil, apperrors.NewValidationError(fmt.Sprintf("maximum of %d markers per video reached", maxMarkersPerVideo))
+	if count >= maxMarkersPerScene {
+		return nil, apperrors.NewValidationError(fmt.Sprintf("maximum of %d markers per scene reached", maxMarkersPerScene))
 	}
 
 	// Validate color format (hex color)
@@ -98,31 +131,41 @@ func (s *MarkerService) CreateMarker(userID, videoID uint, timestamp int, label,
 		return nil, apperrors.NewValidationError("label must be 100 characters or fewer")
 	}
 
-	marker := &data.UserVideoMarker{
+	marker := &data.UserSceneMarker{
 		UserID:    userID,
-		VideoID:   videoID,
+		SceneID:   sceneID,
 		Timestamp: timestamp,
 		Label:     label,
 		Color:     color,
 	}
 
 	if err := s.markerRepo.Create(marker); err != nil {
-		s.logger.Error("failed to create marker", zap.Uint("userID", userID), zap.Uint("videoID", videoID), zap.Error(err))
+		s.logger.Error("failed to create marker", zap.Uint("userID", userID), zap.Uint("sceneID", sceneID), zap.Error(err))
 		return nil, apperrors.NewInternalError("failed to create marker", err)
 	}
 
+	// Apply label tags if the marker has a label
+	if label != "" {
+		if err := s.markerRepo.ApplyLabelTagsToMarker(userID, marker.ID, label); err != nil {
+			s.logger.Warn("failed to apply label tags to marker",
+				zap.Uint("markerID", marker.ID),
+				zap.String("label", label),
+				zap.Error(err))
+		}
+	}
+
 	// Generate thumbnail (best effort - marker is still useful without it)
-	if err := s.generateThumbnail(marker, video); err != nil {
+	if err := s.generateThumbnail(marker, scene); err != nil {
 		s.logger.Warn("failed to generate marker thumbnail",
 			zap.Uint("markerID", marker.ID),
-			zap.Uint("videoID", videoID),
+			zap.Uint("sceneID", sceneID),
 			zap.Error(err))
 	}
 
 	return marker, nil
 }
 
-func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color *string, timestamp *int) (*data.UserVideoMarker, error) {
+func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color *string, timestamp *int) (*data.UserSceneMarker, error) {
 	marker, err := s.markerRepo.GetByID(markerID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -153,22 +196,22 @@ func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color
 	}
 
 	var timestampChanged bool
-	var video *data.Video
+	var scene *data.Scene
 
 	if timestamp != nil {
 		if *timestamp < 0 {
 			return nil, apperrors.NewValidationError("timestamp must be non-negative")
 		}
 
-		// Validate against video duration
+		// Validate against scene duration
 		var err error
-		video, err = s.videoRepo.GetByID(marker.VideoID)
+		scene, err = s.sceneRepo.GetByID(marker.SceneID)
 		if err != nil {
-			s.logger.Error("failed to get video", zap.Uint("videoID", marker.VideoID), zap.Error(err))
-			return nil, apperrors.NewInternalError("failed to get video", err)
+			s.logger.Error("failed to get scene", zap.Uint("sceneID", marker.SceneID), zap.Error(err))
+			return nil, apperrors.NewInternalError("failed to get scene", err)
 		}
-		if video.Duration > 0 && *timestamp > video.Duration {
-			return nil, apperrors.NewValidationError(fmt.Sprintf("timestamp %d exceeds video duration %d", *timestamp, video.Duration))
+		if scene.Duration > 0 && *timestamp > scene.Duration {
+			return nil, apperrors.NewValidationError(fmt.Sprintf("timestamp %d exceeds scene duration %d", *timestamp, scene.Duration))
 		}
 		if marker.Timestamp != *timestamp {
 			timestampChanged = true
@@ -194,20 +237,20 @@ func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color
 			}
 		}
 
-		// Fetch video if not already fetched
-		if video == nil {
+		// Fetch scene if not already fetched
+		if scene == nil {
 			var err error
-			video, err = s.videoRepo.GetByID(marker.VideoID)
+			scene, err = s.sceneRepo.GetByID(marker.SceneID)
 			if err != nil {
-				s.logger.Warn("failed to get video for thumbnail regeneration",
-					zap.Uint("videoID", marker.VideoID),
+				s.logger.Warn("failed to get scene for thumbnail regeneration",
+					zap.Uint("sceneID", marker.SceneID),
 					zap.Error(err))
 			}
 		}
 
 		// Generate new thumbnail
-		if video != nil {
-			if err := s.generateThumbnail(marker, video); err != nil {
+		if scene != nil {
+			if err := s.generateThumbnail(marker, scene); err != nil {
 				s.logger.Warn("failed to regenerate marker thumbnail",
 					zap.Uint("markerID", marker.ID),
 					zap.Error(err))
@@ -299,7 +342,7 @@ func (s *MarkerService) GetLabelGroups(userID uint, page, limit int, sortBy stri
 	return groups, total, nil
 }
 
-func (s *MarkerService) GetMarkersByLabel(userID uint, label string, page, limit int) ([]data.MarkerWithVideo, int64, error) {
+func (s *MarkerService) GetMarkersByLabel(userID uint, label string, page, limit int) ([]data.MarkerWithScene, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -318,22 +361,22 @@ func (s *MarkerService) GetMarkersByLabel(userID uint, label string, page, limit
 
 // generateThumbnail extracts a frame at the marker's timestamp and saves it as a thumbnail.
 // This is a best-effort operation - the marker remains valid even if thumbnail generation fails.
-func (s *MarkerService) generateThumbnail(marker *data.UserVideoMarker, video *data.Video) error {
+func (s *MarkerService) generateThumbnail(marker *data.UserSceneMarker, scene *data.Scene) error {
 	// Ensure marker thumbnail directory exists
 	if err := os.MkdirAll(s.markerThumbnailDir, 0755); err != nil {
 		return fmt.Errorf("failed to create marker thumbnail directory: %w", err)
 	}
 
-	// Check if video file exists
-	if video.StoredPath == "" {
-		return fmt.Errorf("video has no stored path")
+	// Check if scene file exists
+	if scene.StoredPath == "" {
+		return fmt.Errorf("scene has no stored path")
 	}
-	if _, err := os.Stat(video.StoredPath); os.IsNotExist(err) {
-		return fmt.Errorf("video file not found: %s", video.StoredPath)
+	if _, err := os.Stat(scene.StoredPath); os.IsNotExist(err) {
+		return fmt.Errorf("scene file not found: %s", scene.StoredPath)
 	}
 
 	// Calculate dimensions preserving aspect ratio
-	tileWidth, tileHeight := ffmpeg.CalculateTileDimensions(video.Width, video.Height, markerThumbnailMaxDimension)
+	tileWidth, tileHeight := ffmpeg.CalculateTileDimensions(scene.Width, scene.Height, markerThumbnailMaxDimension)
 
 	// Generate thumbnail filename: marker_{id}.webp
 	thumbnailFilename := fmt.Sprintf("marker_%d.webp", marker.ID)
@@ -346,7 +389,7 @@ func (s *MarkerService) generateThumbnail(marker *data.UserVideoMarker, video *d
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := ffmpeg.ExtractThumbnailWithContext(ctx, video.StoredPath, thumbnailPath, seekPosition, tileWidth, tileHeight, markerThumbnailQuality); err != nil {
+	if err := ffmpeg.ExtractThumbnailWithContext(ctx, scene.StoredPath, thumbnailPath, seekPosition, tileWidth, tileHeight, markerThumbnailQuality); err != nil {
 		return fmt.Errorf("failed to extract thumbnail: %w", err)
 	}
 
@@ -358,5 +401,152 @@ func (s *MarkerService) generateThumbnail(marker *data.UserVideoMarker, video *d
 		return fmt.Errorf("failed to update marker with thumbnail path: %w", err)
 	}
 
+	return nil
+}
+
+// GetLabelTags returns the default tags for a label
+func (s *MarkerService) GetLabelTags(userID uint, label string) ([]data.Tag, error) {
+	if label == "" {
+		return nil, apperrors.NewValidationError("label is required")
+	}
+
+	tags, err := s.markerRepo.GetLabelTags(userID, label)
+	if err != nil {
+		s.logger.Error("failed to get label tags", zap.Uint("userID", userID), zap.String("label", label), zap.Error(err))
+		return nil, apperrors.NewInternalError("failed to get label tags", err)
+	}
+	// Ensure non-nil slice for JSON serialization
+	if tags == nil {
+		tags = []data.Tag{}
+	}
+	return tags, nil
+}
+
+// SetLabelTags sets the default tags for a label and syncs to all existing markers
+func (s *MarkerService) SetLabelTags(userID uint, label string, tagIDs []uint) error {
+	if label == "" {
+		return apperrors.NewValidationError("label is required")
+	}
+
+	// Validate that all tag IDs exist
+	if len(tagIDs) > 0 {
+		tags, err := s.tagRepo.GetByIDs(tagIDs)
+		if err != nil {
+			s.logger.Error("failed to validate tags", zap.Uint("userID", userID), zap.Error(err))
+			return apperrors.NewInternalError("failed to validate tags", err)
+		}
+		if len(tags) != len(tagIDs) {
+			return apperrors.NewValidationError("one or more tags do not exist")
+		}
+	}
+
+	if err := s.markerRepo.SetLabelTags(userID, label, tagIDs); err != nil {
+		s.logger.Error("failed to set label tags", zap.Uint("userID", userID), zap.String("label", label), zap.Error(err))
+		return apperrors.NewInternalError("failed to set label tags", err)
+	}
+
+	s.logger.Info("set label tags",
+		zap.Uint("userID", userID),
+		zap.String("label", label),
+		zap.Int("tagCount", len(tagIDs)))
+
+	return nil
+}
+
+// GetMarkerTags returns tags for a specific marker
+func (s *MarkerService) GetMarkerTags(userID, markerID uint) ([]data.MarkerTagInfo, error) {
+	// Verify ownership
+	marker, err := s.markerRepo.GetByID(markerID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperrors.NewNotFoundError("marker", markerID)
+		}
+		s.logger.Error("failed to get marker", zap.Uint("markerID", markerID), zap.Error(err))
+		return nil, apperrors.NewInternalError("failed to get marker", err)
+	}
+
+	if marker.UserID != userID {
+		return nil, apperrors.NewForbiddenError("you do not own this marker")
+	}
+
+	tags, err := s.markerRepo.GetMarkerTags(markerID)
+	if err != nil {
+		s.logger.Error("failed to get marker tags", zap.Uint("markerID", markerID), zap.Error(err))
+		return nil, apperrors.NewInternalError("failed to get marker tags", err)
+	}
+	// Ensure non-nil slice for JSON serialization
+	if tags == nil {
+		tags = []data.MarkerTagInfo{}
+	}
+	return tags, nil
+}
+
+// SetMarkerTags sets individual (non-label-derived) tags on a marker
+func (s *MarkerService) SetMarkerTags(userID, markerID uint, tagIDs []uint) error {
+	// Verify ownership
+	marker, err := s.markerRepo.GetByID(markerID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return apperrors.NewNotFoundError("marker", markerID)
+		}
+		s.logger.Error("failed to get marker", zap.Uint("markerID", markerID), zap.Error(err))
+		return apperrors.NewInternalError("failed to get marker", err)
+	}
+
+	if marker.UserID != userID {
+		return apperrors.NewForbiddenError("you do not own this marker")
+	}
+
+	// Validate that all tag IDs exist
+	if len(tagIDs) > 0 {
+		tags, err := s.tagRepo.GetByIDs(tagIDs)
+		if err != nil {
+			s.logger.Error("failed to validate tags", zap.Uint("markerID", markerID), zap.Error(err))
+			return apperrors.NewInternalError("failed to validate tags", err)
+		}
+		if len(tags) != len(tagIDs) {
+			return apperrors.NewValidationError("one or more tags do not exist")
+		}
+	}
+
+	if err := s.markerRepo.SetMarkerTags(markerID, tagIDs); err != nil {
+		s.logger.Error("failed to set marker tags", zap.Uint("markerID", markerID), zap.Error(err))
+		return apperrors.NewInternalError("failed to set marker tags", err)
+	}
+	return nil
+}
+
+// AddMarkerTags adds individual tags to a marker
+func (s *MarkerService) AddMarkerTags(userID, markerID uint, tagIDs []uint) error {
+	// Verify ownership
+	marker, err := s.markerRepo.GetByID(markerID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return apperrors.NewNotFoundError("marker", markerID)
+		}
+		s.logger.Error("failed to get marker", zap.Uint("markerID", markerID), zap.Error(err))
+		return apperrors.NewInternalError("failed to get marker", err)
+	}
+
+	if marker.UserID != userID {
+		return apperrors.NewForbiddenError("you do not own this marker")
+	}
+
+	// Validate that all tag IDs exist
+	if len(tagIDs) > 0 {
+		tags, err := s.tagRepo.GetByIDs(tagIDs)
+		if err != nil {
+			s.logger.Error("failed to validate tags", zap.Uint("markerID", markerID), zap.Error(err))
+			return apperrors.NewInternalError("failed to validate tags", err)
+		}
+		if len(tags) != len(tagIDs) {
+			return apperrors.NewValidationError("one or more tags do not exist")
+		}
+	}
+
+	if err := s.markerRepo.AddMarkerTags(markerID, tagIDs); err != nil {
+		s.logger.Error("failed to add marker tags", zap.Uint("markerID", markerID), zap.Error(err))
+		return apperrors.NewInternalError("failed to add marker tags", err)
+	}
 	return nil
 }

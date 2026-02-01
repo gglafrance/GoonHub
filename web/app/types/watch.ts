@@ -1,9 +1,9 @@
-import type { VideoListItem } from './video';
+import type { SceneListItem } from './scene';
 
-export interface UserVideoWatch {
+export interface UserSceneWatch {
     id: number;
     user_id: number;
-    video_id: number;
+    scene_id: number;
     watched_at: string;
     watch_duration: number;
     last_position: number;
@@ -13,8 +13,8 @@ export interface UserVideoWatch {
 }
 
 export interface WatchHistoryEntry {
-    watch: UserVideoWatch;
-    video?: VideoListItem;
+    watch: UserSceneWatch;
+    scene?: SceneListItem;
 }
 
 export interface WatchHistoryResponse {
@@ -24,8 +24,8 @@ export interface WatchHistoryResponse {
     limit: number;
 }
 
-export interface VideoWatchesResponse {
-    watches: UserVideoWatch[];
+export interface SceneWatchesResponse {
+    watches: UserSceneWatch[];
 }
 
 export interface ResumePositionResponse {

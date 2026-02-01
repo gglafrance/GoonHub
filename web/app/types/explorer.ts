@@ -1,16 +1,16 @@
-import type { VideoListItem } from './video';
+import type { SceneListItem } from './scene';
 import type { StoragePath } from './storage';
 
 export interface FolderInfo {
     name: string;
     path: string;
-    video_count: number;
+    scene_count: number;
     total_duration: number;
     total_size: number;
 }
 
 export interface StoragePathWithCount extends StoragePath {
-    video_count: number;
+    scene_count: number;
 }
 
 export interface StoragePathsResponse {
@@ -21,30 +21,30 @@ export interface FolderContentsResponse {
     storage_path: StoragePath;
     current_path: string;
     subfolders: FolderInfo[];
-    videos: VideoListItem[];
-    total_videos: number;
+    scenes: SceneListItem[];
+    total_scenes: number;
     page: number;
     limit: number;
 }
 
 export interface BulkUpdateTagsRequest {
-    video_ids: number[];
+    scene_ids: number[];
     tag_ids: number[];
     mode: 'add' | 'remove' | 'replace';
 }
 
 export interface BulkUpdateActorsRequest {
-    video_ids: number[];
+    scene_ids: number[];
     actor_ids: number[];
     mode: 'add' | 'remove' | 'replace';
 }
 
 export interface BulkUpdateStudioRequest {
-    video_ids: number[];
+    scene_ids: number[];
     studio: string;
 }
 
-export interface FolderVideoIDsRequest {
+export interface FolderSceneIDsRequest {
     storage_path_id: number;
     folder_path: string;
     recursive: boolean;
@@ -55,13 +55,13 @@ export interface BulkUpdateResponse {
     requested: number;
 }
 
-export interface FolderVideoIDsResponse {
-    video_ids: number[];
+export interface FolderSceneIDsResponse {
+    scene_ids: number[];
     count: number;
 }
 
 export interface BulkDeleteRequest {
-    video_ids: number[];
+    scene_ids: number[];
 }
 
 export interface BulkDeleteResponse {
@@ -85,7 +85,7 @@ export interface FolderSearchRequest {
 }
 
 export interface FolderSearchResponse {
-    videos: VideoListItem[];
+    scenes: SceneListItem[];
     total: number;
     page: number;
     limit: number;

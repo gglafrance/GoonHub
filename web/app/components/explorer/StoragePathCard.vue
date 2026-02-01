@@ -44,7 +44,7 @@ const handleClick = () => {
 
         <div class="text-dim flex items-center gap-1.5 text-xs">
             <Icon name="heroicons:film" size="14" />
-            <span>{{ storagePath.video_count }} videos</span>
+            <span>{{ storagePath.scene_count }} scenes</span>
         </div>
     </button>
 </template>

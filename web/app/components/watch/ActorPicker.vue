@@ -19,8 +19,8 @@ const sortMode = ref<'az' | 'za' | 'most' | 'least'>('az');
 const sortLabels: Record<string, string> = {
     az: 'A-Z',
     za: 'Z-A',
-    most: 'Most videos',
-    least: 'Least videos',
+    most: 'Most scenes',
+    least: 'Least scenes',
 };
 
 function cycleSortMode() {
@@ -47,13 +47,13 @@ const filteredActors = computed(() => {
         case 'most':
             actors.sort(
                 (a, b) =>
-                    (b.video_count || 0) - (a.video_count || 0) || a.name.localeCompare(b.name),
+                    (b.scene_count || 0) - (a.scene_count || 0) || a.name.localeCompare(b.name),
             );
             break;
         case 'least':
             actors.sort(
                 (a, b) =>
-                    (a.video_count || 0) - (b.video_count || 0) || a.name.localeCompare(b.name),
+                    (a.scene_count || 0) - (b.scene_count || 0) || a.name.localeCompare(b.name),
             );
             break;
     }
@@ -171,8 +171,8 @@ onBeforeUnmount(() => {
                         />
                     </div>
                     <span class="flex-1 truncate">{{ actor.name }}</span>
-                    <span v-if="actor.video_count" class="text-[10px] text-white/30">
-                        ({{ actor.video_count }})
+                    <span v-if="actor.scene_count" class="text-[10px] text-white/30">
+                        ({{ actor.scene_count }})
                     </span>
                 </button>
             </div>

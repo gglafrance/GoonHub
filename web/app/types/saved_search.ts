@@ -14,6 +14,7 @@ export interface SavedSearchFilters {
     max_rating?: number;
     min_jizz_count?: number;
     max_jizz_count?: number;
+    selected_marker_labels?: string[];
     sort?: string;
 }
 

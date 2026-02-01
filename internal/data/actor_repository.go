@@ -12,20 +12,20 @@ type ActorRepository interface {
 	GetByUUID(uuid string) (*Actor, error)
 	Update(actor *Actor) error
 	Delete(id uint) error
-	List(page, limit int) ([]ActorWithCount, int64, error)
-	Search(query string, page, limit int) ([]ActorWithCount, int64, error)
+	List(page, limit int, sort string) ([]ActorWithCount, int64, error)
+	Search(query string, page, limit int, sort string) ([]ActorWithCount, int64, error)
 
-	// Video associations
-	GetVideoActors(videoID uint) ([]Actor, error)
-	GetVideoActorsMultiple(videoIDs []uint) (map[uint][]Actor, error)
-	SetVideoActors(videoID uint, actorIDs []uint) error
-	GetActorVideos(actorID uint, page, limit int) ([]Video, int64, error)
-	GetVideoCount(actorID uint) (int64, error)
+	// Scene associations
+	GetSceneActors(sceneID uint) ([]Actor, error)
+	GetSceneActorsMultiple(sceneIDs []uint) (map[uint][]Actor, error)
+	SetSceneActors(sceneID uint, actorIDs []uint) error
+	GetActorScenes(actorID uint, page, limit int) ([]Scene, int64, error)
+	GetSceneCount(actorID uint) (int64, error)
 
 	// Bulk operations
-	BulkAddActorsToVideos(videoIDs []uint, actorIDs []uint) error
-	BulkRemoveActorsFromVideos(videoIDs []uint, actorIDs []uint) error
-	BulkReplaceActorsForVideos(videoIDs []uint, actorIDs []uint) error
+	BulkAddActorsToScenes(sceneIDs []uint, actorIDs []uint) error
+	BulkRemoveActorsFromScenes(sceneIDs []uint, actorIDs []uint) error
+	BulkReplaceActorsForScenes(sceneIDs []uint, actorIDs []uint) error
 }
 
 type ActorRepositoryImpl struct {
@@ -82,7 +82,25 @@ func (r *ActorRepositoryImpl) Delete(id uint) error {
 	return nil
 }
 
-func (r *ActorRepositoryImpl) List(page, limit int) ([]ActorWithCount, int64, error) {
+// actorSortMap maps sort parameter values to SQL ORDER BY clauses.
+// This whitelist approach prevents SQL injection.
+var actorSortMap = map[string]string{
+	"name_asc":         "actors.name ASC",
+	"name_desc":        "actors.name DESC",
+	"scene_count_asc":  "scene_count ASC",
+	"scene_count_desc": "scene_count DESC",
+	"created_at_asc":   "actors.created_at ASC",
+	"created_at_desc":  "actors.created_at DESC",
+}
+
+func getActorOrderClause(sort string) string {
+	if clause, ok := actorSortMap[sort]; ok {
+		return clause
+	}
+	return "actors.name ASC" // default sort
+}
+
+func (r *ActorRepositoryImpl) List(page, limit int, sort string) ([]ActorWithCount, int64, error) {
 	var actors []ActorWithCount
 	var total int64
 
@@ -92,14 +110,16 @@ func (r *ActorRepositoryImpl) List(page, limit int) ([]ActorWithCount, int64, er
 		return nil, 0, err
 	}
 
+	orderClause := getActorOrderClause(sort)
+
 	err := r.DB.
 		Table("actors").
-		Select("actors.*, COALESCE(COUNT(videos.id), 0) as video_count").
-		Joins("LEFT JOIN video_actors ON video_actors.actor_id = actors.id").
-		Joins("LEFT JOIN videos ON videos.id = video_actors.video_id AND videos.deleted_at IS NULL").
+		Select("actors.*, COALESCE(COUNT(scenes.id), 0) as scene_count").
+		Joins("LEFT JOIN scene_actors ON scene_actors.actor_id = actors.id").
+		Joins("LEFT JOIN scenes ON scenes.id = scene_actors.scene_id AND scenes.deleted_at IS NULL").
 		Where("actors.deleted_at IS NULL").
 		Group("actors.id").
-		Order("actors.name ASC").
+		Order(orderClause).
 		Limit(limit).
 		Offset(offset).
 		Find(&actors).Error
@@ -110,7 +130,7 @@ func (r *ActorRepositoryImpl) List(page, limit int) ([]ActorWithCount, int64, er
 	return actors, total, nil
 }
 
-func (r *ActorRepositoryImpl) Search(query string, page, limit int) ([]ActorWithCount, int64, error) {
+func (r *ActorRepositoryImpl) Search(query string, page, limit int, sort string) ([]ActorWithCount, int64, error) {
 	var actors []ActorWithCount
 	var total int64
 
@@ -122,15 +142,17 @@ func (r *ActorRepositoryImpl) Search(query string, page, limit int) ([]ActorWith
 		return nil, 0, err
 	}
 
+	orderClause := getActorOrderClause(sort)
+
 	err := r.DB.
 		Table("actors").
-		Select("actors.*, COALESCE(COUNT(video_actors.id), 0) as video_count").
-		Joins("LEFT JOIN video_actors ON video_actors.actor_id = actors.id").
-		Joins("LEFT JOIN videos ON videos.id = video_actors.video_id AND videos.deleted_at IS NULL").
+		Select("actors.*, COALESCE(COUNT(scene_actors.id), 0) as scene_count").
+		Joins("LEFT JOIN scene_actors ON scene_actors.actor_id = actors.id").
+		Joins("LEFT JOIN scenes ON scenes.id = scene_actors.scene_id AND scenes.deleted_at IS NULL").
 		Where("actors.deleted_at IS NULL").
 		Where("actors.name ILIKE ?", searchPattern).
 		Group("actors.id").
-		Order("actors.name ASC").
+		Order(orderClause).
 		Limit(limit).
 		Offset(offset).
 		Find(&actors).Error
@@ -141,11 +163,11 @@ func (r *ActorRepositoryImpl) Search(query string, page, limit int) ([]ActorWith
 	return actors, total, nil
 }
 
-func (r *ActorRepositoryImpl) GetVideoActors(videoID uint) ([]Actor, error) {
+func (r *ActorRepositoryImpl) GetSceneActors(sceneID uint) ([]Actor, error) {
 	var actors []Actor
 	err := r.DB.
-		Joins("JOIN video_actors ON video_actors.actor_id = actors.id").
-		Where("video_actors.video_id = ?", videoID).
+		Joins("JOIN scene_actors ON scene_actors.actor_id = actors.id").
+		Where("scene_actors.scene_id = ?", sceneID).
 		Where("actors.deleted_at IS NULL").
 		Order("actors.name ASC").
 		Find(&actors).Error
@@ -155,24 +177,24 @@ func (r *ActorRepositoryImpl) GetVideoActors(videoID uint) ([]Actor, error) {
 	return actors, nil
 }
 
-// GetVideoActorsMultiple returns actors for multiple videos in a single query
-func (r *ActorRepositoryImpl) GetVideoActorsMultiple(videoIDs []uint) (map[uint][]Actor, error) {
-	if len(videoIDs) == 0 {
+// GetSceneActorsMultiple returns actors for multiple scenes in a single query
+func (r *ActorRepositoryImpl) GetSceneActorsMultiple(sceneIDs []uint) (map[uint][]Actor, error) {
+	if len(sceneIDs) == 0 {
 		return make(map[uint][]Actor), nil
 	}
 
-	// Query all video_actors for the given videos with their actors
-	type videoActorResult struct {
-		VideoID uint
+	// Query all scene_actors for the given scenes with their actors
+	type sceneActorResult struct {
+		SceneID uint
 		Actor
 	}
 
-	var results []videoActorResult
+	var results []sceneActorResult
 	err := r.DB.
-		Table("video_actors").
-		Select("video_actors.video_id, actors.*").
-		Joins("JOIN actors ON actors.id = video_actors.actor_id").
-		Where("video_actors.video_id IN ?", videoIDs).
+		Table("scene_actors").
+		Select("scene_actors.scene_id, actors.*").
+		Joins("JOIN actors ON actors.id = scene_actors.actor_id").
+		Where("scene_actors.scene_id IN ?", sceneIDs).
 		Where("actors.deleted_at IS NULL").
 		Order("actors.name asc").
 		Scan(&results).Error
@@ -180,21 +202,21 @@ func (r *ActorRepositoryImpl) GetVideoActorsMultiple(videoIDs []uint) (map[uint]
 		return nil, err
 	}
 
-	// Group by video ID
-	actorsByVideo := make(map[uint][]Actor)
-	for _, videoID := range videoIDs {
-		actorsByVideo[videoID] = []Actor{}
+	// Group by scene ID
+	actorsByScene := make(map[uint][]Actor)
+	for _, sceneID := range sceneIDs {
+		actorsByScene[sceneID] = []Actor{}
 	}
 	for _, r := range results {
-		actorsByVideo[r.VideoID] = append(actorsByVideo[r.VideoID], r.Actor)
+		actorsByScene[r.SceneID] = append(actorsByScene[r.SceneID], r.Actor)
 	}
 
-	return actorsByVideo, nil
+	return actorsByScene, nil
 }
 
-func (r *ActorRepositoryImpl) SetVideoActors(videoID uint, actorIDs []uint) error {
+func (r *ActorRepositoryImpl) SetSceneActors(sceneID uint, actorIDs []uint) error {
 	return r.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("video_id = ?", videoID).Delete(&VideoActor{}).Error; err != nil {
+		if err := tx.Where("scene_id = ?", sceneID).Delete(&SceneActor{}).Error; err != nil {
 			return err
 		}
 
@@ -202,55 +224,55 @@ func (r *ActorRepositoryImpl) SetVideoActors(videoID uint, actorIDs []uint) erro
 			return nil
 		}
 
-		videoActors := make([]VideoActor, len(actorIDs))
+		sceneActors := make([]SceneActor, len(actorIDs))
 		for i, actorID := range actorIDs {
-			videoActors[i] = VideoActor{
-				VideoID: videoID,
+			sceneActors[i] = SceneActor{
+				SceneID: sceneID,
 				ActorID: actorID,
 			}
 		}
 
-		return tx.Create(&videoActors).Error
+		return tx.Create(&sceneActors).Error
 	})
 }
 
-func (r *ActorRepositoryImpl) GetActorVideos(actorID uint, page, limit int) ([]Video, int64, error) {
-	var videos []Video
+func (r *ActorRepositoryImpl) GetActorScenes(actorID uint, page, limit int) ([]Scene, int64, error) {
+	var scenes []Scene
 	var total int64
 
 	offset := (page - 1) * limit
 
 	countQuery := r.DB.
-		Model(&Video{}).
-		Joins("JOIN video_actors ON video_actors.video_id = videos.id").
-		Where("video_actors.actor_id = ?", actorID).
-		Where("videos.deleted_at IS NULL")
+		Model(&Scene{}).
+		Joins("JOIN scene_actors ON scene_actors.scene_id = scenes.id").
+		Where("scene_actors.actor_id = ?", actorID).
+		Where("scenes.deleted_at IS NULL")
 	if err := countQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	err := r.DB.
-		Joins("JOIN video_actors ON video_actors.video_id = videos.id").
-		Where("video_actors.actor_id = ?", actorID).
-		Where("videos.deleted_at IS NULL").
-		Order("videos.created_at DESC").
+		Joins("JOIN scene_actors ON scene_actors.scene_id = scenes.id").
+		Where("scene_actors.actor_id = ?", actorID).
+		Where("scenes.deleted_at IS NULL").
+		Order("scenes.created_at DESC").
 		Limit(limit).
 		Offset(offset).
-		Find(&videos).Error
+		Find(&scenes).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
-	return videos, total, nil
+	return scenes, total, nil
 }
 
-func (r *ActorRepositoryImpl) GetVideoCount(actorID uint) (int64, error) {
+func (r *ActorRepositoryImpl) GetSceneCount(actorID uint) (int64, error) {
 	var count int64
 	err := r.DB.
-		Model(&VideoActor{}).
-		Joins("JOIN videos ON videos.id = video_actors.video_id").
-		Where("video_actors.actor_id = ?", actorID).
-		Where("videos.deleted_at IS NULL").
+		Model(&SceneActor{}).
+		Joins("JOIN scenes ON scenes.id = scene_actors.scene_id").
+		Where("scene_actors.actor_id = ?", actorID).
+		Where("scenes.deleted_at IS NULL").
 		Count(&count).Error
 	if err != nil {
 		return 0, err
@@ -258,50 +280,50 @@ func (r *ActorRepositoryImpl) GetVideoCount(actorID uint) (int64, error) {
 	return count, nil
 }
 
-// BulkAddActorsToVideos adds actors to multiple videos (skips existing associations)
-func (r *ActorRepositoryImpl) BulkAddActorsToVideos(videoIDs []uint, actorIDs []uint) error {
-	if len(videoIDs) == 0 || len(actorIDs) == 0 {
+// BulkAddActorsToScenes adds actors to multiple scenes (skips existing associations)
+func (r *ActorRepositoryImpl) BulkAddActorsToScenes(sceneIDs []uint, actorIDs []uint) error {
+	if len(sceneIDs) == 0 || len(actorIDs) == 0 {
 		return nil
 	}
 
 	return r.DB.Transaction(func(tx *gorm.DB) error {
 		// Build all associations
-		videoActors := make([]VideoActor, 0, len(videoIDs)*len(actorIDs))
-		for _, videoID := range videoIDs {
+		sceneActors := make([]SceneActor, 0, len(sceneIDs)*len(actorIDs))
+		for _, sceneID := range sceneIDs {
 			for _, actorID := range actorIDs {
-				videoActors = append(videoActors, VideoActor{
-					VideoID: videoID,
+				sceneActors = append(sceneActors, SceneActor{
+					SceneID: sceneID,
 					ActorID: actorID,
 				})
 			}
 		}
 
 		// Insert with ON CONFLICT DO NOTHING to skip existing
-		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&videoActors).Error
+		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&sceneActors).Error
 	})
 }
 
-// BulkRemoveActorsFromVideos removes specific actors from multiple videos
-func (r *ActorRepositoryImpl) BulkRemoveActorsFromVideos(videoIDs []uint, actorIDs []uint) error {
-	if len(videoIDs) == 0 || len(actorIDs) == 0 {
+// BulkRemoveActorsFromScenes removes specific actors from multiple scenes
+func (r *ActorRepositoryImpl) BulkRemoveActorsFromScenes(sceneIDs []uint, actorIDs []uint) error {
+	if len(sceneIDs) == 0 || len(actorIDs) == 0 {
 		return nil
 	}
 
 	return r.DB.
-		Where("video_id IN ?", videoIDs).
+		Where("scene_id IN ?", sceneIDs).
 		Where("actor_id IN ?", actorIDs).
-		Delete(&VideoActor{}).Error
+		Delete(&SceneActor{}).Error
 }
 
-// BulkReplaceActorsForVideos replaces all actors for multiple videos
-func (r *ActorRepositoryImpl) BulkReplaceActorsForVideos(videoIDs []uint, actorIDs []uint) error {
-	if len(videoIDs) == 0 {
+// BulkReplaceActorsForScenes replaces all actors for multiple scenes
+func (r *ActorRepositoryImpl) BulkReplaceActorsForScenes(sceneIDs []uint, actorIDs []uint) error {
+	if len(sceneIDs) == 0 {
 		return nil
 	}
 
 	return r.DB.Transaction(func(tx *gorm.DB) error {
-		// Delete all existing associations for these videos
-		if err := tx.Where("video_id IN ?", videoIDs).Delete(&VideoActor{}).Error; err != nil {
+		// Delete all existing associations for these scenes
+		if err := tx.Where("scene_id IN ?", sceneIDs).Delete(&SceneActor{}).Error; err != nil {
 			return err
 		}
 
@@ -310,16 +332,16 @@ func (r *ActorRepositoryImpl) BulkReplaceActorsForVideos(videoIDs []uint, actorI
 		}
 
 		// Build all new associations
-		videoActors := make([]VideoActor, 0, len(videoIDs)*len(actorIDs))
-		for _, videoID := range videoIDs {
+		sceneActors := make([]SceneActor, 0, len(sceneIDs)*len(actorIDs))
+		for _, sceneID := range sceneIDs {
 			for _, actorID := range actorIDs {
-				videoActors = append(videoActors, VideoActor{
-					VideoID: videoID,
+				sceneActors = append(sceneActors, SceneActor{
+					SceneID: sceneID,
 					ActorID: actorID,
 				})
 			}
 		}
 
-		return tx.Create(&videoActors).Error
+		return tx.Create(&sceneActors).Error
 	})
 }

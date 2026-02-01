@@ -71,7 +71,7 @@ const handleSubmit = async () => {
 
     try {
         await bulkUpdateActors({
-            video_ids: explorerStore.getSelectedVideoIDs(),
+            scene_ids: explorerStore.getSelectedSceneIDs(),
             actor_ids: Array.from(selectedActorIDs.value),
             mode: mode.value,
         });
@@ -109,7 +109,7 @@ const handleSubmit = async () => {
                 <!-- Content -->
                 <div class="p-4">
                     <p class="text-dim mb-4 text-xs">
-                        Editing actors for {{ explorerStore.selectionCount }} videos
+                        Editing actors for {{ explorerStore.selectionCount }} scenes
                     </p>
 
                     <!-- Mode Selection -->
@@ -198,7 +198,7 @@ const handleSubmit = async () => {
                                             {{ actor.name }}
                                         </p>
                                         <p class="text-dim text-[10px]">
-                                            {{ actor.video_count }} videos
+                                            {{ actor.scene_count }} scenes
                                         </p>
                                     </div>
                                     <Icon

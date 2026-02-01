@@ -1,13 +1,14 @@
 export interface Marker {
     id: number;
     user_id: number;
-    video_id: number;
+    scene_id: number;
     timestamp: number;
     label: string;
     color: string;
     thumbnail_path: string;
     created_at: string;
     updated_at: string;
+    tags?: MarkerTagInfo[];
 }
 
 export interface CreateMarkerRequest {
@@ -33,8 +34,17 @@ export interface MarkerLabelGroup {
     thumbnail_marker_id: number;
 }
 
-export interface MarkerWithVideo extends Marker {
-    video_title: string;
+export interface MarkerWithScene extends Marker {
+    scene_title: string;
+    tags?: MarkerTagInfo[];
+}
+
+// Tag info with metadata about source
+export interface MarkerTagInfo {
+    id: number;
+    name: string;
+    color: string;
+    is_from_label: boolean;
 }
 
 // API Response Types
@@ -54,4 +64,22 @@ export interface PaginatedResponse<T> {
         total_items: number;
         total_pages: number;
     };
+}
+
+// Request types for tag operations
+export interface SetLabelTagsRequest {
+    tag_ids: number[];
+}
+
+export interface SetMarkerTagsRequest {
+    tag_ids: number[];
+}
+
+// Response types for tag operations
+export interface LabelTagsResponse {
+    tags: import('~/types/tag').Tag[];
+}
+
+export interface MarkerTagsResponse {
+    tags: MarkerTagInfo[];
 }

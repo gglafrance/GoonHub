@@ -1,42 +1,36 @@
 <script setup lang="ts">
 import type { Tag } from '~/types/tag';
+import type { WatchPageData } from '~/composables/useWatchPageData';
+import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
 const props = defineProps<{
-    videoId: number;
+    sceneId: number;
 }>();
 
-const { fetchTags, fetchVideoTags, setVideoTags } = useApiTags();
+const router = useRouter();
+const { fetchTags, setSceneTags } = useApiTags();
 
-const loading = ref(false);
+function navigateToTagSearch(tagName: string) {
+    router.push({ path: '/search', query: { tags: tagName } });
+}
+
+// Inject centralized watch page data
+const watchPageData = inject<WatchPageData>(WATCH_PAGE_DATA_KEY);
+
 const error = ref<string | null>(null);
 const allTags = ref<Tag[]>([]);
 const allTagsLoaded = ref(false);
 const loadingAllTags = ref(false);
-const videoTags = ref<Tag[]>([]);
 const showTagPicker = ref(false);
 const anchorRef = ref<HTMLElement | null>(null);
 
+// Use centralized data for loading state and scene tags
+const loading = computed(() => watchPageData?.loading.details ?? false);
+const sceneTags = computed(() => watchPageData?.tags.value ?? []);
+
 const availableTags = computed(() =>
-    allTags.value.filter((t) => !videoTags.value.some((vt) => vt.id === t.id)),
+    allTags.value.filter((t) => !sceneTags.value.some((st) => st.id === t.id)),
 );
-
-onMounted(() => {
-    loadVideoTags();
-});
-
-async function loadVideoTags() {
-    loading.value = true;
-    error.value = null;
-
-    try {
-        const res = await fetchVideoTags(props.videoId);
-        videoTags.value = res.data || [];
-    } catch (err: unknown) {
-        error.value = err instanceof Error ? err.message : 'Failed to load tags';
-    } finally {
-        loading.value = false;
-    }
-}
 
 async function loadAllTags() {
     if (allTagsLoaded.value || loadingAllTags.value) return;
@@ -65,11 +59,12 @@ async function onAddTagClick() {
 async function addTag(tagId: number) {
     error.value = null;
 
-    const newIds = [...videoTags.value.map((t) => t.id), tagId];
+    const newIds = [...sceneTags.value.map((t) => t.id), tagId];
 
     try {
-        const res = await setVideoTags(props.videoId, newIds);
-        videoTags.value = res.data || [];
+        const res = await setSceneTags(props.sceneId, newIds);
+        // Update centralized data
+        watchPageData?.setTags(res.data || []);
     } catch (err: unknown) {
         error.value = err instanceof Error ? err.message : 'Failed to update tags';
     }
@@ -78,18 +73,19 @@ async function addTag(tagId: number) {
 async function removeTag(tagId: number) {
     error.value = null;
 
-    const newIds = videoTags.value.filter((t) => t.id !== tagId).map((t) => t.id);
+    const newIds = sceneTags.value.filter((t) => t.id !== tagId).map((t) => t.id);
 
     try {
-        const res = await setVideoTags(props.videoId, newIds);
-        videoTags.value = res.data || [];
+        const res = await setSceneTags(props.sceneId, newIds);
+        // Update centralized data
+        watchPageData?.setTags(res.data || []);
     } catch (err: unknown) {
         error.value = err instanceof Error ? err.message : 'Failed to update tags';
     }
 }
 
 // Expose reload method for parent to call after metadata update
-const reload = () => loadVideoTags();
+const reload = () => watchPageData?.refreshTags();
 defineExpose({ reload });
 </script>
 
@@ -113,7 +109,7 @@ defineExpose({ reload });
         <div v-else class="flex flex-wrap items-center gap-1.5">
             <!-- Applied tags -->
             <span
-                v-for="tag in videoTags"
+                v-for="tag in sceneTags"
                 :key="tag.id"
                 class="group flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px]
                     font-medium text-white"
@@ -126,7 +122,12 @@ defineExpose({ reload });
                     class="inline-block h-2 w-2 rounded-full"
                     :style="{ backgroundColor: tag.color }"
                 />
-                {{ tag.name }}
+                <span
+                    @click="navigateToTagSearch(tag.name)"
+                    class="cursor-pointer transition-opacity hover:opacity-80"
+                >
+                    {{ tag.name }}
+                </span>
                 <span
                     @click="removeTag(tag.id)"
                     class="cursor-pointer opacity-0 transition-opacity group-hover:opacity-60
@@ -140,8 +141,8 @@ defineExpose({ reload });
             <button
                 ref="anchorRef"
                 @click="onAddTagClick"
-                class="border-border hover:border-border-hover flex h-5 w-5 items-center justify-center
-                    rounded-full border transition-colors"
+                class="border-border hover:border-border-hover flex h-5 w-5 items-center
+                    justify-center rounded-full border transition-colors"
                 :disabled="loadingAllTags"
                 title="Add tag"
             >

@@ -12,9 +12,9 @@ func TestSearchService_Search_RequiresMeilisearch(t *testing.T) {
 	logger := zap.NewNop()
 
 	// Create search service without Meilisearch client (nil)
-	service := NewSearchService(nil, nil, nil, nil, nil, logger)
+	service := NewSearchService(nil, nil, nil, nil, nil, nil, logger)
 
-	params := data.VideoSearchParams{
+	params := data.SceneSearchParams{
 		Page:  1,
 		Limit: 20,
 		Query: "test",
@@ -37,43 +37,53 @@ func TestSearchService_hasUserFilters(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		params   data.VideoSearchParams
+		params   data.SceneSearchParams
 		expected bool
 	}{
 		{
 			name:     "no user ID",
-			params:   data.VideoSearchParams{UserID: 0},
+			params:   data.SceneSearchParams{UserID: 0},
 			expected: false,
 		},
 		{
 			name:     "user ID but no filters",
-			params:   data.VideoSearchParams{UserID: 1},
+			params:   data.SceneSearchParams{UserID: 1},
 			expected: false,
 		},
 		{
 			name:     "liked filter",
-			params:   data.VideoSearchParams{UserID: 1, Liked: boolPtr(true)},
+			params:   data.SceneSearchParams{UserID: 1, Liked: boolPtr(true)},
 			expected: true,
 		},
 		{
 			name:     "min rating filter",
-			params:   data.VideoSearchParams{UserID: 1, MinRating: 3.0},
+			params:   data.SceneSearchParams{UserID: 1, MinRating: 3.0},
 			expected: true,
 		},
 		{
 			name:     "max rating filter",
-			params:   data.VideoSearchParams{UserID: 1, MaxRating: 5.0},
+			params:   data.SceneSearchParams{UserID: 1, MaxRating: 5.0},
 			expected: true,
 		},
 		{
 			name:     "min jizz count filter",
-			params:   data.VideoSearchParams{UserID: 1, MinJizzCount: 1},
+			params:   data.SceneSearchParams{UserID: 1, MinJizzCount: 1},
 			expected: true,
 		},
 		{
 			name:     "max jizz count filter",
-			params:   data.VideoSearchParams{UserID: 1, MaxJizzCount: 10},
+			params:   data.SceneSearchParams{UserID: 1, MaxJizzCount: 10},
 			expected: true,
+		},
+		{
+			name:     "marker labels filter",
+			params:   data.SceneSearchParams{UserID: 1, MarkerLabels: []string{"favorite", "watch later"}},
+			expected: true,
+		},
+		{
+			name:     "empty marker labels",
+			params:   data.SceneSearchParams{UserID: 1, MarkerLabels: []string{}},
+			expected: false,
 		},
 	}
 

@@ -11,3 +11,11 @@ type UpdateMarkerRequest struct {
 	Label     *string `json:"label,omitempty"`
 	Color     *string `json:"color,omitempty"`
 }
+
+type SetLabelTagsRequest struct {
+	TagIDs []uint `json:"tag_ids" binding:"required"`
+}
+
+type SetMarkerTagsRequest struct {
+	TagIDs []uint `json:"tag_ids" binding:"required"`
+}

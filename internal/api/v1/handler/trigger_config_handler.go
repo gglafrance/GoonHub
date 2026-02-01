@@ -12,14 +12,14 @@ import (
 // TriggerConfigHandler handles trigger configuration requests
 type TriggerConfigHandler struct {
 	triggerConfigRepo data.TriggerConfigRepository
-	processingService *core.VideoProcessingService
+	processingService *core.SceneProcessingService
 	triggerScheduler  *core.TriggerScheduler
 }
 
 // NewTriggerConfigHandler creates a new TriggerConfigHandler
 func NewTriggerConfigHandler(
 	triggerConfigRepo data.TriggerConfigRepository,
-	processingService *core.VideoProcessingService,
+	processingService *core.SceneProcessingService,
 	triggerScheduler *core.TriggerScheduler,
 ) *TriggerConfigHandler {
 	return &TriggerConfigHandler{

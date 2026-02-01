@@ -34,6 +34,8 @@ export type SortOrder =
 
 export type TagSort = 'az' | 'za' | 'most' | 'least';
 
+export type KeyboardLayout = 'qwerty' | 'azerty';
+
 export interface TagSettings {
     default_tag_sort: TagSort;
 }

@@ -82,7 +82,7 @@ func (p *WorkerPool) worker(id int) {
 
 			result := JobResult{
 				JobID:   job.GetID(),
-				VideoID: job.GetVideoID(),
+				SceneID: job.GetSceneID(),
 				Phase:   job.GetPhase(),
 			}
 
@@ -111,7 +111,7 @@ func (p *WorkerPool) worker(id int) {
 						zap.Int("worker_id", id),
 						zap.String("job_id", job.GetID()),
 						zap.String("phase", job.GetPhase()),
-						zap.Uint("video_id", job.GetVideoID()),
+						zap.Uint("scene_id", job.GetSceneID()),
 						zap.Duration("timeout", p.timeout),
 					)
 				} else if jobStatus == JobStatusCancelled {
@@ -121,7 +121,7 @@ func (p *WorkerPool) worker(id int) {
 						zap.Int("worker_id", id),
 						zap.String("job_id", job.GetID()),
 						zap.String("phase", job.GetPhase()),
-						zap.Uint("video_id", job.GetVideoID()),
+						zap.Uint("scene_id", job.GetSceneID()),
 					)
 				} else {
 					result.Status = JobStatusFailed
@@ -130,7 +130,7 @@ func (p *WorkerPool) worker(id int) {
 						zap.Int("worker_id", id),
 						zap.String("job_id", job.GetID()),
 						zap.String("phase", job.GetPhase()),
-						zap.Uint("video_id", job.GetVideoID()),
+						zap.Uint("scene_id", job.GetSceneID()),
 						zap.Error(err),
 					)
 				}
@@ -141,7 +141,7 @@ func (p *WorkerPool) worker(id int) {
 					zap.Int("worker_id", id),
 					zap.String("job_id", job.GetID()),
 					zap.String("phase", job.GetPhase()),
-					zap.Uint("video_id", job.GetVideoID()),
+					zap.Uint("scene_id", job.GetSceneID()),
 				)
 			}
 
@@ -159,10 +159,10 @@ func (p *WorkerPool) Submit(job Job) error {
 		return fmt.Errorf("worker pool is stopped")
 	}
 
-	// Check for duplicate job (same video+phase already in progress)
+	// Check for duplicate job (same scene+phase already in progress)
 	if existingJobID := p.registry.Register(job); existingJobID != "" {
 		return &DuplicateJobError{
-			VideoID:       job.GetVideoID(),
+			SceneID:       job.GetSceneID(),
 			Phase:         job.GetPhase(),
 			ExistingJobID: existingJobID,
 		}
@@ -249,7 +249,7 @@ func (p *WorkerPool) CancelJob(jobID string) error {
 	job.Cancel()
 	p.logger.Info("Job cancelled",
 		zap.String("job_id", jobID),
-		zap.Uint("video_id", job.GetVideoID()),
+		zap.Uint("scene_id", job.GetSceneID()),
 		zap.String("phase", job.GetPhase()),
 	)
 	return nil
@@ -258,4 +258,73 @@ func (p *WorkerPool) CancelJob(jobID string) error {
 // Registry returns the job registry (for advanced use cases).
 func (p *WorkerPool) Registry() *JobRegistry {
 	return p.registry
+}
+
+// GracefulStop performs graceful shutdown:
+// 1. Stops accepting new jobs (sets running to false)
+// 2. Waits for in-flight workers to finish (up to timeout)
+// 3. Drains channel buffer and returns those job IDs
+// The returned job IDs are jobs that were in the channel buffer but never executed.
+func (p *WorkerPool) GracefulStop(timeout time.Duration) []string {
+	if !p.running.CompareAndSwap(true, false) {
+		return nil
+	}
+
+	p.logger.Info("Starting graceful shutdown of worker pool",
+		zap.Int("pending_jobs", p.QueueSize()),
+		zap.Int("active_workers", p.workerCount),
+		zap.Duration("timeout", timeout),
+	)
+
+	// Cancel context to signal workers to stop accepting new jobs from channel
+	p.cancel()
+
+	// Wait for workers to finish with timeout
+	done := make(chan struct{})
+	go func() {
+		p.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		p.logger.Info("All workers finished gracefully")
+	case <-time.After(timeout):
+		p.logger.Warn("Timeout waiting for workers, proceeding with buffer drain",
+			zap.Duration("timeout", timeout),
+		)
+	}
+
+	// Drain channel buffer to get job IDs that were never executed
+	bufferedJobIDs := p.drainBuffer()
+
+	close(p.jobQueue)
+	close(p.resultChan)
+
+	p.logger.Info("Worker pool graceful shutdown complete",
+		zap.Int("buffered_jobs_reclaimed", len(bufferedJobIDs)),
+	)
+
+	return bufferedJobIDs
+}
+
+// drainBuffer extracts all jobs from the channel buffer without executing them.
+// Returns the job IDs of all buffered jobs.
+func (p *WorkerPool) drainBuffer() []string {
+	var jobIDs []string
+
+	// Non-blocking drain of the channel
+	for {
+		select {
+		case job := <-p.jobQueue:
+			if job != nil {
+				jobIDs = append(jobIDs, job.GetID())
+				// Unregister from registry since we're reclaiming
+				p.registry.Unregister(job.GetID())
+			}
+		default:
+			// Channel is empty
+			return jobIDs
+		}
+	}
 }

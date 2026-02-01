@@ -6,6 +6,13 @@ const router = useRouter();
 
 useHead({ title: 'Settings' });
 
+useSeoMeta({
+    title: 'Settings',
+    ogTitle: 'Settings - GoonHub',
+    description: 'Configure your GoonHub preferences',
+    ogDescription: 'Configure your GoonHub preferences',
+});
+
 type TabType = 'account' | 'player' | 'app' | 'homepage' | 'tags' | 'users' | 'jobs' | 'storage';
 const activeTab = ref<TabType>('account');
 

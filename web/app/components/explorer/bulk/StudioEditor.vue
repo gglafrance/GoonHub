@@ -9,7 +9,7 @@ const emit = defineEmits<{
 }>();
 
 const explorerStore = useExplorerStore();
-const { fetchFilterOptions } = useApiVideos();
+const { fetchFilterOptions } = useApiScenes();
 const { bulkUpdateStudio } = useApiExplorer();
 
 const studios = ref<string[]>([]);
@@ -46,7 +46,7 @@ const handleSubmit = async () => {
 
     try {
         await bulkUpdateStudio({
-            video_ids: explorerStore.getSelectedVideoIDs(),
+            scene_ids: explorerStore.getSelectedSceneIDs(),
             studio: studio.value,
         });
         emit('complete');
@@ -83,7 +83,7 @@ const handleSubmit = async () => {
                 <!-- Content -->
                 <div class="p-4">
                     <p class="text-dim mb-4 text-xs">
-                        Set studio for {{ explorerStore.selectionCount }} videos
+                        Set studio for {{ explorerStore.selectionCount }} scenes
                     </p>
 
                     <!-- Error -->
@@ -103,7 +103,7 @@ const handleSubmit = async () => {
                                 placeholder-white/40 transition-all focus:ring-2 focus:outline-none"
                         />
                         <p class="text-dim mt-1.5 text-[10px]">
-                            Leave empty to clear studio from selected videos
+                            Leave empty to clear studio from selected scenes
                         </p>
                     </div>
 

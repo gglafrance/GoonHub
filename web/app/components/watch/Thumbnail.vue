@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { Video } from '~/types/video';
+import type { Scene } from '~/types/scene';
 import type { VttCue } from '~/composables/useVttParser';
 
-const video = inject<Ref<Video | null>>('watchVideo');
+const scene = inject<Ref<Scene | null>>('watchScene');
 const thumbnailVersion = inject<Ref<number>>('thumbnailVersion');
 const getPlayerTime = inject<() => number>('getPlayerTime', () => 0);
 const { extractThumbnail, uploadThumbnail } = useApi();
@@ -55,40 +55,59 @@ function getSpriteStyle(cue: VttCue) {
 }
 
 const currentThumbnailUrl = computed(() => {
-    if (!video?.value?.thumbnail_path) return null;
-    const base = `/thumbnails/${video.value.id}?size=lg`;
+    if (!scene?.value?.thumbnail_path) return null;
+    const base = `/thumbnails/${scene.value.id}?size=lg`;
     const v =
         thumbnailVersion?.value ||
-        (video.value.updated_at ? new Date(video.value.updated_at).getTime() : 0);
+        (scene.value.updated_at ? new Date(scene.value.updated_at).getTime() : 0);
     return v ? `${base}&v=${v}` : base;
 });
 
 const formattedTime = computed(() => formatDuration(Math.floor(currentTime.value)));
 
-onMounted(async () => {
+function startTimeInterval() {
+    if (timeInterval.value) return;
     timeInterval.value = setInterval(() => {
         currentTime.value = getPlayerTime();
     }, 500);
+}
 
-    if (video?.value?.vtt_path) {
+function stopTimeInterval() {
+    if (timeInterval.value) {
+        clearInterval(timeInterval.value);
+        timeInterval.value = null;
+    }
+}
+
+onMounted(async () => {
+    startTimeInterval();
+
+    if (scene?.value?.vtt_path) {
         await loadSpriteCues();
     }
 });
 
+// KeepAlive lifecycle hooks - pause/resume interval when tab is inactive/active
+onActivated(() => {
+    startTimeInterval();
+});
+
+onDeactivated(() => {
+    stopTimeInterval();
+});
+
 onBeforeUnmount(() => {
-    if (timeInterval.value) {
-        clearInterval(timeInterval.value);
-    }
+    stopTimeInterval();
     if (uploadPreview.value) {
         URL.revokeObjectURL(uploadPreview.value);
     }
 });
 
 async function loadSpriteCues() {
-    if (!video?.value?.id) return;
+    if (!scene?.value?.id) return;
     spritesLoading.value = true;
     try {
-        const response = await fetch(`/vtt/${video.value.id}`);
+        const response = await fetch(`/vtt/${scene.value.id}`);
         const text = await response.text();
         const cues: VttCue[] = [];
 
@@ -169,13 +188,13 @@ function clearUpload() {
 }
 
 async function handleUpload() {
-    if (!uploadFile.value || !video?.value) return;
+    if (!uploadFile.value || !scene?.value) return;
     loading.value = true;
     error.value = null;
     message.value = null;
 
     try {
-        await uploadThumbnail(video.value.id, uploadFile.value);
+        await uploadThumbnail(scene.value.id, uploadFile.value);
         message.value = 'Thumbnail updated from upload';
         if (thumbnailVersion) thumbnailVersion.value = Date.now();
         clearUpload();
@@ -187,7 +206,7 @@ async function handleUpload() {
 }
 
 async function handleExtractFromPlayer() {
-    if (!video?.value) return;
+    if (!scene?.value) return;
     const time = getPlayerTime();
     if (time <= 0) return;
 
@@ -196,7 +215,7 @@ async function handleExtractFromPlayer() {
     message.value = null;
 
     try {
-        await extractThumbnail(video.value.id, time);
+        await extractThumbnail(scene.value.id, time);
         message.value = `Thumbnail extracted at ${formatDuration(Math.floor(time))}`;
         if (thumbnailVersion) thumbnailVersion.value = Date.now();
     } catch (err: unknown) {
@@ -207,13 +226,13 @@ async function handleExtractFromPlayer() {
 }
 
 async function handleSpriteClick(cue: VttCue) {
-    if (!video?.value) return;
+    if (!scene?.value) return;
     loading.value = true;
     error.value = null;
     message.value = null;
 
     try {
-        await extractThumbnail(video.value.id, cue.start);
+        await extractThumbnail(scene.value.id, cue.start);
         message.value = `Thumbnail extracted at ${formatDuration(Math.floor(cue.start))}`;
         if (thumbnailVersion) thumbnailVersion.value = Date.now();
     } catch (err: unknown) {
@@ -347,7 +366,7 @@ async function handleSpriteClick(cue: VttCue) {
                 class="border-border bg-surface rounded-lg border p-4 text-center"
             >
                 <p class="text-dim text-xs">
-                    Sprite sheets not available. Process the video first.
+                    Sprite sheets not available. Process the scene first.
                 </p>
             </div>
             <div v-else class="grid grid-cols-4 gap-1.5 sm:grid-cols-6 md:grid-cols-8">

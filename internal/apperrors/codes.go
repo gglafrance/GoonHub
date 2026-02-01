@@ -19,7 +19,7 @@ const (
 	CodeTokenRevoked       = "TOKEN_REVOKED"
 	CodeAccountLocked      = "ACCOUNT_LOCKED"
 
-	// Video errors
+	// Scene errors
 	CodeInvalidFileExtension        = "INVALID_FILE_EXTENSION"
 	CodeInvalidImageExtension       = "INVALID_IMAGE_EXTENSION"
 	CodeVideoDimensionsNotAvailable = "VIDEO_DIMENSIONS_NOT_AVAILABLE"

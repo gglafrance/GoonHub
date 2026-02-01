@@ -80,7 +80,7 @@ export const useApiPornDB = () => {
     };
 
     const applySceneMetadata = async (
-        videoId: number,
+        sceneId: number,
         data: {
             title?: string;
             description?: string;
@@ -92,7 +92,7 @@ export const useApiPornDB = () => {
             porndb_scene_id?: string;
         },
     ) => {
-        const response = await fetch(`/api/v1/admin/videos/${videoId}/scene-metadata`, {
+        const response = await fetch(`/api/v1/admin/scenes/${sceneId}/scene-metadata`, {
             method: 'PUT',
             headers: getAuthHeaders(),
             body: JSON.stringify(data),

@@ -11,67 +11,67 @@ import (
 
 type WatchHistoryService struct {
 	repo      data.WatchHistoryRepository
-	videoRepo data.VideoRepository
-	indexer   VideoIndexer
+	sceneRepo data.SceneRepository
+	indexer   SceneIndexer
 	logger    *zap.Logger
 }
 
-func NewWatchHistoryService(repo data.WatchHistoryRepository, videoRepo data.VideoRepository, indexer VideoIndexer, logger *zap.Logger) *WatchHistoryService {
+func NewWatchHistoryService(repo data.WatchHistoryRepository, sceneRepo data.SceneRepository, indexer SceneIndexer, logger *zap.Logger) *WatchHistoryService {
 	return &WatchHistoryService{
 		repo:      repo,
-		videoRepo: videoRepo,
+		sceneRepo: sceneRepo,
 		indexer:   indexer,
 		logger:    logger,
 	}
 }
 
 type WatchHistoryEntry struct {
-	Watch data.UserVideoWatch `json:"watch"`
-	Video *data.Video         `json:"video,omitempty"`
+	Watch data.UserSceneWatch `json:"watch"`
+	Scene *data.Scene         `json:"scene,omitempty"`
 }
 
 // RecordWatch records a watch event and increments view count if not viewed in last 24h.
 // Uses atomic database operations to prevent race conditions from concurrent requests.
-func (s *WatchHistoryService) RecordWatch(userID, videoID uint, duration, position int, completed bool) error {
-	// Verify video exists
-	_, err := s.videoRepo.GetByID(videoID)
+func (s *WatchHistoryService) RecordWatch(userID, sceneID uint, duration, position int, completed bool) error {
+	// Verify scene exists
+	_, err := s.sceneRepo.GetByID(sceneID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("video not found")
+			return fmt.Errorf("scene not found")
 		}
-		return fmt.Errorf("failed to verify video: %w", err)
+		return fmt.Errorf("failed to verify scene: %w", err)
 	}
 
 	// Record the watch session
-	if err := s.repo.RecordWatch(userID, videoID, duration, position, completed); err != nil {
+	if err := s.repo.RecordWatch(userID, sceneID, duration, position, completed); err != nil {
 		s.logger.Error("Failed to record watch",
 			zap.Uint("user_id", userID),
-			zap.Uint("video_id", videoID),
+			zap.Uint("scene_id", sceneID),
 			zap.Error(err),
 		)
 		return err
 	}
 
 	// Atomically try to increment view count (handles 24h deduplication)
-	incremented, err := s.repo.TryIncrementViewCount(userID, videoID)
+	incremented, err := s.repo.TryIncrementViewCount(userID, sceneID)
 	if err != nil {
 		s.logger.Warn("Failed to increment view count",
-			zap.Uint("video_id", videoID),
+			zap.Uint("scene_id", sceneID),
 			zap.Error(err),
 		)
 		// Don't fail the request for this
 	} else if incremented {
 		s.logger.Debug("Incremented view count",
-			zap.Uint("video_id", videoID),
+			zap.Uint("scene_id", sceneID),
 			zap.Uint("user_id", userID),
 		)
 		// Update search index with new view count
 		if s.indexer != nil {
-			video, err := s.videoRepo.GetByID(videoID)
+			scene, err := s.sceneRepo.GetByID(sceneID)
 			if err == nil {
-				if err := s.indexer.UpdateVideoIndex(video); err != nil {
-					s.logger.Warn("Failed to update video in search index after view count increment",
-						zap.Uint("video_id", videoID),
+				if err := s.indexer.UpdateSceneIndex(scene); err != nil {
+					s.logger.Warn("Failed to update scene in search index after view count increment",
+						zap.Uint("scene_id", sceneID),
 						zap.Error(err),
 					)
 				}
@@ -83,8 +83,8 @@ func (s *WatchHistoryService) RecordWatch(userID, videoID uint, duration, positi
 }
 
 // GetResumePosition returns the position to resume from, or 0 if completed or not watched
-func (s *WatchHistoryService) GetResumePosition(userID, videoID uint) (int, error) {
-	watch, err := s.repo.GetLastWatch(userID, videoID)
+func (s *WatchHistoryService) GetResumePosition(userID, sceneID uint) (int, error) {
+	watch, err := s.repo.GetLastWatch(userID, sceneID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, nil
@@ -100,7 +100,7 @@ func (s *WatchHistoryService) GetResumePosition(userID, videoID uint) (int, erro
 	return watch.LastPosition, nil
 }
 
-// GetUserHistory returns paginated watch history with video details
+// GetUserHistory returns paginated watch history with scene details
 func (s *WatchHistoryService) GetUserHistory(userID uint, page, limit int) ([]WatchHistoryEntry, int64, error) {
 	if page < 1 {
 		page = 1
@@ -114,26 +114,26 @@ func (s *WatchHistoryService) GetUserHistory(userID uint, page, limit int) ([]Wa
 		return nil, 0, err
 	}
 
-	// Collect video IDs
-	videoIDs := make([]uint, 0, len(watches))
+	// Collect scene IDs
+	sceneIDs := make([]uint, 0, len(watches))
 	for _, w := range watches {
-		videoIDs = append(videoIDs, w.VideoID)
+		sceneIDs = append(sceneIDs, w.SceneID)
 	}
 
-	// Fetch videos
-	videos, err := s.videoRepo.GetByIDs(videoIDs)
+	// Fetch scenes
+	scenes, err := s.sceneRepo.GetByIDs(sceneIDs)
 	if err != nil {
-		s.logger.Warn("Failed to fetch videos for history",
+		s.logger.Warn("Failed to fetch scenes for history",
 			zap.Error(err),
 		)
-		// Continue without video details
-		videos = nil
+		// Continue without scene details
+		scenes = nil
 	}
 
-	// Create video map
-	videoMap := make(map[uint]*data.Video)
-	for i := range videos {
-		videoMap[videos[i].ID] = &videos[i]
+	// Create scene map
+	sceneMap := make(map[uint]*data.Scene)
+	for i := range scenes {
+		sceneMap[scenes[i].ID] = &scenes[i]
 	}
 
 	// Build result
@@ -141,7 +141,7 @@ func (s *WatchHistoryService) GetUserHistory(userID uint, page, limit int) ([]Wa
 	for _, w := range watches {
 		entry := WatchHistoryEntry{
 			Watch: w,
-			Video: videoMap[w.VideoID],
+			Scene: sceneMap[w.SceneID],
 		}
 		entries = append(entries, entry)
 	}
@@ -149,10 +149,10 @@ func (s *WatchHistoryService) GetUserHistory(userID uint, page, limit int) ([]Wa
 	return entries, total, nil
 }
 
-// GetVideoHistory returns watch sessions for a specific video
-func (s *WatchHistoryService) GetVideoHistory(userID, videoID uint, limit int) ([]data.UserVideoWatch, error) {
+// GetSceneHistory returns watch sessions for a specific scene
+func (s *WatchHistoryService) GetSceneHistory(userID, sceneID uint, limit int) ([]data.UserSceneWatch, error) {
 	if limit <= 0 {
 		limit = 10
 	}
-	return s.repo.ListVideoWatches(userID, videoID, limit)
+	return s.repo.ListSceneWatches(userID, sceneID, limit)
 }

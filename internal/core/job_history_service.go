@@ -42,12 +42,12 @@ func NewJobHistoryService(repo data.JobHistoryRepository, cfg config.ProcessingC
 	}
 }
 
-func (s *JobHistoryService) RecordJobStart(jobID string, videoID uint, videoTitle string, phase string) {
+func (s *JobHistoryService) RecordJobStart(jobID string, sceneID uint, sceneTitle string, phase string) {
 	now := time.Now()
 	record := &data.JobHistory{
 		JobID:      jobID,
-		VideoID:    videoID,
-		VideoTitle: videoTitle,
+		SceneID:    sceneID,
+		SceneTitle: sceneTitle,
 		Phase:      phase,
 		Status:     "running",
 		StartedAt:  now,
@@ -56,7 +56,7 @@ func (s *JobHistoryService) RecordJobStart(jobID string, videoID uint, videoTitl
 	if err := s.repo.Create(record); err != nil {
 		s.logger.Error("Failed to record job start",
 			zap.String("job_id", jobID),
-			zap.Uint("video_id", videoID),
+			zap.Uint("scene_id", sceneID),
 			zap.Error(err),
 		)
 	}
@@ -168,12 +168,12 @@ func (s *JobHistoryService) SetRetryScheduler(scheduler *RetryScheduler) {
 
 // RecordJobStartWithRetry records a job start with retry configuration.
 // retryCount is the current retry attempt (0 for first attempt, inherited from previous failed job).
-func (s *JobHistoryService) RecordJobStartWithRetry(jobID string, videoID uint, videoTitle string, phase string, maxRetries int, retryCount int) {
+func (s *JobHistoryService) RecordJobStartWithRetry(jobID string, sceneID uint, sceneTitle string, phase string, maxRetries int, retryCount int) {
 	now := time.Now()
 	record := &data.JobHistory{
 		JobID:       jobID,
-		VideoID:     videoID,
-		VideoTitle:  videoTitle,
+		SceneID:     sceneID,
+		SceneTitle:  sceneTitle,
 		Phase:       phase,
 		Status:      "running",
 		StartedAt:   now,
@@ -185,7 +185,7 @@ func (s *JobHistoryService) RecordJobStartWithRetry(jobID string, videoID uint, 
 	if err := s.repo.Create(record); err != nil {
 		s.logger.Error("Failed to record job start",
 			zap.String("job_id", jobID),
-			zap.Uint("video_id", videoID),
+			zap.Uint("scene_id", sceneID),
 			zap.Int("retry_count", retryCount),
 			zap.Error(err),
 		)
@@ -204,7 +204,7 @@ func (s *JobHistoryService) UpdateProgress(jobID string, progress int) {
 }
 
 // RecordJobFailedWithRetry records a job failure and schedules a retry if configured.
-func (s *JobHistoryService) RecordJobFailedWithRetry(jobID string, videoID uint, phase string, jobErr error) {
+func (s *JobHistoryService) RecordJobFailedWithRetry(jobID string, sceneID uint, phase string, jobErr error) {
 	now := time.Now()
 	errMsg := jobErr.Error()
 
@@ -233,7 +233,7 @@ func (s *JobHistoryService) RecordJobFailedWithRetry(jobID string, videoID uint,
 
 	// If retry scheduler is configured and job is retryable, schedule retry
 	if s.retryScheduler != nil && job.IsRetryable {
-		if err := s.retryScheduler.ScheduleRetry(jobID, phase, videoID, job.RetryCount, errMsg); err != nil {
+		if err := s.retryScheduler.ScheduleRetry(jobID, phase, sceneID, job.RetryCount, errMsg); err != nil {
 			s.logger.Error("Failed to schedule retry",
 				zap.String("job_id", jobID),
 				zap.Error(err),
@@ -245,4 +245,45 @@ func (s *JobHistoryService) RecordJobFailedWithRetry(jobID string, videoID uint,
 // GetByJobID retrieves a job by its ID.
 func (s *JobHistoryService) GetByJobID(jobID string) (*data.JobHistory, error) {
 	return s.repo.GetByJobID(jobID)
+}
+
+// CreatePendingJob creates a job with status='pending' in the database.
+// Used for DB-backed job queue where jobs are created pending and later claimed by the feeder.
+func (s *JobHistoryService) CreatePendingJob(jobID string, sceneID uint, sceneTitle string, phase string) error {
+	now := time.Now()
+	record := &data.JobHistory{
+		JobID:       jobID,
+		SceneID:     sceneID,
+		SceneTitle:  sceneTitle,
+		Phase:       phase,
+		Status:      data.JobStatusPending,
+		CreatedAt:   now,
+		IsRetryable: true,
+	}
+	if err := s.repo.CreatePending(record); err != nil {
+		s.logger.Error("Failed to create pending job",
+			zap.String("job_id", jobID),
+			zap.Uint("scene_id", sceneID),
+			zap.String("phase", phase),
+			zap.Error(err),
+		)
+		return err
+	}
+	s.logger.Debug("Created pending job",
+		zap.String("job_id", jobID),
+		zap.Uint("scene_id", sceneID),
+		zap.String("phase", phase),
+	)
+	return nil
+}
+
+// ExistsPendingOrRunning checks if a pending or running job exists for scene+phase.
+// Used for deduplication before creating new pending jobs.
+func (s *JobHistoryService) ExistsPendingOrRunning(sceneID uint, phase string) (bool, error) {
+	return s.repo.ExistsPendingOrRunning(sceneID, phase)
+}
+
+// CountPendingByPhase returns the count of pending jobs per phase.
+func (s *JobHistoryService) CountPendingByPhase() (map[string]int, error) {
+	return s.repo.CountPendingByPhase()
 }

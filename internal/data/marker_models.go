@@ -4,10 +4,10 @@ import (
 	"time"
 )
 
-type UserVideoMarker struct {
+type UserSceneMarker struct {
 	ID            uint      `gorm:"primarykey" json:"id"`
 	UserID        uint      `gorm:"not null" json:"user_id"`
-	VideoID       uint      `gorm:"not null" json:"video_id"`
+	SceneID       uint      `gorm:"not null;column:scene_id" json:"scene_id"`
 	Timestamp     int       `gorm:"not null" json:"timestamp"` // seconds
 	Label         string    `gorm:"size:100" json:"label"`
 	Color         string    `gorm:"size:7;default:'#FFFFFF'" json:"color"`
@@ -16,8 +16,8 @@ type UserVideoMarker struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
-func (UserVideoMarker) TableName() string {
-	return "user_video_markers"
+func (UserSceneMarker) TableName() string {
+	return "user_scene_markers"
 }
 
 type MarkerLabelSuggestion struct {
@@ -32,8 +32,49 @@ type MarkerLabelGroup struct {
 	ThumbnailMarkerID uint   `json:"thumbnail_marker_id"`
 }
 
-// MarkerWithVideo extends UserVideoMarker with video information
-type MarkerWithVideo struct {
-	UserVideoMarker
-	VideoTitle string `json:"video_title"`
+// MarkerWithScene extends UserSceneMarker with scene information
+type MarkerWithScene struct {
+	UserSceneMarker
+	SceneTitle string          `json:"scene_title"`
+	Tags       []MarkerTagInfo `json:"tags,omitempty" gorm:"-"`
+}
+
+// MarkerWithTags extends UserSceneMarker with tags
+type MarkerWithTags struct {
+	UserSceneMarker
+	Tags []MarkerTagInfo `json:"tags" gorm:"-"`
+}
+
+// MarkerLabelTag represents the default tags for a marker label (per user)
+type MarkerLabelTag struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	UserID    uint      `gorm:"not null" json:"user_id"`
+	Label     string    `gorm:"size:100;not null" json:"label"`
+	TagID     uint      `gorm:"not null" json:"tag_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (MarkerLabelTag) TableName() string {
+	return "marker_label_tags"
+}
+
+// MarkerTag represents a tag on an individual marker
+type MarkerTag struct {
+	ID          uint      `gorm:"primarykey" json:"id"`
+	MarkerID    uint      `gorm:"not null" json:"marker_id"`
+	TagID       uint      `gorm:"not null" json:"tag_id"`
+	IsFromLabel bool      `gorm:"not null;default:false" json:"is_from_label"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+func (MarkerTag) TableName() string {
+	return "marker_tags"
+}
+
+// MarkerTagInfo represents a tag with metadata about its source
+type MarkerTagInfo struct {
+	ID          uint   `json:"id"`
+	Name        string `json:"name"`
+	Color       string `json:"color"`
+	IsFromLabel bool   `json:"is_from_label"`
 }

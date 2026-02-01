@@ -12,6 +12,7 @@ const badge = computed(() => {
 <template>
     <SearchFiltersFilterSection
         title="Date"
+        icon="heroicons:calendar"
         :collapsed="collapsed"
         :badge="badge"
         @toggle="collapsed = !collapsed"
@@ -20,14 +21,14 @@ const badge = computed(() => {
             <input
                 v-model="searchStore.minDate"
                 type="date"
-                class="border-border bg-surface text-dim w-full rounded-md border px-2 py-1.5 text-xs
-                    focus:border-white/20 focus:outline-none"
+                class="border-border bg-surface text-dim w-full rounded-md border px-2 py-1.5
+                    text-xs focus:border-white/20 focus:outline-none"
             />
             <input
                 v-model="searchStore.maxDate"
                 type="date"
-                class="border-border bg-surface text-dim w-full rounded-md border px-2 py-1.5 text-xs
-                    focus:border-white/20 focus:outline-none"
+                class="border-border bg-surface text-dim w-full rounded-md border px-2 py-1.5
+                    text-xs focus:border-white/20 focus:outline-none"
             />
         </div>
     </SearchFiltersFilterSection>

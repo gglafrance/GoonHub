@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import type { UserSettings, SortOrder, TagSort } from '~/types/settings';
+import type { UserSettings, SortOrder, TagSort, KeyboardLayout } from '~/types/settings';
 
 export const useSettingsStore = defineStore(
     'settings',
@@ -7,6 +7,8 @@ export const useSettingsStore = defineStore(
         const settings = ref<UserSettings | null>(null);
         const isLoading = ref(false);
         const error = ref<string | null>(null);
+        const theaterMode = ref(false);
+        const keyboardLayout = ref<KeyboardLayout>('qwerty');
 
         const {
             fetchSettings: apiFetchSettings,
@@ -18,7 +20,7 @@ export const useSettingsStore = defineStore(
         const autoplay = computed(() => settings.value?.autoplay ?? false);
         const defaultVolume = computed(() => settings.value?.default_volume ?? 100);
         const loop = computed(() => settings.value?.loop ?? false);
-        const videosPerPage = computed(() => settings.value?.videos_per_page ?? 20);
+        const scenesPerPage = computed(() => settings.value?.scenes_per_page ?? 20);
         const defaultSortOrder = computed<SortOrder>(
             () => settings.value?.default_sort_order ?? 'created_at_desc',
         );
@@ -59,12 +61,12 @@ export const useSettingsStore = defineStore(
             }
         };
 
-        const updateApp = async (videosPerPage: number, sortOrder: SortOrder) => {
+        const updateApp = async (scenesPerPage: number, sortOrder: SortOrder) => {
             isLoading.value = true;
             error.value = null;
             try {
                 const data: UserSettings = await apiUpdateApp({
-                    videos_per_page: videosPerPage,
+                    scenes_per_page: scenesPerPage,
                     default_sort_order: sortOrder,
                 });
                 settings.value = data;
@@ -94,6 +96,14 @@ export const useSettingsStore = defineStore(
             }
         };
 
+        const toggleTheaterMode = () => {
+            theaterMode.value = !theaterMode.value;
+        };
+
+        const setKeyboardLayout = (layout: KeyboardLayout) => {
+            keyboardLayout.value = layout;
+        };
+
         return {
             settings,
             isLoading,
@@ -101,13 +111,17 @@ export const useSettingsStore = defineStore(
             autoplay,
             defaultVolume,
             loop,
-            videosPerPage,
+            scenesPerPage,
             defaultSortOrder,
             defaultTagSort,
+            theaterMode,
+            keyboardLayout,
             loadSettings,
             updatePlayer,
             updateApp,
             updateTags,
+            toggleTheaterMode,
+            setKeyboardLayout,
         };
     },
     {
@@ -126,7 +140,7 @@ export const useSettingsStore = defineStore(
                     }
                 },
             },
-            pick: ['settings'],
+            pick: ['settings', 'theaterMode', 'keyboardLayout'],
         },
     },
 );

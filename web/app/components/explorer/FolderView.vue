@@ -11,7 +11,7 @@ const handlePageChange = async (page: number) => {
 };
 
 const hasContent = computed(
-    () => explorerStore.subfolders.length > 0 || explorerStore.videos.length > 0,
+    () => explorerStore.subfolders.length > 0 || explorerStore.scenes.length > 0,
 );
 
 const showSearch = computed(
@@ -62,10 +62,10 @@ const showSearch = computed(
                 </div>
             </div>
 
-            <!-- Videos -->
-            <div v-if="explorerStore.videos.length > 0">
+            <!-- Scenes -->
+            <div v-if="explorerStore.scenes.length > 0">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <h3 class="text-dim text-xs font-medium uppercase tracking-wider">Videos</h3>
+                    <h3 class="text-dim text-xs font-medium uppercase tracking-wider">Scenes</h3>
                     <div class="flex items-center gap-3">
                         <!-- Deselect all -->
                         <button
@@ -78,7 +78,7 @@ const showSearch = computed(
 
                         <!-- Select all on page -->
                         <button
-                            v-if="!explorerStore.allPageVideosSelected"
+                            v-if="!explorerStore.allPageScenesSelected"
                             @click="explorerStore.selectAllOnPage()"
                             class="text-dim hover:text-lava text-xs transition-colors"
                         >
@@ -87,7 +87,7 @@ const showSearch = computed(
 
                         <!-- Select all in folder -->
                         <button
-                            v-if="!explorerStore.allFolderVideosSelected"
+                            v-if="!explorerStore.allFolderScenesSelected"
                             @click="explorerStore.selectAllInFolder()"
                             :disabled="explorerStore.isSelectingAll"
                             class="text-lava hover:text-lava/80 text-xs font-medium transition-colors
@@ -95,7 +95,7 @@ const showSearch = computed(
                         >
                             <template v-if="explorerStore.isSelectingAll">Selecting...</template>
                             <template v-else>
-                                Select all {{ explorerStore.totalVideos }} videos
+                                Select all {{ explorerStore.totalScenes }} scenes
                             </template>
                         </button>
 
@@ -112,11 +112,11 @@ const showSearch = computed(
                     </div>
                 </div>
 
-                <ExplorerSelectableVideoGrid :videos="explorerStore.videos" />
+                <ExplorerSelectableSceneGrid :scenes="explorerStore.scenes" />
 
                 <Pagination
                     :model-value="explorerStore.page"
-                    :total="explorerStore.totalVideos"
+                    :total="explorerStore.totalScenes"
                     :limit="explorerStore.limit"
                     @update:model-value="handlePageChange"
                 />

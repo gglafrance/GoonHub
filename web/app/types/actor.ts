@@ -5,7 +5,7 @@ export interface ActorListItem {
     name: string;
     image_url: string;
     gender: string;
-    video_count: number;
+    scene_count: number;
 }
 
 // Full actor details for detail views

@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { MarkerWithVideo } from '~/types/marker';
+import type { MarkerWithScene } from '~/types/marker';
 
 const route = useRoute();
 const router = useRouter();
 const { fetchMarkersByLabel } = useApiMarkers();
 const { formatDuration } = useFormatter();
 
-const markers = ref<MarkerWithVideo[]>([]);
+const markers = ref<MarkerWithScene[]>([]);
 const total = ref(0);
 const currentPage = ref(1);
 const limit = ref(20);
@@ -17,6 +17,22 @@ const label = computed(() => decodeURIComponent(route.params.label as string));
 
 const pageTitle = computed(() => label.value || 'Markers');
 useHead({ title: pageTitle });
+
+// Dynamic OG metadata
+watch(
+    [label, total],
+    ([l, t]) => {
+        if (l) {
+            useSeoMeta({
+                title: l,
+                ogTitle: `${l} - Markers`,
+                description: `${l} - ${t} markers on GoonHub`,
+                ogDescription: `${l} - ${t} markers on GoonHub`,
+            });
+        }
+    },
+    { immediate: true },
+);
 
 const loadMarkers = async (page = 1) => {
     isLoading.value = true;
@@ -74,7 +90,7 @@ definePageMeta({
             </button>
 
             <!-- Header -->
-            <div class="mb-6">
+            <div class="mb-4">
                 <div class="flex items-center justify-between">
                     <h1 class="text-lg font-semibold text-white">{{ label }}</h1>
                     <span
@@ -85,6 +101,9 @@ definePageMeta({
                     </span>
                 </div>
             </div>
+
+            <!-- Label Tag Manager -->
+            <MarkersLabelTagManager :label="label" class="mb-6" />
 
             <!-- Error -->
             <ErrorAlert v-if="error" :message="error" class="mb-4" />
@@ -118,7 +137,7 @@ definePageMeta({
                     <NuxtLink
                         v-for="marker in markers"
                         :key="marker.id"
-                        :to="`/watch/${marker.video_id}?t=${marker.timestamp}`"
+                        :to="`/watch/${marker.scene_id}?t=${marker.timestamp}`"
                         class="group relative block max-w-[320px] overflow-hidden rounded-lg
                             transition-transform duration-200"
                     >
@@ -126,7 +145,7 @@ definePageMeta({
                         <div class="relative aspect-video w-full overflow-hidden bg-black/40">
                             <img
                                 :src="`/marker-thumbnails/${marker.id}`"
-                                :alt="marker.video_title"
+                                :alt="marker.scene_title"
                                 class="h-full w-full object-cover transition-transform duration-300
                                     group-hover:scale-105"
                                 loading="lazy"
@@ -154,7 +173,7 @@ definePageMeta({
                                 class="truncate text-xs font-medium text-white
                                     group-hover:text-white"
                             >
-                                {{ marker.video_title }}
+                                {{ marker.scene_title }}
                             </p>
                             <NuxtTime
                                 :datetime="marker.created_at"

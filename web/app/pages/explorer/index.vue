@@ -1,6 +1,13 @@
 <script setup lang="ts">
 useHead({ title: 'Explorer' });
 
+useSeoMeta({
+    title: 'Explorer',
+    ogTitle: 'Explorer - GoonHub',
+    description: 'Browse your scene storage paths',
+    ogDescription: 'Browse your scene storage paths',
+});
+
 const explorerStore = useExplorerStore();
 
 onMounted(async () => {
@@ -8,8 +15,8 @@ onMounted(async () => {
     explorerStore.currentStoragePathID = null;
     explorerStore.currentPath = '';
     explorerStore.subfolders = [];
-    explorerStore.videos = [];
-    explorerStore.totalVideos = 0;
+    explorerStore.scenes = [];
+    explorerStore.totalScenes = 0;
     explorerStore.clearSelection();
 
     await explorerStore.loadStoragePaths();

@@ -28,6 +28,6 @@ type UpdateStudioRequest struct {
 	NetworkID   *uint    `json:"network_id"`
 }
 
-type SetVideoStudioRequest struct {
+type SetSceneStudioRequest struct {
 	StudioID *uint `json:"studio_id"`
 }

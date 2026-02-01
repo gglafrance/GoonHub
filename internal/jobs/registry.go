@@ -9,34 +9,34 @@ import (
 type JobRegistry struct {
 	mu           sync.RWMutex
 	byID         map[string]Job    // job_id -> Job
-	byVideoPhase map[string]string // "videoID:phase" -> job_id
+	byScenePhase map[string]string // "sceneID:phase" -> job_id
 }
 
 // NewJobRegistry creates a new JobRegistry.
 func NewJobRegistry() *JobRegistry {
 	return &JobRegistry{
 		byID:         make(map[string]Job),
-		byVideoPhase: make(map[string]string),
+		byScenePhase: make(map[string]string),
 	}
 }
 
 // Register adds a job to the registry. Returns the existing job ID if a job
-// for the same video+phase is already registered (duplicate), otherwise returns
+// for the same scene+phase is already registered (duplicate), otherwise returns
 // an empty string.
 func (r *JobRegistry) Register(job Job) string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	key := videoPhaseKey(job.GetVideoID(), job.GetPhase())
+	key := scenePhaseKey(job.GetSceneID(), job.GetPhase())
 
-	// Check for existing job with same video+phase
-	if existingJobID, exists := r.byVideoPhase[key]; exists {
+	// Check for existing job with same scene+phase
+	if existingJobID, exists := r.byScenePhase[key]; exists {
 		return existingJobID
 	}
 
 	// Register the new job
 	r.byID[job.GetID()] = job
-	r.byVideoPhase[key] = job.GetID()
+	r.byScenePhase[key] = job.GetID()
 	return ""
 }
 
@@ -50,9 +50,9 @@ func (r *JobRegistry) Unregister(jobID string) {
 		return
 	}
 
-	key := videoPhaseKey(job.GetVideoID(), job.GetPhase())
+	key := scenePhaseKey(job.GetSceneID(), job.GetPhase())
 	delete(r.byID, jobID)
-	delete(r.byVideoPhase, key)
+	delete(r.byScenePhase, key)
 }
 
 // Get retrieves a job by its ID.
@@ -64,13 +64,13 @@ func (r *JobRegistry) Get(jobID string) (Job, bool) {
 	return job, exists
 }
 
-// GetByVideoPhase retrieves a job by video ID and phase.
-func (r *JobRegistry) GetByVideoPhase(videoID uint, phase string) (Job, bool) {
+// GetByScenePhase retrieves a job by scene ID and phase.
+func (r *JobRegistry) GetByScenePhase(sceneID uint, phase string) (Job, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	key := videoPhaseKey(videoID, phase)
-	jobID, exists := r.byVideoPhase[key]
+	key := scenePhaseKey(sceneID, phase)
+	jobID, exists := r.byScenePhase[key]
 	if !exists {
 		return nil, false
 	}
@@ -86,7 +86,7 @@ func (r *JobRegistry) Count() int {
 	return len(r.byID)
 }
 
-// videoPhaseKey generates a unique key for video+phase combination.
-func videoPhaseKey(videoID uint, phase string) string {
-	return fmt.Sprintf("%d:%s", videoID, phase)
+// scenePhaseKey generates a unique key for scene+phase combination.
+func scenePhaseKey(sceneID uint, phase string) string {
+	return fmt.Sprintf("%d:%s", sceneID, phase)
 }

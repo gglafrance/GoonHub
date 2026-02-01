@@ -4,11 +4,21 @@ import (
 	"time"
 )
 
+// Job status constants
+const (
+	JobStatusPending   = "pending"
+	JobStatusRunning   = "running"
+	JobStatusCompleted = "completed"
+	JobStatusFailed    = "failed"
+	JobStatusCancelled = "cancelled"
+	JobStatusTimedOut  = "timed_out"
+)
+
 type JobHistory struct {
 	ID           uint       `gorm:"primarykey" json:"id"`
 	JobID        string     `gorm:"uniqueIndex;not null;size:36" json:"job_id"`
-	VideoID      uint       `gorm:"not null" json:"video_id"`
-	VideoTitle   string     `gorm:"not null;size:255;default:''" json:"video_title"`
+	SceneID      uint       `gorm:"not null;column:scene_id" json:"scene_id"`
+	SceneTitle   string     `gorm:"not null;size:255;default:'';column:scene_title" json:"scene_title"`
 	Phase        string     `gorm:"not null;size:20" json:"phase"`
 	Status       string     `gorm:"not null;size:20;default:'running'" json:"status"`
 	ErrorMessage *string    `gorm:"type:text" json:"error_message,omitempty"`
@@ -20,6 +30,7 @@ type JobHistory struct {
 	NextRetryAt  *time.Time `json:"next_retry_at,omitempty"`
 	Progress     int        `gorm:"not null;default:0" json:"progress"`
 	IsRetryable  bool       `gorm:"not null;default:true" json:"is_retryable"`
+	Priority     int        `gorm:"not null;default:0" json:"priority"`
 }
 
 func (JobHistory) TableName() string {
@@ -29,8 +40,8 @@ func (JobHistory) TableName() string {
 type DLQEntry struct {
 	ID            uint       `gorm:"primarykey" json:"id"`
 	JobID         string     `gorm:"uniqueIndex;not null;size:36" json:"job_id"`
-	VideoID       uint       `gorm:"not null" json:"video_id"`
-	VideoTitle    string     `gorm:"not null;size:255;default:''" json:"video_title"`
+	SceneID       uint       `gorm:"not null;column:scene_id" json:"scene_id"`
+	SceneTitle    string     `gorm:"not null;size:255;default:'';column:scene_title" json:"scene_title"`
 	Phase         string     `gorm:"not null;size:20" json:"phase"`
 	OriginalError string     `gorm:"type:text;not null" json:"original_error"`
 	FailureCount  int        `gorm:"not null;default:1" json:"failure_count"`

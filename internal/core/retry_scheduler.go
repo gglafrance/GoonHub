@@ -16,10 +16,10 @@ type RetryScheduler struct {
 	jobHistoryRepo    data.JobHistoryRepository
 	dlqRepo           data.DLQRepository
 	retryConfigRepo   data.RetryConfigRepository
-	videoRepo         data.VideoRepository
+	sceneRepo         data.SceneRepository
 	eventBus          *EventBus
 	logger            *zap.Logger
-	processingService *VideoProcessingService
+	processingService *SceneProcessingService
 	jobHistoryService *JobHistoryService
 
 	configCache   map[string]data.RetryConfigRecord
@@ -34,7 +34,7 @@ func NewRetryScheduler(
 	jobHistoryRepo data.JobHistoryRepository,
 	dlqRepo data.DLQRepository,
 	retryConfigRepo data.RetryConfigRepository,
-	videoRepo data.VideoRepository,
+	sceneRepo data.SceneRepository,
 	eventBus *EventBus,
 	logger *zap.Logger,
 ) *RetryScheduler {
@@ -42,15 +42,15 @@ func NewRetryScheduler(
 		jobHistoryRepo:  jobHistoryRepo,
 		dlqRepo:         dlqRepo,
 		retryConfigRepo: retryConfigRepo,
-		videoRepo:       videoRepo,
+		sceneRepo:       sceneRepo,
 		eventBus:        eventBus,
 		logger:          logger.With(zap.String("component", "retry_scheduler")),
 		configCache:     make(map[string]data.RetryConfigRecord),
 	}
 }
 
-// SetProcessingService sets the video processing service for resubmitting jobs.
-func (rs *RetryScheduler) SetProcessingService(svc *VideoProcessingService) {
+// SetProcessingService sets the scene processing service for resubmitting jobs.
+func (rs *RetryScheduler) SetProcessingService(svc *SceneProcessingService) {
 	rs.processingService = svc
 }
 
@@ -158,7 +158,7 @@ func (rs *RetryScheduler) CalculateNextRetryTime(phase string, retryCount int) t
 }
 
 // ScheduleRetry schedules a retry for a failed job.
-func (rs *RetryScheduler) ScheduleRetry(jobID string, phase string, videoID uint, retryCount int, errorMsg string) error {
+func (rs *RetryScheduler) ScheduleRetry(jobID string, phase string, sceneID uint, retryCount int, errorMsg string) error {
 	cfg := rs.GetConfigForPhase(phase)
 
 	// Check if we've exhausted retries (including the next attempt)
@@ -171,7 +171,7 @@ func (rs *RetryScheduler) ScheduleRetry(jobID string, phase string, videoID uint
 				zap.Error(err),
 			)
 		}
-		return rs.moveToDLQ(jobID, phase, videoID, errorMsg, retryCount+1)
+		return rs.moveToDLQ(jobID, phase, sceneID, errorMsg, retryCount+1)
 	}
 
 	// Calculate next retry time
@@ -187,9 +187,9 @@ func (rs *RetryScheduler) ScheduleRetry(jobID string, phase string, videoID uint
 	}
 
 	// Publish SSE event
-	rs.eventBus.Publish(VideoEvent{
-		Type:    "video:retry_scheduled",
-		VideoID: videoID,
+	rs.eventBus.Publish(SceneEvent{
+		Type:    "scene:retry_scheduled",
+		SceneID: sceneID,
 		Data: map[string]any{
 			"job_id":       jobID,
 			"phase":        phase,
@@ -202,7 +202,7 @@ func (rs *RetryScheduler) ScheduleRetry(jobID string, phase string, videoID uint
 	rs.logger.Info("Scheduled job retry",
 		zap.String("job_id", jobID),
 		zap.String("phase", phase),
-		zap.Uint("video_id", videoID),
+		zap.Uint("scene_id", sceneID),
 		zap.Int("retry_count", retryCount+1),
 		zap.Time("next_retry_at", nextRetryAt),
 	)
@@ -211,23 +211,23 @@ func (rs *RetryScheduler) ScheduleRetry(jobID string, phase string, videoID uint
 }
 
 // moveToDLQ moves a job to the dead letter queue.
-func (rs *RetryScheduler) moveToDLQ(jobID string, phase string, videoID uint, errorMsg string, failureCount int) error {
+func (rs *RetryScheduler) moveToDLQ(jobID string, phase string, sceneID uint, errorMsg string, failureCount int) error {
 	// Mark job as not retryable
 	if err := rs.jobHistoryRepo.MarkNotRetryable(jobID); err != nil {
 		rs.logger.Warn("Failed to mark job as not retryable", zap.String("job_id", jobID), zap.Error(err))
 	}
 
-	// Get video title
-	videoTitle := ""
-	if video, err := rs.videoRepo.GetByID(videoID); err == nil {
-		videoTitle = video.Title
+	// Get scene title
+	sceneTitle := ""
+	if scene, err := rs.sceneRepo.GetByID(sceneID); err == nil {
+		sceneTitle = scene.Title
 	}
 
 	// Create DLQ entry
 	entry := &data.DLQEntry{
 		JobID:         jobID,
-		VideoID:       videoID,
-		VideoTitle:    videoTitle,
+		SceneID:       sceneID,
+		SceneTitle:    sceneTitle,
 		Phase:         phase,
 		OriginalError: errorMsg,
 		FailureCount:  failureCount,
@@ -244,9 +244,9 @@ func (rs *RetryScheduler) moveToDLQ(jobID string, phase string, videoID uint, er
 	}
 
 	// Publish SSE event
-	rs.eventBus.Publish(VideoEvent{
-		Type:    "video:dlq_added",
-		VideoID: videoID,
+	rs.eventBus.Publish(SceneEvent{
+		Type:    "scene:dlq_added",
+		SceneID: sceneID,
 		Data: map[string]any{
 			"job_id":        jobID,
 			"phase":         phase,
@@ -257,7 +257,7 @@ func (rs *RetryScheduler) moveToDLQ(jobID string, phase string, videoID uint, er
 	rs.logger.Info("Moved job to DLQ",
 		zap.String("job_id", jobID),
 		zap.String("phase", phase),
-		zap.Uint("video_id", videoID),
+		zap.Uint("scene_id", sceneID),
 		zap.Int("failure_count", failureCount),
 	)
 
@@ -303,7 +303,7 @@ func (rs *RetryScheduler) retryJob(job data.JobHistory) {
 		if job.ErrorMessage != nil {
 			errorMsg = *job.ErrorMessage
 		}
-		if err := rs.moveToDLQ(job.JobID, job.Phase, job.VideoID, errorMsg, job.RetryCount); err != nil {
+		if err := rs.moveToDLQ(job.JobID, job.Phase, job.SceneID, errorMsg, job.RetryCount); err != nil {
 			rs.logger.Error("Failed to move job to DLQ", zap.String("job_id", job.JobID), zap.Error(err))
 		}
 		return
@@ -315,10 +315,10 @@ func (rs *RetryScheduler) retryJob(job data.JobHistory) {
 	}
 
 	// Resubmit the job with retry count so the new job inherits the retry state
-	if err := rs.processingService.SubmitPhaseWithRetry(job.VideoID, job.Phase, job.RetryCount, cfg.MaxRetries); err != nil {
+	if err := rs.processingService.SubmitPhaseWithRetry(job.SceneID, job.Phase, job.RetryCount, cfg.MaxRetries); err != nil {
 		rs.logger.Error("Failed to resubmit job for retry",
 			zap.String("job_id", job.JobID),
-			zap.Uint("video_id", job.VideoID),
+			zap.Uint("scene_id", job.SceneID),
 			zap.String("phase", job.Phase),
 			zap.Int("retry_count", job.RetryCount),
 			zap.Error(err),
@@ -327,7 +327,7 @@ func (rs *RetryScheduler) retryJob(job data.JobHistory) {
 		// If resubmission fails, schedule another retry or move to DLQ
 		errorMsg := err.Error()
 		if job.RetryCount+1 >= cfg.MaxRetries {
-			if dlqErr := rs.moveToDLQ(job.JobID, job.Phase, job.VideoID, errorMsg, job.RetryCount+1); dlqErr != nil {
+			if dlqErr := rs.moveToDLQ(job.JobID, job.Phase, job.SceneID, errorMsg, job.RetryCount+1); dlqErr != nil {
 				rs.logger.Error("Failed to move job to DLQ after retry failure", zap.Error(dlqErr))
 			}
 		} else {
@@ -341,7 +341,7 @@ func (rs *RetryScheduler) retryJob(job data.JobHistory) {
 
 	rs.logger.Info("Resubmitted job for retry",
 		zap.String("original_job_id", job.JobID),
-		zap.Uint("video_id", job.VideoID),
+		zap.Uint("scene_id", job.SceneID),
 		zap.String("phase", job.Phase),
 		zap.Int("retry_count", job.RetryCount),
 	)

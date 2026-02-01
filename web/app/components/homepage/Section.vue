@@ -18,7 +18,7 @@ const handleRefresh = async () => {
     isRefreshing.value = true;
 
     // Capture current data state to detect when refresh completes
-    const currentVideos = props.data?.videos;
+    const currentScenes = props.data?.scenes;
 
     // Emit refresh request to parent
     emit('refresh', props.section.id);
@@ -31,10 +31,10 @@ const handleRefresh = async () => {
         }, 5000); // 5s max wait
 
         const stopWatch = watch(
-            () => props.data?.videos,
-            (newVideos) => {
+            () => props.data?.scenes,
+            (newScenes) => {
                 // Data changed or we got new data
-                if (newVideos !== currentVideos) {
+                if (newScenes !== currentScenes) {
                     clearTimeout(timeout);
                     stopWatch();
                     resolve();
@@ -156,16 +156,16 @@ const seeAllLink = computed(() => {
         </div>
 
         <div
-            v-else-if="data.videos.length === 0"
+            v-else-if="data.scenes.length === 0"
             class="border-border flex h-48 items-center justify-center rounded-lg border
                 border-dashed"
         >
-            <p class="text-dim text-sm">No videos in this section</p>
+            <p class="text-dim text-sm">No scenes in this section</p>
         </div>
 
         <HomepageSectionGrid
             v-else
-            :videos="data.videos"
+            :scenes="data.scenes"
             :watch-progress="data.watch_progress"
             :ratings="data.ratings"
         />

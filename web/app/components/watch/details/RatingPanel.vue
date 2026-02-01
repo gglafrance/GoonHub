@@ -1,10 +1,10 @@
 <script setup lang="ts">
 const props = defineProps<{
-    videoId: number;
+    sceneId: number;
     initialRating?: number;
 }>();
 
-const videoIdRef = computed(() => props.videoId);
+const sceneIdRef = computed(() => props.sceneId);
 const {
     displayRating,
     isHovering,
@@ -13,7 +13,7 @@ const {
     onStarLeave,
     onStarClick,
     setRating,
-} = useVideoRating(videoIdRef);
+} = useSceneRating(sceneIdRef);
 
 onMounted(() => {
     if (props.initialRating) {

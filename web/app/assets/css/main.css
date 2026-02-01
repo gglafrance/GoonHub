@@ -57,7 +57,7 @@ body {
 
 /* Glass panel utility */
 @utility glass-panel {
-    background-color: rgba(10, 10, 10, 0.6);
+    background-color: rgba(10, 10, 10, 0.3);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -65,16 +65,11 @@ body {
 }
 
 @utility glass-card {
-    background-color: rgba(15, 15, 15, 0.4);
+    background-color: rgba(15, 15, 15, 0.2);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 10px;
-}
-
-@utility backdrop-blur-md {
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
 }
 
 /* Glow utilities */

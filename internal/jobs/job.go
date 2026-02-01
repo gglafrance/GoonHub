@@ -19,13 +19,13 @@ const (
 
 // DuplicateJobError is returned when attempting to submit a job that already exists.
 type DuplicateJobError struct {
-	VideoID       uint
+	SceneID       uint
 	Phase         string
 	ExistingJobID string
 }
 
 func (e *DuplicateJobError) Error() string {
-	return fmt.Sprintf("duplicate job: video %d phase %s already has job %s", e.VideoID, e.Phase, e.ExistingJobID)
+	return fmt.Sprintf("duplicate job: scene %d phase %s already has job %s", e.SceneID, e.Phase, e.ExistingJobID)
 }
 
 // IsDuplicateJobError checks if an error is a DuplicateJobError.
@@ -39,7 +39,7 @@ type Job interface {
 	ExecuteWithContext(ctx context.Context) error
 	Cancel()
 	GetID() string
-	GetVideoID() uint
+	GetSceneID() uint
 	GetPhase() string
 	GetStatus() JobStatus
 	GetError() error
@@ -47,7 +47,7 @@ type Job interface {
 
 type JobResult struct {
 	JobID   string
-	VideoID uint
+	SceneID uint
 	Phase   string
 	Status  JobStatus
 	Error   error

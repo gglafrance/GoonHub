@@ -14,14 +14,14 @@ type StudioRepository interface {
 	List(page, limit int) ([]StudioWithCount, int64, error)
 	Search(query string, page, limit int) ([]StudioWithCount, int64, error)
 
-	// Video associations (one-to-many: video has one studio)
-	GetVideoStudio(videoID uint) (*Studio, error)
-	SetVideoStudio(videoID uint, studioID *uint) error
-	GetStudioVideos(studioID uint, page, limit int) ([]Video, int64, error)
-	GetVideoCount(studioID uint) (int64, error)
+	// Scene associations (one-to-many: scene has one studio)
+	GetSceneStudio(sceneID uint) (*Studio, error)
+	SetSceneStudio(sceneID uint, studioID *uint) error
+	GetStudioScenes(studioID uint, page, limit int) ([]Scene, int64, error)
+	GetSceneCount(studioID uint) (int64, error)
 
 	// Bulk operations
-	BulkSetStudioForVideos(videoIDs []uint, studioID *uint) error
+	BulkSetStudioForScenes(sceneIDs []uint, studioID *uint) error
 }
 
 type StudioRepositoryImpl struct {
@@ -87,8 +87,8 @@ func (r *StudioRepositoryImpl) List(page, limit int) ([]StudioWithCount, int64, 
 
 	err := r.DB.
 		Table("studios").
-		Select("studios.*, COALESCE(COUNT(videos.id), 0) as video_count").
-		Joins("LEFT JOIN videos ON videos.studio_id = studios.id AND videos.deleted_at IS NULL").
+		Select("studios.*, COALESCE(COUNT(scenes.id), 0) as scene_count").
+		Joins("LEFT JOIN scenes ON scenes.studio_id = studios.id AND scenes.deleted_at IS NULL").
 		Where("studios.deleted_at IS NULL").
 		Group("studios.id").
 		Order("studios.name ASC").
@@ -116,8 +116,8 @@ func (r *StudioRepositoryImpl) Search(query string, page, limit int) ([]StudioWi
 
 	err := r.DB.
 		Table("studios").
-		Select("studios.*, COALESCE(COUNT(videos.id), 0) as video_count").
-		Joins("LEFT JOIN videos ON videos.studio_id = studios.id AND videos.deleted_at IS NULL").
+		Select("studios.*, COALESCE(COUNT(scenes.id), 0) as scene_count").
+		Joins("LEFT JOIN scenes ON scenes.studio_id = studios.id AND scenes.deleted_at IS NULL").
 		Where("studios.deleted_at IS NULL").
 		Where("studios.name ILIKE ?", searchPattern).
 		Group("studios.id").
@@ -132,35 +132,35 @@ func (r *StudioRepositoryImpl) Search(query string, page, limit int) ([]StudioWi
 	return studios, total, nil
 }
 
-func (r *StudioRepositoryImpl) GetVideoStudio(videoID uint) (*Studio, error) {
-	var video Video
-	if err := r.DB.Select("studio_id").First(&video, videoID).Error; err != nil {
+func (r *StudioRepositoryImpl) GetSceneStudio(sceneID uint) (*Studio, error) {
+	var scene Scene
+	if err := r.DB.Select("studio_id").First(&scene, sceneID).Error; err != nil {
 		return nil, err
 	}
 
-	if video.StudioID == nil {
+	if scene.StudioID == nil {
 		return nil, nil
 	}
 
 	var studio Studio
-	if err := r.DB.First(&studio, *video.StudioID).Error; err != nil {
+	if err := r.DB.First(&studio, *scene.StudioID).Error; err != nil {
 		return nil, err
 	}
 	return &studio, nil
 }
 
-func (r *StudioRepositoryImpl) SetVideoStudio(videoID uint, studioID *uint) error {
-	return r.DB.Model(&Video{}).Where("id = ?", videoID).Update("studio_id", studioID).Error
+func (r *StudioRepositoryImpl) SetSceneStudio(sceneID uint, studioID *uint) error {
+	return r.DB.Model(&Scene{}).Where("id = ?", sceneID).Update("studio_id", studioID).Error
 }
 
-func (r *StudioRepositoryImpl) GetStudioVideos(studioID uint, page, limit int) ([]Video, int64, error) {
-	var videos []Video
+func (r *StudioRepositoryImpl) GetStudioScenes(studioID uint, page, limit int) ([]Scene, int64, error) {
+	var scenes []Scene
 	var total int64
 
 	offset := (page - 1) * limit
 
 	countQuery := r.DB.
-		Model(&Video{}).
+		Model(&Scene{}).
 		Where("studio_id = ?", studioID).
 		Where("deleted_at IS NULL")
 	if err := countQuery.Count(&total).Error; err != nil {
@@ -173,18 +173,18 @@ func (r *StudioRepositoryImpl) GetStudioVideos(studioID uint, page, limit int) (
 		Order("created_at DESC").
 		Limit(limit).
 		Offset(offset).
-		Find(&videos).Error
+		Find(&scenes).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
-	return videos, total, nil
+	return scenes, total, nil
 }
 
-func (r *StudioRepositoryImpl) GetVideoCount(studioID uint) (int64, error) {
+func (r *StudioRepositoryImpl) GetSceneCount(studioID uint) (int64, error) {
 	var count int64
 	err := r.DB.
-		Model(&Video{}).
+		Model(&Scene{}).
 		Where("studio_id = ?", studioID).
 		Where("deleted_at IS NULL").
 		Count(&count).Error
@@ -194,13 +194,13 @@ func (r *StudioRepositoryImpl) GetVideoCount(studioID uint) (int64, error) {
 	return count, nil
 }
 
-// BulkSetStudioForVideos sets the studio for multiple videos
-func (r *StudioRepositoryImpl) BulkSetStudioForVideos(videoIDs []uint, studioID *uint) error {
-	if len(videoIDs) == 0 {
+// BulkSetStudioForScenes sets the studio for multiple scenes
+func (r *StudioRepositoryImpl) BulkSetStudioForScenes(sceneIDs []uint, studioID *uint) error {
+	if len(sceneIDs) == 0 {
 		return nil
 	}
 
-	return r.DB.Model(&Video{}).Where("id IN ?", videoIDs).Update("studio_id", studioID).Error
+	return r.DB.Model(&Scene{}).Where("id IN ?", sceneIDs).Update("studio_id", studioID).Error
 }
 
 // Ensure StudioRepositoryImpl implements StudioRepository

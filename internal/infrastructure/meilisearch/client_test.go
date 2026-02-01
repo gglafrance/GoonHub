@@ -55,9 +55,9 @@ func TestClient_buildFilters(t *testing.T) {
 			expectContains: []string{"height >= 720", "height <= 1080"},
 		},
 		{
-			name: "video IDs filter",
+			name: "scene IDs filter",
 			params: SearchParams{
-				VideoIDs: []uint{1, 2, 3},
+				SceneIDs: []uint{1, 2, 3},
 			},
 			expectedLen:    1,
 			expectContains: []string{"(id = 1 OR id = 2 OR id = 3)"},

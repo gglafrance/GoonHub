@@ -7,7 +7,7 @@ export interface UploadItem {
     progress: number;
     status: 'queued' | 'uploading' | 'completed' | 'failed';
     error?: string;
-    videoId?: number;
+    sceneId?: number;
     xhr?: XMLHttpRequest;
 }
 
@@ -15,7 +15,7 @@ const MAX_CONCURRENT = 2;
 
 export const useUploadStore = defineStore('upload', () => {
     const uploads = ref<UploadItem[]>([]);
-    const videoStore = useVideoStore();
+    const sceneStore = useSceneStore();
     const authStore = useAuthStore();
 
     const activeCount = computed(
@@ -81,7 +81,7 @@ export const useUploadStore = defineStore('upload', () => {
         item.xhr = xhr;
 
         const formData = new FormData();
-        formData.append('video', item.file);
+        formData.append('scene', item.file);
         if (item.title) {
             formData.append('title', item.title);
         }
@@ -96,12 +96,12 @@ export const useUploadStore = defineStore('upload', () => {
             if (xhr.status >= 200 && xhr.status < 300) {
                 try {
                     const response = JSON.parse(xhr.responseText);
-                    item.videoId = response.id;
+                    item.sceneId = response.id;
                     item.status = 'completed';
                     item.progress = 100;
 
-                    if (videoStore.currentPage === 1) {
-                        videoStore.prependVideo(response);
+                    if (sceneStore.currentPage === 1) {
+                        sceneStore.prependScene(response);
                     }
                 } catch {
                     item.status = 'failed';
@@ -137,7 +137,7 @@ export const useUploadStore = defineStore('upload', () => {
             processQueue();
         };
 
-        xhr.open('POST', '/api/v1/videos');
+        xhr.open('POST', '/api/v1/scenes');
         // Use credentials to send HTTP-only cookies for authentication
         xhr.withCredentials = true;
         xhr.send(formData);

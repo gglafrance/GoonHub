@@ -12,8 +12,8 @@ import (
 type DLQService struct {
 	dlqRepo           data.DLQRepository
 	jobHistoryRepo    data.JobHistoryRepository
-	videoRepo         data.VideoRepository
-	processingService *VideoProcessingService
+	sceneRepo         data.SceneRepository
+	processingService *SceneProcessingService
 	eventBus          *EventBus
 	logger            *zap.Logger
 }
@@ -22,21 +22,21 @@ type DLQService struct {
 func NewDLQService(
 	dlqRepo data.DLQRepository,
 	jobHistoryRepo data.JobHistoryRepository,
-	videoRepo data.VideoRepository,
+	sceneRepo data.SceneRepository,
 	eventBus *EventBus,
 	logger *zap.Logger,
 ) *DLQService {
 	return &DLQService{
 		dlqRepo:        dlqRepo,
 		jobHistoryRepo: jobHistoryRepo,
-		videoRepo:      videoRepo,
+		sceneRepo:      sceneRepo,
 		eventBus:       eventBus,
 		logger:         logger.With(zap.String("component", "dlq_service")),
 	}
 }
 
-// SetProcessingService sets the video processing service for resubmitting jobs.
-func (s *DLQService) SetProcessingService(svc *VideoProcessingService) {
+// SetProcessingService sets the scene processing service for resubmitting jobs.
+func (s *DLQService) SetProcessingService(svc *SceneProcessingService) {
 	s.processingService = svc
 }
 
@@ -73,7 +73,7 @@ func (s *DLQService) RetryFromDLQ(jobID string) error {
 	}
 
 	// Resubmit the job
-	if err := s.processingService.SubmitPhase(entry.VideoID, entry.Phase); err != nil {
+	if err := s.processingService.SubmitPhase(entry.SceneID, entry.Phase); err != nil {
 		// Revert status on failure
 		if revertErr := s.dlqRepo.UpdateStatus(jobID, "pending_review"); revertErr != nil {
 			s.logger.Warn("Failed to revert DLQ status", zap.String("job_id", jobID), zap.Error(revertErr))
@@ -87,9 +87,9 @@ func (s *DLQService) RetryFromDLQ(jobID string) error {
 	}
 
 	// Publish SSE event
-	s.eventBus.Publish(VideoEvent{
-		Type:    "video:dlq_retry",
-		VideoID: entry.VideoID,
+	s.eventBus.Publish(SceneEvent{
+		Type:    "scene:dlq_retry",
+		SceneID: entry.SceneID,
 		Data: map[string]any{
 			"job_id": jobID,
 			"phase":  entry.Phase,
@@ -98,7 +98,7 @@ func (s *DLQService) RetryFromDLQ(jobID string) error {
 
 	s.logger.Info("Resubmitted job from DLQ",
 		zap.String("job_id", jobID),
-		zap.Uint("video_id", entry.VideoID),
+		zap.Uint("scene_id", entry.SceneID),
 		zap.String("phase", entry.Phase),
 	)
 
@@ -116,9 +116,9 @@ func (s *DLQService) Abandon(jobID string) error {
 		return fmt.Errorf("failed to abandon DLQ entry: %w", err)
 	}
 
-	s.eventBus.Publish(VideoEvent{
-		Type:    "video:dlq_abandoned",
-		VideoID: entry.VideoID,
+	s.eventBus.Publish(SceneEvent{
+		Type:    "scene:dlq_abandoned",
+		SceneID: entry.SceneID,
 		Data: map[string]any{
 			"job_id": jobID,
 			"phase":  entry.Phase,
@@ -127,7 +127,7 @@ func (s *DLQService) Abandon(jobID string) error {
 
 	s.logger.Info("Abandoned DLQ entry",
 		zap.String("job_id", jobID),
-		zap.Uint("video_id", entry.VideoID),
+		zap.Uint("scene_id", entry.SceneID),
 	)
 
 	return nil

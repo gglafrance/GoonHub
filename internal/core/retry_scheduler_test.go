@@ -10,17 +10,17 @@ import (
 	"go.uber.org/zap"
 )
 
-func newTestRetryScheduler(t *testing.T) (*RetryScheduler, *mocks.MockJobHistoryRepository, *mocks.MockDLQRepository, *mocks.MockRetryConfigRepository, *mocks.MockVideoRepository) {
+func newTestRetryScheduler(t *testing.T) (*RetryScheduler, *mocks.MockJobHistoryRepository, *mocks.MockDLQRepository, *mocks.MockRetryConfigRepository, *mocks.MockSceneRepository) {
 	ctrl := gomock.NewController(t)
 	jobHistoryRepo := mocks.NewMockJobHistoryRepository(ctrl)
 	dlqRepo := mocks.NewMockDLQRepository(ctrl)
 	retryConfigRepo := mocks.NewMockRetryConfigRepository(ctrl)
-	videoRepo := mocks.NewMockVideoRepository(ctrl)
+	sceneRepo := mocks.NewMockSceneRepository(ctrl)
 
 	eventBus := NewEventBus(zap.NewNop())
 
-	svc := NewRetryScheduler(jobHistoryRepo, dlqRepo, retryConfigRepo, videoRepo, eventBus, zap.NewNop())
-	return svc, jobHistoryRepo, dlqRepo, retryConfigRepo, videoRepo
+	svc := NewRetryScheduler(jobHistoryRepo, dlqRepo, retryConfigRepo, sceneRepo, eventBus, zap.NewNop())
+	return svc, jobHistoryRepo, dlqRepo, retryConfigRepo, sceneRepo
 }
 
 func TestRetryScheduler_CalculateNextRetry_DefaultConfig(t *testing.T) {
@@ -127,7 +127,7 @@ func TestRetryScheduler_ScheduleRetry_WithinMaxRetries(t *testing.T) {
 }
 
 func TestRetryScheduler_ScheduleRetry_ExhaustedRetries(t *testing.T) {
-	svc, jobHistoryRepo, dlqRepo, retryConfigRepo, videoRepo := newTestRetryScheduler(t)
+	svc, jobHistoryRepo, dlqRepo, retryConfigRepo, sceneRepo := newTestRetryScheduler(t)
 
 	// Setup config
 	retryConfigRepo.EXPECT().GetAll().Return([]data.RetryConfigRecord{
@@ -142,7 +142,7 @@ func TestRetryScheduler_ScheduleRetry_ExhaustedRetries(t *testing.T) {
 
 	// Expect move to DLQ
 	jobHistoryRepo.EXPECT().MarkNotRetryable("job-123").Return(nil)
-	videoRepo.EXPECT().GetByID(uint(1)).Return(&data.Video{ID: 1, Title: "Test Video"}, nil)
+	sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{ID: 1, Title: "Test Scene"}, nil)
 	dlqRepo.EXPECT().Create(gomock.Any()).Return(nil)
 
 	// Schedule retry when next attempt would exceed max (count=2, so count+1=3 >= max_retries=3)

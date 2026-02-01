@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -31,39 +31,39 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					auth.POST("/logout", authHandler.Logout)
 				}
 
-				videos := protected.Group("/videos")
+				scenes := protected.Group("/scenes")
 				{
-					videos.POST("", middleware.RequirePermission(rbacService, "videos:upload"), videoHandler.UploadVideo)
-					videos.GET("", middleware.RequirePermission(rbacService, "videos:view"), videoHandler.ListVideos)
-					videos.GET("/filters", middleware.RequirePermission(rbacService, "videos:view"), videoHandler.GetFilterOptions)
-					videos.GET("/:id", middleware.RequirePermission(rbacService, "videos:view"), videoHandler.GetVideo)
-					videos.GET("/:id/reprocess", middleware.RequirePermission(rbacService, "videos:reprocess"), videoHandler.ReprocessVideo)
-					videos.PUT("/:id/thumbnail", middleware.RequirePermission(rbacService, "videos:upload"), videoHandler.ExtractThumbnail)
-					videos.POST("/:id/thumbnail/upload", middleware.RequirePermission(rbacService, "videos:upload"), videoHandler.UploadThumbnail)
-					videos.PUT("/:id/details", middleware.RequirePermission(rbacService, "videos:upload"), videoHandler.UpdateVideoDetails)
-					videos.DELETE("/:id", middleware.RequirePermission(rbacService, "videos:delete"), videoHandler.DeleteVideo)
-					videos.GET("/:id/tags", middleware.RequirePermission(rbacService, "videos:view"), tagHandler.GetVideoTags)
-					videos.PUT("/:id/tags", middleware.RequirePermission(rbacService, "videos:upload"), tagHandler.SetVideoTags)
-					videos.GET("/:id/interactions", interactionHandler.GetInteractions)
-					videos.GET("/:id/rating", interactionHandler.GetRating)
-					videos.PUT("/:id/rating", interactionHandler.SetRating)
-					videos.DELETE("/:id/rating", interactionHandler.DeleteRating)
-					videos.GET("/:id/like", interactionHandler.GetLike)
-					videos.POST("/:id/like", interactionHandler.ToggleLike)
-					videos.GET("/:id/jizzed", interactionHandler.GetJizzed)
-					videos.POST("/:id/jizzed", interactionHandler.ToggleJizzed)
-					videos.POST("/:id/watch", middleware.RequirePermission(rbacService, "videos:view"), watchHistoryHandler.RecordWatch)
-					videos.GET("/:id/resume", middleware.RequirePermission(rbacService, "videos:view"), watchHistoryHandler.GetResumePosition)
-					videos.GET("/:id/history", middleware.RequirePermission(rbacService, "videos:view"), watchHistoryHandler.GetVideoHistory)
-					videos.GET("/:id/actors", middleware.RequirePermission(rbacService, "videos:view"), actorHandler.GetVideoActors)
-					videos.PUT("/:id/actors", middleware.RequirePermission(rbacService, "videos:upload"), actorHandler.SetVideoActors)
-					videos.GET("/:id/studio", middleware.RequirePermission(rbacService, "videos:view"), studioHandler.GetVideoStudio)
-					videos.PUT("/:id/studio", middleware.RequirePermission(rbacService, "videos:upload"), studioHandler.SetVideoStudio)
-					videos.GET("/:id/related", middleware.RequirePermission(rbacService, "videos:view"), videoHandler.GetRelatedVideos)
-					videos.GET("/:id/markers", middleware.RequirePermission(rbacService, "videos:view"), markerHandler.ListMarkers)
-					videos.POST("/:id/markers", middleware.RequirePermission(rbacService, "videos:view"), markerHandler.CreateMarker)
-					videos.PUT("/:id/markers/:markerID", middleware.RequirePermission(rbacService, "videos:view"), markerHandler.UpdateMarker)
-					videos.DELETE("/:id/markers/:markerID", middleware.RequirePermission(rbacService, "videos:view"), markerHandler.DeleteMarker)
+					scenes.POST("", middleware.RequirePermission(rbacService, "scenes:upload"), sceneHandler.UploadScene)
+					scenes.GET("", middleware.RequirePermission(rbacService, "scenes:view"), sceneHandler.ListScenes)
+					scenes.GET("/filters", middleware.RequirePermission(rbacService, "scenes:view"), sceneHandler.GetFilterOptions)
+					scenes.GET("/:id", middleware.RequirePermission(rbacService, "scenes:view"), sceneHandler.GetScene)
+					scenes.GET("/:id/reprocess", middleware.RequirePermission(rbacService, "scenes:reprocess"), sceneHandler.ReprocessScene)
+					scenes.PUT("/:id/thumbnail", middleware.RequirePermission(rbacService, "scenes:upload"), sceneHandler.ExtractThumbnail)
+					scenes.POST("/:id/thumbnail/upload", middleware.RequirePermission(rbacService, "scenes:upload"), sceneHandler.UploadThumbnail)
+					scenes.PUT("/:id/details", middleware.RequirePermission(rbacService, "scenes:upload"), sceneHandler.UpdateSceneDetails)
+					scenes.DELETE("/:id", middleware.RequirePermission(rbacService, "scenes:delete"), sceneHandler.DeleteScene)
+					scenes.GET("/:id/tags", middleware.RequirePermission(rbacService, "scenes:view"), tagHandler.GetSceneTags)
+					scenes.PUT("/:id/tags", middleware.RequirePermission(rbacService, "scenes:upload"), tagHandler.SetSceneTags)
+					scenes.GET("/:id/interactions", interactionHandler.GetInteractions)
+					scenes.GET("/:id/rating", interactionHandler.GetRating)
+					scenes.PUT("/:id/rating", interactionHandler.SetRating)
+					scenes.DELETE("/:id/rating", interactionHandler.DeleteRating)
+					scenes.GET("/:id/like", interactionHandler.GetLike)
+					scenes.POST("/:id/like", interactionHandler.ToggleLike)
+					scenes.GET("/:id/jizzed", interactionHandler.GetJizzed)
+					scenes.POST("/:id/jizzed", interactionHandler.ToggleJizzed)
+					scenes.POST("/:id/watch", middleware.RequirePermission(rbacService, "scenes:view"), watchHistoryHandler.RecordWatch)
+					scenes.GET("/:id/resume", middleware.RequirePermission(rbacService, "scenes:view"), watchHistoryHandler.GetResumePosition)
+					scenes.GET("/:id/history", middleware.RequirePermission(rbacService, "scenes:view"), watchHistoryHandler.GetSceneHistory)
+					scenes.GET("/:id/actors", middleware.RequirePermission(rbacService, "scenes:view"), actorHandler.GetSceneActors)
+					scenes.PUT("/:id/actors", middleware.RequirePermission(rbacService, "scenes:upload"), actorHandler.SetSceneActors)
+					scenes.GET("/:id/studio", middleware.RequirePermission(rbacService, "scenes:view"), studioHandler.GetSceneStudio)
+					scenes.PUT("/:id/studio", middleware.RequirePermission(rbacService, "scenes:upload"), studioHandler.SetSceneStudio)
+					scenes.GET("/:id/related", middleware.RequirePermission(rbacService, "scenes:view"), sceneHandler.GetRelatedScenes)
+					scenes.GET("/:id/markers", middleware.RequirePermission(rbacService, "scenes:view"), markerHandler.ListMarkers)
+					scenes.POST("/:id/markers", middleware.RequirePermission(rbacService, "scenes:view"), markerHandler.CreateMarker)
+					scenes.PUT("/:id/markers/:markerID", middleware.RequirePermission(rbacService, "scenes:view"), markerHandler.UpdateMarker)
+					scenes.DELETE("/:id/markers/:markerID", middleware.RequirePermission(rbacService, "scenes:view"), markerHandler.DeleteMarker)
 				}
 
 				history := protected.Group("/history")
@@ -82,7 +82,7 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 				{
 					actors.GET("", actorHandler.ListActors)
 					actors.GET("/:uuid", actorHandler.GetActorByUUID)
-					actors.GET("/:uuid/videos", actorHandler.GetActorVideos)
+					actors.GET("/:uuid/scenes", actorHandler.GetActorScenes)
 					actors.GET("/:uuid/interactions", actorInteractionHandler.GetInteractions)
 					actors.PUT("/:uuid/rating", actorInteractionHandler.SetRating)
 					actors.DELETE("/:uuid/rating", actorInteractionHandler.DeleteRating)
@@ -93,7 +93,7 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 				{
 					studios.GET("", studioHandler.ListStudios)
 					studios.GET("/:uuid", studioHandler.GetStudioByUUID)
-					studios.GET("/:uuid/videos", studioHandler.GetStudioVideos)
+					studios.GET("/:uuid/scenes", studioHandler.GetStudioScenes)
 					studios.GET("/:uuid/interactions", studioInteractionHandler.GetInteractions)
 					studios.PUT("/:uuid/rating", studioInteractionHandler.SetRating)
 					studios.DELETE("/:uuid/rating", studioInteractionHandler.DeleteRating)
@@ -107,8 +107,8 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					explorer.POST("/bulk/tags", explorerHandler.BulkUpdateTags)
 					explorer.POST("/bulk/actors", explorerHandler.BulkUpdateActors)
 					explorer.POST("/bulk/studio", explorerHandler.BulkUpdateStudio)
-					explorer.DELETE("/bulk/videos", middleware.RequirePermission(rbacService, "videos:delete"), explorerHandler.BulkDeleteVideos)
-					explorer.POST("/folder/video-ids", explorerHandler.GetFolderVideoIDs)
+					explorer.DELETE("/bulk/scenes", middleware.RequirePermission(rbacService, "scenes:delete"), explorerHandler.BulkDeleteScenes)
+					explorer.POST("/folder/scene-ids", explorerHandler.GetFolderSceneIDs)
 					explorer.POST("/search", explorerHandler.SearchInFolder)
 				}
 
@@ -144,6 +144,11 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					markers.GET("", markerHandler.ListLabelGroups)
 					markers.GET("/labels", markerHandler.ListLabelSuggestions)
 					markers.GET("/by-label", markerHandler.ListMarkersByLabel)
+					markers.GET("/label-tags", markerHandler.GetLabelTags)
+					markers.PUT("/label-tags", markerHandler.SetLabelTags)
+					markers.GET("/:markerID/tags", markerHandler.GetMarkerTags)
+					markers.PUT("/:markerID/tags", markerHandler.SetMarkerTags)
+					markers.POST("/:markerID/tags", markerHandler.AddMarkerTags)
 				}
 
 				admin := protected.Group("/admin")
@@ -164,8 +169,8 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					admin.PUT("/processing-config", processingConfigHandler.UpdateProcessingConfig)
 					admin.GET("/trigger-config", triggerConfigHandler.GetTriggerConfig)
 					admin.PUT("/trigger-config", triggerConfigHandler.UpdateTriggerConfig)
-					admin.POST("/videos/:id/process/:phase", jobHandler.TriggerPhase)
-					admin.PUT("/videos/:id/scene-metadata", videoHandler.ApplySceneMetadata)
+					admin.POST("/scenes/:id/process/:phase", jobHandler.TriggerPhase)
+					admin.PUT("/scenes/:id/scene-metadata", sceneHandler.ApplySceneMetadata)
 					admin.POST("/jobs/bulk", jobHandler.TriggerBulkPhase)
 					admin.POST("/jobs/:id/cancel", jobHandler.CancelJob)
 					admin.GET("/dlq", dlqHandler.ListDLQ)
@@ -203,11 +208,15 @@ func RegisterRoutes(r *gin.Engine, videoHandler *handler.VideoHandler, authHandl
 					admin.GET("/porndb/scenes/:id", pornDBHandler.GetScene)
 					admin.GET("/porndb/sites", pornDBHandler.SearchSites)
 					admin.GET("/porndb/sites/:id", pornDBHandler.GetSite)
+
+					// Import endpoints
+					admin.POST("/import/scenes", importHandler.ImportScene)
+					admin.POST("/import/markers", importHandler.ImportMarker)
 				}
 			}
 		}
 	}
 
-	// Public video streaming endpoint (outside /api for better access)
-	r.GET("/api/v1/videos/:id/stream", videoHandler.StreamVideo)
+	// Public scene streaming endpoint (outside /api for better access)
+	r.GET("/api/v1/scenes/:id/stream", sceneHandler.StreamScene)
 }

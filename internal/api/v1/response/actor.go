@@ -9,5 +9,5 @@ type ActorListItem struct {
 	Name       string    `json:"name"`
 	ImageURL   string    `json:"image_url"`
 	Gender     string    `json:"gender"`
-	VideoCount int64     `json:"video_count"`
+	SceneCount int64     `json:"scene_count"`
 }

@@ -1,4 +1,4 @@
-import type { VideoListItem } from './video';
+import type { SceneListItem } from './scene';
 
 export type SectionType =
     | 'latest'
@@ -33,7 +33,7 @@ export interface WatchProgress {
 
 export interface HomepageSectionData {
     section: HomepageSection;
-    videos: VideoListItem[];
+    scenes: SceneListItem[];
     total: number;
     watch_progress?: Record<number, WatchProgress>;
     ratings?: Record<number, number>;
@@ -52,7 +52,7 @@ export const SECTION_TYPE_LABELS: Record<SectionType, string> = {
     saved_search: 'Saved Search',
     continue_watching: 'Continue Watching',
     most_viewed: 'Most Viewed',
-    liked: 'Liked Videos',
+    liked: 'Liked Scenes',
 };
 
 export const SORT_OPTIONS = [
@@ -120,12 +120,12 @@ export const SECTION_COLORS_WITH_BORDER: Record<SectionType, string> = {
 
 // Section type descriptions for UI
 export const SECTION_DESCRIPTIONS: Record<SectionType, string> = {
-    latest: 'Recently uploaded videos',
-    actor: 'Videos featuring a specific actor',
-    studio: 'Videos from a specific studio',
-    tag: 'Videos with a specific tag',
-    saved_search: 'Videos matching a saved search',
+    latest: 'Recently uploaded scenes',
+    actor: 'Scenes featuring a specific actor',
+    studio: 'Scenes from a specific studio',
+    tag: 'Scenes with a specific tag',
+    saved_search: 'Scenes matching a saved search',
     continue_watching: 'Resume where you left off',
-    most_viewed: 'Popular videos by view count',
-    liked: 'Your liked videos',
+    most_viewed: 'Popular scenes by view count',
+    liked: 'Your liked scenes',
 };
