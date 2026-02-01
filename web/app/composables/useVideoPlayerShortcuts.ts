@@ -11,6 +11,7 @@ interface Options {
 
 export const useVideoPlayerShortcuts = (options: Options) => {
     const { player, video, onTheaterModeToggle } = options;
+    const { keys } = useKeyboardLayout();
 
     const SEEK_SHORT = 5;
     const SEEK_LONG = 10;
@@ -84,8 +85,11 @@ export const useVideoPlayerShortcuts = (options: Options) => {
             p.isFullscreen() ? p.exitFullscreen() : p.requestFullscreen();
         }
 
-        // Decrease playback speed (< or Shift+,)
-        else if (key === '<' || (key === ',' && e.shiftKey)) {
+        // Decrease playback speed
+        else if (
+            key === keys.value.speedDecrease ||
+            (key === keys.value.speedDecreaseShift && e.shiftKey)
+        ) {
             e.preventDefault();
             const currentRate = getPlaybackRate();
             const idx = PLAYBACK_RATES.indexOf(currentRate);
@@ -97,8 +101,11 @@ export const useVideoPlayerShortcuts = (options: Options) => {
                 if (lowerRate) p.playbackRate(lowerRate);
             }
         }
-        // Increase playback speed (> or Shift+.)
-        else if (key === '>' || (key === '.' && e.shiftKey)) {
+        // Increase playback speed
+        else if (
+            key === keys.value.speedIncrease ||
+            (key === keys.value.speedIncreaseShift && e.shiftKey)
+        ) {
             e.preventDefault();
             const currentRate = getPlaybackRate();
             const idx = PLAYBACK_RATES.indexOf(currentRate);
@@ -112,13 +119,13 @@ export const useVideoPlayerShortcuts = (options: Options) => {
         }
 
         // Frame step backward (only when paused)
-        else if (key === ',' && !e.shiftKey && p.paused()) {
+        else if (key === keys.value.frameBack && !e.shiftKey && p.paused()) {
             e.preventDefault();
             const frameRate = video.value?.frame_rate ?? DEFAULT_FRAME_RATE;
             p.currentTime(Math.max(0, getCurrentTime() - 1 / frameRate));
         }
         // Frame step forward (only when paused)
-        else if (key === '.' && !e.shiftKey && p.paused()) {
+        else if (key === keys.value.frameForward && !e.shiftKey && p.paused()) {
             e.preventDefault();
             const frameRate = video.value?.frame_rate ?? DEFAULT_FRAME_RATE;
             p.currentTime(Math.min(getDuration(), getCurrentTime() + 1 / frameRate));

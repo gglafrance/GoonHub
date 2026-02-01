@@ -7,7 +7,9 @@ const emit = defineEmits<{
     close: [];
 }>();
 
-const shortcuts = [
+const { layout, displayKeys } = useKeyboardLayout();
+
+const shortcuts = computed(() => [
     {
         category: 'Playback',
         items: [
@@ -24,8 +26,8 @@ const shortcuts = [
             { keys: ['→'], description: 'Seek forward 5s' },
             { keys: ['J'], description: 'Seek back 10s' },
             { keys: ['L'], description: 'Seek forward 10s' },
-            { keys: [','], description: 'Previous frame (paused)' },
-            { keys: ['.'], description: 'Next frame (paused)' },
+            { keys: [displayKeys.value.frameBack], description: 'Previous frame (paused)' },
+            { keys: [displayKeys.value.frameForward], description: 'Next frame (paused)' },
         ],
     },
     {
@@ -39,8 +41,8 @@ const shortcuts = [
     {
         category: 'Speed',
         items: [
-            { keys: ['<'], description: 'Decrease speed' },
-            { keys: ['>'], description: 'Increase speed' },
+            { keys: [displayKeys.value.speedDecrease], description: 'Decrease speed' },
+            { keys: [displayKeys.value.speedIncrease], description: 'Increase speed' },
         ],
     },
     {
@@ -50,11 +52,11 @@ const shortcuts = [
     {
         category: 'Navigation',
         items: [
-            { keys: ['['], description: 'Previous page' },
-            { keys: [']'], description: 'Next page' },
+            { keys: [displayKeys.value.pagePrev], description: 'Previous page' },
+            { keys: [displayKeys.value.pageNext], description: 'Next page' },
         ],
     },
-];
+]);
 
 const handleKeydown = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && props.visible) {
@@ -105,7 +107,10 @@ onUnmounted(() => {
                             </div>
                             <div>
                                 <h2 class="text-sm font-semibold text-white">Keyboard Shortcuts</h2>
-                                <p class="text-dim text-[11px]">Video player controls</p>
+                                <p class="text-dim text-[11px]">
+                                    Video player controls
+                                    <span class="text-lava ml-1 uppercase">{{ layout }}</span>
+                                </p>
                             </div>
                         </div>
                         <button

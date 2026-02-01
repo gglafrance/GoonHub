@@ -9,6 +9,8 @@ const emit = defineEmits<{
     (e: 'update:modelValue', page: number): void;
 }>();
 
+const { keys } = useKeyboardLayout();
+
 const totalPages = computed(() => Math.ceil(props.total / props.limit));
 
 const setPage = (page: number) => {
@@ -24,9 +26,9 @@ const handleKeydown = (e: KeyboardEvent) => {
         return;
     }
 
-    if (e.key === '[') {
+    if (e.key === keys.value.pagePrev) {
         setPage(props.modelValue - 1);
-    } else if (e.key === ']') {
+    } else if (e.key === keys.value.pageNext) {
         setPage(props.modelValue + 1);
     }
 };

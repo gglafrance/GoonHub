@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import type { UserSettings, SortOrder, TagSort } from '~/types/settings';
+import type { UserSettings, SortOrder, TagSort, KeyboardLayout } from '~/types/settings';
 
 export const useSettingsStore = defineStore(
     'settings',
@@ -8,6 +8,7 @@ export const useSettingsStore = defineStore(
         const isLoading = ref(false);
         const error = ref<string | null>(null);
         const theaterMode = ref(false);
+        const keyboardLayout = ref<KeyboardLayout>('qwerty');
 
         const {
             fetchSettings: apiFetchSettings,
@@ -99,6 +100,10 @@ export const useSettingsStore = defineStore(
             theaterMode.value = !theaterMode.value;
         };
 
+        const setKeyboardLayout = (layout: KeyboardLayout) => {
+            keyboardLayout.value = layout;
+        };
+
         return {
             settings,
             isLoading,
@@ -110,11 +115,13 @@ export const useSettingsStore = defineStore(
             defaultSortOrder,
             defaultTagSort,
             theaterMode,
+            keyboardLayout,
             loadSettings,
             updatePlayer,
             updateApp,
             updateTags,
             toggleTheaterMode,
+            setKeyboardLayout,
         };
     },
     {
@@ -133,7 +140,7 @@ export const useSettingsStore = defineStore(
                     }
                 },
             },
-            pick: ['settings', 'theaterMode'],
+            pick: ['settings', 'theaterMode', 'keyboardLayout'],
         },
     },
 );
