@@ -38,7 +38,7 @@ func NewClient(host, apiKey, indexName string, logger *zap.Logger) (*Client, err
 	return c, nil
 }
 
-// EnsureIndex creates the videos index if it doesn't exist and configures settings.
+// EnsureIndex creates the scenes index if it doesn't exist and configures settings.
 func (c *Client) EnsureIndex() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -108,51 +108,51 @@ func (c *Client) EnsureIndex() error {
 	return nil
 }
 
-// IndexVideo adds or updates a video document in the index.
-func (c *Client) IndexVideo(doc VideoDocument) error {
+// IndexScene adds or updates a scene document in the index.
+func (c *Client) IndexScene(doc SceneDocument) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	index := c.client.Index(c.indexName)
-	task, err := index.AddDocuments([]VideoDocument{doc}, "id")
+	task, err := index.AddDocuments([]SceneDocument{doc}, "id")
 	if err != nil {
-		return fmt.Errorf("failed to index video: %w", err)
+		return fmt.Errorf("failed to index scene: %w", err)
 	}
 
 	if _, err := c.client.WaitForTask(task.TaskUID, meili.WaitParams{Context: ctx, Interval: 100 * time.Millisecond}); err != nil {
 		return fmt.Errorf("failed to wait for index task: %w", err)
 	}
 
-	c.logger.Debug("indexed video", zap.Uint("id", doc.ID), zap.String("title", doc.Title))
+	c.logger.Debug("indexed scene", zap.Uint("id", doc.ID), zap.String("title", doc.Title))
 	return nil
 }
 
-// UpdateVideo updates an existing video document in the index.
-func (c *Client) UpdateVideo(doc VideoDocument) error {
-	return c.IndexVideo(doc) // Meilisearch upserts automatically
+// UpdateScene updates an existing scene document in the index.
+func (c *Client) UpdateScene(doc SceneDocument) error {
+	return c.IndexScene(doc) // Meilisearch upserts automatically
 }
 
-// DeleteVideo removes a video document from the index.
-func (c *Client) DeleteVideo(id uint) error {
+// DeleteScene removes a scene document from the index.
+func (c *Client) DeleteScene(id uint) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	index := c.client.Index(c.indexName)
 	task, err := index.DeleteDocument(fmt.Sprintf("%d", id))
 	if err != nil {
-		return fmt.Errorf("failed to delete video: %w", err)
+		return fmt.Errorf("failed to delete scene: %w", err)
 	}
 
 	if _, err := c.client.WaitForTask(task.TaskUID, meili.WaitParams{Context: ctx, Interval: 100 * time.Millisecond}); err != nil {
 		return fmt.Errorf("failed to wait for delete task: %w", err)
 	}
 
-	c.logger.Debug("deleted video from index", zap.Uint("id", id))
+	c.logger.Debug("deleted scene from index", zap.Uint("id", id))
 	return nil
 }
 
-// BulkIndex adds multiple video documents to the index.
-func (c *Client) BulkIndex(docs []VideoDocument) error {
+// BulkIndex adds multiple scene documents to the index.
+func (c *Client) BulkIndex(docs []SceneDocument) error {
 	if len(docs) == 0 {
 		return nil
 	}
@@ -170,11 +170,11 @@ func (c *Client) BulkIndex(docs []VideoDocument) error {
 		return fmt.Errorf("failed to wait for bulk index task: %w", err)
 	}
 
-	c.logger.Info("bulk indexed videos", zap.Int("count", len(docs)))
+	c.logger.Info("bulk indexed scenes", zap.Int("count", len(docs)))
 	return nil
 }
 
-// Search performs a search query and returns matching video IDs with total count.
+// Search performs a search query and returns matching scene IDs with total count.
 func (c *Client) Search(params SearchParams) (*SearchResult, error) {
 	index := c.client.Index(c.indexName)
 
@@ -185,10 +185,10 @@ func (c *Client) Search(params SearchParams) (*SearchResult, error) {
 	sort := c.buildSort(params)
 
 	searchReq := &meili.SearchRequest{
-		Limit:                 int64(params.Limit),
-		Offset:                int64(params.Offset),
-		AttributesToRetrieve:  []string{"id"},
-		ShowMatchesPosition:   false,
+		Limit:                int64(params.Limit),
+		Offset:               int64(params.Offset),
+		AttributesToRetrieve: []string{"id"},
+		ShowMatchesPosition:  false,
 	}
 
 	if len(filters) > 0 {
@@ -276,10 +276,10 @@ func (c *Client) buildFilters(params SearchParams) []string {
 		filters = append(filters, fmt.Sprintf("processing_status = \"%s\"", params.ProcessingStatus))
 	}
 
-	// Pre-filtered video IDs (for user-specific filters)
-	if len(params.VideoIDs) > 0 {
-		idStrs := make([]string, len(params.VideoIDs))
-		for i, id := range params.VideoIDs {
+	// Pre-filtered scene IDs (for user-specific filters)
+	if len(params.SceneIDs) > 0 {
+		idStrs := make([]string, len(params.SceneIDs))
+		for i, id := range params.SceneIDs {
 			idStrs[i] = fmt.Sprintf("id = %d", id)
 		}
 		filters = append(filters, "("+strings.Join(idStrs, " OR ")+")")

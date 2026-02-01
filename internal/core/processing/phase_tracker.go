@@ -11,7 +11,7 @@ type PhaseTracker struct {
 	triggerConfigRepo data.TriggerConfigRepository
 	triggerCache      []data.TriggerConfigRecord
 	triggerCacheMu    sync.RWMutex
-	phases            sync.Map // map[uint]*PhaseState
+	phases            sync.Map // map[sceneID uint]*PhaseState
 }
 
 // NewPhaseTracker creates a new PhaseTracker
@@ -72,23 +72,23 @@ func (pt *PhaseTracker) GetPhasesTriggeredAfter(completedPhase string) []string 
 	return phases
 }
 
-// InitPhaseState initializes phase state tracking for a video
-func (pt *PhaseTracker) InitPhaseState(videoID uint) {
-	pt.phases.Store(videoID, &PhaseState{})
+// InitPhaseState initializes phase state tracking for a scene
+func (pt *PhaseTracker) InitPhaseState(sceneID uint) {
+	pt.phases.Store(sceneID, &PhaseState{})
 }
 
-// GetPhaseState retrieves the phase state for a video
-func (pt *PhaseTracker) GetPhaseState(videoID uint) (*PhaseState, bool) {
-	val, ok := pt.phases.Load(videoID)
+// GetPhaseState retrieves the phase state for a scene
+func (pt *PhaseTracker) GetPhaseState(sceneID uint) (*PhaseState, bool) {
+	val, ok := pt.phases.Load(sceneID)
 	if !ok {
 		return nil, false
 	}
 	return val.(*PhaseState), true
 }
 
-// MarkPhaseComplete marks a phase as complete for a video
-func (pt *PhaseTracker) MarkPhaseComplete(videoID uint, phase string) {
-	val, ok := pt.phases.Load(videoID)
+// MarkPhaseComplete marks a phase as complete for a scene
+func (pt *PhaseTracker) MarkPhaseComplete(sceneID uint, phase string) {
+	val, ok := pt.phases.Load(sceneID)
 	if !ok {
 		return
 	}
@@ -101,15 +101,15 @@ func (pt *PhaseTracker) MarkPhaseComplete(videoID uint, phase string) {
 	}
 }
 
-// ClearPhaseState removes phase state tracking for a video
-func (pt *PhaseTracker) ClearPhaseState(videoID uint) {
-	pt.phases.Delete(videoID)
+// ClearPhaseState removes phase state tracking for a scene
+func (pt *PhaseTracker) ClearPhaseState(sceneID uint) {
+	pt.phases.Delete(sceneID)
 }
 
-// CheckAllPhasesComplete checks if all phases in the pipeline are complete for a video
-// Returns true if all phases are complete and the video should be marked as completed
-func (pt *PhaseTracker) CheckAllPhasesComplete(videoID uint, completedPhase string) bool {
-	state, ok := pt.GetPhaseState(videoID)
+// CheckAllPhasesComplete checks if all phases in the pipeline are complete for a scene
+// Returns true if all phases are complete and the scene should be marked as completed
+func (pt *PhaseTracker) CheckAllPhasesComplete(sceneID uint, completedPhase string) bool {
+	state, ok := pt.GetPhaseState(sceneID)
 	if !ok {
 		// No phase state means this was a standalone trigger (manual/scheduled)
 		// or metadata completed with no auto-follow phases
@@ -138,7 +138,7 @@ func (pt *PhaseTracker) CheckAllPhasesComplete(videoID uint, completedPhase stri
 	spritesReady := !spritesInPipeline || state.SpritesDone
 
 	if thumbnailReady && spritesReady {
-		pt.ClearPhaseState(videoID)
+		pt.ClearPhaseState(sceneID)
 		return true
 	}
 

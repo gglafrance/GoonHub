@@ -10,13 +10,13 @@ import (
 
 // ProcessingConfigHandler handles processing quality configuration requests
 type ProcessingConfigHandler struct {
-	processingService    *core.VideoProcessingService
+	processingService    *core.SceneProcessingService
 	processingConfigRepo data.ProcessingConfigRepository
 }
 
 // NewProcessingConfigHandler creates a new ProcessingConfigHandler
 func NewProcessingConfigHandler(
-	processingService *core.VideoProcessingService,
+	processingService *core.SceneProcessingService,
 	processingConfigRepo data.ProcessingConfigRepository,
 ) *ProcessingConfigHandler {
 	return &ProcessingConfigHandler{

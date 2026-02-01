@@ -108,7 +108,7 @@ onUnmounted(() => {
                             <div>
                                 <h2 class="text-sm font-semibold text-white">Keyboard Shortcuts</h2>
                                 <p class="text-dim text-[11px]">
-                                    Video player controls
+                                    Scene player controls
                                     <span class="text-lava ml-1 uppercase">{{ layout }}</span>
                                 </p>
                             </div>

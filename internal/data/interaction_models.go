@@ -4,39 +4,47 @@ import (
 	"time"
 )
 
-type UserVideoRating struct {
+type UserSceneRating struct {
 	ID        uint      `gorm:"primarykey" json:"id"`
 	UserID    uint      `gorm:"not null" json:"user_id"`
-	VideoID   uint      `gorm:"not null" json:"video_id"`
+	SceneID   uint      `gorm:"not null;column:scene_id" json:"scene_id"`
 	Rating    float64   `gorm:"type:decimal(2,1);not null" json:"rating"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-type UserVideoLike struct {
+func (UserSceneRating) TableName() string {
+	return "user_scene_ratings"
+}
+
+type UserSceneLike struct {
 	ID        uint      `gorm:"primarykey" json:"id"`
 	UserID    uint      `gorm:"not null" json:"user_id"`
-	VideoID   uint      `gorm:"not null" json:"video_id"`
+	SceneID   uint      `gorm:"not null;column:scene_id" json:"scene_id"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
-type UserVideoJizzed struct {
+func (UserSceneLike) TableName() string {
+	return "user_scene_likes"
+}
+
+type UserSceneJizzed struct {
 	ID        uint      `gorm:"primarykey" json:"id"`
 	UserID    uint      `gorm:"not null" json:"user_id"`
-	VideoID   uint      `gorm:"not null" json:"video_id"`
+	SceneID   uint      `gorm:"not null;column:scene_id" json:"scene_id"`
 	Count     int       `gorm:"not null;default:0" json:"count"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-func (UserVideoJizzed) TableName() string {
-	return "user_video_jizzed"
+func (UserSceneJizzed) TableName() string {
+	return "user_scene_jizzed"
 }
 
-type UserVideoWatch struct {
+type UserSceneWatch struct {
 	ID            uint      `gorm:"primarykey" json:"id"`
 	UserID        uint      `gorm:"not null" json:"user_id"`
-	VideoID       uint      `gorm:"not null" json:"video_id"`
+	SceneID       uint      `gorm:"not null;column:scene_id" json:"scene_id"`
 	WatchedAt     time.Time `gorm:"not null;default:now()" json:"watched_at"`
 	WatchDuration int       `gorm:"not null;default:0" json:"watch_duration"`
 	LastPosition  int       `gorm:"not null;default:0" json:"last_position"`
@@ -45,8 +53,8 @@ type UserVideoWatch struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
-func (UserVideoWatch) TableName() string {
-	return "user_video_watches"
+func (UserSceneWatch) TableName() string {
+	return "user_scene_watches"
 }
 
 // Actor interaction models
@@ -73,16 +81,16 @@ type ActorInteractions struct {
 	Liked  bool
 }
 
-// UserVideoViewCount tracks when view counts were last incremented per user+video
+// UserSceneViewCount tracks when view counts were last incremented per user+scene
 // Used for atomic 24-hour deduplication to prevent race conditions
-type UserVideoViewCount struct {
+type UserSceneViewCount struct {
 	ID            uint      `gorm:"primarykey" json:"id"`
 	UserID        uint      `gorm:"not null" json:"user_id"`
-	VideoID       uint      `gorm:"not null" json:"video_id"`
+	SceneID       uint      `gorm:"not null;column:scene_id" json:"scene_id"`
 	LastCountedAt time.Time `gorm:"not null;default:now()" json:"last_counted_at"`
 	CreatedAt     time.Time `json:"created_at"`
 }
 
-func (UserVideoViewCount) TableName() string {
-	return "user_video_view_counts"
+func (UserSceneViewCount) TableName() string {
+	return "user_scene_view_counts"
 }

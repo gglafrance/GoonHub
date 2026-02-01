@@ -1,14 +1,14 @@
 /**
- * Composable for video like toggle with animation state.
+ * Composable for scene like toggle with animation state.
  */
-export const useVideoLike = (videoId: Ref<number | undefined>) => {
-    const { toggleVideoLike } = useApiVideos();
+export const useSceneLike = (sceneId: Ref<number | undefined>) => {
+    const { toggleSceneLike } = useApiScenes();
 
     const liked = ref(false);
     const animating = ref(false);
 
     const toggle = async () => {
-        if (!videoId.value) return;
+        if (!sceneId.value) return;
         const wasLiked = liked.value;
         liked.value = !wasLiked;
         animating.value = true;
@@ -17,7 +17,7 @@ export const useVideoLike = (videoId: Ref<number | undefined>) => {
         }, 300);
 
         try {
-            const res = await toggleVideoLike(videoId.value);
+            const res = await toggleSceneLike(sceneId.value);
             liked.value = res.liked;
         } catch {
             liked.value = wasLiked;

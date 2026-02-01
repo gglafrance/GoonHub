@@ -6,8 +6,8 @@ useHead({ title: 'Library' });
 useSeoMeta({
     title: 'Library',
     ogTitle: 'Library - GoonHub',
-    description: 'Browse your personal video library',
-    ogDescription: 'Browse your personal video library',
+    description: 'Browse your personal scene library',
+    ogDescription: 'Browse your personal scene library',
 });
 
 onMounted(async () => {
@@ -27,7 +27,7 @@ definePageMeta({
     <div class="min-h-screen px-4 py-6 sm:px-5">
         <div class="mx-auto max-w-415">
             <!-- Upload Section -->
-            <VideoUpload v-if="homepageStore.config?.show_upload !== false" />
+            <SceneUpload v-if="homepageStore.config?.show_upload !== false" />
 
             <!-- Loading State -->
             <div

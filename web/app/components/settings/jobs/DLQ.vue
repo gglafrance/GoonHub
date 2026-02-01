@@ -237,7 +237,7 @@ onMounted(() => {
                             class="text-dim border-border border-b text-[11px] tracking-wider
                                 uppercase"
                         >
-                            <th class="pr-4 pb-2 font-medium">Video</th>
+                            <th class="pr-4 pb-2 font-medium">Scene</th>
                             <th class="pr-4 pb-2 font-medium">Phase</th>
                             <th class="pr-4 pb-2 font-medium">Status</th>
                             <th class="pr-4 pb-2 font-medium">Failures</th>
@@ -252,7 +252,7 @@ onMounted(() => {
                             class="border-border/50 border-b last:border-0"
                         >
                             <td class="max-w-40 truncate py-2.5 pr-4 text-white">
-                                {{ entry.video_title || `Video #${entry.video_id}` }}
+                                {{ entry.scene_title || `Scene #${entry.scene_id}` }}
                             </td>
                             <td class="text-dim py-2.5 pr-4">
                                 <span class="flex items-center gap-1.5">

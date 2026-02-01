@@ -6,33 +6,33 @@ const route = useRoute();
 const router = useRouter();
 const settingsStore = useSettingsStore();
 
-const videoId = computed(() => parseInt(route.params.id as string));
+const sceneId = computed(() => parseInt(route.params.id as string));
 
 // Centralized data loading with priority tiers
-const watchPageData = useWatchPageData(videoId);
-const { video, markers, resumePosition, loading, error, refreshMarkers } = watchPageData;
+const watchPageData = useWatchPageData(sceneId);
+const { scene, markers, resumePosition, loading, error, refreshMarkers } = watchPageData;
 
 // Provide the entire data object to child components
 provide(WATCH_PAGE_DATA_KEY, watchPageData);
 
 // Legacy provides for backwards compatibility during migration
-provide('watchVideo', video);
+provide('watchScene', scene);
 provide('refreshMarkers', refreshMarkers);
 
-const pageTitle = computed(() => video.value?.title || 'Watch');
+const pageTitle = computed(() => scene.value?.title || 'Watch');
 useHead({ title: pageTitle });
 
 // Dynamic OG metadata
 watch(
-    video,
-    (v) => {
-        if (v) {
+    scene,
+    (s) => {
+        if (s) {
             useSeoMeta({
-                title: v.title,
-                ogTitle: v.title,
-                description: v.description || `Watch ${v.title} on GoonHub`,
-                ogDescription: v.description || `Watch ${v.title} on GoonHub`,
-                ogImage: v.thumbnail_path ? `/thumbnails/${v.id}?size=lg` : undefined,
+                title: s.title,
+                ogTitle: s.title,
+                description: s.description || `Watch ${s.title} on GoonHub`,
+                ogDescription: s.description || `Watch ${s.title} on GoonHub`,
+                ogImage: s.thumbnail_path ? `/thumbnails/${s.id}?size=lg` : undefined,
                 ogType: 'video.other',
             });
         }
@@ -54,39 +54,39 @@ const forceAutoplay = ref(false);
 const thumbnailVersion = ref(0);
 const detailsRefreshKey = ref(0);
 
-// Keyboard shortcuts for video player
-useVideoPlayerShortcuts({
+// Keyboard shortcuts for scene player
+useScenePlayerShortcuts({
     player: computed(() => playerRef.value?.player ?? null),
-    video: video,
+    scene: scene,
     onTheaterModeToggle: () => settingsStore.toggleTheaterMode(),
 });
 
-const isProcessing = computed(() => video.value?.processing_status === 'pending');
-const hasProcessingError = computed(() => (video.value ? hasVideoError(video.value) : false));
+const isProcessing = computed(() => scene.value?.processing_status === 'pending');
+const hasProcessingError = computed(() => (scene.value ? hasSceneError(scene.value) : false));
 const isPortrait = computed(() => {
-    return video.value?.width && video.value?.height && video.value.height > video.value.width;
+    return scene.value?.width && scene.value?.height && scene.value.height > scene.value.width;
 });
 
 const streamUrl = computed(() => {
-    if (!video.value) return '';
-    return `/api/v1/videos/${video.value.id}/stream`;
+    if (!scene.value) return '';
+    return `/api/v1/scenes/${scene.value.id}/stream`;
 });
 
 const posterUrl = computed(() => {
-    if (!video.value || !video.value.thumbnail_path) return '';
-    const base = `/thumbnails/${video.value.id}?size=lg`;
+    if (!scene.value || !scene.value.thumbnail_path) return '';
+    const base = `/thumbnails/${scene.value.id}?size=lg`;
     const v =
         thumbnailVersion.value ||
-        (video.value.updated_at ? new Date(video.value.updated_at).getTime() : 0);
+        (scene.value.updated_at ? new Date(scene.value.updated_at).getTime() : 0);
     return v ? `${base}&v=${v}` : base;
 });
 
 // Ambient glow effect
 const playerVttCues = ref<VttCue[]>([]);
-const isVideoPlaying = ref(false);
-const { glowStyle } = useAmbientGlow(playerRef, playerVttCues, posterUrl, isVideoPlaying);
+const isScenePlaying = ref(false);
+const { glowStyle } = useAmbientGlow(playerRef, playerVttCues, posterUrl, isScenePlaying);
 
-// Sync vttCues when they become available (loaded asynchronously by VideoPlayer)
+// Sync vttCues when they become available (loaded asynchronously by ScenePlayer)
 watch(
     () => playerRef.value?.vttCues,
     (cues) => {
@@ -109,7 +109,7 @@ watch(
     { immediate: true },
 );
 
-// Load data on mount and when video ID changes
+// Load data on mount and when scene ID changes
 async function loadPage() {
     // Reset UI state
     showResumePrompt.value = false;
@@ -197,7 +197,7 @@ watch(
     },
 );
 
-// Handle timestamp query parameter changes (e.g., clicking different markers for same video)
+// Handle timestamp query parameter changes (e.g., clicking different markers for same scene)
 watch(
     () => route.query.t,
     (newTime) => {
@@ -240,15 +240,15 @@ definePageMeta({
                     <span class="text-xs font-medium">Library</span>
                 </button>
 
-                <div v-if="video" class="text-dim hidden truncate text-xs sm:block">
-                    {{ video.title }}
+                <div v-if="scene" class="text-dim hidden truncate text-xs sm:block">
+                    {{ scene.title }}
                 </div>
             </div>
         </div>
 
         <div class="mx-auto max-w-415 p-4 sm:px-5 lg:py-6">
             <!-- Loading State -->
-            <div v-if="loading.video" class="flex h-[70vh] items-center justify-center">
+            <div v-if="loading.scene" class="flex h-[70vh] items-center justify-center">
                 <LoadingSpinner label="Loading..." />
             </div>
 
@@ -263,9 +263,9 @@ definePageMeta({
                 >
                     <Icon name="heroicons:exclamation-triangle" size="24" class="text-lava" />
                 </div>
-                <h2 class="mt-4 text-lg font-semibold text-white">Video Unavailable</h2>
+                <h2 class="mt-4 text-lg font-semibold text-white">Scene Unavailable</h2>
                 <p class="text-dim mt-1 text-xs">
-                    {{ error || 'Video processing failed. Please try reprocessing.' }}
+                    {{ error || 'Scene processing failed. Please try reprocessing.' }}
                 </p>
                 <button
                     class="border-border bg-surface text-muted hover:border-border-hover mt-6
@@ -277,9 +277,9 @@ definePageMeta({
                 </button>
             </div>
 
-            <!-- Video Player & Content -->
+            <!-- Scene Player & Content -->
             <div
-                v-else-if="video"
+                v-else-if="scene"
                 :class="['grid gap-5', settingsStore.theaterMode ? '' : 'xl:grid-cols-[1fr_280px]']"
             >
                 <div class="min-w-0 space-y-4">
@@ -343,28 +343,28 @@ definePageMeta({
                                 class="border-border bg-void relative z-10 overflow-hidden
                                     rounded-xl border"
                             >
-                                <!-- Resume Prompt (overlaid on video) -->
+                                <!-- Resume Prompt (overlaid on scene player) -->
                                 <WatchResumePrompt
                                     :visible="showResumePrompt"
                                     :resume-position="resumePosition"
-                                    :is-playing="isVideoPlaying"
+                                    :is-playing="isScenePlaying"
                                     @resume="handleResume"
                                     @start-over="handleStartOver"
                                     @dismiss="showResumePrompt = false"
                                 />
 
-                                <VideoPlayer
+                                <ScenePlayer
                                     ref="playerRef"
-                                    :video-url="streamUrl"
+                                    :scene-url="streamUrl"
                                     :poster-url="posterUrl"
-                                    :video="video"
+                                    :scene="scene"
                                     :markers="markers"
                                     :autoplay="forceAutoplay || settingsStore.autoplay"
                                     :loop="settingsStore.loop"
                                     :default-volume="settingsStore.defaultVolume"
                                     :start-time="startTime"
-                                    @play="isVideoPlaying = true"
-                                    @pause="isVideoPlaying = false"
+                                    @play="isScenePlaying = true"
+                                    @pause="isScenePlaying = false"
                                     @error="playerError = $event"
                                 />
                             </div>
@@ -373,16 +373,16 @@ definePageMeta({
                         <!-- Mobile Metadata -->
                         <div class="block xl:hidden">
                             <h1 class="text-sm font-semibold text-white">
-                                {{ video.title }}
+                                {{ scene.title }}
                             </h1>
                             <div class="text-dim mt-2 flex flex-wrap gap-3 font-mono text-[11px]">
                                 <span class="flex items-center gap-1">
                                     <Icon name="heroicons:eye" size="12" class="text-lava" />
-                                    {{ video.view_count }} views
+                                    {{ scene.view_count }} views
                                 </span>
                                 <span class="flex items-center gap-1">
                                     <Icon name="heroicons:calendar" size="12" class="text-lava" />
-                                    <NuxtTime :datetime="video.created_at" format="short" />
+                                    <NuxtTime :datetime="scene.created_at" format="short" />
                                 </span>
                             </div>
                         </div>
@@ -394,12 +394,12 @@ definePageMeta({
 
                 <!-- Sidebar Metadata (Desktop) -->
                 <div v-if="!settingsStore.theaterMode" class="hidden xl:block">
-                    <VideoMetadata :video="video" />
+                    <SceneMetadata :scene="scene" />
                 </div>
             </div>
 
-            <!-- Related Videos -->
-            <WatchRelatedVideos v-if="video && !isProcessing && !hasProcessingError" />
+            <!-- Related Scenes -->
+            <WatchRelatedScenes v-if="scene && !isProcessing && !hasProcessingError" />
         </div>
     </div>
 </template>

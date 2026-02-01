@@ -12,21 +12,21 @@ import (
 
 type StudioService struct {
 	studioRepo data.StudioRepository
-	videoRepo  data.VideoRepository
+	sceneRepo  data.SceneRepository
 	logger     *zap.Logger
-	indexer    VideoIndexer
+	indexer    SceneIndexer
 }
 
-func NewStudioService(studioRepo data.StudioRepository, videoRepo data.VideoRepository, logger *zap.Logger) *StudioService {
+func NewStudioService(studioRepo data.StudioRepository, sceneRepo data.SceneRepository, logger *zap.Logger) *StudioService {
 	return &StudioService{
 		studioRepo: studioRepo,
-		videoRepo:  videoRepo,
+		sceneRepo:  sceneRepo,
 		logger:     logger,
 	}
 }
 
-// SetIndexer sets the video indexer for search index updates.
-func (s *StudioService) SetIndexer(indexer VideoIndexer) {
+// SetIndexer sets the scene indexer for search index updates.
+func (s *StudioService) SetIndexer(indexer SceneIndexer) {
 	s.indexer = indexer
 }
 
@@ -109,15 +109,15 @@ func (s *StudioService) GetByUUID(uuid string) (*data.StudioWithCount, error) {
 		return nil, apperrors.NewInternalError("failed to find studio", err)
 	}
 
-	videoCount, err := s.studioRepo.GetVideoCount(studio.ID)
+	sceneCount, err := s.studioRepo.GetSceneCount(studio.ID)
 	if err != nil {
-		s.logger.Warn("Failed to get video count for studio", zap.Uint("studio_id", studio.ID), zap.Error(err))
-		videoCount = 0
+		s.logger.Warn("Failed to get scene count for studio", zap.Uint("studio_id", studio.ID), zap.Error(err))
+		sceneCount = 0
 	}
 
 	return &data.StudioWithCount{
 		Studio:     *studio,
-		VideoCount: videoCount,
+		SceneCount: sceneCount,
 	}, nil
 }
 
@@ -219,24 +219,24 @@ func (s *StudioService) List(page, limit int, query string) ([]data.StudioWithCo
 	return s.studioRepo.List(page, limit)
 }
 
-func (s *StudioService) GetVideoStudio(videoID uint) (*data.Studio, error) {
-	if _, err := s.videoRepo.GetByID(videoID); err != nil {
+func (s *StudioService) GetSceneStudio(sceneID uint) (*data.Studio, error) {
+	if _, err := s.sceneRepo.GetByID(sceneID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.ErrVideoNotFound(videoID)
+			return nil, apperrors.ErrSceneNotFound(sceneID)
 		}
-		return nil, apperrors.NewInternalError("failed to find video", err)
+		return nil, apperrors.NewInternalError("failed to find scene", err)
 	}
 
-	return s.studioRepo.GetVideoStudio(videoID)
+	return s.studioRepo.GetSceneStudio(sceneID)
 }
 
-func (s *StudioService) SetVideoStudio(videoID uint, studioID *uint) (*data.Studio, error) {
-	video, err := s.videoRepo.GetByID(videoID)
+func (s *StudioService) SetSceneStudio(sceneID uint, studioID *uint) (*data.Studio, error) {
+	scene, err := s.sceneRepo.GetByID(sceneID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.ErrVideoNotFound(videoID)
+			return nil, apperrors.ErrSceneNotFound(sceneID)
 		}
-		return nil, apperrors.NewInternalError("failed to find video", err)
+		return nil, apperrors.NewInternalError("failed to find scene", err)
 	}
 
 	// Validate studio exists if studioID is not nil
@@ -251,15 +251,15 @@ func (s *StudioService) SetVideoStudio(videoID uint, studioID *uint) (*data.Stud
 		}
 	}
 
-	if err := s.studioRepo.SetVideoStudio(videoID, studioID); err != nil {
-		return nil, apperrors.NewInternalError("failed to set video studio", err)
+	if err := s.studioRepo.SetSceneStudio(sceneID, studioID); err != nil {
+		return nil, apperrors.NewInternalError("failed to set scene studio", err)
 	}
 
-	// Re-index video in search engine after studio change
+	// Re-index scene in search engine after studio change
 	if s.indexer != nil {
-		if err := s.indexer.UpdateVideoIndex(video); err != nil {
-			s.logger.Warn("Failed to update video in search index after studio change",
-				zap.Uint("video_id", videoID),
+		if err := s.indexer.UpdateSceneIndex(scene); err != nil {
+			s.logger.Warn("Failed to update scene in search index after studio change",
+				zap.Uint("scene_id", sceneID),
 				zap.Error(err),
 			)
 		}
@@ -268,7 +268,7 @@ func (s *StudioService) SetVideoStudio(videoID uint, studioID *uint) (*data.Stud
 	return studio, nil
 }
 
-func (s *StudioService) GetStudioVideos(studioID uint, page, limit int) ([]data.Video, int64, error) {
+func (s *StudioService) GetStudioScenes(studioID uint, page, limit int) ([]data.Scene, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -283,7 +283,7 @@ func (s *StudioService) GetStudioVideos(studioID uint, page, limit int) ([]data.
 		return nil, 0, apperrors.NewInternalError("failed to find studio", err)
 	}
 
-	return s.studioRepo.GetStudioVideos(studioID, page, limit)
+	return s.studioRepo.GetStudioScenes(studioID, page, limit)
 }
 
 func (s *StudioService) UpdateLogoURL(id uint, logoURL string) (*data.Studio, error) {

@@ -8,10 +8,10 @@ const searchStore = useSearchStore();
         <div class="text-dim mb-3 text-xs">
             <span v-if="searchStore.isLoading">Searching...</span>
             <span v-else-if="searchStore.total > 0">
-                {{ searchStore.total }} video{{ searchStore.total !== 1 ? 's' : '' }} found
+                {{ searchStore.total }} scene{{ searchStore.total !== 1 ? 's' : '' }} found
             </span>
-            <span v-else-if="searchStore.hasActiveFilters">No videos match your filters</span>
-            <span v-else>No videos found</span>
+            <span v-else-if="searchStore.hasActiveFilters">No scenes match your filters</span>
+            <span v-else>No scenes found</span>
         </div>
 
         <!-- Error -->
@@ -28,8 +28,8 @@ const searchStore = useSearchStore();
         </div>
 
         <!-- Results Grid -->
-        <template v-else-if="searchStore.videos.length > 0">
-            <VideoGrid :videos="searchStore.videos" />
+        <template v-else-if="searchStore.scenes.length > 0">
+            <SceneGrid :scenes="searchStore.scenes" />
 
             <Pagination
                 v-model="searchStore.page"

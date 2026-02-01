@@ -1,14 +1,14 @@
 /**
- * Composable for video jizz count with increment animation.
+ * Composable for scene jizz count with increment animation.
  */
-export const useVideoJizzCount = (videoId: Ref<number | undefined>) => {
-    const { incrementJizzed } = useApiVideos();
+export const useSceneJizzCount = (sceneId: Ref<number | undefined>) => {
+    const { incrementJizzed } = useApiScenes();
 
     const count = ref(0);
     const animating = ref(false);
 
     const increment = async () => {
-        if (!videoId.value) return;
+        if (!sceneId.value) return;
         const prevCount = count.value;
         count.value++;
         animating.value = true;
@@ -17,7 +17,7 @@ export const useVideoJizzCount = (videoId: Ref<number | undefined>) => {
         }, 300);
 
         try {
-            const res = await incrementJizzed(videoId.value);
+            const res = await incrementJizzed(sceneId.value);
             count.value = res.count;
         } catch {
             count.value = prevCount;

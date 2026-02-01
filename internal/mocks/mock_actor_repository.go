@@ -40,46 +40,46 @@ func (m *MockActorRepository) EXPECT() *MockActorRepositoryMockRecorder {
 	return m.recorder
 }
 
-// BulkAddActorsToVideos mocks base method.
-func (m *MockActorRepository) BulkAddActorsToVideos(videoIDs, actorIDs []uint) error {
+// BulkAddActorsToScenes mocks base method.
+func (m *MockActorRepository) BulkAddActorsToScenes(sceneIDs, actorIDs []uint) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BulkAddActorsToVideos", videoIDs, actorIDs)
+	ret := m.ctrl.Call(m, "BulkAddActorsToScenes", sceneIDs, actorIDs)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// BulkAddActorsToVideos indicates an expected call of BulkAddActorsToVideos.
-func (mr *MockActorRepositoryMockRecorder) BulkAddActorsToVideos(videoIDs, actorIDs any) *gomock.Call {
+// BulkAddActorsToScenes indicates an expected call of BulkAddActorsToScenes.
+func (mr *MockActorRepositoryMockRecorder) BulkAddActorsToScenes(sceneIDs, actorIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkAddActorsToVideos", reflect.TypeOf((*MockActorRepository)(nil).BulkAddActorsToVideos), videoIDs, actorIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkAddActorsToScenes", reflect.TypeOf((*MockActorRepository)(nil).BulkAddActorsToScenes), sceneIDs, actorIDs)
 }
 
-// BulkRemoveActorsFromVideos mocks base method.
-func (m *MockActorRepository) BulkRemoveActorsFromVideos(videoIDs, actorIDs []uint) error {
+// BulkRemoveActorsFromScenes mocks base method.
+func (m *MockActorRepository) BulkRemoveActorsFromScenes(sceneIDs, actorIDs []uint) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BulkRemoveActorsFromVideos", videoIDs, actorIDs)
+	ret := m.ctrl.Call(m, "BulkRemoveActorsFromScenes", sceneIDs, actorIDs)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// BulkRemoveActorsFromVideos indicates an expected call of BulkRemoveActorsFromVideos.
-func (mr *MockActorRepositoryMockRecorder) BulkRemoveActorsFromVideos(videoIDs, actorIDs any) *gomock.Call {
+// BulkRemoveActorsFromScenes indicates an expected call of BulkRemoveActorsFromScenes.
+func (mr *MockActorRepositoryMockRecorder) BulkRemoveActorsFromScenes(sceneIDs, actorIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkRemoveActorsFromVideos", reflect.TypeOf((*MockActorRepository)(nil).BulkRemoveActorsFromVideos), videoIDs, actorIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkRemoveActorsFromScenes", reflect.TypeOf((*MockActorRepository)(nil).BulkRemoveActorsFromScenes), sceneIDs, actorIDs)
 }
 
-// BulkReplaceActorsForVideos mocks base method.
-func (m *MockActorRepository) BulkReplaceActorsForVideos(videoIDs, actorIDs []uint) error {
+// BulkReplaceActorsForScenes mocks base method.
+func (m *MockActorRepository) BulkReplaceActorsForScenes(sceneIDs, actorIDs []uint) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BulkReplaceActorsForVideos", videoIDs, actorIDs)
+	ret := m.ctrl.Call(m, "BulkReplaceActorsForScenes", sceneIDs, actorIDs)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// BulkReplaceActorsForVideos indicates an expected call of BulkReplaceActorsForVideos.
-func (mr *MockActorRepositoryMockRecorder) BulkReplaceActorsForVideos(videoIDs, actorIDs any) *gomock.Call {
+// BulkReplaceActorsForScenes indicates an expected call of BulkReplaceActorsForScenes.
+func (mr *MockActorRepositoryMockRecorder) BulkReplaceActorsForScenes(sceneIDs, actorIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkReplaceActorsForVideos", reflect.TypeOf((*MockActorRepository)(nil).BulkReplaceActorsForVideos), videoIDs, actorIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkReplaceActorsForScenes", reflect.TypeOf((*MockActorRepository)(nil).BulkReplaceActorsForScenes), sceneIDs, actorIDs)
 }
 
 // Create mocks base method.
@@ -110,20 +110,20 @@ func (mr *MockActorRepositoryMockRecorder) Delete(id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockActorRepository)(nil).Delete), id)
 }
 
-// GetActorVideos mocks base method.
-func (m *MockActorRepository) GetActorVideos(actorID uint, page, limit int) ([]data.Video, int64, error) {
+// GetActorScenes mocks base method.
+func (m *MockActorRepository) GetActorScenes(actorID uint, page, limit int) ([]data.Scene, int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetActorVideos", actorID, page, limit)
-	ret0, _ := ret[0].([]data.Video)
+	ret := m.ctrl.Call(m, "GetActorScenes", actorID, page, limit)
+	ret0, _ := ret[0].([]data.Scene)
 	ret1, _ := ret[1].(int64)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
-// GetActorVideos indicates an expected call of GetActorVideos.
-func (mr *MockActorRepositoryMockRecorder) GetActorVideos(actorID, page, limit any) *gomock.Call {
+// GetActorScenes indicates an expected call of GetActorScenes.
+func (mr *MockActorRepositoryMockRecorder) GetActorScenes(actorID, page, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActorVideos", reflect.TypeOf((*MockActorRepository)(nil).GetActorVideos), actorID, page, limit)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActorScenes", reflect.TypeOf((*MockActorRepository)(nil).GetActorScenes), actorID, page, limit)
 }
 
 // GetByID mocks base method.
@@ -171,49 +171,49 @@ func (mr *MockActorRepositoryMockRecorder) GetByUUID(uuid any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByUUID", reflect.TypeOf((*MockActorRepository)(nil).GetByUUID), uuid)
 }
 
-// GetVideoActors mocks base method.
-func (m *MockActorRepository) GetVideoActors(videoID uint) ([]data.Actor, error) {
+// GetSceneActors mocks base method.
+func (m *MockActorRepository) GetSceneActors(sceneID uint) ([]data.Actor, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVideoActors", videoID)
+	ret := m.ctrl.Call(m, "GetSceneActors", sceneID)
 	ret0, _ := ret[0].([]data.Actor)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetVideoActors indicates an expected call of GetVideoActors.
-func (mr *MockActorRepositoryMockRecorder) GetVideoActors(videoID any) *gomock.Call {
+// GetSceneActors indicates an expected call of GetSceneActors.
+func (mr *MockActorRepositoryMockRecorder) GetSceneActors(sceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideoActors", reflect.TypeOf((*MockActorRepository)(nil).GetVideoActors), videoID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSceneActors", reflect.TypeOf((*MockActorRepository)(nil).GetSceneActors), sceneID)
 }
 
-// GetVideoActorsMultiple mocks base method.
-func (m *MockActorRepository) GetVideoActorsMultiple(videoIDs []uint) (map[uint][]data.Actor, error) {
+// GetSceneActorsMultiple mocks base method.
+func (m *MockActorRepository) GetSceneActorsMultiple(sceneIDs []uint) (map[uint][]data.Actor, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVideoActorsMultiple", videoIDs)
+	ret := m.ctrl.Call(m, "GetSceneActorsMultiple", sceneIDs)
 	ret0, _ := ret[0].(map[uint][]data.Actor)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetVideoActorsMultiple indicates an expected call of GetVideoActorsMultiple.
-func (mr *MockActorRepositoryMockRecorder) GetVideoActorsMultiple(videoIDs any) *gomock.Call {
+// GetSceneActorsMultiple indicates an expected call of GetSceneActorsMultiple.
+func (mr *MockActorRepositoryMockRecorder) GetSceneActorsMultiple(sceneIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideoActorsMultiple", reflect.TypeOf((*MockActorRepository)(nil).GetVideoActorsMultiple), videoIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSceneActorsMultiple", reflect.TypeOf((*MockActorRepository)(nil).GetSceneActorsMultiple), sceneIDs)
 }
 
-// GetVideoCount mocks base method.
-func (m *MockActorRepository) GetVideoCount(actorID uint) (int64, error) {
+// GetSceneCount mocks base method.
+func (m *MockActorRepository) GetSceneCount(actorID uint) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVideoCount", actorID)
+	ret := m.ctrl.Call(m, "GetSceneCount", actorID)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetVideoCount indicates an expected call of GetVideoCount.
-func (mr *MockActorRepositoryMockRecorder) GetVideoCount(actorID any) *gomock.Call {
+// GetSceneCount indicates an expected call of GetSceneCount.
+func (mr *MockActorRepositoryMockRecorder) GetSceneCount(actorID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideoCount", reflect.TypeOf((*MockActorRepository)(nil).GetVideoCount), actorID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSceneCount", reflect.TypeOf((*MockActorRepository)(nil).GetSceneCount), actorID)
 }
 
 // List mocks base method.
@@ -248,18 +248,18 @@ func (mr *MockActorRepositoryMockRecorder) Search(query, page, limit, sort any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Search", reflect.TypeOf((*MockActorRepository)(nil).Search), query, page, limit, sort)
 }
 
-// SetVideoActors mocks base method.
-func (m *MockActorRepository) SetVideoActors(videoID uint, actorIDs []uint) error {
+// SetSceneActors mocks base method.
+func (m *MockActorRepository) SetSceneActors(sceneID uint, actorIDs []uint) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetVideoActors", videoID, actorIDs)
+	ret := m.ctrl.Call(m, "SetSceneActors", sceneID, actorIDs)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetVideoActors indicates an expected call of SetVideoActors.
-func (mr *MockActorRepositoryMockRecorder) SetVideoActors(videoID, actorIDs any) *gomock.Call {
+// SetSceneActors indicates an expected call of SetSceneActors.
+func (mr *MockActorRepositoryMockRecorder) SetSceneActors(sceneID, actorIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVideoActors", reflect.TypeOf((*MockActorRepository)(nil).SetVideoActors), videoID, actorIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSceneActors", reflect.TypeOf((*MockActorRepository)(nil).SetSceneActors), sceneID, actorIDs)
 }
 
 // Update mocks base method.

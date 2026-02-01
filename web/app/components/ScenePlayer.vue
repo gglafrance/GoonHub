@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
-import type { Video } from '~/types/video';
+import type { Scene } from '~/types/scene';
 import type { Marker } from '~/types/marker';
 
 type Player = ReturnType<typeof videojs>;
@@ -61,12 +61,12 @@ if (ButtonClass) {
 }
 
 const props = defineProps<{
-    videoUrl: string;
+    sceneUrl: string;
     posterUrl?: string;
     autoplay?: boolean;
     loop?: boolean;
     defaultVolume?: number;
-    video?: Video;
+    scene?: Scene;
     startTime?: number;
     markers?: Marker[];
 }>();
@@ -93,27 +93,27 @@ const {
     computed(() => props.markers ?? []),
 );
 
-const videoRef = computed(() => props.video);
+const sceneRef = computed(() => props.scene);
 const { hasRecordedView, setupTracking, cleanup } = useWatchTracking({
     player,
-    video: videoRef,
+    scene: sceneRef,
 });
 
 const aspectRatio = computed(() => {
-    if (props.video?.width && props.video?.height) {
-        return `${props.video.width} / ${props.video.height}`;
+    if (props.scene?.width && props.scene?.height) {
+        return `${props.scene.width} / ${props.scene.height}`;
     }
     return '16 / 9';
 });
 
 const isPortrait = computed(() => {
-    return props.video?.width && props.video?.height && props.video.height > props.video.width;
+    return props.scene?.width && props.scene?.height && props.scene.height > props.scene.width;
 });
 
 const vttUrl = computed(() => {
-    if (!props.video?.vtt_path) return null;
-    const base = `/vtt/${props.video.id}`;
-    const v = props.video.updated_at ? new Date(props.video.updated_at).getTime() : '';
+    if (!props.scene?.vtt_path) return null;
+    const base = `/vtt/${props.scene.id}`;
+    const v = props.scene.updated_at ? new Date(props.scene.updated_at).getTime() : '';
     return v ? `${base}?v=${v}` : base;
 });
 
@@ -203,10 +203,10 @@ onMounted(async () => {
 });
 
 watch(
-    () => props.videoUrl,
+    () => props.sceneUrl,
     () => {
         if (player.value) {
-            player.value.src({ type: 'video/mp4', src: props.videoUrl });
+            player.value.src({ type: 'video/mp4', src: props.sceneUrl });
             if (props.autoplay) {
                 player.value.play();
             }
@@ -280,7 +280,7 @@ onBeforeUnmount(() => {
             :poster="posterUrl"
             crossorigin="anonymous"
         >
-            <source :src="videoUrl" type="video/mp4" />
+            <source :src="sceneUrl" type="video/mp4" />
         </video>
     </div>
 </template>

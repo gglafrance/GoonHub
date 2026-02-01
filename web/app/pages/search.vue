@@ -10,8 +10,8 @@ useHead({ title: 'Search' });
 useSeoMeta({
     title: 'Search',
     ogTitle: 'Search - GoonHub',
-    description: 'Search your video library',
-    ogDescription: 'Search your video library',
+    description: 'Search your scene library',
+    ogDescription: 'Search your scene library',
 });
 
 definePageMeta({

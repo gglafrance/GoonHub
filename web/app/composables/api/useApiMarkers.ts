@@ -1,5 +1,5 @@
 /**
- * Marker-related API operations: CRUD for video markers.
+ * Marker-related API operations: CRUD for scene markers.
  *
  * Response shape conventions:
  * - Non-paginated lists: { markers: Marker[] } or { labels: MarkerLabelSuggestion[] }
@@ -10,7 +10,7 @@ import type {
     CreateMarkerRequest,
     UpdateMarkerRequest,
     MarkerLabelGroup,
-    MarkerWithVideo,
+    MarkerWithScene,
     MarkerTagInfo,
     MarkersResponse,
     LabelSuggestionsResponse,
@@ -24,16 +24,16 @@ export const useApiMarkers = () => {
     const { fetchOptions, getAuthHeaders, handleResponse, handleResponseWithNoContent } =
         useApiCore();
 
-    const fetchMarkers = async (videoId: number): Promise<MarkersResponse> => {
-        const response = await fetch(`/api/v1/videos/${videoId}/markers`, {
+    const fetchMarkers = async (sceneId: number): Promise<MarkersResponse> => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/markers`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
         return handleResponse(response);
     };
 
-    const createMarker = async (videoId: number, data: CreateMarkerRequest): Promise<Marker> => {
-        const response = await fetch(`/api/v1/videos/${videoId}/markers`, {
+    const createMarker = async (sceneId: number, data: CreateMarkerRequest): Promise<Marker> => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/markers`, {
             method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify(data),
@@ -43,11 +43,11 @@ export const useApiMarkers = () => {
     };
 
     const updateMarker = async (
-        videoId: number,
+        sceneId: number,
         markerId: number,
         data: UpdateMarkerRequest,
     ): Promise<Marker> => {
-        const response = await fetch(`/api/v1/videos/${videoId}/markers/${markerId}`, {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/markers/${markerId}`, {
             method: 'PUT',
             headers: getAuthHeaders(),
             body: JSON.stringify(data),
@@ -56,8 +56,8 @@ export const useApiMarkers = () => {
         return handleResponse(response);
     };
 
-    const deleteMarker = async (videoId: number, markerId: number): Promise<void> => {
-        const response = await fetch(`/api/v1/videos/${videoId}/markers/${markerId}`, {
+    const deleteMarker = async (sceneId: number, markerId: number): Promise<void> => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/markers/${markerId}`, {
             method: 'DELETE',
             headers: getAuthHeaders(),
             ...fetchOptions(),
@@ -94,7 +94,7 @@ export const useApiMarkers = () => {
         label: string,
         page: number = 1,
         limit: number = 20,
-    ): Promise<PaginatedResponse<MarkerWithVideo>> => {
+    ): Promise<PaginatedResponse<MarkerWithScene>> => {
         const params = new URLSearchParams({
             label,
             page: String(page),

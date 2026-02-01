@@ -48,6 +48,6 @@ type UpdateActorRequest struct {
 	SameSexOnly     *bool   `json:"same_sex_only"`
 }
 
-type SetVideoActorsRequest struct {
+type SetSceneActorsRequest struct {
 	ActorIDs []uint `json:"actor_ids"`
 }

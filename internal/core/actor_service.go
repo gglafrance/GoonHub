@@ -13,21 +13,21 @@ import (
 
 type ActorService struct {
 	actorRepo data.ActorRepository
-	videoRepo data.VideoRepository
+	sceneRepo data.SceneRepository
 	logger    *zap.Logger
-	indexer   VideoIndexer
+	indexer   SceneIndexer
 }
 
-func NewActorService(actorRepo data.ActorRepository, videoRepo data.VideoRepository, logger *zap.Logger) *ActorService {
+func NewActorService(actorRepo data.ActorRepository, sceneRepo data.SceneRepository, logger *zap.Logger) *ActorService {
 	return &ActorService{
 		actorRepo: actorRepo,
-		videoRepo: videoRepo,
+		sceneRepo: sceneRepo,
 		logger:    logger,
 	}
 }
 
-// SetIndexer sets the video indexer for search index updates.
-func (s *ActorService) SetIndexer(indexer VideoIndexer) {
+// SetIndexer sets the scene indexer for search index updates.
+func (s *ActorService) SetIndexer(indexer SceneIndexer) {
 	s.indexer = indexer
 }
 
@@ -140,15 +140,15 @@ func (s *ActorService) GetByUUID(uuid string) (*data.ActorWithCount, error) {
 		return nil, apperrors.NewInternalError("failed to find actor", err)
 	}
 
-	videoCount, err := s.actorRepo.GetVideoCount(actor.ID)
+	sceneCount, err := s.actorRepo.GetSceneCount(actor.ID)
 	if err != nil {
-		s.logger.Warn("Failed to get video count for actor", zap.Uint("actor_id", actor.ID), zap.Error(err))
-		videoCount = 0
+		s.logger.Warn("Failed to get scene count for actor", zap.Uint("actor_id", actor.ID), zap.Error(err))
+		sceneCount = 0
 	}
 
 	return &data.ActorWithCount{
 		Actor:      *actor,
-		VideoCount: videoCount,
+		SceneCount: sceneCount,
 	}, nil
 }
 
@@ -269,55 +269,55 @@ func (s *ActorService) List(page, limit int, query, sort string) ([]data.ActorWi
 	return s.actorRepo.List(page, limit, sort)
 }
 
-func (s *ActorService) GetVideoActors(videoID uint) ([]data.Actor, error) {
-	if _, err := s.videoRepo.GetByID(videoID); err != nil {
+func (s *ActorService) GetSceneActors(sceneID uint) ([]data.Actor, error) {
+	if _, err := s.sceneRepo.GetByID(sceneID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.ErrVideoNotFound(videoID)
+			return nil, apperrors.ErrSceneNotFound(sceneID)
 		}
-		return nil, apperrors.NewInternalError("failed to find video", err)
+		return nil, apperrors.NewInternalError("failed to find scene", err)
 	}
 
-	return s.actorRepo.GetVideoActors(videoID)
+	return s.actorRepo.GetSceneActors(sceneID)
 }
 
-func (s *ActorService) SetVideoActors(videoID uint, actorIDs []uint) ([]data.Actor, error) {
-	if _, err := s.videoRepo.GetByID(videoID); err != nil {
+func (s *ActorService) SetSceneActors(sceneID uint, actorIDs []uint) ([]data.Actor, error) {
+	if _, err := s.sceneRepo.GetByID(sceneID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.ErrVideoNotFound(videoID)
+			return nil, apperrors.ErrSceneNotFound(sceneID)
 		}
-		return nil, apperrors.NewInternalError("failed to find video", err)
+		return nil, apperrors.NewInternalError("failed to find scene", err)
 	}
 
-	if err := s.actorRepo.SetVideoActors(videoID, actorIDs); err != nil {
-		return nil, apperrors.NewInternalError("failed to set video actors", err)
+	if err := s.actorRepo.SetSceneActors(sceneID, actorIDs); err != nil {
+		return nil, apperrors.NewInternalError("failed to set scene actors", err)
 	}
 
 	// Get actor names for the denormalized field
-	actors, err := s.actorRepo.GetVideoActors(videoID)
+	actors, err := s.actorRepo.GetSceneActors(sceneID)
 	if err != nil {
-		return nil, apperrors.NewInternalError("failed to get video actors", err)
+		return nil, apperrors.NewInternalError("failed to get scene actors", err)
 	}
 
-	// Sync denormalized actors field on video
+	// Sync denormalized actors field on scene
 	actorNames := make([]string, len(actors))
 	for i, actor := range actors {
 		actorNames[i] = actor.Name
 	}
-	if err := s.videoRepo.UpdateActors(videoID, actorNames); err != nil {
+	if err := s.sceneRepo.UpdateActors(sceneID, actorNames); err != nil {
 		s.logger.Warn("Failed to update denormalized actors field",
-			zap.Uint("video_id", videoID),
+			zap.Uint("scene_id", sceneID),
 			zap.Error(err),
 		)
 	}
 
-	// Re-index video in search engine after actor changes
+	// Re-index scene in search engine after actor changes
 	if s.indexer != nil {
-		// Fetch fresh video with updated actors
-		video, err := s.videoRepo.GetByID(videoID)
+		// Fetch fresh scene with updated actors
+		scene, err := s.sceneRepo.GetByID(sceneID)
 		if err == nil {
-			if err := s.indexer.UpdateVideoIndex(video); err != nil {
-				s.logger.Warn("Failed to update video in search index after actor change",
-					zap.Uint("video_id", videoID),
+			if err := s.indexer.UpdateSceneIndex(scene); err != nil {
+				s.logger.Warn("Failed to update scene in search index after actor change",
+					zap.Uint("scene_id", sceneID),
 					zap.Error(err),
 				)
 			}
@@ -327,7 +327,7 @@ func (s *ActorService) SetVideoActors(videoID uint, actorIDs []uint) ([]data.Act
 	return actors, nil
 }
 
-func (s *ActorService) GetActorVideos(actorID uint, page, limit int) ([]data.Video, int64, error) {
+func (s *ActorService) GetActorScenes(actorID uint, page, limit int) ([]data.Scene, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -342,7 +342,7 @@ func (s *ActorService) GetActorVideos(actorID uint, page, limit int) ([]data.Vid
 		return nil, 0, apperrors.NewInternalError("failed to find actor", err)
 	}
 
-	return s.actorRepo.GetActorVideos(actorID, page, limit)
+	return s.actorRepo.GetActorScenes(actorID, page, limit)
 }
 
 func (s *ActorService) UpdateImageURL(id uint, imageURL string) (*data.Actor, error) {

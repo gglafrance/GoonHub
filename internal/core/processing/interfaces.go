@@ -4,28 +4,28 @@ import (
 	"goonhub/internal/data"
 )
 
-// EventPublisher publishes video events
+// EventPublisher publishes scene events
 type EventPublisher interface {
-	Publish(event VideoEvent)
+	Publish(event SceneEvent)
 }
 
-// VideoEvent represents an event related to video processing
-type VideoEvent struct {
+// SceneEvent represents an event related to scene processing
+type SceneEvent struct {
 	Type    string
-	VideoID uint
+	SceneID uint
 	Data    map[string]any
 }
 
 // JobHistoryRecorder records job history events
 type JobHistoryRecorder interface {
-	RecordJobStart(jobID string, videoID uint, videoTitle string, phase string)
-	RecordJobStartWithRetry(jobID string, videoID uint, videoTitle string, phase string, maxRetries int, retryCount int)
+	RecordJobStart(jobID string, sceneID uint, sceneTitle string, phase string)
+	RecordJobStartWithRetry(jobID string, sceneID uint, sceneTitle string, phase string, maxRetries int, retryCount int)
 	RecordJobComplete(jobID string)
 	RecordJobCancelled(jobID string)
-	RecordJobFailedWithRetry(jobID string, videoID uint, phase string, err error)
+	RecordJobFailedWithRetry(jobID string, sceneID uint, phase string, err error)
 }
 
-// VideoIndexer handles search index updates for videos
-type VideoIndexer interface {
-	UpdateVideoIndex(video *data.Video) error
+// SceneIndexer handles search index updates for scenes
+type SceneIndexer interface {
+	UpdateSceneIndex(scene *data.Scene) error
 }

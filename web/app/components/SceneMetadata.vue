@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { Video } from '~/types/video';
+import type { Scene } from '~/types/scene';
 
 defineProps<{
-    video: Video;
+    scene: Scene;
 }>();
 
 const { formatDuration, formatSize, formatBitRate, formatFrameRate } = useFormatter();
@@ -34,28 +34,28 @@ const getResolutionLabel = (h?: number): string => {
         <!-- Info Section -->
         <div class="border-border bg-surface/30 rounded-xl border p-4 backdrop-blur-sm">
             <h1 class="text-sm leading-snug font-semibold text-white">
-                {{ video.title }}
+                {{ scene.title }}
             </h1>
 
             <div class="mt-4 space-y-0">
                 <div class="border-border flex items-center justify-between border-b py-2.5">
                     <span class="text-dim text-[11px]">Duration</span>
                     <span class="text-muted font-mono text-[11px]">
-                        {{ formatDuration(video.duration) }}
+                        {{ formatDuration(scene.duration) }}
                     </span>
                 </div>
 
                 <div class="border-border flex items-center justify-between border-b py-2.5">
                     <span class="text-dim text-[11px]">Size</span>
                     <span class="text-muted font-mono text-[11px]">
-                        {{ formatSize(video.size) }}
+                        {{ formatSize(scene.size) }}
                     </span>
                 </div>
 
                 <div class="border-border flex items-center justify-between border-b py-2.5">
                     <span class="text-dim text-[11px]">Views</span>
                     <span class="text-muted font-mono text-[11px]">
-                        {{ video.view_count }}
+                        {{ scene.view_count }}
                     </span>
                 </div>
 
@@ -63,7 +63,7 @@ const getResolutionLabel = (h?: number): string => {
                     <span class="text-dim text-[11px]">Added</span>
                     <span class="text-muted font-mono text-[11px]">
                         <NuxtTime
-                            :datetime="video.created_at"
+                            :datetime="scene.created_at"
                             year="numeric"
                             month="short"
                             day="numeric"
@@ -75,64 +75,64 @@ const getResolutionLabel = (h?: number): string => {
 
         <!-- Technical Section -->
         <div
-            v-if="video.width || video.frame_rate || video.bit_rate || video.video_codec"
+            v-if="scene.width || scene.frame_rate || scene.bit_rate || scene.video_codec"
             class="border-border bg-surface/30 rounded-xl border p-4 backdrop-blur-sm"
         >
             <span class="text-dim text-[10px] font-medium tracking-wider uppercase">Technical</span>
             <div class="mt-2 space-y-0">
                 <div
-                    v-if="video.width && video.height"
+                    v-if="scene.width && scene.height"
                     class="border-border flex items-center justify-between border-b py-2.5"
                 >
                     <span class="text-dim text-[11px]">Resolution</span>
                     <span class="flex items-center gap-1.5">
                         <span class="text-muted font-mono text-[11px]">
-                            {{ formatResolution(video.width, video.height) }}
+                            {{ formatResolution(scene.width, scene.height) }}
                         </span>
                         <span
                             class="border-lava/30 bg-lava/10 text-lava rounded px-1 py-px text-[9px]
                                 leading-tight font-bold"
                         >
-                            {{ getResolutionLabel(video.height) }}
+                            {{ getResolutionLabel(scene.height) }}
                         </span>
                     </span>
                 </div>
 
                 <div
-                    v-if="video.frame_rate"
+                    v-if="scene.frame_rate"
                     class="border-border flex items-center justify-between border-b py-2.5"
                 >
                     <span class="text-dim text-[11px]">Frame Rate</span>
                     <span class="text-muted font-mono text-[11px]">
-                        {{ formatFrameRate(video.frame_rate) }}
+                        {{ formatFrameRate(scene.frame_rate) }}
                     </span>
                 </div>
 
                 <div
-                    v-if="video.bit_rate"
+                    v-if="scene.bit_rate"
                     class="border-border flex items-center justify-between border-b py-2.5"
                 >
                     <span class="text-dim text-[11px]">Bit Rate</span>
                     <span class="text-muted font-mono text-[11px]">
-                        {{ formatBitRate(video.bit_rate) }}
+                        {{ formatBitRate(scene.bit_rate) }}
                     </span>
                 </div>
 
                 <div
-                    v-if="video.video_codec"
+                    v-if="scene.video_codec"
                     class="border-border flex items-center justify-between py-2.5"
-                    :class="{ 'border-b': video.audio_codec }"
+                    :class="{ 'border-b': scene.audio_codec }"
                 >
                     <span class="text-dim text-[11px]">Video Codec</span>
                     <span class="text-muted font-mono text-[11px]">
-                        {{ formatCodec(video.video_codec) }}
+                        {{ formatCodec(scene.video_codec) }}
                     </span>
                 </div>
 
-                <div v-if="video.audio_codec" class="flex items-center justify-between py-2.5">
+                <div v-if="scene.audio_codec" class="flex items-center justify-between py-2.5">
                     <span class="text-dim text-[11px]">Audio Codec</span>
                     <span class="text-muted font-mono text-[11px]">
-                        {{ formatCodec(video.audio_codec) }}
+                        {{ formatCodec(scene.audio_codec) }}
                     </span>
                 </div>
             </div>
@@ -145,15 +145,15 @@ const getResolutionLabel = (h?: number): string => {
                 <div class="border-border border-b py-2.5">
                     <span class="text-dim text-[11px]">Filename</span>
                     <p class="text-dim/70 mt-0.5 font-mono text-[10px] break-all">
-                        {{ video.original_filename }}
+                        {{ scene.original_filename }}
                     </p>
                 </div>
 
-                <div v-if="video.file_created_at" class="flex items-center justify-between py-2.5">
+                <div v-if="scene.file_created_at" class="flex items-center justify-between py-2.5">
                     <span class="text-dim text-[11px]">File Date</span>
                     <span class="text-muted font-mono text-[11px]">
                         <NuxtTime
-                            :datetime="video.file_created_at"
+                            :datetime="scene.file_created_at"
                             year="numeric"
                             month="short"
                             day="numeric"

@@ -32,7 +32,7 @@ type RevokedTokenRepository interface {
 	CleanupExpired() error
 }
 
-type VideoSearchParams struct {
+type SceneSearchParams struct {
 	Page             int
 	Limit            int
 	Query            string
@@ -52,18 +52,20 @@ type VideoSearchParams struct {
 	MaxRating        float64
 	MinJizzCount     int
 	MaxJizzCount     int
-	VideoIDs         []uint   // Pre-filter to specific video IDs (e.g., folder search)
+	SceneIDs         []uint   // Pre-filter to specific scene IDs (e.g., folder search)
 	MatchingStrategy string   // Meilisearch matching strategy: "last", "all", or "frequency"
-	MarkerLabels     []string // Filter to videos with markers having these labels (user-specific)
+	MarkerLabels     []string // Filter to scenes with markers having these labels (user-specific)
+	Origin           string   // Filter by origin (web, dvd, personal, stash, unknown)
+	Type             string   // Filter by type (standard, jav, hentai, amateur, professional, vr, compilation, pmv)
 }
 
-type VideoRepository interface {
-	Create(video *Video) error
-	List(page, limit int) ([]Video, int64, error)
-	GetByID(id uint) (*Video, error)
-	GetByIDs(ids []uint) ([]Video, error)
-	GetAll() ([]Video, error)
-	GetAllWithStoragePath() ([]Video, error)
+type SceneRepository interface {
+	Create(scene *Scene) error
+	List(page, limit int) ([]Scene, int64, error)
+	GetByID(id uint) (*Scene, error)
+	GetByIDs(ids []uint) ([]Scene, error)
+	GetAll() ([]Scene, error)
+	GetAllWithStoragePath() ([]Scene, error)
 	GetDistinctStudios() ([]string, error)
 	GetDistinctActors() ([]string, error)
 	UpdateMetadata(id uint, duration int, width, height int, thumbnailPath string, spriteSheetPath string, vttPath string, spriteSheetCount int, thumbnailWidth int, thumbnailHeight int) error
@@ -71,8 +73,8 @@ type VideoRepository interface {
 	UpdateThumbnail(id uint, thumbnailPath string, thumbnailWidth, thumbnailHeight int) error
 	UpdateSprites(id uint, spriteSheetPath, vttPath string, spriteSheetCount int) error
 	UpdateProcessingStatus(id uint, status string, errorMsg string) error
-	GetPendingProcessing() ([]Video, error)
-	GetVideosNeedingPhase(phase string) ([]Video, error)
+	GetPendingProcessing() ([]Scene, error)
+	GetScenesNeedingPhase(phase string) ([]Scene, error)
 	Delete(id uint) error
 	UpdateDetails(id uint, title, description string, releaseDate *time.Time) error
 	UpdateSceneMetadata(id uint, title, description, studio string, releaseDate *time.Time, porndbSceneID string) error
@@ -80,83 +82,84 @@ type VideoRepository interface {
 	MarkAsMissing(id uint) error
 	Restore(id uint) error
 	UpdateStoredPath(id uint, newPath string, storagePathID *uint) error
-	GetBySizeAndFilename(size int64, filename string) (*Video, error)
-	BulkUpdateStudio(videoIDs []uint, studio string) error
+	GetBySizeAndFilename(size int64, filename string) (*Scene, error)
+	BulkUpdateStudio(sceneIDs []uint, studio string) error
 	UpdateActors(id uint, actors []string) error
+	UpdateOriginAndType(id uint, origin, sceneType string) error
 }
 
-type VideoRepositoryImpl struct {
+type SceneRepositoryImpl struct {
 	DB *gorm.DB
 }
 
-func NewVideoRepository(db *gorm.DB) *VideoRepositoryImpl {
-	return &VideoRepositoryImpl{DB: db}
+func NewSceneRepository(db *gorm.DB) *SceneRepositoryImpl {
+	return &SceneRepositoryImpl{DB: db}
 }
 
-func (r *VideoRepositoryImpl) Create(video *Video) error {
-	return r.DB.Create(video).Error
+func (r *SceneRepositoryImpl) Create(scene *Scene) error {
+	return r.DB.Create(scene).Error
 }
 
-func (r *VideoRepositoryImpl) List(page, limit int) ([]Video, int64, error) {
-	var videos []Video
+func (r *SceneRepositoryImpl) List(page, limit int) ([]Scene, int64, error) {
+	var scenes []Scene
 	var total int64
 
 	offset := (page - 1) * limit
 
-	if err := r.DB.Model(&Video{}).Count(&total).Error; err != nil {
+	if err := r.DB.Model(&Scene{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	if err := r.DB.Limit(limit).Offset(offset).Order("created_at desc").Find(&videos).Error; err != nil {
+	if err := r.DB.Limit(limit).Offset(offset).Order("created_at desc").Find(&scenes).Error; err != nil {
 		return nil, 0, err
 	}
 
-	return videos, total, nil
+	return scenes, total, nil
 }
 
-func (r *VideoRepositoryImpl) GetByID(id uint) (*Video, error) {
-	var video Video
-	if err := r.DB.First(&video, id).Error; err != nil {
+func (r *SceneRepositoryImpl) GetByID(id uint) (*Scene, error) {
+	var scene Scene
+	if err := r.DB.First(&scene, id).Error; err != nil {
 		return nil, err
 	}
-	return &video, nil
+	return &scene, nil
 }
 
-func (r *VideoRepositoryImpl) GetByIDs(ids []uint) ([]Video, error) {
+func (r *SceneRepositoryImpl) GetByIDs(ids []uint) ([]Scene, error) {
 	if len(ids) == 0 {
-		return []Video{}, nil
+		return []Scene{}, nil
 	}
 
-	var videos []Video
-	if err := r.DB.Where("id IN ?", ids).Find(&videos).Error; err != nil {
+	var scenes []Scene
+	if err := r.DB.Where("id IN ?", ids).Find(&scenes).Error; err != nil {
 		return nil, err
 	}
 
 	// Preserve the order of IDs
-	idToVideo := make(map[uint]Video, len(videos))
-	for _, v := range videos {
-		idToVideo[v.ID] = v
+	idToScene := make(map[uint]Scene, len(scenes))
+	for _, s := range scenes {
+		idToScene[s.ID] = s
 	}
 
-	result := make([]Video, 0, len(ids))
+	result := make([]Scene, 0, len(ids))
 	for _, id := range ids {
-		if v, ok := idToVideo[id]; ok {
-			result = append(result, v)
+		if s, ok := idToScene[id]; ok {
+			result = append(result, s)
 		}
 	}
 
 	return result, nil
 }
 
-func (r *VideoRepositoryImpl) GetAll() ([]Video, error) {
-	var videos []Video
-	if err := r.DB.Find(&videos).Error; err != nil {
+func (r *SceneRepositoryImpl) GetAll() ([]Scene, error) {
+	var scenes []Scene
+	if err := r.DB.Find(&scenes).Error; err != nil {
 		return nil, err
 	}
-	return videos, nil
+	return scenes, nil
 }
 
-func (r *VideoRepositoryImpl) UpdateMetadata(id uint, duration int, width, height int, thumbnailPath string, spriteSheetPath string, vttPath string, spriteSheetCount int, thumbnailWidth int, thumbnailHeight int) error {
+func (r *SceneRepositoryImpl) UpdateMetadata(id uint, duration int, width, height int, thumbnailPath string, spriteSheetPath string, vttPath string, spriteSheetCount int, thumbnailWidth int, thumbnailHeight int) error {
 	updates := map[string]interface{}{
 		"duration":           duration,
 		"width":              width,
@@ -169,65 +172,65 @@ func (r *VideoRepositoryImpl) UpdateMetadata(id uint, duration int, width, heigh
 		"thumbnail_height":   thumbnailHeight,
 		"processing_status":  "completed",
 	}
-	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Updates(updates).Error
 }
 
-func (r *VideoRepositoryImpl) UpdateBasicMetadata(id uint, duration int, width, height int, frameRate float64, bitRate int64, videoCodec, audioCodec string) error {
+func (r *SceneRepositoryImpl) UpdateBasicMetadata(id uint, duration int, width, height int, frameRate float64, bitRate int64, videoCodec, audioCodec string) error {
 	updates := map[string]interface{}{
 		"duration":    duration,
-		"width":      width,
-		"height":     height,
+		"width":       width,
+		"height":      height,
 		"frame_rate":  frameRate,
 		"bit_rate":    bitRate,
 		"video_codec": videoCodec,
 		"audio_codec": audioCodec,
 	}
-	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Updates(updates).Error
 }
 
-func (r *VideoRepositoryImpl) UpdateThumbnail(id uint, thumbnailPath string, thumbnailWidth, thumbnailHeight int) error {
+func (r *SceneRepositoryImpl) UpdateThumbnail(id uint, thumbnailPath string, thumbnailWidth, thumbnailHeight int) error {
 	updates := map[string]interface{}{
 		"thumbnail_path":   thumbnailPath,
 		"thumbnail_width":  thumbnailWidth,
 		"thumbnail_height": thumbnailHeight,
 	}
-	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Updates(updates).Error
 }
 
-func (r *VideoRepositoryImpl) UpdateSprites(id uint, spriteSheetPath, vttPath string, spriteSheetCount int) error {
+func (r *SceneRepositoryImpl) UpdateSprites(id uint, spriteSheetPath, vttPath string, spriteSheetCount int) error {
 	updates := map[string]interface{}{
 		"sprite_sheet_path":  spriteSheetPath,
 		"vtt_path":           vttPath,
 		"sprite_sheet_count": spriteSheetCount,
 	}
-	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Updates(updates).Error
 }
 
-func (r *VideoRepositoryImpl) UpdateProcessingStatus(id uint, status string, errorMsg string) error {
+func (r *SceneRepositoryImpl) UpdateProcessingStatus(id uint, status string, errorMsg string) error {
 	updates := map[string]interface{}{
 		"processing_status": status,
 	}
 	if errorMsg != "" {
 		updates["processing_error"] = errorMsg
 	}
-	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Updates(updates).Error
 }
 
-func (r *VideoRepositoryImpl) GetPendingProcessing() ([]Video, error) {
-	var videos []Video
-	if err := r.DB.Where("processing_status = ?", "pending").Find(&videos).Error; err != nil {
+func (r *SceneRepositoryImpl) GetPendingProcessing() ([]Scene, error) {
+	var scenes []Scene
+	if err := r.DB.Where("processing_status = ?", "pending").Find(&scenes).Error; err != nil {
 		return nil, err
 	}
-	return videos, nil
+	return scenes, nil
 }
 
-func (r *VideoRepositoryImpl) GetVideosNeedingPhase(phase string) ([]Video, error) {
-	var videos []Video
+func (r *SceneRepositoryImpl) GetScenesNeedingPhase(phase string) ([]Scene, error) {
+	var scenes []Scene
 
-	baseQuery := r.DB.Model(&Video{}).
+	baseQuery := r.DB.Model(&Scene{}).
 		Where("processing_status != ?", "failed").
 		Where("deleted_at IS NULL").
-		Where("NOT EXISTS (SELECT 1 FROM job_history jh WHERE jh.video_id = videos.id AND jh.phase = ? AND jh.status = 'running')", phase)
+		Where("NOT EXISTS (SELECT 1 FROM job_history jh WHERE jh.scene_id = scenes.id AND jh.phase = ? AND jh.status = 'running')", phase)
 
 	switch phase {
 	case "metadata":
@@ -240,21 +243,21 @@ func (r *VideoRepositoryImpl) GetVideosNeedingPhase(phase string) ([]Video, erro
 		return nil, nil
 	}
 
-	if err := baseQuery.Find(&videos).Error; err != nil {
+	if err := baseQuery.Find(&scenes).Error; err != nil {
 		return nil, err
 	}
-	return videos, nil
+	return scenes, nil
 }
 
-func (r *VideoRepositoryImpl) Delete(id uint) error {
-	var video Video
-	if err := r.DB.First(&video, id).Error; err != nil {
+func (r *SceneRepositoryImpl) Delete(id uint) error {
+	var scene Scene
+	if err := r.DB.First(&scene, id).Error; err != nil {
 		return err
 	}
-	return r.DB.Delete(&video).Error
+	return r.DB.Delete(&scene).Error
 }
 
-func (r *VideoRepositoryImpl) UpdateDetails(id uint, title, description string, releaseDate *time.Time) error {
+func (r *SceneRepositoryImpl) UpdateDetails(id uint, title, description string, releaseDate *time.Time) error {
 	updates := map[string]interface{}{"title": title, "description": description}
 	if releaseDate != nil {
 		if releaseDate.IsZero() {
@@ -263,20 +266,20 @@ func (r *VideoRepositoryImpl) UpdateDetails(id uint, title, description string, 
 			updates["release_date"] = releaseDate
 		}
 	}
-	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Updates(updates).Error
 }
 
-func (r *VideoRepositoryImpl) UpdateSceneMetadata(id uint, title, description, studio string, releaseDate *time.Time, porndbSceneID string) error {
+func (r *SceneRepositoryImpl) UpdateSceneMetadata(id uint, title, description, studio string, releaseDate *time.Time, porndbSceneID string) error {
 	updates := map[string]interface{}{"title": title, "description": description, "studio": studio, "porndb_scene_id": porndbSceneID}
 	if releaseDate != nil {
 		updates["release_date"] = releaseDate
 	}
-	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Updates(updates).Error
 }
 
-func (r *VideoRepositoryImpl) GetDistinctStudios() ([]string, error) {
+func (r *SceneRepositoryImpl) GetDistinctStudios() ([]string, error) {
 	var studios []string
-	err := r.DB.Model(&Video{}).
+	err := r.DB.Model(&Scene{}).
 		Where("studio != '' AND deleted_at IS NULL").
 		Distinct("studio").
 		Order("studio ASC").
@@ -287,14 +290,14 @@ func (r *VideoRepositoryImpl) GetDistinctStudios() ([]string, error) {
 	return studios, nil
 }
 
-func (r *VideoRepositoryImpl) GetDistinctActors() ([]string, error) {
+func (r *SceneRepositoryImpl) GetDistinctActors() ([]string, error) {
 	var actors []string
-	// Get actor names from the actors table (those with at least one video)
+	// Get actor names from the actors table (those with at least one scene)
 	err := r.DB.Raw(`
 		SELECT DISTINCT a.name
 		FROM actors a
-		INNER JOIN video_actors va ON va.actor_id = a.id
-		INNER JOIN videos v ON v.id = va.video_id AND v.deleted_at IS NULL
+		INNER JOIN scene_actors sa ON sa.actor_id = a.id
+		INNER JOIN scenes s ON s.id = sa.scene_id AND s.deleted_at IS NULL
 		ORDER BY a.name ASC
 	`).Scan(&actors).Error
 	if err != nil {
@@ -303,64 +306,78 @@ func (r *VideoRepositoryImpl) GetDistinctActors() ([]string, error) {
 	return actors, nil
 }
 
-func (r *VideoRepositoryImpl) ExistsByStoredPath(path string) (bool, error) {
+func (r *SceneRepositoryImpl) ExistsByStoredPath(path string) (bool, error) {
 	var count int64
-	if err := r.DB.Model(&Video{}).Where("stored_path = ?", path).Count(&count).Error; err != nil {
+	if err := r.DB.Model(&Scene{}).Where("stored_path = ?", path).Count(&count).Error; err != nil {
 		return false, err
 	}
 	return count > 0, nil
 }
 
-func (r *VideoRepositoryImpl) GetAllWithStoragePath() ([]Video, error) {
-	var videos []Video
-	if err := r.DB.Where("storage_path_id IS NOT NULL").Find(&videos).Error; err != nil {
+func (r *SceneRepositoryImpl) GetAllWithStoragePath() ([]Scene, error) {
+	var scenes []Scene
+	if err := r.DB.Where("storage_path_id IS NOT NULL").Find(&scenes).Error; err != nil {
 		return nil, err
 	}
-	return videos, nil
+	return scenes, nil
 }
 
-func (r *VideoRepositoryImpl) MarkAsMissing(id uint) error {
-	// Soft delete the video - sets deleted_at to current timestamp
-	return r.DB.Delete(&Video{}, id).Error
+func (r *SceneRepositoryImpl) MarkAsMissing(id uint) error {
+	// Soft delete the scene - sets deleted_at to current timestamp
+	return r.DB.Delete(&Scene{}, id).Error
 }
 
-func (r *VideoRepositoryImpl) Restore(id uint) error {
-	// Restore a soft-deleted video by clearing deleted_at
-	return r.DB.Unscoped().Model(&Video{}).Where("id = ?", id).Update("deleted_at", nil).Error
+func (r *SceneRepositoryImpl) Restore(id uint) error {
+	// Restore a soft-deleted scene by clearing deleted_at
+	return r.DB.Unscoped().Model(&Scene{}).Where("id = ?", id).Update("deleted_at", nil).Error
 }
 
-func (r *VideoRepositoryImpl) UpdateStoredPath(id uint, newPath string, storagePathID *uint) error {
+func (r *SceneRepositoryImpl) UpdateStoredPath(id uint, newPath string, storagePathID *uint) error {
 	updates := map[string]interface{}{
 		"stored_path": newPath,
 	}
 	if storagePathID != nil {
 		updates["storage_path_id"] = *storagePathID
 	}
-	return r.DB.Model(&Video{}).Where("id = ?", id).Updates(updates).Error
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Updates(updates).Error
 }
 
-func (r *VideoRepositoryImpl) GetBySizeAndFilename(size int64, filename string) (*Video, error) {
-	var video Video
+func (r *SceneRepositoryImpl) GetBySizeAndFilename(size int64, filename string) (*Scene, error) {
+	var scene Scene
 	// Use Unscoped to include soft-deleted records - allows finding moved files that were previously marked as missing
-	err := r.DB.Unscoped().Where("size = ? AND original_filename = ?", size, filename).First(&video).Error
+	err := r.DB.Unscoped().Where("size = ? AND original_filename = ?", size, filename).First(&scene).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
 		return nil, err
 	}
-	return &video, nil
+	return &scene, nil
 }
 
-func (r *VideoRepositoryImpl) BulkUpdateStudio(videoIDs []uint, studio string) error {
-	if len(videoIDs) == 0 {
+func (r *SceneRepositoryImpl) BulkUpdateStudio(sceneIDs []uint, studio string) error {
+	if len(sceneIDs) == 0 {
 		return nil
 	}
-	return r.DB.Model(&Video{}).Where("id IN ?", videoIDs).Update("studio", studio).Error
+	return r.DB.Model(&Scene{}).Where("id IN ?", sceneIDs).Update("studio", studio).Error
 }
 
-func (r *VideoRepositoryImpl) UpdateActors(id uint, actors []string) error {
-	return r.DB.Model(&Video{}).Where("id = ?", id).Update("actors", pq.StringArray(actors)).Error
+func (r *SceneRepositoryImpl) UpdateActors(id uint, actors []string) error {
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Update("actors", pq.StringArray(actors)).Error
+}
+
+func (r *SceneRepositoryImpl) UpdateOriginAndType(id uint, origin, sceneType string) error {
+	updates := map[string]interface{}{}
+	if origin != "" {
+		updates["origin"] = origin
+	}
+	if sceneType != "" {
+		updates["type"] = sceneType
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Updates(updates).Error
 }
 
 type UserRepositoryImpl struct {

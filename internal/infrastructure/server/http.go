@@ -21,11 +21,11 @@ type Server struct {
 	router            *gin.Engine
 	logger            *logging.Logger
 	cfg               *config.Config
-	processingService *core.VideoProcessingService
+	processingService *core.SceneProcessingService
 	userService       *core.UserService
 	jobHistoryService *core.JobHistoryService
 	triggerScheduler  *core.TriggerScheduler
-	videoService      *core.VideoService
+	sceneService      *core.SceneService
 	tagService        *core.TagService
 	searchService     *core.SearchService
 	scanService       *core.ScanService
@@ -41,11 +41,11 @@ func NewHTTPServer(
 	router *gin.Engine,
 	logger *logging.Logger,
 	cfg *config.Config,
-	processingService *core.VideoProcessingService,
+	processingService *core.SceneProcessingService,
 	userService *core.UserService,
 	jobHistoryService *core.JobHistoryService,
 	triggerScheduler *core.TriggerScheduler,
-	videoService *core.VideoService,
+	sceneService *core.SceneService,
 	tagService *core.TagService,
 	searchService *core.SearchService,
 	scanService *core.ScanService,
@@ -63,7 +63,7 @@ func NewHTTPServer(
 		userService:       userService,
 		jobHistoryService: jobHistoryService,
 		triggerScheduler:  triggerScheduler,
-		videoService:      videoService,
+		sceneService:      sceneService,
 		tagService:        tagService,
 		searchService:     searchService,
 		scanService:       scanService,
@@ -82,8 +82,8 @@ func (s *Server) Start() error {
 
 	// Wire up search indexer to services that need it
 	if s.searchService != nil {
-		if s.videoService != nil {
-			s.videoService.SetIndexer(s.searchService)
+		if s.sceneService != nil {
+			s.sceneService.SetIndexer(s.searchService)
 		}
 		if s.tagService != nil {
 			s.tagService.SetIndexer(s.searchService)

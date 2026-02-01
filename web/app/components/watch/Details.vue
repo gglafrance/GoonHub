@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import type { Video } from '~/types/video';
+import type { Scene } from '~/types/scene';
 import type { WatchPageData } from '~/composables/useWatchPageData';
 import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
-const video = inject<Ref<Video | null>>('watchVideo');
+const scene = inject<Ref<Scene | null>>('watchScene');
 const thumbnailVersion = inject<Ref<number>>('thumbnailVersion');
 const detailsRefreshKey = inject<Ref<number>>('detailsRefreshKey');
 const authStore = useAuthStore();
-const { updateVideoDetails, fetchVideo } = useApi();
+const { updateSceneDetails, fetchScene } = useApi();
 
 // Inject centralized watch page data
 const watchPageData = inject<WatchPageData>(WATCH_PAGE_DATA_KEY);
@@ -37,12 +37,12 @@ const initialJizzedCount = computed(() => watchPageData?.interactions.value?.jiz
 const pornDBConfigured = computed(() => watchPageData?.pornDBConfigured.value ?? false);
 
 async function handleMetadataApplied() {
-    // Refresh video data after metadata is applied
-    if (video?.value) {
+    // Refresh scene data after metadata is applied
+    if (scene?.value) {
         try {
-            const updated = await fetchVideo(video.value.id);
-            if (video.value) {
-                Object.assign(video.value, updated);
+            const updated = await fetchScene(scene.value.id);
+            if (scene.value) {
+                Object.assign(scene.value, updated);
             }
             // Bust thumbnail cache in case it was updated
             if (thumbnailVersion) {
@@ -67,30 +67,30 @@ async function handleMetadataApplied() {
 }
 
 async function saveTitle(title: string) {
-    if (!video?.value) return;
-    await saveDetails(title, video.value.description || '');
+    if (!scene?.value) return;
+    await saveDetails(title, scene.value.description || '');
 }
 
 async function saveDescription(description: string) {
-    if (!video?.value) return;
-    await saveDetails(video.value.title || '', description);
+    if (!scene?.value) return;
+    await saveDetails(scene.value.title || '', description);
 }
 
 async function saveReleaseDate(releaseDate: string | null) {
-    if (!video?.value) return;
+    if (!scene?.value) return;
 
     saving.value = true;
     error.value = null;
 
     try {
-        const updated = await updateVideoDetails(
-            video.value.id,
-            video.value.title,
-            video.value.description || '',
+        const updated = await updateSceneDetails(
+            scene.value.id,
+            scene.value.title,
+            scene.value.description || '',
             releaseDate,
         );
-        if (video.value) {
-            video.value.release_date = updated.release_date;
+        if (scene.value) {
+            scene.value.release_date = updated.release_date;
         }
         showSavedIndicator();
     } catch (err: unknown) {
@@ -101,16 +101,16 @@ async function saveReleaseDate(releaseDate: string | null) {
 }
 
 async function saveDetails(title: string, description: string) {
-    if (!video?.value) return;
+    if (!scene?.value) return;
 
     saving.value = true;
     error.value = null;
 
     try {
-        const updated = await updateVideoDetails(video.value.id, title, description);
-        if (video.value) {
-            video.value.title = updated.title;
-            video.value.description = updated.description;
+        const updated = await updateSceneDetails(scene.value.id, title, description);
+        if (scene.value) {
+            scene.value.title = updated.title;
+            scene.value.description = updated.description;
         }
         showSavedIndicator();
     } catch (err: unknown) {
@@ -147,14 +147,14 @@ function showSavedIndicator() {
                 <div class="space-y-4">
                     <!-- Title -->
                     <WatchDetailsTitleEditor
-                        :title="video?.title || ''"
+                        :title="scene?.title || ''"
                         :saved="saved"
                         @save="saveTitle"
                     />
 
                     <!-- Description -->
                     <WatchDetailsDescriptionEditor
-                        :description="video?.description || ''"
+                        :description="scene?.description || ''"
                         @save="saveDescription"
                     />
                 </div>
@@ -181,8 +181,8 @@ function showSavedIndicator() {
                     <div class="bg-border/30 h-3 w-6 animate-pulse rounded" />
                 </div>
                 <WatchDetailsRatingPanel
-                    v-else-if="video"
-                    :video-id="video.id"
+                    v-else-if="scene"
+                    :scene-id="scene.id"
                     :initial-rating="initialRating"
                 />
 
@@ -203,8 +203,8 @@ function showSavedIndicator() {
                     </div>
                 </div>
                 <WatchDetailsInteractionsBar
-                    v-else-if="video"
-                    :video-id="video.id"
+                    v-else-if="scene"
+                    :scene-id="scene.id"
                     :initial-liked="initialLiked"
                     :initial-jizzed-count="initialJizzedCount"
                 />
@@ -216,7 +216,7 @@ function showSavedIndicator() {
             <!-- Release Date -->
             <div class="border-border/50 bg-surface/30 w-40 shrink-0 rounded-lg border p-3">
                 <WatchDetailsReleaseDateEditor
-                    :release-date="video?.release_date || null"
+                    :release-date="scene?.release_date || null"
                     @save="saveReleaseDate"
                 />
             </div>
@@ -234,8 +234,8 @@ function showSavedIndicator() {
                     </h3>
                     <!-- Linked scene -->
                     <a
-                        v-if="video?.porndb_scene_id"
-                        :href="`https://theporndb.net/scenes/${video.porndb_scene_id}`"
+                        v-if="scene?.porndb_scene_id"
+                        :href="`https://theporndb.net/scenes/${scene.porndb_scene_id}`"
                         target="_blank"
                         rel="noopener noreferrer"
                         class="text-lava hover:text-lava-glow inline-flex items-center gap-1.5
@@ -254,7 +254,7 @@ function showSavedIndicator() {
                             border-white/10 px-2 py-1.5 text-xs transition-colors"
                     >
                         <Icon name="heroicons:cloud-arrow-down" size="12" />
-                        {{ video?.porndb_scene_id ? 'Refresh' : 'Fetch' }}
+                        {{ scene?.porndb_scene_id ? 'Refresh' : 'Fetch' }}
                     </button>
                 </div>
             </div>
@@ -262,7 +262,7 @@ function showSavedIndicator() {
 
         <!-- Tags section -->
         <div class="border-border/50 bg-surface/30 rounded-xl border p-4">
-            <WatchDetailsTagManager v-if="video" ref="tagManagerRef" :video-id="video.id" />
+            <WatchDetailsTagManager v-if="scene" ref="tagManagerRef" :scene-id="scene.id" />
         </div>
 
         <!-- Actors section -->
@@ -273,9 +273,9 @@ function showSavedIndicator() {
 
     <!-- Fetch Scene Metadata Modal -->
     <WatchFetchSceneMetadataModal
-        v-if="video"
+        v-if="scene"
         :visible="showFetchMetadataModal"
-        :video="video"
+        :scene="scene"
         @close="showFetchMetadataModal = false"
         @applied="handleMetadataApplied"
     />

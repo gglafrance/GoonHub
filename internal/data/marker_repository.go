@@ -6,15 +6,15 @@ import (
 )
 
 type MarkerRepository interface {
-	Create(marker *UserVideoMarker) error
-	GetByID(id uint) (*UserVideoMarker, error)
-	GetByUserAndVideo(userID, videoID uint) ([]UserVideoMarker, error)
-	CountByUserAndVideo(userID, videoID uint) (int64, error)
-	Update(marker *UserVideoMarker) error
+	Create(marker *UserSceneMarker) error
+	GetByID(id uint) (*UserSceneMarker, error)
+	GetByUserAndScene(userID, sceneID uint) ([]UserSceneMarker, error)
+	CountByUserAndScene(userID, sceneID uint) (int64, error)
+	Update(marker *UserSceneMarker) error
 	Delete(id uint) error
 	GetLabelSuggestionsForUser(userID uint, limit int) ([]MarkerLabelSuggestion, error)
 	GetLabelGroupsForUser(userID uint, offset, limit int, sortBy string) ([]MarkerLabelGroup, int64, error)
-	GetMarkersByLabelForUser(userID uint, label string, offset, limit int) ([]MarkerWithVideo, int64, error)
+	GetMarkersByLabelForUser(userID uint, label string, offset, limit int) ([]MarkerWithScene, int64, error)
 
 	// Label tag methods
 	GetLabelTags(userID uint, label string) ([]Tag, error)
@@ -31,7 +31,7 @@ type MarkerRepository interface {
 	GetMarkerIDsByLabel(userID uint, label string) ([]uint, error)
 
 	// Search filter methods
-	GetVideoIDsByLabels(userID uint, labels []string) ([]uint, error)
+	GetSceneIDsByLabels(userID uint, labels []string) ([]uint, error)
 }
 
 type MarkerRepositoryImpl struct {
@@ -42,21 +42,21 @@ func NewMarkerRepository(db *gorm.DB) *MarkerRepositoryImpl {
 	return &MarkerRepositoryImpl{DB: db}
 }
 
-func (r *MarkerRepositoryImpl) Create(marker *UserVideoMarker) error {
+func (r *MarkerRepositoryImpl) Create(marker *UserSceneMarker) error {
 	return r.DB.Create(marker).Error
 }
 
-func (r *MarkerRepositoryImpl) GetByID(id uint) (*UserVideoMarker, error) {
-	var marker UserVideoMarker
+func (r *MarkerRepositoryImpl) GetByID(id uint) (*UserSceneMarker, error) {
+	var marker UserSceneMarker
 	if err := r.DB.First(&marker, id).Error; err != nil {
 		return nil, err
 	}
 	return &marker, nil
 }
 
-func (r *MarkerRepositoryImpl) GetByUserAndVideo(userID, videoID uint) ([]UserVideoMarker, error) {
-	var markers []UserVideoMarker
-	err := r.DB.Where("user_id = ? AND video_id = ?", userID, videoID).
+func (r *MarkerRepositoryImpl) GetByUserAndScene(userID, sceneID uint) ([]UserSceneMarker, error) {
+	var markers []UserSceneMarker
+	err := r.DB.Where("user_id = ? AND scene_id = ?", userID, sceneID).
 		Order("timestamp ASC").
 		Find(&markers).Error
 	if err != nil {
@@ -65,10 +65,10 @@ func (r *MarkerRepositoryImpl) GetByUserAndVideo(userID, videoID uint) ([]UserVi
 	return markers, nil
 }
 
-func (r *MarkerRepositoryImpl) CountByUserAndVideo(userID, videoID uint) (int64, error) {
+func (r *MarkerRepositoryImpl) CountByUserAndScene(userID, sceneID uint) (int64, error) {
 	var count int64
-	err := r.DB.Model(&UserVideoMarker{}).
-		Where("user_id = ? AND video_id = ?", userID, videoID).
+	err := r.DB.Model(&UserSceneMarker{}).
+		Where("user_id = ? AND scene_id = ?", userID, sceneID).
 		Count(&count).Error
 	if err != nil {
 		return 0, err
@@ -76,17 +76,17 @@ func (r *MarkerRepositoryImpl) CountByUserAndVideo(userID, videoID uint) (int64,
 	return count, nil
 }
 
-func (r *MarkerRepositoryImpl) Update(marker *UserVideoMarker) error {
+func (r *MarkerRepositoryImpl) Update(marker *UserSceneMarker) error {
 	return r.DB.Save(marker).Error
 }
 
 func (r *MarkerRepositoryImpl) Delete(id uint) error {
-	return r.DB.Delete(&UserVideoMarker{}, id).Error
+	return r.DB.Delete(&UserSceneMarker{}, id).Error
 }
 
 func (r *MarkerRepositoryImpl) GetLabelSuggestionsForUser(userID uint, limit int) ([]MarkerLabelSuggestion, error) {
 	var suggestions []MarkerLabelSuggestion
-	err := r.DB.Model(&UserVideoMarker{}).
+	err := r.DB.Model(&UserSceneMarker{}).
 		Select("label, COUNT(*) as count").
 		Where("user_id = ? AND label != ''", userID).
 		Group("label").
@@ -111,7 +111,7 @@ var sortOrderMap = map[string]string{
 func (r *MarkerRepositoryImpl) GetLabelGroupsForUser(userID uint, offset, limit int, sortBy string) ([]MarkerLabelGroup, int64, error) {
 	// First get total count of unique labels
 	var totalCount int64
-	err := r.DB.Model(&UserVideoMarker{}).
+	err := r.DB.Model(&UserSceneMarker{}).
 		Select("COUNT(DISTINCT label)").
 		Where("user_id = ? AND label != ''", userID).
 		Scan(&totalCount).Error
@@ -131,10 +131,10 @@ func (r *MarkerRepositoryImpl) GetLabelGroupsForUser(userID uint, offset, limit 
 		SELECT
 			label,
 			COUNT(*) as count,
-			(SELECT id FROM user_video_markers m2
-			 WHERE m2.user_id = ? AND m2.label = user_video_markers.label
+			(SELECT id FROM user_scene_markers m2
+			 WHERE m2.user_id = ? AND m2.label = user_scene_markers.label
 			 ORDER BY created_at DESC LIMIT 1) as thumbnail_marker_id
-		FROM user_video_markers
+		FROM user_scene_markers
 		WHERE user_id = ? AND label != ''
 		GROUP BY label
 		ORDER BY `+orderClause+`
@@ -147,22 +147,22 @@ func (r *MarkerRepositoryImpl) GetLabelGroupsForUser(userID uint, offset, limit 
 	return groups, totalCount, nil
 }
 
-func (r *MarkerRepositoryImpl) GetMarkersByLabelForUser(userID uint, label string, offset, limit int) ([]MarkerWithVideo, int64, error) {
+func (r *MarkerRepositoryImpl) GetMarkersByLabelForUser(userID uint, label string, offset, limit int) ([]MarkerWithScene, int64, error) {
 	// Get total count
 	var totalCount int64
-	err := r.DB.Model(&UserVideoMarker{}).
+	err := r.DB.Model(&UserSceneMarker{}).
 		Where("user_id = ? AND label = ?", userID, label).
 		Count(&totalCount).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// Get markers with video title
-	var markers []MarkerWithVideo
+	// Get markers with scene title
+	var markers []MarkerWithScene
 	err = r.DB.Raw(`
-		SELECT m.*, v.title as video_title
-		FROM user_video_markers m
-		JOIN videos v ON m.video_id = v.id
+		SELECT m.*, s.title as scene_title
+		FROM user_scene_markers m
+		JOIN scenes s ON m.scene_id = s.id
 		WHERE m.user_id = ? AND m.label = ?
 		ORDER BY m.created_at DESC
 		LIMIT ? OFFSET ?
@@ -215,7 +215,7 @@ func (r *MarkerRepositoryImpl) SetLabelTags(userID uint, label string, tagIDs []
 		// Sync to all existing markers with this label
 		// First, get all marker IDs with this label
 		var markerIDs []uint
-		if err := tx.Model(&UserVideoMarker{}).
+		if err := tx.Model(&UserSceneMarker{}).
 			Where("user_id = ? AND label = ?", userID, label).
 			Pluck("id", &markerIDs).Error; err != nil {
 			return err
@@ -385,7 +385,7 @@ func (r *MarkerRepositoryImpl) SyncMarkerTagsFromLabel(userID uint, label string
 
 		// Get marker IDs with this label
 		var markerIDs []uint
-		if err := tx.Model(&UserVideoMarker{}).
+		if err := tx.Model(&UserSceneMarker{}).
 			Where("user_id = ? AND label = ?", userID, label).
 			Pluck("id", &markerIDs).Error; err != nil {
 			return err
@@ -455,7 +455,7 @@ func (r *MarkerRepositoryImpl) ApplyLabelTagsToMarker(userID uint, markerID uint
 // GetMarkerIDsByLabel returns all marker IDs with a given label for a user
 func (r *MarkerRepositoryImpl) GetMarkerIDsByLabel(userID uint, label string) ([]uint, error) {
 	var markerIDs []uint
-	err := r.DB.Model(&UserVideoMarker{}).
+	err := r.DB.Model(&UserSceneMarker{}).
 		Where("user_id = ? AND label = ?", userID, label).
 		Pluck("id", &markerIDs).Error
 	if err != nil {
@@ -464,21 +464,21 @@ func (r *MarkerRepositoryImpl) GetMarkerIDsByLabel(userID uint, label string) ([
 	return markerIDs, nil
 }
 
-// GetVideoIDsByLabels returns distinct video IDs that have markers with any of the given labels for a user
-func (r *MarkerRepositoryImpl) GetVideoIDsByLabels(userID uint, labels []string) ([]uint, error) {
+// GetSceneIDsByLabels returns distinct scene IDs that have markers with any of the given labels for a user
+func (r *MarkerRepositoryImpl) GetSceneIDsByLabels(userID uint, labels []string) ([]uint, error) {
 	if len(labels) == 0 {
 		return []uint{}, nil
 	}
 
-	var videoIDs []uint
-	err := r.DB.Model(&UserVideoMarker{}).
-		Select("DISTINCT video_id").
+	var sceneIDs []uint
+	err := r.DB.Model(&UserSceneMarker{}).
+		Select("DISTINCT scene_id").
 		Where("user_id = ? AND label IN ?", userID, labels).
-		Pluck("video_id", &videoIDs).Error
+		Pluck("scene_id", &sceneIDs).Error
 	if err != nil {
 		return nil, err
 	}
-	return videoIDs, nil
+	return sceneIDs, nil
 }
 
 // Ensure MarkerRepositoryImpl implements MarkerRepository

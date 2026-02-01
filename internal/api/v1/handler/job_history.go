@@ -13,13 +13,13 @@ import (
 // JobHandler handles job-related requests
 type JobHandler struct {
 	jobHistoryService *core.JobHistoryService
-	processingService *core.VideoProcessingService
+	processingService *core.SceneProcessingService
 }
 
 // NewJobHandler creates a new JobHandler
 func NewJobHandler(
 	jobHistoryService *core.JobHistoryService,
-	processingService *core.VideoProcessingService,
+	processingService *core.SceneProcessingService,
 ) *JobHandler {
 	return &JobHandler{
 		jobHistoryService: jobHistoryService,
@@ -106,12 +106,12 @@ func (h *JobHandler) ListJobs(c *gin.Context) {
 	})
 }
 
-// TriggerPhase manually triggers a processing phase for a video
+// TriggerPhase manually triggers a processing phase for a scene
 func (h *JobHandler) TriggerPhase(c *gin.Context) {
 	idStr := c.Param("id")
-	videoID, err := strconv.ParseUint(idStr, 10, 32)
+	sceneID, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
@@ -121,15 +121,15 @@ func (h *JobHandler) TriggerPhase(c *gin.Context) {
 		return
 	}
 
-	if err := h.processingService.SubmitPhase(uint(videoID), phase); err != nil {
+	if err := h.processingService.SubmitPhase(uint(sceneID), phase); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Phase %s triggered for video %d", phase, videoID)})
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Phase %s triggered for scene %d", phase, sceneID)})
 }
 
-// TriggerBulkPhase triggers a processing phase for multiple videos
+// TriggerBulkPhase triggers a processing phase for multiple scenes
 func (h *JobHandler) TriggerBulkPhase(c *gin.Context) {
 	var req struct {
 		Phase string `json:"phase"`

@@ -29,12 +29,12 @@ export const useApiStudios = () => {
         return handleResponse(response);
     };
 
-    const fetchStudioVideos = async (uuid: string, page = 1, limit = 20) => {
+    const fetchStudioScenes = async (uuid: string, page = 1, limit = 20) => {
         const params = new URLSearchParams({
             page: page.toString(),
             limit: limit.toString(),
         });
-        const response = await fetch(`/api/v1/studios/${uuid}/videos?${params}`, {
+        const response = await fetch(`/api/v1/studios/${uuid}/scenes?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
@@ -80,17 +80,17 @@ export const useApiStudios = () => {
         return handleResponse(response);
     };
 
-    // Video-Studio association (one-to-many: video has one studio)
-    const fetchVideoStudio = async (videoId: number) => {
-        const response = await fetch(`/api/v1/videos/${videoId}/studio`, {
+    // Scene-Studio association (one-to-many: scene has one studio)
+    const fetchSceneStudio = async (sceneId: number) => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/studio`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
         return handleResponse(response);
     };
 
-    const setVideoStudio = async (videoId: number, studioId: number | null) => {
-        const response = await fetch(`/api/v1/videos/${videoId}/studio`, {
+    const setSceneStudio = async (sceneId: number, studioId: number | null) => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/studio`, {
             method: 'PUT',
             headers: getAuthHeaders(),
             body: JSON.stringify({ studio_id: studioId }),
@@ -137,13 +137,13 @@ export const useApiStudios = () => {
     return {
         fetchStudios,
         fetchStudioByUUID,
-        fetchStudioVideos,
+        fetchStudioScenes,
         createStudio,
         updateStudio,
         deleteStudio,
         uploadStudioLogo,
-        fetchVideoStudio,
-        setVideoStudio,
+        fetchSceneStudio,
+        setSceneStudio,
         fetchStudioInteractions,
         setStudioRating,
         deleteStudioRating,

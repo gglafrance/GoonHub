@@ -12,7 +12,7 @@ import (
 // testJob is a minimal Job implementation for testing
 type testJob struct {
 	id        string
-	videoID   uint // Unique per job to avoid deduplication
+	sceneID   uint // Unique per job to avoid deduplication
 	status    JobStatus
 	err       error
 	executeFn func() error
@@ -24,7 +24,7 @@ var testJobCounter atomic.Uint64
 func newTestJob(id string, fn func() error) *testJob {
 	return &testJob{
 		id:        id,
-		videoID:   uint(testJobCounter.Add(1)), // Unique video ID for each job
+		sceneID:   uint(testJobCounter.Add(1)), // Unique scene ID for each job
 		status:    JobStatusPending,
 		executeFn: fn,
 	}
@@ -55,7 +55,7 @@ func (j *testJob) Cancel() {
 }
 
 func (j *testJob) GetID() string        { return j.id }
-func (j *testJob) GetVideoID() uint     { return j.videoID }
+func (j *testJob) GetSceneID() uint     { return j.sceneID }
 func (j *testJob) GetPhase() string     { return "test" }
 func (j *testJob) GetStatus() JobStatus { return j.status }
 func (j *testJob) GetError() error      { return j.err }
@@ -271,10 +271,10 @@ func TestWorkerPool_CancelledJob(t *testing.T) {
 	pool.Stop()
 }
 
-// testJobWithVideoID extends testJob with a video ID for duplicate testing
-type testJobWithVideoID struct {
+// testJobWithSceneID extends testJob with a scene ID for duplicate testing
+type testJobWithSceneID struct {
 	id        string
-	videoID   uint
+	sceneID   uint
 	phase     string
 	status    JobStatus
 	err       error
@@ -284,10 +284,10 @@ type testJobWithVideoID struct {
 	mu        sync.Mutex
 }
 
-func newTestJobWithVideoID(id string, videoID uint, phase string, fn func() error) *testJobWithVideoID {
-	return &testJobWithVideoID{
+func newTestJobWithSceneID(id string, sceneID uint, phase string, fn func() error) *testJobWithSceneID {
+	return &testJobWithSceneID{
 		id:      id,
-		videoID: videoID,
+		sceneID: sceneID,
 		phase:   phase,
 		status:  JobStatusPending,
 		executeFn: func(ctx context.Context) error {
@@ -296,21 +296,21 @@ func newTestJobWithVideoID(id string, videoID uint, phase string, fn func() erro
 	}
 }
 
-func newTestJobWithVideoIDContext(id string, videoID uint, phase string, fn func(ctx context.Context) error) *testJobWithVideoID {
-	return &testJobWithVideoID{
+func newTestJobWithSceneIDContext(id string, sceneID uint, phase string, fn func(ctx context.Context) error) *testJobWithSceneID {
+	return &testJobWithSceneID{
 		id:        id,
-		videoID:   videoID,
+		sceneID:   sceneID,
 		phase:     phase,
 		status:    JobStatusPending,
 		executeFn: fn,
 	}
 }
 
-func (j *testJobWithVideoID) Execute() error {
+func (j *testJobWithSceneID) Execute() error {
 	return j.ExecuteWithContext(context.Background())
 }
 
-func (j *testJobWithVideoID) ExecuteWithContext(ctx context.Context) error {
+func (j *testJobWithSceneID) ExecuteWithContext(ctx context.Context) error {
 	// Create a cancellable context for this execution
 	j.mu.Lock()
 	execCtx, cancelFn := context.WithCancel(ctx)
@@ -342,7 +342,7 @@ func (j *testJobWithVideoID) ExecuteWithContext(ctx context.Context) error {
 	return err
 }
 
-func (j *testJobWithVideoID) Cancel() {
+func (j *testJobWithSceneID) Cancel() {
 	j.cancelled.Store(true)
 	j.mu.Lock()
 	if j.cancelFn != nil {
@@ -351,11 +351,11 @@ func (j *testJobWithVideoID) Cancel() {
 	j.mu.Unlock()
 }
 
-func (j *testJobWithVideoID) GetID() string        { return j.id }
-func (j *testJobWithVideoID) GetVideoID() uint     { return j.videoID }
-func (j *testJobWithVideoID) GetPhase() string     { return j.phase }
-func (j *testJobWithVideoID) GetStatus() JobStatus { return j.status }
-func (j *testJobWithVideoID) GetError() error      { return j.err }
+func (j *testJobWithSceneID) GetID() string        { return j.id }
+func (j *testJobWithSceneID) GetSceneID() uint     { return j.sceneID }
+func (j *testJobWithSceneID) GetPhase() string     { return j.phase }
+func (j *testJobWithSceneID) GetStatus() JobStatus { return j.status }
+func (j *testJobWithSceneID) GetError() error      { return j.err }
 
 func TestWorkerPool_DuplicateJobRejection(t *testing.T) {
 	pool := NewWorkerPool(1, 10)
@@ -364,7 +364,7 @@ func TestWorkerPool_DuplicateJobRejection(t *testing.T) {
 	executed := make(chan struct{}, 2)
 
 	// Submit first job
-	job1 := newTestJobWithVideoID("job-1", 100, "metadata", func() error {
+	job1 := newTestJobWithSceneID("job-1", 100, "metadata", func() error {
 		time.Sleep(100 * time.Millisecond) // Hold the job for a bit
 		executed <- struct{}{}
 		return nil
@@ -374,8 +374,8 @@ func TestWorkerPool_DuplicateJobRejection(t *testing.T) {
 		t.Fatalf("failed to submit first job: %v", err)
 	}
 
-	// Try to submit duplicate job (same video+phase)
-	job2 := newTestJobWithVideoID("job-2", 100, "metadata", func() error {
+	// Try to submit duplicate job (same scene+phase)
+	job2 := newTestJobWithSceneID("job-2", 100, "metadata", func() error {
 		executed <- struct{}{}
 		return nil
 	})
@@ -419,7 +419,7 @@ func TestWorkerPool_CancelJobActive(t *testing.T) {
 	pool.Start()
 
 	started := make(chan struct{})
-	job := newTestJobWithVideoIDContext("cancellable", 200, "thumbnail", func(ctx context.Context) error {
+	job := newTestJobWithSceneIDContext("cancellable", 200, "thumbnail", func(ctx context.Context) error {
 		close(started)
 		// Simulate a long-running job that checks context
 		select {
@@ -480,7 +480,7 @@ func TestWorkerPool_Timeout(t *testing.T) {
 	pool.SetTimeout(100 * time.Millisecond)
 	pool.Start()
 
-	job := newTestJobWithVideoIDContext("slow-job", 300, "sprites", func(ctx context.Context) error {
+	job := newTestJobWithSceneIDContext("slow-job", 300, "sprites", func(ctx context.Context) error {
 		// Simulate a long-running job that checks context
 		select {
 		case <-ctx.Done():
@@ -513,7 +513,7 @@ func TestWorkerPool_GetJob(t *testing.T) {
 	pool.Start()
 
 	done := make(chan struct{})
-	job := newTestJobWithVideoID("trackable", 400, "metadata", func() error {
+	job := newTestJobWithSceneID("trackable", 400, "metadata", func() error {
 		<-done // Wait until we signal to complete
 		return nil
 	})
@@ -573,7 +573,7 @@ func TestWorkerPool_ResubmitAfterComplete(t *testing.T) {
 	pool.Start()
 
 	// Submit and complete first job
-	job1 := newTestJobWithVideoID("job-1", 500, "metadata", func() error {
+	job1 := newTestJobWithSceneID("job-1", 500, "metadata", func() error {
 		return nil
 	})
 
@@ -588,8 +588,8 @@ func TestWorkerPool_ResubmitAfterComplete(t *testing.T) {
 		t.Fatal("timed out waiting for first job")
 	}
 
-	// Should be able to resubmit for same video+phase
-	job2 := newTestJobWithVideoID("job-2", 500, "metadata", func() error {
+	// Should be able to resubmit for same scene+phase
+	job2 := newTestJobWithSceneID("job-2", 500, "metadata", func() error {
 		return nil
 	})
 

@@ -7,27 +7,27 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// VideoInteractions holds all interaction data for a video
-type VideoInteractions struct {
+// SceneInteractions holds all interaction data for a scene
+type SceneInteractions struct {
 	Rating      float64
 	Liked       bool
 	JizzedCount int
 }
 
 type InteractionRepository interface {
-	UpsertRating(userID, videoID uint, rating float64) error
-	DeleteRating(userID, videoID uint) error
-	GetRating(userID, videoID uint) (*UserVideoRating, error)
-	GetRatingsByVideoIDs(userID uint, videoIDs []uint) (map[uint]float64, error)
-	SetLike(userID, videoID uint) error
-	DeleteLike(userID, videoID uint) error
-	IsLiked(userID, videoID uint) (bool, error)
-	IncrementJizzed(userID, videoID uint) (int, error)
-	GetJizzedCount(userID, videoID uint) (int, error)
-	GetAllInteractions(userID, videoID uint) (*VideoInteractions, error)
-	GetLikedVideoIDs(userID uint) ([]uint, error)
-	GetRatedVideoIDs(userID uint, minRating, maxRating float64) ([]uint, error)
-	GetJizzedVideoIDs(userID uint, minCount, maxCount int) ([]uint, error)
+	UpsertRating(userID, sceneID uint, rating float64) error
+	DeleteRating(userID, sceneID uint) error
+	GetRating(userID, sceneID uint) (*UserSceneRating, error)
+	GetRatingsBySceneIDs(userID uint, sceneIDs []uint) (map[uint]float64, error)
+	SetLike(userID, sceneID uint) error
+	DeleteLike(userID, sceneID uint) error
+	IsLiked(userID, sceneID uint) (bool, error)
+	IncrementJizzed(userID, sceneID uint) (int, error)
+	GetJizzedCount(userID, sceneID uint) (int, error)
+	GetAllInteractions(userID, sceneID uint) (*SceneInteractions, error)
+	GetLikedSceneIDs(userID uint) ([]uint, error)
+	GetRatedSceneIDs(userID uint, minRating, maxRating float64) ([]uint, error)
+	GetJizzedSceneIDs(userID uint, minCount, maxCount int) ([]uint, error)
 }
 
 type InteractionRepositoryImpl struct {
@@ -38,83 +38,83 @@ func NewInteractionRepository(db *gorm.DB) *InteractionRepositoryImpl {
 	return &InteractionRepositoryImpl{DB: db}
 }
 
-func (r *InteractionRepositoryImpl) UpsertRating(userID, videoID uint, rating float64) error {
-	record := UserVideoRating{
+func (r *InteractionRepositoryImpl) UpsertRating(userID, sceneID uint, rating float64) error {
+	record := UserSceneRating{
 		UserID:  userID,
-		VideoID: videoID,
+		SceneID: sceneID,
 		Rating:  rating,
 	}
 	return r.DB.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "user_id"}, {Name: "video_id"}},
+		Columns:   []clause.Column{{Name: "user_id"}, {Name: "scene_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{"rating", "updated_at"}),
 	}).Create(&record).Error
 }
 
-func (r *InteractionRepositoryImpl) DeleteRating(userID, videoID uint) error {
-	return r.DB.Where("user_id = ? AND video_id = ?", userID, videoID).Delete(&UserVideoRating{}).Error
+func (r *InteractionRepositoryImpl) DeleteRating(userID, sceneID uint) error {
+	return r.DB.Where("user_id = ? AND scene_id = ?", userID, sceneID).Delete(&UserSceneRating{}).Error
 }
 
-func (r *InteractionRepositoryImpl) GetRating(userID, videoID uint) (*UserVideoRating, error) {
-	var rating UserVideoRating
-	err := r.DB.Where("user_id = ? AND video_id = ?", userID, videoID).First(&rating).Error
+func (r *InteractionRepositoryImpl) GetRating(userID, sceneID uint) (*UserSceneRating, error) {
+	var rating UserSceneRating
+	err := r.DB.Where("user_id = ? AND scene_id = ?", userID, sceneID).First(&rating).Error
 	if err != nil {
 		return nil, err
 	}
 	return &rating, nil
 }
 
-func (r *InteractionRepositoryImpl) GetRatingsByVideoIDs(userID uint, videoIDs []uint) (map[uint]float64, error) {
-	if len(videoIDs) == 0 {
+func (r *InteractionRepositoryImpl) GetRatingsBySceneIDs(userID uint, sceneIDs []uint) (map[uint]float64, error) {
+	if len(sceneIDs) == 0 {
 		return make(map[uint]float64), nil
 	}
 
-	var ratings []UserVideoRating
-	err := r.DB.Where("user_id = ? AND video_id IN ?", userID, videoIDs).Find(&ratings).Error
+	var ratings []UserSceneRating
+	err := r.DB.Where("user_id = ? AND scene_id IN ?", userID, sceneIDs).Find(&ratings).Error
 	if err != nil {
 		return nil, err
 	}
 
 	result := make(map[uint]float64)
 	for _, r := range ratings {
-		result[r.VideoID] = r.Rating
+		result[r.SceneID] = r.Rating
 	}
 	return result, nil
 }
 
-func (r *InteractionRepositoryImpl) SetLike(userID, videoID uint) error {
-	like := UserVideoLike{
+func (r *InteractionRepositoryImpl) SetLike(userID, sceneID uint) error {
+	like := UserSceneLike{
 		UserID:  userID,
-		VideoID: videoID,
+		SceneID: sceneID,
 	}
 	return r.DB.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "user_id"}, {Name: "video_id"}},
+		Columns:   []clause.Column{{Name: "user_id"}, {Name: "scene_id"}},
 		DoNothing: true,
 	}).Create(&like).Error
 }
 
-func (r *InteractionRepositoryImpl) DeleteLike(userID, videoID uint) error {
-	return r.DB.Where("user_id = ? AND video_id = ?", userID, videoID).Delete(&UserVideoLike{}).Error
+func (r *InteractionRepositoryImpl) DeleteLike(userID, sceneID uint) error {
+	return r.DB.Where("user_id = ? AND scene_id = ?", userID, sceneID).Delete(&UserSceneLike{}).Error
 }
 
-func (r *InteractionRepositoryImpl) IsLiked(userID, videoID uint) (bool, error) {
+func (r *InteractionRepositoryImpl) IsLiked(userID, sceneID uint) (bool, error) {
 	var count int64
-	err := r.DB.Model(&UserVideoLike{}).Where("user_id = ? AND video_id = ?", userID, videoID).Count(&count).Error
+	err := r.DB.Model(&UserSceneLike{}).Where("user_id = ? AND scene_id = ?", userID, sceneID).Count(&count).Error
 	if err != nil {
 		return false, err
 	}
 	return count > 0, nil
 }
 
-func (r *InteractionRepositoryImpl) IncrementJizzed(userID, videoID uint) (int, error) {
-	record := UserVideoJizzed{
+func (r *InteractionRepositoryImpl) IncrementJizzed(userID, sceneID uint) (int, error) {
+	record := UserSceneJizzed{
 		UserID:  userID,
-		VideoID: videoID,
+		SceneID: sceneID,
 		Count:   1,
 	}
 	result := r.DB.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "user_id"}, {Name: "video_id"}},
+		Columns:   []clause.Column{{Name: "user_id"}, {Name: "scene_id"}},
 		DoUpdates: clause.Assignments(map[string]interface{}{
-			"count":      gorm.Expr("user_video_jizzed.count + 1"),
+			"count":      gorm.Expr("user_scene_jizzed.count + 1"),
 			"updated_at": gorm.Expr("NOW()"),
 		}),
 	}).Create(&record)
@@ -123,17 +123,17 @@ func (r *InteractionRepositoryImpl) IncrementJizzed(userID, videoID uint) (int, 
 	}
 
 	// Fetch the current count
-	var updated UserVideoJizzed
-	err := r.DB.Where("user_id = ? AND video_id = ?", userID, videoID).First(&updated).Error
+	var updated UserSceneJizzed
+	err := r.DB.Where("user_id = ? AND scene_id = ?", userID, sceneID).First(&updated).Error
 	if err != nil {
 		return 0, err
 	}
 	return updated.Count, nil
 }
 
-func (r *InteractionRepositoryImpl) GetJizzedCount(userID, videoID uint) (int, error) {
-	var record UserVideoJizzed
-	err := r.DB.Where("user_id = ? AND video_id = ?", userID, videoID).First(&record).Error
+func (r *InteractionRepositoryImpl) GetJizzedCount(userID, sceneID uint) (int, error) {
+	var record UserSceneJizzed
+	err := r.DB.Where("user_id = ? AND scene_id = ?", userID, sceneID).First(&record).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, nil
@@ -143,12 +143,12 @@ func (r *InteractionRepositoryImpl) GetJizzedCount(userID, videoID uint) (int, e
 	return record.Count, nil
 }
 
-func (r *InteractionRepositoryImpl) GetAllInteractions(userID, videoID uint) (*VideoInteractions, error) {
-	result := &VideoInteractions{}
+func (r *InteractionRepositoryImpl) GetAllInteractions(userID, sceneID uint) (*SceneInteractions, error) {
+	result := &SceneInteractions{}
 
 	// Get rating
-	var rating UserVideoRating
-	err := r.DB.Where("user_id = ? AND video_id = ?", userID, videoID).First(&rating).Error
+	var rating UserSceneRating
+	err := r.DB.Where("user_id = ? AND scene_id = ?", userID, sceneID).First(&rating).Error
 	if err == nil {
 		result.Rating = rating.Rating
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -157,15 +157,15 @@ func (r *InteractionRepositoryImpl) GetAllInteractions(userID, videoID uint) (*V
 
 	// Check if liked
 	var likeCount int64
-	err = r.DB.Model(&UserVideoLike{}).Where("user_id = ? AND video_id = ?", userID, videoID).Count(&likeCount).Error
+	err = r.DB.Model(&UserSceneLike{}).Where("user_id = ? AND scene_id = ?", userID, sceneID).Count(&likeCount).Error
 	if err != nil {
 		return nil, err
 	}
 	result.Liked = likeCount > 0
 
 	// Get jizzed count
-	var jizzed UserVideoJizzed
-	err = r.DB.Where("user_id = ? AND video_id = ?", userID, videoID).First(&jizzed).Error
+	var jizzed UserSceneJizzed
+	err = r.DB.Where("user_id = ? AND scene_id = ?", userID, sceneID).First(&jizzed).Error
 	if err == nil {
 		result.JizzedCount = jizzed.Count
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -180,20 +180,20 @@ func IsNotFound(err error) bool {
 	return errors.Is(err, gorm.ErrRecordNotFound)
 }
 
-func (r *InteractionRepositoryImpl) GetLikedVideoIDs(userID uint) ([]uint, error) {
+func (r *InteractionRepositoryImpl) GetLikedSceneIDs(userID uint) ([]uint, error) {
 	var ids []uint
-	err := r.DB.Model(&UserVideoLike{}).
+	err := r.DB.Model(&UserSceneLike{}).
 		Where("user_id = ?", userID).
-		Pluck("video_id", &ids).Error
+		Pluck("scene_id", &ids).Error
 	if err != nil {
 		return nil, err
 	}
 	return ids, nil
 }
 
-func (r *InteractionRepositoryImpl) GetRatedVideoIDs(userID uint, minRating, maxRating float64) ([]uint, error) {
+func (r *InteractionRepositoryImpl) GetRatedSceneIDs(userID uint, minRating, maxRating float64) ([]uint, error) {
 	var ids []uint
-	query := r.DB.Model(&UserVideoRating{}).Where("user_id = ?", userID)
+	query := r.DB.Model(&UserSceneRating{}).Where("user_id = ?", userID)
 
 	if minRating > 0 {
 		query = query.Where("rating >= ?", minRating)
@@ -202,16 +202,16 @@ func (r *InteractionRepositoryImpl) GetRatedVideoIDs(userID uint, minRating, max
 		query = query.Where("rating <= ?", maxRating)
 	}
 
-	err := query.Pluck("video_id", &ids).Error
+	err := query.Pluck("scene_id", &ids).Error
 	if err != nil {
 		return nil, err
 	}
 	return ids, nil
 }
 
-func (r *InteractionRepositoryImpl) GetJizzedVideoIDs(userID uint, minCount, maxCount int) ([]uint, error) {
+func (r *InteractionRepositoryImpl) GetJizzedSceneIDs(userID uint, minCount, maxCount int) ([]uint, error) {
 	var ids []uint
-	query := r.DB.Model(&UserVideoJizzed{}).Where("user_id = ?", userID)
+	query := r.DB.Model(&UserSceneJizzed{}).Where("user_id = ?", userID)
 
 	if minCount > 0 {
 		query = query.Where("count >= ?", minCount)
@@ -220,7 +220,7 @@ func (r *InteractionRepositoryImpl) GetJizzedVideoIDs(userID uint, minCount, max
 		query = query.Where("count <= ?", maxCount)
 	}
 
-	err := query.Pluck("video_id", &ids).Error
+	err := query.Pluck("scene_id", &ids).Error
 	if err != nil {
 		return nil, err
 	}

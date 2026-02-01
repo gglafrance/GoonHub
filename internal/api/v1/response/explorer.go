@@ -5,13 +5,13 @@ import (
 	"goonhub/internal/data"
 )
 
-// FolderContentsResponse contains the contents of a folder with lightweight videos.
+// FolderContentsResponse contains the contents of a folder with lightweight scenes.
 type FolderContentsResponse struct {
 	StoragePath *data.StoragePath `json:"storage_path"`
 	CurrentPath string            `json:"current_path"`
 	Subfolders  []data.FolderInfo `json:"subfolders"`
-	Videos      []VideoListItem   `json:"videos"`
-	TotalVideos int64             `json:"total_videos"`
+	Scenes      []SceneListItem   `json:"scenes"`
+	TotalScenes int64             `json:"total_scenes"`
 	Page        int               `json:"page"`
 	Limit       int               `json:"limit"`
 }
@@ -22,16 +22,16 @@ func ToFolderContentsResponse(resp *core.FolderContentsResponse) *FolderContents
 		StoragePath: resp.StoragePath,
 		CurrentPath: resp.CurrentPath,
 		Subfolders:  resp.Subfolders,
-		Videos:      ToVideoListItems(resp.Videos),
-		TotalVideos: resp.TotalVideos,
+		Scenes:      ToSceneListItems(resp.Scenes),
+		TotalScenes: resp.TotalScenes,
 		Page:        resp.Page,
 		Limit:       resp.Limit,
 	}
 }
 
-// FolderSearchResponse contains the search results with lightweight videos.
+// FolderSearchResponse contains the search results with lightweight scenes.
 type FolderSearchResponse struct {
-	Videos []VideoListItem `json:"videos"`
+	Scenes []SceneListItem `json:"scenes"`
 	Total  int64           `json:"total"`
 	Page   int             `json:"page"`
 	Limit  int             `json:"limit"`
@@ -40,7 +40,7 @@ type FolderSearchResponse struct {
 // ToFolderSearchResponse converts the service response to an API response.
 func ToFolderSearchResponse(resp *core.FolderSearchResponse) *FolderSearchResponse {
 	return &FolderSearchResponse{
-		Videos: ToVideoListItems(resp.Videos),
+		Scenes: ToSceneListItems(resp.Scenes),
 		Total:  resp.Total,
 		Page:   resp.Page,
 		Limit:  resp.Limit,

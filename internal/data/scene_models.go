@@ -7,7 +7,73 @@ import (
 	"gorm.io/gorm"
 )
 
-type Video struct {
+// SceneOrigin enum values
+const (
+	SceneOriginWeb      = "web"
+	SceneOriginDVD      = "dvd"
+	SceneOriginPersonal = "personal"
+	SceneOriginStash    = "stash"
+	SceneOriginUnknown  = "unknown"
+)
+
+// SceneType enum values
+const (
+	SceneTypeStandard     = "standard"
+	SceneTypeJAV          = "jav"
+	SceneTypeHentai       = "hentai"
+	SceneTypeAmateur      = "amateur"
+	SceneTypeProfessional = "professional"
+	SceneTypeVR           = "vr"
+	SceneTypeCompilation  = "compilation"
+	SceneTypePMV          = "pmv"
+)
+
+// ValidSceneOrigins returns all valid origin values
+func ValidSceneOrigins() []string {
+	return []string{
+		SceneOriginWeb,
+		SceneOriginDVD,
+		SceneOriginPersonal,
+		SceneOriginStash,
+		SceneOriginUnknown,
+	}
+}
+
+// ValidSceneTypes returns all valid type values
+func ValidSceneTypes() []string {
+	return []string{
+		SceneTypeStandard,
+		SceneTypeJAV,
+		SceneTypeHentai,
+		SceneTypeAmateur,
+		SceneTypeProfessional,
+		SceneTypeVR,
+		SceneTypeCompilation,
+		SceneTypePMV,
+	}
+}
+
+// IsValidSceneOrigin checks if the given origin is valid
+func IsValidSceneOrigin(origin string) bool {
+	for _, v := range ValidSceneOrigins() {
+		if v == origin {
+			return true
+		}
+	}
+	return false
+}
+
+// IsValidSceneType checks if the given type is valid
+func IsValidSceneType(sceneType string) bool {
+	for _, v := range ValidSceneTypes() {
+		if v == sceneType {
+			return true
+		}
+	}
+	return false
+}
+
+type Scene struct {
 	ID               uint           `gorm:"primarykey" json:"id"`
 	CreatedAt        time.Time      `json:"created_at"`
 	UpdatedAt        time.Time      `json:"updated_at"`
@@ -43,6 +109,12 @@ type Video struct {
 	StudioID         *uint          `json:"studio_id"`
 	ReleaseDate      *time.Time     `json:"release_date" gorm:"type:date"`
 	PornDBSceneID    string         `json:"porndb_scene_id" gorm:"column:porndb_scene_id"`
+	Origin           string         `json:"origin" gorm:"size:100"`
+	Type             string         `json:"type" gorm:"size:50"`
+}
+
+func (Scene) TableName() string {
+	return "scenes"
 }
 
 type Tag struct {
@@ -52,8 +124,12 @@ type Tag struct {
 	Color     string    `gorm:"not null;size:7;default:'#6B7280'" json:"color"`
 }
 
-type VideoTag struct {
+type SceneTag struct {
 	ID      uint `gorm:"primarykey"`
-	VideoID uint `gorm:"not null"`
+	SceneID uint `gorm:"not null;column:scene_id"`
 	TagID   uint `gorm:"not null"`
+}
+
+func (SceneTag) TableName() string {
+	return "scene_tags"
 }

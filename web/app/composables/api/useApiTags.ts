@@ -1,5 +1,5 @@
 /**
- * Tag-related API operations: CRUD and video-tag associations.
+ * Tag-related API operations: CRUD and scene-tag associations.
  */
 export const useApiTags = () => {
     const { fetchOptions, getAuthHeaders, handleResponse } = useApiCore();
@@ -30,16 +30,16 @@ export const useApiTags = () => {
         return handleResponse(response);
     };
 
-    const fetchVideoTags = async (videoId: number) => {
-        const response = await fetch(`/api/v1/videos/${videoId}/tags`, {
+    const fetchSceneTags = async (sceneId: number) => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/tags`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
         return handleResponse(response);
     };
 
-    const setVideoTags = async (videoId: number, tagIds: number[]) => {
-        const response = await fetch(`/api/v1/videos/${videoId}/tags`, {
+    const setSceneTags = async (sceneId: number, tagIds: number[]) => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/tags`, {
             method: 'PUT',
             headers: getAuthHeaders(),
             body: JSON.stringify({ tag_ids: tagIds }),
@@ -51,7 +51,7 @@ export const useApiTags = () => {
         fetchTags,
         createTag,
         deleteTag,
-        fetchVideoTags,
-        setVideoTags,
+        fetchSceneTags,
+        setSceneTags,
     };
 };

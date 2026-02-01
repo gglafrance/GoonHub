@@ -1,19 +1,19 @@
 <script setup lang="ts">
 const props = defineProps<{
-    videoId: number;
+    sceneId: number;
     initialLiked?: boolean;
     initialJizzedCount?: number;
 }>();
 
-const videoIdRef = computed(() => props.videoId);
+const sceneIdRef = computed(() => props.sceneId);
 
-const { liked, animating: likeAnimating, toggle: toggleLike, setLiked } = useVideoLike(videoIdRef);
+const { liked, animating: likeAnimating, toggle: toggleLike, setLiked } = useSceneLike(sceneIdRef);
 const {
     count: jizzedCount,
     animating: jizzedAnimating,
     increment: incrementJizzed,
     setCount: setJizzedCount,
-} = useVideoJizzCount(videoIdRef);
+} = useSceneJizzCount(sceneIdRef);
 
 onMounted(() => {
     if (props.initialLiked !== undefined) {
@@ -49,7 +49,7 @@ watch(
         <button
             @click="toggleLike"
             class="group flex flex-col items-center gap-0.5 transition-all duration-200"
-            title="Like this video"
+            title="Like this scene"
         >
             <div
                 class="transition-all duration-200"

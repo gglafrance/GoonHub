@@ -68,23 +68,23 @@ func (mr *MockMarkerRepositoryMockRecorder) ApplyLabelTagsToMarker(userID, marke
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyLabelTagsToMarker", reflect.TypeOf((*MockMarkerRepository)(nil).ApplyLabelTagsToMarker), userID, markerID, label)
 }
 
-// CountByUserAndVideo mocks base method.
-func (m *MockMarkerRepository) CountByUserAndVideo(userID, videoID uint) (int64, error) {
+// CountByUserAndScene mocks base method.
+func (m *MockMarkerRepository) CountByUserAndScene(userID, sceneID uint) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountByUserAndVideo", userID, videoID)
+	ret := m.ctrl.Call(m, "CountByUserAndScene", userID, sceneID)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// CountByUserAndVideo indicates an expected call of CountByUserAndVideo.
-func (mr *MockMarkerRepositoryMockRecorder) CountByUserAndVideo(userID, videoID any) *gomock.Call {
+// CountByUserAndScene indicates an expected call of CountByUserAndScene.
+func (mr *MockMarkerRepositoryMockRecorder) CountByUserAndScene(userID, sceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountByUserAndVideo", reflect.TypeOf((*MockMarkerRepository)(nil).CountByUserAndVideo), userID, videoID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountByUserAndScene", reflect.TypeOf((*MockMarkerRepository)(nil).CountByUserAndScene), userID, sceneID)
 }
 
 // Create mocks base method.
-func (m *MockMarkerRepository) Create(marker *data.UserVideoMarker) error {
+func (m *MockMarkerRepository) Create(marker *data.UserSceneMarker) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", marker)
 	ret0, _ := ret[0].(error)
@@ -127,10 +127,10 @@ func (mr *MockMarkerRepositoryMockRecorder) GetAllLabelTagsForUser(userID any) *
 }
 
 // GetByID mocks base method.
-func (m *MockMarkerRepository) GetByID(id uint) (*data.UserVideoMarker, error) {
+func (m *MockMarkerRepository) GetByID(id uint) (*data.UserSceneMarker, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetByID", id)
-	ret0, _ := ret[0].(*data.UserVideoMarker)
+	ret0, _ := ret[0].(*data.UserSceneMarker)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -141,19 +141,19 @@ func (mr *MockMarkerRepositoryMockRecorder) GetByID(id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByID", reflect.TypeOf((*MockMarkerRepository)(nil).GetByID), id)
 }
 
-// GetByUserAndVideo mocks base method.
-func (m *MockMarkerRepository) GetByUserAndVideo(userID, videoID uint) ([]data.UserVideoMarker, error) {
+// GetByUserAndScene mocks base method.
+func (m *MockMarkerRepository) GetByUserAndScene(userID, sceneID uint) ([]data.UserSceneMarker, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetByUserAndVideo", userID, videoID)
-	ret0, _ := ret[0].([]data.UserVideoMarker)
+	ret := m.ctrl.Call(m, "GetByUserAndScene", userID, sceneID)
+	ret0, _ := ret[0].([]data.UserSceneMarker)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetByUserAndVideo indicates an expected call of GetByUserAndVideo.
-func (mr *MockMarkerRepositoryMockRecorder) GetByUserAndVideo(userID, videoID any) *gomock.Call {
+// GetByUserAndScene indicates an expected call of GetByUserAndScene.
+func (mr *MockMarkerRepositoryMockRecorder) GetByUserAndScene(userID, sceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByUserAndVideo", reflect.TypeOf((*MockMarkerRepository)(nil).GetByUserAndVideo), userID, videoID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByUserAndScene", reflect.TypeOf((*MockMarkerRepository)(nil).GetByUserAndScene), userID, sceneID)
 }
 
 // GetLabelGroupsForUser mocks base method.
@@ -248,10 +248,10 @@ func (mr *MockMarkerRepositoryMockRecorder) GetMarkerTagsMultiple(markerIDs any)
 }
 
 // GetMarkersByLabelForUser mocks base method.
-func (m *MockMarkerRepository) GetMarkersByLabelForUser(userID uint, label string, offset, limit int) ([]data.MarkerWithVideo, int64, error) {
+func (m *MockMarkerRepository) GetMarkersByLabelForUser(userID uint, label string, offset, limit int) ([]data.MarkerWithScene, int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMarkersByLabelForUser", userID, label, offset, limit)
-	ret0, _ := ret[0].([]data.MarkerWithVideo)
+	ret0, _ := ret[0].([]data.MarkerWithScene)
 	ret1, _ := ret[1].(int64)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -263,19 +263,19 @@ func (mr *MockMarkerRepositoryMockRecorder) GetMarkersByLabelForUser(userID, lab
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMarkersByLabelForUser", reflect.TypeOf((*MockMarkerRepository)(nil).GetMarkersByLabelForUser), userID, label, offset, limit)
 }
 
-// GetVideoIDsByLabels mocks base method.
-func (m *MockMarkerRepository) GetVideoIDsByLabels(userID uint, labels []string) ([]uint, error) {
+// GetSceneIDsByLabels mocks base method.
+func (m *MockMarkerRepository) GetSceneIDsByLabels(userID uint, labels []string) ([]uint, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVideoIDsByLabels", userID, labels)
+	ret := m.ctrl.Call(m, "GetSceneIDsByLabels", userID, labels)
 	ret0, _ := ret[0].([]uint)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetVideoIDsByLabels indicates an expected call of GetVideoIDsByLabels.
-func (mr *MockMarkerRepositoryMockRecorder) GetVideoIDsByLabels(userID, labels any) *gomock.Call {
+// GetSceneIDsByLabels indicates an expected call of GetSceneIDsByLabels.
+func (mr *MockMarkerRepositoryMockRecorder) GetSceneIDsByLabels(userID, labels any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideoIDsByLabels", reflect.TypeOf((*MockMarkerRepository)(nil).GetVideoIDsByLabels), userID, labels)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSceneIDsByLabels", reflect.TypeOf((*MockMarkerRepository)(nil).GetSceneIDsByLabels), userID, labels)
 }
 
 // SetLabelTags mocks base method.
@@ -321,7 +321,7 @@ func (mr *MockMarkerRepositoryMockRecorder) SyncMarkerTagsFromLabel(userID, labe
 }
 
 // Update mocks base method.
-func (m *MockMarkerRepository) Update(marker *data.UserVideoMarker) error {
+func (m *MockMarkerRepository) Update(marker *data.UserSceneMarker) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", marker)
 	ret0, _ := ret[0].(error)

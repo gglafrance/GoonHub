@@ -1,7 +1,7 @@
 export interface Marker {
     id: number;
     user_id: number;
-    video_id: number;
+    scene_id: number;
     timestamp: number;
     label: string;
     color: string;
@@ -34,8 +34,8 @@ export interface MarkerLabelGroup {
     thumbnail_marker_id: number;
 }
 
-export interface MarkerWithVideo extends Marker {
-    video_title: string;
+export interface MarkerWithScene extends Marker {
+    scene_title: string;
     tags?: MarkerTagInfo[];
 }
 

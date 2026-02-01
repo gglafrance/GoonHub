@@ -35,13 +35,13 @@ const logoUrl = computed(() => {
                 <Icon name="heroicons:building-office-2" size="48" />
             </div>
 
-            <!-- Video count badge -->
+            <!-- Scene count badge -->
             <div
-                v-if="studio.video_count !== undefined && studio.video_count > 0"
+                v-if="studio.scene_count !== undefined && studio.scene_count > 0"
                 class="bg-void/90 absolute right-1.5 bottom-1.5 rounded px-1.5 py-0.5 font-mono
                     text-[10px] font-medium text-white backdrop-blur-sm"
             >
-                {{ studio.video_count }} {{ studio.video_count === 1 ? 'video' : 'videos' }}
+                {{ studio.scene_count }} {{ studio.scene_count === 1 ? 'scene' : 'scenes' }}
             </div>
 
             <!-- Hover overlay -->

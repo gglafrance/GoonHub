@@ -45,7 +45,7 @@ const queueFiles = (files: FileList) => {
         <div v-if="!authStore.isAuthenticated" class="py-6 text-center">
             <Icon name="heroicons:lock-closed" size="24" class="text-dim mx-auto mb-2" />
             <h3 class="text-muted text-xs font-medium">Authentication Required</h3>
-            <p class="text-dim mt-0.5 text-[11px]">Sign in to upload videos</p>
+            <p class="text-dim mt-0.5 text-[11px]">Sign in to upload scenes</p>
         </div>
 
         <div v-else>
@@ -80,7 +80,7 @@ const queueFiles = (files: FileList) => {
                     >
                         <Icon name="heroicons:arrow-up-tray" size="16" class="text-dim" />
                     </div>
-                    <div class="text-muted text-xs font-medium">Drop videos or click to upload</div>
+                    <div class="text-muted text-xs font-medium">Drop scenes or click to upload</div>
                     <div class="text-dim font-mono text-[10px]">MP4, MKV, AVI, WEBM</div>
                 </div>
             </div>

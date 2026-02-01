@@ -12,8 +12,8 @@ import (
 type TriggerScheduler struct {
 	cron              *cron.Cron
 	triggerConfigRepo data.TriggerConfigRepository
-	videoRepo         data.VideoRepository
-	processingService *VideoProcessingService
+	sceneRepo         data.SceneRepository
+	processingService *SceneProcessingService
 	scanService       *ScanService
 	logger            *zap.Logger
 	mu                sync.Mutex
@@ -27,13 +27,13 @@ func (s *TriggerScheduler) SetScanService(scanService *ScanService) {
 
 func NewTriggerScheduler(
 	triggerConfigRepo data.TriggerConfigRepository,
-	videoRepo data.VideoRepository,
-	processingService *VideoProcessingService,
+	sceneRepo data.SceneRepository,
+	processingService *SceneProcessingService,
 	logger *zap.Logger,
 ) *TriggerScheduler {
 	return &TriggerScheduler{
 		triggerConfigRepo: triggerConfigRepo,
-		videoRepo:         videoRepo,
+		sceneRepo:         sceneRepo,
 		processingService: processingService,
 		logger:            logger,
 	}
@@ -124,29 +124,29 @@ func (s *TriggerScheduler) runScheduledPhase(phase string) {
 		return
 	}
 
-	videos, err := s.videoRepo.GetVideosNeedingPhase(phase)
+	scenes, err := s.sceneRepo.GetScenesNeedingPhase(phase)
 	if err != nil {
-		s.logger.Error("Failed to get videos needing phase",
+		s.logger.Error("Failed to get scenes needing phase",
 			zap.String("phase", phase),
 			zap.Error(err),
 		)
 		return
 	}
 
-	if len(videos) == 0 {
-		s.logger.Debug("No videos need processing for scheduled phase", zap.String("phase", phase))
+	if len(scenes) == 0 {
+		s.logger.Debug("No scenes need processing for scheduled phase", zap.String("phase", phase))
 		return
 	}
 
-	s.logger.Info("Found videos needing scheduled phase",
+	s.logger.Info("Found scenes needing scheduled phase",
 		zap.String("phase", phase),
-		zap.Int("count", len(videos)),
+		zap.Int("count", len(scenes)),
 	)
 
-	for _, video := range videos {
-		if err := s.processingService.SubmitPhase(video.ID, phase); err != nil {
+	for _, scene := range scenes {
+		if err := s.processingService.SubmitPhase(scene.ID, phase); err != nil {
 			s.logger.Error("Failed to submit scheduled phase job",
-				zap.Uint("video_id", video.ID),
+				zap.Uint("scene_id", scene.ID),
 				zap.String("phase", phase),
 				zap.Error(err),
 			)

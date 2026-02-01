@@ -1,9 +1,9 @@
 /**
- * Composable for video star rating with hover states.
+ * Composable for scene star rating with hover states.
  * Supports half-star ratings (0.5 increments).
  */
-export const useVideoRating = (videoId: Ref<number | undefined>) => {
-    const { setVideoRating, deleteVideoRating } = useApiVideos();
+export const useSceneRating = (sceneId: Ref<number | undefined>) => {
+    const { setSceneRating, deleteSceneRating } = useApiScenes();
 
     const currentRating = ref(0);
     const hoverRating = ref(0);
@@ -29,7 +29,7 @@ export const useVideoRating = (videoId: Ref<number | undefined>) => {
     };
 
     const onStarClick = async (starIndex: number, isLeftHalf: boolean) => {
-        if (!videoId.value) return;
+        if (!sceneId.value) return;
         const newRating = isLeftHalf ? starIndex - 0.5 : starIndex;
 
         if (newRating === currentRating.value) {
@@ -37,7 +37,7 @@ export const useVideoRating = (videoId: Ref<number | undefined>) => {
             const oldRating = currentRating.value;
             currentRating.value = 0;
             try {
-                await deleteVideoRating(videoId.value);
+                await deleteSceneRating(sceneId.value);
             } catch {
                 // Revert on error
                 currentRating.value = oldRating;
@@ -46,7 +46,7 @@ export const useVideoRating = (videoId: Ref<number | undefined>) => {
             const oldRating = currentRating.value;
             currentRating.value = newRating;
             try {
-                await setVideoRating(videoId.value, newRating);
+                await setSceneRating(sceneId.value, newRating);
             } catch {
                 currentRating.value = oldRating;
             }

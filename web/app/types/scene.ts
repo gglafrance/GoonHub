@@ -1,6 +1,6 @@
-// VideoListItem is a lightweight video representation for list/grid displays.
-// Used by: homepage sections, search results, actor/studio videos, explorer, history
-export interface VideoListItem {
+// SceneListItem is a lightweight scene representation for list/grid displays.
+// Used by: homepage sections, search results, actor/studio scenes, explorer, history
+export interface SceneListItem {
     id: number;
     title: string;
     duration: number;
@@ -11,9 +11,9 @@ export interface VideoListItem {
     updated_at: string;
 }
 
-// Video is the full video representation with all metadata.
-// Used by: video player page, video details editor
-export interface Video extends VideoListItem {
+// Scene is the full scene representation with all metadata.
+// Used by: scene player page, scene details editor
+export interface Scene extends SceneListItem {
     original_filename: string;
     view_count: number;
     width?: number;
@@ -37,16 +37,18 @@ export interface Video extends VideoListItem {
     audio_codec?: string;
     release_date?: string;
     porndb_scene_id?: string;
+    origin?: string;
+    type?: string;
 }
 
-export interface VideoListResponse {
-    data: VideoListItem[];
+export interface SceneListResponse {
+    data: SceneListItem[];
     total: number;
     page: number;
     limit: number;
 }
 
-export interface VideoSearchParams {
+export interface SceneSearchParams {
     q?: string;
     tags?: string;
     actors?: string;
@@ -64,13 +66,15 @@ export interface VideoSearchParams {
     max_rating?: number;
     min_jizz_count?: number;
     max_jizz_count?: number;
+    origin?: string;
+    type?: string;
 }
 
 export interface TagOption {
     id: number;
     name: string;
     color: string;
-    video_count: number;
+    scene_count: number;
 }
 
 export interface MarkerLabelOption {
@@ -78,9 +82,11 @@ export interface MarkerLabelOption {
     count: number;
 }
 
-export interface VideoFilterOptions {
+export interface SceneFilterOptions {
     studios: string[];
     actors: string[];
     tags: TagOption[];
     marker_labels: MarkerLabelOption[];
+    origins: string[];
+    types: string[];
 }

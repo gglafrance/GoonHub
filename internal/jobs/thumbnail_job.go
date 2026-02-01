@@ -25,8 +25,8 @@ type ThumbnailResult struct {
 
 type ThumbnailJob struct {
 	id              string
-	videoID         uint
-	videoPath       string
+	sceneID         uint
+	scenePath       string
 	thumbnailDir    string
 	tileWidth       int
 	tileHeight      int
@@ -35,7 +35,7 @@ type ThumbnailJob struct {
 	duration        int
 	frameQualitySm  int
 	frameQualityLg  int
-	repo            data.VideoRepository
+	repo            data.SceneRepository
 	logger          *zap.Logger
 	status          JobStatus
 	error           error
@@ -46,8 +46,8 @@ type ThumbnailJob struct {
 }
 
 func NewThumbnailJob(
-	videoID uint,
-	videoPath string,
+	sceneID uint,
+	scenePath string,
 	thumbnailDir string,
 	tileWidth int,
 	tileHeight int,
@@ -56,13 +56,13 @@ func NewThumbnailJob(
 	duration int,
 	frameQualitySm int,
 	frameQualityLg int,
-	repo data.VideoRepository,
+	repo data.SceneRepository,
 	logger *zap.Logger,
 ) *ThumbnailJob {
 	return &ThumbnailJob{
 		id:              uuid.New().String(),
-		videoID:         videoID,
-		videoPath:       videoPath,
+		sceneID:         sceneID,
+		scenePath:       scenePath,
 		thumbnailDir:    thumbnailDir,
 		tileWidth:       tileWidth,
 		tileHeight:      tileHeight,
@@ -78,7 +78,7 @@ func NewThumbnailJob(
 }
 
 func (j *ThumbnailJob) GetID() string      { return j.id }
-func (j *ThumbnailJob) GetVideoID() uint    { return j.videoID }
+func (j *ThumbnailJob) GetSceneID() uint    { return j.sceneID }
 func (j *ThumbnailJob) GetPhase() string    { return "thumbnail" }
 func (j *ThumbnailJob) GetStatus() JobStatus { return j.status }
 func (j *ThumbnailJob) GetError() error     { return j.error }
@@ -105,8 +105,8 @@ func (j *ThumbnailJob) ExecuteWithContext(ctx context.Context) error {
 
 	j.logger.Info("Starting thumbnail extraction job",
 		zap.String("job_id", j.id),
-		zap.Uint("video_id", j.videoID),
-		zap.String("video_path", j.videoPath),
+		zap.Uint("scene_id", j.sceneID),
+		zap.String("scene_path", j.scenePath),
 		zap.Int("tile_width", j.tileWidth),
 		zap.Int("tile_height", j.tileHeight),
 	)
@@ -126,16 +126,16 @@ func (j *ThumbnailJob) ExecuteWithContext(ctx context.Context) error {
 		return err
 	}
 
-	thumbnailPathSmall := filepath.Join(j.thumbnailDir, fmt.Sprintf("%d_thumb_sm.webp", j.videoID))
-	thumbnailPathLarge := filepath.Join(j.thumbnailDir, fmt.Sprintf("%d_thumb_lg.webp", j.videoID))
+	thumbnailPathSmall := filepath.Join(j.thumbnailDir, fmt.Sprintf("%d_thumb_sm.webp", j.sceneID))
+	thumbnailPathLarge := filepath.Join(j.thumbnailDir, fmt.Sprintf("%d_thumb_lg.webp", j.sceneID))
 	thumbnailSeek := fmt.Sprintf("%d", j.duration/2)
 
 	// Extract small thumbnail
-	if err := ffmpeg.ExtractThumbnailWithContext(j.ctx, j.videoPath, thumbnailPathSmall, thumbnailSeek, j.tileWidth, j.tileHeight, j.frameQualitySm); err != nil {
+	if err := ffmpeg.ExtractThumbnailWithContext(j.ctx, j.scenePath, thumbnailPathSmall, thumbnailSeek, j.tileWidth, j.tileHeight, j.frameQualitySm); err != nil {
 		if j.ctx.Err() == context.DeadlineExceeded {
 			j.status = JobStatusTimedOut
 			j.error = fmt.Errorf("thumbnail extraction timed out")
-			j.repo.UpdateProcessingStatus(j.videoID, string(JobStatusTimedOut), "thumbnail extraction timed out")
+			j.repo.UpdateProcessingStatus(j.sceneID, string(JobStatusTimedOut), "thumbnail extraction timed out")
 			return j.error
 		}
 		if j.ctx.Err() == context.Canceled || j.cancelled.Load() {
@@ -143,7 +143,7 @@ func (j *ThumbnailJob) ExecuteWithContext(ctx context.Context) error {
 			return fmt.Errorf("job cancelled")
 		}
 		j.logger.Error("Failed to extract small thumbnail",
-			zap.Uint("video_id", j.videoID),
+			zap.Uint("scene_id", j.sceneID),
 			zap.Error(err),
 		)
 		j.handleError(fmt.Errorf("small thumbnail extraction failed: %w", err))
@@ -157,11 +157,11 @@ func (j *ThumbnailJob) ExecuteWithContext(ctx context.Context) error {
 	}
 
 	// Extract large thumbnail
-	if err := ffmpeg.ExtractThumbnailWithContext(j.ctx, j.videoPath, thumbnailPathLarge, thumbnailSeek, j.tileWidthLarge, j.tileHeightLarge, j.frameQualityLg); err != nil {
+	if err := ffmpeg.ExtractThumbnailWithContext(j.ctx, j.scenePath, thumbnailPathLarge, thumbnailSeek, j.tileWidthLarge, j.tileHeightLarge, j.frameQualityLg); err != nil {
 		if j.ctx.Err() == context.DeadlineExceeded {
 			j.status = JobStatusTimedOut
 			j.error = fmt.Errorf("thumbnail extraction timed out")
-			j.repo.UpdateProcessingStatus(j.videoID, string(JobStatusTimedOut), "thumbnail extraction timed out")
+			j.repo.UpdateProcessingStatus(j.sceneID, string(JobStatusTimedOut), "thumbnail extraction timed out")
 			return j.error
 		}
 		if j.ctx.Err() == context.Canceled || j.cancelled.Load() {
@@ -169,16 +169,16 @@ func (j *ThumbnailJob) ExecuteWithContext(ctx context.Context) error {
 			return fmt.Errorf("job cancelled")
 		}
 		j.logger.Error("Failed to extract large thumbnail",
-			zap.Uint("video_id", j.videoID),
+			zap.Uint("scene_id", j.sceneID),
 			zap.Error(err),
 		)
 		j.handleError(fmt.Errorf("large thumbnail extraction failed: %w", err))
 		return err
 	}
 
-	if err := j.repo.UpdateThumbnail(j.videoID, thumbnailPathSmall, j.tileWidth, j.tileHeight); err != nil {
+	if err := j.repo.UpdateThumbnail(j.sceneID, thumbnailPathSmall, j.tileWidth, j.tileHeight); err != nil {
 		j.logger.Error("Failed to update thumbnail in database",
-			zap.Uint("video_id", j.videoID),
+			zap.Uint("scene_id", j.sceneID),
 			zap.Error(err),
 		)
 		j.handleError(fmt.Errorf("failed to update thumbnail: %w", err))
@@ -197,7 +197,7 @@ func (j *ThumbnailJob) ExecuteWithContext(ctx context.Context) error {
 	j.status = JobStatusCompleted
 	j.logger.Info("Thumbnail extraction completed",
 		zap.String("job_id", j.id),
-		zap.Uint("video_id", j.videoID),
+		zap.Uint("scene_id", j.sceneID),
 		zap.String("thumbnail_path_small", thumbnailPathSmall),
 		zap.String("thumbnail_path_large", thumbnailPathLarge),
 		zap.Duration("elapsed", time.Since(startTime)),
@@ -209,5 +209,5 @@ func (j *ThumbnailJob) ExecuteWithContext(ctx context.Context) error {
 func (j *ThumbnailJob) handleError(err error) {
 	j.error = err
 	j.status = JobStatusFailed
-	j.repo.UpdateProcessingStatus(j.videoID, string(JobStatusFailed), err.Error())
+	j.repo.UpdateProcessingStatus(j.sceneID, string(JobStatusFailed), err.Error())
 }

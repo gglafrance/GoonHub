@@ -1,6 +1,6 @@
 package request
 
-type UpdateVideoDetailsRequest struct {
+type UpdateSceneDetailsRequest struct {
 	Title       string  `json:"title"`
 	Description string  `json:"description"`
 	ReleaseDate *string `json:"release_date,omitempty"`
@@ -10,7 +10,7 @@ type SetRatingRequest struct {
 	Rating float64 `json:"rating" binding:"required,min=0.5,max=5"`
 }
 
-type SearchVideosRequest struct {
+type SearchScenesRequest struct {
 	Query        string  `form:"q"`
 	Tags         string  `form:"tags"`
 	Actors       string  `form:"actors"`

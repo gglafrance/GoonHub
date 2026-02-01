@@ -23,8 +23,8 @@ type SpritesResult struct {
 
 type SpritesJob struct {
 	id               string
-	videoID          uint
-	videoPath        string
+	sceneID          uint
+	scenePath        string
 	spriteDir        string
 	vttDir           string
 	tileWidth        int
@@ -35,7 +35,7 @@ type SpritesJob struct {
 	gridCols         int
 	gridRows         int
 	concurrency      int
-	repo             data.VideoRepository
+	repo             data.SceneRepository
 	logger           *zap.Logger
 	status           JobStatus
 	error            error
@@ -48,8 +48,8 @@ type SpritesJob struct {
 }
 
 func NewSpritesJob(
-	videoID uint,
-	videoPath string,
+	sceneID uint,
+	scenePath string,
 	spriteDir string,
 	vttDir string,
 	tileWidth int,
@@ -60,13 +60,13 @@ func NewSpritesJob(
 	gridCols int,
 	gridRows int,
 	concurrency int,
-	repo data.VideoRepository,
+	repo data.SceneRepository,
 	logger *zap.Logger,
 ) *SpritesJob {
 	return &SpritesJob{
 		id:            uuid.New().String(),
-		videoID:       videoID,
-		videoPath:     videoPath,
+		sceneID:       sceneID,
+		scenePath:     scenePath,
 		spriteDir:     spriteDir,
 		vttDir:        vttDir,
 		tileWidth:     tileWidth,
@@ -84,7 +84,7 @@ func NewSpritesJob(
 }
 
 func (j *SpritesJob) GetID() string      { return j.id }
-func (j *SpritesJob) GetVideoID() uint    { return j.videoID }
+func (j *SpritesJob) GetSceneID() uint    { return j.sceneID }
 func (j *SpritesJob) GetPhase() string    { return "sprites" }
 func (j *SpritesJob) GetStatus() JobStatus { return j.status }
 func (j *SpritesJob) GetError() error     { return j.error }
@@ -129,7 +129,7 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 
 	j.logger.Info("Starting sprite sheet generation job",
 		zap.String("job_id", j.id),
-		zap.Uint("video_id", j.videoID),
+		zap.Uint("scene_id", j.sceneID),
 		zap.Int("tile_width", j.tileWidth),
 		zap.Int("tile_height", j.tileHeight),
 		zap.Int("frame_interval", j.frameInterval),
@@ -159,9 +159,9 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 
 	spriteSheets, err := ffmpeg.ExtractSpriteSheetsWithProgress(
 		j.ctx,
-		j.videoPath,
+		j.scenePath,
 		j.spriteDir,
-		int(j.videoID),
+		int(j.sceneID),
 		j.tileWidth,
 		j.tileHeight,
 		j.gridCols,
@@ -175,7 +175,7 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 		if j.ctx.Err() == context.DeadlineExceeded {
 			j.status = JobStatusTimedOut
 			j.error = fmt.Errorf("sprite sheet generation timed out")
-			j.repo.UpdateProcessingStatus(j.videoID, string(JobStatusTimedOut), "sprite sheet generation timed out")
+			j.repo.UpdateProcessingStatus(j.sceneID, string(JobStatusTimedOut), "sprite sheet generation timed out")
 			return j.error
 		}
 		if j.ctx.Err() == context.Canceled || j.cancelled.Load() {
@@ -183,7 +183,7 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 			return fmt.Errorf("job cancelled")
 		}
 		j.logger.Error("Failed to generate sprite sheets",
-			zap.Uint("video_id", j.videoID),
+			zap.Uint("scene_id", j.sceneID),
 			zap.Error(err),
 		)
 		j.handleError(fmt.Errorf("sprite sheet generation failed: %w", err))
@@ -191,7 +191,7 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 	}
 
 	j.logger.Info("Sprite sheets generated",
-		zap.Uint("video_id", j.videoID),
+		zap.Uint("scene_id", j.sceneID),
 		zap.Int("count", len(spriteSheets)),
 	)
 
@@ -204,7 +204,7 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 		return err
 	}
 
-	vttPath := filepath.Join(j.vttDir, fmt.Sprintf("%d_thumbnails.vtt", j.videoID))
+	vttPath := filepath.Join(j.vttDir, fmt.Sprintf("%d_thumbnails.vtt", j.sceneID))
 	if err := ffmpeg.GenerateVttFile(
 		vttPath,
 		spriteSheets,
@@ -216,7 +216,7 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 		j.tileHeight,
 	); err != nil {
 		j.logger.Error("Failed to generate VTT file",
-			zap.Uint("video_id", j.videoID),
+			zap.Uint("scene_id", j.sceneID),
 			zap.Error(err),
 		)
 		j.handleError(fmt.Errorf("VTT generation failed: %w", err))
@@ -228,9 +228,9 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 		spriteSheetPath = filepath.Join(j.spriteDir, spriteSheets[0])
 	}
 
-	if err := j.repo.UpdateSprites(j.videoID, spriteSheetPath, vttPath, len(spriteSheets)); err != nil {
+	if err := j.repo.UpdateSprites(j.sceneID, spriteSheetPath, vttPath, len(spriteSheets)); err != nil {
 		j.logger.Error("Failed to update sprites in database",
-			zap.Uint("video_id", j.videoID),
+			zap.Uint("scene_id", j.sceneID),
 			zap.Error(err),
 		)
 		j.handleError(fmt.Errorf("failed to update sprites: %w", err))
@@ -246,7 +246,7 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 	j.status = JobStatusCompleted
 	j.logger.Info("Sprite sheet generation completed",
 		zap.String("job_id", j.id),
-		zap.Uint("video_id", j.videoID),
+		zap.Uint("scene_id", j.sceneID),
 		zap.Int("sprite_sheet_count", len(spriteSheets)),
 		zap.String("vtt_path", vttPath),
 		zap.Duration("elapsed", time.Since(startTime)),
@@ -258,5 +258,5 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 func (j *SpritesJob) handleError(err error) {
 	j.error = err
 	j.status = JobStatusFailed
-	j.repo.UpdateProcessingStatus(j.videoID, string(JobStatusFailed), err.Error())
+	j.repo.UpdateProcessingStatus(j.sceneID, string(JobStatusFailed), err.Error())
 }

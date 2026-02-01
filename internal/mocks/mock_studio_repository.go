@@ -40,18 +40,18 @@ func (m *MockStudioRepository) EXPECT() *MockStudioRepositoryMockRecorder {
 	return m.recorder
 }
 
-// BulkSetStudioForVideos mocks base method.
-func (m *MockStudioRepository) BulkSetStudioForVideos(videoIDs []uint, studioID *uint) error {
+// BulkSetStudioForScenes mocks base method.
+func (m *MockStudioRepository) BulkSetStudioForScenes(sceneIDs []uint, studioID *uint) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BulkSetStudioForVideos", videoIDs, studioID)
+	ret := m.ctrl.Call(m, "BulkSetStudioForScenes", sceneIDs, studioID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// BulkSetStudioForVideos indicates an expected call of BulkSetStudioForVideos.
-func (mr *MockStudioRepositoryMockRecorder) BulkSetStudioForVideos(videoIDs, studioID any) *gomock.Call {
+// BulkSetStudioForScenes indicates an expected call of BulkSetStudioForScenes.
+func (mr *MockStudioRepositoryMockRecorder) BulkSetStudioForScenes(sceneIDs, studioID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkSetStudioForVideos", reflect.TypeOf((*MockStudioRepository)(nil).BulkSetStudioForVideos), videoIDs, studioID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkSetStudioForScenes", reflect.TypeOf((*MockStudioRepository)(nil).BulkSetStudioForScenes), sceneIDs, studioID)
 }
 
 // Create mocks base method.
@@ -127,50 +127,50 @@ func (mr *MockStudioRepositoryMockRecorder) GetByUUID(uuid any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByUUID", reflect.TypeOf((*MockStudioRepository)(nil).GetByUUID), uuid)
 }
 
-// GetStudioVideos mocks base method.
-func (m *MockStudioRepository) GetStudioVideos(studioID uint, page, limit int) ([]data.Video, int64, error) {
+// GetSceneCount mocks base method.
+func (m *MockStudioRepository) GetSceneCount(studioID uint) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetStudioVideos", studioID, page, limit)
-	ret0, _ := ret[0].([]data.Video)
-	ret1, _ := ret[1].(int64)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// GetStudioVideos indicates an expected call of GetStudioVideos.
-func (mr *MockStudioRepositoryMockRecorder) GetStudioVideos(studioID, page, limit any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStudioVideos", reflect.TypeOf((*MockStudioRepository)(nil).GetStudioVideos), studioID, page, limit)
-}
-
-// GetVideoCount mocks base method.
-func (m *MockStudioRepository) GetVideoCount(studioID uint) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVideoCount", studioID)
+	ret := m.ctrl.Call(m, "GetSceneCount", studioID)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetVideoCount indicates an expected call of GetVideoCount.
-func (mr *MockStudioRepositoryMockRecorder) GetVideoCount(studioID any) *gomock.Call {
+// GetSceneCount indicates an expected call of GetSceneCount.
+func (mr *MockStudioRepositoryMockRecorder) GetSceneCount(studioID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideoCount", reflect.TypeOf((*MockStudioRepository)(nil).GetVideoCount), studioID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSceneCount", reflect.TypeOf((*MockStudioRepository)(nil).GetSceneCount), studioID)
 }
 
-// GetVideoStudio mocks base method.
-func (m *MockStudioRepository) GetVideoStudio(videoID uint) (*data.Studio, error) {
+// GetSceneStudio mocks base method.
+func (m *MockStudioRepository) GetSceneStudio(sceneID uint) (*data.Studio, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVideoStudio", videoID)
+	ret := m.ctrl.Call(m, "GetSceneStudio", sceneID)
 	ret0, _ := ret[0].(*data.Studio)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetVideoStudio indicates an expected call of GetVideoStudio.
-func (mr *MockStudioRepositoryMockRecorder) GetVideoStudio(videoID any) *gomock.Call {
+// GetSceneStudio indicates an expected call of GetSceneStudio.
+func (mr *MockStudioRepositoryMockRecorder) GetSceneStudio(sceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideoStudio", reflect.TypeOf((*MockStudioRepository)(nil).GetVideoStudio), videoID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSceneStudio", reflect.TypeOf((*MockStudioRepository)(nil).GetSceneStudio), sceneID)
+}
+
+// GetStudioScenes mocks base method.
+func (m *MockStudioRepository) GetStudioScenes(studioID uint, page, limit int) ([]data.Scene, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStudioScenes", studioID, page, limit)
+	ret0, _ := ret[0].([]data.Scene)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetStudioScenes indicates an expected call of GetStudioScenes.
+func (mr *MockStudioRepositoryMockRecorder) GetStudioScenes(studioID, page, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStudioScenes", reflect.TypeOf((*MockStudioRepository)(nil).GetStudioScenes), studioID, page, limit)
 }
 
 // List mocks base method.
@@ -205,18 +205,18 @@ func (mr *MockStudioRepositoryMockRecorder) Search(query, page, limit any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Search", reflect.TypeOf((*MockStudioRepository)(nil).Search), query, page, limit)
 }
 
-// SetVideoStudio mocks base method.
-func (m *MockStudioRepository) SetVideoStudio(videoID uint, studioID *uint) error {
+// SetSceneStudio mocks base method.
+func (m *MockStudioRepository) SetSceneStudio(sceneID uint, studioID *uint) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetVideoStudio", videoID, studioID)
+	ret := m.ctrl.Call(m, "SetSceneStudio", sceneID, studioID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetVideoStudio indicates an expected call of SetVideoStudio.
-func (mr *MockStudioRepositoryMockRecorder) SetVideoStudio(videoID, studioID any) *gomock.Call {
+// SetSceneStudio indicates an expected call of SetSceneStudio.
+func (mr *MockStudioRepositoryMockRecorder) SetSceneStudio(sceneID, studioID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVideoStudio", reflect.TypeOf((*MockStudioRepository)(nil).SetVideoStudio), videoID, studioID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSceneStudio", reflect.TypeOf((*MockStudioRepository)(nil).SetSceneStudio), sceneID, studioID)
 }
 
 // Update mocks base method.

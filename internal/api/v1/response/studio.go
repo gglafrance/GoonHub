@@ -9,5 +9,5 @@ type StudioListItem struct {
 	Name       string    `json:"name"`
 	ShortName  string    `json:"short_name"`
 	Logo       string    `json:"logo"`
-	VideoCount int64     `json:"video_count"`
+	SceneCount int64     `json:"scene_count"`
 }

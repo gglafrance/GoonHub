@@ -21,46 +21,46 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type VideoHandler struct {
-	Service              *core.VideoService
-	ProcessingService    *core.VideoProcessingService
+type SceneHandler struct {
+	Service              *core.SceneService
+	ProcessingService    *core.SceneProcessingService
 	TagService           *core.TagService
 	SearchService        *core.SearchService
-	RelatedVideosService *core.RelatedVideosService
+	RelatedScenesService *core.RelatedScenesService
 	MarkerService        *core.MarkerService
 }
 
-func NewVideoHandler(service *core.VideoService, processingService *core.VideoProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedVideosService *core.RelatedVideosService, markerService *core.MarkerService) *VideoHandler {
-	return &VideoHandler{
+func NewSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService) *SceneHandler {
+	return &SceneHandler{
 		Service:              service,
 		ProcessingService:    processingService,
 		TagService:           tagService,
 		SearchService:        searchService,
-		RelatedVideosService: relatedVideosService,
+		RelatedScenesService: relatedScenesService,
 		MarkerService:        markerService,
 	}
 }
 
-func (h *VideoHandler) UploadVideo(c *gin.Context) {
-	file, err := c.FormFile("video")
+func (h *SceneHandler) UploadScene(c *gin.Context) {
+	file, err := c.FormFile("scene")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Video file is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Scene file is required"})
 		return
 	}
 
 	title := c.PostForm("title")
 
-	video, err := h.Service.UploadVideo(file, title)
+	scene, err := h.Service.UploadScene(file, title)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrInvalidFileExtension) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload video: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload scene: " + err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, video)
+	c.JSON(http.StatusCreated, scene)
 }
 
 var resolutionToHeight = map[string][2]int{
@@ -72,8 +72,8 @@ var resolutionToHeight = map[string][2]int{
 	"360p":  {0, 479},
 }
 
-func (h *VideoHandler) ListVideos(c *gin.Context) {
-	var req request.SearchVideosRequest
+func (h *SceneHandler) ListScenes(c *gin.Context) {
+	var req request.SearchScenesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
 		return
@@ -102,7 +102,7 @@ func (h *VideoHandler) ListVideos(c *gin.Context) {
 		matchingStrategy = "last"
 	}
 
-	params := data.VideoSearchParams{
+	params := data.SceneSearchParams{
 		Page:             req.Page,
 		Limit:            req.Limit,
 		Query:            req.Query,
@@ -160,21 +160,21 @@ func (h *VideoHandler) ListVideos(c *gin.Context) {
 		}
 	}
 
-	videos, total, err := h.SearchService.Search(params)
+	scenes, total, err := h.SearchService.Search(params)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search videos"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search scenes"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":  response.ToVideoListItems(videos),
+		"data":  response.ToSceneListItems(scenes),
 		"total": total,
 		"page":  req.Page,
 		"limit": req.Limit,
 	})
 }
 
-func (h *VideoHandler) GetFilterOptions(c *gin.Context) {
+func (h *SceneHandler) GetFilterOptions(c *gin.Context) {
 	studios, err := h.Service.GetDistinctStudios()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get studios"})
@@ -215,102 +215,102 @@ func (h *VideoHandler) GetFilterOptions(c *gin.Context) {
 	})
 }
 
-func (h *VideoHandler) ReprocessVideo(c *gin.Context) {
+func (h *SceneHandler) ReprocessScene(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	video, err := h.Service.GetVideo(uint(id))
+	scene, err := h.Service.GetScene(uint(id))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Scene not found"})
 		return
 	}
 
-	if err := h.ProcessingService.SubmitVideo(uint(id), video.StoredPath); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to submit video for processing"})
+	if err := h.ProcessingService.SubmitScene(uint(id), scene.StoredPath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to submit scene for processing"})
 		return
 	}
 
-	c.JSON(http.StatusAccepted, gin.H{"message": "Video submitted for processing"})
+	c.JSON(http.StatusAccepted, gin.H{"message": "Scene submitted for processing"})
 }
 
-func (h *VideoHandler) DeleteVideo(c *gin.Context) {
+func (h *SceneHandler) DeleteScene(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	if err := h.Service.DeleteVideo(uint(id)); err != nil {
+	if err := h.Service.DeleteScene(uint(id)); err != nil {
 		if apperrors.IsNotFound(err) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Scene not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete video"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete scene"})
 		return
 	}
 
 	c.JSON(http.StatusNoContent, nil)
 }
 
-func (h *VideoHandler) GetVideo(c *gin.Context) {
+func (h *SceneHandler) GetScene(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	video, err := h.Service.GetVideo(uint(id))
+	scene, err := h.Service.GetScene(uint(id))
 	if err != nil {
 		if apperrors.IsNotFound(err) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Scene not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get video"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get scene"})
 		return
 	}
 
-	c.JSON(http.StatusOK, video)
+	c.JSON(http.StatusOK, scene)
 }
 
-func (h *VideoHandler) StreamVideo(c *gin.Context) {
+func (h *SceneHandler) StreamScene(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	video, err := h.Service.GetVideo(uint(id))
+	scene, err := h.Service.GetScene(uint(id))
 	if err != nil {
 		if apperrors.IsNotFound(err) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Scene not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get video"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get scene"})
 		return
 	}
 
-	filePath := video.StoredPath
+	filePath := scene.StoredPath
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Video file not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Scene file not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to access video file"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to access scene file"})
 		return
 	}
 
 	fileSize := fileInfo.Size()
 	file, err := os.Open(filePath)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open video file"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open scene file"})
 		return
 	}
 	defer file.Close()
@@ -394,11 +394,11 @@ func (h *VideoHandler) StreamVideo(c *gin.Context) {
 	}
 }
 
-func (h *VideoHandler) ExtractThumbnail(c *gin.Context) {
+func (h *SceneHandler) ExtractThumbnail(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
@@ -413,28 +413,28 @@ func (h *VideoHandler) ExtractThumbnail(c *gin.Context) {
 		return
 	}
 
-	video, err := h.Service.GetVideo(uint(id))
+	scene, err := h.Service.GetScene(uint(id))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get updated video"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get updated scene"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"thumbnail_path":   video.ThumbnailPath,
-		"thumbnail_width":  video.ThumbnailWidth,
-		"thumbnail_height": video.ThumbnailHeight,
+		"thumbnail_path":   scene.ThumbnailPath,
+		"thumbnail_width":  scene.ThumbnailWidth,
+		"thumbnail_height": scene.ThumbnailHeight,
 	})
 }
 
-func (h *VideoHandler) UpdateVideoDetails(c *gin.Context) {
+func (h *SceneHandler) UpdateSceneDetails(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	var req request.UpdateVideoDetailsRequest
+	var req request.UpdateSceneDetailsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
@@ -456,24 +456,24 @@ func (h *VideoHandler) UpdateVideoDetails(c *gin.Context) {
 		}
 	}
 
-	video, err := h.Service.UpdateVideoDetails(uint(id), req.Title, req.Description, releaseDate)
+	scene, err := h.Service.UpdateSceneDetails(uint(id), req.Title, req.Description, releaseDate)
 	if err != nil {
 		if apperrors.IsNotFound(err) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Scene not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update video details"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update scene details"})
 		return
 	}
 
-	c.JSON(http.StatusOK, video)
+	c.JSON(http.StatusOK, scene)
 }
 
-func (h *VideoHandler) UploadThumbnail(c *gin.Context) {
+func (h *SceneHandler) UploadThumbnail(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
@@ -497,24 +497,24 @@ func (h *VideoHandler) UploadThumbnail(c *gin.Context) {
 		return
 	}
 
-	video, err := h.Service.GetVideo(uint(id))
+	scene, err := h.Service.GetScene(uint(id))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get updated video"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get updated scene"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"thumbnail_path":   video.ThumbnailPath,
-		"thumbnail_width":  video.ThumbnailWidth,
-		"thumbnail_height": video.ThumbnailHeight,
+		"thumbnail_path":   scene.ThumbnailPath,
+		"thumbnail_width":  scene.ThumbnailWidth,
+		"thumbnail_height": scene.ThumbnailHeight,
 	})
 }
 
-func (h *VideoHandler) ApplySceneMetadata(c *gin.Context) {
+func (h *SceneHandler) ApplySceneMetadata(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
@@ -524,20 +524,20 @@ func (h *VideoHandler) ApplySceneMetadata(c *gin.Context) {
 		return
 	}
 
-	video, err := h.Service.GetVideo(uint(id))
+	scene, err := h.Service.GetScene(uint(id))
 	if err != nil {
 		if apperrors.IsNotFound(err) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Scene not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get video"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get scene"})
 		return
 	}
 
 	// Build the update values, using existing values if not provided
-	title := video.Title
-	description := video.Description
-	studio := video.Studio
+	title := scene.Title
+	description := scene.Description
+	studio := scene.Studio
 
 	if req.Title != nil {
 		title = *req.Title
@@ -564,7 +564,7 @@ func (h *VideoHandler) ApplySceneMetadata(c *gin.Context) {
 		porndbSceneID = *req.PornDBSceneID
 	}
 
-	updatedVideo, err := h.Service.UpdateSceneMetadata(uint(id), title, description, studio, releaseDate, porndbSceneID)
+	updatedScene, err := h.Service.UpdateSceneMetadata(uint(id), title, description, studio, releaseDate, porndbSceneID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update scene metadata"})
 		return
@@ -577,7 +577,7 @@ func (h *VideoHandler) ApplySceneMetadata(c *gin.Context) {
 			return
 		}
 		// Re-fetch to include updated thumbnail
-		updatedVideo, _ = h.Service.GetVideo(uint(id))
+		updatedScene, _ = h.Service.GetScene(uint(id))
 	}
 
 	// Import tags if provided (best-effort, skip on errors)
@@ -602,8 +602,8 @@ func (h *VideoHandler) ApplySceneMetadata(c *gin.Context) {
 				}
 			}
 
-			// Merge with current video tags to avoid overwriting manually-assigned tags
-			if currentTags, err := h.TagService.GetVideoTags(uint(id)); err == nil {
+			// Merge with current scene tags to avoid overwriting manually-assigned tags
+			if currentTags, err := h.TagService.GetSceneTags(uint(id)); err == nil {
 				seen := make(map[uint]struct{}, len(allTagIDs))
 				for _, tid := range allTagIDs {
 					seen[tid] = struct{}{}
@@ -615,21 +615,21 @@ func (h *VideoHandler) ApplySceneMetadata(c *gin.Context) {
 				}
 			}
 
-			if _, err := h.TagService.SetVideoTags(uint(id), allTagIDs); err == nil {
+			if _, err := h.TagService.SetSceneTags(uint(id), allTagIDs); err == nil {
 				// Re-fetch to include updated tags
-				updatedVideo, _ = h.Service.GetVideo(uint(id))
+				updatedScene, _ = h.Service.GetScene(uint(id))
 			}
 		}
 	}
 
-	c.JSON(http.StatusOK, updatedVideo)
+	c.JSON(http.StatusOK, updatedScene)
 }
 
-func (h *VideoHandler) GetRelatedVideos(c *gin.Context) {
+func (h *SceneHandler) GetRelatedScenes(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
@@ -644,25 +644,25 @@ func (h *VideoHandler) GetRelatedVideos(c *gin.Context) {
 		limit = 50
 	}
 
-	// Verify the video exists
-	_, err = h.Service.GetVideo(uint(id))
+	// Verify the scene exists
+	_, err = h.Service.GetScene(uint(id))
 	if err != nil {
 		if apperrors.IsNotFound(err) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Scene not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get video"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get scene"})
 		return
 	}
 
-	videos, err := h.RelatedVideosService.GetRelatedVideos(uint(id), limit)
+	scenes, err := h.RelatedScenesService.GetRelatedScenes(uint(id), limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get related videos"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get related scenes"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":  response.ToVideoListItems(videos),
-		"total": len(videos),
+		"data":  response.ToSceneListItems(scenes),
+		"total": len(scenes),
 	})
 }

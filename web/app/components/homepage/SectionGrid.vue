@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { VideoListItem } from '~/types/video';
+import type { SceneListItem } from '~/types/scene';
 import type { WatchProgress } from '~/types/homepage';
 
 defineProps<{
-    videos: VideoListItem[];
+    scenes: SceneListItem[];
     watchProgress?: Record<number, WatchProgress>;
     ratings?: Record<number, number>;
 }>();
@@ -21,7 +21,7 @@ function updateScrollState() {
 
 function scroll(direction: 'left' | 'right') {
     if (!scrollContainer.value) return;
-    const scrollAmount = 320 * 3; // Scroll 3 cards (VideoCard width)
+    const scrollAmount = 320 * 3; // Scroll 3 cards (SceneCard width)
     scrollContainer.value.scrollBy({
         left: direction === 'left' ? -scrollAmount : scrollAmount,
         behavior: 'smooth',
@@ -57,11 +57,11 @@ onMounted(() => {
             @scroll="updateScrollState"
             class="scrollbar-hide -mx-4 flex gap-4 overflow-x-auto px-4 pb-2"
         >
-            <div v-for="video in videos" :key="video.id" class="shrink-0">
-                <VideoCard
-                    :video="video"
-                    :progress="watchProgress?.[video.id]"
-                    :rating="ratings?.[video.id]"
+            <div v-for="scene in scenes" :key="scene.id" class="shrink-0">
+                <SceneCard
+                    :scene="scene"
+                    :progress="watchProgress?.[scene.id]"
+                    :rating="ratings?.[scene.id]"
                 />
             </div>
         </div>

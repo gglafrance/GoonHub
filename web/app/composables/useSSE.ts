@@ -1,36 +1,36 @@
-interface VideoEventData {
+interface SceneEventData {
     type: string;
-    video_id: number;
+    scene_id: number;
     data?: Record<string, any>;
 }
 
-type FieldExtractor = (event: VideoEventData) => Record<string, any>;
+type FieldExtractor = (event: SceneEventData) => Record<string, any>;
 
 const EVENT_HANDLERS: Record<string, FieldExtractor> = {
-    'video:metadata_complete': (e) => ({
+    'scene:metadata_complete': (e) => ({
         duration: e.data?.duration,
         width: e.data?.width,
         height: e.data?.height,
         processing_status: 'processing',
     }),
-    'video:thumbnail_complete': (e) => ({
+    'scene:thumbnail_complete': (e) => ({
         thumbnail_path: e.data?.thumbnail_path,
     }),
-    'video:sprites_complete': (e) => ({
+    'scene:sprites_complete': (e) => ({
         vtt_path: e.data?.vtt_path,
         sprite_sheet_path: e.data?.sprite_sheet_path,
     }),
-    'video:completed': () => ({
+    'scene:completed': () => ({
         processing_status: 'completed',
     }),
-    'video:failed': (e) => ({
+    'scene:failed': (e) => ({
         processing_status: 'failed',
         processing_error: e.data?.error,
     }),
-    'video:cancelled': () => ({
+    'scene:cancelled': () => ({
         processing_status: 'cancelled',
     }),
-    'video:timed_out': () => ({
+    'scene:timed_out': () => ({
         processing_status: 'timed_out',
     }),
 };
@@ -38,13 +38,13 @@ const EVENT_HANDLERS: Record<string, FieldExtractor> = {
 function handleSSEEvent(
     eventType: string,
     rawData: string,
-    videoStore: ReturnType<typeof useVideoStore>,
+    sceneStore: ReturnType<typeof useSceneStore>,
 ) {
     const handler = EVENT_HANDLERS[eventType];
     if (!handler) return;
 
-    const event: VideoEventData = JSON.parse(rawData);
-    videoStore.updateVideoFields(event.video_id, handler(event));
+    const event: SceneEventData = JSON.parse(rawData);
+    sceneStore.updateSceneFields(event.scene_id, handler(event));
 }
 
 function supportsSharedWorker(): boolean {
@@ -53,7 +53,7 @@ function supportsSharedWorker(): boolean {
 
 function useSSESharedWorker() {
     const authStore = useAuthStore();
-    const videoStore = useVideoStore();
+    const sceneStore = useSceneStore();
 
     let channel: BroadcastChannel | null = null;
     let worker: SharedWorker | null = null;
@@ -63,9 +63,9 @@ function useSSESharedWorker() {
         const { type, eventType, data } = e.data;
 
         if (type === 'sse-event') {
-            handleSSEEvent(eventType, data, videoStore);
+            handleSSEEvent(eventType, data, sceneStore);
         } else if (type === 'sse-reconnecting') {
-            videoStore.loadVideos(videoStore.currentPage);
+            sceneStore.loadScenes(sceneStore.currentPage);
         }
     }
 
@@ -121,7 +121,7 @@ function useSSESharedWorker() {
 
 function useSSEFallback() {
     const authStore = useAuthStore();
-    const videoStore = useVideoStore();
+    const sceneStore = useSceneStore();
 
     let eventSource: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -141,8 +141,8 @@ function useSSEFallback() {
 
         for (const [eventType, handler] of Object.entries(EVENT_HANDLERS)) {
             eventSource.addEventListener(eventType, (e: MessageEvent) => {
-                const event: VideoEventData = JSON.parse(e.data);
-                videoStore.updateVideoFields(event.video_id, handler(event));
+                const event: SceneEventData = JSON.parse(e.data);
+                sceneStore.updateSceneFields(event.scene_id, handler(event));
             });
         }
 
@@ -170,7 +170,7 @@ function useSSEFallback() {
 
         reconnectTimer = setTimeout(() => {
             reconnectTimer = null;
-            videoStore.loadVideos(videoStore.currentPage);
+            sceneStore.loadScenes(sceneStore.currentPage);
             connect();
         }, reconnectDelay);
 

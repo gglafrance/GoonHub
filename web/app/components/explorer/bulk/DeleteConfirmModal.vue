@@ -9,7 +9,7 @@ const emit = defineEmits<{
 }>();
 
 const explorerStore = useExplorerStore();
-const { bulkDeleteVideos } = useApiExplorer();
+const { bulkDeleteScenes } = useApiExplorer();
 
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -19,13 +19,13 @@ const handleConfirm = async () => {
     error.value = null;
 
     try {
-        const result = await bulkDeleteVideos({
-            video_ids: explorerStore.getSelectedVideoIDs(),
+        const result = await bulkDeleteScenes({
+            scene_ids: explorerStore.getSelectedSceneIDs(),
         });
         emit('complete');
         emit('close');
     } catch (err) {
-        error.value = err instanceof Error ? err.message : 'Failed to delete videos';
+        error.value = err instanceof Error ? err.message : 'Failed to delete scenes';
     } finally {
         loading.value = false;
     }
@@ -42,7 +42,7 @@ const handleConfirm = async () => {
             <div class="border-border bg-panel w-full max-w-sm rounded-xl border shadow-2xl">
                 <!-- Header -->
                 <div class="border-border flex items-center justify-between border-b px-4 py-3">
-                    <h2 class="text-sm font-semibold text-white">Delete Videos</h2>
+                    <h2 class="text-sm font-semibold text-white">Delete Scenes</h2>
                     <button
                         @click="$emit('close')"
                         class="text-dim hover:text-white transition-colors"
@@ -62,12 +62,12 @@ const handleConfirm = async () => {
                         </div>
                         <div>
                             <p class="text-sm font-medium text-white">
-                                Delete {{ explorerStore.selectionCount }} video{{
+                                Delete {{ explorerStore.selectionCount }} scene{{
                                     explorerStore.selectionCount === 1 ? '' : 's'
                                 }}?
                             </p>
                             <p class="text-dim mt-1 text-xs">
-                                This will permanently delete the video files, thumbnails, and all
+                                This will permanently delete the scene files, thumbnails, and all
                                 associated data. This action cannot be undone.
                             </p>
                         </div>

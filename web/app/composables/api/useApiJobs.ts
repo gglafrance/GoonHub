@@ -83,8 +83,8 @@ export const useApiJobs = () => {
         return handleResponse(response);
     };
 
-    const triggerVideoPhase = async (videoId: number, phase: string) => {
-        const response = await fetch(`/api/v1/admin/videos/${videoId}/process/${phase}`, {
+    const triggerScenePhase = async (sceneId: number, phase: string) => {
+        const response = await fetch(`/api/v1/admin/scenes/${sceneId}/process/${phase}`, {
             method: 'POST',
             headers: getAuthHeaders(),
             ...fetchOptions(),
@@ -132,7 +132,7 @@ export const useApiJobs = () => {
         updateProcessingConfig,
         fetchTriggerConfig,
         updateTriggerConfig,
-        triggerVideoPhase,
+        triggerScenePhase,
         triggerBulkPhase,
         fetchRetryConfig,
         updateRetryConfig,

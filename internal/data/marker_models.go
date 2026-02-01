@@ -4,10 +4,10 @@ import (
 	"time"
 )
 
-type UserVideoMarker struct {
+type UserSceneMarker struct {
 	ID            uint      `gorm:"primarykey" json:"id"`
 	UserID        uint      `gorm:"not null" json:"user_id"`
-	VideoID       uint      `gorm:"not null" json:"video_id"`
+	SceneID       uint      `gorm:"not null;column:scene_id" json:"scene_id"`
 	Timestamp     int       `gorm:"not null" json:"timestamp"` // seconds
 	Label         string    `gorm:"size:100" json:"label"`
 	Color         string    `gorm:"size:7;default:'#FFFFFF'" json:"color"`
@@ -16,8 +16,8 @@ type UserVideoMarker struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
-func (UserVideoMarker) TableName() string {
-	return "user_video_markers"
+func (UserSceneMarker) TableName() string {
+	return "user_scene_markers"
 }
 
 type MarkerLabelSuggestion struct {
@@ -32,16 +32,16 @@ type MarkerLabelGroup struct {
 	ThumbnailMarkerID uint   `json:"thumbnail_marker_id"`
 }
 
-// MarkerWithVideo extends UserVideoMarker with video information
-type MarkerWithVideo struct {
-	UserVideoMarker
-	VideoTitle string          `json:"video_title"`
+// MarkerWithScene extends UserSceneMarker with scene information
+type MarkerWithScene struct {
+	UserSceneMarker
+	SceneTitle string          `json:"scene_title"`
 	Tags       []MarkerTagInfo `json:"tags,omitempty" gorm:"-"`
 }
 
-// MarkerWithTags extends UserVideoMarker with tags
+// MarkerWithTags extends UserSceneMarker with tags
 type MarkerWithTags struct {
-	UserVideoMarker
+	UserSceneMarker
 	Tags []MarkerTagInfo `json:"tags" gorm:"-"`
 }
 

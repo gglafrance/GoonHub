@@ -14,7 +14,7 @@ const pendingMarkerAdd = inject<Ref<boolean>>('pendingMarkerAdd');
 // Inject centralized watch page data
 const watchPageData = inject<WatchPageData>(WATCH_PAGE_DATA_KEY);
 
-const videoId = computed(() => parseInt(route.params.id as string));
+const sceneId = computed(() => parseInt(route.params.id as string));
 
 // Use centralized data for markers and loading state
 const loading = computed(() => watchPageData?.loading.player ?? true);
@@ -136,7 +136,7 @@ const handleAddMarker = async () => {
     error.value = null;
 
     try {
-        const marker = await createMarker(videoId.value, {
+        const marker = await createMarker(sceneId.value, {
             timestamp: Math.floor(currentTime),
             label: newMarkerLabel.value.trim() || undefined,
         });
@@ -196,7 +196,7 @@ const handleSaveEdit = async (marker: Marker) => {
 
     error.value = null;
     try {
-        await updateMarker(videoId.value, marker.id, {
+        await updateMarker(sceneId.value, marker.id, {
             label: editingLabel.value.trim(),
         });
         cancelEditing();
@@ -226,7 +226,7 @@ const confirmDelete = async () => {
     error.value = null;
 
     try {
-        await deleteMarker(videoId.value, markerId);
+        await deleteMarker(sceneId.value, markerId);
         // Refresh parent markers for timeline indicators
         refreshMarkers?.();
     } catch (e) {

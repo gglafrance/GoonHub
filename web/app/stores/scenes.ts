@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia';
-import type { Video, VideoListResponse } from '~/types/video';
+import type { SceneListItem, SceneListResponse } from '~/types/scene';
 
-export const useVideoStore = defineStore('videos', () => {
-    const videos = ref<Video[]>([]);
+export const useSceneStore = defineStore('scenes', () => {
+    const scenes = ref<SceneListItem[]>([]);
     const total = ref(0);
     const currentPage = ref(1);
     const limit = ref(20);
@@ -10,22 +10,22 @@ export const useVideoStore = defineStore('videos', () => {
     const error = ref<string | null>(null);
 
     const settingsStore = useSettingsStore();
-    const { fetchVideos: apiFetchVideos, uploadVideo: apiUploadVideo } = useApi();
+    const { fetchScenes: apiFetchScenes, uploadScene: apiUploadScene } = useApi();
 
     watch(
-        () => settingsStore.videosPerPage,
+        () => settingsStore.scenesPerPage,
         (newVal) => {
             limit.value = newVal;
         },
         { immediate: true },
     );
 
-    const loadVideos = async (page = 1) => {
+    const loadScenes = async (page = 1) => {
         isLoading.value = true;
         error.value = null;
         try {
-            const response: VideoListResponse = await apiFetchVideos(page, limit.value);
-            videos.value = response.data;
+            const response: SceneListResponse = await apiFetchScenes(page, limit.value);
+            scenes.value = response.data;
             total.value = response.total;
             currentPage.value = response.page;
         } catch (e: unknown) {
@@ -38,12 +38,12 @@ export const useVideoStore = defineStore('videos', () => {
         }
     };
 
-    const uploadVideo = async (file: File, title?: string) => {
+    const uploadScene = async (file: File, title?: string) => {
         isLoading.value = true;
         error.value = null;
         try {
-            await apiUploadVideo(file, title);
-            await loadVideos(1);
+            await apiUploadScene(file, title);
+            await loadScenes(1);
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : 'Unknown error';
             if (message !== 'Unauthorized') {
@@ -55,36 +55,36 @@ export const useVideoStore = defineStore('videos', () => {
         }
     };
 
-    const updateVideoFields = (videoId: number, fields: Partial<Video>) => {
-        const idx = videos.value.findIndex((v) => v.id === videoId);
+    const updateSceneFields = (sceneId: number, fields: Partial<SceneListItem>) => {
+        const idx = scenes.value.findIndex((s) => s.id === sceneId);
         if (idx !== -1) {
-            videos.value[idx] = { ...videos.value[idx], ...fields } as Video;
+            scenes.value[idx] = { ...scenes.value[idx], ...fields } as SceneListItem;
         }
     };
 
-    const prependVideo = (video: Video) => {
+    const prependScene = (scene: SceneListItem) => {
         if (currentPage.value === 1) {
-            const exists = videos.value.some((v) => v.id === video.id);
+            const exists = scenes.value.some((s) => s.id === scene.id);
             if (!exists) {
-                videos.value.unshift(video);
+                scenes.value.unshift(scene);
                 total.value++;
-                if (videos.value.length > limit.value) {
-                    videos.value.pop();
+                if (scenes.value.length > limit.value) {
+                    scenes.value.pop();
                 }
             }
         }
     };
 
     return {
-        videos,
+        scenes,
         total,
         currentPage,
         limit,
         isLoading,
         error,
-        loadVideos,
-        uploadVideo,
-        updateVideoFields,
-        prependVideo,
+        loadScenes,
+        uploadScene,
+        updateSceneFields,
+        prependScene,
     };
 });

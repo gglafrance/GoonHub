@@ -11,13 +11,13 @@ import (
 
 // PoolConfigHandler handles worker pool configuration requests
 type PoolConfigHandler struct {
-	processingService *core.VideoProcessingService
+	processingService *core.SceneProcessingService
 	poolConfigRepo    data.PoolConfigRepository
 }
 
 // NewPoolConfigHandler creates a new PoolConfigHandler
 func NewPoolConfigHandler(
-	processingService *core.VideoProcessingService,
+	processingService *core.SceneProcessingService,
 	poolConfigRepo data.PoolConfigRepository,
 ) *PoolConfigHandler {
 	return &PoolConfigHandler{

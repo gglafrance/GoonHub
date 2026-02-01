@@ -7,7 +7,7 @@ import (
 
 type TagWithCount struct {
 	Tag
-	VideoCount int64 `json:"video_count"`
+	SceneCount int64 `json:"scene_count"`
 }
 
 type TagRepository interface {
@@ -19,15 +19,15 @@ type TagRepository interface {
 	GetIDsByNames(names []string) ([]uint, error)
 	Create(tag *Tag) error
 	Delete(id uint) error
-	GetVideoTags(videoID uint) ([]Tag, error)
-	GetVideoTagsMultiple(videoIDs []uint) (map[uint][]Tag, error)
-	SetVideoTags(videoID uint, tagIDs []uint) error
-	GetVideoIDsByTag(tagID uint, limit int) ([]uint, error)
+	GetSceneTags(sceneID uint) ([]Tag, error)
+	GetSceneTagsMultiple(sceneIDs []uint) (map[uint][]Tag, error)
+	SetSceneTags(sceneID uint, tagIDs []uint) error
+	GetSceneIDsByTag(tagID uint, limit int) ([]uint, error)
 
 	// Bulk operations
-	BulkAddTagsToVideos(videoIDs []uint, tagIDs []uint) error
-	BulkRemoveTagsFromVideos(videoIDs []uint, tagIDs []uint) error
-	BulkReplaceTagsForVideos(videoIDs []uint, tagIDs []uint) error
+	BulkAddTagsToScenes(sceneIDs []uint, tagIDs []uint) error
+	BulkRemoveTagsFromScenes(sceneIDs []uint, tagIDs []uint) error
+	BulkReplaceTagsForScenes(sceneIDs []uint, tagIDs []uint) error
 }
 
 type TagRepositoryImpl struct {
@@ -50,9 +50,9 @@ func (r *TagRepositoryImpl) ListWithCounts() ([]TagWithCount, error) {
 	var tags []TagWithCount
 	err := r.DB.
 		Table("tags").
-		Select("tags.*, COALESCE(COUNT(videos.id), 0) as video_count").
-		Joins("LEFT JOIN video_tags ON video_tags.tag_id = tags.id").
-		Joins("LEFT JOIN videos ON videos.id = video_tags.video_id AND videos.deleted_at IS NULL").
+		Select("tags.*, COALESCE(COUNT(scenes.id), 0) as scene_count").
+		Joins("LEFT JOIN scene_tags ON scene_tags.tag_id = tags.id").
+		Joins("LEFT JOIN scenes ON scenes.id = scene_tags.scene_id AND scenes.deleted_at IS NULL").
 		Group("tags.id").
 		Order("tags.name asc").
 		Find(&tags).Error
@@ -118,11 +118,11 @@ func (r *TagRepositoryImpl) Delete(id uint) error {
 	return nil
 }
 
-func (r *TagRepositoryImpl) GetVideoTags(videoID uint) ([]Tag, error) {
+func (r *TagRepositoryImpl) GetSceneTags(sceneID uint) ([]Tag, error) {
 	var tags []Tag
 	err := r.DB.
-		Joins("JOIN video_tags ON video_tags.tag_id = tags.id").
-		Where("video_tags.video_id = ?", videoID).
+		Joins("JOIN scene_tags ON scene_tags.tag_id = tags.id").
+		Where("scene_tags.scene_id = ?", sceneID).
 		Order("tags.name asc").
 		Find(&tags).Error
 	if err != nil {
@@ -131,45 +131,45 @@ func (r *TagRepositoryImpl) GetVideoTags(videoID uint) ([]Tag, error) {
 	return tags, nil
 }
 
-// GetVideoTagsMultiple returns tags for multiple videos in a single query
-func (r *TagRepositoryImpl) GetVideoTagsMultiple(videoIDs []uint) (map[uint][]Tag, error) {
-	if len(videoIDs) == 0 {
+// GetSceneTagsMultiple returns tags for multiple scenes in a single query
+func (r *TagRepositoryImpl) GetSceneTagsMultiple(sceneIDs []uint) (map[uint][]Tag, error) {
+	if len(sceneIDs) == 0 {
 		return make(map[uint][]Tag), nil
 	}
 
-	// Query all video_tags for the given videos with their tags
-	type videoTagResult struct {
-		VideoID uint
+	// Query all scene_tags for the given scenes with their tags
+	type sceneTagResult struct {
+		SceneID uint
 		Tag
 	}
 
-	var results []videoTagResult
+	var results []sceneTagResult
 	err := r.DB.
-		Table("video_tags").
-		Select("video_tags.video_id, tags.*").
-		Joins("JOIN tags ON tags.id = video_tags.tag_id").
-		Where("video_tags.video_id IN ?", videoIDs).
+		Table("scene_tags").
+		Select("scene_tags.scene_id, tags.*").
+		Joins("JOIN tags ON tags.id = scene_tags.tag_id").
+		Where("scene_tags.scene_id IN ?", sceneIDs).
 		Order("tags.name asc").
 		Scan(&results).Error
 	if err != nil {
 		return nil, err
 	}
 
-	// Group by video ID
-	tagsByVideo := make(map[uint][]Tag)
-	for _, videoID := range videoIDs {
-		tagsByVideo[videoID] = []Tag{} // Initialize all requested videos
+	// Group by scene ID
+	tagsByScene := make(map[uint][]Tag)
+	for _, sceneID := range sceneIDs {
+		tagsByScene[sceneID] = []Tag{} // Initialize all requested scenes
 	}
 	for _, r := range results {
-		tagsByVideo[r.VideoID] = append(tagsByVideo[r.VideoID], r.Tag)
+		tagsByScene[r.SceneID] = append(tagsByScene[r.SceneID], r.Tag)
 	}
 
-	return tagsByVideo, nil
+	return tagsByScene, nil
 }
 
-func (r *TagRepositoryImpl) SetVideoTags(videoID uint, tagIDs []uint) error {
+func (r *TagRepositoryImpl) SetSceneTags(sceneID uint, tagIDs []uint) error {
 	return r.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("video_id = ?", videoID).Delete(&VideoTag{}).Error; err != nil {
+		if err := tx.Where("scene_id = ?", sceneID).Delete(&SceneTag{}).Error; err != nil {
 			return err
 		}
 
@@ -177,77 +177,77 @@ func (r *TagRepositoryImpl) SetVideoTags(videoID uint, tagIDs []uint) error {
 			return nil
 		}
 
-		videoTags := make([]VideoTag, len(tagIDs))
+		sceneTags := make([]SceneTag, len(tagIDs))
 		for i, tagID := range tagIDs {
-			videoTags[i] = VideoTag{
-				VideoID: videoID,
+			sceneTags[i] = SceneTag{
+				SceneID: sceneID,
 				TagID:   tagID,
 			}
 		}
 
-		return tx.Create(&videoTags).Error
+		return tx.Create(&sceneTags).Error
 	})
 }
 
-// GetVideoIDsByTag returns video IDs that have the given tag.
-func (r *TagRepositoryImpl) GetVideoIDsByTag(tagID uint, limit int) ([]uint, error) {
-	var videoIDs []uint
+// GetSceneIDsByTag returns scene IDs that have the given tag.
+func (r *TagRepositoryImpl) GetSceneIDsByTag(tagID uint, limit int) ([]uint, error) {
+	var sceneIDs []uint
 	err := r.DB.
-		Table("video_tags").
-		Select("video_tags.video_id").
-		Joins("JOIN videos ON videos.id = video_tags.video_id").
-		Where("video_tags.tag_id = ?", tagID).
-		Where("videos.deleted_at IS NULL").
-		Order("videos.created_at DESC").
+		Table("scene_tags").
+		Select("scene_tags.scene_id").
+		Joins("JOIN scenes ON scenes.id = scene_tags.scene_id").
+		Where("scene_tags.tag_id = ?", tagID).
+		Where("scenes.deleted_at IS NULL").
+		Order("scenes.created_at DESC").
 		Limit(limit).
-		Pluck("video_id", &videoIDs).Error
+		Pluck("scene_id", &sceneIDs).Error
 	if err != nil {
 		return nil, err
 	}
-	return videoIDs, nil
+	return sceneIDs, nil
 }
 
-// BulkAddTagsToVideos adds tags to multiple videos (skips existing associations)
-func (r *TagRepositoryImpl) BulkAddTagsToVideos(videoIDs []uint, tagIDs []uint) error {
-	if len(videoIDs) == 0 || len(tagIDs) == 0 {
+// BulkAddTagsToScenes adds tags to multiple scenes (skips existing associations)
+func (r *TagRepositoryImpl) BulkAddTagsToScenes(sceneIDs []uint, tagIDs []uint) error {
+	if len(sceneIDs) == 0 || len(tagIDs) == 0 {
 		return nil
 	}
 
 	return r.DB.Transaction(func(tx *gorm.DB) error {
-		videoTags := make([]VideoTag, 0, len(videoIDs)*len(tagIDs))
-		for _, videoID := range videoIDs {
+		sceneTags := make([]SceneTag, 0, len(sceneIDs)*len(tagIDs))
+		for _, sceneID := range sceneIDs {
 			for _, tagID := range tagIDs {
-				videoTags = append(videoTags, VideoTag{
-					VideoID: videoID,
+				sceneTags = append(sceneTags, SceneTag{
+					SceneID: sceneID,
 					TagID:   tagID,
 				})
 			}
 		}
 
-		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&videoTags).Error
+		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&sceneTags).Error
 	})
 }
 
-// BulkRemoveTagsFromVideos removes specific tags from multiple videos
-func (r *TagRepositoryImpl) BulkRemoveTagsFromVideos(videoIDs []uint, tagIDs []uint) error {
-	if len(videoIDs) == 0 || len(tagIDs) == 0 {
+// BulkRemoveTagsFromScenes removes specific tags from multiple scenes
+func (r *TagRepositoryImpl) BulkRemoveTagsFromScenes(sceneIDs []uint, tagIDs []uint) error {
+	if len(sceneIDs) == 0 || len(tagIDs) == 0 {
 		return nil
 	}
 
 	return r.DB.
-		Where("video_id IN ?", videoIDs).
+		Where("scene_id IN ?", sceneIDs).
 		Where("tag_id IN ?", tagIDs).
-		Delete(&VideoTag{}).Error
+		Delete(&SceneTag{}).Error
 }
 
-// BulkReplaceTagsForVideos replaces all tags for multiple videos
-func (r *TagRepositoryImpl) BulkReplaceTagsForVideos(videoIDs []uint, tagIDs []uint) error {
-	if len(videoIDs) == 0 {
+// BulkReplaceTagsForScenes replaces all tags for multiple scenes
+func (r *TagRepositoryImpl) BulkReplaceTagsForScenes(sceneIDs []uint, tagIDs []uint) error {
+	if len(sceneIDs) == 0 {
 		return nil
 	}
 
 	return r.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("video_id IN ?", videoIDs).Delete(&VideoTag{}).Error; err != nil {
+		if err := tx.Where("scene_id IN ?", sceneIDs).Delete(&SceneTag{}).Error; err != nil {
 			return err
 		}
 
@@ -255,16 +255,16 @@ func (r *TagRepositoryImpl) BulkReplaceTagsForVideos(videoIDs []uint, tagIDs []u
 			return nil
 		}
 
-		videoTags := make([]VideoTag, 0, len(videoIDs)*len(tagIDs))
-		for _, videoID := range videoIDs {
+		sceneTags := make([]SceneTag, 0, len(sceneIDs)*len(tagIDs))
+		for _, sceneID := range sceneIDs {
 			for _, tagID := range tagIDs {
-				videoTags = append(videoTags, VideoTag{
-					VideoID: videoID,
+				sceneTags = append(sceneTags, SceneTag{
+					SceneID: sceneID,
 					TagID:   tagID,
 				})
 			}
 		}
 
-		return tx.Create(&videoTags).Error
+		return tx.Create(&sceneTags).Error
 	})
 }

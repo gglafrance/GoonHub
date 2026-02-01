@@ -11,24 +11,24 @@ import (
 	"go.uber.org/zap"
 )
 
-func newTestDLQService(t *testing.T) (*DLQService, *mocks.MockDLQRepository, *mocks.MockJobHistoryRepository, *mocks.MockVideoRepository) {
+func newTestDLQService(t *testing.T) (*DLQService, *mocks.MockDLQRepository, *mocks.MockJobHistoryRepository, *mocks.MockSceneRepository) {
 	ctrl := gomock.NewController(t)
 	dlqRepo := mocks.NewMockDLQRepository(ctrl)
 	jobHistoryRepo := mocks.NewMockJobHistoryRepository(ctrl)
-	videoRepo := mocks.NewMockVideoRepository(ctrl)
+	sceneRepo := mocks.NewMockSceneRepository(ctrl)
 
 	eventBus := NewEventBus(zap.NewNop())
 
-	svc := NewDLQService(dlqRepo, jobHistoryRepo, videoRepo, eventBus, zap.NewNop())
-	return svc, dlqRepo, jobHistoryRepo, videoRepo
+	svc := NewDLQService(dlqRepo, jobHistoryRepo, sceneRepo, eventBus, zap.NewNop())
+	return svc, dlqRepo, jobHistoryRepo, sceneRepo
 }
 
 func TestDLQService_ListPending(t *testing.T) {
 	svc, dlqRepo, _, _ := newTestDLQService(t)
 
 	expected := []data.DLQEntry{
-		{ID: 1, JobID: "job-1", VideoID: 1, Phase: "metadata", Status: "pending_review"},
-		{ID: 2, JobID: "job-2", VideoID: 2, Phase: "sprites", Status: "pending_review"},
+		{ID: 1, JobID: "job-1", SceneID: 1, Phase: "metadata", Status: "pending_review"},
+		{ID: 2, JobID: "job-2", SceneID: 2, Phase: "sprites", Status: "pending_review"},
 	}
 	dlqRepo.EXPECT().ListPending(1, 50).Return(expected, int64(2), nil)
 
@@ -48,7 +48,7 @@ func TestDLQService_ListByStatus(t *testing.T) {
 	svc, dlqRepo, _, _ := newTestDLQService(t)
 
 	expected := []data.DLQEntry{
-		{ID: 1, JobID: "job-1", VideoID: 1, Phase: "metadata", Status: "abandoned"},
+		{ID: 1, JobID: "job-1", SceneID: 1, Phase: "metadata", Status: "abandoned"},
 	}
 	dlqRepo.EXPECT().ListByStatus("abandoned", 1, 50).Return(expected, int64(1), nil)
 
@@ -69,7 +69,7 @@ func TestDLQService_Abandon(t *testing.T) {
 
 	dlqRepo.EXPECT().GetByJobID("job-123").Return(&data.DLQEntry{
 		JobID:   "job-123",
-		VideoID: 1,
+		SceneID: 1,
 		Phase:   "metadata",
 	}, nil)
 	dlqRepo.EXPECT().MarkAbandoned("job-123").Return(nil)
@@ -123,8 +123,8 @@ func TestDLQService_GetByJobID(t *testing.T) {
 	expected := &data.DLQEntry{
 		ID:            1,
 		JobID:         "job-123",
-		VideoID:       1,
-		VideoTitle:    "Test Video",
+		SceneID:       1,
+		SceneTitle:    "Test Scene",
 		Phase:         "sprites",
 		OriginalError: "ffmpeg failed",
 		FailureCount:  3,

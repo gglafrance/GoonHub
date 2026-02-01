@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// PoolManager manages the worker pools for video processing phases
+// PoolManager manages the worker pools for scene processing phases
 type PoolManager struct {
 	metadataPool  *jobs.WorkerPool
 	thumbnailPool *jobs.WorkerPool

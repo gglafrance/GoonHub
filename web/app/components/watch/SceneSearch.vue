@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { Video } from '~/types/video';
+import type { Scene } from '~/types/scene';
 import type { PornDBScene } from '~/types/porndb';
 
 const props = defineProps<{
-    video: Video | null;
+    scene: Scene | null;
 }>();
 
 const emit = defineEmits<{
@@ -38,16 +38,16 @@ function clearFilters() {
     site.value = '';
 }
 
-function populateFromVideo() {
-    if (!props.video) return;
+function populateFromScene() {
+    if (!props.scene) return;
 
-    if (props.video.title) {
-        title.value = props.video.title;
+    if (props.scene.title) {
+        title.value = props.scene.title;
     }
-    if (props.video.studio) {
-        site.value = props.video.studio;
+    if (props.scene.studio) {
+        site.value = props.scene.studio;
     }
-    const dateStr = props.video.title?.match(/(?:^|_|\s)(19\d{2}|20\d{2})(?:_|\s|$)/)?.[1];
+    const dateStr = props.scene.title?.match(/(?:^|_|\s)(19\d{2}|20\d{2})(?:_|\s|$)/)?.[1];
     if (dateStr) {
         year.value = dateStr;
     }
@@ -104,7 +104,7 @@ async function selectScene(scene: PornDBScene) {
 }
 
 onMounted(() => {
-    populateFromVideo();
+    populateFromScene();
 });
 </script>
 

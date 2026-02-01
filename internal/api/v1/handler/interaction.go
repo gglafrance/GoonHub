@@ -25,13 +25,13 @@ func (h *InteractionHandler) GetRating(c *gin.Context) {
 		return
 	}
 
-	videoID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	sceneID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	rating, err := h.Service.GetRating(payload.UserID, uint(videoID))
+	rating, err := h.Service.GetRating(payload.UserID, uint(sceneID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get rating"})
 		return
@@ -47,9 +47,9 @@ func (h *InteractionHandler) SetRating(c *gin.Context) {
 		return
 	}
 
-	videoID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	sceneID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
@@ -59,7 +59,7 @@ func (h *InteractionHandler) SetRating(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.SetRating(payload.UserID, uint(videoID), req.Rating); err != nil {
+	if err := h.Service.SetRating(payload.UserID, uint(sceneID), req.Rating); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -74,13 +74,13 @@ func (h *InteractionHandler) DeleteRating(c *gin.Context) {
 		return
 	}
 
-	videoID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	sceneID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	if err := h.Service.ClearRating(payload.UserID, uint(videoID)); err != nil {
+	if err := h.Service.ClearRating(payload.UserID, uint(sceneID)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete rating"})
 		return
 	}
@@ -95,13 +95,13 @@ func (h *InteractionHandler) GetLike(c *gin.Context) {
 		return
 	}
 
-	videoID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	sceneID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	liked, err := h.Service.IsLiked(payload.UserID, uint(videoID))
+	liked, err := h.Service.IsLiked(payload.UserID, uint(sceneID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get like status"})
 		return
@@ -117,13 +117,13 @@ func (h *InteractionHandler) ToggleLike(c *gin.Context) {
 		return
 	}
 
-	videoID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	sceneID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	liked, err := h.Service.ToggleLike(payload.UserID, uint(videoID))
+	liked, err := h.Service.ToggleLike(payload.UserID, uint(sceneID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to toggle like"})
 		return
@@ -139,13 +139,13 @@ func (h *InteractionHandler) GetJizzed(c *gin.Context) {
 		return
 	}
 
-	videoID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	sceneID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	count, err := h.Service.GetJizzedCount(payload.UserID, uint(videoID))
+	count, err := h.Service.GetJizzedCount(payload.UserID, uint(sceneID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get jizzed count"})
 		return
@@ -161,13 +161,13 @@ func (h *InteractionHandler) ToggleJizzed(c *gin.Context) {
 		return
 	}
 
-	videoID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	sceneID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	count, err := h.Service.IncrementJizzed(payload.UserID, uint(videoID))
+	count, err := h.Service.IncrementJizzed(payload.UserID, uint(sceneID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to increment jizzed"})
 		return
@@ -183,13 +183,13 @@ func (h *InteractionHandler) GetInteractions(c *gin.Context) {
 		return
 	}
 
-	videoID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	sceneID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	interactions, err := h.Service.GetAllInteractions(payload.UserID, uint(videoID))
+	interactions, err := h.Service.GetAllInteractions(payload.UserID, uint(sceneID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get interactions"})
 		return

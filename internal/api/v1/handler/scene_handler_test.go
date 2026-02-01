@@ -20,21 +20,21 @@ func init() {
 	gin.SetMode(gin.TestMode)
 }
 
-func newTestVideoHandler(t *testing.T) (*VideoHandler, *mocks.MockVideoRepository, string) {
+func newTestSceneHandler(t *testing.T) (*SceneHandler, *mocks.MockSceneRepository, string) {
 	ctrl := gomock.NewController(t)
-	videoRepo := mocks.NewMockVideoRepository(ctrl)
+	sceneRepo := mocks.NewMockSceneRepository(ctrl)
 	dataPath := t.TempDir()
 
-	svc := &core.VideoService{
-		Repo:         videoRepo,
-		VideoPath:    dataPath,
+	svc := &core.SceneService{
+		Repo:         sceneRepo,
+		ScenePath:    dataPath,
 		MetadataPath: dataPath,
 	}
 
-	handler := &VideoHandler{
+	handler := &SceneHandler{
 		Service: svc,
 	}
-	return handler, videoRepo, dataPath
+	return handler, sceneRepo, dataPath
 }
 
 func createTestFile(t *testing.T, dir, name string, content []byte) string {
@@ -46,17 +46,17 @@ func createTestFile(t *testing.T, dir, name string, content []byte) string {
 	return path
 }
 
-func TestStreamVideo_FullFile(t *testing.T) {
-	handler, videoRepo, dataPath := newTestVideoHandler(t)
+func TestStreamScene_FullFile(t *testing.T) {
+	handler, sceneRepo, dataPath := newTestSceneHandler(t)
 
 	fileContent := []byte("fake video content here - 32 bytes!!")
 	filePath := createTestFile(t, dataPath, "test.mp4", fileContent)
 
-	video := &data.Video{ID: 1, StoredPath: filePath}
-	videoRepo.EXPECT().GetByID(uint(1)).Return(video, nil)
+	scene := &data.Scene{ID: 1, StoredPath: filePath}
+	sceneRepo.EXPECT().GetByID(uint(1)).Return(scene, nil)
 
 	router := gin.New()
-	router.GET("/stream/:id", handler.StreamVideo)
+	router.GET("/stream/:id", handler.StreamScene)
 
 	req, _ := http.NewRequest("GET", "/stream/1", nil)
 	w := httptest.NewRecorder()
@@ -76,8 +76,8 @@ func TestStreamVideo_FullFile(t *testing.T) {
 	}
 }
 
-func TestStreamVideo_PartialContent(t *testing.T) {
-	handler, videoRepo, dataPath := newTestVideoHandler(t)
+func TestStreamScene_PartialContent(t *testing.T) {
+	handler, sceneRepo, dataPath := newTestSceneHandler(t)
 
 	fileContent := make([]byte, 2048)
 	for i := range fileContent {
@@ -85,11 +85,11 @@ func TestStreamVideo_PartialContent(t *testing.T) {
 	}
 	filePath := createTestFile(t, dataPath, "test.mp4", fileContent)
 
-	video := &data.Video{ID: 1, StoredPath: filePath}
-	videoRepo.EXPECT().GetByID(uint(1)).Return(video, nil)
+	scene := &data.Scene{ID: 1, StoredPath: filePath}
+	sceneRepo.EXPECT().GetByID(uint(1)).Return(scene, nil)
 
 	router := gin.New()
-	router.GET("/stream/:id", handler.StreamVideo)
+	router.GET("/stream/:id", handler.StreamScene)
 
 	req, _ := http.NewRequest("GET", "/stream/1", nil)
 	req.Header.Set("Range", "bytes=0-1023")
@@ -110,8 +110,8 @@ func TestStreamVideo_PartialContent(t *testing.T) {
 	}
 }
 
-func TestStreamVideo_OpenEndedRange(t *testing.T) {
-	handler, videoRepo, dataPath := newTestVideoHandler(t)
+func TestStreamScene_OpenEndedRange(t *testing.T) {
+	handler, sceneRepo, dataPath := newTestSceneHandler(t)
 
 	fileContent := make([]byte, 4096)
 	for i := range fileContent {
@@ -119,11 +119,11 @@ func TestStreamVideo_OpenEndedRange(t *testing.T) {
 	}
 	filePath := createTestFile(t, dataPath, "test.mp4", fileContent)
 
-	video := &data.Video{ID: 1, StoredPath: filePath}
-	videoRepo.EXPECT().GetByID(uint(1)).Return(video, nil)
+	scene := &data.Scene{ID: 1, StoredPath: filePath}
+	sceneRepo.EXPECT().GetByID(uint(1)).Return(scene, nil)
 
 	router := gin.New()
-	router.GET("/stream/:id", handler.StreamVideo)
+	router.GET("/stream/:id", handler.StreamScene)
 
 	req, _ := http.NewRequest("GET", "/stream/1", nil)
 	req.Header.Set("Range", "bytes=1024-")
@@ -139,17 +139,17 @@ func TestStreamVideo_OpenEndedRange(t *testing.T) {
 	}
 }
 
-func TestStreamVideo_InvalidRange(t *testing.T) {
-	handler, videoRepo, dataPath := newTestVideoHandler(t)
+func TestStreamScene_InvalidRange(t *testing.T) {
+	handler, sceneRepo, dataPath := newTestSceneHandler(t)
 
 	fileContent := make([]byte, 1024)
 	filePath := createTestFile(t, dataPath, "test.mp4", fileContent)
 
-	video := &data.Video{ID: 1, StoredPath: filePath}
-	videoRepo.EXPECT().GetByID(uint(1)).Return(video, nil)
+	scene := &data.Scene{ID: 1, StoredPath: filePath}
+	sceneRepo.EXPECT().GetByID(uint(1)).Return(scene, nil)
 
 	router := gin.New()
-	router.GET("/stream/:id", handler.StreamVideo)
+	router.GET("/stream/:id", handler.StreamScene)
 
 	req, _ := http.NewRequest("GET", "/stream/1", nil)
 	req.Header.Set("Range", "bytes=500-100") // start > end
@@ -161,17 +161,17 @@ func TestStreamVideo_InvalidRange(t *testing.T) {
 	}
 }
 
-func TestStreamVideo_RangeExceedsFile(t *testing.T) {
-	handler, videoRepo, dataPath := newTestVideoHandler(t)
+func TestStreamScene_RangeExceedsFile(t *testing.T) {
+	handler, sceneRepo, dataPath := newTestSceneHandler(t)
 
 	fileContent := make([]byte, 512)
 	filePath := createTestFile(t, dataPath, "test.mp4", fileContent)
 
-	video := &data.Video{ID: 1, StoredPath: filePath}
-	videoRepo.EXPECT().GetByID(uint(1)).Return(video, nil)
+	scene := &data.Scene{ID: 1, StoredPath: filePath}
+	sceneRepo.EXPECT().GetByID(uint(1)).Return(scene, nil)
 
 	router := gin.New()
-	router.GET("/stream/:id", handler.StreamVideo)
+	router.GET("/stream/:id", handler.StreamScene)
 
 	req, _ := http.NewRequest("GET", "/stream/1", nil)
 	req.Header.Set("Range", "bytes=0-1023") // end > file size
@@ -183,14 +183,14 @@ func TestStreamVideo_RangeExceedsFile(t *testing.T) {
 	}
 }
 
-func TestStreamVideo_VideoNotFound(t *testing.T) {
-	handler, videoRepo, _ := newTestVideoHandler(t)
+func TestStreamScene_SceneNotFound(t *testing.T) {
+	handler, sceneRepo, _ := newTestSceneHandler(t)
 
 	// Use gorm.ErrRecordNotFound which is what the service now checks for
-	videoRepo.EXPECT().GetByID(uint(999)).Return(nil, gorm.ErrRecordNotFound)
+	sceneRepo.EXPECT().GetByID(uint(999)).Return(nil, gorm.ErrRecordNotFound)
 
 	router := gin.New()
-	router.GET("/stream/:id", handler.StreamVideo)
+	router.GET("/stream/:id", handler.StreamScene)
 
 	req, _ := http.NewRequest("GET", "/stream/999", nil)
 	w := httptest.NewRecorder()
@@ -201,14 +201,14 @@ func TestStreamVideo_VideoNotFound(t *testing.T) {
 	}
 }
 
-func TestStreamVideo_FileNotOnDisk(t *testing.T) {
-	handler, videoRepo, _ := newTestVideoHandler(t)
+func TestStreamScene_FileNotOnDisk(t *testing.T) {
+	handler, sceneRepo, _ := newTestSceneHandler(t)
 
-	video := &data.Video{ID: 1, StoredPath: "/nonexistent/path/video.mp4"}
-	videoRepo.EXPECT().GetByID(uint(1)).Return(video, nil)
+	scene := &data.Scene{ID: 1, StoredPath: "/nonexistent/path/video.mp4"}
+	sceneRepo.EXPECT().GetByID(uint(1)).Return(scene, nil)
 
 	router := gin.New()
-	router.GET("/stream/:id", handler.StreamVideo)
+	router.GET("/stream/:id", handler.StreamScene)
 
 	req, _ := http.NewRequest("GET", "/stream/1", nil)
 	w := httptest.NewRecorder()
@@ -219,7 +219,7 @@ func TestStreamVideo_FileNotOnDisk(t *testing.T) {
 	}
 }
 
-func TestStreamVideo_CorrectMimeType(t *testing.T) {
+func TestStreamScene_CorrectMimeType(t *testing.T) {
 	tests := []struct {
 		ext      string
 		expected string
@@ -230,16 +230,16 @@ func TestStreamVideo_CorrectMimeType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.ext, func(t *testing.T) {
-			handler, videoRepo, dataPath := newTestVideoHandler(t)
+			handler, sceneRepo, dataPath := newTestSceneHandler(t)
 
 			fileContent := []byte("fake video data")
 			filePath := createTestFile(t, dataPath, "video"+tt.ext, fileContent)
 
-			video := &data.Video{ID: 1, StoredPath: filePath}
-			videoRepo.EXPECT().GetByID(uint(1)).Return(video, nil)
+			scene := &data.Scene{ID: 1, StoredPath: filePath}
+			sceneRepo.EXPECT().GetByID(uint(1)).Return(scene, nil)
 
 			router := gin.New()
-			router.GET("/stream/:id", handler.StreamVideo)
+			router.GET("/stream/:id", handler.StreamScene)
 
 			req, _ := http.NewRequest("GET", "/stream/1", nil)
 			w := httptest.NewRecorder()

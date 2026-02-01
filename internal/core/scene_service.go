@@ -21,21 +21,21 @@ import (
 	"gorm.io/gorm"
 )
 
-type VideoService struct {
-	Repo              data.VideoRepository
-	VideoPath         string
+type SceneService struct {
+	Repo              data.SceneRepository
+	ScenePath         string
 	MetadataPath      string
-	ProcessingService *VideoProcessingService
+	ProcessingService *SceneProcessingService
 	EventBus          *EventBus
 	logger            *zap.Logger
-	indexer           VideoIndexer
+	indexer           SceneIndexer
 }
 
-func NewVideoService(repo data.VideoRepository, videoPath string, metadataPath string, processingService *VideoProcessingService, eventBus *EventBus, logger *zap.Logger) *VideoService {
-	// Ensure video directory exists
-	if err := os.MkdirAll(videoPath, 0755); err != nil {
-		logger.Warn("Failed to create video directory",
-			zap.String("directory", videoPath),
+func NewSceneService(repo data.SceneRepository, scenePath string, metadataPath string, processingService *SceneProcessingService, eventBus *EventBus, logger *zap.Logger) *SceneService {
+	// Ensure scene directory exists
+	if err := os.MkdirAll(scenePath, 0755); err != nil {
+		logger.Warn("Failed to create scene directory",
+			zap.String("directory", scenePath),
 			zap.Error(err),
 		)
 	}
@@ -46,9 +46,9 @@ func NewVideoService(repo data.VideoRepository, videoPath string, metadataPath s
 			zap.Error(err),
 		)
 	}
-	return &VideoService{
+	return &SceneService{
 		Repo:              repo,
-		VideoPath:         videoPath,
+		ScenePath:         scenePath,
 		MetadataPath:      metadataPath,
 		ProcessingService: processingService,
 		EventBus:          eventBus,
@@ -56,9 +56,9 @@ func NewVideoService(repo data.VideoRepository, videoPath string, metadataPath s
 	}
 }
 
-// SetIndexer sets the video indexer for search index updates.
+// SetIndexer sets the scene indexer for search index updates.
 // This is called after service initialization to avoid circular dependencies.
-func (s *VideoService) SetIndexer(indexer VideoIndexer) {
+func (s *SceneService) SetIndexer(indexer SceneIndexer) {
 	s.indexer = indexer
 }
 
@@ -72,12 +72,12 @@ var AllowedExtensions = map[string]bool{
 	".m4v":  true,
 }
 
-func (s *VideoService) ValidateExtension(filename string) bool {
+func (s *SceneService) ValidateExtension(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
 	return AllowedExtensions[ext]
 }
 
-func (s *VideoService) UploadVideo(file *multipart.FileHeader, title string) (*data.Video, error) {
+func (s *SceneService) UploadScene(file *multipart.FileHeader, title string) (*data.Scene, error) {
 	if !s.ValidateExtension(file.Filename) {
 		return nil, apperrors.ErrInvalidFileExtension
 	}
@@ -90,7 +90,7 @@ func (s *VideoService) UploadVideo(file *multipart.FileHeader, title string) (*d
 
 	// Generate unique filename
 	uniqueName := fmt.Sprintf("%s_%s", uuid.New().String(), file.Filename)
-	storedPath := filepath.Join(s.VideoPath, uniqueName)
+	storedPath := filepath.Join(s.ScenePath, uniqueName)
 
 	// Save file
 	dst, err := os.Create(storedPath)
@@ -107,7 +107,7 @@ func (s *VideoService) UploadVideo(file *multipart.FileHeader, title string) (*d
 		title = file.Filename
 	}
 
-	video := &data.Video{
+	scene := &data.Scene{
 		Title:            title,
 		OriginalFilename: file.Filename,
 		StoredPath:       storedPath,
@@ -119,43 +119,43 @@ func (s *VideoService) UploadVideo(file *multipart.FileHeader, title string) (*d
 
 	if stat, err := os.Stat(storedPath); err == nil {
 		modTime := stat.ModTime()
-		video.FileCreatedAt = &modTime
+		scene.FileCreatedAt = &modTime
 	}
 
-	if err := s.Repo.Create(video); err != nil {
+	if err := s.Repo.Create(scene); err != nil {
 		// Cleanup file if DB insert fails
 		os.Remove(storedPath)
 		return nil, err
 	}
 
 	if s.ProcessingService != nil {
-		// Submit video for processing synchronously - this is just a queue operation,
+		// Submit scene for processing synchronously - this is just a queue operation,
 		// not the actual processing work, so it's safe to block briefly
-		if err := s.ProcessingService.SubmitVideo(video.ID, storedPath); err != nil {
-			s.logger.Error("Failed to submit video for processing",
-				zap.Uint("video_id", video.ID),
-				zap.String("video_path", storedPath),
+		if err := s.ProcessingService.SubmitScene(scene.ID, storedPath); err != nil {
+			s.logger.Error("Failed to submit scene for processing",
+				zap.Uint("scene_id", scene.ID),
+				zap.String("scene_path", storedPath),
 				zap.Error(err),
 			)
-			// Don't fail the upload - video is saved but processing won't start automatically
+			// Don't fail the upload - scene is saved but processing won't start automatically
 			// Users can manually trigger processing via the admin API
 		}
 	}
 
-	// Index video in search engine
+	// Index scene in search engine
 	if s.indexer != nil {
-		if err := s.indexer.IndexVideo(video); err != nil {
-			s.logger.Warn("Failed to index video for search",
-				zap.Uint("video_id", video.ID),
+		if err := s.indexer.IndexScene(scene); err != nil {
+			s.logger.Warn("Failed to index scene for search",
+				zap.Uint("scene_id", scene.ID),
 				zap.Error(err),
 			)
 		}
 	}
 
-	return video, nil
+	return scene, nil
 }
 
-func (s *VideoService) ListVideos(page, limit int) ([]data.Video, int64, error) {
+func (s *SceneService) ListScenes(page, limit int) ([]data.Scene, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -165,101 +165,101 @@ func (s *VideoService) ListVideos(page, limit int) ([]data.Video, int64, error) 
 	return s.Repo.List(page, limit)
 }
 
-func (s *VideoService) GetDistinctStudios() ([]string, error) {
+func (s *SceneService) GetDistinctStudios() ([]string, error) {
 	return s.Repo.GetDistinctStudios()
 }
 
-func (s *VideoService) GetDistinctActors() ([]string, error) {
+func (s *SceneService) GetDistinctActors() ([]string, error) {
 	return s.Repo.GetDistinctActors()
 }
 
-func (s *VideoService) GetVideo(id uint) (*data.Video, error) {
-	video, err := s.Repo.GetByID(id)
+func (s *SceneService) GetScene(id uint) (*data.Scene, error) {
+	scene, err := s.Repo.GetByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.ErrVideoNotFound(id)
+			return nil, apperrors.ErrSceneNotFound(id)
 		}
-		return nil, apperrors.NewInternalError("failed to get video", err)
+		return nil, apperrors.NewInternalError("failed to get scene", err)
 	}
-	return video, nil
+	return scene, nil
 }
 
-func (s *VideoService) UpdateVideoDetails(id uint, title, description string, releaseDate *time.Time) (*data.Video, error) {
+func (s *SceneService) UpdateSceneDetails(id uint, title, description string, releaseDate *time.Time) (*data.Scene, error) {
 	if err := s.Repo.UpdateDetails(id, title, description, releaseDate); err != nil {
-		return nil, fmt.Errorf("failed to update video details: %w", err)
+		return nil, fmt.Errorf("failed to update scene details: %w", err)
 	}
 
-	video, err := s.Repo.GetByID(id)
+	scene, err := s.Repo.GetByID(id)
 	if err != nil {
 		return nil, err
 	}
 
 	// Update search index
 	if s.indexer != nil {
-		if err := s.indexer.UpdateVideoIndex(video); err != nil {
-			s.logger.Warn("Failed to update video in search index",
-				zap.Uint("video_id", id),
+		if err := s.indexer.UpdateSceneIndex(scene); err != nil {
+			s.logger.Warn("Failed to update scene in search index",
+				zap.Uint("scene_id", id),
 				zap.Error(err),
 			)
 		}
 	}
 
-	return video, nil
+	return scene, nil
 }
 
-func (s *VideoService) UpdateSceneMetadata(id uint, title, description, studio string, releaseDate *time.Time, porndbSceneID string) (*data.Video, error) {
+func (s *SceneService) UpdateSceneMetadata(id uint, title, description, studio string, releaseDate *time.Time, porndbSceneID string) (*data.Scene, error) {
 	if err := s.Repo.UpdateSceneMetadata(id, title, description, studio, releaseDate, porndbSceneID); err != nil {
 		return nil, fmt.Errorf("failed to update scene metadata: %w", err)
 	}
 
-	video, err := s.Repo.GetByID(id)
+	scene, err := s.Repo.GetByID(id)
 	if err != nil {
 		return nil, err
 	}
 
 	// Update search index
 	if s.indexer != nil {
-		if err := s.indexer.UpdateVideoIndex(video); err != nil {
-			s.logger.Warn("Failed to update video in search index",
-				zap.Uint("video_id", id),
+		if err := s.indexer.UpdateSceneIndex(scene); err != nil {
+			s.logger.Warn("Failed to update scene in search index",
+				zap.Uint("scene_id", id),
 				zap.Error(err),
 			)
 		}
 	}
 
-	return video, nil
+	return scene, nil
 }
 
-func (s *VideoService) DeleteVideo(id uint) error {
-	video, err := s.Repo.GetByID(id)
+func (s *SceneService) DeleteScene(id uint) error {
+	scene, err := s.Repo.GetByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return apperrors.ErrVideoNotFound(id)
+			return apperrors.ErrSceneNotFound(id)
 		}
-		return apperrors.NewInternalError("failed to get video", err)
+		return apperrors.NewInternalError("failed to get scene", err)
 	}
 
 	if err := s.Repo.Delete(id); err != nil {
-		return apperrors.NewInternalError("failed to delete video", err)
+		return apperrors.NewInternalError("failed to delete scene", err)
 	}
 
 	// Remove from search index
 	if s.indexer != nil {
-		if err := s.indexer.DeleteVideoIndex(id); err != nil {
-			s.logger.Warn("Failed to delete video from search index",
-				zap.Uint("video_id", id),
+		if err := s.indexer.DeleteSceneIndex(id); err != nil {
+			s.logger.Warn("Failed to delete scene from search index",
+				zap.Uint("scene_id", id),
 				zap.Error(err),
 			)
 		}
 	}
 
-	os.Remove(video.StoredPath)
+	os.Remove(scene.StoredPath)
 
-	if video.ThumbnailPath != "" {
-		os.Remove(video.ThumbnailPath)
+	if scene.ThumbnailPath != "" {
+		os.Remove(scene.ThumbnailPath)
 	}
 
-	if video.SpriteSheetPath != "" {
+	if scene.SpriteSheetPath != "" {
 		spriteDir := filepath.Join(s.MetadataPath, "sprites")
 		spritePattern := filepath.Join(spriteDir, fmt.Sprintf("%d_sheet_*.jpg", id))
 		files, _ := filepath.Glob(spritePattern)
@@ -268,8 +268,8 @@ func (s *VideoService) DeleteVideo(id uint) error {
 		}
 	}
 
-	if video.VttPath != "" {
-		os.Remove(video.VttPath)
+	if scene.VttPath != "" {
+		os.Remove(scene.VttPath)
 	}
 
 	return nil
@@ -282,23 +282,23 @@ var allowedImageExtensions = map[string]bool{
 	".webp": true,
 }
 
-func (s *VideoService) SetThumbnailFromTimecode(videoID uint, timecode float64) error {
-	video, err := s.Repo.GetByID(videoID)
+func (s *SceneService) SetThumbnailFromTimecode(sceneID uint, timecode float64) error {
+	scene, err := s.Repo.GetByID(sceneID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return apperrors.ErrVideoNotFound(videoID)
+			return apperrors.ErrSceneNotFound(sceneID)
 		}
-		return apperrors.NewInternalError("failed to get video", err)
+		return apperrors.NewInternalError("failed to get scene", err)
 	}
 
-	if video.Width == 0 || video.Height == 0 {
-		return apperrors.ErrVideoDimensionsNotAvailable
+	if scene.Width == 0 || scene.Height == 0 {
+		return apperrors.ErrSceneDimensionsNotAvailable
 	}
 
 	qualityConfig := s.ProcessingService.GetProcessingQualityConfig()
 
-	tileWidthSm, tileHeightSm := ffmpeg.CalculateTileDimensions(video.Width, video.Height, qualityConfig.MaxFrameDimensionSm)
-	tileWidthLg, tileHeightLg := ffmpeg.CalculateTileDimensions(video.Width, video.Height, qualityConfig.MaxFrameDimensionLg)
+	tileWidthSm, tileHeightSm := ffmpeg.CalculateTileDimensions(scene.Width, scene.Height, qualityConfig.MaxFrameDimensionSm)
+	tileWidthLg, tileHeightLg := ffmpeg.CalculateTileDimensions(scene.Width, scene.Height, qualityConfig.MaxFrameDimensionLg)
 
 	thumbnailDir := filepath.Join(s.MetadataPath, "thumbnails")
 	if err := os.MkdirAll(thumbnailDir, 0755); err != nil {
@@ -306,25 +306,25 @@ func (s *VideoService) SetThumbnailFromTimecode(videoID uint, timecode float64) 
 	}
 
 	seekPos := strconv.FormatFloat(timecode, 'f', 3, 64)
-	smPath := filepath.Join(thumbnailDir, fmt.Sprintf("%d_thumb_sm.webp", videoID))
-	lgPath := filepath.Join(thumbnailDir, fmt.Sprintf("%d_thumb_lg.webp", videoID))
+	smPath := filepath.Join(thumbnailDir, fmt.Sprintf("%d_thumb_sm.webp", sceneID))
+	lgPath := filepath.Join(thumbnailDir, fmt.Sprintf("%d_thumb_lg.webp", sceneID))
 
-	if err := ffmpeg.ExtractThumbnail(video.StoredPath, smPath, seekPos, tileWidthSm, tileHeightSm, qualityConfig.FrameQualitySm); err != nil {
+	if err := ffmpeg.ExtractThumbnail(scene.StoredPath, smPath, seekPos, tileWidthSm, tileHeightSm, qualityConfig.FrameQualitySm); err != nil {
 		return fmt.Errorf("failed to extract small thumbnail: %w", err)
 	}
 
-	if err := ffmpeg.ExtractThumbnail(video.StoredPath, lgPath, seekPos, tileWidthLg, tileHeightLg, qualityConfig.FrameQualityLg); err != nil {
+	if err := ffmpeg.ExtractThumbnail(scene.StoredPath, lgPath, seekPos, tileWidthLg, tileHeightLg, qualityConfig.FrameQualityLg); err != nil {
 		return fmt.Errorf("failed to extract large thumbnail: %w", err)
 	}
 
-	if err := s.Repo.UpdateThumbnail(videoID, smPath, tileWidthSm, tileHeightSm); err != nil {
+	if err := s.Repo.UpdateThumbnail(sceneID, smPath, tileWidthSm, tileHeightSm); err != nil {
 		return fmt.Errorf("failed to update thumbnail in database: %w", err)
 	}
 
 	if s.EventBus != nil {
-		s.EventBus.Publish(VideoEvent{
-			Type:    "video:thumbnail_complete",
-			VideoID: videoID,
+		s.EventBus.Publish(SceneEvent{
+			Type:    "scene:thumbnail_complete",
+			SceneID: sceneID,
 			Data: map[string]any{
 				"thumbnail_path": smPath,
 			},
@@ -334,22 +334,22 @@ func (s *VideoService) SetThumbnailFromTimecode(videoID uint, timecode float64) 
 	return nil
 }
 
-func (s *VideoService) SetThumbnailFromUpload(videoID uint, file *multipart.FileHeader) error {
+func (s *SceneService) SetThumbnailFromUpload(sceneID uint, file *multipart.FileHeader) error {
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	if !allowedImageExtensions[ext] {
 		return apperrors.ErrInvalidImageExtension
 	}
 
-	video, err := s.Repo.GetByID(videoID)
+	scene, err := s.Repo.GetByID(sceneID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return apperrors.ErrVideoNotFound(videoID)
+			return apperrors.ErrSceneNotFound(sceneID)
 		}
-		return apperrors.NewInternalError("failed to get video", err)
+		return apperrors.NewInternalError("failed to get scene", err)
 	}
 
-	if video.Width == 0 || video.Height == 0 {
-		return apperrors.ErrVideoDimensionsNotAvailable
+	if scene.Width == 0 || scene.Height == 0 {
+		return apperrors.ErrSceneDimensionsNotAvailable
 	}
 
 	// Save uploaded file to temp location
@@ -372,21 +372,21 @@ func (s *VideoService) SetThumbnailFromUpload(videoID uint, file *multipart.File
 	}
 	tmpFile.Close()
 
-	return s.processAndSaveThumbnail(videoID, video, tmpPath)
+	return s.processAndSaveThumbnail(sceneID, scene, tmpPath)
 }
 
-// SetThumbnailFromURL downloads an image from a URL and sets it as the video thumbnail.
-func (s *VideoService) SetThumbnailFromURL(videoID uint, imageURL string) error {
-	video, err := s.Repo.GetByID(videoID)
+// SetThumbnailFromURL downloads an image from a URL and sets it as the scene thumbnail.
+func (s *SceneService) SetThumbnailFromURL(sceneID uint, imageURL string) error {
+	scene, err := s.Repo.GetByID(sceneID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return apperrors.ErrVideoNotFound(videoID)
+			return apperrors.ErrSceneNotFound(sceneID)
 		}
-		return apperrors.NewInternalError("failed to get video", err)
+		return apperrors.NewInternalError("failed to get scene", err)
 	}
 
-	if video.Width == 0 || video.Height == 0 {
-		return apperrors.ErrVideoDimensionsNotAvailable
+	if scene.Width == 0 || scene.Height == 0 {
+		return apperrors.ErrSceneDimensionsNotAvailable
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
@@ -413,23 +413,23 @@ func (s *VideoService) SetThumbnailFromURL(videoID uint, imageURL string) error 
 	}
 	tmpFile.Close()
 
-	return s.processAndSaveThumbnail(videoID, video, tmpPath)
+	return s.processAndSaveThumbnail(sceneID, scene, tmpPath)
 }
 
 // processAndSaveThumbnail resizes an image file to sm/lg WebP thumbnails and updates the database.
-func (s *VideoService) processAndSaveThumbnail(videoID uint, video *data.Video, srcPath string) error {
+func (s *SceneService) processAndSaveThumbnail(sceneID uint, scene *data.Scene, srcPath string) error {
 	qualityConfig := s.ProcessingService.GetProcessingQualityConfig()
 
-	tileWidthSm, tileHeightSm := ffmpeg.CalculateTileDimensions(video.Width, video.Height, qualityConfig.MaxFrameDimensionSm)
-	tileWidthLg, tileHeightLg := ffmpeg.CalculateTileDimensions(video.Width, video.Height, qualityConfig.MaxFrameDimensionLg)
+	tileWidthSm, tileHeightSm := ffmpeg.CalculateTileDimensions(scene.Width, scene.Height, qualityConfig.MaxFrameDimensionSm)
+	tileWidthLg, tileHeightLg := ffmpeg.CalculateTileDimensions(scene.Width, scene.Height, qualityConfig.MaxFrameDimensionLg)
 
 	thumbnailDir := filepath.Join(s.MetadataPath, "thumbnails")
 	if err := os.MkdirAll(thumbnailDir, 0755); err != nil {
 		return fmt.Errorf("failed to create thumbnail directory: %w", err)
 	}
 
-	smPath := filepath.Join(thumbnailDir, fmt.Sprintf("%d_thumb_sm.webp", videoID))
-	lgPath := filepath.Join(thumbnailDir, fmt.Sprintf("%d_thumb_lg.webp", videoID))
+	smPath := filepath.Join(thumbnailDir, fmt.Sprintf("%d_thumb_sm.webp", sceneID))
+	lgPath := filepath.Join(thumbnailDir, fmt.Sprintf("%d_thumb_lg.webp", sceneID))
 
 	if err := ffmpeg.ResizeImageToWebp(srcPath, smPath, tileWidthSm, tileHeightSm, qualityConfig.FrameQualitySm); err != nil {
 		return fmt.Errorf("failed to resize to small thumbnail: %w", err)
@@ -439,14 +439,14 @@ func (s *VideoService) processAndSaveThumbnail(videoID uint, video *data.Video, 
 		return fmt.Errorf("failed to resize to large thumbnail: %w", err)
 	}
 
-	if err := s.Repo.UpdateThumbnail(videoID, smPath, tileWidthSm, tileHeightSm); err != nil {
+	if err := s.Repo.UpdateThumbnail(sceneID, smPath, tileWidthSm, tileHeightSm); err != nil {
 		return fmt.Errorf("failed to update thumbnail in database: %w", err)
 	}
 
 	if s.EventBus != nil {
-		s.EventBus.Publish(VideoEvent{
-			Type:    "video:thumbnail_complete",
-			VideoID: videoID,
+		s.EventBus.Publish(SceneEvent{
+			Type:    "scene:thumbnail_complete",
+			SceneID: sceneID,
 			Data: map[string]any{
 				"thumbnail_path": smPath,
 			},

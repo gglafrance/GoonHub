@@ -61,7 +61,7 @@ const badge = computed(() =>
                     :style="{ backgroundColor: tag.color }"
                 ></span>
                 <span class="flex-1 truncate">{{ tag.name }}</span>
-                <span class="text-[10px] opacity-50">{{ tag.video_count }}</span>
+                <span class="text-[10px] opacity-50">{{ tag.scene_count }}</span>
             </button>
         </div>
     </SearchFiltersFilterSection>

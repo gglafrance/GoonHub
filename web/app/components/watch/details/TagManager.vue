@@ -4,10 +4,10 @@ import type { WatchPageData } from '~/composables/useWatchPageData';
 import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
 const props = defineProps<{
-    videoId: number;
+    sceneId: number;
 }>();
 
-const { fetchTags, setVideoTags } = useApiTags();
+const { fetchTags, setSceneTags } = useApiTags();
 
 // Inject centralized watch page data
 const watchPageData = inject<WatchPageData>(WATCH_PAGE_DATA_KEY);
@@ -19,12 +19,12 @@ const loadingAllTags = ref(false);
 const showTagPicker = ref(false);
 const anchorRef = ref<HTMLElement | null>(null);
 
-// Use centralized data for loading state and video tags
+// Use centralized data for loading state and scene tags
 const loading = computed(() => watchPageData?.loading.details ?? false);
-const videoTags = computed(() => watchPageData?.tags.value ?? []);
+const sceneTags = computed(() => watchPageData?.tags.value ?? []);
 
 const availableTags = computed(() =>
-    allTags.value.filter((t) => !videoTags.value.some((vt) => vt.id === t.id)),
+    allTags.value.filter((t) => !sceneTags.value.some((st) => st.id === t.id)),
 );
 
 async function loadAllTags() {
@@ -54,10 +54,10 @@ async function onAddTagClick() {
 async function addTag(tagId: number) {
     error.value = null;
 
-    const newIds = [...videoTags.value.map((t) => t.id), tagId];
+    const newIds = [...sceneTags.value.map((t) => t.id), tagId];
 
     try {
-        const res = await setVideoTags(props.videoId, newIds);
+        const res = await setSceneTags(props.sceneId, newIds);
         // Update centralized data
         watchPageData?.setTags(res.data || []);
     } catch (err: unknown) {
@@ -68,10 +68,10 @@ async function addTag(tagId: number) {
 async function removeTag(tagId: number) {
     error.value = null;
 
-    const newIds = videoTags.value.filter((t) => t.id !== tagId).map((t) => t.id);
+    const newIds = sceneTags.value.filter((t) => t.id !== tagId).map((t) => t.id);
 
     try {
-        const res = await setVideoTags(props.videoId, newIds);
+        const res = await setSceneTags(props.sceneId, newIds);
         // Update centralized data
         watchPageData?.setTags(res.data || []);
     } catch (err: unknown) {
@@ -104,7 +104,7 @@ defineExpose({ reload });
         <div v-else class="flex flex-wrap items-center gap-1.5">
             <!-- Applied tags -->
             <span
-                v-for="tag in videoTags"
+                v-for="tag in sceneTags"
                 :key="tag.id"
                 class="group flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px]
                     font-medium text-white"

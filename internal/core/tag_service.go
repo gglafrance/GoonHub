@@ -14,21 +14,21 @@ var colorRegex = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
 
 type TagService struct {
 	tagRepo   data.TagRepository
-	videoRepo data.VideoRepository
+	sceneRepo data.SceneRepository
 	logger    *zap.Logger
-	indexer   VideoIndexer
+	indexer   SceneIndexer
 }
 
-func NewTagService(tagRepo data.TagRepository, videoRepo data.VideoRepository, logger *zap.Logger) *TagService {
+func NewTagService(tagRepo data.TagRepository, sceneRepo data.SceneRepository, logger *zap.Logger) *TagService {
 	return &TagService{
 		tagRepo:   tagRepo,
-		videoRepo: videoRepo,
+		sceneRepo: sceneRepo,
 		logger:    logger,
 	}
 }
 
-// SetIndexer sets the video indexer for search index updates.
-func (s *TagService) SetIndexer(indexer VideoIndexer) {
+// SetIndexer sets the scene indexer for search index updates.
+func (s *TagService) SetIndexer(indexer SceneIndexer) {
 	s.indexer = indexer
 }
 
@@ -81,43 +81,43 @@ func (s *TagService) DeleteTag(id uint) error {
 	return nil
 }
 
-func (s *TagService) GetVideoTags(videoID uint) ([]data.Tag, error) {
-	if _, err := s.videoRepo.GetByID(videoID); err != nil {
+func (s *TagService) GetSceneTags(sceneID uint) ([]data.Tag, error) {
+	if _, err := s.sceneRepo.GetByID(sceneID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.ErrVideoNotFound(videoID)
+			return nil, apperrors.ErrSceneNotFound(sceneID)
 		}
-		return nil, apperrors.NewInternalError("failed to find video", err)
+		return nil, apperrors.NewInternalError("failed to find scene", err)
 	}
 
-	return s.tagRepo.GetVideoTags(videoID)
+	return s.tagRepo.GetSceneTags(sceneID)
 }
 
 func (s *TagService) GetTagsByNames(names []string) ([]data.Tag, error) {
 	return s.tagRepo.GetByNames(names)
 }
 
-func (s *TagService) SetVideoTags(videoID uint, tagIDs []uint) ([]data.Tag, error) {
-	video, err := s.videoRepo.GetByID(videoID)
+func (s *TagService) SetSceneTags(sceneID uint, tagIDs []uint) ([]data.Tag, error) {
+	scene, err := s.sceneRepo.GetByID(sceneID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.ErrVideoNotFound(videoID)
+			return nil, apperrors.ErrSceneNotFound(sceneID)
 		}
-		return nil, apperrors.NewInternalError("failed to find video", err)
+		return nil, apperrors.NewInternalError("failed to find scene", err)
 	}
 
-	if err := s.tagRepo.SetVideoTags(videoID, tagIDs); err != nil {
-		return nil, apperrors.NewInternalError("failed to set video tags", err)
+	if err := s.tagRepo.SetSceneTags(sceneID, tagIDs); err != nil {
+		return nil, apperrors.NewInternalError("failed to set scene tags", err)
 	}
 
-	// Re-index video in search engine after tag changes
+	// Re-index scene in search engine after tag changes
 	if s.indexer != nil {
-		if err := s.indexer.UpdateVideoIndex(video); err != nil {
-			s.logger.Warn("Failed to update video in search index after tag change",
-				zap.Uint("video_id", videoID),
+		if err := s.indexer.UpdateSceneIndex(scene); err != nil {
+			s.logger.Warn("Failed to update scene in search index after tag change",
+				zap.Uint("scene_id", sceneID),
 				zap.Error(err),
 			)
 		}
 	}
 
-	return s.tagRepo.GetVideoTags(videoID)
+	return s.tagRepo.GetSceneTags(sceneID)
 }

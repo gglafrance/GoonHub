@@ -1,18 +1,18 @@
 /**
- * Video-related API operations: CRUD, search, streaming, filters, interactions.
+ * Scene-related API operations: CRUD, search, streaming, filters, interactions.
  */
-export const useApiVideos = () => {
+export const useApiScenes = () => {
     const { fetchOptions, getAuthHeaders, handleResponse, handleResponseWithNoContent } =
         useApiCore();
 
-    const uploadVideo = async (file: File, title?: string) => {
+    const uploadScene = async (file: File, title?: string) => {
         const formData = new FormData();
-        formData.append('video', file);
+        formData.append('scene', file);
         if (title) {
             formData.append('title', title);
         }
 
-        const response = await fetch('/api/v1/videos', {
+        const response = await fetch('/api/v1/scenes', {
             method: 'POST',
             body: formData,
             ...fetchOptions(),
@@ -21,13 +21,13 @@ export const useApiVideos = () => {
         return handleResponse(response);
     };
 
-    const fetchVideos = async (page: number, limit: number) => {
+    const fetchScenes = async (page: number, limit: number) => {
         const params = new URLSearchParams({
             page: page.toString(),
             limit: limit.toString(),
         });
 
-        const response = await fetch(`/api/v1/videos?${params}`, {
+        const response = await fetch(`/api/v1/scenes?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
@@ -35,7 +35,7 @@ export const useApiVideos = () => {
         return handleResponse(response);
     };
 
-    const searchVideos = async (searchParams: Record<string, string | number | undefined>) => {
+    const searchScenes = async (searchParams: Record<string, string | number | undefined>) => {
         const params = new URLSearchParams();
         for (const [key, value] of Object.entries(searchParams)) {
             if (value !== undefined && value !== '' && value !== 0) {
@@ -43,7 +43,7 @@ export const useApiVideos = () => {
             }
         }
 
-        const response = await fetch(`/api/v1/videos?${params}`, {
+        const response = await fetch(`/api/v1/scenes?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
@@ -52,15 +52,15 @@ export const useApiVideos = () => {
     };
 
     const fetchFilterOptions = async () => {
-        const response = await fetch('/api/v1/videos/filters', {
+        const response = await fetch('/api/v1/scenes/filters', {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
         return handleResponse(response);
     };
 
-    const fetchVideo = async (id: number) => {
-        const response = await fetch(`/api/v1/videos/${id}`, {
+    const fetchScene = async (id: number) => {
+        const response = await fetch(`/api/v1/scenes/${id}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
@@ -68,8 +68,8 @@ export const useApiVideos = () => {
         return handleResponse(response);
     };
 
-    const updateVideoDetails = async (
-        videoId: number,
+    const updateSceneDetails = async (
+        sceneId: number,
         title: string,
         description: string,
         releaseDate?: string | null,
@@ -78,7 +78,7 @@ export const useApiVideos = () => {
         if (releaseDate !== undefined) {
             payload.release_date = releaseDate;
         }
-        const response = await fetch(`/api/v1/videos/${videoId}/details`, {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/details`, {
             method: 'PUT',
             headers: getAuthHeaders(),
             body: JSON.stringify(payload),
@@ -86,8 +86,8 @@ export const useApiVideos = () => {
         return handleResponse(response);
     };
 
-    const extractThumbnail = async (videoId: number, timecode: number) => {
-        const response = await fetch(`/api/v1/videos/${videoId}/thumbnail`, {
+    const extractThumbnail = async (sceneId: number, timecode: number) => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/thumbnail`, {
             method: 'PUT',
             headers: getAuthHeaders(),
             body: JSON.stringify({ timecode }),
@@ -95,11 +95,11 @@ export const useApiVideos = () => {
         return handleResponse(response);
     };
 
-    const uploadThumbnail = async (videoId: number, file: File) => {
+    const uploadThumbnail = async (sceneId: number, file: File) => {
         const formData = new FormData();
         formData.append('thumbnail', file);
 
-        const response = await fetch(`/api/v1/videos/${videoId}/thumbnail/upload`, {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/thumbnail/upload`, {
             method: 'POST',
             body: formData,
             ...fetchOptions(),
@@ -107,25 +107,25 @@ export const useApiVideos = () => {
         return handleResponse(response);
     };
 
-    // Video interactions
-    const fetchVideoInteractions = async (videoId: number) => {
-        const response = await fetch(`/api/v1/videos/${videoId}/interactions`, {
+    // Scene interactions
+    const fetchSceneInteractions = async (sceneId: number) => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/interactions`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
         return handleResponse(response);
     };
 
-    const fetchVideoRating = async (videoId: number) => {
-        const response = await fetch(`/api/v1/videos/${videoId}/rating`, {
+    const fetchSceneRating = async (sceneId: number) => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/rating`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
         return handleResponse(response);
     };
 
-    const setVideoRating = async (videoId: number, rating: number) => {
-        const response = await fetch(`/api/v1/videos/${videoId}/rating`, {
+    const setSceneRating = async (sceneId: number, rating: number) => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/rating`, {
             method: 'PUT',
             headers: getAuthHeaders(),
             body: JSON.stringify({ rating }),
@@ -133,8 +133,8 @@ export const useApiVideos = () => {
         return handleResponse(response);
     };
 
-    const deleteVideoRating = async (videoId: number) => {
-        const response = await fetch(`/api/v1/videos/${videoId}/rating`, {
+    const deleteSceneRating = async (sceneId: number) => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/rating`, {
             method: 'DELETE',
             headers: getAuthHeaders(),
             ...fetchOptions(),
@@ -142,16 +142,16 @@ export const useApiVideos = () => {
         await handleResponseWithNoContent(response);
     };
 
-    const fetchVideoLike = async (videoId: number) => {
-        const response = await fetch(`/api/v1/videos/${videoId}/like`, {
+    const fetchSceneLike = async (sceneId: number) => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/like`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
         return handleResponse(response);
     };
 
-    const toggleVideoLike = async (videoId: number) => {
-        const response = await fetch(`/api/v1/videos/${videoId}/like`, {
+    const toggleSceneLike = async (sceneId: number) => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/like`, {
             method: 'POST',
             headers: getAuthHeaders(),
             ...fetchOptions(),
@@ -159,16 +159,16 @@ export const useApiVideos = () => {
         return handleResponse(response);
     };
 
-    const fetchJizzedCount = async (videoId: number) => {
-        const response = await fetch(`/api/v1/videos/${videoId}/jizzed`, {
+    const fetchJizzedCount = async (sceneId: number) => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/jizzed`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
         return handleResponse(response);
     };
 
-    const incrementJizzed = async (videoId: number) => {
-        const response = await fetch(`/api/v1/videos/${videoId}/jizzed`, {
+    const incrementJizzed = async (sceneId: number) => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/jizzed`, {
             method: 'POST',
             headers: getAuthHeaders(),
             ...fetchOptions(),
@@ -178,12 +178,12 @@ export const useApiVideos = () => {
 
     // Watch tracking
     const recordWatch = async (
-        videoId: number,
+        sceneId: number,
         duration: number,
         position: number,
         completed: boolean,
     ) => {
-        const response = await fetch(`/api/v1/videos/${videoId}/watch`, {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/watch`, {
             method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify({ duration, position, completed }),
@@ -191,17 +191,17 @@ export const useApiVideos = () => {
         return handleResponse(response);
     };
 
-    const getResumePosition = async (videoId: number) => {
-        const response = await fetch(`/api/v1/videos/${videoId}/resume`, {
+    const getResumePosition = async (sceneId: number) => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/resume`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
         return handleResponse(response);
     };
 
-    const getVideoWatchHistory = async (videoId: number, limit = 10) => {
+    const getSceneWatchHistory = async (sceneId: number, limit = 10) => {
         const params = new URLSearchParams({ limit: limit.toString() });
-        const response = await fetch(`/api/v1/videos/${videoId}/history?${params}`, {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/history?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
@@ -220,9 +220,9 @@ export const useApiVideos = () => {
         return handleResponse(response);
     };
 
-    const fetchRelatedVideos = async (videoId: number, limit = 12) => {
+    const fetchRelatedScenes = async (sceneId: number, limit = 12) => {
         const params = new URLSearchParams({ limit: limit.toString() });
-        const response = await fetch(`/api/v1/videos/${videoId}/related?${params}`, {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/related?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
@@ -230,26 +230,26 @@ export const useApiVideos = () => {
     };
 
     return {
-        uploadVideo,
-        fetchVideos,
-        searchVideos,
+        uploadScene,
+        fetchScenes,
+        searchScenes,
         fetchFilterOptions,
-        fetchVideo,
-        updateVideoDetails,
+        fetchScene,
+        updateSceneDetails,
         extractThumbnail,
         uploadThumbnail,
-        fetchVideoInteractions,
-        fetchVideoRating,
-        setVideoRating,
-        deleteVideoRating,
-        fetchVideoLike,
-        toggleVideoLike,
+        fetchSceneInteractions,
+        fetchSceneRating,
+        setSceneRating,
+        deleteSceneRating,
+        fetchSceneLike,
+        toggleSceneLike,
         fetchJizzedCount,
         incrementJizzed,
         recordWatch,
         getResumePosition,
-        getVideoWatchHistory,
+        getSceneWatchHistory,
         getUserWatchHistory,
-        fetchRelatedVideos,
+        fetchRelatedScenes,
     };
 };

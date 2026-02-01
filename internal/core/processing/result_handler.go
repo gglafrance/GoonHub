@@ -10,21 +10,21 @@ import (
 
 // ResultHandler processes job results from worker pools
 type ResultHandler struct {
-	repo         data.VideoRepository
+	repo         data.SceneRepository
 	eventBus     EventPublisher
 	jobHistory   JobHistoryRecorder
 	phaseTracker *PhaseTracker
 	poolManager  *PoolManager
-	indexer      VideoIndexer
+	indexer      SceneIndexer
 	logger       *zap.Logger
 
 	// onPhaseComplete is called when a phase completes to submit follow-up phases
-	onPhaseComplete func(videoID uint, phase string) error
+	onPhaseComplete func(sceneID uint, phase string) error
 }
 
 // NewResultHandler creates a new ResultHandler
 func NewResultHandler(
-	repo data.VideoRepository,
+	repo data.SceneRepository,
 	eventBus EventPublisher,
 	jobHistory JobHistoryRecorder,
 	phaseTracker *PhaseTracker,
@@ -41,13 +41,13 @@ func NewResultHandler(
 	}
 }
 
-// SetIndexer sets the video indexer for search index updates
-func (rh *ResultHandler) SetIndexer(indexer VideoIndexer) {
+// SetIndexer sets the scene indexer for search index updates
+func (rh *ResultHandler) SetIndexer(indexer SceneIndexer) {
 	rh.indexer = indexer
 }
 
 // SetOnPhaseComplete sets the callback for phase completion
-func (rh *ResultHandler) SetOnPhaseComplete(fn func(videoID uint, phase string) error) {
+func (rh *ResultHandler) SetOnPhaseComplete(fn func(sceneID uint, phase string) error) {
 	rh.onPhaseComplete = fn
 }
 
@@ -71,7 +71,7 @@ func (rh *ResultHandler) handleCompleted(result jobs.JobResult) {
 	rh.logger.Info("Job phase completed",
 		zap.String("job_id", result.JobID),
 		zap.String("phase", result.Phase),
-		zap.Uint("video_id", result.VideoID),
+		zap.Uint("scene_id", result.SceneID),
 	)
 
 	if rh.jobHistory != nil {
@@ -91,31 +91,31 @@ func (rh *ResultHandler) handleCompleted(result jobs.JobResult) {
 func (rh *ResultHandler) onMetadataComplete(result jobs.JobResult) {
 	metadataJob, ok := result.Data.(*jobs.MetadataJob)
 	if !ok {
-		rh.logger.Error("Invalid metadata job result data", zap.Uint("video_id", result.VideoID))
+		rh.logger.Error("Invalid metadata job result data", zap.Uint("scene_id", result.SceneID))
 		return
 	}
 
 	meta := metadataJob.GetResult()
 	if meta == nil {
-		rh.logger.Error("Metadata result is nil", zap.Uint("video_id", result.VideoID))
+		rh.logger.Error("Metadata result is nil", zap.Uint("scene_id", result.SceneID))
 		return
 	}
 
-	// Re-index video after metadata extraction (duration/resolution now available)
+	// Re-index scene after metadata extraction (duration/resolution now available)
 	if rh.indexer != nil {
-		if video, err := rh.repo.GetByID(result.VideoID); err == nil {
-			if err := rh.indexer.UpdateVideoIndex(video); err != nil {
-				rh.logger.Warn("Failed to update video in search index after metadata",
-					zap.Uint("video_id", result.VideoID),
+		if scene, err := rh.repo.GetByID(result.SceneID); err == nil {
+			if err := rh.indexer.UpdateSceneIndex(scene); err != nil {
+				rh.logger.Warn("Failed to update scene in search index after metadata",
+					zap.Uint("scene_id", result.SceneID),
 					zap.Error(err),
 				)
 			}
 		}
 	}
 
-	rh.eventBus.Publish(VideoEvent{
-		Type:    "video:metadata_complete",
-		VideoID: result.VideoID,
+	rh.eventBus.Publish(SceneEvent{
+		Type:    "scene:metadata_complete",
+		SceneID: result.SceneID,
 		Data: map[string]any{
 			"duration": meta.Duration,
 			"width":    meta.Width,
@@ -129,17 +129,17 @@ func (rh *ResultHandler) onMetadataComplete(result jobs.JobResult) {
 	// If no triggers configured, nothing follows metadata automatically
 	if len(phasesToTrigger) == 0 {
 		rh.logger.Info("No phases configured to trigger after metadata",
-			zap.Uint("video_id", result.VideoID),
+			zap.Uint("scene_id", result.SceneID),
 		)
-		rh.checkAndMarkComplete(result.VideoID, "metadata")
+		rh.checkAndMarkComplete(result.SceneID, "metadata")
 		return
 	}
 
-	// Initialize phase tracking for this video
-	rh.phaseTracker.InitPhaseState(result.VideoID)
+	// Initialize phase tracking for this scene
+	rh.phaseTracker.InitPhaseState(result.SceneID)
 
-	// Retrieve the video path from the metadata job
-	videoPath := metadataJob.GetVideoPath()
+	// Retrieve the scene path from the metadata job
+	scenePath := metadataJob.GetScenePath()
 
 	// Read runtime quality config
 	qualityConfig := rh.poolManager.GetQualityConfig()
@@ -161,13 +161,13 @@ func (rh *ResultHandler) onMetadataComplete(result jobs.JobResult) {
 
 	if submitThumbnail {
 		rh.logger.Info("Creating thumbnail job from metadata result",
-			zap.Uint("result_video_id", result.VideoID),
-			zap.Uint("metadata_job_video_id", metadataJob.GetVideoID()),
-			zap.String("video_path", videoPath),
+			zap.Uint("result_scene_id", result.SceneID),
+			zap.Uint("metadata_job_scene_id", metadataJob.GetSceneID()),
+			zap.String("scene_path", scenePath),
 		)
 		thumbnailJob = jobs.NewThumbnailJob(
-			result.VideoID,
-			videoPath,
+			result.SceneID,
+			scenePath,
 			cfg.ThumbnailDir,
 			meta.TileWidth,
 			meta.TileHeight,
@@ -184,15 +184,15 @@ func (rh *ResultHandler) onMetadataComplete(result jobs.JobResult) {
 		if thumbnailErr != nil {
 			if jobs.IsDuplicateJobError(thumbnailErr) {
 				rh.logger.Info("Duplicate thumbnail job skipped",
-					zap.Uint("video_id", result.VideoID),
+					zap.Uint("scene_id", result.SceneID),
 				)
 				thumbnailJob = nil
 			} else {
 				rh.logger.Error("Failed to submit thumbnail job",
-					zap.Uint("video_id", result.VideoID),
+					zap.Uint("scene_id", result.SceneID),
 					zap.Error(thumbnailErr),
 				)
-				rh.repo.UpdateProcessingStatus(result.VideoID, "failed", "failed to submit thumbnail job")
+				rh.repo.UpdateProcessingStatus(result.SceneID, "failed", "failed to submit thumbnail job")
 				return
 			}
 		}
@@ -200,8 +200,8 @@ func (rh *ResultHandler) onMetadataComplete(result jobs.JobResult) {
 
 	if submitSprites {
 		spritesJob = jobs.NewSpritesJob(
-			result.VideoID,
-			videoPath,
+			result.SceneID,
+			scenePath,
 			cfg.SpriteDir,
 			cfg.VttDir,
 			meta.TileWidth,
@@ -220,35 +220,35 @@ func (rh *ResultHandler) onMetadataComplete(result jobs.JobResult) {
 		if spritesErr != nil {
 			if jobs.IsDuplicateJobError(spritesErr) {
 				rh.logger.Info("Duplicate sprites job skipped",
-					zap.Uint("video_id", result.VideoID),
+					zap.Uint("scene_id", result.SceneID),
 				)
 				spritesJob = nil
 			} else {
 				rh.logger.Error("Failed to submit sprites job",
-					zap.Uint("video_id", result.VideoID),
+					zap.Uint("scene_id", result.SceneID),
 					zap.Error(spritesErr),
 				)
-				rh.repo.UpdateProcessingStatus(result.VideoID, "failed", "failed to submit sprites job")
+				rh.repo.UpdateProcessingStatus(result.SceneID, "failed", "failed to submit sprites job")
 				return
 			}
 		}
 	}
 
 	if rh.jobHistory != nil {
-		videoTitle := ""
-		if v, err := rh.repo.GetByID(result.VideoID); err == nil {
-			videoTitle = v.Title
+		sceneTitle := ""
+		if s, err := rh.repo.GetByID(result.SceneID); err == nil {
+			sceneTitle = s.Title
 		}
 		if thumbnailJob != nil {
-			rh.jobHistory.RecordJobStart(thumbnailJob.GetID(), result.VideoID, videoTitle, "thumbnail")
+			rh.jobHistory.RecordJobStart(thumbnailJob.GetID(), result.SceneID, sceneTitle, "thumbnail")
 		}
 		if spritesJob != nil {
-			rh.jobHistory.RecordJobStart(spritesJob.GetID(), result.VideoID, videoTitle, "sprites")
+			rh.jobHistory.RecordJobStart(spritesJob.GetID(), result.SceneID, sceneTitle, "sprites")
 		}
 	}
 
 	rh.logger.Info("Submitted trigger-based jobs after metadata",
-		zap.Uint("video_id", result.VideoID),
+		zap.Uint("scene_id", result.SceneID),
 		zap.Bool("thumbnail", submitThumbnail),
 		zap.Bool("sprites", submitSprites),
 	)
@@ -259,9 +259,9 @@ func (rh *ResultHandler) onThumbnailComplete(result jobs.JobResult) {
 	if ok {
 		thumbResult := thumbnailJob.GetResult()
 		if thumbResult != nil {
-			rh.eventBus.Publish(VideoEvent{
-				Type:    "video:thumbnail_complete",
-				VideoID: result.VideoID,
+			rh.eventBus.Publish(SceneEvent{
+				Type:    "scene:thumbnail_complete",
+				SceneID: result.SceneID,
 				Data: map[string]any{
 					"thumbnail_path": thumbResult.ThumbnailPath,
 				},
@@ -272,9 +272,9 @@ func (rh *ResultHandler) onThumbnailComplete(result jobs.JobResult) {
 	// Trigger any phases configured to run after thumbnail
 	for _, phase := range rh.phaseTracker.GetPhasesTriggeredAfter("thumbnail") {
 		if rh.onPhaseComplete != nil {
-			if err := rh.onPhaseComplete(result.VideoID, phase); err != nil {
+			if err := rh.onPhaseComplete(result.SceneID, phase); err != nil {
 				rh.logger.Error("Failed to submit phase after thumbnail",
-					zap.Uint("video_id", result.VideoID),
+					zap.Uint("scene_id", result.SceneID),
 					zap.String("phase", phase),
 					zap.Error(err),
 				)
@@ -282,8 +282,8 @@ func (rh *ResultHandler) onThumbnailComplete(result jobs.JobResult) {
 		}
 	}
 
-	rh.phaseTracker.MarkPhaseComplete(result.VideoID, "thumbnail")
-	rh.checkAndMarkComplete(result.VideoID, "thumbnail")
+	rh.phaseTracker.MarkPhaseComplete(result.SceneID, "thumbnail")
+	rh.checkAndMarkComplete(result.SceneID, "thumbnail")
 }
 
 func (rh *ResultHandler) onSpritesComplete(result jobs.JobResult) {
@@ -291,9 +291,9 @@ func (rh *ResultHandler) onSpritesComplete(result jobs.JobResult) {
 	if ok {
 		spritesResult := spritesJob.GetResult()
 		if spritesResult != nil {
-			rh.eventBus.Publish(VideoEvent{
-				Type:    "video:sprites_complete",
-				VideoID: result.VideoID,
+			rh.eventBus.Publish(SceneEvent{
+				Type:    "scene:sprites_complete",
+				SceneID: result.SceneID,
 				Data: map[string]any{
 					"vtt_path":          spritesResult.VttPath,
 					"sprite_sheet_path": spritesResult.SpriteSheetPath,
@@ -305,9 +305,9 @@ func (rh *ResultHandler) onSpritesComplete(result jobs.JobResult) {
 	// Trigger any phases configured to run after sprites
 	for _, phase := range rh.phaseTracker.GetPhasesTriggeredAfter("sprites") {
 		if rh.onPhaseComplete != nil {
-			if err := rh.onPhaseComplete(result.VideoID, phase); err != nil {
+			if err := rh.onPhaseComplete(result.SceneID, phase); err != nil {
 				rh.logger.Error("Failed to submit phase after sprites",
-					zap.Uint("video_id", result.VideoID),
+					zap.Uint("scene_id", result.SceneID),
 					zap.String("phase", phase),
 					zap.Error(err),
 				)
@@ -315,27 +315,27 @@ func (rh *ResultHandler) onSpritesComplete(result jobs.JobResult) {
 		}
 	}
 
-	rh.phaseTracker.MarkPhaseComplete(result.VideoID, "sprites")
-	rh.checkAndMarkComplete(result.VideoID, "sprites")
+	rh.phaseTracker.MarkPhaseComplete(result.SceneID, "sprites")
+	rh.checkAndMarkComplete(result.SceneID, "sprites")
 }
 
-func (rh *ResultHandler) checkAndMarkComplete(videoID uint, completedPhase string) {
-	if rh.phaseTracker.CheckAllPhasesComplete(videoID, completedPhase) {
-		if err := rh.repo.UpdateProcessingStatus(videoID, "completed", ""); err != nil {
+func (rh *ResultHandler) checkAndMarkComplete(sceneID uint, completedPhase string) {
+	if rh.phaseTracker.CheckAllPhasesComplete(sceneID, completedPhase) {
+		if err := rh.repo.UpdateProcessingStatus(sceneID, "completed", ""); err != nil {
 			rh.logger.Error("Failed to update processing status to completed",
-				zap.Uint("video_id", videoID),
+				zap.Uint("scene_id", sceneID),
 				zap.Error(err),
 			)
 			return
 		}
 
-		rh.eventBus.Publish(VideoEvent{
-			Type:    "video:completed",
-			VideoID: videoID,
+		rh.eventBus.Publish(SceneEvent{
+			Type:    "scene:completed",
+			SceneID: sceneID,
 		})
 
-		rh.logger.Info("All processing phases completed for video",
-			zap.Uint("video_id", videoID),
+		rh.logger.Info("All processing phases completed for scene",
+			zap.Uint("scene_id", sceneID),
 		)
 	}
 }
@@ -344,19 +344,19 @@ func (rh *ResultHandler) handleFailed(result jobs.JobResult) {
 	rh.logger.Error("Job phase failed",
 		zap.String("job_id", result.JobID),
 		zap.String("phase", result.Phase),
-		zap.Uint("video_id", result.VideoID),
+		zap.Uint("scene_id", result.SceneID),
 		zap.Error(result.Error),
 	)
 
 	if rh.jobHistory != nil && result.Error != nil {
-		rh.jobHistory.RecordJobFailedWithRetry(result.JobID, result.VideoID, result.Phase, result.Error)
+		rh.jobHistory.RecordJobFailedWithRetry(result.JobID, result.SceneID, result.Phase, result.Error)
 	}
 
-	rh.phaseTracker.ClearPhaseState(result.VideoID)
+	rh.phaseTracker.ClearPhaseState(result.SceneID)
 
-	rh.eventBus.Publish(VideoEvent{
-		Type:    "video:failed",
-		VideoID: result.VideoID,
+	rh.eventBus.Publish(SceneEvent{
+		Type:    "scene:failed",
+		SceneID: result.SceneID,
 		Data: map[string]any{
 			"error": result.Error.Error(),
 			"phase": result.Phase,
@@ -368,18 +368,18 @@ func (rh *ResultHandler) handleCancelled(result jobs.JobResult) {
 	rh.logger.Warn("Job cancelled",
 		zap.String("job_id", result.JobID),
 		zap.String("phase", result.Phase),
-		zap.Uint("video_id", result.VideoID),
+		zap.Uint("scene_id", result.SceneID),
 	)
 
 	if rh.jobHistory != nil {
 		rh.jobHistory.RecordJobCancelled(result.JobID)
 	}
 
-	rh.phaseTracker.ClearPhaseState(result.VideoID)
+	rh.phaseTracker.ClearPhaseState(result.SceneID)
 
-	rh.eventBus.Publish(VideoEvent{
-		Type:    "video:cancelled",
-		VideoID: result.VideoID,
+	rh.eventBus.Publish(SceneEvent{
+		Type:    "scene:cancelled",
+		SceneID: result.SceneID,
 		Data: map[string]any{
 			"phase": result.Phase,
 		},
@@ -390,19 +390,19 @@ func (rh *ResultHandler) handleTimedOut(result jobs.JobResult) {
 	rh.logger.Error("Job timed out",
 		zap.String("job_id", result.JobID),
 		zap.String("phase", result.Phase),
-		zap.Uint("video_id", result.VideoID),
+		zap.Uint("scene_id", result.SceneID),
 	)
 
 	if rh.jobHistory != nil {
 		timeoutErr := fmt.Errorf("job timed out")
-		rh.jobHistory.RecordJobFailedWithRetry(result.JobID, result.VideoID, result.Phase, timeoutErr)
+		rh.jobHistory.RecordJobFailedWithRetry(result.JobID, result.SceneID, result.Phase, timeoutErr)
 	}
 
-	rh.phaseTracker.ClearPhaseState(result.VideoID)
+	rh.phaseTracker.ClearPhaseState(result.SceneID)
 
-	rh.eventBus.Publish(VideoEvent{
-		Type:    "video:timed_out",
-		VideoID: result.VideoID,
+	rh.eventBus.Publish(SceneEvent{
+		Type:    "scene:timed_out",
+		SceneID: result.SceneID,
 		Data: map[string]any{
 			"phase": result.Phase,
 		},

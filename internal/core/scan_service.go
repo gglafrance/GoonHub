@@ -20,15 +20,15 @@ type ScanStatus struct {
 	CurrentScan  *data.ScanHistory `json:"current_scan,omitempty"`
 }
 
-// ScanService handles scanning storage paths for new video files
+// ScanService handles scanning storage paths for new scene files
 type ScanService struct {
 	storagePathService  *StoragePathService
-	videoRepo           data.VideoRepository
+	sceneRepo           data.SceneRepository
 	scanHistoryRepo     data.ScanHistoryRepository
-	processingService   *VideoProcessingService
+	processingService   *SceneProcessingService
 	eventBus            *EventBus
 	logger              *zap.Logger
-	indexer             VideoIndexer
+	indexer             SceneIndexer
 
 	mu          sync.Mutex
 	currentScan *data.ScanHistory
@@ -38,15 +38,15 @@ type ScanService struct {
 // NewScanService creates a new scan service
 func NewScanService(
 	storagePathService *StoragePathService,
-	videoRepo data.VideoRepository,
+	sceneRepo data.SceneRepository,
 	scanHistoryRepo data.ScanHistoryRepository,
-	processingService *VideoProcessingService,
+	processingService *SceneProcessingService,
 	eventBus *EventBus,
 	logger *zap.Logger,
 ) *ScanService {
 	return &ScanService{
 		storagePathService: storagePathService,
-		videoRepo:          videoRepo,
+		sceneRepo:          sceneRepo,
 		scanHistoryRepo:    scanHistoryRepo,
 		processingService:  processingService,
 		eventBus:           eventBus,
@@ -54,8 +54,8 @@ func NewScanService(
 	}
 }
 
-// SetIndexer sets the video indexer for search index updates
-func (s *ScanService) SetIndexer(indexer VideoIndexer) {
+// SetIndexer sets the scene indexer for search index updates
+func (s *ScanService) SetIndexer(indexer SceneIndexer) {
 	s.indexer = indexer
 }
 
@@ -171,12 +171,12 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 		return
 	}
 
-	var filesFound, videosAdded, videosSkipped, videosRemoved, videosMoved, errors int
+	var filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, errors int
 	lastProgressUpdate := time.Now()
 	progressBatchSize := 100
 
-	// Phase 1: Detect missing files (videos whose source files no longer exist)
-	videosRemoved = s.detectMissingFiles(ctx, scan, paths)
+	// Phase 1: Detect missing files (scenes whose source files no longer exist)
+	scenesRemoved = s.detectMissingFiles(ctx, scan, paths)
 	if ctx.Err() != nil {
 		s.completeScan(scan, "cancelled", "")
 		return
@@ -191,7 +191,7 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 		}
 
 		// Update current path
-		s.updateScanProgress(scan, &storagePath.Path, nil, scan.PathsScanned, filesFound, videosAdded, videosSkipped, videosRemoved, videosMoved, errors)
+		s.updateScanProgress(scan, &storagePath.Path, nil, scan.PathsScanned, filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, errors)
 
 		err := filepath.WalkDir(storagePath.Path, func(path string, d os.DirEntry, walkErr error) error {
 			select {
@@ -221,12 +221,12 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 
 			filesFound++
 			currentFile := path
-			s.updateScanProgress(scan, &storagePath.Path, &currentFile, scan.PathsScanned, filesFound, videosAdded, videosSkipped, videosRemoved, videosMoved, errors)
+			s.updateScanProgress(scan, &storagePath.Path, &currentFile, scan.PathsScanned, filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, errors)
 
-			// Check if video already exists at this path
-			exists, err := s.videoRepo.ExistsByStoredPath(path)
+			// Check if scene already exists at this path
+			exists, err := s.sceneRepo.ExistsByStoredPath(path)
 			if err != nil {
-				s.logger.Warn("Error checking video existence",
+				s.logger.Warn("Error checking scene existence",
 					zap.String("path", path),
 					zap.Error(err),
 				)
@@ -235,7 +235,7 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 			}
 
 			if exists {
-				videosSkipped++
+				scenesSkipped++
 				return nil
 			}
 
@@ -251,7 +251,7 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 			}
 
 			filename := filepath.Base(path)
-			existingVideo, err := s.videoRepo.GetBySizeAndFilename(info.Size(), filename)
+			existingScene, err := s.sceneRepo.GetBySizeAndFilename(info.Size(), filename)
 			if err != nil {
 				s.logger.Warn("Error checking for moved file",
 					zap.String("path", path),
@@ -260,25 +260,25 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 				// Don't fail - continue with normal add flow
 			}
 
-			if existingVideo != nil {
-				// Check if video was soft-deleted (marked as missing) or if old path doesn't exist
-				wasSoftDeleted := existingVideo.DeletedAt.Valid
+			if existingScene != nil {
+				// Check if scene was soft-deleted (marked as missing) or if old path doesn't exist
+				wasSoftDeleted := existingScene.DeletedAt.Valid
 				oldPathMissing := false
 				if !wasSoftDeleted {
-					if _, statErr := os.Stat(existingVideo.StoredPath); os.IsNotExist(statErr) {
+					if _, statErr := os.Stat(existingScene.StoredPath); os.IsNotExist(statErr) {
 						oldPathMissing = true
 					}
 				}
 
-				// If the video was soft-deleted or its old path is missing, this is a moved/restored file
+				// If the scene was soft-deleted or its old path is missing, this is a moved/restored file
 				if wasSoftDeleted || oldPathMissing {
-					oldPath := existingVideo.StoredPath
+					oldPath := existingScene.StoredPath
 
-					// Restore soft-deleted video first
+					// Restore soft-deleted scene first
 					if wasSoftDeleted {
-						if err := s.videoRepo.Restore(existingVideo.ID); err != nil {
-							s.logger.Warn("Error restoring soft-deleted video",
-								zap.Uint("video_id", existingVideo.ID),
+						if err := s.sceneRepo.Restore(existingScene.ID); err != nil {
+							s.logger.Warn("Error restoring soft-deleted scene",
+								zap.Uint("scene_id", existingScene.ID),
 								zap.Error(err),
 							)
 							errors++
@@ -287,9 +287,9 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 					}
 
 					// Update the stored path
-					if err := s.videoRepo.UpdateStoredPath(existingVideo.ID, path, &storagePath.ID); err != nil {
-						s.logger.Warn("Error updating moved video path",
-							zap.Uint("video_id", existingVideo.ID),
+					if err := s.sceneRepo.UpdateStoredPath(existingScene.ID, path, &storagePath.ID); err != nil {
+						s.logger.Warn("Error updating moved scene path",
+							zap.Uint("scene_id", existingScene.ID),
 							zap.String("old_path", oldPath),
 							zap.String("new_path", path),
 							zap.Error(err),
@@ -298,43 +298,43 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 						return nil
 					}
 
-					// Re-index the video (it was removed from search when soft-deleted)
+					// Re-index the scene (it was removed from search when soft-deleted)
 					if s.indexer != nil {
-						existingVideo.StoredPath = path
-						existingVideo.StoragePathID = &storagePath.ID
-						existingVideo.DeletedAt.Valid = false // Clear for indexing
-						if err := s.indexer.IndexVideo(existingVideo); err != nil {
-							s.logger.Warn("Failed to re-index restored video",
-								zap.Uint("video_id", existingVideo.ID),
+						existingScene.StoredPath = path
+						existingScene.StoragePathID = &storagePath.ID
+						existingScene.DeletedAt.Valid = false // Clear for indexing
+						if err := s.indexer.IndexScene(existingScene); err != nil {
+							s.logger.Warn("Failed to re-index restored scene",
+								zap.Uint("scene_id", existingScene.ID),
 								zap.Error(err),
 							)
 						}
 					}
 
-					videosMoved++
-					s.logger.Info("Video file moved/restored detected",
-						zap.Uint("video_id", existingVideo.ID),
+					scenesMoved++
+					s.logger.Info("Scene file moved/restored detected",
+						zap.Uint("scene_id", existingScene.ID),
 						zap.String("old_path", oldPath),
 						zap.String("new_path", path),
 						zap.Bool("was_soft_deleted", wasSoftDeleted),
 					)
 
-					s.publishEvent("scan:video_moved", map[string]any{
-						"video_id": existingVideo.ID,
+					s.publishEvent("scan:scene_moved", map[string]any{
+						"scene_id": existingScene.ID,
 						"old_path": oldPath,
 						"new_path": path,
-						"title":    existingVideo.Title,
+						"title":    existingScene.Title,
 					})
 
 					return nil
 				}
-				// Old file still exists and video wasn't deleted - this is a copy, not a move. Create new record.
+				// Old file still exists and scene wasn't deleted - this is a copy, not a move. Create new record.
 			}
 
-			// Create new video record
-			video, err := s.createVideoFromPath(path, &storagePath)
+			// Create new scene record
+			scene, err := s.createSceneFromPath(path, &storagePath)
 			if err != nil {
-				s.logger.Warn("Error creating video from path",
+				s.logger.Warn("Error creating scene from path",
 					zap.String("path", path),
 					zap.Error(err),
 				)
@@ -342,26 +342,26 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 				return nil
 			}
 
-			videosAdded++
+			scenesAdded++
 
-			// Publish video added event
-			s.publishEvent("scan:video_added", map[string]any{
-				"video_id":   video.ID,
-				"video_path": path,
-				"title":      video.Title,
+			// Publish scene added event
+			s.publishEvent("scan:scene_added", map[string]any{
+				"scene_id":   scene.ID,
+				"scene_path": path,
+				"title":      scene.Title,
 			})
 
 			// Send batched progress updates
 			if filesFound%progressBatchSize == 0 || time.Since(lastProgressUpdate) > 2*time.Second {
 				s.publishEvent("scan:progress", map[string]any{
-					"files_found":     filesFound,
-					"videos_added":    videosAdded,
-					"videos_skipped":  videosSkipped,
-					"videos_removed":  videosRemoved,
-					"videos_moved":    videosMoved,
-					"errors":          errors,
-					"current_path":    storagePath.Path,
-					"current_file":    currentFile,
+					"files_found":    filesFound,
+					"scenes_added":   scenesAdded,
+					"scenes_skipped": scenesSkipped,
+					"scenes_removed": scenesRemoved,
+					"scenes_moved":   scenesMoved,
+					"errors":         errors,
+					"current_path":   storagePath.Path,
+					"current_file":   currentFile,
 				})
 				lastProgressUpdate = time.Now()
 			}
@@ -386,16 +386,16 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 
 	// Update final stats
 	scan.FilesFound = filesFound
-	scan.VideosAdded = videosAdded
-	scan.VideosSkipped = videosSkipped
-	scan.VideosRemoved = videosRemoved
-	scan.VideosMoved = videosMoved
+	scan.VideosAdded = scenesAdded
+	scan.VideosSkipped = scenesSkipped
+	scan.VideosRemoved = scenesRemoved
+	scan.VideosMoved = scenesMoved
 	scan.Errors = errors
 
 	s.completeScan(scan, "completed", "")
 }
 
-// detectMissingFiles checks all videos with storage paths and soft-deletes those whose files no longer exist
+// detectMissingFiles checks all scenes with storage paths and soft-deletes those whose files no longer exist
 func (s *ScanService) detectMissingFiles(ctx context.Context, scan *data.ScanHistory, storagePaths []data.StoragePath) int {
 	// Build a set of valid storage path prefixes
 	validPrefixes := make(map[uint]string)
@@ -403,38 +403,38 @@ func (s *ScanService) detectMissingFiles(ctx context.Context, scan *data.ScanHis
 		validPrefixes[sp.ID] = sp.Path
 	}
 
-	// Get all videos that have storage paths (excludes soft-deleted ones)
-	videos, err := s.videoRepo.GetAllWithStoragePath()
+	// Get all scenes that have storage paths (excludes soft-deleted ones)
+	scenes, err := s.sceneRepo.GetAllWithStoragePath()
 	if err != nil {
-		s.logger.Error("Failed to get videos for missing file detection", zap.Error(err))
+		s.logger.Error("Failed to get scenes for missing file detection", zap.Error(err))
 		return 0
 	}
 
-	var videosRemoved int
-	for _, video := range videos {
+	var scenesRemoved int
+	for _, scene := range scenes {
 		select {
 		case <-ctx.Done():
-			return videosRemoved
+			return scenesRemoved
 		default:
 		}
 
-		// Skip videos without storage path ID (shouldn't happen but defensive)
-		if video.StoragePathID == nil {
+		// Skip scenes without storage path ID (shouldn't happen but defensive)
+		if scene.StoragePathID == nil {
 			continue
 		}
 
-		// Skip videos not in our scanned storage paths
-		if _, ok := validPrefixes[*video.StoragePathID]; !ok {
+		// Skip scenes not in our scanned storage paths
+		if _, ok := validPrefixes[*scene.StoragePathID]; !ok {
 			continue
 		}
 
 		// Check if file exists
-		if _, err := os.Stat(video.StoredPath); os.IsNotExist(err) {
-			// File doesn't exist - soft-delete the video
-			if err := s.videoRepo.MarkAsMissing(video.ID); err != nil {
-				s.logger.Warn("Failed to soft-delete missing video",
-					zap.Uint("video_id", video.ID),
-					zap.String("stored_path", video.StoredPath),
+		if _, err := os.Stat(scene.StoredPath); os.IsNotExist(err) {
+			// File doesn't exist - soft-delete the scene
+			if err := s.sceneRepo.MarkAsMissing(scene.ID); err != nil {
+				s.logger.Warn("Failed to soft-delete missing scene",
+					zap.Uint("scene_id", scene.ID),
+					zap.String("stored_path", scene.StoredPath),
 					zap.Error(err),
 				)
 				continue
@@ -442,34 +442,34 @@ func (s *ScanService) detectMissingFiles(ctx context.Context, scan *data.ScanHis
 
 			// Remove from search index
 			if s.indexer != nil {
-				if err := s.indexer.DeleteVideoIndex(video.ID); err != nil {
-					s.logger.Warn("Failed to remove missing video from search index",
-						zap.Uint("video_id", video.ID),
+				if err := s.indexer.DeleteSceneIndex(scene.ID); err != nil {
+					s.logger.Warn("Failed to remove missing scene from search index",
+						zap.Uint("scene_id", scene.ID),
 						zap.Error(err),
 					)
 				}
 			}
 
-			videosRemoved++
-			s.logger.Info("Video file missing - soft deleted",
-				zap.Uint("video_id", video.ID),
-				zap.String("stored_path", video.StoredPath),
-				zap.String("title", video.Title),
+			scenesRemoved++
+			s.logger.Info("Scene file missing - soft deleted",
+				zap.Uint("scene_id", scene.ID),
+				zap.String("stored_path", scene.StoredPath),
+				zap.String("title", scene.Title),
 			)
 
-			s.publishEvent("scan:video_removed", map[string]any{
-				"video_id":   video.ID,
-				"video_path": video.StoredPath,
-				"title":      video.Title,
+			s.publishEvent("scan:scene_removed", map[string]any{
+				"scene_id":   scene.ID,
+				"scene_path": scene.StoredPath,
+				"title":      scene.Title,
 			})
 		}
 	}
 
-	return videosRemoved
+	return scenesRemoved
 }
 
-// createVideoFromPath creates a video record from a file path
-func (s *ScanService) createVideoFromPath(path string, storagePath *data.StoragePath) (*data.Video, error) {
+// createSceneFromPath creates a scene record from a file path
+func (s *ScanService) createSceneFromPath(path string, storagePath *data.StoragePath) (*data.Scene, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat file: %w", err)
@@ -478,7 +478,7 @@ func (s *ScanService) createVideoFromPath(path string, storagePath *data.Storage
 	filename := filepath.Base(path)
 	title := strings.TrimSuffix(filename, filepath.Ext(filename))
 
-	video := &data.Video{
+	scene := &data.Scene{
 		Title:            title,
 		OriginalFilename: filename,
 		StoredPath:       path,
@@ -490,23 +490,23 @@ func (s *ScanService) createVideoFromPath(path string, storagePath *data.Storage
 	}
 
 	modTime := info.ModTime()
-	video.FileCreatedAt = &modTime
+	scene.FileCreatedAt = &modTime
 
-	if err := s.videoRepo.Create(video); err != nil {
-		return nil, fmt.Errorf("failed to create video record: %w", err)
+	if err := s.sceneRepo.Create(scene); err != nil {
+		return nil, fmt.Errorf("failed to create scene record: %w", err)
 	}
 
-	s.logger.Info("Video record created",
-		zap.Uint("video_id", video.ID),
-		zap.String("stored_path", video.StoredPath),
-		zap.String("title", video.Title),
+	s.logger.Info("Scene record created",
+		zap.Uint("scene_id", scene.ID),
+		zap.String("stored_path", scene.StoredPath),
+		zap.String("title", scene.Title),
 	)
 
-	// Index video in search engine
+	// Index scene in search engine
 	if s.indexer != nil {
-		if err := s.indexer.IndexVideo(video); err != nil {
-			s.logger.Warn("Failed to index video for search",
-				zap.Uint("video_id", video.ID),
+		if err := s.indexer.IndexScene(scene); err != nil {
+			s.logger.Warn("Failed to index scene for search",
+				zap.Uint("scene_id", scene.ID),
 				zap.Error(err),
 			)
 		}
@@ -515,20 +515,20 @@ func (s *ScanService) createVideoFromPath(path string, storagePath *data.Storage
 	// Submit for processing synchronously - this is just a queue operation,
 	// not the actual processing work, so it's safe to block briefly
 	if s.processingService != nil {
-		if err := s.processingService.SubmitVideo(video.ID, path); err != nil {
-			s.logger.Warn("Failed to submit video for processing",
-				zap.Uint("video_id", video.ID),
+		if err := s.processingService.SubmitScene(scene.ID, path); err != nil {
+			s.logger.Warn("Failed to submit scene for processing",
+				zap.Uint("scene_id", scene.ID),
 				zap.Error(err),
 			)
-			// Don't fail the scan - video is saved but processing won't start automatically
+			// Don't fail the scan - scene is saved but processing won't start automatically
 		}
 	}
 
-	return video, nil
+	return scene, nil
 }
 
 // updateScanProgress updates the scan progress in the database
-func (s *ScanService) updateScanProgress(scan *data.ScanHistory, currentPath, currentFile *string, pathsScanned, filesFound, videosAdded, videosSkipped, videosRemoved, videosMoved, errors int) {
+func (s *ScanService) updateScanProgress(scan *data.ScanHistory, currentPath, currentFile *string, pathsScanned, filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, errors int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -536,10 +536,10 @@ func (s *ScanService) updateScanProgress(scan *data.ScanHistory, currentPath, cu
 	scan.CurrentFile = currentFile
 	scan.PathsScanned = pathsScanned
 	scan.FilesFound = filesFound
-	scan.VideosAdded = videosAdded
-	scan.VideosSkipped = videosSkipped
-	scan.VideosRemoved = videosRemoved
-	scan.VideosMoved = videosMoved
+	scan.VideosAdded = scenesAdded
+	scan.VideosSkipped = scenesSkipped
+	scan.VideosRemoved = scenesRemoved
+	scan.VideosMoved = scenesMoved
 	scan.Errors = errors
 
 	if err := s.scanHistoryRepo.Update(scan); err != nil {
@@ -580,10 +580,10 @@ func (s *ScanService) completeScan(scan *data.ScanHistory, status string, errorM
 		zap.Uint("scan_id", scan.ID),
 		zap.String("status", status),
 		zap.Int("files_found", scan.FilesFound),
-		zap.Int("videos_added", scan.VideosAdded),
-		zap.Int("videos_skipped", scan.VideosSkipped),
-		zap.Int("videos_removed", scan.VideosRemoved),
-		zap.Int("videos_moved", scan.VideosMoved),
+		zap.Int("scenes_added", scan.VideosAdded),
+		zap.Int("scenes_skipped", scan.VideosSkipped),
+		zap.Int("scenes_removed", scan.VideosRemoved),
+		zap.Int("scenes_moved", scan.VideosMoved),
 		zap.Int("errors", scan.Errors),
 	)
 }
@@ -594,9 +594,9 @@ func (s *ScanService) publishEvent(eventType string, data any) {
 		return
 	}
 
-	s.eventBus.Publish(VideoEvent{
+	s.eventBus.Publish(SceneEvent{
 		Type:    eventType,
-		VideoID: 0, // Scan events are not video-specific
+		SceneID: 0, // Scan events are not scene-specific
 		Data:    data,
 	})
 }

@@ -40,6 +40,52 @@ func (m *MockExplorerRepository) EXPECT() *MockExplorerRepositoryMockRecorder {
 	return m.recorder
 }
 
+// GetSceneCountByStoragePath mocks base method.
+func (m *MockExplorerRepository) GetSceneCountByStoragePath(storagePathID uint) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSceneCountByStoragePath", storagePathID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSceneCountByStoragePath indicates an expected call of GetSceneCountByStoragePath.
+func (mr *MockExplorerRepositoryMockRecorder) GetSceneCountByStoragePath(storagePathID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSceneCountByStoragePath", reflect.TypeOf((*MockExplorerRepository)(nil).GetSceneCountByStoragePath), storagePathID)
+}
+
+// GetSceneIDsByFolder mocks base method.
+func (m *MockExplorerRepository) GetSceneIDsByFolder(storagePathID uint, folderPath string, recursive bool) ([]uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSceneIDsByFolder", storagePathID, folderPath, recursive)
+	ret0, _ := ret[0].([]uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSceneIDsByFolder indicates an expected call of GetSceneIDsByFolder.
+func (mr *MockExplorerRepositoryMockRecorder) GetSceneIDsByFolder(storagePathID, folderPath, recursive any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSceneIDsByFolder", reflect.TypeOf((*MockExplorerRepository)(nil).GetSceneIDsByFolder), storagePathID, folderPath, recursive)
+}
+
+// GetScenesByFolder mocks base method.
+func (m *MockExplorerRepository) GetScenesByFolder(storagePathID uint, folderPath string, page, limit int) ([]data.Scene, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetScenesByFolder", storagePathID, folderPath, page, limit)
+	ret0, _ := ret[0].([]data.Scene)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetScenesByFolder indicates an expected call of GetScenesByFolder.
+func (mr *MockExplorerRepositoryMockRecorder) GetScenesByFolder(storagePathID, folderPath, page, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetScenesByFolder", reflect.TypeOf((*MockExplorerRepository)(nil).GetScenesByFolder), storagePathID, folderPath, page, limit)
+}
+
 // GetStoragePathsWithCounts mocks base method.
 func (m *MockExplorerRepository) GetStoragePathsWithCounts() ([]data.StoragePathWithCount, error) {
 	m.ctrl.T.Helper()
@@ -68,50 +114,4 @@ func (m *MockExplorerRepository) GetSubfolders(storagePathID uint, parentPath st
 func (mr *MockExplorerRepositoryMockRecorder) GetSubfolders(storagePathID, parentPath any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSubfolders", reflect.TypeOf((*MockExplorerRepository)(nil).GetSubfolders), storagePathID, parentPath)
-}
-
-// GetVideoCountByStoragePath mocks base method.
-func (m *MockExplorerRepository) GetVideoCountByStoragePath(storagePathID uint) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVideoCountByStoragePath", storagePathID)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetVideoCountByStoragePath indicates an expected call of GetVideoCountByStoragePath.
-func (mr *MockExplorerRepositoryMockRecorder) GetVideoCountByStoragePath(storagePathID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideoCountByStoragePath", reflect.TypeOf((*MockExplorerRepository)(nil).GetVideoCountByStoragePath), storagePathID)
-}
-
-// GetVideoIDsByFolder mocks base method.
-func (m *MockExplorerRepository) GetVideoIDsByFolder(storagePathID uint, folderPath string, recursive bool) ([]uint, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVideoIDsByFolder", storagePathID, folderPath, recursive)
-	ret0, _ := ret[0].([]uint)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetVideoIDsByFolder indicates an expected call of GetVideoIDsByFolder.
-func (mr *MockExplorerRepositoryMockRecorder) GetVideoIDsByFolder(storagePathID, folderPath, recursive any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideoIDsByFolder", reflect.TypeOf((*MockExplorerRepository)(nil).GetVideoIDsByFolder), storagePathID, folderPath, recursive)
-}
-
-// GetVideosByFolder mocks base method.
-func (m *MockExplorerRepository) GetVideosByFolder(storagePathID uint, folderPath string, page, limit int) ([]data.Video, int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVideosByFolder", storagePathID, folderPath, page, limit)
-	ret0, _ := ret[0].([]data.Video)
-	ret1, _ := ret[1].(int64)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// GetVideosByFolder indicates an expected call of GetVideosByFolder.
-func (mr *MockExplorerRepositoryMockRecorder) GetVideosByFolder(storagePathID, folderPath, page, limit any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideosByFolder", reflect.TypeOf((*MockExplorerRepository)(nil).GetVideosByFolder), storagePathID, folderPath, page, limit)
 }

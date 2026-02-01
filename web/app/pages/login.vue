@@ -6,8 +6,8 @@ useHead({ title: 'Login' });
 useSeoMeta({
     title: 'Login',
     ogTitle: 'Login - GoonHub',
-    description: 'Sign in to access your video library',
-    ogDescription: 'Sign in to access your video library',
+    description: 'Sign in to access your scene library',
+    ogDescription: 'Sign in to access your scene library',
 });
 
 const username = ref('');

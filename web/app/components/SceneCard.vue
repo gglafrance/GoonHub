@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { VideoListItem } from '~/types/video';
+import type { SceneListItem } from '~/types/scene';
 import type { WatchProgress } from '~/types/homepage';
 
 const props = defineProps<{
-    video: VideoListItem;
+    scene: SceneListItem;
     progress?: WatchProgress;
     fluid?: boolean;
     completed?: boolean;
@@ -18,12 +18,12 @@ const slots = defineSlots<{
 
 const { formatDuration, formatSize } = useFormatter();
 
-const isProcessing = computed(() => isVideoProcessing(props.video));
+const isProcessing = computed(() => isSceneProcessing(props.scene));
 
 const thumbnailUrl = computed(() => {
-    if (!props.video.thumbnail_path) return null;
-    const base = `/thumbnails/${props.video.id}`;
-    const v = props.video.updated_at ? new Date(props.video.updated_at).getTime() : '';
+    if (!props.scene.thumbnail_path) return null;
+    const base = `/thumbnails/${props.scene.id}`;
+    const v = props.scene.updated_at ? new Date(props.scene.updated_at).getTime() : '';
     return v ? `${base}?v=${v}` : base;
 });
 
@@ -37,7 +37,7 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
 
 <template>
     <NuxtLink
-        :to="`/watch/${video.id}`"
+        :to="`/watch/${scene.id}`"
         class="group border-border bg-surface hover:border-border-hover hover:bg-elevated relative
             block overflow-hidden rounded-lg border transition-all duration-200"
         :class="fluid ? 'w-full' : 'w-[320px]'"
@@ -59,7 +59,7 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                 :src="thumbnailUrl"
                 class="absolute inset-0 z-10 h-full w-full object-contain transition-transform
                     duration-300 group-hover:scale-[1.03]"
-                :alt="video.title"
+                :alt="scene.title"
                 loading="lazy"
             />
 
@@ -77,12 +77,12 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
 
             <!-- Duration badge -->
             <div
-                v-if="video.duration > 0"
+                v-if="scene.duration > 0"
                 class="bg-void/90 absolute right-1.5 z-20 rounded px-1.5 py-0.5 font-mono
                     text-[10px] font-medium text-white backdrop-blur-sm"
                 :class="hasProgress ? 'bottom-3' : 'bottom-1.5'"
             >
-                {{ formatDuration(video.duration) }}
+                {{ formatDuration(scene.duration) }}
             </div>
 
             <!-- Completed/Watched badge -->
@@ -124,14 +124,14 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
             <h3
                 class="truncate text-xs font-medium text-white/90 transition-colors
                     group-hover:text-white"
-                :title="video.title"
+                :title="scene.title"
             >
-                {{ video.title }}
+                {{ scene.title }}
             </h3>
             <div class="text-dim mt-1.5 flex items-center justify-between font-mono text-[10px]">
                 <slot name="footer">
-                    <span>{{ formatSize(video.size) }}</span>
-                    <NuxtTime :datetime="video.created_at" format="short" />
+                    <span>{{ formatSize(scene.size) }}</span>
+                    <NuxtTime :datetime="scene.created_at" format="short" />
                 </slot>
             </div>
         </div>

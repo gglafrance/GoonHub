@@ -6,8 +6,8 @@ useHead({ title: 'Actors' });
 useSeoMeta({
     title: 'Actors',
     ogTitle: 'Actors - GoonHub',
-    description: 'Browse actors in your video library',
-    ogDescription: 'Browse actors in your video library',
+    description: 'Browse actors in your scene library',
+    ogDescription: 'Browse actors in your scene library',
 });
 
 const api = useApi();
@@ -27,8 +27,8 @@ const showCreateModal = ref(false);
 const sortOptions = [
     { value: 'name_asc', label: 'Name A-Z' },
     { value: 'name_desc', label: 'Name Z-A' },
-    { value: 'video_count_desc', label: 'Most Videos' },
-    { value: 'video_count_asc', label: 'Least Videos' },
+    { value: 'scene_count_desc', label: 'Most Scenes' },
+    { value: 'scene_count_asc', label: 'Least Scenes' },
     { value: 'created_at_desc', label: 'Newest' },
     { value: 'created_at_asc', label: 'Oldest' },
 ];

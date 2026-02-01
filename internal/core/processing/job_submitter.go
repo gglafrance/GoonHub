@@ -11,7 +11,7 @@ import (
 
 // JobSubmitter handles job submission to worker pools
 type JobSubmitter struct {
-	repo         data.VideoRepository
+	repo         data.SceneRepository
 	poolManager  *PoolManager
 	phaseTracker *PhaseTracker
 	jobHistory   JobHistoryRecorder
@@ -20,7 +20,7 @@ type JobSubmitter struct {
 
 // NewJobSubmitter creates a new JobSubmitter
 func NewJobSubmitter(
-	repo data.VideoRepository,
+	repo data.SceneRepository,
 	poolManager *PoolManager,
 	phaseTracker *PhaseTracker,
 	jobHistory JobHistoryRecorder,
@@ -35,18 +35,18 @@ func NewJobSubmitter(
 	}
 }
 
-// SubmitVideo submits a new video for processing (metadata extraction)
-func (js *JobSubmitter) SubmitVideo(videoID uint, videoPath string) error {
-	js.logger.Info("Video submitted for processing",
-		zap.Uint("video_id", videoID),
-		zap.String("video_path", videoPath),
+// SubmitScene submits a new scene for processing (metadata extraction)
+func (js *JobSubmitter) SubmitScene(sceneID uint, scenePath string) error {
+	js.logger.Info("Scene submitted for processing",
+		zap.Uint("scene_id", sceneID),
+		zap.String("scene_path", scenePath),
 	)
 
 	// Check if metadata trigger is on_import
 	metaTrigger := js.phaseTracker.GetTriggerForPhase("metadata")
 	if metaTrigger != nil && metaTrigger.TriggerType != "on_import" {
 		js.logger.Info("Metadata trigger is not on_import, skipping auto-submit",
-			zap.Uint("video_id", videoID),
+			zap.Uint("scene_id", sceneID),
 			zap.String("trigger_type", metaTrigger.TriggerType),
 		)
 		return nil
@@ -55,8 +55,8 @@ func (js *JobSubmitter) SubmitVideo(videoID uint, videoPath string) error {
 	qualityConfig := js.poolManager.GetQualityConfig()
 
 	job := jobs.NewMetadataJob(
-		videoID,
-		videoPath,
+		sceneID,
+		scenePath,
 		qualityConfig.MaxFrameDimensionSm,
 		qualityConfig.MaxFrameDimensionLg,
 		js.repo,
@@ -67,41 +67,41 @@ func (js *JobSubmitter) SubmitVideo(videoID uint, videoPath string) error {
 	if err != nil {
 		if jobs.IsDuplicateJobError(err) {
 			js.logger.Info("Duplicate metadata job skipped",
-				zap.Uint("video_id", videoID),
+				zap.Uint("scene_id", sceneID),
 				zap.Error(err),
 			)
 			return nil
 		}
 		js.logger.Error("Failed to submit metadata job",
-			zap.Uint("video_id", videoID),
+			zap.Uint("scene_id", sceneID),
 			zap.Error(err),
 		)
 		return err
 	}
 
 	if js.jobHistory != nil {
-		videoTitle := ""
-		if v, err := js.repo.GetByID(videoID); err == nil {
-			videoTitle = v.Title
+		sceneTitle := ""
+		if s, err := js.repo.GetByID(sceneID); err == nil {
+			sceneTitle = s.Title
 		}
-		js.jobHistory.RecordJobStart(job.GetID(), videoID, videoTitle, "metadata")
+		js.jobHistory.RecordJobStart(job.GetID(), sceneID, sceneTitle, "metadata")
 	}
 
 	return nil
 }
 
-// SubmitPhase submits a specific phase for a video
-func (js *JobSubmitter) SubmitPhase(videoID uint, phase string) error {
-	return js.SubmitPhaseWithRetry(videoID, phase, 0, 0)
+// SubmitPhase submits a specific phase for a scene
+func (js *JobSubmitter) SubmitPhase(sceneID uint, phase string) error {
+	return js.SubmitPhaseWithRetry(sceneID, phase, 0, 0)
 }
 
 // SubmitPhaseWithRetry submits a phase for processing with retry tracking.
 // retryCount is the current retry attempt (0 for first attempt).
 // maxRetries is the maximum number of retries allowed (0 uses default from config).
-func (js *JobSubmitter) SubmitPhaseWithRetry(videoID uint, phase string, retryCount, maxRetries int) error {
-	video, err := js.repo.GetByID(videoID)
+func (js *JobSubmitter) SubmitPhaseWithRetry(sceneID uint, phase string, retryCount, maxRetries int) error {
+	scene, err := js.repo.GetByID(sceneID)
 	if err != nil {
-		return fmt.Errorf("failed to get video: %w", err)
+		return fmt.Errorf("failed to get scene: %w", err)
 	}
 
 	qualityConfig := js.poolManager.GetQualityConfig()
@@ -113,23 +113,23 @@ func (js *JobSubmitter) SubmitPhaseWithRetry(videoID uint, phase string, retryCo
 			return
 		}
 		if retryCount > 0 || maxRetries > 0 {
-			js.jobHistory.RecordJobStartWithRetry(jobID, videoID, video.Title, phase, maxRetries, retryCount)
+			js.jobHistory.RecordJobStartWithRetry(jobID, sceneID, scene.Title, phase, maxRetries, retryCount)
 		} else {
-			js.jobHistory.RecordJobStart(jobID, videoID, video.Title, phase)
+			js.jobHistory.RecordJobStart(jobID, sceneID, scene.Title, phase)
 		}
 	}
 
 	switch phase {
 	case "metadata":
 		job := jobs.NewMetadataJob(
-			videoID, video.StoredPath,
+			sceneID, scene.StoredPath,
 			qualityConfig.MaxFrameDimensionSm, qualityConfig.MaxFrameDimensionLg,
 			js.repo, js.logger,
 		)
 		err = js.poolManager.SubmitToMetadataPool(job)
 		if err != nil {
 			if jobs.IsDuplicateJobError(err) {
-				js.logger.Info("Duplicate metadata job skipped", zap.Uint("video_id", videoID))
+				js.logger.Info("Duplicate metadata job skipped", zap.Uint("scene_id", sceneID))
 				return nil
 			}
 			return fmt.Errorf("failed to submit metadata job: %w", err)
@@ -137,27 +137,27 @@ func (js *JobSubmitter) SubmitPhaseWithRetry(videoID uint, phase string, retryCo
 		recordJobStart(job.GetID(), "metadata")
 
 	case "thumbnail":
-		if video.Duration == 0 {
+		if scene.Duration == 0 {
 			return fmt.Errorf("metadata must be extracted before thumbnail generation")
 		}
 		js.logger.Info("SubmitPhase: Creating thumbnail job",
-			zap.Uint("video_id", videoID),
-			zap.Uint("video_db_id", video.ID),
-			zap.String("video_stored_path", video.StoredPath),
-			zap.String("video_title", video.Title),
+			zap.Uint("scene_id", sceneID),
+			zap.Uint("scene_db_id", scene.ID),
+			zap.String("scene_stored_path", scene.StoredPath),
+			zap.String("scene_title", scene.Title),
 		)
-		tileWidthLg, tileHeightLg := ffmpeg.CalculateTileDimensions(video.Width, video.Height, cfg.MaxFrameDimensionLarge)
+		tileWidthLg, tileHeightLg := ffmpeg.CalculateTileDimensions(scene.Width, scene.Height, cfg.MaxFrameDimensionLarge)
 		thumbnailJob := jobs.NewThumbnailJob(
-			videoID, video.StoredPath, cfg.ThumbnailDir,
-			video.ThumbnailWidth, video.ThumbnailHeight,
+			sceneID, scene.StoredPath, cfg.ThumbnailDir,
+			scene.ThumbnailWidth, scene.ThumbnailHeight,
 			tileWidthLg, tileHeightLg,
-			video.Duration, qualityConfig.FrameQualitySm, qualityConfig.FrameQualityLg,
+			scene.Duration, qualityConfig.FrameQualitySm, qualityConfig.FrameQualityLg,
 			js.repo, js.logger,
 		)
 		err = js.poolManager.SubmitToThumbnailPool(thumbnailJob)
 		if err != nil {
 			if jobs.IsDuplicateJobError(err) {
-				js.logger.Info("Duplicate thumbnail job skipped", zap.Uint("video_id", videoID))
+				js.logger.Info("Duplicate thumbnail job skipped", zap.Uint("scene_id", sceneID))
 				return nil
 			}
 			return fmt.Errorf("failed to submit thumbnail job: %w", err)
@@ -165,19 +165,19 @@ func (js *JobSubmitter) SubmitPhaseWithRetry(videoID uint, phase string, retryCo
 		recordJobStart(thumbnailJob.GetID(), "thumbnail")
 
 	case "sprites":
-		if video.Duration == 0 {
+		if scene.Duration == 0 {
 			return fmt.Errorf("metadata must be extracted before sprite generation")
 		}
 		spritesJob := jobs.NewSpritesJob(
-			videoID, video.StoredPath, cfg.SpriteDir, cfg.VttDir,
-			video.ThumbnailWidth, video.ThumbnailHeight, video.Duration,
+			sceneID, scene.StoredPath, cfg.SpriteDir, cfg.VttDir,
+			scene.ThumbnailWidth, scene.ThumbnailHeight, scene.Duration,
 			cfg.FrameInterval, qualityConfig.FrameQualitySprites, cfg.GridCols, cfg.GridRows,
 			qualityConfig.SpritesConcurrency, js.repo, js.logger,
 		)
 		err = js.poolManager.SubmitToSpritesPool(spritesJob)
 		if err != nil {
 			if jobs.IsDuplicateJobError(err) {
-				js.logger.Info("Duplicate sprites job skipped", zap.Uint("video_id", videoID))
+				js.logger.Info("Duplicate sprites job skipped", zap.Uint("scene_id", sceneID))
 				return nil
 			}
 			return fmt.Errorf("failed to submit sprites job: %w", err)
@@ -189,44 +189,44 @@ func (js *JobSubmitter) SubmitPhaseWithRetry(videoID uint, phase string, retryCo
 	}
 
 	js.logger.Info("Phase submitted",
-		zap.Uint("video_id", videoID),
+		zap.Uint("scene_id", sceneID),
 		zap.String("phase", phase),
 		zap.Int("retry_count", retryCount),
 	)
 	return nil
 }
 
-// SubmitBulkPhase submits a processing phase for multiple videos
-// mode can be "missing" (only videos needing the phase) or "all" (all videos)
+// SubmitBulkPhase submits a processing phase for multiple scenes
+// mode can be "missing" (only scenes needing the phase) or "all" (all scenes)
 func (js *JobSubmitter) SubmitBulkPhase(phase string, mode string) (*BulkPhaseResult, error) {
-	var videos []data.Video
+	var scenes []data.Scene
 	var err error
 
 	if mode == "all" {
-		videos, err = js.repo.GetAll()
+		scenes, err = js.repo.GetAll()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get videos: %w", err)
+			return nil, fmt.Errorf("failed to get scenes: %w", err)
 		}
 	} else {
 		// Default to "missing" mode
-		videos, err = js.repo.GetVideosNeedingPhase(phase)
+		scenes, err = js.repo.GetScenesNeedingPhase(phase)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get videos needing %s: %w", phase, err)
+			return nil, fmt.Errorf("failed to get scenes needing %s: %w", phase, err)
 		}
 	}
 
 	result := &BulkPhaseResult{}
 
-	for _, video := range videos {
-		// For thumbnail/sprites in "all" mode, skip videos without metadata
-		if mode == "all" && (phase == "thumbnail" || phase == "sprites") && video.Duration == 0 {
+	for _, scene := range scenes {
+		// For thumbnail/sprites in "all" mode, skip scenes without metadata
+		if mode == "all" && (phase == "thumbnail" || phase == "sprites") && scene.Duration == 0 {
 			result.Skipped++
 			continue
 		}
 
-		if err := js.SubmitPhase(video.ID, phase); err != nil {
+		if err := js.SubmitPhase(scene.ID, phase); err != nil {
 			js.logger.Warn("Failed to submit bulk phase job",
-				zap.Uint("video_id", video.ID),
+				zap.Uint("scene_id", scene.ID),
 				zap.String("phase", phase),
 				zap.Error(err),
 			)

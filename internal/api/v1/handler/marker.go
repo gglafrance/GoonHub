@@ -37,13 +37,13 @@ func (h *MarkerHandler) ListMarkers(c *gin.Context) {
 		return
 	}
 
-	videoID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	sceneID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "Invalid video ID")
+		response.BadRequest(c, "Invalid scene ID")
 		return
 	}
 
-	markers, err := h.service.ListMarkers(userID, uint(videoID))
+	markers, err := h.service.ListMarkers(userID, uint(sceneID))
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -58,9 +58,9 @@ func (h *MarkerHandler) CreateMarker(c *gin.Context) {
 		return
 	}
 
-	videoID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	sceneID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.BadRequest(c, "Invalid video ID")
+		response.BadRequest(c, "Invalid scene ID")
 		return
 	}
 
@@ -70,7 +70,7 @@ func (h *MarkerHandler) CreateMarker(c *gin.Context) {
 		return
 	}
 
-	marker, err := h.service.CreateMarker(userID, uint(videoID), req.Timestamp, req.Label, req.Color)
+	marker, err := h.service.CreateMarker(userID, uint(sceneID), req.Timestamp, req.Label, req.Color)
 	if err != nil {
 		response.Error(c, err)
 		return

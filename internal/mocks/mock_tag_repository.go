@@ -40,46 +40,46 @@ func (m *MockTagRepository) EXPECT() *MockTagRepositoryMockRecorder {
 	return m.recorder
 }
 
-// BulkAddTagsToVideos mocks base method.
-func (m *MockTagRepository) BulkAddTagsToVideos(videoIDs, tagIDs []uint) error {
+// BulkAddTagsToScenes mocks base method.
+func (m *MockTagRepository) BulkAddTagsToScenes(sceneIDs, tagIDs []uint) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BulkAddTagsToVideos", videoIDs, tagIDs)
+	ret := m.ctrl.Call(m, "BulkAddTagsToScenes", sceneIDs, tagIDs)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// BulkAddTagsToVideos indicates an expected call of BulkAddTagsToVideos.
-func (mr *MockTagRepositoryMockRecorder) BulkAddTagsToVideos(videoIDs, tagIDs any) *gomock.Call {
+// BulkAddTagsToScenes indicates an expected call of BulkAddTagsToScenes.
+func (mr *MockTagRepositoryMockRecorder) BulkAddTagsToScenes(sceneIDs, tagIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkAddTagsToVideos", reflect.TypeOf((*MockTagRepository)(nil).BulkAddTagsToVideos), videoIDs, tagIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkAddTagsToScenes", reflect.TypeOf((*MockTagRepository)(nil).BulkAddTagsToScenes), sceneIDs, tagIDs)
 }
 
-// BulkRemoveTagsFromVideos mocks base method.
-func (m *MockTagRepository) BulkRemoveTagsFromVideos(videoIDs, tagIDs []uint) error {
+// BulkRemoveTagsFromScenes mocks base method.
+func (m *MockTagRepository) BulkRemoveTagsFromScenes(sceneIDs, tagIDs []uint) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BulkRemoveTagsFromVideos", videoIDs, tagIDs)
+	ret := m.ctrl.Call(m, "BulkRemoveTagsFromScenes", sceneIDs, tagIDs)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// BulkRemoveTagsFromVideos indicates an expected call of BulkRemoveTagsFromVideos.
-func (mr *MockTagRepositoryMockRecorder) BulkRemoveTagsFromVideos(videoIDs, tagIDs any) *gomock.Call {
+// BulkRemoveTagsFromScenes indicates an expected call of BulkRemoveTagsFromScenes.
+func (mr *MockTagRepositoryMockRecorder) BulkRemoveTagsFromScenes(sceneIDs, tagIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkRemoveTagsFromVideos", reflect.TypeOf((*MockTagRepository)(nil).BulkRemoveTagsFromVideos), videoIDs, tagIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkRemoveTagsFromScenes", reflect.TypeOf((*MockTagRepository)(nil).BulkRemoveTagsFromScenes), sceneIDs, tagIDs)
 }
 
-// BulkReplaceTagsForVideos mocks base method.
-func (m *MockTagRepository) BulkReplaceTagsForVideos(videoIDs, tagIDs []uint) error {
+// BulkReplaceTagsForScenes mocks base method.
+func (m *MockTagRepository) BulkReplaceTagsForScenes(sceneIDs, tagIDs []uint) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BulkReplaceTagsForVideos", videoIDs, tagIDs)
+	ret := m.ctrl.Call(m, "BulkReplaceTagsForScenes", sceneIDs, tagIDs)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// BulkReplaceTagsForVideos indicates an expected call of BulkReplaceTagsForVideos.
-func (mr *MockTagRepositoryMockRecorder) BulkReplaceTagsForVideos(videoIDs, tagIDs any) *gomock.Call {
+// BulkReplaceTagsForScenes indicates an expected call of BulkReplaceTagsForScenes.
+func (mr *MockTagRepositoryMockRecorder) BulkReplaceTagsForScenes(sceneIDs, tagIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkReplaceTagsForVideos", reflect.TypeOf((*MockTagRepository)(nil).BulkReplaceTagsForVideos), videoIDs, tagIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkReplaceTagsForScenes", reflect.TypeOf((*MockTagRepository)(nil).BulkReplaceTagsForScenes), sceneIDs, tagIDs)
 }
 
 // Create mocks base method.
@@ -170,49 +170,49 @@ func (mr *MockTagRepositoryMockRecorder) GetIDsByNames(names any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIDsByNames", reflect.TypeOf((*MockTagRepository)(nil).GetIDsByNames), names)
 }
 
-// GetVideoIDsByTag mocks base method.
-func (m *MockTagRepository) GetVideoIDsByTag(tagID uint, limit int) ([]uint, error) {
+// GetSceneIDsByTag mocks base method.
+func (m *MockTagRepository) GetSceneIDsByTag(tagID uint, limit int) ([]uint, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVideoIDsByTag", tagID, limit)
+	ret := m.ctrl.Call(m, "GetSceneIDsByTag", tagID, limit)
 	ret0, _ := ret[0].([]uint)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetVideoIDsByTag indicates an expected call of GetVideoIDsByTag.
-func (mr *MockTagRepositoryMockRecorder) GetVideoIDsByTag(tagID, limit any) *gomock.Call {
+// GetSceneIDsByTag indicates an expected call of GetSceneIDsByTag.
+func (mr *MockTagRepositoryMockRecorder) GetSceneIDsByTag(tagID, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideoIDsByTag", reflect.TypeOf((*MockTagRepository)(nil).GetVideoIDsByTag), tagID, limit)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSceneIDsByTag", reflect.TypeOf((*MockTagRepository)(nil).GetSceneIDsByTag), tagID, limit)
 }
 
-// GetVideoTags mocks base method.
-func (m *MockTagRepository) GetVideoTags(videoID uint) ([]data.Tag, error) {
+// GetSceneTags mocks base method.
+func (m *MockTagRepository) GetSceneTags(sceneID uint) ([]data.Tag, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVideoTags", videoID)
+	ret := m.ctrl.Call(m, "GetSceneTags", sceneID)
 	ret0, _ := ret[0].([]data.Tag)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetVideoTags indicates an expected call of GetVideoTags.
-func (mr *MockTagRepositoryMockRecorder) GetVideoTags(videoID any) *gomock.Call {
+// GetSceneTags indicates an expected call of GetSceneTags.
+func (mr *MockTagRepositoryMockRecorder) GetSceneTags(sceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideoTags", reflect.TypeOf((*MockTagRepository)(nil).GetVideoTags), videoID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSceneTags", reflect.TypeOf((*MockTagRepository)(nil).GetSceneTags), sceneID)
 }
 
-// GetVideoTagsMultiple mocks base method.
-func (m *MockTagRepository) GetVideoTagsMultiple(videoIDs []uint) (map[uint][]data.Tag, error) {
+// GetSceneTagsMultiple mocks base method.
+func (m *MockTagRepository) GetSceneTagsMultiple(sceneIDs []uint) (map[uint][]data.Tag, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVideoTagsMultiple", videoIDs)
+	ret := m.ctrl.Call(m, "GetSceneTagsMultiple", sceneIDs)
 	ret0, _ := ret[0].(map[uint][]data.Tag)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetVideoTagsMultiple indicates an expected call of GetVideoTagsMultiple.
-func (mr *MockTagRepositoryMockRecorder) GetVideoTagsMultiple(videoIDs any) *gomock.Call {
+// GetSceneTagsMultiple indicates an expected call of GetSceneTagsMultiple.
+func (mr *MockTagRepositoryMockRecorder) GetSceneTagsMultiple(sceneIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVideoTagsMultiple", reflect.TypeOf((*MockTagRepository)(nil).GetVideoTagsMultiple), videoIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSceneTagsMultiple", reflect.TypeOf((*MockTagRepository)(nil).GetSceneTagsMultiple), sceneIDs)
 }
 
 // List mocks base method.
@@ -245,16 +245,16 @@ func (mr *MockTagRepositoryMockRecorder) ListWithCounts() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWithCounts", reflect.TypeOf((*MockTagRepository)(nil).ListWithCounts))
 }
 
-// SetVideoTags mocks base method.
-func (m *MockTagRepository) SetVideoTags(videoID uint, tagIDs []uint) error {
+// SetSceneTags mocks base method.
+func (m *MockTagRepository) SetSceneTags(sceneID uint, tagIDs []uint) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetVideoTags", videoID, tagIDs)
+	ret := m.ctrl.Call(m, "SetSceneTags", sceneID, tagIDs)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetVideoTags indicates an expected call of SetVideoTags.
-func (mr *MockTagRepositoryMockRecorder) SetVideoTags(videoID, tagIDs any) *gomock.Call {
+// SetSceneTags indicates an expected call of SetSceneTags.
+func (mr *MockTagRepositoryMockRecorder) SetSceneTags(sceneID, tagIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVideoTags", reflect.TypeOf((*MockTagRepository)(nil).SetVideoTags), videoID, tagIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSceneTags", reflect.TypeOf((*MockTagRepository)(nil).SetSceneTags), sceneID, tagIDs)
 }

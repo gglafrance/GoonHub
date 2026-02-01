@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { Video } from '~/types/video';
+import type { Scene } from '~/types/scene';
 import type { PornDBScene } from '~/types/porndb';
 
 const props = defineProps<{
     visible: boolean;
-    video: Video | null;
+    scene: Scene | null;
 }>();
 
 const emit = defineEmits<{
@@ -68,7 +68,7 @@ async function onApply(fields: {
     release_date: boolean;
     markers: boolean;
 }) {
-    if (!props.video || !selectedScene.value) return;
+    if (!props.scene || !selectedScene.value) return;
 
     phase.value = 'applying';
     applyingBasic.value = true;
@@ -108,7 +108,7 @@ async function onApply(fields: {
 
         // Apply basic metadata
         if (Object.keys(payload).length > 0) {
-            await api.applySceneMetadata(props.video.id, payload);
+            await api.applySceneMetadata(props.scene.id, payload);
         }
 
         // Import markers if selected
@@ -116,7 +116,7 @@ async function onApply(fields: {
             const { createMarker } = useApiMarkers();
             for (const marker of selectedScene.value.markers) {
                 try {
-                    await createMarker(props.video.id, {
+                    await createMarker(props.scene.id, {
                         timestamp: marker.start_time,
                         label: marker.title,
                     });
@@ -208,7 +208,7 @@ function handleClose() {
                 <!-- Search Phase (v-show to preserve state when switching to preview) -->
                 <WatchSceneSearch
                     v-show="phase === 'search'"
-                    :video="video"
+                    :scene="scene"
                     class="min-h-0 flex-1"
                     @select="onSceneSelected"
                 />
@@ -216,8 +216,8 @@ function handleClose() {
                 <!-- Preview Phase -->
                 <WatchScenePreview
                     v-if="phase === 'preview' && selectedScene"
-                    :video="video"
-                    :scene="selectedScene"
+                    :scene="scene"
+                    :porndb-scene="selectedScene"
                     class="min-h-0 flex-1 overflow-y-auto"
                     @back="goBackToSearch"
                     @apply="onApply"
@@ -243,8 +243,8 @@ function handleClose() {
 
                     <!-- Actor matching sub-flow -->
                     <WatchActorMatchFlow
-                        v-else-if="performersToMatch && performersToMatch.length > 0 && video"
-                        :video-id="video.id"
+                        v-else-if="performersToMatch && performersToMatch.length > 0 && scene"
+                        :scene-id="scene.id"
                         :performers="performersToMatch"
                         @done="onActorMatchDone"
                         @error="onActorMatchError"
@@ -257,9 +257,9 @@ function handleClose() {
                             siteToMatch &&
                             performersToMatch &&
                             performersToMatch.length === 0 &&
-                            video
+                            scene
                         "
-                        :video-id="video.id"
+                        :scene-id="scene.id"
                         :site-name="siteToMatch"
                         @done="onStudioMatchDone"
                         @error="onStudioMatchError"

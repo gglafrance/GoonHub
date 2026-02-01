@@ -58,7 +58,7 @@ func toStudioListItems(studios []data.StudioWithCount) []response.StudioListItem
 			Name:       s.Name,
 			ShortName:  s.ShortName,
 			Logo:       s.Logo,
-			VideoCount: s.VideoCount,
+			SceneCount: s.SceneCount,
 		}
 	}
 	return items
@@ -84,7 +84,7 @@ func (h *StudioHandler) GetStudioByUUID(c *gin.Context) {
 	c.JSON(http.StatusOK, studio)
 }
 
-func (h *StudioHandler) GetStudioVideos(c *gin.Context) {
+func (h *StudioHandler) GetStudioScenes(c *gin.Context) {
 	uuidStr := c.Param("uuid")
 	if _, err := uuid.Parse(uuidStr); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid studio UUID"})
@@ -104,14 +104,14 @@ func (h *StudioHandler) GetStudioVideos(c *gin.Context) {
 		return
 	}
 
-	videos, total, err := h.Service.GetStudioVideos(studio.ID, page, limit)
+	scenes, total, err := h.Service.GetStudioScenes(studio.ID, page, limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get studio videos"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get studio scenes"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":  response.ToVideoListItems(videos),
+		"data":  response.ToSceneListItems(scenes),
 		"total": total,
 		"page":  page,
 		"limit": limit,
@@ -292,48 +292,48 @@ func (h *StudioHandler) UploadStudioLogo(c *gin.Context) {
 	c.JSON(http.StatusOK, studio)
 }
 
-func (h *StudioHandler) GetVideoStudio(c *gin.Context) {
+func (h *StudioHandler) GetSceneStudio(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	studio, err := h.Service.GetVideoStudio(uint(id))
+	studio, err := h.Service.GetSceneStudio(uint(id))
 	if err != nil {
 		if apperrors.IsNotFound(err) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Scene not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get video studio"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get scene studio"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": studio})
 }
 
-func (h *StudioHandler) SetVideoStudio(c *gin.Context) {
+func (h *StudioHandler) SetSceneStudio(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	var req request.SetVideoStudioRequest
+	var req request.SetSceneStudioRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
-	studio, err := h.Service.SetVideoStudio(uint(id), req.StudioID)
+	studio, err := h.Service.SetSceneStudio(uint(id), req.StudioID)
 	if err != nil {
 		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set video studio"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set scene studio"})
 		return
 	}
 

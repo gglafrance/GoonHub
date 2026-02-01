@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { MarkerWithVideo } from '~/types/marker';
+import type { MarkerWithScene } from '~/types/marker';
 
 const route = useRoute();
 const router = useRouter();
 const { fetchMarkersByLabel } = useApiMarkers();
 const { formatDuration } = useFormatter();
 
-const markers = ref<MarkerWithVideo[]>([]);
+const markers = ref<MarkerWithScene[]>([]);
 const total = ref(0);
 const currentPage = ref(1);
 const limit = ref(20);
@@ -137,7 +137,7 @@ definePageMeta({
                     <NuxtLink
                         v-for="marker in markers"
                         :key="marker.id"
-                        :to="`/watch/${marker.video_id}?t=${marker.timestamp}`"
+                        :to="`/watch/${marker.scene_id}?t=${marker.timestamp}`"
                         class="group relative block max-w-[320px] overflow-hidden rounded-lg
                             transition-transform duration-200"
                     >
@@ -145,7 +145,7 @@ definePageMeta({
                         <div class="relative aspect-video w-full overflow-hidden bg-black/40">
                             <img
                                 :src="`/marker-thumbnails/${marker.id}`"
-                                :alt="marker.video_title"
+                                :alt="marker.scene_title"
                                 class="h-full w-full object-cover transition-transform duration-300
                                     group-hover:scale-105"
                                 loading="lazy"
@@ -173,7 +173,7 @@ definePageMeta({
                                 class="truncate text-xs font-medium text-white
                                     group-hover:text-white"
                             >
-                                {{ marker.video_title }}
+                                {{ marker.scene_title }}
                             </p>
                             <NuxtTime
                                 :datetime="marker.created_at"

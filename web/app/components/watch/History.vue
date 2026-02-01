@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { UserVideoWatch } from '~/types/watch';
+import type { UserSceneWatch } from '~/types/watch';
 
 const route = useRoute();
-const { getVideoWatchHistory } = useApi();
+const { getSceneWatchHistory } = useApi();
 const { formatDuration } = useFormatter();
 const seekToTime = inject<(time: number) => void>('seekToTime');
 
-const videoId = computed(() => parseInt(route.params.id as string));
+const sceneId = computed(() => parseInt(route.params.id as string));
 
 const handleResumeFromWatch = (position: number) => {
     if (seekToTime && position > 0) {
@@ -15,12 +15,12 @@ const handleResumeFromWatch = (position: number) => {
 };
 
 const loading = ref(true);
-const watches = ref<UserVideoWatch[]>([]);
+const watches = ref<UserSceneWatch[]>([]);
 
 const loadHistory = async () => {
     loading.value = true;
     try {
-        const data = await getVideoWatchHistory(videoId.value, 20);
+        const data = await getSceneWatchHistory(sceneId.value, 20);
         watches.value = data.watches || [];
     } catch {
         // Non-critical, just show empty
@@ -41,7 +41,7 @@ onMounted(() => {
 
         <!-- Empty state -->
         <div v-else-if="watches.length === 0" class="text-dim py-4 text-center text-[11px]">
-            No watch history for this video
+            No watch history for this scene
         </div>
 
         <!-- Watch history list -->

@@ -9,14 +9,14 @@ import (
 )
 
 type WatchHistoryRepository interface {
-	RecordWatch(userID, videoID uint, duration, position int, completed bool) error
-	GetLastWatch(userID, videoID uint) (*UserVideoWatch, error)
-	ListUserHistory(userID uint, page, limit int) ([]UserVideoWatch, int64, error)
-	ListVideoWatches(userID, videoID uint, limit int) ([]UserVideoWatch, error)
+	RecordWatch(userID, sceneID uint, duration, position int, completed bool) error
+	GetLastWatch(userID, sceneID uint) (*UserSceneWatch, error)
+	ListUserHistory(userID uint, page, limit int) ([]UserSceneWatch, int64, error)
+	ListSceneWatches(userID, sceneID uint, limit int) ([]UserSceneWatch, error)
 	// TryIncrementViewCount atomically checks if a view should be counted (not counted in last 24h)
-	// and increments the video view count if so. Returns true if the count was incremented.
+	// and increments the scene view count if so. Returns true if the count was incremented.
 	// This prevents race conditions from concurrent requests.
-	TryIncrementViewCount(userID, videoID uint) (bool, error)
+	TryIncrementViewCount(userID, sceneID uint) (bool, error)
 }
 
 type WatchHistoryRepositoryImpl struct {
@@ -31,7 +31,7 @@ func NewWatchHistoryRepository(db *gorm.DB) *WatchHistoryRepositoryImpl {
 // If an active watch session exists (watched within last 5 minutes), it updates that record.
 // Otherwise, it creates a new watch record.
 // Uses a transaction with row locking to prevent race conditions.
-func (r *WatchHistoryRepositoryImpl) RecordWatch(userID, videoID uint, duration, position int, completed bool) error {
+func (r *WatchHistoryRepositoryImpl) RecordWatch(userID, sceneID uint, duration, position int, completed bool) error {
 	now := time.Now().UTC()
 	// Use 5-minute session window - short enough to separate distinct viewing sessions
 	// but long enough to merge rapid updates during continuous watching
@@ -40,9 +40,9 @@ func (r *WatchHistoryRepositoryImpl) RecordWatch(userID, videoID uint, duration,
 	return r.DB.Transaction(func(tx *gorm.DB) error {
 		// Try to find an active watch session (watched within last 5 minutes)
 		// Using watched_at instead of created_at so the session extends while actively watching
-		var existing UserVideoWatch
+		var existing UserSceneWatch
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("user_id = ? AND video_id = ? AND watched_at > ?", userID, videoID, sessionWindow).
+			Where("user_id = ? AND scene_id = ? AND watched_at > ?", userID, sceneID, sessionWindow).
 			Order("watched_at DESC").
 			First(&existing).Error
 
@@ -63,9 +63,9 @@ func (r *WatchHistoryRepositoryImpl) RecordWatch(userID, videoID uint, duration,
 		}
 
 		// Create new session
-		watch := UserVideoWatch{
+		watch := UserSceneWatch{
 			UserID:        userID,
-			VideoID:       videoID,
+			SceneID:       sceneID,
 			WatchedAt:     now,
 			WatchDuration: duration,
 			LastPosition:  position,
@@ -75,9 +75,9 @@ func (r *WatchHistoryRepositoryImpl) RecordWatch(userID, videoID uint, duration,
 	})
 }
 
-func (r *WatchHistoryRepositoryImpl) GetLastWatch(userID, videoID uint) (*UserVideoWatch, error) {
-	var watch UserVideoWatch
-	err := r.DB.Where("user_id = ? AND video_id = ?", userID, videoID).
+func (r *WatchHistoryRepositoryImpl) GetLastWatch(userID, sceneID uint) (*UserSceneWatch, error) {
+	var watch UserSceneWatch
+	err := r.DB.Where("user_id = ? AND scene_id = ?", userID, sceneID).
 		Order("watched_at DESC").
 		First(&watch).Error
 	if err != nil {
@@ -86,29 +86,29 @@ func (r *WatchHistoryRepositoryImpl) GetLastWatch(userID, videoID uint) (*UserVi
 	return &watch, nil
 }
 
-func (r *WatchHistoryRepositoryImpl) ListUserHistory(userID uint, page, limit int) ([]UserVideoWatch, int64, error) {
-	var watches []UserVideoWatch
+func (r *WatchHistoryRepositoryImpl) ListUserHistory(userID uint, page, limit int) ([]UserSceneWatch, int64, error) {
+	var watches []UserSceneWatch
 	var total int64
 
 	offset := (page - 1) * limit
 
-	// Count distinct videos
-	subQuery := r.DB.Model(&UserVideoWatch{}).
-		Select("DISTINCT video_id").
+	// Count distinct scenes
+	subQuery := r.DB.Model(&UserSceneWatch{}).
+		Select("DISTINCT scene_id").
 		Where("user_id = ?", userID)
 
-	if err := r.DB.Table("(?) as distinct_videos", subQuery).Count(&total).Error; err != nil {
+	if err := r.DB.Table("(?) as distinct_scenes", subQuery).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// Get most recent watch for each video using window function with proper ordering and pagination
+	// Get most recent watch for each scene using window function with proper ordering and pagination
 	err := r.DB.Raw(`
 		WITH ranked AS (
-			SELECT *, ROW_NUMBER() OVER (PARTITION BY video_id ORDER BY watched_at DESC) as rn
-			FROM user_video_watches
+			SELECT *, ROW_NUMBER() OVER (PARTITION BY scene_id ORDER BY watched_at DESC) as rn
+			FROM user_scene_watches
 			WHERE user_id = ?
 		)
-		SELECT id, user_id, video_id, watched_at, watch_duration, last_position, completed, created_at, updated_at
+		SELECT id, user_id, scene_id, watched_at, watch_duration, last_position, completed, created_at, updated_at
 		FROM ranked
 		WHERE rn = 1
 		ORDER BY watched_at DESC
@@ -121,9 +121,9 @@ func (r *WatchHistoryRepositoryImpl) ListUserHistory(userID uint, page, limit in
 	return watches, total, nil
 }
 
-func (r *WatchHistoryRepositoryImpl) ListVideoWatches(userID, videoID uint, limit int) ([]UserVideoWatch, error) {
-	var watches []UserVideoWatch
-	query := r.DB.Where("user_id = ? AND video_id = ?", userID, videoID).
+func (r *WatchHistoryRepositoryImpl) ListSceneWatches(userID, sceneID uint, limit int) ([]UserSceneWatch, error) {
+	var watches []UserSceneWatch
+	query := r.DB.Where("user_id = ? AND scene_id = ?", userID, sceneID).
 		Order("watched_at DESC")
 	if limit > 0 {
 		query = query.Limit(limit)
@@ -135,10 +135,10 @@ func (r *WatchHistoryRepositoryImpl) ListVideoWatches(userID, videoID uint, limi
 }
 
 // TryIncrementViewCount atomically checks if the user has had a view counted in the last 24 hours.
-// If not, it records the view and increments the video's view count.
+// If not, it records the view and increments the scene's view count.
 // Returns true if the view count was incremented, false if already counted recently.
 // Uses a single transaction with INSERT ON CONFLICT to prevent race conditions.
-func (r *WatchHistoryRepositoryImpl) TryIncrementViewCount(userID, videoID uint) (bool, error) {
+func (r *WatchHistoryRepositoryImpl) TryIncrementViewCount(userID, sceneID uint) (bool, error) {
 	var incremented bool
 
 	err := r.DB.Transaction(func(tx *gorm.DB) error {
@@ -148,12 +148,12 @@ func (r *WatchHistoryRepositoryImpl) TryIncrementViewCount(userID, videoID uint)
 		// Atomic upsert: insert new record or update if last_counted_at > 24h ago
 		// Using raw SQL for the atomic ON CONFLICT with WHERE clause
 		result := tx.Exec(`
-			INSERT INTO user_video_view_counts (user_id, video_id, last_counted_at, created_at)
+			INSERT INTO user_scene_view_counts (user_id, scene_id, last_counted_at, created_at)
 			VALUES (?, ?, ?, ?)
-			ON CONFLICT (user_id, video_id) DO UPDATE
+			ON CONFLICT (user_id, scene_id) DO UPDATE
 			SET last_counted_at = EXCLUDED.last_counted_at
-			WHERE user_video_view_counts.last_counted_at < ?
-		`, userID, videoID, now, now, cutoff)
+			WHERE user_scene_view_counts.last_counted_at < ?
+		`, userID, sceneID, now, now, cutoff)
 
 		if result.Error != nil {
 			return result.Error
@@ -161,7 +161,7 @@ func (r *WatchHistoryRepositoryImpl) TryIncrementViewCount(userID, videoID uint)
 
 		// If a row was affected (inserted or updated), increment the view count
 		if result.RowsAffected > 0 {
-			if err := tx.Model(&Video{}).Where("id = ?", videoID).
+			if err := tx.Model(&Scene{}).Where("id = ?", sceneID).
 				UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error; err != nil {
 				return err
 			}

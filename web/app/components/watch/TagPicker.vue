@@ -46,10 +46,10 @@ const filteredTags = computed(() => {
             tags.sort((a, b) => b.name.localeCompare(a.name));
             break;
         case 'most':
-            tags.sort((a, b) => b.video_count - a.video_count || a.name.localeCompare(b.name));
+            tags.sort((a, b) => b.scene_count - a.scene_count || a.name.localeCompare(b.name));
             break;
         case 'least':
-            tags.sort((a, b) => a.video_count - b.video_count || a.name.localeCompare(b.name));
+            tags.sort((a, b) => a.scene_count - b.scene_count || a.name.localeCompare(b.name));
             break;
     }
 
@@ -147,7 +147,7 @@ onBeforeUnmount(() => {
                         :style="{ backgroundColor: tag.color }"
                     />
                     <span class="flex-1 truncate">{{ tag.name }}</span>
-                    <span class="text-[10px] text-white/30">({{ tag.video_count }})</span>
+                    <span class="text-[10px] text-white/30">({{ tag.scene_count }})</span>
                 </button>
             </div>
         </div>

@@ -1,7 +1,7 @@
 package meilisearch
 
-// VideoDocument represents a video document in Meilisearch.
-type VideoDocument struct {
+// SceneDocument represents a scene document in Meilisearch.
+type SceneDocument struct {
 	ID               uint     `json:"id"`
 	Title            string   `json:"title"`
 	OriginalFilename string   `json:"original_filename"`
@@ -17,7 +17,7 @@ type VideoDocument struct {
 	ViewCount        int      `json:"view_count"`
 }
 
-// SearchParams contains parameters for searching videos.
+// SearchParams contains parameters for searching scenes.
 type SearchParams struct {
 	Query            string
 	TagIDs           []uint
@@ -30,7 +30,7 @@ type SearchParams struct {
 	DateAfter        *int64
 	DateBefore       *int64
 	ProcessingStatus string
-	VideoIDs         []uint // Pre-filtered video IDs (for user-specific filters)
+	SceneIDs         []uint // Pre-filtered scene IDs (for user-specific filters)
 	Sort             string
 	SortDir          string
 	Offset           int

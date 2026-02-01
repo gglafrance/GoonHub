@@ -12,16 +12,16 @@ import (
 	"gorm.io/gorm"
 )
 
-// ExplorerService provides folder-based video browsing and bulk editing
+// ExplorerService provides folder-based scene browsing and bulk editing
 type ExplorerService struct {
 	explorerRepo    data.ExplorerRepository
 	storagePathRepo data.StoragePathRepository
-	videoRepo       data.VideoRepository
+	sceneRepo       data.SceneRepository
 	tagRepo         data.TagRepository
 	actorRepo       data.ActorRepository
 	eventBus        *EventBus
 	logger          *zap.Logger
-	indexer         VideoIndexer
+	indexer         SceneIndexer
 	metadataPath    string
 	searchService   *SearchService
 }
@@ -30,7 +30,7 @@ type ExplorerService struct {
 func NewExplorerService(
 	explorerRepo data.ExplorerRepository,
 	storagePathRepo data.StoragePathRepository,
-	videoRepo data.VideoRepository,
+	sceneRepo data.SceneRepository,
 	tagRepo data.TagRepository,
 	actorRepo data.ActorRepository,
 	eventBus *EventBus,
@@ -40,7 +40,7 @@ func NewExplorerService(
 	return &ExplorerService{
 		explorerRepo:    explorerRepo,
 		storagePathRepo: storagePathRepo,
-		videoRepo:       videoRepo,
+		sceneRepo:       sceneRepo,
 		tagRepo:         tagRepo,
 		actorRepo:       actorRepo,
 		eventBus:        eventBus,
@@ -55,8 +55,8 @@ func (s *ExplorerService) SetSearchService(searchService *SearchService) {
 	s.searchService = searchService
 }
 
-// SetIndexer sets the video indexer for search index updates
-func (s *ExplorerService) SetIndexer(indexer VideoIndexer) {
+// SetIndexer sets the scene indexer for search index updates
+func (s *ExplorerService) SetIndexer(indexer SceneIndexer) {
 	s.indexer = indexer
 }
 
@@ -65,13 +65,13 @@ type FolderContentsResponse struct {
 	StoragePath *data.StoragePath `json:"storage_path"`
 	CurrentPath string            `json:"current_path"`
 	Subfolders  []data.FolderInfo `json:"subfolders"`
-	Videos      []data.Video      `json:"videos"`
-	TotalVideos int64             `json:"total_videos"`
+	Scenes      []data.Scene      `json:"scenes"`
+	TotalScenes int64             `json:"total_scenes"`
 	Page        int               `json:"page"`
 	Limit       int               `json:"limit"`
 }
 
-// GetStoragePathsWithCounts returns all storage paths with their video counts
+// GetStoragePathsWithCounts returns all storage paths with their scene counts
 func (s *ExplorerService) GetStoragePathsWithCounts() ([]data.StoragePathWithCount, error) {
 	paths, err := s.explorerRepo.GetStoragePathsWithCounts()
 	if err != nil {
@@ -80,7 +80,7 @@ func (s *ExplorerService) GetStoragePathsWithCounts() ([]data.StoragePathWithCou
 	return paths, nil
 }
 
-// GetFolderContents returns the contents of a folder (subfolders and videos)
+// GetFolderContents returns the contents of a folder (subfolders and scenes)
 func (s *ExplorerService) GetFolderContents(storagePathID uint, folderPath string, page, limit int) (*FolderContentsResponse, error) {
 	if page < 1 {
 		page = 1
@@ -107,25 +107,25 @@ func (s *ExplorerService) GetFolderContents(storagePathID uint, folderPath strin
 		return nil, apperrors.NewInternalError("failed to get subfolders", err)
 	}
 
-	// Get videos in this folder (direct children only)
-	videos, total, err := s.explorerRepo.GetVideosByFolder(storagePathID, folderPath, page, limit)
+	// Get scenes in this folder (direct children only)
+	scenes, total, err := s.explorerRepo.GetScenesByFolder(storagePathID, folderPath, page, limit)
 	if err != nil {
-		return nil, apperrors.NewInternalError("failed to get videos", err)
+		return nil, apperrors.NewInternalError("failed to get scenes", err)
 	}
 
 	return &FolderContentsResponse{
 		StoragePath: storagePath,
 		CurrentPath: folderPath,
 		Subfolders:  subfolders,
-		Videos:      videos,
-		TotalVideos: total,
+		Scenes:      scenes,
+		TotalScenes: total,
 		Page:        page,
 		Limit:       limit,
 	}, nil
 }
 
-// GetFolderVideoIDs returns all video IDs in a folder
-func (s *ExplorerService) GetFolderVideoIDs(storagePathID uint, folderPath string, recursive bool) ([]uint, error) {
+// GetFolderSceneIDs returns all scene IDs in a folder
+func (s *ExplorerService) GetFolderSceneIDs(storagePathID uint, folderPath string, recursive bool) ([]uint, error) {
 	// Verify storage path exists
 	storagePath, err := s.storagePathRepo.GetByID(storagePathID)
 	if err != nil {
@@ -138,9 +138,9 @@ func (s *ExplorerService) GetFolderVideoIDs(storagePathID uint, folderPath strin
 		return nil, apperrors.NewNotFoundError("storage path", storagePathID)
 	}
 
-	ids, err := s.explorerRepo.GetVideoIDsByFolder(storagePathID, folderPath, recursive)
+	ids, err := s.explorerRepo.GetSceneIDsByFolder(storagePathID, folderPath, recursive)
 	if err != nil {
-		return nil, apperrors.NewInternalError("failed to get video IDs", err)
+		return nil, apperrors.NewInternalError("failed to get scene IDs", err)
 	}
 
 	return ids, nil
@@ -148,28 +148,28 @@ func (s *ExplorerService) GetFolderVideoIDs(storagePathID uint, folderPath strin
 
 // BulkUpdateTagsRequest represents a request to bulk update tags
 type BulkUpdateTagsRequest struct {
-	VideoIDs []uint `json:"video_ids"`
+	SceneIDs []uint `json:"scene_ids"`
 	TagIDs   []uint `json:"tag_ids"`
 	Mode     string `json:"mode"` // "add", "remove", "replace"
 }
 
-// BulkUpdateTags updates tags for multiple videos using batch operations
+// BulkUpdateTags updates tags for multiple scenes using batch operations
 func (s *ExplorerService) BulkUpdateTags(req BulkUpdateTagsRequest) (int, error) {
-	if len(req.VideoIDs) == 0 {
-		return 0, apperrors.NewValidationError("at least one video ID is required")
+	if len(req.SceneIDs) == 0 {
+		return 0, apperrors.NewValidationError("at least one scene ID is required")
 	}
 
 	if req.Mode != "add" && req.Mode != "remove" && req.Mode != "replace" {
 		return 0, apperrors.NewValidationError("mode must be 'add', 'remove', or 'replace'")
 	}
 
-	// Verify all videos exist
-	videos, err := s.videoRepo.GetByIDs(req.VideoIDs)
+	// Verify all scenes exist
+	scenes, err := s.sceneRepo.GetByIDs(req.SceneIDs)
 	if err != nil {
-		return 0, apperrors.NewInternalError("failed to verify videos", err)
+		return 0, apperrors.NewInternalError("failed to verify scenes", err)
 	}
-	if len(videos) != len(req.VideoIDs) {
-		return 0, apperrors.NewValidationError("one or more videos not found")
+	if len(scenes) != len(req.SceneIDs) {
+		return 0, apperrors.NewValidationError("one or more scenes not found")
 	}
 
 	// Verify tags exist for add/replace modes
@@ -186,71 +186,71 @@ func (s *ExplorerService) BulkUpdateTags(req BulkUpdateTagsRequest) (int, error)
 	// Perform bulk operation based on mode
 	switch req.Mode {
 	case "add":
-		if err := s.tagRepo.BulkAddTagsToVideos(req.VideoIDs, req.TagIDs); err != nil {
+		if err := s.tagRepo.BulkAddTagsToScenes(req.SceneIDs, req.TagIDs); err != nil {
 			return 0, apperrors.NewInternalError("failed to add tags", err)
 		}
 	case "remove":
-		if err := s.tagRepo.BulkRemoveTagsFromVideos(req.VideoIDs, req.TagIDs); err != nil {
+		if err := s.tagRepo.BulkRemoveTagsFromScenes(req.SceneIDs, req.TagIDs); err != nil {
 			return 0, apperrors.NewInternalError("failed to remove tags", err)
 		}
 	case "replace":
-		if err := s.tagRepo.BulkReplaceTagsForVideos(req.VideoIDs, req.TagIDs); err != nil {
+		if err := s.tagRepo.BulkReplaceTagsForScenes(req.SceneIDs, req.TagIDs); err != nil {
 			return 0, apperrors.NewInternalError("failed to replace tags", err)
 		}
 	}
 
 	// Batch update search index
 	if s.indexer != nil {
-		// Refresh videos with updated associations
-		updatedVideos, err := s.videoRepo.GetByIDs(req.VideoIDs)
+		// Refresh scenes with updated associations
+		updatedScenes, err := s.sceneRepo.GetByIDs(req.SceneIDs)
 		if err != nil {
-			s.logger.Warn("Failed to fetch videos for index update", zap.Error(err))
-		} else if err := s.indexer.BulkUpdateVideoIndex(updatedVideos); err != nil {
+			s.logger.Warn("Failed to fetch scenes for index update", zap.Error(err))
+		} else if err := s.indexer.BulkUpdateSceneIndex(updatedScenes); err != nil {
 			s.logger.Warn("Failed to bulk update search index", zap.Error(err))
 		}
 	}
 
 	// Emit single bulk update event
 	if s.eventBus != nil {
-		s.eventBus.Publish(VideoEvent{
-			Type:    "videos_bulk_updated",
-			VideoID: 0, // Bulk operation
+		s.eventBus.Publish(SceneEvent{
+			Type:    "scenes_bulk_updated",
+			SceneID: 0, // Bulk operation
 		})
 	}
 
 	s.logger.Info("Bulk tag update completed",
-		zap.Int("updated", len(req.VideoIDs)),
-		zap.Int("total", len(req.VideoIDs)),
+		zap.Int("updated", len(req.SceneIDs)),
+		zap.Int("total", len(req.SceneIDs)),
 		zap.String("mode", req.Mode),
 	)
 
-	return len(req.VideoIDs), nil
+	return len(req.SceneIDs), nil
 }
 
 // BulkUpdateActorsRequest represents a request to bulk update actors
 type BulkUpdateActorsRequest struct {
-	VideoIDs []uint `json:"video_ids"`
+	SceneIDs []uint `json:"scene_ids"`
 	ActorIDs []uint `json:"actor_ids"`
 	Mode     string `json:"mode"` // "add", "remove", "replace"
 }
 
-// BulkUpdateActors updates actors for multiple videos using batch operations
+// BulkUpdateActors updates actors for multiple scenes using batch operations
 func (s *ExplorerService) BulkUpdateActors(req BulkUpdateActorsRequest) (int, error) {
-	if len(req.VideoIDs) == 0 {
-		return 0, apperrors.NewValidationError("at least one video ID is required")
+	if len(req.SceneIDs) == 0 {
+		return 0, apperrors.NewValidationError("at least one scene ID is required")
 	}
 
 	if req.Mode != "add" && req.Mode != "remove" && req.Mode != "replace" {
 		return 0, apperrors.NewValidationError("mode must be 'add', 'remove', or 'replace'")
 	}
 
-	// Verify all videos exist
-	videos, err := s.videoRepo.GetByIDs(req.VideoIDs)
+	// Verify all scenes exist
+	scenes, err := s.sceneRepo.GetByIDs(req.SceneIDs)
 	if err != nil {
-		return 0, apperrors.NewInternalError("failed to verify videos", err)
+		return 0, apperrors.NewInternalError("failed to verify scenes", err)
 	}
-	if len(videos) != len(req.VideoIDs) {
-		return 0, apperrors.NewValidationError("one or more videos not found")
+	if len(scenes) != len(req.SceneIDs) {
+		return 0, apperrors.NewValidationError("one or more scenes not found")
 	}
 
 	// Verify actors exist for add/replace modes
@@ -267,120 +267,120 @@ func (s *ExplorerService) BulkUpdateActors(req BulkUpdateActorsRequest) (int, er
 	// Perform bulk operation based on mode
 	switch req.Mode {
 	case "add":
-		if err := s.actorRepo.BulkAddActorsToVideos(req.VideoIDs, req.ActorIDs); err != nil {
+		if err := s.actorRepo.BulkAddActorsToScenes(req.SceneIDs, req.ActorIDs); err != nil {
 			return 0, apperrors.NewInternalError("failed to add actors", err)
 		}
 	case "remove":
-		if err := s.actorRepo.BulkRemoveActorsFromVideos(req.VideoIDs, req.ActorIDs); err != nil {
+		if err := s.actorRepo.BulkRemoveActorsFromScenes(req.SceneIDs, req.ActorIDs); err != nil {
 			return 0, apperrors.NewInternalError("failed to remove actors", err)
 		}
 	case "replace":
-		if err := s.actorRepo.BulkReplaceActorsForVideos(req.VideoIDs, req.ActorIDs); err != nil {
+		if err := s.actorRepo.BulkReplaceActorsForScenes(req.SceneIDs, req.ActorIDs); err != nil {
 			return 0, apperrors.NewInternalError("failed to replace actors", err)
 		}
 	}
 
 	// Batch update search index
 	if s.indexer != nil {
-		// Refresh videos with updated associations
-		updatedVideos, err := s.videoRepo.GetByIDs(req.VideoIDs)
+		// Refresh scenes with updated associations
+		updatedScenes, err := s.sceneRepo.GetByIDs(req.SceneIDs)
 		if err != nil {
-			s.logger.Warn("Failed to fetch videos for index update", zap.Error(err))
-		} else if err := s.indexer.BulkUpdateVideoIndex(updatedVideos); err != nil {
+			s.logger.Warn("Failed to fetch scenes for index update", zap.Error(err))
+		} else if err := s.indexer.BulkUpdateSceneIndex(updatedScenes); err != nil {
 			s.logger.Warn("Failed to bulk update search index", zap.Error(err))
 		}
 	}
 
 	// Emit single bulk update event
 	if s.eventBus != nil {
-		s.eventBus.Publish(VideoEvent{
-			Type:    "videos_bulk_updated",
-			VideoID: 0, // Bulk operation
+		s.eventBus.Publish(SceneEvent{
+			Type:    "scenes_bulk_updated",
+			SceneID: 0, // Bulk operation
 		})
 	}
 
 	s.logger.Info("Bulk actor update completed",
-		zap.Int("updated", len(req.VideoIDs)),
-		zap.Int("total", len(req.VideoIDs)),
+		zap.Int("updated", len(req.SceneIDs)),
+		zap.Int("total", len(req.SceneIDs)),
 		zap.String("mode", req.Mode),
 	)
 
-	return len(req.VideoIDs), nil
+	return len(req.SceneIDs), nil
 }
 
 
 // BulkUpdateStudioRequest represents a request to bulk update studio
 type BulkUpdateStudioRequest struct {
-	VideoIDs []uint `json:"video_ids"`
+	SceneIDs []uint `json:"scene_ids"`
 	Studio   string `json:"studio"`
 }
 
-// BulkUpdateStudio updates studio for multiple videos using batch operations
+// BulkUpdateStudio updates studio for multiple scenes using batch operations
 func (s *ExplorerService) BulkUpdateStudio(req BulkUpdateStudioRequest) (int, error) {
-	if len(req.VideoIDs) == 0 {
-		return 0, apperrors.NewValidationError("at least one video ID is required")
+	if len(req.SceneIDs) == 0 {
+		return 0, apperrors.NewValidationError("at least one scene ID is required")
 	}
 
-	// Verify all videos exist
-	videos, err := s.videoRepo.GetByIDs(req.VideoIDs)
+	// Verify all scenes exist
+	scenes, err := s.sceneRepo.GetByIDs(req.SceneIDs)
 	if err != nil {
-		return 0, apperrors.NewInternalError("failed to verify videos", err)
+		return 0, apperrors.NewInternalError("failed to verify scenes", err)
 	}
-	if len(videos) != len(req.VideoIDs) {
-		return 0, apperrors.NewValidationError("one or more videos not found")
+	if len(scenes) != len(req.SceneIDs) {
+		return 0, apperrors.NewValidationError("one or more scenes not found")
 	}
 
 	// Perform bulk update
-	if err := s.videoRepo.BulkUpdateStudio(req.VideoIDs, req.Studio); err != nil {
+	if err := s.sceneRepo.BulkUpdateStudio(req.SceneIDs, req.Studio); err != nil {
 		return 0, apperrors.NewInternalError("failed to update studio", err)
 	}
 
 	// Batch update search index
 	if s.indexer != nil {
-		// Refresh videos with updated studio
-		updatedVideos, err := s.videoRepo.GetByIDs(req.VideoIDs)
+		// Refresh scenes with updated studio
+		updatedScenes, err := s.sceneRepo.GetByIDs(req.SceneIDs)
 		if err != nil {
-			s.logger.Warn("Failed to fetch videos for index update", zap.Error(err))
-		} else if err := s.indexer.BulkUpdateVideoIndex(updatedVideos); err != nil {
+			s.logger.Warn("Failed to fetch scenes for index update", zap.Error(err))
+		} else if err := s.indexer.BulkUpdateSceneIndex(updatedScenes); err != nil {
 			s.logger.Warn("Failed to bulk update search index", zap.Error(err))
 		}
 	}
 
 	// Emit single bulk update event
 	if s.eventBus != nil {
-		s.eventBus.Publish(VideoEvent{
-			Type:    "videos_bulk_updated",
-			VideoID: 0, // Bulk operation
+		s.eventBus.Publish(SceneEvent{
+			Type:    "scenes_bulk_updated",
+			SceneID: 0, // Bulk operation
 		})
 	}
 
 	s.logger.Info("Bulk studio update completed",
-		zap.Int("updated", len(req.VideoIDs)),
-		zap.Int("total", len(req.VideoIDs)),
+		zap.Int("updated", len(req.SceneIDs)),
+		zap.Int("total", len(req.SceneIDs)),
 		zap.String("studio", req.Studio),
 	)
 
-	return len(req.VideoIDs), nil
+	return len(req.SceneIDs), nil
 }
 
-// BulkDeleteVideos deletes multiple videos and their associated files
-func (s *ExplorerService) BulkDeleteVideos(videoIDs []uint) (int, error) {
-	if len(videoIDs) == 0 {
-		return 0, apperrors.NewValidationError("at least one video ID is required")
+// BulkDeleteScenes deletes multiple scenes and their associated files
+func (s *ExplorerService) BulkDeleteScenes(sceneIDs []uint) (int, error) {
+	if len(sceneIDs) == 0 {
+		return 0, apperrors.NewValidationError("at least one scene ID is required")
 	}
 
-	// Verify videos exist
-	videos, err := s.videoRepo.GetByIDs(videoIDs)
+	// Verify scenes exist
+	scenes, err := s.sceneRepo.GetByIDs(sceneIDs)
 	if err != nil {
-		return 0, apperrors.NewInternalError("failed to verify videos", err)
+		return 0, apperrors.NewInternalError("failed to verify scenes", err)
 	}
 
 	deleted := 0
-	for _, video := range videos {
+	for _, scene := range scenes {
 		// Delete from database (soft delete)
-		if err := s.videoRepo.Delete(video.ID); err != nil {
-			s.logger.Warn("Failed to delete video from database",
-				zap.Uint("id", video.ID),
+		if err := s.sceneRepo.Delete(scene.ID); err != nil {
+			s.logger.Warn("Failed to delete scene from database",
+				zap.Uint("id", scene.ID),
 				zap.Error(err),
 			)
 			continue
@@ -388,68 +388,68 @@ func (s *ExplorerService) BulkDeleteVideos(videoIDs []uint) (int, error) {
 
 		// Remove from search index
 		if s.indexer != nil {
-			if err := s.indexer.DeleteVideoIndex(video.ID); err != nil {
-				s.logger.Warn("Failed to delete video from search index",
-					zap.Uint("id", video.ID),
+			if err := s.indexer.DeleteSceneIndex(scene.ID); err != nil {
+				s.logger.Warn("Failed to delete scene from search index",
+					zap.Uint("id", scene.ID),
 					zap.Error(err),
 				)
 			}
 		}
 
 		// Delete physical files
-		s.deleteVideoFiles(&video)
+		s.deleteSceneFiles(&scene)
 		deleted++
 	}
 
 	// Emit bulk delete event
 	if s.eventBus != nil {
-		s.eventBus.Publish(VideoEvent{
-			Type:    "videos_bulk_deleted",
-			VideoID: 0, // Bulk operation
+		s.eventBus.Publish(SceneEvent{
+			Type:    "scenes_bulk_deleted",
+			SceneID: 0, // Bulk operation
 		})
 	}
 
 	s.logger.Info("Bulk delete completed",
 		zap.Int("deleted", deleted),
-		zap.Int("requested", len(videoIDs)),
+		zap.Int("requested", len(sceneIDs)),
 	)
 
 	return deleted, nil
 }
 
-// deleteVideoFiles removes all physical files associated with a video
-func (s *ExplorerService) deleteVideoFiles(video *data.Video) {
-	// Remove video file
-	if video.StoredPath != "" {
-		if err := os.Remove(video.StoredPath); err != nil && !os.IsNotExist(err) {
-			s.logger.Warn("Failed to delete video file",
-				zap.Uint("id", video.ID),
-				zap.String("path", video.StoredPath),
+// deleteSceneFiles removes all physical files associated with a scene
+func (s *ExplorerService) deleteSceneFiles(scene *data.Scene) {
+	// Remove scene file
+	if scene.StoredPath != "" {
+		if err := os.Remove(scene.StoredPath); err != nil && !os.IsNotExist(err) {
+			s.logger.Warn("Failed to delete scene file",
+				zap.Uint("id", scene.ID),
+				zap.String("path", scene.StoredPath),
 				zap.Error(err),
 			)
 		}
 	}
 
 	// Remove thumbnail
-	if video.ThumbnailPath != "" {
-		if err := os.Remove(video.ThumbnailPath); err != nil && !os.IsNotExist(err) {
+	if scene.ThumbnailPath != "" {
+		if err := os.Remove(scene.ThumbnailPath); err != nil && !os.IsNotExist(err) {
 			s.logger.Warn("Failed to delete thumbnail",
-				zap.Uint("id", video.ID),
-				zap.String("path", video.ThumbnailPath),
+				zap.Uint("id", scene.ID),
+				zap.String("path", scene.ThumbnailPath),
 				zap.Error(err),
 			)
 		}
 	}
 
 	// Remove sprite sheets (pattern: {id}_sheet_*.jpg)
-	if video.SpriteSheetPath != "" && s.metadataPath != "" {
+	if scene.SpriteSheetPath != "" && s.metadataPath != "" {
 		spriteDir := filepath.Join(s.metadataPath, "sprites")
-		spritePattern := filepath.Join(spriteDir, fmt.Sprintf("%d_sheet_*.jpg", video.ID))
+		spritePattern := filepath.Join(spriteDir, fmt.Sprintf("%d_sheet_*.jpg", scene.ID))
 		files, _ := filepath.Glob(spritePattern)
 		for _, file := range files {
 			if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
 				s.logger.Warn("Failed to delete sprite sheet",
-					zap.Uint("id", video.ID),
+					zap.Uint("id", scene.ID),
 					zap.String("path", file),
 					zap.Error(err),
 				)
@@ -458,11 +458,11 @@ func (s *ExplorerService) deleteVideoFiles(video *data.Video) {
 	}
 
 	// Remove VTT file
-	if video.VttPath != "" {
-		if err := os.Remove(video.VttPath); err != nil && !os.IsNotExist(err) {
+	if scene.VttPath != "" {
+		if err := os.Remove(scene.VttPath); err != nil && !os.IsNotExist(err) {
 			s.logger.Warn("Failed to delete VTT file",
-				zap.Uint("id", video.ID),
-				zap.String("path", video.VttPath),
+				zap.Uint("id", scene.ID),
+				zap.String("path", scene.VttPath),
 				zap.Error(err),
 			)
 		}
@@ -487,13 +487,13 @@ type FolderSearchRequest struct {
 
 // FolderSearchResponse contains the search results
 type FolderSearchResponse struct {
-	Videos []data.Video `json:"videos"`
+	Scenes []data.Scene `json:"scenes"`
 	Total  int64        `json:"total"`
 	Page   int          `json:"page"`
 	Limit  int          `json:"limit"`
 }
 
-// SearchInFolder searches for videos within a folder scope
+// SearchInFolder searches for scenes within a folder scope
 func (s *ExplorerService) SearchInFolder(req FolderSearchRequest) (*FolderSearchResponse, error) {
 	if s.searchService == nil {
 		return nil, apperrors.NewInternalError("search service not available", nil)
@@ -519,16 +519,16 @@ func (s *ExplorerService) SearchInFolder(req FolderSearchRequest) (*FolderSearch
 		return nil, apperrors.NewNotFoundError("storage path", req.StoragePathID)
 	}
 
-	// Get all video IDs in the folder
-	folderVideoIDs, err := s.explorerRepo.GetVideoIDsByFolder(req.StoragePathID, req.FolderPath, req.Recursive)
+	// Get all scene IDs in the folder
+	folderSceneIDs, err := s.explorerRepo.GetSceneIDsByFolder(req.StoragePathID, req.FolderPath, req.Recursive)
 	if err != nil {
-		return nil, apperrors.NewInternalError("failed to get folder video IDs", err)
+		return nil, apperrors.NewInternalError("failed to get folder scene IDs", err)
 	}
 
 	// If folder is empty, return empty results
-	if len(folderVideoIDs) == 0 {
+	if len(folderSceneIDs) == 0 {
 		return &FolderSearchResponse{
-			Videos: []data.Video{},
+			Scenes: []data.Scene{},
 			Total:  0,
 			Page:   req.Page,
 			Limit:  req.Limit,
@@ -536,7 +536,7 @@ func (s *ExplorerService) SearchInFolder(req FolderSearchRequest) (*FolderSearch
 	}
 
 	// Build search params with folder IDs as pre-filter
-	searchParams := data.VideoSearchParams{
+	searchParams := data.SceneSearchParams{
 		Query:       req.Query,
 		TagIDs:      req.TagIDs,
 		Actors:      req.Actors,
@@ -546,17 +546,17 @@ func (s *ExplorerService) SearchInFolder(req FolderSearchRequest) (*FolderSearch
 		Sort:        req.Sort,
 		Page:        req.Page,
 		Limit:       req.Limit,
-		VideoIDs:    folderVideoIDs,
+		SceneIDs:    folderSceneIDs,
 	}
 
 	// Perform search
-	videos, total, err := s.searchService.Search(searchParams)
+	scenes, total, err := s.searchService.Search(searchParams)
 	if err != nil {
 		return nil, apperrors.NewInternalError("search failed", err)
 	}
 
 	return &FolderSearchResponse{
-		Videos: videos,
+		Scenes: scenes,
 		Total:  total,
 		Page:   req.Page,
 		Limit:  req.Limit,

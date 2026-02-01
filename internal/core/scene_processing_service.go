@@ -20,10 +20,10 @@ type eventBusAdapter struct {
 	eventBus *EventBus
 }
 
-func (a *eventBusAdapter) Publish(event processing.VideoEvent) {
-	a.eventBus.Publish(VideoEvent{
+func (a *eventBusAdapter) Publish(event processing.SceneEvent) {
+	a.eventBus.Publish(SceneEvent{
 		Type:    event.Type,
-		VideoID: event.VideoID,
+		SceneID: event.SceneID,
 		Data:    event.Data,
 	})
 }
@@ -33,12 +33,12 @@ type jobHistoryAdapter struct {
 	service *JobHistoryService
 }
 
-func (a *jobHistoryAdapter) RecordJobStart(jobID string, videoID uint, videoTitle string, phase string) {
-	a.service.RecordJobStart(jobID, videoID, videoTitle, phase)
+func (a *jobHistoryAdapter) RecordJobStart(jobID string, sceneID uint, sceneTitle string, phase string) {
+	a.service.RecordJobStart(jobID, sceneID, sceneTitle, phase)
 }
 
-func (a *jobHistoryAdapter) RecordJobStartWithRetry(jobID string, videoID uint, videoTitle string, phase string, maxRetries int, retryCount int) {
-	a.service.RecordJobStartWithRetry(jobID, videoID, videoTitle, phase, maxRetries, retryCount)
+func (a *jobHistoryAdapter) RecordJobStartWithRetry(jobID string, sceneID uint, sceneTitle string, phase string, maxRetries int, retryCount int) {
+	a.service.RecordJobStartWithRetry(jobID, sceneID, sceneTitle, phase, maxRetries, retryCount)
 }
 
 func (a *jobHistoryAdapter) RecordJobComplete(jobID string) {
@@ -49,12 +49,12 @@ func (a *jobHistoryAdapter) RecordJobCancelled(jobID string) {
 	a.service.RecordJobCancelled(jobID)
 }
 
-func (a *jobHistoryAdapter) RecordJobFailedWithRetry(jobID string, videoID uint, phase string, err error) {
-	a.service.RecordJobFailedWithRetry(jobID, videoID, phase, err)
+func (a *jobHistoryAdapter) RecordJobFailedWithRetry(jobID string, sceneID uint, phase string, err error) {
+	a.service.RecordJobFailedWithRetry(jobID, sceneID, phase, err)
 }
 
-// VideoProcessingService orchestrates video processing using worker pools
-type VideoProcessingService struct {
+// SceneProcessingService orchestrates scene processing using worker pools
+type SceneProcessingService struct {
 	poolManager   *processing.PoolManager
 	phaseTracker  *processing.PhaseTracker
 	resultHandler *processing.ResultHandler
@@ -62,9 +62,9 @@ type VideoProcessingService struct {
 	logger        *zap.Logger
 }
 
-// NewVideoProcessingService creates a new VideoProcessingService
-func NewVideoProcessingService(
-	repo data.VideoRepository,
+// NewSceneProcessingService creates a new SceneProcessingService
+func NewSceneProcessingService(
+	repo data.SceneRepository,
 	cfg config.ProcessingConfig,
 	logger *zap.Logger,
 	eventBus *EventBus,
@@ -72,7 +72,7 @@ func NewVideoProcessingService(
 	poolConfigRepo data.PoolConfigRepository,
 	processingConfigRepo data.ProcessingConfigRepository,
 	triggerConfigRepo data.TriggerConfigRepository,
-) *VideoProcessingService {
+) *SceneProcessingService {
 	// Create pool manager
 	poolManager := processing.NewPoolManager(cfg, logger, poolConfigRepo, processingConfigRepo)
 
@@ -98,14 +98,14 @@ func NewVideoProcessingService(
 	jobSubmitter := processing.NewJobSubmitter(repo, poolManager, phaseTracker, historyAdapter, logger)
 
 	// Wire up the result handler callback for phase completion
-	resultHandler.SetOnPhaseComplete(func(videoID uint, phase string) error {
-		return jobSubmitter.SubmitPhase(videoID, phase)
+	resultHandler.SetOnPhaseComplete(func(sceneID uint, phase string) error {
+		return jobSubmitter.SubmitPhase(sceneID, phase)
 	})
 
 	// Set the pool manager's result handler
 	poolManager.SetResultHandler(resultHandler.ProcessPoolResults)
 
-	return &VideoProcessingService{
+	return &SceneProcessingService{
 		poolManager:   poolManager,
 		phaseTracker:  phaseTracker,
 		resultHandler: resultHandler,
@@ -114,85 +114,85 @@ func NewVideoProcessingService(
 	}
 }
 
-// SetIndexer sets the video indexer for search index updates
-func (s *VideoProcessingService) SetIndexer(indexer VideoIndexer) {
+// SetIndexer sets the scene indexer for search index updates
+func (s *SceneProcessingService) SetIndexer(indexer SceneIndexer) {
 	s.resultHandler.SetIndexer(indexer)
 }
 
 // Start starts all worker pools
-func (s *VideoProcessingService) Start() {
+func (s *SceneProcessingService) Start() {
 	s.poolManager.Start()
-	s.logger.Info("Video processing service started")
+	s.logger.Info("Scene processing service started")
 }
 
 // Stop stops all worker pools
-func (s *VideoProcessingService) Stop() {
-	s.logger.Info("Stopping video processing service")
+func (s *SceneProcessingService) Stop() {
+	s.logger.Info("Stopping scene processing service")
 	s.poolManager.Stop()
 }
 
-// SubmitVideo submits a new video for processing
-func (s *VideoProcessingService) SubmitVideo(videoID uint, videoPath string) error {
-	return s.jobSubmitter.SubmitVideo(videoID, videoPath)
+// SubmitScene submits a new scene for processing
+func (s *SceneProcessingService) SubmitScene(sceneID uint, scenePath string) error {
+	return s.jobSubmitter.SubmitScene(sceneID, scenePath)
 }
 
-// SubmitPhase submits a specific phase for a video
-func (s *VideoProcessingService) SubmitPhase(videoID uint, phase string) error {
-	return s.jobSubmitter.SubmitPhase(videoID, phase)
+// SubmitPhase submits a specific phase for a scene
+func (s *SceneProcessingService) SubmitPhase(sceneID uint, phase string) error {
+	return s.jobSubmitter.SubmitPhase(sceneID, phase)
 }
 
 // SubmitPhaseWithRetry submits a phase for processing with retry tracking
-func (s *VideoProcessingService) SubmitPhaseWithRetry(videoID uint, phase string, retryCount, maxRetries int) error {
-	return s.jobSubmitter.SubmitPhaseWithRetry(videoID, phase, retryCount, maxRetries)
+func (s *SceneProcessingService) SubmitPhaseWithRetry(sceneID uint, phase string, retryCount, maxRetries int) error {
+	return s.jobSubmitter.SubmitPhaseWithRetry(sceneID, phase, retryCount, maxRetries)
 }
 
-// SubmitBulkPhase submits a processing phase for multiple videos
-func (s *VideoProcessingService) SubmitBulkPhase(phase string, mode string) (*BulkPhaseResult, error) {
+// SubmitBulkPhase submits a processing phase for multiple scenes
+func (s *SceneProcessingService) SubmitBulkPhase(phase string, mode string) (*BulkPhaseResult, error) {
 	return s.jobSubmitter.SubmitBulkPhase(phase, mode)
 }
 
 // CancelJob cancels a running job by its ID
-func (s *VideoProcessingService) CancelJob(jobID string) error {
+func (s *SceneProcessingService) CancelJob(jobID string) error {
 	return s.poolManager.CancelJob(jobID)
 }
 
 // GetJob retrieves a job by its ID from any pool
-func (s *VideoProcessingService) GetJob(jobID string) (jobs.Job, bool) {
+func (s *SceneProcessingService) GetJob(jobID string) (jobs.Job, bool) {
 	return s.poolManager.GetJob(jobID)
 }
 
 // GetPoolConfig returns the current pool configuration
-func (s *VideoProcessingService) GetPoolConfig() PoolConfig {
+func (s *SceneProcessingService) GetPoolConfig() PoolConfig {
 	return s.poolManager.GetPoolConfig()
 }
 
 // GetQueueStatus returns the current queue status
-func (s *VideoProcessingService) GetQueueStatus() QueueStatus {
+func (s *SceneProcessingService) GetQueueStatus() QueueStatus {
 	return s.poolManager.GetQueueStatus()
 }
 
 // UpdatePoolConfig updates the pool configuration
-func (s *VideoProcessingService) UpdatePoolConfig(cfg PoolConfig) error {
+func (s *SceneProcessingService) UpdatePoolConfig(cfg PoolConfig) error {
 	return s.poolManager.UpdatePoolConfig(cfg)
 }
 
 // GetProcessingQualityConfig returns the current quality configuration
-func (s *VideoProcessingService) GetProcessingQualityConfig() ProcessingQualityConfig {
+func (s *SceneProcessingService) GetProcessingQualityConfig() ProcessingQualityConfig {
 	return s.poolManager.GetQualityConfig()
 }
 
 // UpdateProcessingQualityConfig updates the quality configuration
-func (s *VideoProcessingService) UpdateProcessingQualityConfig(cfg ProcessingQualityConfig) error {
+func (s *SceneProcessingService) UpdateProcessingQualityConfig(cfg ProcessingQualityConfig) error {
 	return s.poolManager.UpdateQualityConfig(cfg)
 }
 
 // RefreshTriggerCache reloads the trigger configuration from the database
-func (s *VideoProcessingService) RefreshTriggerCache() error {
+func (s *SceneProcessingService) RefreshTriggerCache() error {
 	return s.phaseTracker.RefreshTriggerCache()
 }
 
 // LogStatus logs the status of all pools
-func (s *VideoProcessingService) LogStatus() {
-	s.logger.Info("Video processing service status")
+func (s *SceneProcessingService) LogStatus() {
+	s.logger.Info("Scene processing service status")
 	s.poolManager.LogStatus()
 }

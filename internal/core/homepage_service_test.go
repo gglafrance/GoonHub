@@ -128,14 +128,14 @@ func TestHomepageService_ContinueWatching_EmptyHistory(t *testing.T) {
 	}
 
 	// Return empty watch history
-	watchHistoryRepo.EXPECT().ListUserHistory(uint(1), 1, 15).Return([]data.UserVideoWatch{}, int64(0), nil)
+	watchHistoryRepo.EXPECT().ListUserHistory(uint(1), 1, 15).Return([]data.UserSceneWatch{}, int64(0), nil)
 
 	result, err := svc.fetchContinueWatchingSection(1, section)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
-	if len(result.Videos) != 0 {
-		t.Fatalf("expected 0 videos, got %d", len(result.Videos))
+	if len(result.Scenes) != 0 {
+		t.Fatalf("expected 0 videos, got %d", len(result.Scenes))
 	}
 	if result.Total != 0 {
 		t.Fatalf("expected total 0, got %d", result.Total)
@@ -145,13 +145,13 @@ func TestHomepageService_ContinueWatching_EmptyHistory(t *testing.T) {
 func TestHomepageService_ContinueWatching_FiltersCompletedVideos(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	watchHistoryRepo := mocks.NewMockWatchHistoryRepository(ctrl)
-	videoRepo := mocks.NewMockVideoRepository(ctrl)
+	sceneRepo := mocks.NewMockSceneRepository(ctrl)
 
 	svc := NewHomepageService(
 		nil, nil, nil,
 		watchHistoryRepo,
 		nil,
-		videoRepo,
+		sceneRepo,
 		nil, nil, nil,
 		zap.NewNop(),
 	)
@@ -165,16 +165,16 @@ func TestHomepageService_ContinueWatching_FiltersCompletedVideos(t *testing.T) {
 	}
 
 	// Return mix of completed and incomplete watches
-	watchHistoryRepo.EXPECT().ListUserHistory(uint(1), 1, 15).Return([]data.UserVideoWatch{
-		{VideoID: 1, Completed: true, LastPosition: 100},  // Completed - should be skipped
-		{VideoID: 2, Completed: false, LastPosition: 50},  // Incomplete with position
-		{VideoID: 3, Completed: false, LastPosition: 0},   // Incomplete but no position - skipped
-		{VideoID: 4, Completed: false, LastPosition: 75},  // Incomplete with position
-		{VideoID: 5, Completed: true, LastPosition: 200},  // Completed - should be skipped
+	watchHistoryRepo.EXPECT().ListUserHistory(uint(1), 1, 15).Return([]data.UserSceneWatch{
+		{SceneID: 1, Completed: true, LastPosition: 100},  // Completed - should be skipped
+		{SceneID: 2, Completed: false, LastPosition: 50},  // Incomplete with position
+		{SceneID: 3, Completed: false, LastPosition: 0},   // Incomplete but no position - skipped
+		{SceneID: 4, Completed: false, LastPosition: 75},  // Incomplete with position
+		{SceneID: 5, Completed: true, LastPosition: 200},  // Completed - should be skipped
 	}, int64(5), nil)
 
 	// Only videos 2 and 4 should be fetched
-	videoRepo.EXPECT().GetByIDs([]uint{2, 4}).Return([]data.Video{
+	sceneRepo.EXPECT().GetByIDs([]uint{2, 4}).Return([]data.Scene{
 		{ID: 2, Title: "Video 2"},
 		{ID: 4, Title: "Video 4"},
 	}, nil)
@@ -183,8 +183,8 @@ func TestHomepageService_ContinueWatching_FiltersCompletedVideos(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
-	if len(result.Videos) != 2 {
-		t.Fatalf("expected 2 videos, got %d", len(result.Videos))
+	if len(result.Scenes) != 2 {
+		t.Fatalf("expected 2 videos, got %d", len(result.Scenes))
 	}
 	// Total should reflect the filtered count, not the unfiltered total
 	if result.Total != 2 {
@@ -195,13 +195,13 @@ func TestHomepageService_ContinueWatching_FiltersCompletedVideos(t *testing.T) {
 func TestHomepageService_ContinueWatching_RespectsLimit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	watchHistoryRepo := mocks.NewMockWatchHistoryRepository(ctrl)
-	videoRepo := mocks.NewMockVideoRepository(ctrl)
+	sceneRepo := mocks.NewMockSceneRepository(ctrl)
 
 	svc := NewHomepageService(
 		nil, nil, nil,
 		watchHistoryRepo,
 		nil,
-		videoRepo,
+		sceneRepo,
 		nil, nil, nil,
 		zap.NewNop(),
 	)
@@ -215,15 +215,15 @@ func TestHomepageService_ContinueWatching_RespectsLimit(t *testing.T) {
 	}
 
 	// Return more incomplete watches than the limit
-	watchHistoryRepo.EXPECT().ListUserHistory(uint(1), 1, 6).Return([]data.UserVideoWatch{
-		{VideoID: 1, Completed: false, LastPosition: 50},
-		{VideoID: 2, Completed: false, LastPosition: 60},
-		{VideoID: 3, Completed: false, LastPosition: 70},
-		{VideoID: 4, Completed: false, LastPosition: 80},
+	watchHistoryRepo.EXPECT().ListUserHistory(uint(1), 1, 6).Return([]data.UserSceneWatch{
+		{SceneID: 1, Completed: false, LastPosition: 50},
+		{SceneID: 2, Completed: false, LastPosition: 60},
+		{SceneID: 3, Completed: false, LastPosition: 70},
+		{SceneID: 4, Completed: false, LastPosition: 80},
 	}, int64(4), nil)
 
 	// Only first 2 should be fetched
-	videoRepo.EXPECT().GetByIDs([]uint{1, 2}).Return([]data.Video{
+	sceneRepo.EXPECT().GetByIDs([]uint{1, 2}).Return([]data.Scene{
 		{ID: 1, Title: "Video 1"},
 		{ID: 2, Title: "Video 2"},
 	}, nil)
@@ -232,8 +232,8 @@ func TestHomepageService_ContinueWatching_RespectsLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
-	if len(result.Videos) != 2 {
-		t.Fatalf("expected 2 videos, got %d", len(result.Videos))
+	if len(result.Scenes) != 2 {
+		t.Fatalf("expected 2 videos, got %d", len(result.Scenes))
 	}
 }
 

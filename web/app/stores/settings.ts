@@ -20,7 +20,7 @@ export const useSettingsStore = defineStore(
         const autoplay = computed(() => settings.value?.autoplay ?? false);
         const defaultVolume = computed(() => settings.value?.default_volume ?? 100);
         const loop = computed(() => settings.value?.loop ?? false);
-        const videosPerPage = computed(() => settings.value?.videos_per_page ?? 20);
+        const scenesPerPage = computed(() => settings.value?.scenes_per_page ?? 20);
         const defaultSortOrder = computed<SortOrder>(
             () => settings.value?.default_sort_order ?? 'created_at_desc',
         );
@@ -61,12 +61,12 @@ export const useSettingsStore = defineStore(
             }
         };
 
-        const updateApp = async (videosPerPage: number, sortOrder: SortOrder) => {
+        const updateApp = async (scenesPerPage: number, sortOrder: SortOrder) => {
             isLoading.value = true;
             error.value = null;
             try {
                 const data: UserSettings = await apiUpdateApp({
-                    videos_per_page: videosPerPage,
+                    scenes_per_page: scenesPerPage,
                     default_sort_order: sortOrder,
                 });
                 settings.value = data;
@@ -111,7 +111,7 @@ export const useSettingsStore = defineStore(
             autoplay,
             defaultVolume,
             loop,
-            videosPerPage,
+            scenesPerPage,
             defaultSortOrder,
             defaultTagSort,
             theaterMode,

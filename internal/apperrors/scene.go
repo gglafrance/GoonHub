@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-// Video-specific error types and sentinel errors.
+// Scene-specific error types and sentinel errors.
 
 // ErrInvalidFileExtension is returned when a file has an unsupported extension.
 var ErrInvalidFileExtension = &ValidationError{
@@ -27,18 +27,18 @@ var ErrInvalidImageExtension = &ValidationError{
 	Field: "thumbnail",
 }
 
-// ErrVideoDimensionsNotAvailable is returned when video dimensions are needed but not extracted yet.
-var ErrVideoDimensionsNotAvailable = &ValidationError{
+// ErrSceneDimensionsNotAvailable is returned when scene dimensions are needed but not extracted yet.
+var ErrSceneDimensionsNotAvailable = &ValidationError{
 	baseError: baseError{
-		message:    "video dimensions not available, metadata must be extracted first",
-		code:       "VIDEO_DIMENSIONS_NOT_AVAILABLE",
+		message:    "scene dimensions not available, metadata must be extracted first",
+		code:       "SCENE_DIMENSIONS_NOT_AVAILABLE",
 		httpStatus: http.StatusBadRequest,
 	},
 }
 
-// ErrVideoNotFound creates a NotFoundError for a video.
-func ErrVideoNotFound(id uint) *NotFoundError {
-	return NewNotFoundError("video", id)
+// ErrSceneNotFound creates a NotFoundError for a scene.
+func ErrSceneNotFound(id uint) *NotFoundError {
+	return NewNotFoundError("scene", id)
 }
 
 // ErrTagNotFound creates a NotFoundError for a tag.
@@ -86,20 +86,20 @@ func ErrStudioAlreadyExists(name string) *ConflictError {
 	return NewConflictError("studio", fmt.Sprintf("studio '%s' already exists", name))
 }
 
-// ErrVideoProcessingFailed creates an internal error for processing failures.
-func ErrVideoProcessingFailed(videoID uint, cause error) *InternalError {
-	return NewInternalError(fmt.Sprintf("failed to process video %d", videoID), cause)
+// ErrSceneProcessingFailed creates an internal error for processing failures.
+func ErrSceneProcessingFailed(sceneID uint, cause error) *InternalError {
+	return NewInternalError(fmt.Sprintf("failed to process scene %d", sceneID), cause)
 }
 
-// ErrVideoFileNotFound is returned when the video file doesn't exist on disk.
-func ErrVideoFileNotFound(path string) *NotFoundError {
+// ErrSceneFileNotFound is returned when the scene file doesn't exist on disk.
+func ErrSceneFileNotFound(path string) *NotFoundError {
 	return &NotFoundError{
 		baseError: baseError{
-			message:    "video file not found",
-			code:       "VIDEO_FILE_NOT_FOUND",
+			message:    "scene file not found",
+			code:       "SCENE_FILE_NOT_FOUND",
 			httpStatus: http.StatusNotFound,
 		},
-		Resource: "video_file",
+		Resource: "scene_file",
 		ID:       path,
 	}
 }

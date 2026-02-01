@@ -82,7 +82,7 @@ func (p *WorkerPool) worker(id int) {
 
 			result := JobResult{
 				JobID:   job.GetID(),
-				VideoID: job.GetVideoID(),
+				SceneID: job.GetSceneID(),
 				Phase:   job.GetPhase(),
 			}
 
@@ -111,7 +111,7 @@ func (p *WorkerPool) worker(id int) {
 						zap.Int("worker_id", id),
 						zap.String("job_id", job.GetID()),
 						zap.String("phase", job.GetPhase()),
-						zap.Uint("video_id", job.GetVideoID()),
+						zap.Uint("scene_id", job.GetSceneID()),
 						zap.Duration("timeout", p.timeout),
 					)
 				} else if jobStatus == JobStatusCancelled {
@@ -121,7 +121,7 @@ func (p *WorkerPool) worker(id int) {
 						zap.Int("worker_id", id),
 						zap.String("job_id", job.GetID()),
 						zap.String("phase", job.GetPhase()),
-						zap.Uint("video_id", job.GetVideoID()),
+						zap.Uint("scene_id", job.GetSceneID()),
 					)
 				} else {
 					result.Status = JobStatusFailed
@@ -130,7 +130,7 @@ func (p *WorkerPool) worker(id int) {
 						zap.Int("worker_id", id),
 						zap.String("job_id", job.GetID()),
 						zap.String("phase", job.GetPhase()),
-						zap.Uint("video_id", job.GetVideoID()),
+						zap.Uint("scene_id", job.GetSceneID()),
 						zap.Error(err),
 					)
 				}
@@ -141,7 +141,7 @@ func (p *WorkerPool) worker(id int) {
 					zap.Int("worker_id", id),
 					zap.String("job_id", job.GetID()),
 					zap.String("phase", job.GetPhase()),
-					zap.Uint("video_id", job.GetVideoID()),
+					zap.Uint("scene_id", job.GetSceneID()),
 				)
 			}
 
@@ -159,10 +159,10 @@ func (p *WorkerPool) Submit(job Job) error {
 		return fmt.Errorf("worker pool is stopped")
 	}
 
-	// Check for duplicate job (same video+phase already in progress)
+	// Check for duplicate job (same scene+phase already in progress)
 	if existingJobID := p.registry.Register(job); existingJobID != "" {
 		return &DuplicateJobError{
-			VideoID:       job.GetVideoID(),
+			SceneID:       job.GetSceneID(),
 			Phase:         job.GetPhase(),
 			ExistingJobID: existingJobID,
 		}
@@ -249,7 +249,7 @@ func (p *WorkerPool) CancelJob(jobID string) error {
 	job.Cancel()
 	p.logger.Info("Job cancelled",
 		zap.String("job_id", jobID),
-		zap.Uint("video_id", job.GetVideoID()),
+		zap.Uint("scene_id", job.GetSceneID()),
 		zap.String("phase", job.GetPhase()),
 	)
 	return nil

@@ -3,7 +3,7 @@ import type { Actor } from '~/types/actor';
 import type { PornDBScenePerformer, PornDBPerformerDetails } from '~/types/porndb';
 
 const props = defineProps<{
-    videoId: number;
+    sceneId: number;
     performers: PornDBScenePerformer[];
 }>();
 
@@ -31,13 +31,13 @@ const currentPerformer = computed(() => {
 
 async function processNextPerformer() {
     if (currentPerformerIndex.value >= performerQueue.value.length) {
-        // All performers processed, link them to video
+        // All performers processed, link them to scene
         if (createdActorIds.value.length > 0) {
             try {
-                const existing = await api.fetchVideoActors(props.videoId);
+                const existing = await api.fetchSceneActors(props.sceneId);
                 const existingIds = (existing.data || []).map((a: Actor) => a.id);
                 const allIds = [...new Set([...existingIds, ...createdActorIds.value])];
-                await api.setVideoActors(props.videoId, allIds);
+                await api.setSceneActors(props.sceneId, allIds);
             } catch (e: unknown) {
                 emit('error', e instanceof Error ? e.message : 'Failed to link actors');
                 return;

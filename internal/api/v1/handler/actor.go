@@ -60,7 +60,7 @@ func toActorListItems(actors []data.ActorWithCount) []response.ActorListItem {
 			Name:       a.Name,
 			ImageURL:   a.ImageURL,
 			Gender:     a.Gender,
-			VideoCount: a.VideoCount,
+			SceneCount: a.SceneCount,
 		}
 	}
 	return items
@@ -86,7 +86,7 @@ func (h *ActorHandler) GetActorByUUID(c *gin.Context) {
 	c.JSON(http.StatusOK, actor)
 }
 
-func (h *ActorHandler) GetActorVideos(c *gin.Context) {
+func (h *ActorHandler) GetActorScenes(c *gin.Context) {
 	uuidStr := c.Param("uuid")
 	if _, err := uuid.Parse(uuidStr); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid actor UUID"})
@@ -106,14 +106,14 @@ func (h *ActorHandler) GetActorVideos(c *gin.Context) {
 		return
 	}
 
-	videos, total, err := h.Service.GetActorVideos(actor.ID, page, limit)
+	scenes, total, err := h.Service.GetActorScenes(actor.ID, page, limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get actor videos"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get actor scenes"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":  response.ToVideoListItems(videos),
+		"data":  response.ToSceneListItems(scenes),
 		"total": total,
 		"page":  page,
 		"limit": limit,
@@ -336,48 +336,48 @@ func (h *ActorHandler) UploadActorImage(c *gin.Context) {
 	c.JSON(http.StatusOK, actor)
 }
 
-func (h *ActorHandler) GetVideoActors(c *gin.Context) {
+func (h *ActorHandler) GetSceneActors(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	actors, err := h.Service.GetVideoActors(uint(id))
+	actors, err := h.Service.GetSceneActors(uint(id))
 	if err != nil {
 		if apperrors.IsNotFound(err) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Scene not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get video actors"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get scene actors"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": actors})
 }
 
-func (h *ActorHandler) SetVideoActors(c *gin.Context) {
+func (h *ActorHandler) SetSceneActors(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
 		return
 	}
 
-	var req request.SetVideoActorsRequest
+	var req request.SetSceneActorsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
-	actors, err := h.Service.SetVideoActors(uint(id), req.ActorIDs)
+	actors, err := h.Service.SetSceneActors(uint(id), req.ActorIDs)
 	if err != nil {
 		if apperrors.IsNotFound(err) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Scene not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set video actors"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set scene actors"})
 		return
 	}
 

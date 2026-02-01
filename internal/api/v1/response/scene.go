@@ -6,9 +6,9 @@ import (
 	"goonhub/internal/data"
 )
 
-// VideoListItem is a lightweight representation for video list/grid endpoints.
-// Contains only the fields needed for displaying video cards.
-type VideoListItem struct {
+// SceneListItem is a lightweight representation for scene list/grid endpoints.
+// Contains only the fields needed for displaying scene cards.
+type SceneListItem struct {
 	ID               uint      `json:"id"`
 	Title            string    `json:"title"`
 	Duration         int       `json:"duration"`
@@ -19,9 +19,9 @@ type VideoListItem struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
-// ToVideoListItem converts a full Video model to a lightweight VideoListItem.
-func ToVideoListItem(v data.Video) VideoListItem {
-	return VideoListItem{
+// ToSceneListItem converts a full Scene model to a lightweight SceneListItem.
+func ToSceneListItem(v data.Scene) SceneListItem {
+	return SceneListItem{
 		ID:               v.ID,
 		Title:            v.Title,
 		Duration:         v.Duration,
@@ -33,11 +33,11 @@ func ToVideoListItem(v data.Video) VideoListItem {
 	}
 }
 
-// ToVideoListItems converts a slice of Video models to VideoListItems.
-func ToVideoListItems(videos []data.Video) []VideoListItem {
-	items := make([]VideoListItem, len(videos))
-	for i, v := range videos {
-		items[i] = ToVideoListItem(v)
+// ToSceneListItems converts a slice of Scene models to SceneListItems.
+func ToSceneListItems(scenes []data.Scene) []SceneListItem {
+	items := make([]SceneListItem, len(scenes))
+	for i, v := range scenes {
+		items[i] = ToSceneListItem(v)
 	}
 	return items
 }

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Goonhub is a self-hosted video library application with a Go backend and Nuxt 4 (Vue 3) frontend. Videos are uploaded, processed (thumbnails, sprite sheets, VTT files generated via ffmpeg), and streamed. The frontend is embedded into the Go binary for single-binary production deployment. Features include RBAC, real-time updates via SSE, dynamic worker pool configuration, scheduled job triggers, and Meilisearch-powered full-text search.
+Goonhub is a self-hosted video library application with a Go backend and Nuxt 4 (Vue 3) frontend. Scenes are uploaded, processed (thumbnails, sprite sheets, VTT files generated via ffmpeg), and streamed. The frontend is embedded into the Go binary for single-binary production deployment. Features include RBAC, real-time updates via SSE, dynamic worker pool configuration, scheduled job triggers, and Meilisearch-powered full-text search.
 
 ## Development Commands
 
@@ -19,24 +19,12 @@ docker compose ps
 
 # Connect via psql
 docker exec -it goonhub-postgres psql -U goonhub -d goonhub
-
-# Reset database (destroys all data including search index)
-cd docker && docker compose down -v && docker compose up -d
-
-# Trigger full search reindex (via API, requires admin auth)
-curl -X POST http://localhost:8080/api/v1/admin/search/reindex -H "Authorization: Bearer <token>"
-
-# Check Meilisearch health
-curl http://localhost:7700/health
 ```
 
 ### Backend (Go)
 
 ```bash
-# Hot reload with Air (preferred for dev)
-GOONHUB_CONFIG=config-dev.yaml air
-
-# Or run directly
+# Run directly
 GOONHUB_CONFIG=config-dev.yaml go run ./cmd/server
 
 # Regenerate Wire dependency injection (after changing providers in wire.go)
@@ -50,9 +38,6 @@ go build -o goonhub ./cmd/server
 
 ```bash
 cd web
-
-# Install dependencies
-bun install
 
 # Dev server on :3000 (proxies /api, /thumbnails, /sprites, /vtt to backend on :8080)
 bun run dev
@@ -96,12 +81,12 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - `internal/wire/` - Google Wire dependency injection (run `wire ./internal/wire/` after changing providers)
 - `internal/config/` - Viper-based config, loaded from YAML file or `GOONHUB_*` env vars
 - `internal/api/` - Gin HTTP router, routes, middleware (CORS, auth, rate limiting, RBAC)
-- `internal/api/v1/handler/` - Request handlers (video, auth, admin, settings, SSE, job history)
+- `internal/api/v1/handler/` - Request handlers (scene, auth, admin, settings, SSE, job history)
 - `internal/api/v1/request/` - Request DTOs (admin, auth, settings)
 - `internal/api/v1/response/` - Response DTOs and envelopes (auth, pagination, error responses)
 - `internal/core/` - Business logic services:
-    - `video_service.go` - Video CRUD operations
-    - `video_processing_service.go` - Processing orchestration and queue status
+    - `scene_service.go` - Scene CRUD operations
+    - `scene_processing_service.go` - Processing orchestration and queue status
     - `search_service.go` - Search orchestration using Meilisearch
     - `auth_service.go` - PASETO token management
     - `user_service.go` - User management
@@ -112,8 +97,9 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
     - `event_bus.go` - EventBus for real-time SSE event publishing
     - `trigger_scheduler.go` - Cron-based scheduled triggers for processing phases
 - `internal/data/` - GORM models and repository interfaces/implementations:
-    - `models.go` - User, Video, Role, Permission, RolePermission, RevokedToken, UserSettings, JobHistory
-    - `repository.go` - Core repository interfaces (VideoRepository, UserRepository, RevokedTokenRepository, UserSettingsRepository)
+    - `scene_models.go` - Scene, SceneTag, SceneActor models
+    - `models.go` - User, Role, Permission, RolePermission, RevokedToken, UserSettings, JobHistory
+    - `repository.go` - Core repository interfaces (SceneRepository, UserRepository, RevokedTokenRepository, UserSettingsRepository)
     - `rbac_repository.go` - RBACRepository for roles/permissions
     - `job_history_repository.go` - JobHistoryRepository
     - `pool_config_repository.go` - PoolConfigRepository (dynamic worker pool settings)
@@ -123,10 +109,10 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - `internal/infrastructure/meilisearch/` - Meilisearch client wrapper (indexing, search, health checks)
 - `internal/infrastructure/persistence/postgres/` - GORM PostgreSQL initializer with connection pooling
 - `internal/infrastructure/persistence/migrator/` - golang-migrate based schema migrations (10 migrations)
-- `internal/jobs/` - Worker pool and video processing jobs (metadata, thumbnail, sprites)
+- `internal/jobs/` - Worker pool and scene processing jobs (metadata, thumbnail, sprites)
 - `internal/apperrors/` - Typed error system with domain-specific errors:
     - `errors.go` - Base AppError interface and common error types (NotFoundError, ValidationError, ConflictError, InternalError, ForbiddenError, UnauthorizedError)
-    - `video.go` - Video-specific errors (ErrVideoNotFound, ErrInvalidFileExtension, ErrVideoDimensionsNotAvailable)
+    - `scene.go` - Scene-specific errors (ErrSceneNotFound, ErrInvalidFileExtension, ErrSceneDimensionsNotAvailable)
     - `auth.go` - Auth-specific errors (ErrInvalidCredentials, ErrTokenExpired, ErrInsufficientPermissions)
     - `codes.go` - Error code constants for API responses
 - `internal/storage/` - Storage abstraction layer:
@@ -141,9 +127,9 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 ### Frontend Structure (web/app/)
 
 - Nuxt 4 directory structure with `app/` subdirectory
-- `pages/` - Routes: index (video grid), login, watch/[id], settings
+- `pages/` - Routes: index (scene grid), login, watch/[id], settings
 - `components/` - Organized by feature:
-    - Root: `AppHeader`, `VideoCard`, `VideoGrid`, `VideoPlayer`, `VideoUpload`, `VideoMetadata`, `UploadIndicator`, `Pagination`, `ErrorAlert`, `LoadingSpinner`
+    - Root: `AppHeader`, `SceneCard`, `SceneGrid`, `ScenePlayer`, `SceneUpload`, `SceneMetadata`, `UploadIndicator`, `Pagination`, `ErrorAlert`, `LoadingSpinner`
     - `settings/` - `Account`, `Player`, `App`, `Users`, `Jobs` (tab orchestrator)
     - `settings/jobs/` - `HistoryTab`, `QueueStatus`, `ActiveJobs`, `Workers`, `Processing`, `Triggers`, `Retry`, `DLQ`, `Manual`
     - `settings/` modals - `UserCreateModal`, `UserEditRoleModal`, `UserResetPasswordModal`, `UserDeleteModal`
@@ -152,16 +138,16 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
     - `search/` - `SearchFilters` (orchestrator), `SearchBar`, `SearchResults`
     - `search/filters/` - `FilterSection`, `FilterTags`, `FilterActors`, `FilterDuration`, `FilterDateRange`, `FilterSelect`, `FilterLiked`, `FilterRatingRange`, `FilterJizzRange`
     - `ui/` - Reusable `ErrorAlert`, `LoadingSpinner`
-- `stores/` - Pinia stores: `auth` (sessionStorage), `videos`, `upload`, `settings`, `search`
+- `stores/` - Pinia stores: `auth` (sessionStorage), `scenes`, `upload`, `settings`, `search`
 - `composables/` - Organized by domain:
     - `api/` - Domain-specific API composables (see API Composables section below)
     - `useApi.ts` - Unified API facade re-exporting all domain composables (backwards-compatible)
     - `useSettingsMessage`, `useFormatter`, `useThumbnailPreview`, `useSSE`, `useVttParser`
-    - `useVideoRating`, `useVideoLike`, `useVideoJizzCount` - Video interaction state
-    - `useWatchTracking`, `useResumePosition` - Video player tracking
+    - `useSceneRating`, `useSceneLike`, `useSceneJizzCount` - Scene interaction state
+    - `useWatchTracking`, `useResumePosition` - Scene player tracking
     - `useJobFormatting`, `useJobPagination`, `useJobAutoRefresh` - Job management utilities
     - `useInlineEditor` - Reusable inline editing pattern
-- `types/` - TypeScript interfaces: `video`, `auth`, `settings`, `admin`, `jobs`, `tag`
+- `types/` - TypeScript interfaces: `scene`, `auth`, `settings`, `admin`, `jobs`, `tag`
 - `assets/css/main.css` - Tailwind CSS 4 entry point
 
 ### API Composables (web/app/composables/api/)
@@ -169,29 +155,29 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 API functions are organized into domain-specific composables for better code organization:
 
 - `useApiCore.ts` - Shared fetch helper with auth/error handling
-- `useApiVideos.ts` - Video CRUD, search, streaming, interactions, watch tracking
+- `useApiScenes.ts` - Scene CRUD, search, streaming, interactions, watch tracking
 - `useApiSettings.ts` - User settings (player, app, tags, password)
 - `useApiAdmin.ts` - Users, roles, permissions management
 - `useApiJobs.ts` - Job history, pool config, processing config, triggers, retry config
-- `useApiTags.ts` - Tag CRUD, video-tag associations
+- `useApiTags.ts` - Tag CRUD, scene-tag associations
 - `useApiActors.ts` - Actor CRUD, associations, interactions
 - `useApiPornDB.ts` - PornDB search, performers, scenes, metadata
 - `useApiStorage.ts` - Storage paths, validation, scanning
 - `useApiDLQ.ts` - Dead letter queue operations
 
-For backwards compatibility, `useApi()` re-exports all functions from domain composables. New code should prefer importing domain-specific composables directly (e.g., `useApiVideos()` instead of `useApi()`).
+For backwards compatibility, `useApi()` re-exports all functions from domain composables. New code should prefer importing domain-specific composables directly (e.g., `useApiScenes()` instead of `useApi()`).
 
 ### Key Patterns
 
 - **DI**: Google Wire generates `wire_gen.go`; edit `wire.go` then regenerate
 - **Auth**: PASETO tokens, admin user auto-created on startup, token revocation via DB
 - **RBAC**: Roles and permissions managed via database, enforced by middleware
-- **Video Processing Pipeline**: Upload -> save file -> create DB record -> submit async job (worker pool) -> extract metadata -> generate thumbnails (multi-resolution) -> generate sprite sheets -> generate VTT -> update DB
-- **Real-Time Updates (SSE)**: EventBus publishes VideoEvents -> SSEHandler streams to connected clients via Server-Sent Events. Token auth via query parameter. 30-second keepalive pings. Buffered channel (50 events) prevents blocking.
+- **Scene Processing Pipeline**: Upload -> save file -> create DB record -> submit async job (worker pool) -> extract metadata -> generate thumbnails (multi-resolution) -> generate sprite sheets -> generate VTT -> update DB
+- **Real-Time Updates (SSE)**: EventBus publishes SceneEvents -> SSEHandler streams to connected clients via Server-Sent Events. Token auth via query parameter. 30-second keepalive pings. Buffered channel (50 events) prevents blocking.
 - **Trigger Scheduler**: Cron-based scheduling via robfig/cron/v3. Supports trigger types: `on_import`, `after_job`, `manual`, `scheduled`. Includes cycle detection for after_job dependencies.
 - **Dynamic Configuration**: Worker pool size, processing quality, and trigger schedules are stored in DB and configurable at runtime via admin API.
-- **Queue Status Monitoring**: `VideoProcessingService.GetQueueStatus()` returns queued jobs per phase for frontend display.
-- **Meilisearch Full-Text Search**: SearchService orchestrates search operations via Meilisearch. Meilisearch handles full-text search and attribute filtering (tags, actors, studio, duration, resolution, date). PostgreSQL handles user-specific filters (liked, rating, jizz_count) via pre-filtering video IDs which are then passed to Meilisearch. Videos are indexed on: upload, update, delete, tag changes, and metadata extraction completion.
+- **Queue Status Monitoring**: `SceneProcessingService.GetQueueStatus()` returns queued jobs per phase for frontend display.
+- **Meilisearch Full-Text Search**: SearchService orchestrates search operations via Meilisearch. Meilisearch handles full-text search and attribute filtering (tags, actors, studio, duration, resolution, date). PostgreSQL handles user-specific filters (liked, rating, jizz_count) via pre-filtering scene IDs which are then passed to Meilisearch. Scenes are indexed on: upload, update, delete, tag changes, and metadata extraction completion.
 - **Typed Error Handling**: Services return typed errors from `internal/apperrors/` package. Handlers use type-checking functions (`apperrors.IsNotFound()`, `apperrors.IsValidation()`) and `response.Error()` helper for consistent API error responses with proper HTTP status codes and error codes.
 - **Response Envelopes**: Standardized API responses via `internal/api/v1/response/envelope.go`. Use `response.OK()`, `response.Created()`, `response.Error()` helpers. Paginated responses use `PaginatedResponse[T]` with `Pagination` metadata.
 - **Lifecycle Management**: Use `internal/lifecycle/Manager` for tracked goroutines. Call `lifecycle.Go(name, fn)` instead of raw `go func()` to ensure graceful shutdown coordination.
@@ -200,54 +186,18 @@ For backwards compatibility, `useApi()` re-exports all functions from domain com
 - **Custom Elements**: Vue compiler configured to treat `media-*`, `videojs-video`, `media-theme` as custom elements
 - **Auto Imports**: Pinia stores and composables auto-imported via Nuxt config
 
-### API Routes
-
-All under `/api/v1/`:
-
-**Public:**
-
-- `POST /auth/login` (rate-limited)
-- `GET /videos/:id/stream`
-- `GET /events?token=<token>` (SSE real-time event stream)
-
-**Authenticated:**
-
-- `GET /auth/me`, `POST /auth/logout`
-- `POST /videos`, `GET /videos`, `GET /videos/:id`, `DELETE /videos/:id`
-- `GET /settings`, `PUT /settings`
-
-**Admin (requires admin role):**
-
-- `GET /admin/jobs` - List job history
-- `GET /admin/pool-config`, `PUT /admin/pool-config` - Worker pool configuration
-- `GET /admin/processing-config`, `PUT /admin/processing-config` - Processing quality settings
-- `GET /admin/trigger-config`, `PUT /admin/trigger-config` - Trigger schedule management
-- `POST /admin/videos/:id/process/:phase` - Manually trigger processing phase
-- `GET /admin/search/status` - Check Meilisearch availability
-- `POST /admin/search/reindex` - Trigger full search index rebuild
-
 ### Configuration
 
 Config loaded via Viper: YAML file path set by `GOONHUB_CONFIG` env var. All config keys can be overridden with `GOONHUB_` prefixed env vars (dots become underscores, e.g. `GOONHUB_SERVER_PORT`).
-
-Key config sections:
-
-- `server` - Port, timeouts
-- `database` - PostgreSQL connection, pooling
-- `log` - Level, format
-- `auth` - PASETO secret, admin credentials, token duration, rate limits
-- `processing` - Frame intervals, dimensions (small/large), quality levels (thumbnails/sprites), worker counts per phase, sprite grid size, concurrency, output directories, job history retention
-- `meilisearch` - Host, API key, index name (required for search functionality)
 
 ### Database
 
 - **PostgreSQL 18** is the database (run via `docker/docker-compose.yml`)
 - Migrations are managed by `golang-migrate` (embedded in binary, run automatically on startup)
-- 10 migration files covering: initial schema, user settings, RBAC, job history, pool config, multi-resolution thumbnails, extended metadata, processing config, sprites concurrency, trigger config
 
 ### External Dependencies
 
-- **ffmpeg/ffprobe** must be available on PATH for video processing
+- **ffmpeg/ffprobe** must be available on PATH for scene processing
 - **PostgreSQL 18** via Docker (see `docker/` directory)
 - **Meilisearch v1.33** via Docker (required for search functionality)
 
@@ -292,10 +242,10 @@ Key config sections:
 - **Self-sufficient components:** Each sub-component manages its own state via stores and composables. Use `defineExpose()` to expose reload methods when parent needs to trigger refresh (e.g., after metadata update).
 - **Composables for shared patterns:** Extract repeated ref+logic patterns into `composables/use*.ts`. Nuxt auto-imports them. Examples:
     - `useInlineEditor()` for title/description/date editing with auto-save
-    - `useVideoRating()` for star rating with hover states
+    - `useSceneRating()` for star rating with hover states
     - `useJobFormatting()` for duration/time/status formatting
     - `useJobPagination()` for pagination with localStorage persistence
-- **API composables by domain:** Use domain-specific API composables (e.g., `useApiVideos()`, `useApiTags()`) instead of the unified `useApi()` for better tree-shaking and code organization.
+- **API composables by domain:** Use domain-specific API composables (e.g., `useApiScenes()`, `useApiTags()`) instead of the unified `useApi()` for better tree-shaking and code organization.
 - **Reusable filter pattern:** For collapsible filter sections, use the `FilterSection.vue` wrapper component that handles expand/collapse state and badge display.
 - **Modal pattern:** Modals receive `visible` + entity props and emit `close` + success events (`created`, `updated`, `deleted`). Modals own their form/loading state and display errors internally. Always wrap with `<Teleport to="body">`.
 - **No manual imports for auto-imported APIs:** Never import `ref`, `computed`, `watch`, `onMounted` from Vue, or stores/composables — Nuxt auto-imports them. Only use explicit `import type` for TypeScript types from `~/types/`.
@@ -320,7 +270,7 @@ The UI follows a **Deep Space SaaS Aesthetic**—sophisticated, dark, and highly
 - No emoji in log messages or code comments
 - No data deletion without explicit confirmation
 
-### Project Memories (keep updating this section as you come across important patterns/observations)
+### Project Memories
 
 When working on GoonHub, remember:
 
@@ -330,10 +280,7 @@ When working on GoonHub, remember:
 - PASETO key must be exactly 32 bytes for v2 symmetric encryption
 - Admin routes require RBAC middleware with admin role check
 - Use <NuxtTime :datetime=".." /> for date display
-- API composables are in `composables/api/` - prefer domain-specific imports (e.g., `useApiVideos()`) over unified `useApi()`
+- API composables are in `composables/api/` - prefer domain-specific imports (e.g., `useApiScenes()`) over unified `useApi()`
 - Component sub-directories follow pattern: `components/<feature>/<subfeature>/` auto-imports as `<FeatureSubfeatureComponent />`
-- Composables that manage video player state (`useWatchTracking`, `useVideoRating`, etc.) take refs as parameters for reactivity
 - Use typed errors from `internal/apperrors/` - check with `apperrors.IsNotFound()`, `apperrors.IsValidation()`, etc.
 - In handlers, use `response.Error(c, err)` for automatic HTTP status and error code mapping
-- For new goroutines that need graceful shutdown, use `lifecycle.Go()` instead of raw `go func()`
-- Video and metadata directories are configured via `processing.video_dir` and `processing.metadata_dir` in config

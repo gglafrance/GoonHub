@@ -9,8 +9,8 @@ useHead({ title: 'Watch History' });
 useSeoMeta({
     title: 'Watch History',
     ogTitle: 'Watch History - GoonHub',
-    description: 'Your recently watched videos',
-    ogDescription: 'Your recently watched videos',
+    description: 'Your recently watched scenes',
+    ogDescription: 'Your recently watched scenes',
 });
 
 const entries = ref<WatchHistoryEntry[]>([]);
@@ -19,8 +19,8 @@ const total = ref(0);
 const page = ref(1);
 const limit = 20;
 
-// Filter out entries where video was deleted
-const validEntries = computed(() => entries.value.filter((e) => e.video));
+// Filter out entries where scene was deleted
+const validEntries = computed(() => entries.value.filter((e) => e.scene));
 
 const loadHistory = async (newPage = 1) => {
     isLoading.value = true;
@@ -37,10 +37,10 @@ const loadHistory = async (newPage = 1) => {
 };
 
 const getProgress = (entry: WatchHistoryEntry) => {
-    if (entry.watch.completed || !entry.video?.duration) return undefined;
+    if (entry.watch.completed || !entry.scene?.duration) return undefined;
     return {
         last_position: entry.watch.last_position,
-        duration: entry.video.duration,
+        duration: entry.scene.duration,
     };
 };
 
@@ -74,14 +74,14 @@ definePageMeta({
                     </div>
                     <div>
                         <h1 class="text-lg font-semibold text-white">Watch History</h1>
-                        <p class="text-dim text-xs">Videos you've watched</p>
+                        <p class="text-dim text-xs">Scenes you've watched</p>
                     </div>
                 </div>
                 <span
                     class="border-border bg-panel text-dim rounded-full border px-2.5 py-0.5
                         font-mono text-[11px]"
                 >
-                    {{ total }} videos
+                    {{ total }} scenes
                 </span>
             </div>
 
@@ -106,7 +106,7 @@ definePageMeta({
                     <Icon name="heroicons:clock" size="20" class="text-dim" />
                 </div>
                 <p class="text-muted mt-3 text-sm">No watch history</p>
-                <p class="text-dim mt-1 text-xs">Videos you watch will appear here</p>
+                <p class="text-dim mt-1 text-xs">Scenes you watch will appear here</p>
                 <NuxtLink
                     to="/"
                     class="border-border bg-surface text-muted hover:border-border-hover mt-4
@@ -120,10 +120,10 @@ definePageMeta({
             <!-- History Grid -->
             <div v-else>
                 <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                    <VideoCard
+                    <SceneCard
                         v-for="entry in validEntries"
                         :key="entry.watch.id"
-                        :video="entry.video!"
+                        :scene="entry.scene!"
                         :progress="getProgress(entry)"
                         :completed="entry.watch.completed"
                         fluid
@@ -134,7 +134,7 @@ definePageMeta({
                                 {{ formatDuration(entry.watch.last_position) }}
                             </span>
                         </template>
-                    </VideoCard>
+                    </SceneCard>
                 </div>
 
                 <Pagination v-model="page" :total="total" :limit="limit" />

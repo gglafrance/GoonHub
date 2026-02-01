@@ -2,28 +2,28 @@
  * Centralized data loading composable for the watch page.
  *
  * Orchestrates all API requests with explicit priority tiers:
- * - P0: Video (critical - blocks rendering)
+ * - P0: Scene (critical - blocks rendering)
  * - P1: Markers + Resume position (player experience)
  * - P2: Interactions + Studio + Tags + Actors (details tab)
- * - P3: Related videos + PornDB status (below fold / admin only)
+ * - P3: Related scenes + PornDB status (below fold / admin only)
  *
  * Child components inject data instead of fetching independently,
  * eliminating network congestion and ensuring predictable load order.
  */
-import type { Video, VideoListItem } from '~/types/video';
+import type { Scene, SceneListItem } from '~/types/scene';
 import type { Marker } from '~/types/marker';
 import type { Studio } from '~/types/studio';
 import type { Tag } from '~/types/tag';
 import type { Actor } from '~/types/actor';
 
-export interface VideoInteractions {
+export interface SceneInteractions {
     rating: number;
     liked: boolean;
     jizzed_count: number;
 }
 
 export interface LoadingState {
-    video: boolean;
+    scene: boolean;
     player: boolean;
     details: boolean;
     related: boolean;
@@ -31,18 +31,18 @@ export interface LoadingState {
 
 export interface WatchPageData {
     // Core data
-    video: Ref<Video | null>;
+    scene: Ref<Scene | null>;
     markers: Ref<Marker[]>;
     resumePosition: Ref<number>;
 
     // Details data
-    interactions: Ref<VideoInteractions | null>;
+    interactions: Ref<SceneInteractions | null>;
     studio: Ref<Studio | null>;
     tags: Ref<Tag[]>;
     actors: Ref<Actor[]>;
 
     // Below fold
-    relatedVideos: Ref<VideoListItem[]>;
+    relatedScenes: Ref<SceneListItem[]>;
     pornDBConfigured: Ref<boolean>;
 
     // Loading states per tier (reactive object for proper template unwrapping)
@@ -60,43 +60,43 @@ export interface WatchPageData {
     refreshAll: () => Promise<void>;
 
     // Setters for optimistic updates from child components
-    setVideo: (video: Video) => void;
+    setScene: (scene: Scene) => void;
     setStudio: (studio: Studio | null) => void;
     setTags: (tags: Tag[]) => void;
     setActors: (actors: Actor[]) => void;
-    setInteractions: (interactions: VideoInteractions) => void;
+    setInteractions: (interactions: SceneInteractions) => void;
 }
 
 export const WATCH_PAGE_DATA_KEY = 'watchPageData';
 
-export function useWatchPageData(videoId: Ref<number>): WatchPageData {
+export function useWatchPageData(sceneId: Ref<number>): WatchPageData {
     const authStore = useAuthStore();
-    const { fetchVideo, fetchVideoInteractions, getResumePosition, fetchRelatedVideos } =
-        useApiVideos();
+    const { fetchScene, fetchSceneInteractions, getResumePosition, fetchRelatedScenes } =
+        useApiScenes();
     const { fetchMarkers } = useApiMarkers();
-    const { fetchVideoStudio } = useApiStudios();
-    const { fetchVideoTags } = useApiTags();
-    const { fetchVideoActors } = useApiActors();
+    const { fetchSceneStudio } = useApiStudios();
+    const { fetchSceneTags } = useApiTags();
+    const { fetchSceneActors } = useApiActors();
     const { getPornDBStatus } = useApiPornDB();
 
     // Core data
-    const video = ref<Video | null>(null);
+    const scene = ref<Scene | null>(null);
     const markers = ref<Marker[]>([]);
     const resumePosition = ref(0);
 
     // Details data
-    const interactions = ref<VideoInteractions | null>(null);
+    const interactions = ref<SceneInteractions | null>(null);
     const studio = ref<Studio | null>(null);
     const tags = ref<Tag[]>([]);
     const actors = ref<Actor[]>([]);
 
     // Below fold
-    const relatedVideos = ref<VideoListItem[]>([]);
+    const relatedScenes = ref<SceneListItem[]>([]);
     const pornDBConfigured = ref(false);
 
     // Loading states (reactive for proper template unwrapping)
     const loading = reactive<LoadingState>({
-        video: true,
+        scene: true,
         player: true,
         details: true,
         related: true,
@@ -107,19 +107,19 @@ export function useWatchPageData(videoId: Ref<number>): WatchPageData {
 
     const isAdmin = computed(() => authStore.user?.role === 'admin');
 
-    // P0: Critical - fetch video
+    // P0: Critical - fetch scene
     async function loadP0(): Promise<boolean> {
-        loading.video = true;
+        loading.scene = true;
         error.value = null;
 
         try {
-            video.value = await fetchVideo(videoId.value);
+            scene.value = await fetchScene(sceneId.value);
             return true;
         } catch (err: unknown) {
-            error.value = err instanceof Error ? err.message : 'Failed to load video';
+            error.value = err instanceof Error ? err.message : 'Failed to load scene';
             return false;
         } finally {
-            loading.video = false;
+            loading.scene = false;
         }
     }
 
@@ -127,7 +127,7 @@ export function useWatchPageData(videoId: Ref<number>): WatchPageData {
     async function loadP1(): Promise<void> {
         loading.player = true;
 
-        const markersPromise = fetchMarkers(videoId.value)
+        const markersPromise = fetchMarkers(sceneId.value)
             .then((data) => {
                 markers.value = data.markers || [];
             })
@@ -135,7 +135,7 @@ export function useWatchPageData(videoId: Ref<number>): WatchPageData {
                 // Silent fail - markers are optional
             });
 
-        const resumePromise = getResumePosition(videoId.value)
+        const resumePromise = getResumePosition(sceneId.value)
             .then((res) => {
                 resumePosition.value = res.position > 0 ? res.position : 0;
             })
@@ -151,7 +151,7 @@ export function useWatchPageData(videoId: Ref<number>): WatchPageData {
     async function loadP2(): Promise<void> {
         loading.details = true;
 
-        const interactionsPromise = fetchVideoInteractions(videoId.value)
+        const interactionsPromise = fetchSceneInteractions(sceneId.value)
             .then((res) => {
                 interactions.value = {
                     rating: res.rating || 0,
@@ -163,7 +163,7 @@ export function useWatchPageData(videoId: Ref<number>): WatchPageData {
                 // Silent fail
             });
 
-        const studioPromise = fetchVideoStudio(videoId.value)
+        const studioPromise = fetchSceneStudio(sceneId.value)
             .then((res) => {
                 studio.value = res.data || null;
             })
@@ -175,7 +175,7 @@ export function useWatchPageData(videoId: Ref<number>): WatchPageData {
                 // Other errors silently fail
             });
 
-        const tagsPromise = fetchVideoTags(videoId.value)
+        const tagsPromise = fetchSceneTags(sceneId.value)
             .then((res) => {
                 tags.value = res.data || [];
             })
@@ -183,7 +183,7 @@ export function useWatchPageData(videoId: Ref<number>): WatchPageData {
                 // Silent fail
             });
 
-        const actorsPromise = fetchVideoActors(videoId.value)
+        const actorsPromise = fetchSceneActors(sceneId.value)
             .then((res) => {
                 actors.value = res.data || [];
             })
@@ -195,15 +195,15 @@ export function useWatchPageData(videoId: Ref<number>): WatchPageData {
         loading.details = false;
     }
 
-    // P3: Below fold - related videos + PornDB status (deferred)
+    // P3: Below fold - related scenes + PornDB status (deferred)
     async function loadP3(): Promise<void> {
         loading.related = true;
 
         const RELATED_LIMIT = 15;
 
-        const relatedPromise = fetchRelatedVideos(videoId.value, RELATED_LIMIT)
+        const relatedPromise = fetchRelatedScenes(sceneId.value, RELATED_LIMIT)
             .then((res) => {
-                relatedVideos.value = res.data || [];
+                relatedScenes.value = res.data || [];
             })
             .catch(() => {
                 // Silent fail
@@ -233,14 +233,14 @@ export function useWatchPageData(videoId: Ref<number>): WatchPageData {
         studio.value = null;
         tags.value = [];
         actors.value = [];
-        relatedVideos.value = [];
+        relatedScenes.value = [];
         pornDBConfigured.value = false;
 
-        // P0: Video (critical)
-        const videoLoaded = await loadP0();
-        if (!videoLoaded) return;
+        // P0: Scene (critical)
+        const sceneLoaded = await loadP0();
+        if (!sceneLoaded) return;
 
-        // P1: Player data (after video loads)
+        // P1: Player data (after scene loads)
         await loadP1();
 
         // P2: Details data (after player data)
@@ -255,7 +255,7 @@ export function useWatchPageData(videoId: Ref<number>): WatchPageData {
     // Individual refresh functions for child components
     async function refreshMarkers(): Promise<void> {
         try {
-            const data = await fetchMarkers(videoId.value);
+            const data = await fetchMarkers(sceneId.value);
             markers.value = data.markers || [];
         } catch {
             // Silent fail
@@ -264,7 +264,7 @@ export function useWatchPageData(videoId: Ref<number>): WatchPageData {
 
     async function refreshStudio(): Promise<void> {
         try {
-            const res = await fetchVideoStudio(videoId.value);
+            const res = await fetchSceneStudio(sceneId.value);
             studio.value = res.data || null;
         } catch (err: unknown) {
             if (err instanceof Error && err.message.includes('not found')) {
@@ -275,7 +275,7 @@ export function useWatchPageData(videoId: Ref<number>): WatchPageData {
 
     async function refreshTags(): Promise<void> {
         try {
-            const res = await fetchVideoTags(videoId.value);
+            const res = await fetchSceneTags(sceneId.value);
             tags.value = res.data || [];
         } catch {
             // Silent fail
@@ -284,7 +284,7 @@ export function useWatchPageData(videoId: Ref<number>): WatchPageData {
 
     async function refreshActors(): Promise<void> {
         try {
-            const res = await fetchVideoActors(videoId.value);
+            const res = await fetchSceneActors(sceneId.value);
             actors.value = res.data || [];
         } catch {
             // Silent fail
@@ -293,7 +293,7 @@ export function useWatchPageData(videoId: Ref<number>): WatchPageData {
 
     async function refreshInteractions(): Promise<void> {
         try {
-            const res = await fetchVideoInteractions(videoId.value);
+            const res = await fetchSceneInteractions(sceneId.value);
             interactions.value = {
                 rating: res.rating || 0,
                 liked: res.liked || false,
@@ -305,8 +305,8 @@ export function useWatchPageData(videoId: Ref<number>): WatchPageData {
     }
 
     // Setters for optimistic updates
-    function setVideo(newVideo: Video): void {
-        video.value = newVideo;
+    function setScene(newScene: Scene): void {
+        scene.value = newScene;
     }
 
     function setStudio(newStudio: Studio | null): void {
@@ -321,20 +321,20 @@ export function useWatchPageData(videoId: Ref<number>): WatchPageData {
         actors.value = newActors;
     }
 
-    function setInteractions(newInteractions: VideoInteractions): void {
+    function setInteractions(newInteractions: SceneInteractions): void {
         interactions.value = newInteractions;
     }
 
     return {
         // Data
-        video,
+        scene,
         markers,
         resumePosition,
         interactions,
         studio,
         tags,
         actors,
-        relatedVideos,
+        relatedScenes,
         pornDBConfigured,
 
         // Loading states
@@ -352,7 +352,7 @@ export function useWatchPageData(videoId: Ref<number>): WatchPageData {
         refreshAll: loadAll,
 
         // Setters
-        setVideo,
+        setScene,
         setStudio,
         setTags,
         setActors,

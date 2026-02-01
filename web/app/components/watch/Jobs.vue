@@ -2,23 +2,23 @@
 import type { JobHistory } from '~/types/jobs';
 
 const route = useRoute();
-const { triggerVideoPhase, fetchJobs } = useApi();
+const { triggerScenePhase, fetchJobs } = useApi();
 
-const videoId = computed(() => parseInt(route.params.id as string));
+const sceneId = computed(() => parseInt(route.params.id as string));
 
 const triggeringPhase = ref<string | null>(null);
 const error = ref('');
 const message = ref('');
 const loading = ref(true);
-const videoJobs = ref<JobHistory[]>([]);
+const sceneJobs = ref<JobHistory[]>([]);
 
 const loadJobs = async () => {
     loading.value = true;
     try {
         const data = await fetchJobs(1, 100);
         const all: JobHistory[] = [...(data.active_jobs || []), ...(data.data || [])];
-        videoJobs.value = all
-            .filter((j) => j.video_id === videoId.value)
+        sceneJobs.value = all
+            .filter((j) => j.scene_id === sceneId.value)
             .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
     } catch {
         // Non-critical, just show empty
@@ -32,7 +32,7 @@ const triggerPhase = async (phase: string) => {
     error.value = '';
     message.value = '';
     try {
-        await triggerVideoPhase(videoId.value, phase);
+        await triggerScenePhase(sceneId.value, phase);
         message.value = `${phaseLabel(phase)} job submitted`;
         setTimeout(() => {
             message.value = '';
@@ -149,11 +149,11 @@ onMounted(() => {
             {{ message }}
         </div>
 
-        <!-- Job history for this video -->
+        <!-- Job history for this scene -->
         <div v-if="loading" class="text-dim py-4 text-center text-[11px]">Loading...</div>
 
-        <div v-else-if="videoJobs.length === 0" class="text-dim py-4 text-center text-[11px]">
-            No job history for this video
+        <div v-else-if="sceneJobs.length === 0" class="text-dim py-4 text-center text-[11px]">
+            No job history for this scene
         </div>
 
         <div v-else class="overflow-x-auto">
@@ -170,7 +170,7 @@ onMounted(() => {
                 </thead>
                 <tbody>
                     <tr
-                        v-for="job in videoJobs"
+                        v-for="job in sceneJobs"
                         :key="job.job_id"
                         class="border-border/50 border-b last:border-0"
                     >

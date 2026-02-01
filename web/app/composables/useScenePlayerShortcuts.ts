@@ -1,16 +1,16 @@
 import type videojs from 'video.js';
-import type { Video } from '~/types/video';
+import type { Scene } from '~/types/scene';
 
 type Player = ReturnType<typeof videojs>;
 
 interface Options {
     player: ComputedRef<Player | null>;
-    video: Ref<Video | null | undefined>;
+    scene: Ref<Scene | null | undefined>;
     onTheaterModeToggle: () => void;
 }
 
-export const useVideoPlayerShortcuts = (options: Options) => {
-    const { player, video, onTheaterModeToggle } = options;
+export const useScenePlayerShortcuts = (options: Options) => {
+    const { player, scene, onTheaterModeToggle } = options;
     const { keys } = useKeyboardLayout();
 
     const SEEK_SHORT = 5;
@@ -121,13 +121,13 @@ export const useVideoPlayerShortcuts = (options: Options) => {
         // Frame step backward (only when paused)
         else if (key === keys.value.frameBack && !e.shiftKey && p.paused()) {
             e.preventDefault();
-            const frameRate = video.value?.frame_rate ?? DEFAULT_FRAME_RATE;
+            const frameRate = scene.value?.frame_rate ?? DEFAULT_FRAME_RATE;
             p.currentTime(Math.max(0, getCurrentTime() - 1 / frameRate));
         }
         // Frame step forward (only when paused)
         else if (key === keys.value.frameForward && !e.shiftKey && p.paused()) {
             e.preventDefault();
-            const frameRate = video.value?.frame_rate ?? DEFAULT_FRAME_RATE;
+            const frameRate = scene.value?.frame_rate ?? DEFAULT_FRAME_RATE;
             p.currentTime(Math.min(getDuration(), getCurrentTime() + 1 / frameRate));
         }
 

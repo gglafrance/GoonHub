@@ -51,7 +51,7 @@ const formatSize = (bytes: number): string => {
         <div class="w-full min-w-0">
             <h4 class="truncate text-xs font-medium text-white">{{ folder.name }}</h4>
             <p class="text-dim mt-0.5 text-[10px]">
-                {{ folder.video_count }} videos
+                {{ folder.scene_count }} scenes
                 <template v-if="folder.total_duration > 0">
                     <span class="mx-0.5 opacity-50">·</span>
                     {{ formatDuration(folder.total_duration) }}

@@ -5,16 +5,16 @@ import (
 	"goonhub/internal/data"
 )
 
-// WatchProgress represents the watch progress for a video in homepage sections.
+// WatchProgress represents the watch progress for a scene in homepage sections.
 type WatchProgress struct {
 	LastPosition int `json:"last_position"`
 	Duration     int `json:"duration"`
 }
 
-// HomepageSectionData represents a section with its video data (lightweight).
+// HomepageSectionData represents a section with its scene data (lightweight).
 type HomepageSectionData struct {
 	Section       data.HomepageSection   `json:"section"`
-	Videos        []VideoListItem        `json:"videos"`
+	Scenes        []SceneListItem        `json:"scenes"`
 	Total         int64                  `json:"total"`
 	WatchProgress map[uint]WatchProgress `json:"watch_progress,omitempty"`
 	Ratings       map[uint]float64       `json:"ratings,omitempty"`
@@ -26,7 +26,7 @@ type HomepageResponse struct {
 	Sections []HomepageSectionData `json:"sections"`
 }
 
-// ToHomepageResponse converts the service response to an API response with lightweight videos.
+// ToHomepageResponse converts the service response to an API response with lightweight scenes.
 func ToHomepageResponse(resp *core.HomepageResponse) *HomepageResponse {
 	sections := make([]HomepageSectionData, len(resp.Sections))
 	for i, s := range resp.Sections {
@@ -44,7 +44,7 @@ func ToHomepageResponse(resp *core.HomepageResponse) *HomepageResponse {
 
 		sections[i] = HomepageSectionData{
 			Section:       s.Section,
-			Videos:        ToVideoListItems(s.Videos),
+			Scenes:        ToSceneListItems(s.Scenes),
 			Total:         s.Total,
 			WatchProgress: watchProgress,
 			Ratings:       s.Ratings,
@@ -72,7 +72,7 @@ func ToHomepageSectionDataResponse(s *core.HomepageSectionData) *HomepageSection
 
 	return &HomepageSectionData{
 		Section:       s.Section,
-		Videos:        ToVideoListItems(s.Videos),
+		Scenes:        ToSceneListItems(s.Scenes),
 		Total:         s.Total,
 		WatchProgress: watchProgress,
 		Ratings:       s.Ratings,

@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import type { VideoListItem } from '~/types/video';
+import type { SceneListItem } from '~/types/scene';
 
 defineProps<{
-    videos: VideoListItem[];
+    scenes: SceneListItem[];
 }>();
 </script>
 
 <template>
     <div class="grid justify-center gap-3" style="grid-template-columns: repeat(auto-fill, 320px)">
-        <VideoCard v-for="video in videos" :key="video.id" :video="video" />
+        <SceneCard v-for="scene in scenes" :key="scene.id" :scene="scene" />
     </div>
 </template>
