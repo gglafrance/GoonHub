@@ -246,3 +246,44 @@ func (s *JobHistoryService) RecordJobFailedWithRetry(jobID string, sceneID uint,
 func (s *JobHistoryService) GetByJobID(jobID string) (*data.JobHistory, error) {
 	return s.repo.GetByJobID(jobID)
 }
+
+// CreatePendingJob creates a job with status='pending' in the database.
+// Used for DB-backed job queue where jobs are created pending and later claimed by the feeder.
+func (s *JobHistoryService) CreatePendingJob(jobID string, sceneID uint, sceneTitle string, phase string) error {
+	now := time.Now()
+	record := &data.JobHistory{
+		JobID:       jobID,
+		SceneID:     sceneID,
+		SceneTitle:  sceneTitle,
+		Phase:       phase,
+		Status:      data.JobStatusPending,
+		CreatedAt:   now,
+		IsRetryable: true,
+	}
+	if err := s.repo.CreatePending(record); err != nil {
+		s.logger.Error("Failed to create pending job",
+			zap.String("job_id", jobID),
+			zap.Uint("scene_id", sceneID),
+			zap.String("phase", phase),
+			zap.Error(err),
+		)
+		return err
+	}
+	s.logger.Debug("Created pending job",
+		zap.String("job_id", jobID),
+		zap.Uint("scene_id", sceneID),
+		zap.String("phase", phase),
+	)
+	return nil
+}
+
+// ExistsPendingOrRunning checks if a pending or running job exists for scene+phase.
+// Used for deduplication before creating new pending jobs.
+func (s *JobHistoryService) ExistsPendingOrRunning(sceneID uint, phase string) (bool, error) {
+	return s.repo.ExistsPendingOrRunning(sceneID, phase)
+}
+
+// CountPendingByPhase returns the count of pending jobs per phase.
+func (s *JobHistoryService) CountPendingByPhase() (map[string]int, error) {
+	return s.repo.CountPendingByPhase()
+}

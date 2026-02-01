@@ -24,6 +24,7 @@ type Server struct {
 	processingService *core.SceneProcessingService
 	userService       *core.UserService
 	jobHistoryService *core.JobHistoryService
+	jobQueueFeeder    *core.JobQueueFeeder
 	triggerScheduler  *core.TriggerScheduler
 	sceneService      *core.SceneService
 	tagService        *core.TagService
@@ -44,6 +45,7 @@ func NewHTTPServer(
 	processingService *core.SceneProcessingService,
 	userService *core.UserService,
 	jobHistoryService *core.JobHistoryService,
+	jobQueueFeeder *core.JobQueueFeeder,
 	triggerScheduler *core.TriggerScheduler,
 	sceneService *core.SceneService,
 	tagService *core.TagService,
@@ -62,6 +64,7 @@ func NewHTTPServer(
 		processingService: processingService,
 		userService:       userService,
 		jobHistoryService: jobHistoryService,
+		jobQueueFeeder:    jobQueueFeeder,
 		triggerScheduler:  triggerScheduler,
 		sceneService:      sceneService,
 		tagService:        tagService,
@@ -120,6 +123,13 @@ func (s *Server) Start() error {
 	if s.processingService != nil {
 		s.processingService.Start()
 		defer s.processingService.Stop()
+	}
+
+	// Start job queue feeder AFTER processing service starts
+	// The feeder moves pending jobs from DB to worker pools
+	if s.jobQueueFeeder != nil {
+		s.jobQueueFeeder.Start()
+		defer s.jobQueueFeeder.Stop()
 	}
 
 	if s.jobHistoryService != nil {

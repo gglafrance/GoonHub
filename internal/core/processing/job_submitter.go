@@ -3,18 +3,19 @@ package processing
 import (
 	"fmt"
 	"goonhub/internal/data"
-	"goonhub/internal/jobs"
-	"goonhub/pkg/ffmpeg"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
-// JobSubmitter handles job submission to worker pools
+// JobSubmitter handles job submission to worker pools.
+// With DB-backed queue, jobs are created as 'pending' in the database
+// and later claimed by the JobQueueFeeder for execution.
 type JobSubmitter struct {
 	repo         data.SceneRepository
 	poolManager  *PoolManager
 	phaseTracker *PhaseTracker
-	jobHistory   JobHistoryRecorder
+	jobQueue     JobQueueRecorder
 	logger       *zap.Logger
 }
 
@@ -23,19 +24,20 @@ func NewJobSubmitter(
 	repo data.SceneRepository,
 	poolManager *PoolManager,
 	phaseTracker *PhaseTracker,
-	jobHistory JobHistoryRecorder,
+	jobQueue JobQueueRecorder,
 	logger *zap.Logger,
 ) *JobSubmitter {
 	return &JobSubmitter{
 		repo:         repo,
 		poolManager:  poolManager,
 		phaseTracker: phaseTracker,
-		jobHistory:   jobHistory,
+		jobQueue:     jobQueue,
 		logger:       logger,
 	}
 }
 
-// SubmitScene submits a new scene for processing (metadata extraction)
+// SubmitScene submits a new scene for processing (metadata extraction).
+// Creates a pending job in the database; the JobQueueFeeder will pick it up.
 func (js *JobSubmitter) SubmitScene(sceneID uint, scenePath string) error {
 	js.logger.Info("Scene submitted for processing",
 		zap.Uint("scene_id", sceneID),
@@ -52,146 +54,91 @@ func (js *JobSubmitter) SubmitScene(sceneID uint, scenePath string) error {
 		return nil
 	}
 
-	qualityConfig := js.poolManager.GetQualityConfig()
-
-	job := jobs.NewMetadataJob(
-		sceneID,
-		scenePath,
-		qualityConfig.MaxFrameDimensionSm,
-		qualityConfig.MaxFrameDimensionLg,
-		js.repo,
-		js.logger,
-	)
-
-	err := js.poolManager.SubmitToMetadataPool(job)
-	if err != nil {
-		if jobs.IsDuplicateJobError(err) {
-			js.logger.Info("Duplicate metadata job skipped",
-				zap.Uint("scene_id", sceneID),
-				zap.Error(err),
-			)
-			return nil
-		}
-		js.logger.Error("Failed to submit metadata job",
-			zap.Uint("scene_id", sceneID),
-			zap.Error(err),
-		)
-		return err
-	}
-
-	if js.jobHistory != nil {
-		sceneTitle := ""
-		if s, err := js.repo.GetByID(sceneID); err == nil {
-			sceneTitle = s.Title
-		}
-		js.jobHistory.RecordJobStart(job.GetID(), sceneID, sceneTitle, "metadata")
-	}
-
-	return nil
+	return js.createPendingJob(sceneID, "metadata")
 }
 
-// SubmitPhase submits a specific phase for a scene
+// SubmitPhase submits a specific phase for a scene.
+// Creates a pending job in the database; the JobQueueFeeder will pick it up.
 func (js *JobSubmitter) SubmitPhase(sceneID uint, phase string) error {
 	return js.SubmitPhaseWithRetry(sceneID, phase, 0, 0)
 }
 
 // SubmitPhaseWithRetry submits a phase for processing with retry tracking.
+// Creates a pending job in the database; the JobQueueFeeder will pick it up.
 // retryCount is the current retry attempt (0 for first attempt).
 // maxRetries is the maximum number of retries allowed (0 uses default from config).
 func (js *JobSubmitter) SubmitPhaseWithRetry(sceneID uint, phase string, retryCount, maxRetries int) error {
-	scene, err := js.repo.GetByID(sceneID)
-	if err != nil {
-		return fmt.Errorf("failed to get scene: %w", err)
-	}
-
-	qualityConfig := js.poolManager.GetQualityConfig()
-	cfg := js.poolManager.GetConfig()
-
-	// Helper to record job start with or without retry info
-	recordJobStart := func(jobID string, phase string) {
-		if js.jobHistory == nil {
-			return
-		}
-		if retryCount > 0 || maxRetries > 0 {
-			js.jobHistory.RecordJobStartWithRetry(jobID, sceneID, scene.Title, phase, maxRetries, retryCount)
-		} else {
-			js.jobHistory.RecordJobStart(jobID, sceneID, scene.Title, phase)
-		}
-	}
-
+	// Validate the phase
 	switch phase {
-	case "metadata":
-		job := jobs.NewMetadataJob(
-			sceneID, scene.StoredPath,
-			qualityConfig.MaxFrameDimensionSm, qualityConfig.MaxFrameDimensionLg,
-			js.repo, js.logger,
-		)
-		err = js.poolManager.SubmitToMetadataPool(job)
-		if err != nil {
-			if jobs.IsDuplicateJobError(err) {
-				js.logger.Info("Duplicate metadata job skipped", zap.Uint("scene_id", sceneID))
-				return nil
-			}
-			return fmt.Errorf("failed to submit metadata job: %w", err)
-		}
-		recordJobStart(job.GetID(), "metadata")
-
-	case "thumbnail":
-		if scene.Duration == 0 {
-			return fmt.Errorf("metadata must be extracted before thumbnail generation")
-		}
-		js.logger.Info("SubmitPhase: Creating thumbnail job",
-			zap.Uint("scene_id", sceneID),
-			zap.Uint("scene_db_id", scene.ID),
-			zap.String("scene_stored_path", scene.StoredPath),
-			zap.String("scene_title", scene.Title),
-		)
-		tileWidthLg, tileHeightLg := ffmpeg.CalculateTileDimensions(scene.Width, scene.Height, cfg.MaxFrameDimensionLarge)
-		thumbnailJob := jobs.NewThumbnailJob(
-			sceneID, scene.StoredPath, cfg.ThumbnailDir,
-			scene.ThumbnailWidth, scene.ThumbnailHeight,
-			tileWidthLg, tileHeightLg,
-			scene.Duration, qualityConfig.FrameQualitySm, qualityConfig.FrameQualityLg,
-			js.repo, js.logger,
-		)
-		err = js.poolManager.SubmitToThumbnailPool(thumbnailJob)
-		if err != nil {
-			if jobs.IsDuplicateJobError(err) {
-				js.logger.Info("Duplicate thumbnail job skipped", zap.Uint("scene_id", sceneID))
-				return nil
-			}
-			return fmt.Errorf("failed to submit thumbnail job: %w", err)
-		}
-		recordJobStart(thumbnailJob.GetID(), "thumbnail")
-
-	case "sprites":
-		if scene.Duration == 0 {
-			return fmt.Errorf("metadata must be extracted before sprite generation")
-		}
-		spritesJob := jobs.NewSpritesJob(
-			sceneID, scene.StoredPath, cfg.SpriteDir, cfg.VttDir,
-			scene.ThumbnailWidth, scene.ThumbnailHeight, scene.Duration,
-			cfg.FrameInterval, qualityConfig.FrameQualitySprites, cfg.GridCols, cfg.GridRows,
-			qualityConfig.SpritesConcurrency, js.repo, js.logger,
-		)
-		err = js.poolManager.SubmitToSpritesPool(spritesJob)
-		if err != nil {
-			if jobs.IsDuplicateJobError(err) {
-				js.logger.Info("Duplicate sprites job skipped", zap.Uint("scene_id", sceneID))
-				return nil
-			}
-			return fmt.Errorf("failed to submit sprites job: %w", err)
-		}
-		recordJobStart(spritesJob.GetID(), "sprites")
-
+	case "metadata", "thumbnail", "sprites":
+		// Valid phases
 	default:
 		return fmt.Errorf("unknown phase: %s", phase)
 	}
 
-	js.logger.Info("Phase submitted",
+	// For thumbnail/sprites, check if metadata is available
+	if phase == "thumbnail" || phase == "sprites" {
+		scene, err := js.repo.GetByID(sceneID)
+		if err != nil {
+			return fmt.Errorf("failed to get scene: %w", err)
+		}
+		if scene.Duration == 0 {
+			return fmt.Errorf("metadata must be extracted before %s generation", phase)
+		}
+	}
+
+	return js.createPendingJob(sceneID, phase)
+}
+
+// createPendingJob creates a pending job in the database.
+// This is the core of the DB-backed queue approach.
+func (js *JobSubmitter) createPendingJob(sceneID uint, phase string) error {
+	if js.jobQueue == nil {
+		return fmt.Errorf("job queue recorder not configured")
+	}
+
+	// Check for deduplication: skip if there's already a pending or running job
+	exists, err := js.jobQueue.ExistsPendingOrRunning(sceneID, phase)
+	if err != nil {
+		js.logger.Error("Failed to check for existing job",
+			zap.Uint("scene_id", sceneID),
+			zap.String("phase", phase),
+			zap.Error(err),
+		)
+		return fmt.Errorf("failed to check for existing job: %w", err)
+	}
+	if exists {
+		js.logger.Debug("Job already pending or running, skipping",
+			zap.Uint("scene_id", sceneID),
+			zap.String("phase", phase),
+		)
+		return nil
+	}
+
+	// Get scene title for the job record
+	sceneTitle := ""
+	if s, err := js.repo.GetByID(sceneID); err == nil {
+		sceneTitle = s.Title
+	}
+
+	// Generate a new job ID
+	jobID := uuid.New().String()
+
+	// Create the pending job in the database
+	if err := js.jobQueue.CreatePendingJob(jobID, sceneID, sceneTitle, phase); err != nil {
+		js.logger.Error("Failed to create pending job",
+			zap.String("job_id", jobID),
+			zap.Uint("scene_id", sceneID),
+			zap.String("phase", phase),
+			zap.Error(err),
+		)
+		return fmt.Errorf("failed to create pending job: %w", err)
+	}
+
+	js.logger.Info("Pending job created",
+		zap.String("job_id", jobID),
 		zap.Uint("scene_id", sceneID),
 		zap.String("phase", phase),
-		zap.Int("retry_count", retryCount),
 	)
 	return nil
 }

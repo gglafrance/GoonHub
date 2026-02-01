@@ -99,21 +99,23 @@ func NewPoolManager(
 		zap.String("thumbnail_dir", cfg.ThumbnailDir),
 	)
 
-	metadataPool := jobs.NewWorkerPool(metadataWorkers, 100)
+	const queueBufferSize = 1000
+
+	metadataPool := jobs.NewWorkerPool(metadataWorkers, queueBufferSize)
 	metadataPool.SetLogger(logger.With(zap.String("pool", "metadata")))
 	if cfg.MetadataTimeout > 0 {
 		metadataPool.SetTimeout(cfg.MetadataTimeout)
 		logger.Info("Metadata pool timeout set", zap.Duration("timeout", cfg.MetadataTimeout))
 	}
 
-	thumbnailPool := jobs.NewWorkerPool(thumbnailWorkers, 100)
+	thumbnailPool := jobs.NewWorkerPool(thumbnailWorkers, queueBufferSize)
 	thumbnailPool.SetLogger(logger.With(zap.String("pool", "thumbnail")))
 	if cfg.ThumbnailTimeout > 0 {
 		thumbnailPool.SetTimeout(cfg.ThumbnailTimeout)
 		logger.Info("Thumbnail pool timeout set", zap.Duration("timeout", cfg.ThumbnailTimeout))
 	}
 
-	spritesPool := jobs.NewWorkerPool(spritesWorkers, 100)
+	spritesPool := jobs.NewWorkerPool(spritesWorkers, queueBufferSize)
 	spritesPool.SetLogger(logger.With(zap.String("pool", "sprites")))
 	if cfg.SpritesTimeout > 0 {
 		spritesPool.SetTimeout(cfg.SpritesTimeout)
@@ -301,9 +303,11 @@ func (pm *PoolManager) UpdatePoolConfig(cfg PoolConfig) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
+	const queueBufferSize = 1000
+
 	// Resize metadata pool if needed
 	if cfg.MetadataWorkers != pm.metadataPool.ActiveWorkers() {
-		newPool := jobs.NewWorkerPool(cfg.MetadataWorkers, 100)
+		newPool := jobs.NewWorkerPool(cfg.MetadataWorkers, queueBufferSize)
 		newPool.SetLogger(pm.logger.With(zap.String("pool", "metadata")))
 		newPool.Start()
 		if pm.resultHandler != nil {
@@ -319,7 +323,7 @@ func (pm *PoolManager) UpdatePoolConfig(cfg PoolConfig) error {
 
 	// Resize thumbnail pool if needed
 	if cfg.ThumbnailWorkers != pm.thumbnailPool.ActiveWorkers() {
-		newPool := jobs.NewWorkerPool(cfg.ThumbnailWorkers, 100)
+		newPool := jobs.NewWorkerPool(cfg.ThumbnailWorkers, queueBufferSize)
 		newPool.SetLogger(pm.logger.With(zap.String("pool", "thumbnail")))
 		newPool.Start()
 		if pm.resultHandler != nil {
@@ -335,7 +339,7 @@ func (pm *PoolManager) UpdatePoolConfig(cfg PoolConfig) error {
 
 	// Resize sprites pool if needed
 	if cfg.SpritesWorkers != pm.spritesPool.ActiveWorkers() {
-		newPool := jobs.NewWorkerPool(cfg.SpritesWorkers, 100)
+		newPool := jobs.NewWorkerPool(cfg.SpritesWorkers, queueBufferSize)
 		newPool.SetLogger(pm.logger.With(zap.String("pool", "sprites")))
 		newPool.Start()
 		if pm.resultHandler != nil {

@@ -41,6 +41,36 @@ func (m *MockJobHistoryRepository) EXPECT() *MockJobHistoryRepositoryMockRecorde
 	return m.recorder
 }
 
+// ClaimPendingJobs mocks base method.
+func (m *MockJobHistoryRepository) ClaimPendingJobs(phase string, limit int) ([]data.JobHistory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClaimPendingJobs", phase, limit)
+	ret0, _ := ret[0].([]data.JobHistory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClaimPendingJobs indicates an expected call of ClaimPendingJobs.
+func (mr *MockJobHistoryRepositoryMockRecorder) ClaimPendingJobs(phase, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimPendingJobs", reflect.TypeOf((*MockJobHistoryRepository)(nil).ClaimPendingJobs), phase, limit)
+}
+
+// CountPendingByPhase mocks base method.
+func (m *MockJobHistoryRepository) CountPendingByPhase() (map[string]int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountPendingByPhase")
+	ret0, _ := ret[0].(map[string]int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountPendingByPhase indicates an expected call of CountPendingByPhase.
+func (mr *MockJobHistoryRepositoryMockRecorder) CountPendingByPhase() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountPendingByPhase", reflect.TypeOf((*MockJobHistoryRepository)(nil).CountPendingByPhase))
+}
+
 // Create mocks base method.
 func (m *MockJobHistoryRepository) Create(record *data.JobHistory) error {
 	m.ctrl.T.Helper()
@@ -53,6 +83,34 @@ func (m *MockJobHistoryRepository) Create(record *data.JobHistory) error {
 func (mr *MockJobHistoryRepositoryMockRecorder) Create(record any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockJobHistoryRepository)(nil).Create), record)
+}
+
+// CreateBatch mocks base method.
+func (m *MockJobHistoryRepository) CreateBatch(records []*data.JobHistory) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateBatch", records)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateBatch indicates an expected call of CreateBatch.
+func (mr *MockJobHistoryRepositoryMockRecorder) CreateBatch(records any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBatch", reflect.TypeOf((*MockJobHistoryRepository)(nil).CreateBatch), records)
+}
+
+// CreatePending mocks base method.
+func (m *MockJobHistoryRepository) CreatePending(record *data.JobHistory) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreatePending", record)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreatePending indicates an expected call of CreatePending.
+func (mr *MockJobHistoryRepositoryMockRecorder) CreatePending(record any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePending", reflect.TypeOf((*MockJobHistoryRepository)(nil).CreatePending), record)
 }
 
 // DeleteOlderThan mocks base method.
@@ -68,6 +126,21 @@ func (m *MockJobHistoryRepository) DeleteOlderThan(before time.Time) (int64, err
 func (mr *MockJobHistoryRepositoryMockRecorder) DeleteOlderThan(before any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOlderThan", reflect.TypeOf((*MockJobHistoryRepository)(nil).DeleteOlderThan), before)
+}
+
+// ExistsPendingOrRunning mocks base method.
+func (m *MockJobHistoryRepository) ExistsPendingOrRunning(sceneID uint, phase string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExistsPendingOrRunning", sceneID, phase)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExistsPendingOrRunning indicates an expected call of ExistsPendingOrRunning.
+func (mr *MockJobHistoryRepositoryMockRecorder) ExistsPendingOrRunning(sceneID, phase any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExistsPendingOrRunning", reflect.TypeOf((*MockJobHistoryRepository)(nil).ExistsPendingOrRunning), sceneID, phase)
 }
 
 // GetByJobID mocks base method.
@@ -157,6 +230,21 @@ func (m *MockJobHistoryRepository) MarkNotRetryable(jobID string) error {
 func (mr *MockJobHistoryRepositoryMockRecorder) MarkNotRetryable(jobID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkNotRetryable", reflect.TypeOf((*MockJobHistoryRepository)(nil).MarkNotRetryable), jobID)
+}
+
+// MarkOrphanedRunningAsFailed mocks base method.
+func (m *MockJobHistoryRepository) MarkOrphanedRunningAsFailed(olderThan time.Duration) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkOrphanedRunningAsFailed", olderThan)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkOrphanedRunningAsFailed indicates an expected call of MarkOrphanedRunningAsFailed.
+func (mr *MockJobHistoryRepositoryMockRecorder) MarkOrphanedRunningAsFailed(olderThan any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkOrphanedRunningAsFailed", reflect.TypeOf((*MockJobHistoryRepository)(nil).MarkOrphanedRunningAsFailed), olderThan)
 }
 
 // UpdateProgress mocks base method.

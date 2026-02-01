@@ -4,6 +4,16 @@ import (
 	"time"
 )
 
+// Job status constants
+const (
+	JobStatusPending   = "pending"
+	JobStatusRunning   = "running"
+	JobStatusCompleted = "completed"
+	JobStatusFailed    = "failed"
+	JobStatusCancelled = "cancelled"
+	JobStatusTimedOut  = "timed_out"
+)
+
 type JobHistory struct {
 	ID           uint       `gorm:"primarykey" json:"id"`
 	JobID        string     `gorm:"uniqueIndex;not null;size:36" json:"job_id"`
@@ -20,6 +30,7 @@ type JobHistory struct {
 	NextRetryAt  *time.Time `json:"next_retry_at,omitempty"`
 	Progress     int        `gorm:"not null;default:0" json:"progress"`
 	IsRetryable  bool       `gorm:"not null;default:true" json:"is_retryable"`
+	Priority     int        `gorm:"not null;default:0" json:"priority"`
 }
 
 func (JobHistory) TableName() string {

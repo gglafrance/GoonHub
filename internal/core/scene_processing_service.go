@@ -28,7 +28,7 @@ func (a *eventBusAdapter) Publish(event processing.SceneEvent) {
 	})
 }
 
-// jobHistoryAdapter adapts JobHistoryService to the processing.JobHistoryRecorder interface
+// jobHistoryAdapter adapts JobHistoryService to the processing.JobQueueRecorder interface
 type jobHistoryAdapter struct {
 	service *JobHistoryService
 }
@@ -51,6 +51,14 @@ func (a *jobHistoryAdapter) RecordJobCancelled(jobID string) {
 
 func (a *jobHistoryAdapter) RecordJobFailedWithRetry(jobID string, sceneID uint, phase string, err error) {
 	a.service.RecordJobFailedWithRetry(jobID, sceneID, phase, err)
+}
+
+func (a *jobHistoryAdapter) CreatePendingJob(jobID string, sceneID uint, sceneTitle string, phase string) error {
+	return a.service.CreatePendingJob(jobID, sceneID, sceneTitle, phase)
+}
+
+func (a *jobHistoryAdapter) ExistsPendingOrRunning(sceneID uint, phase string) (bool, error) {
+	return a.service.ExistsPendingOrRunning(sceneID, phase)
 }
 
 // SceneProcessingService orchestrates scene processing using worker pools
@@ -86,7 +94,7 @@ func NewSceneProcessingService(
 
 	// Create adapters
 	eventAdapter := &eventBusAdapter{eventBus: eventBus}
-	var historyAdapter processing.JobHistoryRecorder
+	var historyAdapter processing.JobQueueRecorder
 	if jobHistory != nil {
 		historyAdapter = &jobHistoryAdapter{service: jobHistory}
 	}
@@ -195,4 +203,10 @@ func (s *SceneProcessingService) RefreshTriggerCache() error {
 func (s *SceneProcessingService) LogStatus() {
 	s.logger.Info("Scene processing service status")
 	s.poolManager.LogStatus()
+}
+
+// GetPoolManager returns the underlying pool manager.
+// Used by JobQueueFeeder to submit jobs directly to pools.
+func (s *SceneProcessingService) GetPoolManager() *processing.PoolManager {
+	return s.poolManager
 }

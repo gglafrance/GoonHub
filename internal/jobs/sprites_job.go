@@ -83,6 +83,45 @@ func NewSpritesJob(
 	}
 }
 
+// NewSpritesJobWithID creates a SpritesJob with a pre-assigned job ID.
+// Used by JobQueueFeeder when creating jobs from pending DB records.
+func NewSpritesJobWithID(
+	jobID string,
+	sceneID uint,
+	scenePath string,
+	spriteDir string,
+	vttDir string,
+	tileWidth int,
+	tileHeight int,
+	duration int,
+	frameInterval int,
+	frameQuality int,
+	gridCols int,
+	gridRows int,
+	concurrency int,
+	repo data.SceneRepository,
+	logger *zap.Logger,
+) *SpritesJob {
+	return &SpritesJob{
+		id:            jobID,
+		sceneID:       sceneID,
+		scenePath:     scenePath,
+		spriteDir:     spriteDir,
+		vttDir:        vttDir,
+		tileWidth:     tileWidth,
+		tileHeight:    tileHeight,
+		duration:      duration,
+		frameInterval: frameInterval,
+		frameQuality:  frameQuality,
+		gridCols:      gridCols,
+		gridRows:      gridRows,
+		concurrency:   concurrency,
+		repo:          repo,
+		logger:        logger,
+		status:        JobStatusPending,
+	}
+}
+
 func (j *SpritesJob) GetID() string      { return j.id }
 func (j *SpritesJob) GetSceneID() uint    { return j.sceneID }
 func (j *SpritesJob) GetPhase() string    { return "sprites" }

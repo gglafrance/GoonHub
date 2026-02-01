@@ -18,6 +18,14 @@ type JobHistoryRepository interface {
 	MarkNotRetryable(jobID string) error
 	GetByJobID(jobID string) (*JobHistory, error)
 	IncrementRetryCount(jobID string) error
+
+	// DB-backed job queue methods
+	CreatePending(record *JobHistory) error
+	CreateBatch(records []*JobHistory) error
+	ClaimPendingJobs(phase string, limit int) ([]JobHistory, error)
+	CountPendingByPhase() (map[string]int, error)
+	ExistsPendingOrRunning(sceneID uint, phase string) (bool, error)
+	MarkOrphanedRunningAsFailed(olderThan time.Duration) (int64, error)
 }
 
 type JobHistoryRepositoryImpl struct {
@@ -122,4 +130,124 @@ func (r *JobHistoryRepositoryImpl) GetByJobID(jobID string) (*JobHistory, error)
 func (r *JobHistoryRepositoryImpl) IncrementRetryCount(jobID string) error {
 	return r.DB.Model(&JobHistory{}).Where("job_id = ?", jobID).
 		UpdateColumn("retry_count", gorm.Expr("retry_count + 1")).Error
+}
+
+// CreatePending creates a job with status='pending'
+func (r *JobHistoryRepositoryImpl) CreatePending(record *JobHistory) error {
+	record.Status = JobStatusPending
+	return r.DB.Create(record).Error
+}
+
+// CreateBatch inserts multiple pending jobs efficiently
+func (r *JobHistoryRepositoryImpl) CreateBatch(records []*JobHistory) error {
+	if len(records) == 0 {
+		return nil
+	}
+	for _, record := range records {
+		record.Status = JobStatusPending
+	}
+	return r.DB.CreateInBatches(records, 100).Error
+}
+
+// ClaimPendingJobs atomically claims up to 'limit' pending jobs for a phase.
+// Uses FOR UPDATE SKIP LOCKED, sets status='running' and StartedAt.
+func (r *JobHistoryRepositoryImpl) ClaimPendingJobs(phase string, limit int) ([]JobHistory, error) {
+	var jobs []JobHistory
+
+	err := r.DB.Transaction(func(tx *gorm.DB) error {
+		// Select pending jobs with lock, skipping already locked rows
+		if err := tx.Raw(`
+			SELECT * FROM job_history
+			WHERE phase = ? AND status = 'pending'
+			ORDER BY priority DESC, created_at ASC
+			LIMIT ?
+			FOR UPDATE SKIP LOCKED
+		`, phase, limit).Scan(&jobs).Error; err != nil {
+			return err
+		}
+
+		if len(jobs) == 0 {
+			return nil
+		}
+
+		// Collect IDs to update
+		ids := make([]uint, len(jobs))
+		for i, job := range jobs {
+			ids[i] = job.ID
+		}
+
+		// Update status to running and set started_at
+		now := time.Now()
+		if err := tx.Model(&JobHistory{}).
+			Where("id IN ?", ids).
+			Updates(map[string]any{
+				"status":     JobStatusRunning,
+				"started_at": now,
+			}).Error; err != nil {
+			return err
+		}
+
+		// Update the returned jobs to reflect the new status
+		for i := range jobs {
+			jobs[i].Status = JobStatusRunning
+			jobs[i].StartedAt = now
+		}
+
+		return nil
+	})
+
+	return jobs, err
+}
+
+// CountPendingByPhase returns pending count per phase
+func (r *JobHistoryRepositoryImpl) CountPendingByPhase() (map[string]int, error) {
+	type phaseCount struct {
+		Phase string
+		Count int
+	}
+
+	var counts []phaseCount
+	if err := r.DB.Model(&JobHistory{}).
+		Select("phase, COUNT(*) as count").
+		Where("status = ?", JobStatusPending).
+		Group("phase").
+		Scan(&counts).Error; err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]int)
+	for _, c := range counts {
+		result[c.Phase] = c.Count
+	}
+
+	return result, nil
+}
+
+// ExistsPendingOrRunning checks if scene+phase already has a pending or running job
+func (r *JobHistoryRepositoryImpl) ExistsPendingOrRunning(sceneID uint, phase string) (bool, error) {
+	var count int64
+	if err := r.DB.Model(&JobHistory{}).
+		Where("scene_id = ? AND phase = ? AND status IN ?", sceneID, phase, []string{JobStatusPending, JobStatusRunning}).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// MarkOrphanedRunningAsFailed marks jobs that have been running for too long as failed.
+// These are likely orphaned jobs from a previous server crash.
+func (r *JobHistoryRepositoryImpl) MarkOrphanedRunningAsFailed(olderThan time.Duration) (int64, error) {
+	cutoff := time.Now().Add(-olderThan)
+	errMsg := "Orphaned job recovered after server restart"
+
+	result := r.DB.Model(&JobHistory{}).
+		Where("status = ? AND started_at < ?", JobStatusRunning, cutoff).
+		Updates(map[string]any{
+			"status":        JobStatusFailed,
+			"error_message": errMsg,
+			"completed_at":  time.Now(),
+			"is_retryable":  true,
+		})
+
+	return result.RowsAffected, result.Error
 }
