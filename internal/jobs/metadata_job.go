@@ -62,6 +62,29 @@ func NewMetadataJob(
 	}
 }
 
+// NewMetadataJobWithID creates a MetadataJob with a pre-assigned job ID.
+// Used by JobQueueFeeder when creating jobs from pending DB records.
+func NewMetadataJobWithID(
+	jobID string,
+	sceneID uint,
+	scenePath string,
+	maxFrameDimension int,
+	maxFrameDimensionLarge int,
+	repo data.SceneRepository,
+	logger *zap.Logger,
+) *MetadataJob {
+	return &MetadataJob{
+		id:                     jobID,
+		sceneID:                sceneID,
+		scenePath:              scenePath,
+		maxFrameDimension:      maxFrameDimension,
+		maxFrameDimensionLarge: maxFrameDimensionLarge,
+		repo:                   repo,
+		logger:                 logger,
+		status:                 JobStatusPending,
+	}
+}
+
 func (j *MetadataJob) GetID() string             { return j.id }
 func (j *MetadataJob) GetSceneID() uint           { return j.sceneID }
 func (j *MetadataJob) GetPhase() string           { return "metadata" }

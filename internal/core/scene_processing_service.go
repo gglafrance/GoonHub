@@ -5,6 +5,7 @@ import (
 	"goonhub/internal/core/processing"
 	"goonhub/internal/data"
 	"goonhub/internal/jobs"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -28,7 +29,7 @@ func (a *eventBusAdapter) Publish(event processing.SceneEvent) {
 	})
 }
 
-// jobHistoryAdapter adapts JobHistoryService to the processing.JobHistoryRecorder interface
+// jobHistoryAdapter adapts JobHistoryService to the processing.JobQueueRecorder interface
 type jobHistoryAdapter struct {
 	service *JobHistoryService
 }
@@ -51,6 +52,14 @@ func (a *jobHistoryAdapter) RecordJobCancelled(jobID string) {
 
 func (a *jobHistoryAdapter) RecordJobFailedWithRetry(jobID string, sceneID uint, phase string, err error) {
 	a.service.RecordJobFailedWithRetry(jobID, sceneID, phase, err)
+}
+
+func (a *jobHistoryAdapter) CreatePendingJob(jobID string, sceneID uint, sceneTitle string, phase string) error {
+	return a.service.CreatePendingJob(jobID, sceneID, sceneTitle, phase)
+}
+
+func (a *jobHistoryAdapter) ExistsPendingOrRunning(sceneID uint, phase string) (bool, error) {
+	return a.service.ExistsPendingOrRunning(sceneID, phase)
 }
 
 // SceneProcessingService orchestrates scene processing using worker pools
@@ -86,7 +95,7 @@ func NewSceneProcessingService(
 
 	// Create adapters
 	eventAdapter := &eventBusAdapter{eventBus: eventBus}
-	var historyAdapter processing.JobHistoryRecorder
+	var historyAdapter processing.JobQueueRecorder
 	if jobHistory != nil {
 		historyAdapter = &jobHistoryAdapter{service: jobHistory}
 	}
@@ -129,6 +138,14 @@ func (s *SceneProcessingService) Start() {
 func (s *SceneProcessingService) Stop() {
 	s.logger.Info("Stopping scene processing service")
 	s.poolManager.Stop()
+}
+
+// GracefulStop performs graceful shutdown of all worker pools.
+// It waits for in-flight jobs to complete (up to timeout) and returns
+// a map of phase -> buffered job IDs that were never executed.
+func (s *SceneProcessingService) GracefulStop(timeout time.Duration) map[string][]string {
+	s.logger.Info("Gracefully stopping scene processing service", zap.Duration("timeout", timeout))
+	return s.poolManager.GracefulStop(timeout)
 }
 
 // SubmitScene submits a new scene for processing
@@ -195,4 +212,10 @@ func (s *SceneProcessingService) RefreshTriggerCache() error {
 func (s *SceneProcessingService) LogStatus() {
 	s.logger.Info("Scene processing service status")
 	s.poolManager.LogStatus()
+}
+
+// GetPoolManager returns the underlying pool manager.
+// Used by JobQueueFeeder to submit jobs directly to pools.
+func (s *SceneProcessingService) GetPoolManager() *processing.PoolManager {
+	return s.poolManager
 }

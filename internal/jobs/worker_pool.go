@@ -259,3 +259,72 @@ func (p *WorkerPool) CancelJob(jobID string) error {
 func (p *WorkerPool) Registry() *JobRegistry {
 	return p.registry
 }
+
+// GracefulStop performs graceful shutdown:
+// 1. Stops accepting new jobs (sets running to false)
+// 2. Waits for in-flight workers to finish (up to timeout)
+// 3. Drains channel buffer and returns those job IDs
+// The returned job IDs are jobs that were in the channel buffer but never executed.
+func (p *WorkerPool) GracefulStop(timeout time.Duration) []string {
+	if !p.running.CompareAndSwap(true, false) {
+		return nil
+	}
+
+	p.logger.Info("Starting graceful shutdown of worker pool",
+		zap.Int("pending_jobs", p.QueueSize()),
+		zap.Int("active_workers", p.workerCount),
+		zap.Duration("timeout", timeout),
+	)
+
+	// Cancel context to signal workers to stop accepting new jobs from channel
+	p.cancel()
+
+	// Wait for workers to finish with timeout
+	done := make(chan struct{})
+	go func() {
+		p.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		p.logger.Info("All workers finished gracefully")
+	case <-time.After(timeout):
+		p.logger.Warn("Timeout waiting for workers, proceeding with buffer drain",
+			zap.Duration("timeout", timeout),
+		)
+	}
+
+	// Drain channel buffer to get job IDs that were never executed
+	bufferedJobIDs := p.drainBuffer()
+
+	close(p.jobQueue)
+	close(p.resultChan)
+
+	p.logger.Info("Worker pool graceful shutdown complete",
+		zap.Int("buffered_jobs_reclaimed", len(bufferedJobIDs)),
+	)
+
+	return bufferedJobIDs
+}
+
+// drainBuffer extracts all jobs from the channel buffer without executing them.
+// Returns the job IDs of all buffered jobs.
+func (p *WorkerPool) drainBuffer() []string {
+	var jobIDs []string
+
+	// Non-blocking drain of the channel
+	for {
+		select {
+		case job := <-p.jobQueue:
+			if job != nil {
+				jobIDs = append(jobIDs, job.GetID())
+				// Unregister from registry since we're reclaiming
+				p.registry.Unregister(job.GetID())
+			}
+		default:
+			// Channel is empty
+			return jobIDs
+		}
+	}
+}

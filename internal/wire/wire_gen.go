@@ -90,7 +90,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	retryConfigRepository := provideRetryConfigRepository(db)
 	retryScheduler := provideRetryScheduler(jobHistoryRepository, dlqRepository, retryConfigRepository, sceneRepository, eventBus, logger)
 	retryConfigHandler := provideRetryConfigHandler(retryConfigRepository, retryScheduler)
-	sseHandler := provideSSEHandler(eventBus, authService, logger)
+	jobStatusService := provideJobStatusService(jobHistoryService, sceneProcessingService, logger)
+	sseHandler := provideSSEHandler(eventBus, authService, jobStatusService, logger)
 	tagHandler := provideTagHandler(tagService)
 	actorService := provideActorService(actorRepository, sceneRepository, logger)
 	actorHandler := provideActorHandler(actorService, configConfig)
@@ -128,7 +129,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	importHandler := provideImportHandler(sceneRepository, markerRepository, logger)
 	ipRateLimiter := provideRateLimiter(configConfig)
 	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, authService, rbacService, ipRateLimiter)
-	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService)
+	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, sceneProcessingService, logger)
+	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService)
 	return serverServer, nil
 }
 
@@ -324,6 +326,14 @@ func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config
 	return core.NewJobHistoryService(repo, cfg.Processing, logger.Logger)
 }
 
+func provideJobStatusService(jobHistoryService *core.JobHistoryService, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobStatusService {
+	return core.NewJobStatusService(jobHistoryService, processingService, logger.Logger)
+}
+
+func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobQueueFeeder {
+	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, processingService.GetPoolManager(), logger.Logger)
+}
+
 func provideTriggerScheduler(triggerConfigRepo data.TriggerConfigRepository, sceneRepo data.SceneRepository, processingService *core.SceneProcessingService, logger *logging.Logger) *core.TriggerScheduler {
 	return core.NewTriggerScheduler(triggerConfigRepo, sceneRepo, processingService, logger.Logger)
 }
@@ -464,8 +474,8 @@ func provideRetryConfigHandler(retryConfigRepo data.RetryConfigRepository, retry
 	return handler.NewRetryConfigHandler(retryConfigRepo, retryScheduler)
 }
 
-func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, logger *logging.Logger) *handler.SSEHandler {
-	return handler.NewSSEHandler(eventBus, authService, logger.Logger)
+func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, logger *logging.Logger) *handler.SSEHandler {
+	return handler.NewSSEHandler(eventBus, authService, jobStatusService, logger.Logger)
 }
 
 func provideStoragePathHandler(service *core.StoragePathService) *handler.StoragePathHandler {
@@ -551,6 +561,8 @@ func provideServer(
 	processingService *core.SceneProcessingService,
 	userService *core.UserService,
 	jobHistoryService *core.JobHistoryService,
+	jobHistoryRepo data.JobHistoryRepository,
+	jobQueueFeeder *core.JobQueueFeeder,
 	triggerScheduler *core.TriggerScheduler,
 	sceneService *core.SceneService,
 	tagService *core.TagService,
@@ -564,7 +576,7 @@ func provideServer(
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
-		processingService, userService, jobHistoryService, triggerScheduler,
+		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
 		actorService, studioService,
 	)

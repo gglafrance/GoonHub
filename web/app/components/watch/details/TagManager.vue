@@ -7,7 +7,12 @@ const props = defineProps<{
     sceneId: number;
 }>();
 
+const router = useRouter();
 const { fetchTags, setSceneTags } = useApiTags();
+
+function navigateToTagSearch(tagName: string) {
+    router.push({ path: '/search', query: { tags: tagName } });
+}
 
 // Inject centralized watch page data
 const watchPageData = inject<WatchPageData>(WATCH_PAGE_DATA_KEY);
@@ -117,7 +122,12 @@ defineExpose({ reload });
                     class="inline-block h-2 w-2 rounded-full"
                     :style="{ backgroundColor: tag.color }"
                 />
-                {{ tag.name }}
+                <span
+                    @click="navigateToTagSearch(tag.name)"
+                    class="cursor-pointer transition-opacity hover:opacity-80"
+                >
+                    {{ tag.name }}
+                </span>
                 <span
                     @click="removeTag(tag.id)"
                     class="cursor-pointer opacity-0 transition-opacity group-hover:opacity-60

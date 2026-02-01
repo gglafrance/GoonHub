@@ -21,7 +21,11 @@ services:
       GOONHUB_CONFIG: /app/config.yaml
     volumes:
       - ./config-dev.yaml:/app/config.yaml:ro
-      - ../data:/app/data
+      - type: bind
+        source: ../data
+        target: /app/data
+        bind:
+          propagation: rslave
     depends_on:
       postgres:
         condition: service_healthy

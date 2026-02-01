@@ -4,7 +4,7 @@ export interface JobHistory {
     video_id: number;
     video_title: string;
     phase: 'metadata' | 'thumbnail' | 'sprites';
-    status: 'running' | 'completed' | 'failed' | 'cancelled' | 'timed_out';
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timed_out';
     error_message?: string;
     started_at: string;
     completed_at?: string;
@@ -14,6 +14,7 @@ export interface JobHistory {
     next_retry_at?: string;
     progress: number;
     is_retryable: boolean;
+    priority: number;
 }
 
 export interface PoolConfig {
@@ -109,4 +110,28 @@ export interface RetryConfig {
     max_delay_seconds: number;
     backoff_factor: number;
     updated_at: string;
+}
+
+// Job status types for header indicator
+export interface JobStatusPhase {
+    running: number;
+    queued: number;
+    pending: number;
+}
+
+export interface ActiveJobInfo {
+    job_id: string;
+    scene_id: number;
+    scene_title: string;
+    phase: 'metadata' | 'thumbnail' | 'sprites';
+    started_at: string;
+}
+
+export interface JobStatusData {
+    total_running: number;
+    total_queued: number;
+    total_pending: number;
+    by_phase: Record<string, JobStatusPhase>;
+    active_jobs: ActiveJobInfo[];
+    more_count: number;
 }
