@@ -17,7 +17,7 @@ server:
   idle_timeout: 120s
 
 database:
-  host: postgres
+  host: localhost
   port: 5432
   user: goonhub
   password: goonhub_dev_password
@@ -37,7 +37,7 @@ auth:
   token_duration: 24h
 
 meilisearch:
-  host: "http://meilisearch:7700"
+  host: "http://localhost:7700"
   api_key: goonhub_dev_master_key
   index_name: "videos"
 
