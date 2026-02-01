@@ -16,6 +16,10 @@ server:
   idle_timeout: 120s
   # Comma-separated list of allowed origins for CORS
   # allowed_origins: "https://example.com,https://app.example.com"
+  # Override the Secure flag on auth cookies. By default, cookies are Secure
+  # in production (environment: production) and non-Secure otherwise.
+  # Set to false if running production behind a reverse proxy over plain HTTP.
+  # secure_cookies: false
 
 database:
   host: postgres
