@@ -50,3 +50,8 @@ tmp/
 docker/config.prod.yaml
 docker/config-dev.yaml
 docker/config-dev-local.yaml
+
+# Importers
+importers/stash/.env
+importers/stash/id_map.json
+importers/stash/goonhub-stash-importer

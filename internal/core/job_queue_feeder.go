@@ -223,13 +223,17 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory) error {
 		if scene.Duration == 0 {
 			return nil // Skip if metadata not extracted
 		}
+		tileWidthSm, tileHeightSm := scene.ThumbnailWidth, scene.ThumbnailHeight
+		if tileWidthSm == 0 || tileHeightSm == 0 {
+			tileWidthSm, tileHeightSm = calculateTileDimensions(scene.Width, scene.Height, qualityConfig.MaxFrameDimensionSm)
+		}
 		tileWidthLg, tileHeightLg := calculateTileDimensions(scene.Width, scene.Height, cfg.MaxFrameDimensionLarge)
 		job = jobs.NewThumbnailJobWithID(
 			jobRecord.JobID,
 			jobRecord.SceneID,
 			scene.StoredPath,
 			cfg.ThumbnailDir,
-			scene.ThumbnailWidth, scene.ThumbnailHeight,
+			tileWidthSm, tileHeightSm,
 			tileWidthLg, tileHeightLg,
 			scene.Duration,
 			qualityConfig.FrameQualitySm,
@@ -243,14 +247,18 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory) error {
 		if scene.Duration == 0 {
 			return nil // Skip if metadata not extracted
 		}
+		tileW, tileH := scene.ThumbnailWidth, scene.ThumbnailHeight
+		if tileW == 0 || tileH == 0 {
+			tileW, tileH = calculateTileDimensions(scene.Width, scene.Height, qualityConfig.MaxFrameDimensionSm)
+		}
 		job = jobs.NewSpritesJobWithID(
 			jobRecord.JobID,
 			jobRecord.SceneID,
 			scene.StoredPath,
 			cfg.SpriteDir,
 			cfg.VttDir,
-			scene.ThumbnailWidth,
-			scene.ThumbnailHeight,
+			tileW,
+			tileH,
 			scene.Duration,
 			cfg.FrameInterval,
 			qualityConfig.FrameQualitySprites,

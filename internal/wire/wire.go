@@ -182,6 +182,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Marker Handler
 		provideMarkerHandler,
 
+		// Import Handler
+		provideImportHandler,
+
 		// ============================================================
 		// ROUTER & SERVER
 		// ============================================================
@@ -611,6 +614,10 @@ func provideMarkerHandler(markerService *core.MarkerService) *handler.MarkerHand
 	return handler.NewMarkerHandler(markerService)
 }
 
+func provideImportHandler(sceneRepo data.SceneRepository, markerRepo data.MarkerRepository, logger *logging.Logger) *handler.ImportHandler {
+	return handler.NewImportHandler(sceneRepo, markerRepo, logger.Logger)
+}
+
 // ============================================================================
 // ROUTER & SERVER PROVIDERS
 // ============================================================================
@@ -644,6 +651,7 @@ func provideRouter(
 	savedSearchHandler *handler.SavedSearchHandler,
 	homepageHandler *handler.HomepageHandler,
 	markerHandler *handler.MarkerHandler,
+	importHandler *handler.ImportHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -654,7 +662,7 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, authService, rbacService, rateLimiter,
 	)
 }
 
