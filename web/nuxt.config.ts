@@ -32,6 +32,12 @@ export default defineNuxtConfig({
 
     modules: ['@nuxt/eslint', '@pinia/nuxt', '@nuxt/icon', '@pinia-plugin-persistedstate/nuxt'],
 
+    icon: {
+        clientBundle: {
+            scan: true,
+        },
+    },
+
     css: ['./app/assets/css/main.css'],
 
     ssr: false,
