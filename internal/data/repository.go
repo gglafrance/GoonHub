@@ -79,6 +79,7 @@ type SceneRepository interface {
 	UpdateDetails(id uint, title, description string, releaseDate *time.Time) error
 	UpdateSceneMetadata(id uint, title, description, studio string, releaseDate *time.Time, porndbSceneID string) error
 	ExistsByStoredPath(path string) (bool, error)
+	GetByStoredPath(path string) (*Scene, error)
 	MarkAsMissing(id uint) error
 	Restore(id uint) error
 	UpdateStoredPath(id uint, newPath string, storagePathID *uint) error
@@ -312,6 +313,14 @@ func (r *SceneRepositoryImpl) ExistsByStoredPath(path string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (r *SceneRepositoryImpl) GetByStoredPath(path string) (*Scene, error) {
+	var scene Scene
+	if err := r.DB.Where("stored_path = ?", path).First(&scene).Error; err != nil {
+		return nil, err
+	}
+	return &scene, nil
 }
 
 func (r *SceneRepositoryImpl) GetAllWithStoragePath() ([]Scene, error) {

@@ -125,8 +125,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	homepageService := provideHomepageService(settingsService, searchService, savedSearchService, watchHistoryRepository, interactionRepository, sceneRepository, tagRepository, actorRepository, studioRepository, logger)
 	homepageHandler := provideHomepageHandler(homepageService)
 	markerHandler := provideMarkerHandler(markerService)
+	importHandler := provideImportHandler(sceneRepository, markerRepository, logger)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, authService, rbacService, ipRateLimiter)
+	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, authService, rbacService, ipRateLimiter)
 	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService)
 	return serverServer, nil
 }
@@ -495,6 +496,10 @@ func provideMarkerHandler(markerService *core.MarkerService) *handler.MarkerHand
 	return handler.NewMarkerHandler(markerService)
 }
 
+func provideImportHandler(sceneRepo data.SceneRepository, markerRepo data.MarkerRepository, logger *logging.Logger) *handler.ImportHandler {
+	return handler.NewImportHandler(sceneRepo, markerRepo, logger.Logger)
+}
+
 func provideRouter(
 	logger *logging.Logger,
 	cfg *config.Config,
@@ -524,6 +529,7 @@ func provideRouter(
 	savedSearchHandler *handler.SavedSearchHandler,
 	homepageHandler *handler.HomepageHandler,
 	markerHandler *handler.MarkerHandler,
+	importHandler *handler.ImportHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -534,7 +540,7 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, authService, rbacService, rateLimiter,
 	)
 }
 

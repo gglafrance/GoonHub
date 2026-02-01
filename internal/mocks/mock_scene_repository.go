@@ -173,6 +173,21 @@ func (mr *MockSceneRepositoryMockRecorder) GetBySizeAndFilename(size, filename a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBySizeAndFilename", reflect.TypeOf((*MockSceneRepository)(nil).GetBySizeAndFilename), size, filename)
 }
 
+// GetByStoredPath mocks base method.
+func (m *MockSceneRepository) GetByStoredPath(path string) (*data.Scene, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByStoredPath", path)
+	ret0, _ := ret[0].(*data.Scene)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByStoredPath indicates an expected call of GetByStoredPath.
+func (mr *MockSceneRepositoryMockRecorder) GetByStoredPath(path any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByStoredPath", reflect.TypeOf((*MockSceneRepository)(nil).GetByStoredPath), path)
+}
+
 // GetDistinctActors mocks base method.
 func (m *MockSceneRepository) GetDistinctActors() ([]string, error) {
 	m.ctrl.T.Helper()

@@ -146,10 +146,14 @@ func (js *JobSubmitter) SubmitPhaseWithRetry(sceneID uint, phase string, retryCo
 			zap.String("scene_stored_path", scene.StoredPath),
 			zap.String("scene_title", scene.Title),
 		)
+		tileWidthSm, tileHeightSm := scene.ThumbnailWidth, scene.ThumbnailHeight
+		if tileWidthSm == 0 || tileHeightSm == 0 {
+			tileWidthSm, tileHeightSm = ffmpeg.CalculateTileDimensions(scene.Width, scene.Height, qualityConfig.MaxFrameDimensionSm)
+		}
 		tileWidthLg, tileHeightLg := ffmpeg.CalculateTileDimensions(scene.Width, scene.Height, cfg.MaxFrameDimensionLarge)
 		thumbnailJob := jobs.NewThumbnailJob(
 			sceneID, scene.StoredPath, cfg.ThumbnailDir,
-			scene.ThumbnailWidth, scene.ThumbnailHeight,
+			tileWidthSm, tileHeightSm,
 			tileWidthLg, tileHeightLg,
 			scene.Duration, qualityConfig.FrameQualitySm, qualityConfig.FrameQualityLg,
 			js.repo, js.logger,
@@ -168,9 +172,13 @@ func (js *JobSubmitter) SubmitPhaseWithRetry(sceneID uint, phase string, retryCo
 		if scene.Duration == 0 {
 			return fmt.Errorf("metadata must be extracted before sprite generation")
 		}
+		tileW, tileH := scene.ThumbnailWidth, scene.ThumbnailHeight
+		if tileW == 0 || tileH == 0 {
+			tileW, tileH = ffmpeg.CalculateTileDimensions(scene.Width, scene.Height, qualityConfig.MaxFrameDimensionSm)
+		}
 		spritesJob := jobs.NewSpritesJob(
 			sceneID, scene.StoredPath, cfg.SpriteDir, cfg.VttDir,
-			scene.ThumbnailWidth, scene.ThumbnailHeight, scene.Duration,
+			tileW, tileH, scene.Duration,
 			cfg.FrameInterval, qualityConfig.FrameQualitySprites, cfg.GridCols, cfg.GridRows,
 			qualityConfig.SpritesConcurrency, js.repo, js.logger,
 		)
