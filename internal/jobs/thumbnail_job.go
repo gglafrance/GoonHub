@@ -77,6 +77,41 @@ func NewThumbnailJob(
 	}
 }
 
+// NewThumbnailJobWithID creates a ThumbnailJob with a pre-assigned job ID.
+// Used by JobQueueFeeder when creating jobs from pending DB records.
+func NewThumbnailJobWithID(
+	jobID string,
+	sceneID uint,
+	scenePath string,
+	thumbnailDir string,
+	tileWidth int,
+	tileHeight int,
+	tileWidthLarge int,
+	tileHeightLarge int,
+	duration int,
+	frameQualitySm int,
+	frameQualityLg int,
+	repo data.SceneRepository,
+	logger *zap.Logger,
+) *ThumbnailJob {
+	return &ThumbnailJob{
+		id:              jobID,
+		sceneID:         sceneID,
+		scenePath:       scenePath,
+		thumbnailDir:    thumbnailDir,
+		tileWidth:       tileWidth,
+		tileHeight:      tileHeight,
+		tileWidthLarge:  tileWidthLarge,
+		tileHeightLarge: tileHeightLarge,
+		duration:        duration,
+		frameQualitySm:  frameQualitySm,
+		frameQualityLg:  frameQualityLg,
+		repo:            repo,
+		logger:          logger,
+		status:          JobStatusPending,
+	}
+}
+
 func (j *ThumbnailJob) GetID() string      { return j.id }
 func (j *ThumbnailJob) GetSceneID() uint    { return j.sceneID }
 func (j *ThumbnailJob) GetPhase() string    { return "thumbnail" }

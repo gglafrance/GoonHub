@@ -108,6 +108,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Processing & Job Services
 		provideSceneProcessingService,
 		provideJobHistoryService,
+		provideJobStatusService,
+		provideJobQueueFeeder,
 		provideTriggerScheduler,
 		provideRetryScheduler,
 		provideDLQService,
@@ -410,6 +412,14 @@ func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config
 	return core.NewJobHistoryService(repo, cfg.Processing, logger.Logger)
 }
 
+func provideJobStatusService(jobHistoryService *core.JobHistoryService, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobStatusService {
+	return core.NewJobStatusService(jobHistoryService, processingService, logger.Logger)
+}
+
+func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobQueueFeeder {
+	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, processingService.GetPoolManager(), logger.Logger)
+}
+
 func provideTriggerScheduler(triggerConfigRepo data.TriggerConfigRepository, sceneRepo data.SceneRepository, processingService *core.SceneProcessingService, logger *logging.Logger) *core.TriggerScheduler {
 	return core.NewTriggerScheduler(triggerConfigRepo, sceneRepo, processingService, logger.Logger)
 }
@@ -570,8 +580,8 @@ func provideRetryConfigHandler(retryConfigRepo data.RetryConfigRepository, retry
 
 // --- Real-time & Storage Handlers ---
 
-func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, logger *logging.Logger) *handler.SSEHandler {
-	return handler.NewSSEHandler(eventBus, authService, logger.Logger)
+func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, logger *logging.Logger) *handler.SSEHandler {
+	return handler.NewSSEHandler(eventBus, authService, jobStatusService, logger.Logger)
 }
 
 func provideStoragePathHandler(service *core.StoragePathService) *handler.StoragePathHandler {
@@ -663,6 +673,8 @@ func provideServer(
 	processingService *core.SceneProcessingService,
 	userService *core.UserService,
 	jobHistoryService *core.JobHistoryService,
+	jobHistoryRepo data.JobHistoryRepository,
+	jobQueueFeeder *core.JobQueueFeeder,
 	triggerScheduler *core.TriggerScheduler,
 	sceneService *core.SceneService,
 	tagService *core.TagService,
@@ -676,7 +688,7 @@ func provideServer(
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
-		processingService, userService, jobHistoryService, triggerScheduler,
+		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
 		actorService, studioService,
 	)

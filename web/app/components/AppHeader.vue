@@ -58,6 +58,8 @@ const showShortcuts = ref(false);
                             <Icon name="heroicons:command-line" size="16" />
                         </button>
 
+                        <HeaderJobStatus />
+
                         <NuxtLink
                             to="/settings"
                             class="border-border text-dim hover:border-lava/30 hover:text-lava flex

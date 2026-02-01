@@ -93,22 +93,25 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
     - `admin_service.go` - Admin operations
     - `rbac_service.go` - Role-Based Access Control
     - `settings_service.go` - User settings management
-    - `job_history_service.go` - Job history and retention
+    - `job_history_service.go` - Job history, retention, and pending job management
+    - `job_status_service.go` - Aggregated job status for real-time header display
+    - `job_queue_feeder.go` - DB-backed queue feeder that polls pending jobs and submits to worker pools
     - `event_bus.go` - EventBus for real-time SSE event publishing
     - `trigger_scheduler.go` - Cron-based scheduled triggers for processing phases
 - `internal/data/` - GORM models and repository interfaces/implementations:
     - `scene_models.go` - Scene, SceneTag, SceneActor models
-    - `models.go` - User, Role, Permission, RolePermission, RevokedToken, UserSettings, JobHistory
+    - `models.go` - User, Role, Permission, RolePermission, RevokedToken, UserSettings
+    - `job_models.go` - JobHistory (with Priority field), DLQEntry, RetryConfigRecord, job status constants (`JobStatusPending`, `JobStatusRunning`, etc.)
     - `repository.go` - Core repository interfaces (SceneRepository, UserRepository, RevokedTokenRepository, UserSettingsRepository)
     - `rbac_repository.go` - RBACRepository for roles/permissions
-    - `job_history_repository.go` - JobHistoryRepository
+    - `job_history_repository.go` - JobHistoryRepository (includes `ClaimPendingJobs`, `CountPendingByPhase`, `ExistsPendingOrRunning` for DB-backed queue)
     - `pool_config_repository.go` - PoolConfigRepository (dynamic worker pool settings)
     - `processing_config_repository.go` - ProcessingConfigRepository (quality/concurrency settings)
     - `trigger_config_repository.go` - TriggerConfigRepository (cron/after_job/on_import triggers)
 - `internal/infrastructure/` - Server, logging (zap), PostgreSQL persistence, Meilisearch client
 - `internal/infrastructure/meilisearch/` - Meilisearch client wrapper (indexing, search, health checks)
 - `internal/infrastructure/persistence/postgres/` - GORM PostgreSQL initializer with connection pooling
-- `internal/infrastructure/persistence/migrator/` - golang-migrate based schema migrations (10 migrations)
+- `internal/infrastructure/persistence/migrator/` - golang-migrate based schema migrations (35 migrations)
 - `internal/jobs/` - Worker pool and scene processing jobs (metadata, thumbnail, sprites)
 - `internal/apperrors/` - Typed error system with domain-specific errors:
     - `errors.go` - Base AppError interface and common error types (NotFoundError, ValidationError, ConflictError, InternalError, ForbiddenError, UnauthorizedError)
@@ -130,6 +133,7 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - `pages/` - Routes: index (scene grid), login, watch/[id], settings
 - `components/` - Organized by feature:
     - Root: `AppHeader`, `SceneCard`, `SceneGrid`, `ScenePlayer`, `SceneUpload`, `SceneMetadata`, `UploadIndicator`, `Pagination`, `ErrorAlert`, `LoadingSpinner`
+    - `header/` - `JobStatus` (real-time job indicator), `JobStatusPopup` (detailed breakdown by phase)
     - `settings/` - `Account`, `Player`, `App`, `Users`, `Jobs` (tab orchestrator)
     - `settings/jobs/` - `HistoryTab`, `QueueStatus`, `ActiveJobs`, `Workers`, `Processing`, `Triggers`, `Retry`, `DLQ`, `Manual`
     - `settings/` modals - `UserCreateModal`, `UserEditRoleModal`, `UserResetPasswordModal`, `UserDeleteModal`
@@ -138,7 +142,7 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
     - `search/` - `SearchFilters` (orchestrator), `SearchBar`, `SearchResults`
     - `search/filters/` - `FilterSection`, `FilterTags`, `FilterActors`, `FilterDuration`, `FilterDateRange`, `FilterSelect`, `FilterLiked`, `FilterRatingRange`, `FilterJizzRange`
     - `ui/` - Reusable `ErrorAlert`, `LoadingSpinner`
-- `stores/` - Pinia stores: `auth` (sessionStorage), `scenes`, `upload`, `settings`, `search`
+- `stores/` - Pinia stores: `auth` (sessionStorage), `scenes`, `upload`, `settings`, `search`, `jobStatus` (real-time job counts via SSE)
 - `composables/` - Organized by domain:
     - `api/` - Domain-specific API composables (see API Composables section below)
     - `useApi.ts` - Unified API facade re-exporting all domain composables (backwards-compatible)
@@ -172,7 +176,8 @@ For backwards compatibility, `useApi()` re-exports all functions from domain com
 - **DI**: Google Wire generates `wire_gen.go`; edit `wire.go` then regenerate
 - **Auth**: PASETO tokens, admin user auto-created on startup, token revocation via DB
 - **RBAC**: Roles and permissions managed via database, enforced by middleware
-- **Scene Processing Pipeline**: Upload -> save file -> create DB record -> submit async job (worker pool) -> extract metadata -> generate thumbnails (multi-resolution) -> generate sprite sheets -> generate VTT -> update DB
+- **Scene Processing Pipeline**: Upload -> save file -> create DB record -> create pending job in DB -> JobQueueFeeder claims job -> worker pool executes -> extract metadata -> generate thumbnails (multi-resolution) -> generate sprite sheets -> generate VTT -> update DB
+- **DB-Backed Job Queue**: Jobs are created with `status='pending'` in `job_history` table (non-blocking). `JobQueueFeeder` polls DB every 2 seconds, claims up to 50 pending jobs using `FOR UPDATE SKIP LOCKED`, and submits to worker pool channels (1000 capacity buffer). This pattern handles 80,000+ videos without blocking: DB acts as infinite overflow, channel acts as immediate buffer. Deduplication is enforced via unique index on `(scene_id, phase)` for active jobs. Orphaned jobs (running > 5 minutes on startup) are automatically recovered and marked failed for retry.
 - **Real-Time Updates (SSE)**: EventBus publishes SceneEvents -> SSEHandler streams to connected clients via Server-Sent Events. Token auth via query parameter. 30-second keepalive pings. Buffered channel (50 events) prevents blocking.
 - **Trigger Scheduler**: Cron-based scheduling via robfig/cron/v3. Supports trigger types: `on_import`, `after_job`, `manual`, `scheduled`. Includes cycle detection for after_job dependencies.
 - **Dynamic Configuration**: Worker pool size, processing quality, and trigger schedules are stored in DB and configurable at runtime via admin API.

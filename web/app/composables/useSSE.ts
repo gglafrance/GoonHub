@@ -1,10 +1,12 @@
+import type { JobStatusData } from '~/types/jobs';
+
 interface SceneEventData {
     type: string;
     scene_id: number;
-    data?: Record<string, any>;
+    data?: Record<string, unknown>;
 }
 
-type FieldExtractor = (event: SceneEventData) => Record<string, any>;
+type FieldExtractor = (event: SceneEventData) => Record<string, unknown>;
 
 const EVENT_HANDLERS: Record<string, FieldExtractor> = {
     'scene:metadata_complete': (e) => ({
@@ -54,6 +56,7 @@ function supportsSharedWorker(): boolean {
 function useSSESharedWorker() {
     const authStore = useAuthStore();
     const sceneStore = useSceneStore();
+    const jobStatusStore = useJobStatusStore();
 
     let channel: BroadcastChannel | null = null;
     let worker: SharedWorker | null = null;
@@ -62,9 +65,21 @@ function useSSESharedWorker() {
     function onChannelMessage(e: MessageEvent) {
         const { type, eventType, data } = e.data;
 
-        if (type === 'sse-event') {
-            handleSSEEvent(eventType, data, sceneStore);
+        if (type === 'worker-ready') {
+            channel?.postMessage({ type: 'tab-join' });
+            channel?.postMessage({ type: 'connect' });
+        } else if (type === 'sse-event') {
+            if (eventType === 'jobs:status') {
+                const status: JobStatusData = JSON.parse(data);
+                jobStatusStore.updateStatus(status);
+                jobStatusStore.setConnected(true);
+            } else {
+                handleSSEEvent(eventType, data, sceneStore);
+            }
+        } else if (type === 'sse-connected') {
+            jobStatusStore.setConnected(true);
         } else if (type === 'sse-reconnecting') {
+            jobStatusStore.setConnected(false);
             sceneStore.loadScenes(sceneStore.currentPage);
         }
     }
@@ -80,15 +95,20 @@ function useSSESharedWorker() {
         if (!authStore.isAuthenticated) return;
         disconnect();
 
-        worker = new SharedWorker('/sse-worker.js', { name: 'sse-worker' });
-        channel = new BroadcastChannel('sse-events');
-        channel.onmessage = onChannelMessage;
+        const workerUrl = new URL('/_worker/sse', window.location.origin).href;
 
-        channel.postMessage({ type: 'tab-join' });
-        channel.postMessage({ type: 'connect' });
-        joined = true;
+        try {
+            worker = new SharedWorker(workerUrl, { name: 'sse-worker' });
+            worker.onerror = () => {};
 
-        window.addEventListener('beforeunload', onBeforeUnload);
+            channel = new BroadcastChannel('sse-events');
+            channel.onmessage = onChannelMessage;
+            joined = true;
+
+            window.addEventListener('beforeunload', onBeforeUnload);
+        } catch {
+            // SharedWorker failed, fallback mode will be used on next page load
+        }
     }
 
     function disconnect() {
@@ -122,6 +142,7 @@ function useSSESharedWorker() {
 function useSSEFallback() {
     const authStore = useAuthStore();
     const sceneStore = useSceneStore();
+    const jobStatusStore = useJobStatusStore();
 
     let eventSource: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -137,7 +158,14 @@ function useSSEFallback() {
 
         eventSource.onopen = () => {
             reconnectDelay = 1000;
+            jobStatusStore.setConnected(true);
         };
+
+        eventSource.addEventListener('jobs:status', (e: MessageEvent) => {
+            const status: JobStatusData = JSON.parse(e.data);
+            jobStatusStore.updateStatus(status);
+            jobStatusStore.setConnected(true);
+        });
 
         for (const [eventType, handler] of Object.entries(EVENT_HANDLERS)) {
             eventSource.addEventListener(eventType, (e: MessageEvent) => {
@@ -149,6 +177,7 @@ function useSSEFallback() {
         eventSource.onerror = () => {
             eventSource?.close();
             eventSource = null;
+            jobStatusStore.setConnected(false);
             scheduleReconnect();
         };
     }

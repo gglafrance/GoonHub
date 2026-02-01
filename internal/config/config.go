@@ -19,10 +19,18 @@ type Config struct {
 	Auth        AuthConfig        `mapstructure:"auth"`
 	Meilisearch MeilisearchConfig `mapstructure:"meilisearch"`
 	PornDB      PornDBConfig      `mapstructure:"porndb"`
+	Shutdown    ShutdownConfig    `mapstructure:"shutdown"`
 }
 
 type PornDBConfig struct {
 	APIKey string `mapstructure:"api_key"`
+}
+
+type ShutdownConfig struct {
+	GracefulTimeout   time.Duration `mapstructure:"graceful_timeout"`    // Total shutdown time (default: 30s)
+	JobCompletionWait time.Duration `mapstructure:"job_completion_wait"` // Wait for running jobs (default: 15s)
+	OrphanTimeout     time.Duration `mapstructure:"orphan_timeout"`      // Orphan detection threshold (default: 30s)
+	StuckPendingTime  time.Duration `mapstructure:"stuck_pending_time"`  // Pending job stuck threshold (default: 10m)
 }
 
 type MeilisearchConfig struct {
@@ -169,6 +177,10 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("meilisearch.api_key", "goonhub_dev_master_key")
 	v.SetDefault("meilisearch.index_name", "videos")
 	v.SetDefault("porndb.api_key", "")
+	v.SetDefault("shutdown.graceful_timeout", 30*time.Second)
+	v.SetDefault("shutdown.job_completion_wait", 15*time.Second)
+	v.SetDefault("shutdown.orphan_timeout", 30*time.Second)
+	v.SetDefault("shutdown.stuck_pending_time", 10*time.Minute)
 
 	// Environment variables
 	v.SetEnvPrefix("GOONHUB")
