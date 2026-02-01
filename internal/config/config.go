@@ -48,6 +48,7 @@ type ServerConfig struct {
 	TLSCertFile    string        `mapstructure:"tls_cert_file"`   // Path to TLS certificate file
 	TLSKeyFile     string        `mapstructure:"tls_key_file"`    // Path to TLS private key file
 	TrustedProxies []string      `mapstructure:"trusted_proxies"` // CIDR ranges for trusted proxies (for X-Forwarded-For)
+	SecureCookies  *bool         `mapstructure:"secure_cookies"`  // Override Secure flag on cookies (nil = auto from environment)
 }
 
 type DatabaseConfig struct {
