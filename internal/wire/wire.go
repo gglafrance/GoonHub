@@ -17,6 +17,7 @@ import (
 	"goonhub/internal/infrastructure/meilisearch"
 	"goonhub/internal/infrastructure/persistence/postgres"
 	"goonhub/internal/infrastructure/server"
+	"goonhub/internal/streaming"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
@@ -134,6 +135,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Marker Service
 		provideMarkerService,
 
+		// Streaming Manager
+		provideStreamManager,
+
 		// ============================================================
 		// API LAYER - MIDDLEWARE
 		// ============================================================
@@ -187,6 +191,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Import Handler
 		provideImportHandler,
+
+		// Stream Stats Handler
+		provideStreamStatsHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -502,6 +509,12 @@ func provideMarkerService(markerRepo data.MarkerRepository, sceneRepo data.Scene
 	return core.NewMarkerService(markerRepo, sceneRepo, tagRepo, cfg, logger.Logger)
 }
 
+// --- Streaming Manager ---
+
+func provideStreamManager(cfg *config.Config, sceneRepo data.SceneRepository, logger *logging.Logger) *streaming.Manager {
+	return streaming.NewManager(&cfg.Streaming, sceneRepo, logger.Logger)
+}
+
 // ============================================================================
 // API MIDDLEWARE PROVIDERS
 // ============================================================================
@@ -535,8 +548,8 @@ func provideSettingsHandler(settingsService *core.SettingsService) *handler.Sett
 
 // --- Scene & Content Handlers ---
 
-func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService) *handler.SceneHandler {
-	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService)
+func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager) *handler.SceneHandler {
+	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
@@ -637,6 +650,10 @@ func provideImportHandler(sceneRepo data.SceneRepository, markerRepo data.Marker
 	return handler.NewImportHandler(sceneRepo, markerRepo, logger.Logger)
 }
 
+func provideStreamStatsHandler(streamManager *streaming.Manager) *handler.StreamStatsHandler {
+	return handler.NewStreamStatsHandler(streamManager)
+}
+
 // ============================================================================
 // ROUTER & SERVER PROVIDERS
 // ============================================================================
@@ -671,6 +688,7 @@ func provideRouter(
 	homepageHandler *handler.HomepageHandler,
 	markerHandler *handler.MarkerHandler,
 	importHandler *handler.ImportHandler,
+	streamStatsHandler *handler.StreamStatsHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -681,7 +699,7 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, authService, rbacService, rateLimiter,
 	)
 }
 

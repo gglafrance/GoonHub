@@ -5,6 +5,7 @@ import (
 	"goonhub/internal/core"
 	"goonhub/internal/data"
 	"goonhub/internal/mocks"
+	"goonhub/internal/streaming"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -31,8 +33,13 @@ func newTestSceneHandler(t *testing.T) (*SceneHandler, *mocks.MockSceneRepositor
 		MetadataPath: dataPath,
 	}
 
+	// Create a streaming manager for tests
+	streamManager := streaming.NewManager(streaming.DefaultConfig(), sceneRepo, zap.NewNop())
+	t.Cleanup(func() { streamManager.Stop() })
+
 	handler := &SceneHandler{
-		Service: svc,
+		Service:       svc,
+		StreamManager: streamManager,
 	}
 	return handler, sceneRepo, dataPath
 }

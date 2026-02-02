@@ -20,6 +20,7 @@ import (
 	"goonhub/internal/infrastructure/meilisearch"
 	"goonhub/internal/infrastructure/persistence/postgres"
 	"goonhub/internal/infrastructure/server"
+	"goonhub/internal/streaming"
 	"gorm.io/gorm"
 	"time"
 )
@@ -63,7 +64,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	studioRepository := provideStudioRepository(db)
 	relatedScenesService := provideRelatedScenesService(sceneRepository, tagRepository, actorRepository, studioRepository, logger)
 	markerService := provideMarkerService(markerRepository, sceneRepository, tagRepository, configConfig, logger)
-	sceneHandler := provideSceneHandler(sceneService, sceneProcessingService, tagService, searchService, relatedScenesService, markerService)
+	manager := provideStreamManager(configConfig, sceneRepository, logger)
+	sceneHandler := provideSceneHandler(sceneService, sceneProcessingService, tagService, searchService, relatedScenesService, markerService, manager)
 	userRepository := provideUserRepository(db)
 	revokedTokenRepository := provideRevokedTokenRepository(db)
 	authService, err := provideAuthService(userRepository, revokedTokenRepository, configConfig, logger)
@@ -128,8 +130,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	homepageHandler := provideHomepageHandler(homepageService)
 	markerHandler := provideMarkerHandler(markerService)
 	importHandler := provideImportHandler(sceneRepository, markerRepository, logger)
+	streamStatsHandler := provideStreamStatsHandler(manager)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, authService, rbacService, ipRateLimiter)
+	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, authService, rbacService, ipRateLimiter)
 	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, sceneProcessingService, logger)
 	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService)
 	return serverServer, nil
@@ -410,6 +413,10 @@ func provideMarkerService(markerRepo data.MarkerRepository, sceneRepo data.Scene
 	return core.NewMarkerService(markerRepo, sceneRepo, tagRepo, cfg, logger.Logger)
 }
 
+func provideStreamManager(cfg *config.Config, sceneRepo data.SceneRepository, logger *logging.Logger) *streaming.Manager {
+	return streaming.NewManager(&cfg.Streaming, sceneRepo, logger.Logger)
+}
+
 func provideRateLimiter(cfg *config.Config) *middleware.IPRateLimiter {
 	rl := rate.Every(time.Minute / time.Duration(cfg.Auth.LoginRateLimit))
 	return middleware.NewIPRateLimiter(rl, cfg.Auth.LoginRateBurst)
@@ -431,8 +438,8 @@ func provideSettingsHandler(settingsService *core.SettingsService) *handler.Sett
 	return handler.NewSettingsHandler(settingsService)
 }
 
-func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService) *handler.SceneHandler {
-	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService)
+func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager) *handler.SceneHandler {
+	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
@@ -527,6 +534,10 @@ func provideImportHandler(sceneRepo data.SceneRepository, markerRepo data.Marker
 	return handler.NewImportHandler(sceneRepo, markerRepo, logger.Logger)
 }
 
+func provideStreamStatsHandler(streamManager *streaming.Manager) *handler.StreamStatsHandler {
+	return handler.NewStreamStatsHandler(streamManager)
+}
+
 func provideRouter(
 	logger *logging.Logger,
 	cfg *config.Config,
@@ -557,6 +568,7 @@ func provideRouter(
 	homepageHandler *handler.HomepageHandler,
 	markerHandler *handler.MarkerHandler,
 	importHandler *handler.ImportHandler,
+	streamStatsHandler *handler.StreamStatsHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -567,7 +579,7 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, authService, rbacService, rateLimiter,
 	)
 }
 
