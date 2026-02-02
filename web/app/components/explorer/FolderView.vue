@@ -1,5 +1,54 @@
 <script setup lang="ts">
+const route = useRoute();
+const router = useRouter();
 const explorerStore = useExplorerStore();
+
+let isUpdatingUrl = false;
+let isSyncingFromUrl = false;
+
+// Sync URL when store page changes
+watch(
+    () => explorerStore.page,
+    (newPage) => {
+        if (isSyncingFromUrl) return;
+
+        const query = { ...route.query };
+        if (newPage === 1) {
+            delete query.page;
+        } else {
+            query.page = String(newPage);
+        }
+
+        isUpdatingUrl = true;
+        router.replace({ query }).finally(() => {
+            isUpdatingUrl = false;
+        });
+    },
+);
+
+// Handle browser back/forward navigation
+watch(
+    () => route.query.page,
+    () => {
+        if (isUpdatingUrl) return;
+
+        const urlPage = Number(route.query.page);
+        const targetPage = urlPage > 0 ? urlPage : 1;
+        if (explorerStore.page !== targetPage) {
+            isSyncingFromUrl = true;
+            explorerStore.page = targetPage;
+            nextTick(() => {
+                isSyncingFromUrl = false;
+            });
+
+            if (explorerStore.isSearchActive) {
+                explorerStore.performSearch();
+            } else {
+                explorerStore.loadFolderContents();
+            }
+        }
+    },
+);
 
 const handlePageChange = async (page: number) => {
     explorerStore.page = page;
@@ -14,9 +63,7 @@ const hasContent = computed(
     () => explorerStore.subfolders.length > 0 || explorerStore.scenes.length > 0,
 );
 
-const showSearch = computed(
-    () => hasContent.value || explorerStore.isSearchActive,
-);
+const showSearch = computed(() => hasContent.value || explorerStore.isSearchActive);
 </script>
 
 <template>
@@ -32,8 +79,8 @@ const showSearch = computed(
         <!-- Empty State -->
         <div
             v-else-if="!hasContent"
-            class="border-border flex h-64 flex-col items-center justify-center rounded-xl
-                border border-dashed text-center"
+            class="border-border flex h-64 flex-col items-center justify-center rounded-xl border
+                border-dashed text-center"
         >
             <div
                 class="bg-panel border-border flex h-10 w-10 items-center justify-center rounded-lg
@@ -52,7 +99,7 @@ const showSearch = computed(
 
             <!-- Subfolders -->
             <div v-if="explorerStore.subfolders.length > 0" class="mb-6">
-                <h3 class="text-dim mb-3 text-xs font-medium uppercase tracking-wider">Folders</h3>
+                <h3 class="text-dim mb-3 text-xs font-medium tracking-wider uppercase">Folders</h3>
                 <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
                     <ExplorerFolderCard
                         v-for="folder in explorerStore.subfolders"
@@ -65,7 +112,7 @@ const showSearch = computed(
             <!-- Scenes -->
             <div v-if="explorerStore.scenes.length > 0">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <h3 class="text-dim text-xs font-medium uppercase tracking-wider">Scenes</h3>
+                    <h3 class="text-dim text-xs font-medium tracking-wider uppercase">Scenes</h3>
                     <div class="flex items-center gap-3">
                         <!-- Deselect all -->
                         <button
@@ -90,8 +137,8 @@ const showSearch = computed(
                             v-if="!explorerStore.allFolderScenesSelected"
                             @click="explorerStore.selectAllInFolder()"
                             :disabled="explorerStore.isSelectingAll"
-                            class="text-lava hover:text-lava/80 text-xs font-medium transition-colors
-                                disabled:opacity-50"
+                            class="text-lava hover:text-lava/80 text-xs font-medium
+                                transition-colors disabled:opacity-50"
                         >
                             <template v-if="explorerStore.isSelectingAll">Selecting...</template>
                             <template v-else>
@@ -104,7 +151,8 @@ const showSearch = computed(
                             v-if="explorerStore.subfolders.length > 0"
                             @click="explorerStore.selectAllInFolderRecursive()"
                             :disabled="explorerStore.isSelectingAll"
-                            class="text-dim hover:text-lava text-xs transition-colors disabled:opacity-50"
+                            class="text-dim hover:text-lava text-xs transition-colors
+                                disabled:opacity-50"
                         >
                             <template v-if="explorerStore.isSelectingAll">Selecting...</template>
                             <template v-else>+ subfolders</template>

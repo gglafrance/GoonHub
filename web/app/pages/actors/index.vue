@@ -16,7 +16,7 @@ const authStore = useAuthStore();
 
 const actors = ref<ActorListItem[]>([]);
 const total = ref(0);
-const currentPage = ref(1);
+const currentPage = useUrlPagination();
 const limit = ref(20);
 const searchQuery = ref('');
 const sortOrder = ref('name_asc');
@@ -41,7 +41,12 @@ const loadActors = async (page = 1) => {
     isLoading.value = true;
     error.value = null;
     try {
-        const response = await api.fetchActors(page, limit.value, searchQuery.value, sortOrder.value);
+        const response = await api.fetchActors(
+            page,
+            limit.value,
+            searchQuery.value,
+            sortOrder.value,
+        );
         actors.value = response.data;
         total.value = response.total;
         currentPage.value = page;
@@ -53,7 +58,7 @@ const loadActors = async (page = 1) => {
 };
 
 onMounted(() => {
-    loadActors();
+    loadActors(currentPage.value);
 });
 
 watch(
@@ -68,12 +73,12 @@ watch(searchQuery, () => {
         clearTimeout(searchTimeout);
     }
     searchTimeout = setTimeout(() => {
-        loadActors(1);
+        currentPage.value = 1;
     }, 300);
 });
 
 watch(sortOrder, () => {
-    loadActors(1);
+    currentPage.value = 1;
 });
 
 const handleActorCreated = (newActor: Actor) => {

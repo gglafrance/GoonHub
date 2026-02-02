@@ -14,7 +14,7 @@ const { fetchLabelGroups } = useApiMarkers();
 
 const groups = ref<MarkerLabelGroup[]>([]);
 const total = ref(0);
-const currentPage = ref(1);
+const currentPage = useUrlPagination();
 const limit = ref(20);
 const searchQuery = ref('');
 const sortBy = ref('count_desc');
@@ -56,19 +56,18 @@ const loadGroups = async (page = 1) => {
 };
 
 onMounted(() => {
-    loadGroups();
+    loadGroups(currentPage.value);
 });
 
 watch(
     () => currentPage.value,
     (newPage) => {
         loadGroups(newPage);
-    }
+    },
 );
 
 watch(sortBy, () => {
     currentPage.value = 1;
-    loadGroups(1);
 });
 
 // Debounce search to avoid flickering
@@ -123,7 +122,8 @@ definePageMeta({
                             v-model="sortBy"
                             class="border-border bg-panel focus:border-lava/50 focus:ring-lava/20
                                 h-full cursor-pointer appearance-none rounded-lg border py-2 pr-8
-                                pl-3 text-sm text-white transition-all focus:ring-2 focus:outline-none"
+                                pl-3 text-sm text-white transition-all focus:ring-2
+                                focus:outline-none"
                         >
                             <option
                                 v-for="option in sortOptions"

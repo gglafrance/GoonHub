@@ -82,7 +82,9 @@ onMounted(async () => {
 
     explorerStore.currentStoragePathID = storagePathId;
     explorerStore.currentPath = folderPath;
-    explorerStore.page = 1;
+    // Read page from URL query, default to 1
+    const urlPage = Number(route.query.page);
+    explorerStore.page = urlPage > 0 ? urlPage : 1;
     explorerStore.clearSelection();
 
     await explorerStore.loadFolderContents();
@@ -106,7 +108,9 @@ watch(
         ) {
             explorerStore.currentStoragePathID = storagePathId;
             explorerStore.currentPath = folderPath;
-            explorerStore.page = 1;
+            // Read page from URL query, default to 1
+            const urlPage = Number(route.query.page);
+            explorerStore.page = urlPage > 0 ? urlPage : 1;
             explorerStore.clearSelection();
             await explorerStore.loadFolderContents();
         }

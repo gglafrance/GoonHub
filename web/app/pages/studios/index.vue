@@ -16,7 +16,7 @@ const authStore = useAuthStore();
 
 const studios = ref<StudioListItem[]>([]);
 const total = ref(0);
-const currentPage = ref(1);
+const currentPage = useUrlPagination();
 const limit = ref(20);
 const searchQuery = ref('');
 const isLoading = ref(false);
@@ -43,7 +43,7 @@ const loadStudios = async (page = 1) => {
 };
 
 onMounted(() => {
-    loadStudios();
+    loadStudios(currentPage.value);
 });
 
 watch(
@@ -58,7 +58,7 @@ watch(searchQuery, () => {
         clearTimeout(searchTimeout);
     }
     searchTimeout = setTimeout(() => {
-        loadStudios(1);
+        currentPage.value = 1;
     }, 300);
 });
 

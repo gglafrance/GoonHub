@@ -19,6 +19,8 @@ definePageMeta({
 });
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let isUpdatingUrl = false;
+let isSyncingFromUrl = false;
 
 // Saved searches state
 const savedSearchesPanel = ref<{ reload: () => Promise<void> } | null>(null);
@@ -26,6 +28,7 @@ const showSaveModal = ref(false);
 const currentFilters = computed(() => searchStore.getCurrentFilters());
 
 const syncFromUrl = () => {
+    isSyncingFromUrl = true;
     const q = route.query;
     searchStore.query = (q.q as string) || '';
     searchStore.selectedTags = q.tags ? (q.tags as string).split(',') : [];
@@ -49,6 +52,9 @@ const syncFromUrl = () => {
     const matchType = q.match_type as string;
     searchStore.matchType =
         matchType === 'strict' || matchType === 'frequency' ? matchType : 'broad';
+    nextTick(() => {
+        isSyncingFromUrl = false;
+    });
 };
 
 const syncToUrl = () => {
@@ -73,7 +79,10 @@ const syncToUrl = () => {
         query.marker_labels = searchStore.selectedMarkerLabels.join(',');
     if (searchStore.matchType !== 'broad') query.match_type = searchStore.matchType;
 
-    router.replace({ query });
+    isUpdatingUrl = true;
+    router.replace({ query }).finally(() => {
+        isUpdatingUrl = false;
+    });
 };
 
 const triggerSearch = () => {
@@ -89,7 +98,13 @@ const debouncedSearch = () => {
     }, 300);
 };
 
-watch(() => searchStore.query, debouncedSearch);
+watch(
+    () => searchStore.query,
+    () => {
+        if (isSyncingFromUrl) return;
+        debouncedSearch();
+    },
+);
 
 watch(
     () => [
@@ -111,13 +126,32 @@ watch(
         searchStore.matchType,
     ],
     () => {
+        if (isSyncingFromUrl) return;
         searchStore.page = 1;
         triggerSearch();
     },
     { deep: true },
 );
 
-watch(() => searchStore.page, triggerSearch);
+watch(
+    () => searchStore.page,
+    () => {
+        if (isSyncingFromUrl) return;
+        triggerSearch();
+    },
+);
+
+// Handle browser back/forward navigation
+watch(
+    () => route.query,
+    () => {
+        // Skip if we're the ones updating the URL
+        if (isUpdatingUrl) return;
+        syncFromUrl();
+        searchStore.search();
+    },
+    { deep: true },
+);
 
 onMounted(() => {
     syncFromUrl();
