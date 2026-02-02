@@ -776,7 +776,7 @@ onBeforeUnmount(() => {
    LOADING SPINNER
    ======================================== */
 :deep(.vjs-loading-spinner) {
-    border: none;
+    border: 6px solid transparent;
     background: rgba(8, 8, 8, 0.6);
     backdrop-filter: blur(8px);
     border-radius: 50%;
