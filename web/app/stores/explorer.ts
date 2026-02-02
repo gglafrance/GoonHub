@@ -1,10 +1,6 @@
 import { defineStore } from 'pinia';
 import type { SceneListItem } from '~/types/scene';
-import type {
-    StoragePathWithCount,
-    FolderInfo,
-    FolderContentsResponse,
-} from '~/types/explorer';
+import type { StoragePathWithCount, FolderInfo, FolderContentsResponse } from '~/types/explorer';
 
 export interface Breadcrumb {
     name: string;
@@ -12,6 +8,9 @@ export interface Breadcrumb {
 }
 
 export const useExplorerStore = defineStore('explorer', () => {
+    // Settings
+    const settingsStore = useSettingsStore();
+
     // State
     const storagePaths = ref<StoragePathWithCount[]>([]);
     const currentStoragePathID = ref<number | null>(null);
@@ -20,15 +19,18 @@ export const useExplorerStore = defineStore('explorer', () => {
     const scenes = ref<SceneListItem[]>([]);
     const totalScenes = ref(0);
     const page = ref(1);
-    const limit = ref(24);
     const isLoading = ref(false);
     const error = ref<string | null>(null);
+
+    // Use videosPerPage from settings
+    const limit = computed(() => settingsStore.videosPerPage);
 
     // Selection state
     const selectedSceneIDs = ref<Set<number>>(new Set());
 
     // API
-    const { getStoragePaths, getFolderContents, getFolderSceneIDs, searchInFolder } = useApiExplorer();
+    const { getStoragePaths, getFolderContents, getFolderSceneIDs, searchInFolder } =
+        useApiExplorer();
 
     // Track if all folder scenes are selected (across all pages)
     const allFolderSceneIDs = ref<number[]>([]);
@@ -69,14 +71,18 @@ export const useExplorerStore = defineStore('explorer', () => {
     const hasSelection = computed(() => selectedSceneIDs.value.size > 0);
     const selectionCount = computed(() => selectedSceneIDs.value.size);
     const allPageScenesSelected = computed(
-        () => scenes.value.length > 0 && scenes.value.every((s) => selectedSceneIDs.value.has(s.id)),
+        () =>
+            scenes.value.length > 0 && scenes.value.every((s) => selectedSceneIDs.value.has(s.id)),
     );
     const allFolderScenesSelected = computed(
         () => totalScenes.value > 0 && selectedSceneIDs.value.size === totalScenes.value,
     );
 
     const isSearchActive = computed(
-        () => searchQuery.value.length > 0 || searchTags.value.length > 0 || searchActors.value.length > 0,
+        () =>
+            searchQuery.value.length > 0 ||
+            searchTags.value.length > 0 ||
+            searchActors.value.length > 0,
     );
 
     // Actions
