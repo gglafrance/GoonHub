@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -180,6 +180,8 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					admin.PUT("/retry-config", retryConfigHandler.UpdateRetryConfig)
 					admin.GET("/search/status", searchHandler.GetStatus)
 					admin.POST("/search/reindex", searchHandler.ReindexAll)
+					admin.GET("/search/config", searchHandler.GetSearchConfig)
+					admin.PUT("/search/config", searchHandler.UpdateSearchConfig)
 					admin.GET("/storage-paths", storagePathHandler.List)
 					admin.POST("/storage-paths", storagePathHandler.Create)
 					admin.PUT("/storage-paths/:id", storagePathHandler.Update)
@@ -212,6 +214,9 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					// Import endpoints
 					admin.POST("/import/scenes", importHandler.ImportScene)
 					admin.POST("/import/markers", importHandler.ImportMarker)
+
+					// Stream statistics
+					admin.GET("/stream-stats", streamStatsHandler.GetStreamStats)
 				}
 			}
 		}

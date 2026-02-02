@@ -50,9 +50,11 @@ function handleSSEEvent(
 }
 
 function supportsSharedWorker(): boolean {
-    return typeof SharedWorker !== 'undefined'
-        && typeof BroadcastChannel !== 'undefined'
-        && window.isSecureContext;
+    return (
+        typeof SharedWorker !== 'undefined' &&
+        typeof BroadcastChannel !== 'undefined' &&
+        window.isSecureContext
+    );
 }
 
 function useSSESharedWorker() {
@@ -215,5 +217,6 @@ export const useSSE = () => {
     if (import.meta.client && supportsSharedWorker()) {
         return useSSESharedWorker();
     }
+    console.warn('SharedWorker not supported, using fallback SSE implementation.');
     return useSSEFallback();
 };

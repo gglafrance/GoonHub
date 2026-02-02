@@ -3,6 +3,7 @@ import type { SavedSearchFilters } from '~/types/saved_search';
 
 export const useSearchStore = defineStore('search', () => {
     const api = useApi();
+    const settingsStore = useSettingsStore();
 
     // Filter state
     const query = ref('');
@@ -16,7 +17,7 @@ export const useSearchStore = defineStore('search', () => {
     const resolution = ref('');
     const sort = ref('');
     const page = ref(1);
-    const limit = ref(20);
+    const limit = computed(() => settingsStore.videosPerPage);
     const matchType = ref<'broad' | 'strict' | 'frequency'>('broad');
 
     // User interaction filters

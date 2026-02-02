@@ -20,6 +20,7 @@ import (
 	"goonhub/internal/infrastructure/meilisearch"
 	"goonhub/internal/infrastructure/persistence/postgres"
 	"goonhub/internal/infrastructure/server"
+	"goonhub/internal/streaming"
 	"gorm.io/gorm"
 	"time"
 )
@@ -51,7 +52,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	sceneService := provideSceneService(sceneRepository, configConfig, sceneProcessingService, eventBus, logger)
 	tagRepository := provideTagRepository(db)
 	tagService := provideTagService(tagRepository, sceneRepository, logger)
-	client, err := provideMeilisearchClient(configConfig, logger)
+	searchConfigRepository := provideSearchConfigRepository(db)
+	client, err := provideMeilisearchClient(configConfig, searchConfigRepository, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +64,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	studioRepository := provideStudioRepository(db)
 	relatedScenesService := provideRelatedScenesService(sceneRepository, tagRepository, actorRepository, studioRepository, logger)
 	markerService := provideMarkerService(markerRepository, sceneRepository, tagRepository, configConfig, logger)
-	sceneHandler := provideSceneHandler(sceneService, sceneProcessingService, tagService, searchService, relatedScenesService, markerService)
+	manager := provideStreamManager(configConfig, sceneRepository, logger)
+	sceneHandler := provideSceneHandler(sceneService, sceneProcessingService, tagService, searchService, relatedScenesService, markerService, manager)
 	userRepository := provideUserRepository(db)
 	revokedTokenRepository := provideRevokedTokenRepository(db)
 	authService, err := provideAuthService(userRepository, revokedTokenRepository, configConfig, logger)
@@ -105,7 +108,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	studioInteractionRepository := provideStudioInteractionRepository(db)
 	studioInteractionService := provideStudioInteractionService(studioInteractionRepository, logger)
 	studioInteractionHandler := provideStudioInteractionHandler(studioInteractionService, studioRepository)
-	searchHandler := provideSearchHandler(searchService)
+	searchHandler := provideSearchHandler(searchService, searchConfigRepository)
 	watchHistoryRepository := provideWatchHistoryRepository(db)
 	watchHistoryService := provideWatchHistoryService(watchHistoryRepository, sceneRepository, searchService, logger)
 	watchHistoryHandler := provideWatchHistoryHandler(watchHistoryService)
@@ -127,8 +130,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	homepageHandler := provideHomepageHandler(homepageService)
 	markerHandler := provideMarkerHandler(markerService)
 	importHandler := provideImportHandler(sceneRepository, markerRepository, logger)
+	streamStatsHandler := provideStreamStatsHandler(manager)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, authService, rbacService, ipRateLimiter)
+	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, authService, rbacService, ipRateLimiter)
 	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, sceneProcessingService, logger)
 	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService)
 	return serverServer, nil
@@ -224,6 +228,10 @@ func provideExplorerRepository(db *gorm.DB) data.ExplorerRepository {
 	return data.NewExplorerRepository(db)
 }
 
+func provideSearchConfigRepository(db *gorm.DB) data.SearchConfigRepository {
+	return data.NewSearchConfigRepository(db)
+}
+
 func provideSavedSearchRepository(db *gorm.DB) data.SavedSearchRepository {
 	return data.NewSavedSearchRepository(db)
 }
@@ -232,11 +240,20 @@ func provideMarkerRepository(db *gorm.DB) data.MarkerRepository {
 	return data.NewMarkerRepository(db)
 }
 
-func provideMeilisearchClient(cfg *config.Config, logger *logging.Logger) (*meilisearch.Client, error) {
+func provideMeilisearchClient(cfg *config.Config, searchConfigRepo data.SearchConfigRepository, logger *logging.Logger) (*meilisearch.Client, error) {
+	var maxTotalHits int64 = 100000
+	record, err := searchConfigRepo.Get()
+	if err != nil {
+		logger.Warn(fmt.Sprintf("failed to read search config from DB, using default maxTotalHits: %v", err))
+	} else if record != nil {
+		maxTotalHits = record.MaxTotalHits
+	}
+
 	client, err := meilisearch.NewClient(
 		cfg.Meilisearch.Host,
 		cfg.Meilisearch.APIKey,
 		cfg.Meilisearch.IndexName,
+		maxTotalHits,
 		logger.Logger,
 	)
 	if err != nil {
@@ -396,6 +413,10 @@ func provideMarkerService(markerRepo data.MarkerRepository, sceneRepo data.Scene
 	return core.NewMarkerService(markerRepo, sceneRepo, tagRepo, cfg, logger.Logger)
 }
 
+func provideStreamManager(cfg *config.Config, sceneRepo data.SceneRepository, logger *logging.Logger) *streaming.Manager {
+	return streaming.NewManager(&cfg.Streaming, sceneRepo, logger.Logger)
+}
+
 func provideRateLimiter(cfg *config.Config) *middleware.IPRateLimiter {
 	rl := rate.Every(time.Minute / time.Duration(cfg.Auth.LoginRateLimit))
 	return middleware.NewIPRateLimiter(rl, cfg.Auth.LoginRateBurst)
@@ -417,8 +438,8 @@ func provideSettingsHandler(settingsService *core.SettingsService) *handler.Sett
 	return handler.NewSettingsHandler(settingsService)
 }
 
-func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService) *handler.SceneHandler {
-	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService)
+func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager) *handler.SceneHandler {
+	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
@@ -445,8 +466,8 @@ func provideStudioInteractionHandler(service *core.StudioInteractionService, stu
 	return handler.NewStudioInteractionHandler(service, studioRepo)
 }
 
-func provideSearchHandler(searchService *core.SearchService) *handler.SearchHandler {
-	return handler.NewSearchHandler(searchService)
+func provideSearchHandler(searchService *core.SearchService, searchConfigRepo data.SearchConfigRepository) *handler.SearchHandler {
+	return handler.NewSearchHandler(searchService, searchConfigRepo)
 }
 
 func provideWatchHistoryHandler(service *core.WatchHistoryService) *handler.WatchHistoryHandler {
@@ -513,6 +534,10 @@ func provideImportHandler(sceneRepo data.SceneRepository, markerRepo data.Marker
 	return handler.NewImportHandler(sceneRepo, markerRepo, logger.Logger)
 }
 
+func provideStreamStatsHandler(streamManager *streaming.Manager) *handler.StreamStatsHandler {
+	return handler.NewStreamStatsHandler(streamManager)
+}
+
 func provideRouter(
 	logger *logging.Logger,
 	cfg *config.Config,
@@ -543,6 +568,7 @@ func provideRouter(
 	homepageHandler *handler.HomepageHandler,
 	markerHandler *handler.MarkerHandler,
 	importHandler *handler.ImportHandler,
+	streamStatsHandler *handler.StreamStatsHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -553,7 +579,7 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, authService, rbacService, rateLimiter,
 	)
 }
 

@@ -164,10 +164,12 @@ func (s *Server) Start() error {
 	}
 
 	s.srv = &http.Server{
-		Addr:         ":" + s.cfg.Server.Port,
-		Handler:      s.router,
-		ReadTimeout:  s.cfg.Server.ReadTimeout,
-		WriteTimeout: s.cfg.Server.WriteTimeout,
+		Addr:        ":" + s.cfg.Server.Port,
+		Handler:     s.router,
+		ReadTimeout: s.cfg.Server.ReadTimeout,
+		// WriteTimeout: 0 disables the timeout, required for video streaming.
+		// Video streams can be hours long and must not be killed by timeout.
+		WriteTimeout: 0,
 		IdleTimeout:  s.cfg.Server.IdleTimeout,
 	}
 

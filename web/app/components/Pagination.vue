@@ -13,10 +13,34 @@ const { keys } = useKeyboardLayout();
 
 const totalPages = computed(() => Math.ceil(props.total / props.limit));
 
+const editing = ref(false);
+const editValue = ref('');
+const pageInput = ref<HTMLInputElement | null>(null);
+
 const setPage = (page: number) => {
     if (page >= 1 && page <= totalPages.value) {
         emit('update:modelValue', page);
     }
+};
+
+const startEditing = () => {
+    editValue.value = String(props.modelValue);
+    editing.value = true;
+    nextTick(() => {
+        pageInput.value?.select();
+    });
+};
+
+const confirmEdit = () => {
+    const parsed = parseInt(editValue.value, 10);
+    if (!isNaN(parsed)) {
+        setPage(Math.min(Math.max(1, parsed), totalPages.value));
+    }
+    editing.value = false;
+};
+
+const cancelEdit = () => {
+    editing.value = false;
 };
 
 const handleKeydown = (e: KeyboardEvent) => {
@@ -55,7 +79,23 @@ onUnmounted(() => {
         </button>
 
         <span class="text-dim px-3 font-mono text-[11px]">
-            <span class="text-lava font-semibold">{{ modelValue }}</span>
+            <input
+                v-if="editing"
+                ref="pageInput"
+                v-model="editValue"
+                @keydown.enter="confirmEdit"
+                @keydown.escape="cancelEdit"
+                @blur="confirmEdit"
+                type="text"
+                inputmode="numeric"
+                class="text-lava bg-surface border-border w-10 rounded border text-center text-[11px]
+                    font-semibold outline-none focus:border-[#FF4D4D]"
+            />
+            <span
+                v-else
+                @click="startEditing"
+                class="text-lava cursor-pointer font-semibold hover:underline"
+            >{{ modelValue }}</span>
             <span class="mx-1">/</span>
             {{ totalPages }}
         </span>

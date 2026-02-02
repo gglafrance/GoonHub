@@ -5,20 +5,13 @@ export const useSceneStore = defineStore('scenes', () => {
     const scenes = ref<SceneListItem[]>([]);
     const total = ref(0);
     const currentPage = ref(1);
-    const limit = ref(20);
     const isLoading = ref(false);
     const error = ref<string | null>(null);
 
     const settingsStore = useSettingsStore();
     const { fetchScenes: apiFetchScenes, uploadScene: apiUploadScene } = useApi();
 
-    watch(
-        () => settingsStore.scenesPerPage,
-        (newVal) => {
-            limit.value = newVal;
-        },
-        { immediate: true },
-    );
+    const limit = computed(() => settingsStore.videosPerPage);
 
     const loadScenes = async (page = 1) => {
         isLoading.value = true;

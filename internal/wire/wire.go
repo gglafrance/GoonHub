@@ -17,6 +17,7 @@ import (
 	"goonhub/internal/infrastructure/meilisearch"
 	"goonhub/internal/infrastructure/persistence/postgres"
 	"goonhub/internal/infrastructure/server"
+	"goonhub/internal/streaming"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
@@ -67,6 +68,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideStoragePathRepository,
 		provideScanHistoryRepository,
 		provideExplorerRepository,
+
+		// Search Config Repository
+		provideSearchConfigRepository,
 
 		// Saved Search Repository
 		provideSavedSearchRepository,
@@ -131,6 +135,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Marker Service
 		provideMarkerService,
 
+		// Streaming Manager
+		provideStreamManager,
+
 		// ============================================================
 		// API LAYER - MIDDLEWARE
 		// ============================================================
@@ -184,6 +191,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Import Handler
 		provideImportHandler,
+
+		// Stream Stats Handler
+		provideStreamStatsHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -294,6 +304,10 @@ func provideExplorerRepository(db *gorm.DB) data.ExplorerRepository {
 	return data.NewExplorerRepository(db)
 }
 
+func provideSearchConfigRepository(db *gorm.DB) data.SearchConfigRepository {
+	return data.NewSearchConfigRepository(db)
+}
+
 func provideSavedSearchRepository(db *gorm.DB) data.SavedSearchRepository {
 	return data.NewSavedSearchRepository(db)
 }
@@ -306,11 +320,20 @@ func provideMarkerRepository(db *gorm.DB) data.MarkerRepository {
 // EXTERNAL SERVICE PROVIDERS
 // ============================================================================
 
-func provideMeilisearchClient(cfg *config.Config, logger *logging.Logger) (*meilisearch.Client, error) {
+func provideMeilisearchClient(cfg *config.Config, searchConfigRepo data.SearchConfigRepository, logger *logging.Logger) (*meilisearch.Client, error) {
+	var maxTotalHits int64 = 100000
+	record, err := searchConfigRepo.Get()
+	if err != nil {
+		logger.Warn(fmt.Sprintf("failed to read search config from DB, using default maxTotalHits: %v", err))
+	} else if record != nil {
+		maxTotalHits = record.MaxTotalHits
+	}
+
 	client, err := meilisearch.NewClient(
 		cfg.Meilisearch.Host,
 		cfg.Meilisearch.APIKey,
 		cfg.Meilisearch.IndexName,
+		maxTotalHits,
 		logger.Logger,
 	)
 	if err != nil {
@@ -486,6 +509,12 @@ func provideMarkerService(markerRepo data.MarkerRepository, sceneRepo data.Scene
 	return core.NewMarkerService(markerRepo, sceneRepo, tagRepo, cfg, logger.Logger)
 }
 
+// --- Streaming Manager ---
+
+func provideStreamManager(cfg *config.Config, sceneRepo data.SceneRepository, logger *logging.Logger) *streaming.Manager {
+	return streaming.NewManager(&cfg.Streaming, sceneRepo, logger.Logger)
+}
+
 // ============================================================================
 // API MIDDLEWARE PROVIDERS
 // ============================================================================
@@ -519,8 +548,8 @@ func provideSettingsHandler(settingsService *core.SettingsService) *handler.Sett
 
 // --- Scene & Content Handlers ---
 
-func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService) *handler.SceneHandler {
-	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService)
+func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager) *handler.SceneHandler {
+	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
@@ -547,8 +576,8 @@ func provideStudioInteractionHandler(service *core.StudioInteractionService, stu
 	return handler.NewStudioInteractionHandler(service, studioRepo)
 }
 
-func provideSearchHandler(searchService *core.SearchService) *handler.SearchHandler {
-	return handler.NewSearchHandler(searchService)
+func provideSearchHandler(searchService *core.SearchService, searchConfigRepo data.SearchConfigRepository) *handler.SearchHandler {
+	return handler.NewSearchHandler(searchService, searchConfigRepo)
 }
 
 func provideWatchHistoryHandler(service *core.WatchHistoryService) *handler.WatchHistoryHandler {
@@ -621,6 +650,10 @@ func provideImportHandler(sceneRepo data.SceneRepository, markerRepo data.Marker
 	return handler.NewImportHandler(sceneRepo, markerRepo, logger.Logger)
 }
 
+func provideStreamStatsHandler(streamManager *streaming.Manager) *handler.StreamStatsHandler {
+	return handler.NewStreamStatsHandler(streamManager)
+}
+
 // ============================================================================
 // ROUTER & SERVER PROVIDERS
 // ============================================================================
@@ -655,6 +688,7 @@ func provideRouter(
 	homepageHandler *handler.HomepageHandler,
 	markerHandler *handler.MarkerHandler,
 	importHandler *handler.ImportHandler,
+	streamStatsHandler *handler.StreamStatsHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -665,7 +699,7 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, authService, rbacService, rateLimiter,
 	)
 }
 

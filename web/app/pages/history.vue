@@ -3,6 +3,7 @@ import type { WatchHistoryEntry } from '~/types/watch';
 
 const { getUserWatchHistory } = useApi();
 const { formatDuration } = useFormatter();
+const settingsStore = useSettingsStore();
 
 useHead({ title: 'Watch History' });
 
@@ -17,7 +18,7 @@ const entries = ref<WatchHistoryEntry[]>([]);
 const isLoading = ref(true);
 const total = ref(0);
 const page = ref(1);
-const limit = 20;
+const limit = computed(() => settingsStore.videosPerPage);
 
 // Filter out entries where scene was deleted
 const validEntries = computed(() => entries.value.filter((e) => e.scene));
@@ -25,7 +26,7 @@ const validEntries = computed(() => entries.value.filter((e) => e.scene));
 const loadHistory = async (newPage = 1) => {
     isLoading.value = true;
     try {
-        const data = await getUserWatchHistory(newPage, limit);
+        const data = await getUserWatchHistory(newPage, limit.value);
         entries.value = data.entries || [];
         total.value = data.total || 0;
         page.value = newPage;

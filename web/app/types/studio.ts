@@ -25,7 +25,7 @@ export interface Studio {
     porndb_id?: string;
     parent_id?: number;
     network_id?: number;
-    video_count?: number;
+    scene_count?: number;
 }
 
 export interface StudioListResponse {

@@ -20,6 +20,15 @@ type Config struct {
 	Meilisearch MeilisearchConfig `mapstructure:"meilisearch"`
 	PornDB      PornDBConfig      `mapstructure:"porndb"`
 	Shutdown    ShutdownConfig    `mapstructure:"shutdown"`
+	Streaming   StreamingConfig   `mapstructure:"streaming"`
+}
+
+type StreamingConfig struct {
+	MaxGlobalStreams int           `mapstructure:"max_global_streams"`
+	MaxStreamsPerIP  int           `mapstructure:"max_streams_per_ip"`
+	BufferSize       int           `mapstructure:"buffer_size"`
+	PathCacheTTL     time.Duration `mapstructure:"path_cache_ttl"`
+	PathCacheMaxSize int           `mapstructure:"path_cache_max_size"`
 }
 
 type PornDBConfig struct {
@@ -182,6 +191,11 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("shutdown.job_completion_wait", 15*time.Second)
 	v.SetDefault("shutdown.orphan_timeout", 30*time.Second)
 	v.SetDefault("shutdown.stuck_pending_time", 10*time.Minute)
+	v.SetDefault("streaming.max_global_streams", 100)
+	v.SetDefault("streaming.max_streams_per_ip", 10)
+	v.SetDefault("streaming.buffer_size", 262144)       // 256KB (8x default 32KB)
+	v.SetDefault("streaming.path_cache_ttl", 5*time.Minute)
+	v.SetDefault("streaming.path_cache_max_size", 10000)
 
 	// Environment variables
 	v.SetEnvPrefix("GOONHUB")

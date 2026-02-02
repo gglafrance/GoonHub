@@ -6,12 +6,13 @@ const route = useRoute();
 const router = useRouter();
 const api = useApi();
 const authStore = useAuthStore();
+const settingsStore = useSettingsStore();
 
 const actor = ref<Actor | null>(null);
 const scenes = ref<Scene[]>([]);
 const scenesTotal = ref(0);
 const scenesPage = ref(1);
-const scenesLimit = ref(20);
+const scenesLimit = computed(() => settingsStore.videosPerPage);
 const isLoading = ref(true);
 const isLoadingScenes = ref(false);
 const error = ref<string | null>(null);

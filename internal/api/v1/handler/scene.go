@@ -9,6 +9,7 @@ import (
 	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
 	"goonhub/internal/data"
+	"goonhub/internal/streaming"
 	"io"
 	"mime"
 	"net/http"
@@ -28,9 +29,10 @@ type SceneHandler struct {
 	SearchService        *core.SearchService
 	RelatedScenesService *core.RelatedScenesService
 	MarkerService        *core.MarkerService
+	StreamManager        *streaming.Manager
 }
 
-func NewSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService) *SceneHandler {
+func NewSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager) *SceneHandler {
 	return &SceneHandler{
 		Service:              service,
 		ProcessingService:    processingService,
@@ -38,6 +40,7 @@ func NewSceneHandler(service *core.SceneService, processingService *core.ScenePr
 		SearchService:        searchService,
 		RelatedScenesService: relatedScenesService,
 		MarkerService:        markerService,
+		StreamManager:        streamManager,
 	}
 }
 
@@ -286,9 +289,22 @@ func (h *SceneHandler) StreamScene(c *gin.Context) {
 		return
 	}
 
-	scene, err := h.Service.GetScene(uint(id))
+	clientIP := c.ClientIP()
+
+	// Acquire stream slot (global + per-IP limits)
+	if !h.StreamManager.Limiter().Acquire(clientIP) {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Too many concurrent streams",
+			"code":  "STREAM_LIMIT_EXCEEDED",
+		})
+		return
+	}
+	defer h.StreamManager.Limiter().Release(clientIP)
+
+	// Get cached path (avoids DB query on repeated range requests)
+	filePath, err := h.StreamManager.GetScenePath(uint(id))
 	if err != nil {
-		if apperrors.IsNotFound(err) {
+		if strings.Contains(err.Error(), "not found") {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Scene not found"})
 			return
 		}
@@ -296,7 +312,6 @@ func (h *SceneHandler) StreamScene(c *gin.Context) {
 		return
 	}
 
-	filePath := scene.StoredPath
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -321,6 +336,10 @@ func (h *SceneHandler) StreamScene(c *gin.Context) {
 		mimeType = "video/mp4"
 	}
 
+	// Get pooled buffer for efficient streaming
+	buf := h.StreamManager.BufferPool().Get()
+	defer h.StreamManager.BufferPool().Put(buf)
+
 	rangeHeader := c.GetHeader("Range")
 	if rangeHeader == "" {
 		c.Header("Content-Length", strconv.FormatInt(fileSize, 10))
@@ -328,9 +347,9 @@ func (h *SceneHandler) StreamScene(c *gin.Context) {
 		c.Header("Accept-Ranges", "bytes")
 		c.Header("Cache-Control", "public, max-age=86400")
 
-		_, err = io.Copy(c.Writer, file)
+		_, err = io.CopyBuffer(c.Writer, file, buf)
 		if err != nil {
-			c.Status(http.StatusInternalServerError)
+			// Client disconnected or write error - not an internal server error
 			return
 		}
 		return
@@ -384,12 +403,15 @@ func (h *SceneHandler) StreamScene(c *gin.Context) {
 
 	_, err = file.Seek(start, 0)
 	if err != nil {
-		c.Status(http.StatusInternalServerError)
+		// Cannot return error at this point - headers already sent
 		return
 	}
 
-	_, err = io.CopyN(c.Writer, file, contentLength)
+	// Use LimitReader + CopyBuffer for range requests
+	lr := io.LimitReader(file, contentLength)
+	_, err = io.CopyBuffer(c.Writer, lr, buf)
 	if err != nil {
+		// Client disconnected or write error - not an internal server error
 		return
 	}
 }
