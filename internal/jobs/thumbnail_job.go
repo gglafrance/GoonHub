@@ -14,6 +14,12 @@ import (
 	"go.uber.org/zap"
 )
 
+// MarkerThumbnailGenerator generates thumbnails for scene markers that don't have one yet.
+// Defined here to avoid circular imports between jobs and core packages.
+type MarkerThumbnailGenerator interface {
+	GenerateMissingForScene(ctx context.Context, sceneID uint) (int, error)
+}
+
 type ThumbnailResult struct {
 	ThumbnailPath        string
 	ThumbnailWidth       int
@@ -45,10 +51,7 @@ type ThumbnailJob struct {
 	cancelFn        context.CancelFunc
 
 	// Marker thumbnail support (optional)
-	markerRepo         data.MarkerRepository
-	markerThumbnailDir string
-	sceneWidth         int
-	sceneHeight        int
+	markerThumbGen MarkerThumbnailGenerator
 }
 
 func NewThumbnailJob(
@@ -64,30 +67,24 @@ func NewThumbnailJob(
 	frameQualityLg int,
 	repo data.SceneRepository,
 	logger *zap.Logger,
-	markerRepo data.MarkerRepository,
-	markerThumbnailDir string,
-	sceneWidth int,
-	sceneHeight int,
+	markerThumbGen MarkerThumbnailGenerator,
 ) *ThumbnailJob {
 	return &ThumbnailJob{
-		id:                 uuid.New().String(),
-		sceneID:            sceneID,
-		scenePath:          scenePath,
-		thumbnailDir:       thumbnailDir,
-		tileWidth:          tileWidth,
-		tileHeight:         tileHeight,
-		tileWidthLarge:     tileWidthLarge,
-		tileHeightLarge:    tileHeightLarge,
-		duration:           duration,
-		frameQualitySm:     frameQualitySm,
-		frameQualityLg:     frameQualityLg,
-		repo:               repo,
-		logger:             logger,
-		status:             JobStatusPending,
-		markerRepo:         markerRepo,
-		markerThumbnailDir: markerThumbnailDir,
-		sceneWidth:         sceneWidth,
-		sceneHeight:        sceneHeight,
+		id:             uuid.New().String(),
+		sceneID:        sceneID,
+		scenePath:      scenePath,
+		thumbnailDir:   thumbnailDir,
+		tileWidth:      tileWidth,
+		tileHeight:     tileHeight,
+		tileWidthLarge: tileWidthLarge,
+		tileHeightLarge: tileHeightLarge,
+		duration:       duration,
+		frameQualitySm: frameQualitySm,
+		frameQualityLg: frameQualityLg,
+		repo:           repo,
+		logger:         logger,
+		status:         JobStatusPending,
+		markerThumbGen: markerThumbGen,
 	}
 }
 
@@ -107,30 +104,24 @@ func NewThumbnailJobWithID(
 	frameQualityLg int,
 	repo data.SceneRepository,
 	logger *zap.Logger,
-	markerRepo data.MarkerRepository,
-	markerThumbnailDir string,
-	sceneWidth int,
-	sceneHeight int,
+	markerThumbGen MarkerThumbnailGenerator,
 ) *ThumbnailJob {
 	return &ThumbnailJob{
-		id:                 jobID,
-		sceneID:            sceneID,
-		scenePath:          scenePath,
-		thumbnailDir:       thumbnailDir,
-		tileWidth:          tileWidth,
-		tileHeight:         tileHeight,
-		tileWidthLarge:     tileWidthLarge,
-		tileHeightLarge:    tileHeightLarge,
-		duration:           duration,
-		frameQualitySm:     frameQualitySm,
-		frameQualityLg:     frameQualityLg,
-		repo:               repo,
-		logger:             logger,
-		status:             JobStatusPending,
-		markerRepo:         markerRepo,
-		markerThumbnailDir: markerThumbnailDir,
-		sceneWidth:         sceneWidth,
-		sceneHeight:        sceneHeight,
+		id:             jobID,
+		sceneID:        sceneID,
+		scenePath:      scenePath,
+		thumbnailDir:   thumbnailDir,
+		tileWidth:      tileWidth,
+		tileHeight:     tileHeight,
+		tileWidthLarge: tileWidthLarge,
+		tileHeightLarge: tileHeightLarge,
+		duration:       duration,
+		frameQualitySm: frameQualitySm,
+		frameQualityLg: frameQualityLg,
+		repo:           repo,
+		logger:         logger,
+		status:         JobStatusPending,
+		markerThumbGen: markerThumbGen,
 	}
 }
 
@@ -272,85 +263,30 @@ func (j *ThumbnailJob) handleError(err error) {
 	j.repo.UpdateProcessingStatus(j.sceneID, string(JobStatusFailed), err.Error())
 }
 
-// generateMissingMarkerThumbnails checks for scene markers without thumbnails and generates them.
+// generateMissingMarkerThumbnails delegates to the MarkerThumbnailGenerator to
+// generate thumbnails for scene markers that don't have one yet.
 // This is best-effort: failures are logged but do not fail the overall thumbnail job.
-// Uses the same configurable quality (frameQualitySm) and dimensions (tileWidth/tileHeight)
-// as the small scene thumbnail to respect processing settings.
 func (j *ThumbnailJob) generateMissingMarkerThumbnails() {
-	if j.markerRepo == nil || j.markerThumbnailDir == "" {
+	if j.markerThumbGen == nil {
 		return
 	}
 
-	markers, err := j.markerRepo.GetBySceneWithoutThumbnail(j.sceneID)
+	if j.cancelled.Load() {
+		return
+	}
+
+	// Use background context so marker thumbnails are not constrained by the job timeout.
+	generated, err := j.markerThumbGen.GenerateMissingForScene(context.Background(), j.sceneID)
 	if err != nil {
-		j.logger.Warn("Failed to query markers without thumbnails",
+		j.logger.Warn("Failed to generate missing marker thumbnails",
 			zap.Uint("scene_id", j.sceneID),
 			zap.Error(err))
 		return
-	}
-
-	if len(markers) == 0 {
-		return
-	}
-
-	j.logger.Info("Generating missing marker thumbnails",
-		zap.Uint("scene_id", j.sceneID),
-		zap.Int("count", len(markers)))
-
-	if err := os.MkdirAll(j.markerThumbnailDir, 0755); err != nil {
-		j.logger.Warn("Failed to create marker thumbnail directory",
-			zap.String("dir", j.markerThumbnailDir),
-			zap.Error(err))
-		return
-	}
-
-	generated := 0
-	for i := range markers {
-		// Only stop on explicit user cancellation, not on job timeout —
-		// marker thumbnails are best-effort work that should not be constrained
-		// by the scene thumbnail job's timeout.
-		if j.cancelled.Load() {
-			j.logger.Info("Marker thumbnail generation interrupted by cancellation",
-				zap.Uint("scene_id", j.sceneID),
-				zap.Int("generated", generated),
-				zap.Int("remaining", len(markers)-i))
-			return
-		}
-
-		marker := &markers[i]
-		thumbnailFilename := fmt.Sprintf("marker_%d.webp", marker.ID)
-		thumbnailPath := filepath.Join(j.markerThumbnailDir, thumbnailFilename)
-
-		seekPosition := fmt.Sprintf("%d", marker.Timestamp)
-
-		// Use background context so marker thumbnails are not killed by the job timeout
-		extractCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		if err := ffmpeg.ExtractThumbnailWithContext(extractCtx, j.scenePath, thumbnailPath, seekPosition, j.tileWidth, j.tileHeight, j.frameQualitySm); err != nil {
-			cancel()
-			j.logger.Warn("Failed to generate marker thumbnail",
-				zap.Uint("marker_id", marker.ID),
-				zap.Int("timestamp", marker.Timestamp),
-				zap.Error(err))
-			continue
-		}
-		cancel()
-
-		marker.ThumbnailPath = thumbnailFilename
-		if err := j.markerRepo.Update(marker); err != nil {
-			os.Remove(thumbnailPath)
-			j.logger.Warn("Failed to update marker with thumbnail path",
-				zap.Uint("marker_id", marker.ID),
-				zap.Error(err))
-			continue
-		}
-
-		generated++
 	}
 
 	if generated > 0 {
 		j.logger.Info("Generated missing marker thumbnails",
 			zap.Uint("scene_id", j.sceneID),
-			zap.Int("generated", generated),
-			zap.Int("total", len(markers)))
+			zap.Int("generated", generated))
 	}
 }

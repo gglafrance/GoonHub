@@ -411,6 +411,51 @@ func (s *MarkerService) GetAllMarkers(userID uint, page, limit int, sortBy strin
 	return markers, total, nil
 }
 
+// GenerateMissingForScene finds all markers for a scene that lack thumbnails and generates them.
+// This is best-effort: individual failures are logged and skipped.
+// Implements jobs.MarkerThumbnailGenerator.
+func (s *MarkerService) GenerateMissingForScene(ctx context.Context, sceneID uint) (int, error) {
+	markers, err := s.markerRepo.GetBySceneWithoutThumbnail(sceneID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to query markers without thumbnails: %w", err)
+	}
+
+	if len(markers) == 0 {
+		return 0, nil
+	}
+
+	scene, err := s.sceneRepo.GetByID(sceneID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get scene for thumbnail generation: %w", err)
+	}
+
+	s.logger.Info("Generating missing marker thumbnails",
+		zap.Uint("scene_id", sceneID),
+		zap.Int("count", len(markers)))
+
+	generated := 0
+	for i := range markers {
+		if ctx.Err() != nil {
+			s.logger.Info("Marker thumbnail generation interrupted",
+				zap.Uint("scene_id", sceneID),
+				zap.Int("generated", generated),
+				zap.Int("remaining", len(markers)-i))
+			break
+		}
+
+		if err := s.generateThumbnail(&markers[i], scene); err != nil {
+			s.logger.Warn("Failed to generate marker thumbnail",
+				zap.Uint("marker_id", markers[i].ID),
+				zap.Int("timestamp", markers[i].Timestamp),
+				zap.Error(err))
+			continue
+		}
+		generated++
+	}
+
+	return generated, nil
+}
+
 // generateThumbnail extracts a frame at the marker's timestamp and saves it as a thumbnail.
 // This is a best-effort operation - the marker remains valid even if thumbnail generation fails.
 func (s *MarkerService) generateThumbnail(marker *data.UserSceneMarker, scene *data.Scene) error {

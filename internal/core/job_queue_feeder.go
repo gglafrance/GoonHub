@@ -5,6 +5,7 @@ import (
 	"goonhub/internal/core/processing"
 	"goonhub/internal/data"
 	"goonhub/internal/jobs"
+	"goonhub/pkg/ffmpeg"
 	"sync"
 	"time"
 
@@ -14,11 +15,11 @@ import (
 // JobQueueFeeder polls the database for pending jobs and feeds them to worker pools.
 // It acts as a bridge between the infinite-capacity DB queue and the bounded worker pool channels.
 type JobQueueFeeder struct {
-	repo        data.JobHistoryRepository
-	sceneRepo   data.SceneRepository
-	markerRepo  data.MarkerRepository
-	poolManager *processing.PoolManager
-	logger      *zap.Logger
+	repo           data.JobHistoryRepository
+	sceneRepo      data.SceneRepository
+	markerThumbGen jobs.MarkerThumbnailGenerator
+	poolManager    *processing.PoolManager
+	logger         *zap.Logger
 
 	pollInterval     time.Duration
 	batchSize        int
@@ -37,14 +38,14 @@ type JobQueueFeeder struct {
 func NewJobQueueFeeder(
 	repo data.JobHistoryRepository,
 	sceneRepo data.SceneRepository,
-	markerRepo data.MarkerRepository,
+	markerThumbGen jobs.MarkerThumbnailGenerator,
 	poolManager *processing.PoolManager,
 	logger *zap.Logger,
 ) *JobQueueFeeder {
 	return &JobQueueFeeder{
 		repo:             repo,
 		sceneRepo:        sceneRepo,
-		markerRepo:       markerRepo,
+		markerThumbGen:   markerThumbGen,
 		poolManager:      poolManager,
 		logger:           logger.With(zap.String("component", "job_queue_feeder")),
 		pollInterval:     2 * time.Second,
@@ -273,9 +274,9 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 		}
 		tileWidthSm, tileHeightSm := scene.ThumbnailWidth, scene.ThumbnailHeight
 		if tileWidthSm == 0 || tileHeightSm == 0 {
-			tileWidthSm, tileHeightSm = calculateTileDimensions(scene.Width, scene.Height, qualityConfig.MaxFrameDimensionSm)
+			tileWidthSm, tileHeightSm = ffmpeg.CalculateTileDimensions(scene.Width, scene.Height, qualityConfig.MaxFrameDimensionSm)
 		}
-		tileWidthLg, tileHeightLg := calculateTileDimensions(scene.Width, scene.Height, cfg.MaxFrameDimensionLarge)
+		tileWidthLg, tileHeightLg := ffmpeg.CalculateTileDimensions(scene.Width, scene.Height, cfg.MaxFrameDimensionLarge)
 		job = jobs.NewThumbnailJobWithID(
 			jobRecord.JobID,
 			jobRecord.SceneID,
@@ -288,10 +289,7 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 			qualityConfig.FrameQualityLg,
 			f.sceneRepo,
 			f.logger,
-			f.markerRepo,
-			cfg.MarkerThumbnailDir,
-			scene.Width,
-			scene.Height,
+			f.markerThumbGen,
 		)
 		return f.poolManager.SubmitToThumbnailPool(job)
 
@@ -301,7 +299,7 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 		}
 		tileW, tileH := scene.ThumbnailWidth, scene.ThumbnailHeight
 		if tileW == 0 || tileH == 0 {
-			tileW, tileH = calculateTileDimensions(scene.Width, scene.Height, qualityConfig.MaxFrameDimensionSm)
+			tileW, tileH = ffmpeg.CalculateTileDimensions(scene.Width, scene.Height, qualityConfig.MaxFrameDimensionSm)
 		}
 		job = jobs.NewSpritesJobWithID(
 			jobRecord.JobID,
@@ -324,30 +322,4 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 	}
 
 	return nil
-}
-
-// calculateTileDimensions calculates scaled tile dimensions (same as ffmpeg.CalculateTileDimensions)
-func calculateTileDimensions(width, height, maxDimension int) (int, int) {
-	if width == 0 || height == 0 {
-		return maxDimension, maxDimension
-	}
-
-	var tileWidth, tileHeight int
-	if width > height {
-		tileWidth = maxDimension
-		tileHeight = int(float64(height) * float64(maxDimension) / float64(width))
-	} else {
-		tileHeight = maxDimension
-		tileWidth = int(float64(width) * float64(maxDimension) / float64(height))
-	}
-
-	// Ensure even dimensions for video encoding compatibility
-	if tileWidth%2 != 0 {
-		tileWidth++
-	}
-	if tileHeight%2 != 0 {
-		tileHeight++
-	}
-
-	return tileWidth, tileHeight
 }

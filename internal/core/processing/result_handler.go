@@ -10,14 +10,14 @@ import (
 
 // ResultHandler processes job results from worker pools
 type ResultHandler struct {
-	repo         data.SceneRepository
-	markerRepo   data.MarkerRepository
-	eventBus     EventPublisher
-	jobHistory   JobHistoryRecorder
-	phaseTracker *PhaseTracker
-	poolManager  *PoolManager
-	indexer      SceneIndexer
-	logger       *zap.Logger
+	repo           data.SceneRepository
+	markerThumbGen jobs.MarkerThumbnailGenerator
+	eventBus       EventPublisher
+	jobHistory     JobHistoryRecorder
+	phaseTracker   *PhaseTracker
+	poolManager    *PoolManager
+	indexer        SceneIndexer
+	logger         *zap.Logger
 
 	// onPhaseComplete is called when a phase completes to submit follow-up phases
 	onPhaseComplete func(sceneID uint, phase string) error
@@ -26,7 +26,7 @@ type ResultHandler struct {
 // NewResultHandler creates a new ResultHandler
 func NewResultHandler(
 	repo data.SceneRepository,
-	markerRepo data.MarkerRepository,
+	markerThumbGen jobs.MarkerThumbnailGenerator,
 	eventBus EventPublisher,
 	jobHistory JobHistoryRecorder,
 	phaseTracker *PhaseTracker,
@@ -34,13 +34,13 @@ func NewResultHandler(
 	logger *zap.Logger,
 ) *ResultHandler {
 	return &ResultHandler{
-		repo:         repo,
-		markerRepo:   markerRepo,
-		eventBus:     eventBus,
-		jobHistory:   jobHistory,
-		phaseTracker: phaseTracker,
-		poolManager:  poolManager,
-		logger:       logger,
+		repo:           repo,
+		markerThumbGen: markerThumbGen,
+		eventBus:       eventBus,
+		jobHistory:     jobHistory,
+		phaseTracker:   phaseTracker,
+		poolManager:    poolManager,
+		logger:         logger,
 	}
 }
 
@@ -181,10 +181,7 @@ func (rh *ResultHandler) onMetadataComplete(result jobs.JobResult) {
 			qualityConfig.FrameQualityLg,
 			rh.repo,
 			rh.logger,
-			rh.markerRepo,
-			cfg.MarkerThumbnailDir,
-			meta.Width,
-			meta.Height,
+			rh.markerThumbGen,
 		)
 
 		thumbnailErr := rh.poolManager.SubmitToThumbnailPool(thumbnailJob)
