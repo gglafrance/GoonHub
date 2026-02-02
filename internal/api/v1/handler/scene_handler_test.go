@@ -185,8 +185,14 @@ func TestStreamScene_RangeExceedsFile(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != 416 {
-		t.Fatalf("expected 416 for range exceeding file, got %d", w.Code)
+	// http.ServeContent clamps range to file size (RFC 7233 compliant)
+	// Returns 206 with actual available content
+	if w.Code != 206 {
+		t.Fatalf("expected 206 for oversized range (clamped), got %d", w.Code)
+	}
+	// Should only receive 512 bytes (the actual file size)
+	if w.Body.Len() != 512 {
+		t.Fatalf("expected 512 bytes (file size), got %d", w.Body.Len())
 	}
 }
 
