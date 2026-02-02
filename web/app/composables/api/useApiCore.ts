@@ -21,6 +21,8 @@ export const useApiCore = () => {
 
     const handleResponse = async (response: Response) => {
         if (response.status === 401) {
+            // Reset validation timestamp to force revalidation on next check
+            authStore.invalidateValidation();
             authStore.logout();
             throw new Error('Unauthorized');
         }
@@ -36,6 +38,8 @@ export const useApiCore = () => {
     // Handle responses that may return 204 No Content
     const handleResponseWithNoContent = async (response: Response) => {
         if (response.status === 401) {
+            // Reset validation timestamp to force revalidation on next check
+            authStore.invalidateValidation();
             authStore.logout();
             throw new Error('Unauthorized');
         }

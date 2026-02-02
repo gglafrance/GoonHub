@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const authStore = useAuthStore();
 const { connect, disconnect } = useSSE();
+const { startAuthValidation, stopAuthValidation } = useAuthValidation();
 
 watch(
     () => authStore.isAuthenticated,
@@ -14,8 +15,13 @@ watch(
     { immediate: true },
 );
 
+onMounted(() => {
+    startAuthValidation();
+});
+
 onBeforeUnmount(() => {
     disconnect();
+    stopAuthValidation();
 });
 </script>
 
