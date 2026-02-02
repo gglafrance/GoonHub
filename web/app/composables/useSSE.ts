@@ -50,7 +50,9 @@ function handleSSEEvent(
 }
 
 function supportsSharedWorker(): boolean {
-    return typeof SharedWorker !== 'undefined' && typeof BroadcastChannel !== 'undefined';
+    return typeof SharedWorker !== 'undefined'
+        && typeof BroadcastChannel !== 'undefined'
+        && window.isSecureContext;
 }
 
 function useSSESharedWorker() {

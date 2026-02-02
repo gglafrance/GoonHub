@@ -59,13 +59,35 @@ type SceneSearchParams struct {
 	Type             string   // Filter by type (standard, jav, hentai, amateur, professional, vr, compilation, pmv)
 }
 
+// ScanLookupEntry is a lightweight struct for move detection during scans.
+// It avoids loading full Scene objects when only a few fields are needed.
+type ScanLookupEntry struct {
+	ID               uint
+	StoredPath       string
+	Size             int64
+	OriginalFilename string
+	IsDeleted        bool
+}
+
+// ScenePathInfo is a lightweight struct for missing file detection during scans.
+type ScenePathInfo struct {
+	ID            uint
+	StoredPath    string
+	StoragePathID uint
+	Title         string
+}
+
 type SceneRepository interface {
 	Create(scene *Scene) error
+	CreateInBatches(scenes []*Scene, batchSize int) error
 	List(page, limit int) ([]Scene, int64, error)
 	GetByID(id uint) (*Scene, error)
 	GetByIDs(ids []uint) ([]Scene, error)
 	GetAll() ([]Scene, error)
 	GetAllWithStoragePath() ([]Scene, error)
+	GetAllStoredPathSet() (map[string]struct{}, error)
+	GetScanLookupEntries() ([]ScanLookupEntry, error)
+	GetScenePathsForMissingDetection() ([]ScenePathInfo, error)
 	GetDistinctStudios() ([]string, error)
 	GetDistinctActors() ([]string, error)
 	UpdateMetadata(id uint, duration int, width, height int, thumbnailPath string, spriteSheetPath string, vttPath string, spriteSheetCount int, thumbnailWidth int, thumbnailHeight int) error
@@ -329,6 +351,46 @@ func (r *SceneRepositoryImpl) GetAllWithStoragePath() ([]Scene, error) {
 		return nil, err
 	}
 	return scenes, nil
+}
+
+func (r *SceneRepositoryImpl) CreateInBatches(scenes []*Scene, batchSize int) error {
+	if len(scenes) == 0 {
+		return nil
+	}
+	return r.DB.CreateInBatches(scenes, batchSize).Error
+}
+
+func (r *SceneRepositoryImpl) GetAllStoredPathSet() (map[string]struct{}, error) {
+	var paths []string
+	if err := r.DB.Model(&Scene{}).Where("storage_path_id IS NOT NULL").Pluck("stored_path", &paths).Error; err != nil {
+		return nil, err
+	}
+	result := make(map[string]struct{}, len(paths))
+	for _, p := range paths {
+		result[p] = struct{}{}
+	}
+	return result, nil
+}
+
+func (r *SceneRepositoryImpl) GetScanLookupEntries() ([]ScanLookupEntry, error) {
+	var entries []ScanLookupEntry
+	if err := r.DB.Unscoped().Model(&Scene{}).
+		Select("id, stored_path, size, original_filename, (deleted_at IS NOT NULL) as is_deleted").
+		Find(&entries).Error; err != nil {
+		return nil, err
+	}
+	return entries, nil
+}
+
+func (r *SceneRepositoryImpl) GetScenePathsForMissingDetection() ([]ScenePathInfo, error) {
+	var entries []ScenePathInfo
+	if err := r.DB.Model(&Scene{}).
+		Select("id, stored_path, storage_path_id, title").
+		Where("storage_path_id IS NOT NULL").
+		Find(&entries).Error; err != nil {
+		return nil, err
+	}
+	return entries, nil
 }
 
 func (r *SceneRepositoryImpl) MarkAsMissing(id uint) error {
