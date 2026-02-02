@@ -5,11 +5,12 @@ const route = useRoute();
 const router = useRouter();
 const { fetchMarkersByLabel } = useApiMarkers();
 const { formatDuration } = useFormatter();
+const settingsStore = useSettingsStore();
 
 const markers = ref<MarkerWithScene[]>([]);
 const total = ref(0);
 const currentPage = ref(1);
-const limit = ref(20);
+const limit = computed(() => settingsStore.videosPerPage);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 

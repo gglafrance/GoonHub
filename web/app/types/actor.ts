@@ -35,7 +35,7 @@ export interface Actor {
     piercings?: string;
     fake_boobs: boolean;
     same_sex_only: boolean;
-    video_count?: number;
+    scene_count?: number;
 }
 
 export interface ActorListResponse {
