@@ -289,3 +289,4 @@ When working on GoonHub, remember:
 - Component sub-directories follow pattern: `components/<feature>/<subfeature>/` auto-imports as `<FeatureSubfeatureComponent />`
 - Use typed errors from `internal/apperrors/` - check with `apperrors.IsNotFound()`, `apperrors.IsValidation()`, etc.
 - In handlers, use `response.Error(c, err)` for automatic HTTP status and error code mapping
+- Never add a `Co-Authored-By` line to git commit messages

@@ -12,22 +12,28 @@ import (
 
 // Client wraps the Meilisearch client with application-specific functionality.
 type Client struct {
-	client    *meili.Client
-	indexName string
-	logger    *zap.Logger
+	client       *meili.Client
+	indexName    string
+	logger       *zap.Logger
+	maxTotalHits int64
 }
 
 // NewClient creates a new Meilisearch client wrapper.
-func NewClient(host, apiKey, indexName string, logger *zap.Logger) (*Client, error) {
+func NewClient(host, apiKey, indexName string, maxTotalHits int64, logger *zap.Logger) (*Client, error) {
 	client := meili.NewClient(meili.ClientConfig{
 		Host:   host,
 		APIKey: apiKey,
 	})
 
+	if maxTotalHits <= 0 {
+		maxTotalHits = 100000
+	}
+
 	c := &Client{
-		client:    client,
-		indexName: indexName,
-		logger:    logger,
+		client:       client,
+		indexName:    indexName,
+		logger:       logger,
+		maxTotalHits: maxTotalHits,
 	}
 
 	// Verify connection and ensure index exists
@@ -104,8 +110,46 @@ func (c *Client) EnsureIndex() error {
 		return fmt.Errorf("failed to wait for sortable attributes task: %w", err)
 	}
 
-	c.logger.Info("meilisearch index configured", zap.String("index", c.indexName))
+	// Configure pagination (maxTotalHits)
+	paginationTask, err := index.UpdatePagination(&meili.Pagination{
+		MaxTotalHits: c.maxTotalHits,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update pagination settings: %w", err)
+	}
+	if _, err := c.client.WaitForTask(paginationTask.TaskUID, meili.WaitParams{Context: ctx, Interval: 100 * time.Millisecond}); err != nil {
+		return fmt.Errorf("failed to wait for pagination settings task: %w", err)
+	}
+
+	c.logger.Info("meilisearch index configured", zap.String("index", c.indexName), zap.Int64("max_total_hits", c.maxTotalHits))
 	return nil
+}
+
+// UpdateMaxTotalHits updates the pagination maxTotalHits setting on the Meilisearch index.
+func (c *Client) UpdateMaxTotalHits(maxTotalHits int64) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	index := c.client.Index(c.indexName)
+	task, err := index.UpdatePagination(&meili.Pagination{
+		MaxTotalHits: maxTotalHits,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update pagination settings: %w", err)
+	}
+
+	if _, err := c.client.WaitForTask(task.TaskUID, meili.WaitParams{Context: ctx, Interval: 100 * time.Millisecond}); err != nil {
+		return fmt.Errorf("failed to wait for pagination settings task: %w", err)
+	}
+
+	c.maxTotalHits = maxTotalHits
+	c.logger.Info("updated meilisearch maxTotalHits", zap.Int64("max_total_hits", maxTotalHits))
+	return nil
+}
+
+// GetMaxTotalHits returns the current maxTotalHits setting.
+func (c *Client) GetMaxTotalHits() int64 {
+	return c.maxTotalHits
 }
 
 // IndexScene adds or updates a scene document in the index.

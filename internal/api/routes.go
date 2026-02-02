@@ -180,6 +180,8 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					admin.PUT("/retry-config", retryConfigHandler.UpdateRetryConfig)
 					admin.GET("/search/status", searchHandler.GetStatus)
 					admin.POST("/search/reindex", searchHandler.ReindexAll)
+					admin.GET("/search/config", searchHandler.GetSearchConfig)
+					admin.PUT("/search/config", searchHandler.UpdateSearchConfig)
 					admin.GET("/storage-paths", storagePathHandler.List)
 					admin.POST("/storage-paths", storagePathHandler.Create)
 					admin.PUT("/storage-paths/:id", storagePathHandler.Update)

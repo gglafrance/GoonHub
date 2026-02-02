@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS search_config (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    max_total_hits INTEGER NOT NULL DEFAULT 100000,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT search_config_singleton CHECK (id = 1)
+);
+INSERT INTO search_config (id, max_total_hits) VALUES (1, 100000) ON CONFLICT DO NOTHING;

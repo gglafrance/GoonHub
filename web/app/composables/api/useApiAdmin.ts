@@ -94,6 +94,23 @@ export const useApiAdmin = () => {
         return handleResponse(response);
     };
 
+    const getSearchConfig = async () => {
+        const response = await fetch('/api/v1/admin/search/config', {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const updateSearchConfig = async (config: { max_total_hits: number }) => {
+        const response = await fetch('/api/v1/admin/search/config', {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(config),
+        });
+        return handleResponse(response);
+    };
+
     return {
         fetchAdminUsers,
         createUser,
@@ -105,5 +122,7 @@ export const useApiAdmin = () => {
         syncRolePermissions,
         getSearchStatus,
         triggerReindex,
+        getSearchConfig,
+        updateSearchConfig,
     };
 };

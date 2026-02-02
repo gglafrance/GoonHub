@@ -431,6 +431,22 @@ func (s *SearchService) ReindexAll() error {
 	return nil
 }
 
+// UpdateMaxTotalHits updates the Meilisearch pagination maxTotalHits setting.
+func (s *SearchService) UpdateMaxTotalHits(maxTotalHits int64) error {
+	if s.meiliClient == nil {
+		return fmt.Errorf("meilisearch is not configured")
+	}
+	return s.meiliClient.UpdateMaxTotalHits(maxTotalHits)
+}
+
+// GetMaxTotalHits returns the current Meilisearch maxTotalHits setting.
+func (s *SearchService) GetMaxTotalHits() int64 {
+	if s.meiliClient == nil {
+		return 0
+	}
+	return s.meiliClient.GetMaxTotalHits()
+}
+
 // IsAvailable returns true if Meilisearch is configured and healthy.
 func (s *SearchService) IsAvailable() bool {
 	if s.meiliClient == nil {

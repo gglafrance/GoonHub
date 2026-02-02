@@ -2,8 +2,9 @@
 import type { SortOrder, KeyboardLayout } from '~/types/settings';
 
 const settingsStore = useSettingsStore();
+const authStore = useAuthStore();
 const { message, error, clearMessages } = useSettingsMessage();
-const { triggerReindex } = useApiAdmin();
+const { triggerReindex, getSearchConfig, updateSearchConfig } = useApiAdmin();
 const { layout: keyboardLayout, setLayout: setKeyboardLayout } = useKeyboardLayout();
 
 const appVideosPerPage = ref(20);
@@ -13,6 +14,13 @@ const appSortOrder = ref<SortOrder>('created_at_desc');
 const isReindexing = ref(false);
 const reindexMessage = ref('');
 const reindexError = ref('');
+
+// Search config state (admin only)
+const isAdmin = computed(() => authStore.user?.role === 'admin');
+const maxTotalHits = ref(100000);
+const isSavingSearchConfig = ref(false);
+const searchConfigMessage = ref('');
+const searchConfigError = ref('');
 
 const sortOptions: { value: SortOrder; label: string }[] = [
     { value: 'created_at_desc', label: 'Newest First' },
@@ -30,7 +38,20 @@ const syncFromStore = () => {
     appSortOrder.value = settingsStore.defaultSortOrder;
 };
 
-onMounted(syncFromStore);
+const loadSearchConfig = async () => {
+    if (!isAdmin.value) return;
+    try {
+        const data = await getSearchConfig();
+        maxTotalHits.value = data.max_total_hits;
+    } catch {
+        // Silently fail - default value is already set
+    }
+};
+
+onMounted(() => {
+    syncFromStore();
+    loadSearchConfig();
+});
 
 watch(() => settingsStore.settings, syncFromStore);
 
@@ -55,6 +76,20 @@ const handleReindex = async () => {
         reindexError.value = e instanceof Error ? e.message : 'Failed to trigger reindex';
     } finally {
         isReindexing.value = false;
+    }
+};
+
+const handleSaveSearchConfig = async () => {
+    searchConfigMessage.value = '';
+    searchConfigError.value = '';
+    isSavingSearchConfig.value = true;
+    try {
+        await updateSearchConfig({ max_total_hits: maxTotalHits.value });
+        searchConfigMessage.value = 'Search configuration saved';
+    } catch (e: unknown) {
+        searchConfigError.value = e instanceof Error ? e.message : 'Failed to save search config';
+    } finally {
+        isSavingSearchConfig.value = false;
     }
 };
 </script>
@@ -164,6 +199,53 @@ const handleReindex = async () => {
                 Rebuild the search index to sync all video data including actors, tags, and view
                 counts.
             </p>
+
+            <!-- Max Total Hits (admin only) -->
+            <div v-if="isAdmin" class="mb-5">
+                <div
+                    v-if="searchConfigMessage"
+                    class="border-emerald/20 bg-emerald/5 text-emerald mb-3 rounded-lg border px-3
+                        py-2 text-xs"
+                >
+                    {{ searchConfigMessage }}
+                </div>
+                <div
+                    v-if="searchConfigError"
+                    class="border-lava/20 bg-lava/5 text-lava mb-3 rounded-lg border px-3 py-2
+                        text-xs"
+                >
+                    {{ searchConfigError }}
+                </div>
+
+                <label
+                    class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider uppercase"
+                >
+                    Max Total Hits
+                </label>
+                <p class="text-dim mb-2 text-xs">
+                    Maximum number of search results that can be counted. Increase this if your
+                    library has more scenes than the current limit.
+                </p>
+                <div class="flex items-center gap-3">
+                    <input
+                        v-model.number="maxTotalHits"
+                        type="number"
+                        min="1000"
+                        class="border-border bg-void/80 focus:border-lava/40 focus:ring-lava/20
+                            w-full max-w-48 rounded-lg border px-3.5 py-2.5 text-sm text-white
+                            transition-all focus:ring-1 focus:outline-none"
+                    />
+                    <button
+                        @click="handleSaveSearchConfig"
+                        :disabled="isSavingSearchConfig"
+                        class="border-border hover:border-lava/40 hover:bg-lava/10 rounded-lg
+                            border px-4 py-2 text-xs font-medium text-white transition-all
+                            disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                        {{ isSavingSearchConfig ? 'Saving...' : 'Save' }}
+                    </button>
+                </div>
+            </div>
 
             <div
                 v-if="reindexMessage"

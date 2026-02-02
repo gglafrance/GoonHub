@@ -51,7 +51,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	sceneService := provideSceneService(sceneRepository, configConfig, sceneProcessingService, eventBus, logger)
 	tagRepository := provideTagRepository(db)
 	tagService := provideTagService(tagRepository, sceneRepository, logger)
-	client, err := provideMeilisearchClient(configConfig, logger)
+	searchConfigRepository := provideSearchConfigRepository(db)
+	client, err := provideMeilisearchClient(configConfig, searchConfigRepository, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +106,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	studioInteractionRepository := provideStudioInteractionRepository(db)
 	studioInteractionService := provideStudioInteractionService(studioInteractionRepository, logger)
 	studioInteractionHandler := provideStudioInteractionHandler(studioInteractionService, studioRepository)
-	searchHandler := provideSearchHandler(searchService)
+	searchHandler := provideSearchHandler(searchService, searchConfigRepository)
 	watchHistoryRepository := provideWatchHistoryRepository(db)
 	watchHistoryService := provideWatchHistoryService(watchHistoryRepository, sceneRepository, searchService, logger)
 	watchHistoryHandler := provideWatchHistoryHandler(watchHistoryService)
@@ -224,6 +225,10 @@ func provideExplorerRepository(db *gorm.DB) data.ExplorerRepository {
 	return data.NewExplorerRepository(db)
 }
 
+func provideSearchConfigRepository(db *gorm.DB) data.SearchConfigRepository {
+	return data.NewSearchConfigRepository(db)
+}
+
 func provideSavedSearchRepository(db *gorm.DB) data.SavedSearchRepository {
 	return data.NewSavedSearchRepository(db)
 }
@@ -232,11 +237,20 @@ func provideMarkerRepository(db *gorm.DB) data.MarkerRepository {
 	return data.NewMarkerRepository(db)
 }
 
-func provideMeilisearchClient(cfg *config.Config, logger *logging.Logger) (*meilisearch.Client, error) {
+func provideMeilisearchClient(cfg *config.Config, searchConfigRepo data.SearchConfigRepository, logger *logging.Logger) (*meilisearch.Client, error) {
+	var maxTotalHits int64 = 100000
+	record, err := searchConfigRepo.Get()
+	if err != nil {
+		logger.Warn(fmt.Sprintf("failed to read search config from DB, using default maxTotalHits: %v", err))
+	} else if record != nil {
+		maxTotalHits = record.MaxTotalHits
+	}
+
 	client, err := meilisearch.NewClient(
 		cfg.Meilisearch.Host,
 		cfg.Meilisearch.APIKey,
 		cfg.Meilisearch.IndexName,
+		maxTotalHits,
 		logger.Logger,
 	)
 	if err != nil {
@@ -445,8 +459,8 @@ func provideStudioInteractionHandler(service *core.StudioInteractionService, stu
 	return handler.NewStudioInteractionHandler(service, studioRepo)
 }
 
-func provideSearchHandler(searchService *core.SearchService) *handler.SearchHandler {
-	return handler.NewSearchHandler(searchService)
+func provideSearchHandler(searchService *core.SearchService, searchConfigRepo data.SearchConfigRepository) *handler.SearchHandler {
+	return handler.NewSearchHandler(searchService, searchConfigRepo)
 }
 
 func provideWatchHistoryHandler(service *core.WatchHistoryService) *handler.WatchHistoryHandler {
