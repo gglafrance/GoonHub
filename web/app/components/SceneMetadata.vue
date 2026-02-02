@@ -33,7 +33,7 @@ const getResolutionLabel = (h?: number): string => {
     <div class="sticky top-28 space-y-3">
         <!-- Info Section -->
         <div class="border-border bg-surface/30 rounded-xl border p-4 backdrop-blur-sm">
-            <h1 class="text-sm leading-snug font-semibold text-white">
+            <h1 class="text-sm leading-snug font-semibold text-white break-all">
                 {{ scene.title }}
             </h1>
 
