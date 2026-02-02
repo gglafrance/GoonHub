@@ -4,22 +4,30 @@
 # Secrets should be set via environment variables:
 #   - GOONHUB_DATABASE_PASSWORD
 #   - GOONHUB_AUTH_PASETO_SECRET (must be exactly 32 bytes)
-#   - GOONHUB_AUTH_ADMIN_PASSWORD
+#   - GOONHUB_AUTH_ADMIN_PASSWORD (min 12 chars, uppercase, lowercase, digit)
 #   - GOONHUB_MEILISEARCH_API_KEY
+#   - GOONHUB_PORNDB_API_KEY (optional)
 
 environment: production
 
 server:
   port: "8080"
   read_timeout: 30s
-  write_timeout: 30s
+  write_timeout: 0s       # Disabled for video streaming (streams can be hours long)
   idle_timeout: 120s
   # Comma-separated list of allowed origins for CORS
-  # allowed_origins: "https://example.com,https://app.example.com"
-  # Override the Secure flag on auth cookies. By default, cookies are Secure
-  # in production (environment: production) and non-Secure otherwise.
-  # Set to false if running production behind a reverse proxy over plain HTTP.
-  # secure_cookies: false
+  allowed_origins:
+    - "https://your-domain.com"
+  # TLS configuration (optional - use if not behind a reverse proxy)
+  # tls_cert_file: "/path/to/cert.pem"
+  # tls_key_file: "/path/to/key.pem"
+  # Trusted proxies for X-Forwarded-For (CIDR ranges)
+  trusted_proxies:
+    - "172.16.0.0/12"     # Docker networks
+    - "10.0.0.0/8"        # Private networks
+    - "127.0.0.1"         # Localhost
+  # Override Secure flag on cookies (default: true in production)
+  # secure_cookies: true
 
 database:
   host: postgres
@@ -32,14 +40,19 @@ database:
   max_idle_conns: 5
 
 log:
-  level: info    # debug, info, warn, error
-  format: json   # json, console
+  level: info       # debug, info, warn, error
+  format: json      # json, console
 
 auth:
-  # paseto_secret: set via GOONHUB_AUTH_PASETO_SECRET env var (must be 32 bytes)
+  # paseto_secret: set via GOONHUB_AUTH_PASETO_SECRET env var (must be exactly 32 bytes)
   admin_username: admin
   # admin_password: set via GOONHUB_AUTH_ADMIN_PASSWORD env var
   token_duration: 24h
+  login_rate_limit: 10        # requests per minute
+  login_rate_burst: 5         # burst size
+  lockout_threshold: 5        # failed attempts before lockout
+  lockout_duration: 15m       # how long account is locked
+  lockout_cleanup_freq: 5m    # cleanup interval for old lockout entries
 
 meilisearch:
   host: "http://meilisearch:7700"
@@ -57,17 +70,35 @@ processing:
   thumbnail_workers: 1
   sprites_workers: 1
   thumbnail_seek: "00:00:05"
+  video_dir: "/app/data/videos"
+  metadata_dir: "/app/data/metadata"
   frame_output_dir: "/app/data/metadata/frames"
   thumbnail_dir: "/app/data/metadata/thumbnails"
   sprite_dir: "/app/data/metadata/sprites"
   vtt_dir: "/app/data/metadata/vtt"
+  actor_image_dir: "/app/data/metadata/actors"
+  studio_logo_dir: "/app/data/metadata/studios"
+  marker_thumbnail_dir: "/app/data/metadata/marker-thumbnails"
   grid_cols: 12
   grid_rows: 8
-  sprites_concurrency: 0
+  sprites_concurrency: 0      # 0 = auto (based on CPU cores)
   job_history_retention: "7d"
   metadata_timeout: 5m
   thumbnail_timeout: 2m
   sprites_timeout: 30m
 
 porndb:
-  api_key: "your-theporndb-api-token"
+  # api_key: set via GOONHUB_PORNDB_API_KEY env var (optional)
+
+shutdown:
+  graceful_timeout: 30s       # total shutdown time
+  job_completion_wait: 15s    # wait for running jobs
+  orphan_timeout: 30s         # orphan detection threshold
+  stuck_pending_time: 10m     # pending job stuck threshold
+
+streaming:
+  max_global_streams: 100     # total concurrent streams allowed
+  max_streams_per_ip: 10      # per-IP limit
+  buffer_size: 262144         # 256KB buffer for streaming
+  path_cache_ttl: 5m          # cache scene paths for 5 minutes
+  path_cache_max_size: 10000  # max cached entries
