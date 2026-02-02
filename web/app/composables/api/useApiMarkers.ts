@@ -90,6 +90,23 @@ export const useApiMarkers = () => {
         return handleResponse(response);
     };
 
+    const fetchAllMarkers = async (
+        page: number = 1,
+        limit: number = 20,
+        sort: string = 'label_asc',
+    ): Promise<PaginatedResponse<MarkerWithScene>> => {
+        const params = new URLSearchParams({
+            page: String(page),
+            limit: String(limit),
+            sort,
+        });
+        const response = await fetch(`/api/v1/markers/all?${params}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
     const fetchMarkersByLabel = async (
         label: string,
         page: number = 1,
@@ -169,6 +186,7 @@ export const useApiMarkers = () => {
         deleteMarker,
         fetchLabelSuggestions,
         fetchLabelGroups,
+        fetchAllMarkers,
         fetchMarkersByLabel,
         // Label tag methods
         fetchLabelTags,

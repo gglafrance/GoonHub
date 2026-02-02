@@ -27,9 +27,10 @@ type MarkerLabelSuggestion struct {
 
 // MarkerLabelGroup represents a group of markers with the same label
 type MarkerLabelGroup struct {
-	Label             string `json:"label"`
-	Count             int64  `json:"count"`
-	ThumbnailMarkerID uint   `json:"thumbnail_marker_id"`
+	Label              string `json:"label"`
+	Count              int64  `json:"count"`
+	ThumbnailMarkerID  uint   `json:"thumbnail_marker_id"`
+	ThumbnailMarkerIDs []uint `json:"thumbnail_marker_ids" gorm:"-"`
 }
 
 // MarkerWithScene extends UserSceneMarker with scene information
