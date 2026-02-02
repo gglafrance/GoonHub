@@ -204,6 +204,36 @@ func (h *MarkerHandler) ListMarkersByLabel(c *gin.Context) {
 	response.OK(c, response.NewPaginatedResponse(markers, page, limit, total))
 }
 
+// ListAllMarkers returns all individual markers for the authenticated user
+func (h *MarkerHandler) ListAllMarkers(c *gin.Context) {
+	userID, ok := h.requireAuth(c)
+	if !ok {
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	sortBy := c.DefaultQuery("sort", "label_asc")
+
+	// Validate pagination bounds
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 1
+	} else if limit > 100 {
+		limit = 100
+	}
+
+	markers, total, err := h.service.GetAllMarkers(userID, page, limit, sortBy)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, response.NewPaginatedResponse(markers, page, limit, total))
+}
+
 // GetLabelTags returns the default tags for a label
 func (h *MarkerHandler) GetLabelTags(c *gin.Context) {
 	userID, ok := h.requireAuth(c)

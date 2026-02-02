@@ -7,8 +7,9 @@ type UpdatePlayerSettingsRequest struct {
 }
 
 type UpdateAppSettingsRequest struct {
-	VideosPerPage    int    `json:"videos_per_page" binding:"required,min=1,max=100"`
-	DefaultSortOrder string `json:"default_sort_order" binding:"required"`
+	VideosPerPage          int    `json:"videos_per_page" binding:"required,min=1,max=100"`
+	DefaultSortOrder       string `json:"default_sort_order" binding:"required"`
+	MarkerThumbnailCycling bool   `json:"marker_thumbnail_cycling"`
 }
 
 type UpdateTagSettingsRequest struct {

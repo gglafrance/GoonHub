@@ -25,6 +25,9 @@ export const useSettingsStore = defineStore(
             () => settings.value?.default_sort_order ?? 'created_at_desc',
         );
         const defaultTagSort = computed<TagSort>(() => settings.value?.default_tag_sort ?? 'az');
+        const markerThumbnailCycling = computed(
+            () => settings.value?.marker_thumbnail_cycling ?? true,
+        );
 
         const loadSettings = async () => {
             isLoading.value = true;
@@ -61,13 +64,18 @@ export const useSettingsStore = defineStore(
             }
         };
 
-        const updateApp = async (videosPerPage: number, sortOrder: SortOrder) => {
+        const updateApp = async (
+            videosPerPage: number,
+            sortOrder: SortOrder,
+            markerThumbnailCyclingVal: boolean,
+        ) => {
             isLoading.value = true;
             error.value = null;
             try {
                 const data: UserSettings = await apiUpdateApp({
                     videos_per_page: videosPerPage,
                     default_sort_order: sortOrder,
+                    marker_thumbnail_cycling: markerThumbnailCyclingVal,
                 });
                 settings.value = data;
             } catch (e: unknown) {
@@ -114,6 +122,7 @@ export const useSettingsStore = defineStore(
             videosPerPage,
             defaultSortOrder,
             defaultTagSort,
+            markerThumbnailCycling,
             theaterMode,
             keyboardLayout,
             loadSettings,

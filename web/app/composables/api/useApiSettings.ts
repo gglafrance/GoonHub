@@ -30,6 +30,7 @@ export const useApiSettings = () => {
     const updateAppSettings = async (settings: {
         videos_per_page: number;
         default_sort_order: string;
+        marker_thumbnail_cycling: boolean;
     }) => {
         const response = await fetch('/api/v1/settings/app', {
             method: 'PUT',

@@ -32,6 +32,7 @@ export interface MarkerLabelGroup {
     label: string;
     count: number;
     thumbnail_marker_id: number;
+    thumbnail_marker_ids: number[];
 }
 
 export interface MarkerWithScene extends Marker {

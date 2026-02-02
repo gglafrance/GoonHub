@@ -126,6 +126,22 @@ func (mr *MockMarkerRepositoryMockRecorder) GetAllLabelTagsForUser(userID any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllLabelTagsForUser", reflect.TypeOf((*MockMarkerRepository)(nil).GetAllLabelTagsForUser), userID)
 }
 
+// GetAllMarkersForUser mocks base method.
+func (m *MockMarkerRepository) GetAllMarkersForUser(userID uint, offset, limit int, sortBy string) ([]data.MarkerWithScene, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllMarkersForUser", userID, offset, limit, sortBy)
+	ret0, _ := ret[0].([]data.MarkerWithScene)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetAllMarkersForUser indicates an expected call of GetAllMarkersForUser.
+func (mr *MockMarkerRepositoryMockRecorder) GetAllMarkersForUser(userID, offset, limit, sortBy any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllMarkersForUser", reflect.TypeOf((*MockMarkerRepository)(nil).GetAllMarkersForUser), userID, offset, limit, sortBy)
+}
+
 // GetByID mocks base method.
 func (m *MockMarkerRepository) GetByID(id uint) (*data.UserSceneMarker, error) {
 	m.ctrl.T.Helper()
@@ -139,6 +155,21 @@ func (m *MockMarkerRepository) GetByID(id uint) (*data.UserSceneMarker, error) {
 func (mr *MockMarkerRepositoryMockRecorder) GetByID(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByID", reflect.TypeOf((*MockMarkerRepository)(nil).GetByID), id)
+}
+
+// GetBySceneWithoutThumbnail mocks base method.
+func (m *MockMarkerRepository) GetBySceneWithoutThumbnail(sceneID uint) ([]data.UserSceneMarker, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBySceneWithoutThumbnail", sceneID)
+	ret0, _ := ret[0].([]data.UserSceneMarker)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetBySceneWithoutThumbnail indicates an expected call of GetBySceneWithoutThumbnail.
+func (mr *MockMarkerRepositoryMockRecorder) GetBySceneWithoutThumbnail(sceneID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBySceneWithoutThumbnail", reflect.TypeOf((*MockMarkerRepository)(nil).GetBySceneWithoutThumbnail), sceneID)
 }
 
 // GetByUserAndScene mocks base method.
@@ -261,6 +292,21 @@ func (m *MockMarkerRepository) GetMarkersByLabelForUser(userID uint, label strin
 func (mr *MockMarkerRepositoryMockRecorder) GetMarkersByLabelForUser(userID, label, offset, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMarkersByLabelForUser", reflect.TypeOf((*MockMarkerRepository)(nil).GetMarkersByLabelForUser), userID, label, offset, limit)
+}
+
+// GetRandomThumbnailsForLabels mocks base method.
+func (m *MockMarkerRepository) GetRandomThumbnailsForLabels(userID uint, labels []string, perLabel int) (map[string][]uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRandomThumbnailsForLabels", userID, labels, perLabel)
+	ret0, _ := ret[0].(map[string][]uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetRandomThumbnailsForLabels indicates an expected call of GetRandomThumbnailsForLabels.
+func (mr *MockMarkerRepositoryMockRecorder) GetRandomThumbnailsForLabels(userID, labels, perLabel any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRandomThumbnailsForLabels", reflect.TypeOf((*MockMarkerRepository)(nil).GetRandomThumbnailsForLabels), userID, labels, perLabel)
 }
 
 // GetSceneIDsByLabels mocks base method.

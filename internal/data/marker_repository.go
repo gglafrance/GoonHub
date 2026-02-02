@@ -30,6 +30,15 @@ type MarkerRepository interface {
 	ApplyLabelTagsToMarker(userID uint, markerID uint, label string) error
 	GetMarkerIDsByLabel(userID uint, label string) ([]uint, error)
 
+	// Thumbnail methods
+	GetRandomThumbnailsForLabels(userID uint, labels []string, perLabel int) (map[string][]uint, error)
+
+	// Scene-level methods (not user-scoped)
+	GetBySceneWithoutThumbnail(sceneID uint) ([]UserSceneMarker, error)
+
+	// All markers (unwrapped view)
+	GetAllMarkersForUser(userID uint, offset, limit int, sortBy string) ([]MarkerWithScene, int64, error)
+
 	// Search filter methods
 	GetSceneIDsByLabels(userID uint, labels []string) ([]uint, error)
 }
@@ -167,6 +176,47 @@ func (r *MarkerRepositoryImpl) GetMarkersByLabelForUser(userID uint, label strin
 		ORDER BY m.created_at DESC
 		LIMIT ? OFFSET ?
 	`, userID, label, limit, offset).Scan(&markers).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return markers, totalCount, nil
+}
+
+// allMarkersSortMap maps sort parameter values to safe SQL ORDER BY clauses for individual markers
+var allMarkersSortMap = map[string]string{
+	"label_asc":  "m.label ASC, m.created_at DESC",
+	"label_desc": "m.label DESC, m.created_at DESC",
+	"recent":     "m.created_at DESC",
+	"oldest":     "m.created_at ASC",
+}
+
+// GetAllMarkersForUser returns all individual markers for a user with scene info
+func (r *MarkerRepositoryImpl) GetAllMarkersForUser(userID uint, offset, limit int, sortBy string) ([]MarkerWithScene, int64, error) {
+	// Get total count
+	var totalCount int64
+	err := r.DB.Model(&UserSceneMarker{}).
+		Where("user_id = ?", userID).
+		Count(&totalCount).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Get validated ORDER BY clause
+	orderClause, ok := allMarkersSortMap[sortBy]
+	if !ok {
+		orderClause = allMarkersSortMap["label_asc"]
+	}
+
+	var markers []MarkerWithScene
+	err = r.DB.Raw(`
+		SELECT m.*, s.title as scene_title
+		FROM user_scene_markers m
+		JOIN scenes s ON m.scene_id = s.id
+		WHERE m.user_id = ?
+		ORDER BY `+orderClause+`
+		LIMIT ? OFFSET ?
+	`, userID, limit, offset).Scan(&markers).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -462,6 +512,48 @@ func (r *MarkerRepositoryImpl) GetMarkerIDsByLabel(userID uint, label string) ([
 		return nil, err
 	}
 	return markerIDs, nil
+}
+
+// GetRandomThumbnailsForLabels returns random marker IDs with thumbnails for each label
+func (r *MarkerRepositoryImpl) GetRandomThumbnailsForLabels(userID uint, labels []string, perLabel int) (map[string][]uint, error) {
+	if len(labels) == 0 {
+		return make(map[string][]uint), nil
+	}
+
+	type result struct {
+		Label string
+		ID    uint
+	}
+
+	var results []result
+	err := r.DB.Raw(`
+		SELECT label, id FROM (
+			SELECT label, id, ROW_NUMBER() OVER (PARTITION BY label ORDER BY RANDOM()) as rn
+			FROM user_scene_markers
+			WHERE user_id = ? AND label IN ? AND thumbnail_path != '' AND thumbnail_path IS NOT NULL
+		) sub WHERE rn <= ?
+	`, userID, labels, perLabel).Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	thumbnails := make(map[string][]uint)
+	for _, r := range results {
+		thumbnails[r.Label] = append(thumbnails[r.Label], r.ID)
+	}
+
+	return thumbnails, nil
+}
+
+// GetBySceneWithoutThumbnail returns all markers for a scene (regardless of user) where thumbnail_path is empty
+func (r *MarkerRepositoryImpl) GetBySceneWithoutThumbnail(sceneID uint) ([]UserSceneMarker, error) {
+	var markers []UserSceneMarker
+	err := r.DB.Where("scene_id = ? AND (thumbnail_path = '' OR thumbnail_path IS NULL)", sceneID).
+		Find(&markers).Error
+	if err != nil {
+		return nil, err
+	}
+	return markers, nil
 }
 
 // GetSceneIDsByLabels returns distinct scene IDs that have markers with any of the given labels for a user

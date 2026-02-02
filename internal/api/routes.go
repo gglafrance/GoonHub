@@ -142,6 +142,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 				markers := protected.Group("/markers")
 				{
 					markers.GET("", markerHandler.ListLabelGroups)
+					markers.GET("/all", markerHandler.ListAllMarkers)
 					markers.GET("/labels", markerHandler.ListLabelSuggestions)
 					markers.GET("/by-label", markerHandler.ListMarkersByLabel)
 					markers.GET("/label-tags", markerHandler.GetLabelTags)

@@ -9,6 +9,7 @@ const { layout: keyboardLayout, setLayout: setKeyboardLayout } = useKeyboardLayo
 
 const appVideosPerPage = ref(20);
 const appSortOrder = ref<SortOrder>('created_at_desc');
+const appMarkerThumbnailCycling = ref(true);
 
 // Search index state
 const isReindexing = ref(false);
@@ -36,6 +37,7 @@ const sortOptions: { value: SortOrder; label: string }[] = [
 const syncFromStore = () => {
     appVideosPerPage.value = settingsStore.videosPerPage;
     appSortOrder.value = settingsStore.defaultSortOrder;
+    appMarkerThumbnailCycling.value = settingsStore.markerThumbnailCycling;
 };
 
 const loadSearchConfig = async () => {
@@ -58,7 +60,11 @@ watch(() => settingsStore.settings, syncFromStore);
 const handleSaveApp = async () => {
     clearMessages();
     try {
-        await settingsStore.updateApp(appVideosPerPage.value, appSortOrder.value);
+        await settingsStore.updateApp(
+            appVideosPerPage.value,
+            appSortOrder.value,
+            appMarkerThumbnailCycling.value,
+        );
         message.value = 'App settings saved';
     } catch (e: unknown) {
         error.value = e instanceof Error ? e.message : 'Failed to save settings';
@@ -179,6 +185,19 @@ const handleSaveSearchConfig = async () => {
                             AZERTY
                         </button>
                     </div>
+                </div>
+
+                <!-- Marker Thumbnail Cycling -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <label class="text-sm font-medium text-white">
+                            Marker Thumbnail Cycling
+                        </label>
+                        <p class="text-dim mt-0.5 text-xs">
+                            Automatically cycle through thumbnails on marker label cards
+                        </p>
+                    </div>
+                    <UiToggle v-model="appMarkerThumbnailCycling" />
                 </div>
 
                 <button

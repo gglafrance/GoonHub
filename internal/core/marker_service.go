@@ -339,6 +339,28 @@ func (s *MarkerService) GetLabelGroups(userID uint, page, limit int, sortBy stri
 		s.logger.Error("failed to get label groups", zap.Uint("userID", userID), zap.Error(err))
 		return nil, 0, apperrors.NewInternalError("failed to get label groups", err)
 	}
+
+	// Populate thumbnail marker IDs for cycling thumbnails
+	if len(groups) > 0 {
+		labels := make([]string, len(groups))
+		for i, g := range groups {
+			labels[i] = g.Label
+		}
+
+		thumbnails, err := s.markerRepo.GetRandomThumbnailsForLabels(userID, labels, 10)
+		if err != nil {
+			s.logger.Warn("failed to get thumbnail IDs for labels", zap.Uint("userID", userID), zap.Error(err))
+		} else {
+			for i := range groups {
+				if ids, ok := thumbnails[groups[i].Label]; ok {
+					groups[i].ThumbnailMarkerIDs = ids
+				} else {
+					groups[i].ThumbnailMarkerIDs = []uint{}
+				}
+			}
+		}
+	}
+
 	return groups, total, nil
 }
 
@@ -355,6 +377,34 @@ func (s *MarkerService) GetMarkersByLabel(userID uint, label string, page, limit
 	if err != nil {
 		s.logger.Error("failed to get markers by label", zap.Uint("userID", userID), zap.String("label", label), zap.Error(err))
 		return nil, 0, apperrors.NewInternalError("failed to get markers by label", err)
+	}
+	return markers, total, nil
+}
+
+func (s *MarkerService) GetAllMarkers(userID uint, page, limit int, sortBy string) ([]data.MarkerWithScene, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	offset := (page - 1) * limit
+
+	// Validate sortBy parameter
+	validSorts := map[string]bool{
+		"label_asc":  true,
+		"label_desc": true,
+		"recent":     true,
+		"oldest":     true,
+	}
+	if !validSorts[sortBy] {
+		sortBy = "label_asc"
+	}
+
+	markers, total, err := s.markerRepo.GetAllMarkersForUser(userID, offset, limit, sortBy)
+	if err != nil {
+		s.logger.Error("failed to get all markers", zap.Uint("userID", userID), zap.Error(err))
+		return nil, 0, apperrors.NewInternalError("failed to get all markers", err)
 	}
 	return markers, total, nil
 }

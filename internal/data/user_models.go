@@ -57,8 +57,9 @@ type UserSettings struct {
 	Loop             bool           `gorm:"not null;default:false" json:"loop"`
 	VideosPerPage    int            `gorm:"not null;default:20" json:"videos_per_page"`
 	DefaultSortOrder string         `gorm:"not null;default:'created_at_desc'" json:"default_sort_order"`
-	DefaultTagSort   string         `gorm:"not null;default:'az'" json:"default_tag_sort"`
-	HomepageConfig   HomepageConfig `gorm:"type:jsonb;not null" json:"homepage_config"`
+	DefaultTagSort          string         `gorm:"not null;default:'az'" json:"default_tag_sort"`
+	MarkerThumbnailCycling  bool           `gorm:"not null;default:true" json:"marker_thumbnail_cycling"`
+	HomepageConfig          HomepageConfig `gorm:"type:jsonb;not null" json:"homepage_config"`
 }
 
 // HomepageConfig represents the user's homepage layout configuration
