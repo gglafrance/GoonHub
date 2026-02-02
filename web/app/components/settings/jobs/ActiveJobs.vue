@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { JobHistory, QueueStatus } from '~/types/jobs';
+import type { JobHistory } from '~/types/jobs';
 
 const props = defineProps<{
     activeJobs: JobHistory[];
-    queueStatus: QueueStatus;
 }>();
 
+const jobStatusStore = useJobStatusStore();
 const { formatDuration, phaseLabel, phaseIcon } = useJobFormatting();
 
 const activeJobsByPhase = computed(() => {
@@ -15,8 +15,7 @@ const activeJobsByPhase = computed(() => {
         const phaseJobs = props.activeJobs
             .filter((j) => j.phase === phase)
             .sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime());
-        const runningCount =
-            props.queueStatus[`${phase}_running` as keyof typeof props.queueStatus] || 0;
+        const runningCount = jobStatusStore.byPhase[phase]?.running ?? 0;
         result[phase] = {
             running: phaseJobs.slice(0, runningCount),
             queued: phaseJobs.slice(runningCount),

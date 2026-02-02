@@ -229,6 +229,20 @@ export const useApiScenes = () => {
         return handleResponse(response);
     };
 
+    const deleteScene = async (sceneId: number, permanent = false) => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}`, {
+            method: 'DELETE',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ permanent }),
+            ...fetchOptions(),
+        });
+
+        if (permanent) {
+            return handleResponseWithNoContent(response);
+        }
+        return handleResponse(response);
+    };
+
     return {
         uploadScene,
         fetchScenes,
@@ -251,5 +265,6 @@ export const useApiScenes = () => {
         getSceneWatchHistory,
         getUserWatchHistory,
         fetchRelatedScenes,
+        deleteScene,
     };
 };

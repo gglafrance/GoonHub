@@ -39,6 +39,9 @@ export interface QueueStatus {
     metadata_running: number;
     thumbnail_running: number;
     sprites_running: number;
+    metadata_pending: number;
+    thumbnail_pending: number;
+    sprites_pending: number;
 }
 
 export interface JobListResponse {

@@ -9,7 +9,7 @@ const settingsStore = useSettingsStore();
 
 const markers = ref<MarkerWithScene[]>([]);
 const total = ref(0);
-const currentPage = ref(1);
+const currentPage = useUrlPagination();
 const limit = computed(() => settingsStore.videosPerPage);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
@@ -35,14 +35,13 @@ watch(
     { immediate: true },
 );
 
-const loadMarkers = async (page = 1) => {
+const loadMarkers = async (page: number) => {
     isLoading.value = true;
     error.value = null;
     try {
         const response = await fetchMarkersByLabel(label.value, page, limit.value);
         markers.value = response.data;
         total.value = response.pagination.total_items;
-        currentPage.value = page;
     } catch (err) {
         error.value = err instanceof Error ? err.message : 'Failed to load markers';
     } finally {
@@ -51,13 +50,13 @@ const loadMarkers = async (page = 1) => {
 };
 
 onMounted(() => {
-    loadMarkers();
+    loadMarkers(currentPage.value);
 });
 
 watch(
     () => route.params.label,
     () => {
-        loadMarkers();
+        currentPage.value = 1;
     },
 );
 

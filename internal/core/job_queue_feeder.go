@@ -189,9 +189,47 @@ func (f *JobQueueFeeder) feedPhase(phase string) {
 		zap.Int("count", len(claimedJobs)),
 	)
 
+	// Batch-fetch all scenes upfront in a single query to avoid N+1 DB lookups
+	sceneIDs := make([]uint, 0, len(claimedJobs))
+	for _, j := range claimedJobs {
+		sceneIDs = append(sceneIDs, j.SceneID)
+	}
+
+	scenes, err := f.sceneRepo.GetByIDs(sceneIDs)
+	if err != nil {
+		f.logger.Error("Failed to batch-fetch scenes for claimed jobs",
+			zap.String("phase", phase),
+			zap.Error(err),
+		)
+		// Mark all claimed jobs as failed
+		for _, j := range claimedJobs {
+			errMsg := "Failed to fetch scene data: " + err.Error()
+			now := time.Now()
+			_ = f.repo.UpdateStatus(j.JobID, data.JobStatusFailed, &errMsg, &now)
+		}
+		return
+	}
+
+	sceneMap := make(map[uint]*data.Scene, len(scenes))
+	for i := range scenes {
+		sceneMap[scenes[i].ID] = &scenes[i]
+	}
+
 	// Submit claimed jobs to worker pool
 	for _, jobRecord := range claimedJobs {
-		if err := f.submitJobToPool(jobRecord); err != nil {
+		scene, ok := sceneMap[jobRecord.SceneID]
+		if !ok {
+			f.logger.Error("Scene not found for claimed job",
+				zap.String("job_id", jobRecord.JobID),
+				zap.Uint("scene_id", jobRecord.SceneID),
+			)
+			errMsg := "Scene not found"
+			now := time.Now()
+			_ = f.repo.UpdateStatus(jobRecord.JobID, data.JobStatusFailed, &errMsg, &now)
+			continue
+		}
+
+		if err := f.submitJobToPool(jobRecord, scene); err != nil {
 			f.logger.Error("Failed to submit claimed job to pool",
 				zap.String("job_id", jobRecord.JobID),
 				zap.String("phase", phase),
@@ -207,13 +245,7 @@ func (f *JobQueueFeeder) feedPhase(phase string) {
 }
 
 // submitJobToPool creates and submits a job to the appropriate worker pool
-func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory) error {
-	// Get scene data needed for job creation
-	scene, err := f.sceneRepo.GetByID(jobRecord.SceneID)
-	if err != nil {
-		return err
-	}
-
+func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.Scene) error {
 	qualityConfig := f.poolManager.GetQualityConfig()
 	cfg := f.poolManager.GetConfig()
 

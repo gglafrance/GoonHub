@@ -42,3 +42,7 @@ type ApplySceneMetadataRequest struct {
 	ReleaseDate   *string  `json:"release_date,omitempty"`
 	PornDBSceneID *string  `json:"porndb_scene_id,omitempty"`
 }
+
+type DeleteSceneRequest struct {
+	Permanent bool `json:"permanent"`
+}

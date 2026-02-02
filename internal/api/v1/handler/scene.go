@@ -247,16 +247,39 @@ func (h *SceneHandler) DeleteScene(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.DeleteScene(uint(id)); err != nil {
+	var req request.DeleteSceneRequest
+	// Ignore binding errors - body is optional
+	_ = c.ShouldBindJSON(&req)
+
+	if req.Permanent {
+		// Permanent delete
+		if err := h.Service.HardDeleteScene(uint(id)); err != nil {
+			if apperrors.IsNotFound(err) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Scene not found"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete scene"})
+			return
+		}
+		c.Status(http.StatusNoContent)
+		return
+	}
+
+	// Move to trash
+	expiresAt, err := h.Service.MoveSceneToTrash(uint(id))
+	if err != nil {
 		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Scene not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete scene"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to move scene to trash"})
 		return
 	}
 
-	c.JSON(http.StatusNoContent, nil)
+	c.JSON(http.StatusOK, gin.H{
+		"message":    "Scene moved to trash",
+		"expires_at": expiresAt,
+	})
 }
 
 func (h *SceneHandler) GetScene(c *gin.Context) {

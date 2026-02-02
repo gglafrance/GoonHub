@@ -1,24 +1,28 @@
-# GoonHub Development Configuration (Docker)
-# Used when running the full stack in Docker
+# GoonHub Development Configuration
+# Used for local development outside of Docker
 #
-# SECURITY: Secrets should be set via environment variables:
+# For Docker development, secrets can be set via environment variables:
 #   - GOONHUB_DATABASE_PASSWORD
-#   - GOONHUB_AUTH_PASETO_SECRET (must be exactly 32 bytes, auto-generated if empty in dev)
-#   - GOONHUB_AUTH_ADMIN_PASSWORD (required - change from default!)
+#   - GOONHUB_AUTH_PASETO_SECRET (auto-generated if empty in dev)
+#   - GOONHUB_AUTH_ADMIN_PASSWORD
 #   - GOONHUB_MEILISEARCH_API_KEY
-#   - GOONHUB_PORNDB_API_KEY (optional, for metadata fetching)
+#   - GOONHUB_PORNDB_API_KEY (optional)
 
 environment: development
 
 server:
   port: "8080"
-  read_timeout: 0s
-  write_timeout: 0s
-  idle_timeout: 120s
-  # Override the Secure flag on auth cookies. By default, cookies are Secure
-  # in production (environment: production) and non-Secure otherwise.
-  # Set to false if running production behind a reverse proxy over plain HTTP.
-  # secure_cookies: false
+  read_timeout: 15s
+  write_timeout: 0s           # Disabled for video streaming
+  idle_timeout: 60s
+  allowed_origins:
+    - "http://localhost:3000"
+    - "http://localhost:8080"
+  # TLS disabled in development
+  tls_cert_file: ""
+  tls_key_file: ""
+  trusted_proxies: []
+  # secure_cookies: false     # Default: false in development
 
 database:
   host: localhost
@@ -31,14 +35,19 @@ database:
   max_idle_conns: 5
 
 log:
-  level: debug
-  format: console
+  level: debug      # debug, info, warn, error
+  format: console   # json, console
 
 auth:
-  paseto_secret: 2q4iZ8XcP43Necm7jmHjOxgd7pQinvBT%
+  paseto_secret: ""                   # Auto-generated in development if empty
   admin_username: admin
-  admin_password: admin
+  admin_password: admin               # Change this!
   token_duration: 24h
+  login_rate_limit: 10                # requests per minute
+  login_rate_burst: 5                 # burst size
+  lockout_threshold: 5                # failed attempts before lockout
+  lockout_duration: 15m               # how long account is locked
+  lockout_cleanup_freq: 5m            # cleanup interval for old lockout entries
 
 meilisearch:
   host: "http://localhost:7700"
@@ -56,17 +65,35 @@ processing:
   thumbnail_workers: 1
   sprites_workers: 1
   thumbnail_seek: "00:00:05"
+  video_dir: "./data/videos"
+  metadata_dir: "./data/metadata"
   frame_output_dir: "./data/metadata/frames"
   thumbnail_dir: "./data/metadata/thumbnails"
   sprite_dir: "./data/metadata/sprites"
   vtt_dir: "./data/metadata/vtt"
+  actor_image_dir: "./data/metadata/actors"
+  studio_logo_dir: "./data/metadata/studios"
+  marker_thumbnail_dir: "./data/metadata/marker-thumbnails"
   grid_cols: 12
   grid_rows: 8
-  sprites_concurrency: 4
+  sprites_concurrency: 4              # Use 4 cores for local dev
   job_history_retention: "7d"
   metadata_timeout: 5m
   thumbnail_timeout: 2m
   sprites_timeout: 30m
 
 porndb:
-  api_key: <YOUR_PORNDB_API_KEY_HERE> # Optional, for metadata fetching
+  api_key: ""                         # Optional, for metadata fetching
+
+shutdown:
+  graceful_timeout: 30s               # total shutdown time
+  job_completion_wait: 15s            # wait for running jobs
+  orphan_timeout: 30s                 # orphan detection threshold
+  stuck_pending_time: 10m             # pending job stuck threshold
+
+streaming:
+  max_global_streams: 100             # total concurrent streams allowed
+  max_streams_per_ip: 10              # per-IP limit
+  buffer_size: 262144                 # 256KB buffer for streaming
+  path_cache_ttl: 5m                  # cache scene paths for 5 minutes
+  path_cache_max_size: 10000          # max cached entries

@@ -55,6 +55,21 @@ func (mr *MockSceneRepositoryMockRecorder) BulkUpdateStudio(sceneIDs, studio any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkUpdateStudio", reflect.TypeOf((*MockSceneRepository)(nil).BulkUpdateStudio), sceneIDs, studio)
 }
 
+// CountTrashed mocks base method.
+func (m *MockSceneRepository) CountTrashed() (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountTrashed")
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountTrashed indicates an expected call of CountTrashed.
+func (mr *MockSceneRepositoryMockRecorder) CountTrashed() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountTrashed", reflect.TypeOf((*MockSceneRepository)(nil).CountTrashed))
+}
+
 // Create mocks base method.
 func (m *MockSceneRepository) Create(scene *data.Scene) error {
 	m.ctrl.T.Helper()
@@ -172,6 +187,21 @@ func (mr *MockSceneRepositoryMockRecorder) GetByID(id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByID", reflect.TypeOf((*MockSceneRepository)(nil).GetByID), id)
 }
 
+// GetByIDIncludingTrashed mocks base method.
+func (m *MockSceneRepository) GetByIDIncludingTrashed(id uint) (*data.Scene, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByIDIncludingTrashed", id)
+	ret0, _ := ret[0].(*data.Scene)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByIDIncludingTrashed indicates an expected call of GetByIDIncludingTrashed.
+func (mr *MockSceneRepositoryMockRecorder) GetByIDIncludingTrashed(id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByIDIncludingTrashed", reflect.TypeOf((*MockSceneRepository)(nil).GetByIDIncludingTrashed), id)
+}
+
 // GetByIDs mocks base method.
 func (m *MockSceneRepository) GetByIDs(ids []uint) ([]data.Scene, error) {
 	m.ctrl.T.Helper()
@@ -247,6 +277,21 @@ func (mr *MockSceneRepositoryMockRecorder) GetDistinctStudios() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDistinctStudios", reflect.TypeOf((*MockSceneRepository)(nil).GetDistinctStudios))
 }
 
+// GetExpiredTrashScenes mocks base method.
+func (m *MockSceneRepository) GetExpiredTrashScenes(retentionDays int) ([]data.Scene, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetExpiredTrashScenes", retentionDays)
+	ret0, _ := ret[0].([]data.Scene)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetExpiredTrashScenes indicates an expected call of GetExpiredTrashScenes.
+func (mr *MockSceneRepositoryMockRecorder) GetExpiredTrashScenes(retentionDays any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExpiredTrashScenes", reflect.TypeOf((*MockSceneRepository)(nil).GetExpiredTrashScenes), retentionDays)
+}
+
 // GetPendingProcessing mocks base method.
 func (m *MockSceneRepository) GetPendingProcessing() ([]data.Scene, error) {
 	m.ctrl.T.Helper()
@@ -307,6 +352,21 @@ func (mr *MockSceneRepositoryMockRecorder) GetScenesNeedingPhase(phase any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetScenesNeedingPhase", reflect.TypeOf((*MockSceneRepository)(nil).GetScenesNeedingPhase), phase)
 }
 
+// HardDelete mocks base method.
+func (m *MockSceneRepository) HardDelete(id uint) (*data.Scene, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HardDelete", id)
+	ret0, _ := ret[0].(*data.Scene)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HardDelete indicates an expected call of HardDelete.
+func (mr *MockSceneRepositoryMockRecorder) HardDelete(id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HardDelete", reflect.TypeOf((*MockSceneRepository)(nil).HardDelete), id)
+}
+
 // List mocks base method.
 func (m *MockSceneRepository) List(page, limit int) ([]data.Scene, int64, error) {
 	m.ctrl.T.Helper()
@@ -323,6 +383,22 @@ func (mr *MockSceneRepositoryMockRecorder) List(page, limit any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockSceneRepository)(nil).List), page, limit)
 }
 
+// ListTrashed mocks base method.
+func (m *MockSceneRepository) ListTrashed(page, limit int) ([]data.Scene, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListTrashed", page, limit)
+	ret0, _ := ret[0].([]data.Scene)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListTrashed indicates an expected call of ListTrashed.
+func (mr *MockSceneRepositoryMockRecorder) ListTrashed(page, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTrashed", reflect.TypeOf((*MockSceneRepository)(nil).ListTrashed), page, limit)
+}
+
 // MarkAsMissing mocks base method.
 func (m *MockSceneRepository) MarkAsMissing(id uint) error {
 	m.ctrl.T.Helper()
@@ -337,6 +413,21 @@ func (mr *MockSceneRepositoryMockRecorder) MarkAsMissing(id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAsMissing", reflect.TypeOf((*MockSceneRepository)(nil).MarkAsMissing), id)
 }
 
+// MoveToTrash mocks base method.
+func (m *MockSceneRepository) MoveToTrash(id uint) (*time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MoveToTrash", id)
+	ret0, _ := ret[0].(*time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MoveToTrash indicates an expected call of MoveToTrash.
+func (mr *MockSceneRepositoryMockRecorder) MoveToTrash(id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MoveToTrash", reflect.TypeOf((*MockSceneRepository)(nil).MoveToTrash), id)
+}
+
 // Restore mocks base method.
 func (m *MockSceneRepository) Restore(id uint) error {
 	m.ctrl.T.Helper()
@@ -349,6 +440,20 @@ func (m *MockSceneRepository) Restore(id uint) error {
 func (mr *MockSceneRepositoryMockRecorder) Restore(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restore", reflect.TypeOf((*MockSceneRepository)(nil).Restore), id)
+}
+
+// RestoreFromTrash mocks base method.
+func (m *MockSceneRepository) RestoreFromTrash(id uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RestoreFromTrash", id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RestoreFromTrash indicates an expected call of RestoreFromTrash.
+func (mr *MockSceneRepositoryMockRecorder) RestoreFromTrash(id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestoreFromTrash", reflect.TypeOf((*MockSceneRepository)(nil).RestoreFromTrash), id)
 }
 
 // UpdateActors mocks base method.

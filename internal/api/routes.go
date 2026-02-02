@@ -41,7 +41,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					scenes.PUT("/:id/thumbnail", middleware.RequirePermission(rbacService, "scenes:upload"), sceneHandler.ExtractThumbnail)
 					scenes.POST("/:id/thumbnail/upload", middleware.RequirePermission(rbacService, "scenes:upload"), sceneHandler.UploadThumbnail)
 					scenes.PUT("/:id/details", middleware.RequirePermission(rbacService, "scenes:upload"), sceneHandler.UpdateSceneDetails)
-					scenes.DELETE("/:id", middleware.RequirePermission(rbacService, "scenes:delete"), sceneHandler.DeleteScene)
+					scenes.DELETE("/:id", middleware.RequirePermission(rbacService, "scenes:trash"), sceneHandler.DeleteScene)
 					scenes.GET("/:id/tags", middleware.RequirePermission(rbacService, "scenes:view"), tagHandler.GetSceneTags)
 					scenes.PUT("/:id/tags", middleware.RequirePermission(rbacService, "scenes:upload"), tagHandler.SetSceneTags)
 					scenes.GET("/:id/interactions", interactionHandler.GetInteractions)
@@ -217,6 +217,12 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 
 					// Stream statistics
 					admin.GET("/stream-stats", streamStatsHandler.GetStreamStats)
+
+					// Trash management
+					admin.GET("/trash", adminHandler.ListTrash)
+					admin.POST("/trash/:id/restore", adminHandler.RestoreScene)
+					admin.DELETE("/trash/:id", adminHandler.PermanentDeleteScene)
+					admin.DELETE("/trash", adminHandler.EmptyTrash)
 				}
 			}
 		}

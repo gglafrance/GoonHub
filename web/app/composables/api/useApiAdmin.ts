@@ -1,8 +1,9 @@
 /**
- * Admin API operations: users, roles, permissions management.
+ * Admin API operations: users, roles, permissions management, trash.
  */
 export const useApiAdmin = () => {
-    const { fetchOptions, getAuthHeaders, handleResponse } = useApiCore();
+    const { fetchOptions, getAuthHeaders, handleResponse, handleResponseWithNoContent } =
+        useApiCore();
 
     const fetchAdminUsers = async (page: number, limit: number) => {
         const params = new URLSearchParams({
@@ -111,6 +112,46 @@ export const useApiAdmin = () => {
         return handleResponse(response);
     };
 
+    // Trash management
+    const listTrash = async (page = 1, limit = 20) => {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+        });
+        const response = await fetch(`/api/v1/admin/trash?${params}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const restoreScene = async (sceneId: number) => {
+        const response = await fetch(`/api/v1/admin/trash/${sceneId}/restore`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const permanentDeleteScene = async (sceneId: number) => {
+        const response = await fetch(`/api/v1/admin/trash/${sceneId}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponseWithNoContent(response);
+    };
+
+    const emptyTrash = async () => {
+        const response = await fetch('/api/v1/admin/trash', {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
     return {
         fetchAdminUsers,
         createUser,
@@ -124,5 +165,9 @@ export const useApiAdmin = () => {
         triggerReindex,
         getSearchConfig,
         updateSearchConfig,
+        listTrash,
+        restoreScene,
+        permanentDeleteScene,
+        emptyTrash,
     };
 };

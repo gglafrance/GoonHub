@@ -57,34 +57,10 @@ func (h *JobHandler) ListJobs(c *gin.Context) {
 	poolConfig := h.processingService.GetPoolConfig()
 	queueStatus := h.processingService.GetQueueStatus()
 
-	// Count active (submitted) jobs per phase from DB
-	metadataActive := 0
-	thumbnailActive := 0
-	spritesActive := 0
-	for _, aj := range activeJobs {
-		switch aj.Phase {
-		case "metadata":
-			metadataActive++
-		case "thumbnail":
-			thumbnailActive++
-		case "sprites":
-			spritesActive++
-		}
-	}
-
-	// True running = active in DB minus those still in the queue buffer
-	metadataRunning := metadataActive - queueStatus.MetadataQueued
-	thumbnailRunning := thumbnailActive - queueStatus.ThumbnailQueued
-	spritesRunning := spritesActive - queueStatus.SpritesQueued
-	if metadataRunning < 0 {
-		metadataRunning = 0
-	}
-	if thumbnailRunning < 0 {
-		thumbnailRunning = 0
-	}
-	if spritesRunning < 0 {
-		spritesRunning = 0
-	}
+	// Use worker pool atomic active counters for accurate running numbers.
+	// This matches the same data source used by JobStatusService for the SSE header,
+	// avoiding the race-prone (DB count - channel size) calculation.
+	pendingByPhase, _ := h.jobHistoryService.CountPendingByPhase()
 
 	c.JSON(http.StatusOK, gin.H{
 		"data":         jobs,
@@ -99,9 +75,12 @@ func (h *JobHandler) ListJobs(c *gin.Context) {
 			"metadata_queued":   queueStatus.MetadataQueued,
 			"thumbnail_queued":  queueStatus.ThumbnailQueued,
 			"sprites_queued":    queueStatus.SpritesQueued,
-			"metadata_running":  metadataRunning,
-			"thumbnail_running": thumbnailRunning,
-			"sprites_running":   spritesRunning,
+			"metadata_running":  queueStatus.MetadataActive,
+			"thumbnail_running": queueStatus.ThumbnailActive,
+			"sprites_running":   queueStatus.SpritesActive,
+			"metadata_pending":  pendingByPhase["metadata"],
+			"thumbnail_pending": pendingByPhase["thumbnail"],
+			"sprites_pending":   pendingByPhase["sprites"],
 		},
 	})
 }

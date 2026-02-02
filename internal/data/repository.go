@@ -109,6 +109,15 @@ type SceneRepository interface {
 	BulkUpdateStudio(sceneIDs []uint, studio string) error
 	UpdateActors(id uint, actors []string) error
 	UpdateOriginAndType(id uint, origin, sceneType string) error
+
+	// Trash management
+	MoveToTrash(id uint) (*time.Time, error)
+	RestoreFromTrash(id uint) error
+	HardDelete(id uint) (*Scene, error)
+	ListTrashed(page, limit int) ([]Scene, int64, error)
+	CountTrashed() (int64, error)
+	GetExpiredTrashScenes(retentionDays int) ([]Scene, error)
+	GetByIDIncludingTrashed(id uint) (*Scene, error)
 }
 
 type SceneRepositoryImpl struct {
@@ -129,11 +138,11 @@ func (r *SceneRepositoryImpl) List(page, limit int) ([]Scene, int64, error) {
 
 	offset := (page - 1) * limit
 
-	if err := r.DB.Model(&Scene{}).Count(&total).Error; err != nil {
+	if err := r.DB.Model(&Scene{}).Where("trashed_at IS NULL").Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	if err := r.DB.Limit(limit).Offset(offset).Order("created_at desc").Find(&scenes).Error; err != nil {
+	if err := r.DB.Where("trashed_at IS NULL").Limit(limit).Offset(offset).Order("created_at desc").Find(&scenes).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -142,7 +151,7 @@ func (r *SceneRepositoryImpl) List(page, limit int) ([]Scene, int64, error) {
 
 func (r *SceneRepositoryImpl) GetByID(id uint) (*Scene, error) {
 	var scene Scene
-	if err := r.DB.First(&scene, id).Error; err != nil {
+	if err := r.DB.Where("trashed_at IS NULL").First(&scene, id).Error; err != nil {
 		return nil, err
 	}
 	return &scene, nil
@@ -154,7 +163,7 @@ func (r *SceneRepositoryImpl) GetByIDs(ids []uint) ([]Scene, error) {
 	}
 
 	var scenes []Scene
-	if err := r.DB.Where("id IN ?", ids).Find(&scenes).Error; err != nil {
+	if err := r.DB.Where("id IN ? AND trashed_at IS NULL", ids).Find(&scenes).Error; err != nil {
 		return nil, err
 	}
 
@@ -176,7 +185,7 @@ func (r *SceneRepositoryImpl) GetByIDs(ids []uint) ([]Scene, error) {
 
 func (r *SceneRepositoryImpl) GetAll() ([]Scene, error) {
 	var scenes []Scene
-	if err := r.DB.Find(&scenes).Error; err != nil {
+	if err := r.DB.Where("trashed_at IS NULL").Find(&scenes).Error; err != nil {
 		return nil, err
 	}
 	return scenes, nil
@@ -241,7 +250,7 @@ func (r *SceneRepositoryImpl) UpdateProcessingStatus(id uint, status string, err
 
 func (r *SceneRepositoryImpl) GetPendingProcessing() ([]Scene, error) {
 	var scenes []Scene
-	if err := r.DB.Where("processing_status = ?", "pending").Find(&scenes).Error; err != nil {
+	if err := r.DB.Where("processing_status = ? AND trashed_at IS NULL", "pending").Find(&scenes).Error; err != nil {
 		return nil, err
 	}
 	return scenes, nil
@@ -253,6 +262,7 @@ func (r *SceneRepositoryImpl) GetScenesNeedingPhase(phase string) ([]Scene, erro
 	baseQuery := r.DB.Model(&Scene{}).
 		Where("processing_status != ?", "failed").
 		Where("deleted_at IS NULL").
+		Where("trashed_at IS NULL").
 		Where("NOT EXISTS (SELECT 1 FROM job_history jh WHERE jh.scene_id = scenes.id AND jh.phase = ? AND jh.status = 'running')", phase)
 
 	switch phase {
@@ -274,7 +284,7 @@ func (r *SceneRepositoryImpl) GetScenesNeedingPhase(phase string) ([]Scene, erro
 
 func (r *SceneRepositoryImpl) Delete(id uint) error {
 	var scene Scene
-	if err := r.DB.First(&scene, id).Error; err != nil {
+	if err := r.DB.Where("trashed_at IS NULL").First(&scene, id).Error; err != nil {
 		return err
 	}
 	return r.DB.Delete(&scene).Error
@@ -331,7 +341,7 @@ func (r *SceneRepositoryImpl) GetDistinctActors() ([]string, error) {
 
 func (r *SceneRepositoryImpl) ExistsByStoredPath(path string) (bool, error) {
 	var count int64
-	if err := r.DB.Model(&Scene{}).Where("stored_path = ?", path).Count(&count).Error; err != nil {
+	if err := r.DB.Model(&Scene{}).Where("stored_path = ? AND trashed_at IS NULL", path).Count(&count).Error; err != nil {
 		return false, err
 	}
 	return count > 0, nil
@@ -339,7 +349,7 @@ func (r *SceneRepositoryImpl) ExistsByStoredPath(path string) (bool, error) {
 
 func (r *SceneRepositoryImpl) GetByStoredPath(path string) (*Scene, error) {
 	var scene Scene
-	if err := r.DB.Where("stored_path = ?", path).First(&scene).Error; err != nil {
+	if err := r.DB.Where("stored_path = ? AND trashed_at IS NULL", path).First(&scene).Error; err != nil {
 		return nil, err
 	}
 	return &scene, nil
@@ -347,7 +357,7 @@ func (r *SceneRepositoryImpl) GetByStoredPath(path string) (*Scene, error) {
 
 func (r *SceneRepositoryImpl) GetAllWithStoragePath() ([]Scene, error) {
 	var scenes []Scene
-	if err := r.DB.Where("storage_path_id IS NOT NULL").Find(&scenes).Error; err != nil {
+	if err := r.DB.Where("storage_path_id IS NOT NULL AND trashed_at IS NULL").Find(&scenes).Error; err != nil {
 		return nil, err
 	}
 	return scenes, nil
@@ -362,7 +372,7 @@ func (r *SceneRepositoryImpl) CreateInBatches(scenes []*Scene, batchSize int) er
 
 func (r *SceneRepositoryImpl) GetAllStoredPathSet() (map[string]struct{}, error) {
 	var paths []string
-	if err := r.DB.Model(&Scene{}).Where("storage_path_id IS NOT NULL").Pluck("stored_path", &paths).Error; err != nil {
+	if err := r.DB.Model(&Scene{}).Where("storage_path_id IS NOT NULL AND trashed_at IS NULL").Pluck("stored_path", &paths).Error; err != nil {
 		return nil, err
 	}
 	result := make(map[string]struct{}, len(paths))
@@ -386,7 +396,7 @@ func (r *SceneRepositoryImpl) GetScenePathsForMissingDetection() ([]ScenePathInf
 	var entries []ScenePathInfo
 	if err := r.DB.Model(&Scene{}).
 		Select("id, stored_path, storage_path_id, title").
-		Where("storage_path_id IS NOT NULL").
+		Where("storage_path_id IS NOT NULL AND trashed_at IS NULL").
 		Find(&entries).Error; err != nil {
 		return nil, err
 	}
@@ -449,6 +459,75 @@ func (r *SceneRepositoryImpl) UpdateOriginAndType(id uint, origin, sceneType str
 		return nil
 	}
 	return r.DB.Model(&Scene{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (r *SceneRepositoryImpl) MoveToTrash(id uint) (*time.Time, error) {
+	now := time.Now()
+	if err := r.DB.Model(&Scene{}).Where("id = ?", id).Update("trashed_at", now).Error; err != nil {
+		return nil, err
+	}
+	return &now, nil
+}
+
+func (r *SceneRepositoryImpl) RestoreFromTrash(id uint) error {
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Update("trashed_at", nil).Error
+}
+
+func (r *SceneRepositoryImpl) HardDelete(id uint) (*Scene, error) {
+	var scene Scene
+	// Use Unscoped to find even soft-deleted scenes, and include trashed
+	if err := r.DB.Unscoped().First(&scene, id).Error; err != nil {
+		return nil, err
+	}
+	// Permanently delete
+	if err := r.DB.Unscoped().Delete(&scene).Error; err != nil {
+		return nil, err
+	}
+	return &scene, nil
+}
+
+func (r *SceneRepositoryImpl) ListTrashed(page, limit int) ([]Scene, int64, error) {
+	var scenes []Scene
+	var total int64
+
+	offset := (page - 1) * limit
+
+	if err := r.DB.Model(&Scene{}).Where("trashed_at IS NOT NULL").Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if err := r.DB.Where("trashed_at IS NOT NULL").
+		Limit(limit).Offset(offset).Order("trashed_at desc").Find(&scenes).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return scenes, total, nil
+}
+
+func (r *SceneRepositoryImpl) CountTrashed() (int64, error) {
+	var count int64
+	if err := r.DB.Model(&Scene{}).Where("trashed_at IS NOT NULL").Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (r *SceneRepositoryImpl) GetExpiredTrashScenes(retentionDays int) ([]Scene, error) {
+	var scenes []Scene
+	cutoff := time.Now().AddDate(0, 0, -retentionDays)
+	if err := r.DB.Where("trashed_at IS NOT NULL AND trashed_at < ?", cutoff).Find(&scenes).Error; err != nil {
+		return nil, err
+	}
+	return scenes, nil
+}
+
+func (r *SceneRepositoryImpl) GetByIDIncludingTrashed(id uint) (*Scene, error) {
+	var scene Scene
+	// Use Unscoped to include soft-deleted, and query trashed scenes too
+	if err := r.DB.Unscoped().First(&scene, id).Error; err != nil {
+		return nil, err
+	}
+	return &scene, nil
 }
 
 type UserRepositoryImpl struct {

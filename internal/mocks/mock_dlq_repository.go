@@ -99,6 +99,21 @@ func (mr *MockDLQRepositoryMockRecorder) Delete(jobID any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockDLQRepository)(nil).Delete), jobID)
 }
 
+// DeleteBySceneID mocks base method.
+func (m *MockDLQRepository) DeleteBySceneID(sceneID uint) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteBySceneID", sceneID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteBySceneID indicates an expected call of DeleteBySceneID.
+func (mr *MockDLQRepositoryMockRecorder) DeleteBySceneID(sceneID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteBySceneID", reflect.TypeOf((*MockDLQRepository)(nil).DeleteBySceneID), sceneID)
+}
+
 // GetByJobID mocks base method.
 func (m *MockDLQRepository) GetByJobID(jobID string) (*data.DLQEntry, error) {
 	m.ctrl.T.Helper()

@@ -17,6 +17,7 @@ type SceneListItem struct {
 	ProcessingStatus string    `json:"processing_status"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
+	StoredPath       string    `json:"stored_path"`
 }
 
 // ToSceneListItem converts a full Scene model to a lightweight SceneListItem.
@@ -30,6 +31,7 @@ func ToSceneListItem(v data.Scene) SceneListItem {
 		ProcessingStatus: v.ProcessingStatus,
 		CreatedAt:        v.CreatedAt,
 		UpdatedAt:        v.UpdatedAt,
+		StoredPath:       v.StoredPath,
 	}
 }
 

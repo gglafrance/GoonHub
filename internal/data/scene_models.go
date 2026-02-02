@@ -80,7 +80,7 @@ type Scene struct {
 	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`
 	Title            string         `json:"title"`
 	OriginalFilename string         `json:"original_filename"`
-	StoredPath       string         `json:"-"` // Don't expose internal path
+	StoredPath       string         `json:"stored_path"`
 	Size             int64          `json:"size"`
 	ViewCount        int64          `json:"view_count"`
 	Duration         int            `json:"duration"`
@@ -111,6 +111,7 @@ type Scene struct {
 	PornDBSceneID    string         `json:"porndb_scene_id" gorm:"column:porndb_scene_id"`
 	Origin           string         `json:"origin" gorm:"size:100"`
 	Type             string         `json:"type" gorm:"size:50"`
+	TrashedAt        *time.Time     `json:"trashed_at,omitempty" gorm:"index"`
 }
 
 func (Scene) TableName() string {

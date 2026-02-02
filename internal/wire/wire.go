@@ -72,6 +72,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Search Config Repository
 		provideSearchConfigRepository,
 
+		// App Settings Repository
+		provideAppSettingsRepository,
+
 		// Saved Search Repository
 		provideSavedSearchRepository,
 
@@ -308,6 +311,10 @@ func provideSearchConfigRepository(db *gorm.DB) data.SearchConfigRepository {
 	return data.NewSearchConfigRepository(db)
 }
 
+func provideAppSettingsRepository(db *gorm.DB) data.AppSettingsRepository {
+	return data.NewAppSettingsRepository(db)
+}
+
 func provideSavedSearchRepository(db *gorm.DB) data.SavedSearchRepository {
 	return data.NewSavedSearchRepository(db)
 }
@@ -385,8 +392,8 @@ func provideAdminService(userRepo data.UserRepository, roleRepo data.RoleReposit
 
 // --- Scene & Content Services ---
 
-func provideSceneService(repo data.SceneRepository, cfg *config.Config, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger) *core.SceneService {
-	return core.NewSceneService(repo, cfg.Processing.VideoDir, cfg.Processing.MetadataDir, processingService, eventBus, logger.Logger)
+func provideSceneService(repo data.SceneRepository, cfg *config.Config, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger, jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, appSettingsRepo data.AppSettingsRepository) *core.SceneService {
+	return core.NewSceneService(repo, cfg.Processing.VideoDir, cfg.Processing.MetadataDir, processingService, eventBus, logger.Logger, jobHistoryRepo, dlqRepo, appSettingsRepo)
 }
 
 func provideTagService(tagRepo data.TagRepository, sceneRepo data.SceneRepository, logger *logging.Logger) *core.TagService {
@@ -538,8 +545,8 @@ func provideAuthHandler(authService *core.AuthService, userService *core.UserSer
 	return handler.NewAuthHandlerWithConfig(authService, userService, cfg.Auth.TokenDuration, secureCookies)
 }
 
-func provideAdminHandler(adminService *core.AdminService, rbacService *core.RBACService) *handler.AdminHandler {
-	return handler.NewAdminHandler(adminService, rbacService)
+func provideAdminHandler(adminService *core.AdminService, rbacService *core.RBACService, sceneService *core.SceneService) *handler.AdminHandler {
+	return handler.NewAdminHandler(adminService, rbacService, sceneService)
 }
 
 func provideSettingsHandler(settingsService *core.SettingsService) *handler.SettingsHandler {

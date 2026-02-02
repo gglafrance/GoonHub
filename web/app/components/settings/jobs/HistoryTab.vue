@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { JobHistory, JobListResponse, QueueStatus } from '~/types/jobs';
+import type { JobHistory, JobListResponse } from '~/types/jobs';
 
 const { fetchJobs } = useApiJobs();
 const { formatDuration, formatTime, statusClass, phaseLabel, phaseIcon } = useJobFormatting();
@@ -7,14 +7,6 @@ const { formatDuration, formatTime, statusClass, phaseLabel, phaseIcon } = useJo
 const loading = ref(false);
 const historyJobs = ref<JobHistory[]>([]);
 const activeJobs = ref<JobHistory[]>([]);
-const queueStatus = ref<QueueStatus>({
-    metadata_queued: 0,
-    thumbnail_queued: 0,
-    sprites_queued: 0,
-    metadata_running: 0,
-    thumbnail_running: 0,
-    sprites_running: 0,
-});
 const poolConfig = ref({ metadata_workers: 0, thumbnail_workers: 0, sprites_workers: 0 });
 const retention = ref('');
 const error = ref('');
@@ -26,7 +18,6 @@ const loadJobs = async (silent = false) => {
         const data: JobListResponse = await fetchJobs(page.value, limit.value);
         historyJobs.value = data.data || [];
         activeJobs.value = data.active_jobs || [];
-        queueStatus.value = data.queue_status;
         poolConfig.value = data.pool_config;
         setTotal(data.total);
         retention.value = data.retention;
@@ -60,17 +51,11 @@ onMounted(() => {
             {{ error }}
         </div>
 
-        <!-- Queue Status Panel -->
-        <SettingsJobsQueueStatus
-            :queue-status="queueStatus"
-            :pool-config="poolConfig"
-            :auto-refresh="autoRefresh"
-            @toggle-auto-refresh="toggleAutoRefresh"
-            @refresh="loadJobs()"
-        />
+        <!-- Queue Status Panel (live via SSE) -->
+        <SettingsJobsQueueStatus :pool-config="poolConfig" />
 
         <!-- Active Jobs -->
-        <SettingsJobsActiveJobs :active-jobs="activeJobs" :queue-status="queueStatus" />
+        <SettingsJobsActiveJobs :active-jobs="activeJobs" />
 
         <!-- Job History Table -->
         <div class="glass-panel p-5">

@@ -13,12 +13,14 @@ import (
 type AdminHandler struct {
 	AdminService *core.AdminService
 	RBACService  *core.RBACService
+	SceneService *core.SceneService
 }
 
-func NewAdminHandler(adminService *core.AdminService, rbacService *core.RBACService) *AdminHandler {
+func NewAdminHandler(adminService *core.AdminService, rbacService *core.RBACService, sceneService *core.SceneService) *AdminHandler {
 	return &AdminHandler{
 		AdminService: adminService,
 		RBACService:  rbacService,
+		SceneService: sceneService,
 	}
 }
 
@@ -186,4 +188,101 @@ func (h *AdminHandler) SyncRolePermissions(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Role permissions updated successfully"})
+}
+
+// Trash management endpoints
+
+func (h *AdminHandler) ListTrash(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+
+	scenes, total, err := h.SceneService.ListTrashedScenes(page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list trashed scenes"})
+		return
+	}
+
+	// Calculate expiry dates
+	retentionDays := h.SceneService.GetTrashRetentionDays()
+
+	type trashedSceneResponse struct {
+		ID            uint   `json:"id"`
+		Title         string `json:"title"`
+		ThumbnailPath string `json:"thumbnail_path"`
+		TrashedAt     string `json:"trashed_at"`
+		ExpiresAt     string `json:"expires_at"`
+	}
+
+	results := make([]trashedSceneResponse, 0, len(scenes))
+	for _, s := range scenes {
+		if s.TrashedAt == nil {
+			continue
+		}
+		expiresAt := s.TrashedAt.AddDate(0, 0, retentionDays)
+		results = append(results, trashedSceneResponse{
+			ID:            s.ID,
+			Title:         s.Title,
+			ThumbnailPath: s.ThumbnailPath,
+			TrashedAt:     s.TrashedAt.Format("2006-01-02T15:04:05Z"),
+			ExpiresAt:     expiresAt.Format("2006-01-02T15:04:05Z"),
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":           results,
+		"total":          total,
+		"page":           page,
+		"limit":          limit,
+		"retention_days": retentionDays,
+	})
+}
+
+func (h *AdminHandler) RestoreScene(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
+		return
+	}
+
+	if err := h.SceneService.RestoreSceneFromTrash(uint(id)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Scene restored from trash"})
+}
+
+func (h *AdminHandler) PermanentDeleteScene(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
+		return
+	}
+
+	if err := h.SceneService.HardDeleteScene(uint(id)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+func (h *AdminHandler) EmptyTrash(c *gin.Context) {
+	deleted, err := h.SceneService.EmptyTrash()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Trash emptied",
+		"deleted": deleted,
+	})
 }

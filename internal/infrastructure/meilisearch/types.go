@@ -5,6 +5,7 @@ type SceneDocument struct {
 	ID               uint     `json:"id"`
 	Title            string   `json:"title"`
 	OriginalFilename string   `json:"original_filename"`
+	Path             string   `json:"path"`
 	Description      string   `json:"description"`
 	Studio           string   `json:"studio"`
 	Actors           []string `json:"actors"`

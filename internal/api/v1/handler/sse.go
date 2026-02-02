@@ -27,15 +27,19 @@ func NewSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobSt
 	}
 }
 
-// isJobRelatedEvent returns true for events that indicate job state changes
-func isJobRelatedEvent(eventType string) bool {
-	switch eventType {
-	case "scene:metadata_complete", "scene:thumbnail_complete", "scene:sprites_complete",
-		"scene:completed", "scene:failed", "scene:cancelled", "scene:timed_out":
-		return true
-	default:
-		return false
+// writeJobStatus marshals and writes the current job status as an SSE event.
+func (h *SSEHandler) writeJobStatus(c *gin.Context) error {
+	status := h.jobStatusService.GetJobStatus()
+	statusData, err := json.Marshal(status)
+	if err != nil {
+		return nil // Marshal error, not a connection issue
 	}
+	_, writeErr := fmt.Fprintf(c.Writer, "event: jobs:status\ndata: %s\n\n", statusData)
+	if writeErr != nil {
+		return writeErr
+	}
+	c.Writer.Flush()
+	return nil
 }
 
 func (h *SSEHandler) Stream(c *gin.Context) {
@@ -65,11 +69,7 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 
 	// Send initial job status immediately after connection
 	if h.jobStatusService != nil {
-		status := h.jobStatusService.GetJobStatus()
-		if statusData, err := json.Marshal(status); err == nil {
-			fmt.Fprintf(c.Writer, "event: jobs:status\ndata: %s\n\n", statusData)
-			c.Writer.Flush()
-		}
+		h.writeJobStatus(c)
 	}
 
 	subscriberID, eventCh := h.eventBus.Subscribe()
@@ -77,8 +77,11 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 
 	h.logger.Debug("SSE client connected", zap.String("subscriber_id", subscriberID))
 
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
+	pingTicker := time.NewTicker(30 * time.Second)
+	defer pingTicker.Stop()
+
+	statusTicker := time.NewTicker(3 * time.Second)
+	defer statusTicker.Stop()
 
 	clientGone := c.Request.Context().Done()
 
@@ -105,17 +108,17 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 				return
 			}
 			c.Writer.Flush()
-
-			// Broadcast job status after job-related events
-			if h.jobStatusService != nil && isJobRelatedEvent(event.Type) {
-				h.logger.Debug("Broadcasting job status after event", zap.String("event_type", event.Type))
-				status := h.jobStatusService.GetJobStatus()
-				if statusData, err := json.Marshal(status); err == nil {
-					fmt.Fprintf(c.Writer, "event: jobs:status\ndata: %s\n\n", statusData)
-					c.Writer.Flush()
+		case <-statusTicker.C:
+			if h.jobStatusService != nil {
+				if writeErr := h.writeJobStatus(c); writeErr != nil {
+					h.logger.Debug("SSE job status write failed, client likely disconnected",
+						zap.String("subscriber_id", subscriberID),
+						zap.Error(writeErr),
+					)
+					return
 				}
 			}
-		case <-ticker.C:
+		case <-pingTicker.C:
 			_, writeErr := fmt.Fprintf(c.Writer, ": ping\n\n")
 			if writeErr != nil {
 				h.logger.Debug("SSE ping failed, client likely disconnected",
@@ -125,23 +128,6 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 				return
 			}
 			c.Writer.Flush()
-
-			// Broadcast job status with each ping
-			if h.jobStatusService != nil {
-				status := h.jobStatusService.GetJobStatus()
-				statusData, err := json.Marshal(status)
-				if err == nil {
-					_, writeErr = fmt.Fprintf(c.Writer, "event: jobs:status\ndata: %s\n\n", statusData)
-					if writeErr != nil {
-						h.logger.Debug("SSE job status write failed, client likely disconnected",
-							zap.String("subscriber_id", subscriberID),
-							zap.Error(writeErr),
-						)
-						return
-					}
-					c.Writer.Flush()
-				}
-			}
 		}
 	}
 }

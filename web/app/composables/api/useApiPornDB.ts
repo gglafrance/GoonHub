@@ -12,19 +12,21 @@ export const useApiPornDB = () => {
         return handleResponse(response);
     };
 
-    const searchPornDBPerformers = async (query: string) => {
+    const searchPornDBPerformers = async (query: string, signal?: AbortSignal) => {
         const params = new URLSearchParams({ q: query });
         const response = await fetch(`/api/v1/admin/porndb/performers?${params}`, {
             headers: getAuthHeaders(),
+            signal,
             ...fetchOptions(),
         });
         const result = await handleResponse(response);
         return result.data || [];
     };
 
-    const getPornDBPerformer = async (id: string) => {
+    const getPornDBPerformer = async (id: string, signal?: AbortSignal) => {
         const response = await fetch(`/api/v1/admin/porndb/performers/${id}`, {
             headers: getAuthHeaders(),
+            signal,
             ...fetchOptions(),
         });
         const result = await handleResponse(response);
@@ -60,19 +62,21 @@ export const useApiPornDB = () => {
         return result.data;
     };
 
-    const searchPornDBSites = async (query: string) => {
+    const searchPornDBSites = async (query: string, signal?: AbortSignal) => {
         const params = new URLSearchParams({ q: query });
         const response = await fetch(`/api/v1/admin/porndb/sites?${params}`, {
             headers: getAuthHeaders(),
+            signal,
             ...fetchOptions(),
         });
         const result = await handleResponse(response);
         return result.data || [];
     };
 
-    const getPornDBSite = async (id: string) => {
+    const getPornDBSite = async (id: string, signal?: AbortSignal) => {
         const response = await fetch(`/api/v1/admin/porndb/sites/${id}`, {
             headers: getAuthHeaders(),
+            signal,
             ...fetchOptions(),
         });
         const result = await handleResponse(response);

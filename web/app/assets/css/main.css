@@ -58,8 +58,7 @@ body {
 /* Glass panel utility */
 @utility glass-panel {
     background-color: rgba(10, 10, 10, 0.3);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    @apply backdrop-blur-lg;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
 }

@@ -17,7 +17,7 @@ useSeoMeta({
 const entries = ref<WatchHistoryEntry[]>([]);
 const isLoading = ref(true);
 const total = ref(0);
-const page = ref(1);
+const page = useUrlPagination();
 const limit = computed(() => settingsStore.videosPerPage);
 
 // Filter out entries where scene was deleted
@@ -53,7 +53,7 @@ watch(
 );
 
 onMounted(() => {
-    loadHistory();
+    loadHistory(page.value);
 });
 
 definePageMeta({

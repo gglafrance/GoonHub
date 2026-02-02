@@ -11,7 +11,7 @@ const settingsStore = useSettingsStore();
 const studio = ref<Studio | null>(null);
 const scenes = ref<Scene[]>([]);
 const scenesTotal = ref(0);
-const scenesPage = ref(1);
+const scenesPage = useUrlPagination();
 const scenesLimit = computed(() => settingsStore.videosPerPage);
 const isLoading = ref(true);
 const isLoadingScenes = ref(false);
@@ -61,7 +61,7 @@ const loadStudio = async () => {
         isLoading.value = true;
         error.value = null;
         studio.value = await api.fetchStudioByUUID(studioUuid.value);
-        await Promise.all([loadScenes(), loadInteractions()]);
+        await Promise.all([loadScenes(scenesPage.value), loadInteractions()]);
     } catch (err) {
         error.value = err instanceof Error ? err.message : 'Failed to load studio';
     } finally {
@@ -137,13 +137,12 @@ async function onLikeClick() {
     }
 }
 
-const loadScenes = async (page = 1) => {
+const loadScenes = async (page: number) => {
     try {
         isLoadingScenes.value = true;
         const response = await api.fetchStudioScenes(studioUuid.value, page, scenesLimit.value);
         scenes.value = response.data;
         scenesTotal.value = response.total;
-        scenesPage.value = page;
     } catch {
         // Ignore scene loading errors
     } finally {

@@ -68,6 +68,14 @@ export const useSceneStore = defineStore('scenes', () => {
         }
     };
 
+    const removeScene = (sceneId: number) => {
+        const idx = scenes.value.findIndex((s) => s.id === sceneId);
+        if (idx !== -1) {
+            scenes.value.splice(idx, 1);
+            total.value = Math.max(0, total.value - 1);
+        }
+    };
+
     return {
         scenes,
         total,
@@ -79,5 +87,6 @@ export const useSceneStore = defineStore('scenes', () => {
         uploadScene,
         updateSceneFields,
         prependScene,
+        removeScene,
     };
 });
