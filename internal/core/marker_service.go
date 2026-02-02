@@ -18,24 +18,26 @@ import (
 )
 
 const maxMarkersPerScene = 50
-const markerThumbnailMaxDimension = 320
-const markerThumbnailQuality = 75
 
 type MarkerService struct {
-	markerRepo         data.MarkerRepository
-	sceneRepo          data.SceneRepository
-	tagRepo            data.TagRepository
-	markerThumbnailDir string
-	logger             *zap.Logger
+	markerRepo              data.MarkerRepository
+	sceneRepo               data.SceneRepository
+	tagRepo                 data.TagRepository
+	markerThumbnailDir      string
+	markerThumbnailMaxDim   int
+	markerThumbnailQuality  int
+	logger                  *zap.Logger
 }
 
 func NewMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *zap.Logger) *MarkerService {
 	return &MarkerService{
-		markerRepo:         markerRepo,
-		sceneRepo:          sceneRepo,
-		tagRepo:            tagRepo,
-		markerThumbnailDir: cfg.Processing.MarkerThumbnailDir,
-		logger:             logger,
+		markerRepo:             markerRepo,
+		sceneRepo:              sceneRepo,
+		tagRepo:                tagRepo,
+		markerThumbnailDir:     cfg.Processing.MarkerThumbnailDir,
+		markerThumbnailMaxDim:  cfg.Processing.MaxFrameDimension,
+		markerThumbnailQuality: cfg.Processing.FrameQuality,
+		logger:                 logger,
 	}
 }
 
@@ -426,7 +428,7 @@ func (s *MarkerService) generateThumbnail(marker *data.UserSceneMarker, scene *d
 	}
 
 	// Calculate dimensions preserving aspect ratio
-	tileWidth, tileHeight := ffmpeg.CalculateTileDimensions(scene.Width, scene.Height, markerThumbnailMaxDimension)
+	tileWidth, tileHeight := ffmpeg.CalculateTileDimensions(scene.Width, scene.Height, s.markerThumbnailMaxDim)
 
 	// Generate thumbnail filename: marker_{id}.webp
 	thumbnailFilename := fmt.Sprintf("marker_%d.webp", marker.ID)
@@ -439,7 +441,7 @@ func (s *MarkerService) generateThumbnail(marker *data.UserSceneMarker, scene *d
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := ffmpeg.ExtractThumbnailWithContext(ctx, scene.StoredPath, thumbnailPath, seekPosition, tileWidth, tileHeight, markerThumbnailQuality); err != nil {
+	if err := ffmpeg.ExtractThumbnailWithContext(ctx, scene.StoredPath, thumbnailPath, seekPosition, tileWidth, tileHeight, s.markerThumbnailQuality); err != nil {
 		return fmt.Errorf("failed to extract thumbnail: %w", err)
 	}
 

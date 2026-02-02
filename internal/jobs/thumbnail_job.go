@@ -272,13 +272,10 @@ func (j *ThumbnailJob) handleError(err error) {
 	j.repo.UpdateProcessingStatus(j.sceneID, string(JobStatusFailed), err.Error())
 }
 
-const (
-	markerThumbnailMaxDimension = 320
-	markerThumbnailQuality      = 75
-)
-
 // generateMissingMarkerThumbnails checks for scene markers without thumbnails and generates them.
 // This is best-effort: failures are logged but do not fail the overall thumbnail job.
+// Uses the same configurable quality (frameQualitySm) and dimensions (tileWidth/tileHeight)
+// as the small scene thumbnail to respect processing settings.
 func (j *ThumbnailJob) generateMissingMarkerThumbnails() {
 	if j.markerRepo == nil || j.markerThumbnailDir == "" {
 		return
@@ -307,8 +304,6 @@ func (j *ThumbnailJob) generateMissingMarkerThumbnails() {
 		return
 	}
 
-	tileWidth, tileHeight := ffmpeg.CalculateTileDimensions(j.sceneWidth, j.sceneHeight, markerThumbnailMaxDimension)
-
 	generated := 0
 	for i := range markers {
 		// Only stop on explicit user cancellation, not on job timeout —
@@ -330,7 +325,7 @@ func (j *ThumbnailJob) generateMissingMarkerThumbnails() {
 
 		// Use background context so marker thumbnails are not killed by the job timeout
 		extractCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		if err := ffmpeg.ExtractThumbnailWithContext(extractCtx, j.scenePath, thumbnailPath, seekPosition, tileWidth, tileHeight, markerThumbnailQuality); err != nil {
+		if err := ffmpeg.ExtractThumbnailWithContext(extractCtx, j.scenePath, thumbnailPath, seekPosition, j.tileWidth, j.tileHeight, j.frameQualitySm); err != nil {
 			cancel()
 			j.logger.Warn("Failed to generate marker thumbnail",
 				zap.Uint("marker_id", marker.ID),
