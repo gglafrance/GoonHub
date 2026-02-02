@@ -62,6 +62,7 @@ export interface FolderSceneIDsResponse {
 
 export interface BulkDeleteRequest {
     scene_ids: number[];
+    permanent?: boolean;
 }
 
 export interface BulkDeleteResponse {

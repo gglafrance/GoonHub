@@ -29,7 +29,8 @@ type FolderSceneIDsRequest struct {
 
 // BulkDeleteRequest represents a request to delete multiple videos
 type BulkDeleteRequest struct {
-	SceneIDs []uint `json:"scene_ids" binding:"required,min=1"`
+	SceneIDs  []uint `json:"scene_ids" binding:"required,min=1"`
+	Permanent bool   `json:"permanent"` // false = trash (default), true = permanent delete
 }
 
 // FolderSearchRequest represents a request to search within a folder

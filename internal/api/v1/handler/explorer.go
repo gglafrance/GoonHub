@@ -167,7 +167,7 @@ func (h *ExplorerHandler) BulkDeleteScenes(c *gin.Context) {
 		return
 	}
 
-	deleted, err := h.Service.BulkDeleteScenes(req.SceneIDs)
+	deleted, err := h.Service.BulkDeleteScenes(req.SceneIDs, req.Permanent)
 	if err != nil {
 		response.Error(c, err)
 		return

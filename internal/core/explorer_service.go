@@ -19,6 +19,7 @@ type ExplorerService struct {
 	sceneRepo       data.SceneRepository
 	tagRepo         data.TagRepository
 	actorRepo       data.ActorRepository
+	jobHistoryRepo  data.JobHistoryRepository
 	eventBus        *EventBus
 	logger          *zap.Logger
 	indexer         SceneIndexer
@@ -33,6 +34,7 @@ func NewExplorerService(
 	sceneRepo data.SceneRepository,
 	tagRepo data.TagRepository,
 	actorRepo data.ActorRepository,
+	jobHistoryRepo data.JobHistoryRepository,
 	eventBus *EventBus,
 	logger *zap.Logger,
 	metadataPath string,
@@ -43,6 +45,7 @@ func NewExplorerService(
 		sceneRepo:       sceneRepo,
 		tagRepo:         tagRepo,
 		actorRepo:       actorRepo,
+		jobHistoryRepo:  jobHistoryRepo,
 		eventBus:        eventBus,
 		logger:          logger,
 		metadataPath:    metadataPath,
@@ -363,8 +366,10 @@ func (s *ExplorerService) BulkUpdateStudio(req BulkUpdateStudioRequest) (int, er
 	return len(req.SceneIDs), nil
 }
 
-// BulkDeleteScenes deletes multiple scenes and their associated files
-func (s *ExplorerService) BulkDeleteScenes(sceneIDs []uint) (int, error) {
+// BulkDeleteScenes deletes multiple scenes.
+// If permanent is false, scenes are moved to trash (files preserved).
+// If permanent is true, scenes are hard deleted (files removed).
+func (s *ExplorerService) BulkDeleteScenes(sceneIDs []uint, permanent bool) (int, error) {
 	if len(sceneIDs) == 0 {
 		return 0, apperrors.NewValidationError("at least one scene ID is required")
 	}
@@ -377,13 +382,35 @@ func (s *ExplorerService) BulkDeleteScenes(sceneIDs []uint) (int, error) {
 
 	deleted := 0
 	for _, scene := range scenes {
-		// Delete from database (soft delete)
-		if err := s.sceneRepo.Delete(scene.ID); err != nil {
-			s.logger.Warn("Failed to delete scene from database",
-				zap.Uint("id", scene.ID),
-				zap.Error(err),
-			)
-			continue
+		// Cancel pending jobs for this scene
+		if s.jobHistoryRepo != nil {
+			if _, err := s.jobHistoryRepo.CancelPendingJobsForScene(scene.ID); err != nil {
+				s.logger.Warn("Failed to cancel pending jobs for scene",
+					zap.Uint("id", scene.ID),
+					zap.Error(err),
+				)
+			}
+		}
+
+		if permanent {
+			// Hard delete: remove from DB and delete files
+			if _, err := s.sceneRepo.HardDelete(scene.ID); err != nil {
+				s.logger.Warn("Failed to hard delete scene",
+					zap.Uint("id", scene.ID),
+					zap.Error(err),
+				)
+				continue
+			}
+			s.deleteSceneFiles(&scene)
+		} else {
+			// Soft delete: move to trash (files preserved)
+			if _, err := s.sceneRepo.MoveToTrash(scene.ID); err != nil {
+				s.logger.Warn("Failed to move scene to trash",
+					zap.Uint("id", scene.ID),
+					zap.Error(err),
+				)
+				continue
+			}
 		}
 
 		// Remove from search index
@@ -396,21 +423,28 @@ func (s *ExplorerService) BulkDeleteScenes(sceneIDs []uint) (int, error) {
 			}
 		}
 
-		// Delete physical files
-		s.deleteSceneFiles(&scene)
 		deleted++
 	}
 
-	// Emit bulk delete event
+	// Emit appropriate event
+	eventType := "scenes_bulk_trashed"
+	if permanent {
+		eventType = "scenes_bulk_deleted"
+	}
 	if s.eventBus != nil {
 		s.eventBus.Publish(SceneEvent{
-			Type:    "scenes_bulk_deleted",
+			Type:    eventType,
 			SceneID: 0, // Bulk operation
 		})
 	}
 
+	action := "trashed"
+	if permanent {
+		action = "deleted"
+	}
 	s.logger.Info("Bulk delete completed",
-		zap.Int("deleted", deleted),
+		zap.String("action", action),
+		zap.Int("affected", deleted),
 		zap.Int("requested", len(sceneIDs)),
 	)
 

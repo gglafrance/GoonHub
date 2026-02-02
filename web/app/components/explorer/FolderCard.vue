@@ -5,6 +5,10 @@ const props = defineProps<{
     folder: FolderInfo;
 }>();
 
+const emit = defineEmits<{
+    delete: [folder: FolderInfo];
+}>();
+
 const router = useRouter();
 const explorerStore = useExplorerStore();
 
@@ -12,6 +16,11 @@ const handleClick = () => {
     if (!explorerStore.currentStoragePathID) return;
     const cleanPath = props.folder.path.replace(/^\/+/, '');
     router.push(`/explorer/${explorerStore.currentStoragePathID}/${cleanPath}`);
+};
+
+const handleDelete = (e: Event) => {
+    e.stopPropagation();
+    emit('delete', props.folder);
 };
 
 const formatDuration = (seconds: number): string => {
@@ -36,31 +45,44 @@ const formatSize = (bytes: number): string => {
 </script>
 
 <template>
-    <button
-        @click="handleClick"
-        class="border-border bg-panel hover:border-lava/30 group flex flex-col items-center gap-2
-            rounded-lg border p-3 text-center transition-all"
-    >
-        <div
-            class="bg-lava/10 group-hover:bg-lava/20 flex h-10 w-10 items-center justify-center
-                rounded-lg transition-colors"
+    <div class="group relative">
+        <button
+            @click="handleClick"
+            class="border-border bg-panel hover:border-lava/30 flex w-full flex-col items-center
+                gap-2 rounded-lg border p-3 text-center transition-all"
         >
-            <Icon name="heroicons:folder" size="20" class="text-lava" />
-        </div>
+            <div
+                class="bg-lava/10 group-hover:bg-lava/20 flex h-10 w-10 items-center justify-center
+                    rounded-lg transition-colors"
+            >
+                <Icon name="heroicons:folder" size="20" class="text-lava" />
+            </div>
 
-        <div class="w-full min-w-0">
-            <h4 class="truncate text-xs font-medium text-white">{{ folder.name }}</h4>
-            <p class="text-dim mt-0.5 text-[10px]">
-                {{ folder.scene_count }} scenes
-                <template v-if="folder.total_duration > 0">
-                    <span class="mx-0.5 opacity-50">·</span>
-                    {{ formatDuration(folder.total_duration) }}
-                </template>
-                <template v-if="folder.total_size > 0">
-                    <span class="mx-0.5 opacity-50">·</span>
-                    {{ formatSize(folder.total_size) }}
-                </template>
-            </p>
-        </div>
-    </button>
+            <div class="w-full min-w-0">
+                <h4 class="truncate text-xs font-medium text-white">{{ folder.name }}</h4>
+                <p class="text-dim mt-0.5 text-[10px]">
+                    {{ folder.scene_count }} scenes
+                    <template v-if="folder.total_duration > 0">
+                        <span class="mx-0.5 opacity-50">·</span>
+                        {{ formatDuration(folder.total_duration) }}
+                    </template>
+                    <template v-if="folder.total_size > 0">
+                        <span class="mx-0.5 opacity-50">·</span>
+                        {{ formatSize(folder.total_size) }}
+                    </template>
+                </p>
+            </div>
+        </button>
+
+        <!-- Delete button (visible on hover) -->
+        <button
+            @click="handleDelete"
+            class="text-dim hover:text-lava hover:bg-lava/10 absolute top-2 right-2 flex
+                items-center justify-center rounded p-1.5 opacity-0 transition-all
+                group-hover:opacity-100"
+            title="Delete folder"
+        >
+            <Icon name="heroicons:trash" size="14" />
+        </button>
+    </div>
 </template>
