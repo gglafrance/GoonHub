@@ -21,7 +21,7 @@ type JobQueueFeeder struct {
 
 	pollInterval     time.Duration
 	batchSize        int
-	channelThreshold int // Feed when channel has space below this threshold
+	bufferMultiplier int // Max buffered jobs per worker (threshold = workerCount * bufferMultiplier)
 
 	// Configurable timeouts for orphan/stuck job recovery
 	orphanTimeout    time.Duration
@@ -46,7 +46,7 @@ func NewJobQueueFeeder(
 		logger:           logger.With(zap.String("component", "job_queue_feeder")),
 		pollInterval:     2 * time.Second,
 		batchSize:        50,
-		channelThreshold: 800, // Feed when channel has < 800 of 1000 capacity
+		bufferMultiplier: 10, // Keep up to workerCount*10 jobs buffered per phase
 		orphanTimeout:    30 * time.Second,
 		stuckPendingTime: 10 * time.Minute,
 	}
@@ -79,7 +79,7 @@ func (f *JobQueueFeeder) Start() {
 	f.logger.Info("Job queue feeder started",
 		zap.Duration("poll_interval", f.pollInterval),
 		zap.Int("batch_size", f.batchSize),
-		zap.Int("channel_threshold", f.channelThreshold),
+		zap.Int("buffer_multiplier", f.bufferMultiplier),
 	)
 }
 
@@ -135,26 +135,39 @@ func (f *JobQueueFeeder) runFeeder(phase string) {
 
 // feedPhase checks if the worker pool has capacity and claims pending jobs
 func (f *JobQueueFeeder) feedPhase(phase string) {
-	// Get current queue status to check if there's room
+	// Get current queue status and pool config to determine capacity
 	queueStatus := f.poolManager.GetQueueStatus()
+	poolConfig := f.poolManager.GetPoolConfig()
 	var currentQueued int
+	var workerCount int
 
 	switch phase {
 	case "metadata":
 		currentQueued = queueStatus.MetadataQueued
+		workerCount = poolConfig.MetadataWorkers
 	case "thumbnail":
 		currentQueued = queueStatus.ThumbnailQueued
+		workerCount = poolConfig.ThumbnailWorkers
 	case "sprites":
 		currentQueued = queueStatus.SpritesQueued
+		workerCount = poolConfig.SpritesWorkers
 	}
 
-	// Only feed if there's room in the channel
-	if currentQueued >= f.channelThreshold {
+	// Dynamic threshold: only buffer a small multiple of the worker count.
+	// This prevents claiming hundreds of jobs as "running" in the DB when only
+	// a few workers are actually executing them.
+	threshold := workerCount * f.bufferMultiplier
+	if threshold < 1 {
+		threshold = 1
+	}
+
+	// Only feed if there's room below the threshold
+	if currentQueued >= threshold {
 		return
 	}
 
 	// Calculate how many jobs to claim
-	spaceAvailable := f.channelThreshold - currentQueued
+	spaceAvailable := threshold - currentQueued
 	claimLimit := min(spaceAvailable, f.batchSize)
 
 	// Claim pending jobs from DB

@@ -293,6 +293,9 @@ func (pm *PoolManager) GetQueueStatus() QueueStatus {
 		MetadataQueued:  pm.metadataPool.QueueSize(),
 		ThumbnailQueued: pm.thumbnailPool.QueueSize(),
 		SpritesQueued:   pm.spritesPool.QueueSize(),
+		MetadataActive:  pm.metadataPool.ActiveJobCount(),
+		ThumbnailActive: pm.thumbnailPool.ActiveJobCount(),
+		SpritesActive:   pm.spritesPool.ActiveJobCount(),
 	}
 }
 

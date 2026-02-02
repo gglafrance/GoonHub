@@ -69,6 +69,20 @@ func (mr *MockSceneRepositoryMockRecorder) Create(scene any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockSceneRepository)(nil).Create), scene)
 }
 
+// CreateInBatches mocks base method.
+func (m *MockSceneRepository) CreateInBatches(scenes []*data.Scene, batchSize int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateInBatches", scenes, batchSize)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateInBatches indicates an expected call of CreateInBatches.
+func (mr *MockSceneRepositoryMockRecorder) CreateInBatches(scenes, batchSize any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateInBatches", reflect.TypeOf((*MockSceneRepository)(nil).CreateInBatches), scenes, batchSize)
+}
+
 // Delete mocks base method.
 func (m *MockSceneRepository) Delete(id uint) error {
 	m.ctrl.T.Helper()
@@ -111,6 +125,21 @@ func (m *MockSceneRepository) GetAll() ([]data.Scene, error) {
 func (mr *MockSceneRepositoryMockRecorder) GetAll() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAll", reflect.TypeOf((*MockSceneRepository)(nil).GetAll))
+}
+
+// GetAllStoredPathSet mocks base method.
+func (m *MockSceneRepository) GetAllStoredPathSet() (map[string]struct{}, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllStoredPathSet")
+	ret0, _ := ret[0].(map[string]struct{})
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllStoredPathSet indicates an expected call of GetAllStoredPathSet.
+func (mr *MockSceneRepositoryMockRecorder) GetAllStoredPathSet() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllStoredPathSet", reflect.TypeOf((*MockSceneRepository)(nil).GetAllStoredPathSet))
 }
 
 // GetAllWithStoragePath mocks base method.
@@ -231,6 +260,36 @@ func (m *MockSceneRepository) GetPendingProcessing() ([]data.Scene, error) {
 func (mr *MockSceneRepositoryMockRecorder) GetPendingProcessing() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingProcessing", reflect.TypeOf((*MockSceneRepository)(nil).GetPendingProcessing))
+}
+
+// GetScanLookupEntries mocks base method.
+func (m *MockSceneRepository) GetScanLookupEntries() ([]data.ScanLookupEntry, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetScanLookupEntries")
+	ret0, _ := ret[0].([]data.ScanLookupEntry)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetScanLookupEntries indicates an expected call of GetScanLookupEntries.
+func (mr *MockSceneRepositoryMockRecorder) GetScanLookupEntries() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetScanLookupEntries", reflect.TypeOf((*MockSceneRepository)(nil).GetScanLookupEntries))
+}
+
+// GetScenePathsForMissingDetection mocks base method.
+func (m *MockSceneRepository) GetScenePathsForMissingDetection() ([]data.ScenePathInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetScenePathsForMissingDetection")
+	ret0, _ := ret[0].([]data.ScenePathInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetScenePathsForMissingDetection indicates an expected call of GetScenePathsForMissingDetection.
+func (mr *MockSceneRepositoryMockRecorder) GetScenePathsForMissingDetection() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetScenePathsForMissingDetection", reflect.TypeOf((*MockSceneRepository)(nil).GetScenePathsForMissingDetection))
 }
 
 // GetScenesNeedingPhase mocks base method.

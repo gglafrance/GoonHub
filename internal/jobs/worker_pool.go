@@ -18,6 +18,7 @@ type WorkerPool struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	running     atomic.Bool
+	activeCount atomic.Int32 // Number of jobs currently being executed by workers
 	logger      *zap.Logger
 	registry    *JobRegistry
 	timeout     time.Duration
@@ -72,6 +73,8 @@ func (p *WorkerPool) worker(id int) {
 			if job == nil {
 				return
 			}
+
+			p.activeCount.Add(1)
 
 			p.logger.Info("Worker accepted job",
 				zap.Int("worker_id", id),
@@ -145,6 +148,8 @@ func (p *WorkerPool) worker(id int) {
 				)
 			}
 
+			p.activeCount.Add(-1)
+
 			select {
 			case p.resultChan <- result:
 			case <-p.ctx.Done():
@@ -210,6 +215,11 @@ func (p *WorkerPool) Running() bool {
 
 func (p *WorkerPool) QueueSize() int {
 	return len(p.jobQueue)
+}
+
+// ActiveJobCount returns the number of jobs currently being executed by workers.
+func (p *WorkerPool) ActiveJobCount() int {
+	return int(p.activeCount.Load())
 }
 
 func (p *WorkerPool) ActiveWorkers() int {

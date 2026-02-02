@@ -22,6 +22,9 @@ type QueueStatus struct {
 	MetadataQueued  int `json:"metadata_queued"`
 	ThumbnailQueued int `json:"thumbnail_queued"`
 	SpritesQueued   int `json:"sprites_queued"`
+	MetadataActive  int `json:"metadata_active"`
+	ThumbnailActive int `json:"thumbnail_active"`
+	SpritesActive   int `json:"sprites_active"`
 }
 
 // BulkPhaseResult contains the results of a bulk phase submission

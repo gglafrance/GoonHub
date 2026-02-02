@@ -52,7 +52,7 @@ func NewJobStatusService(
 
 // GetJobStatus returns the current aggregated job status
 func (s *JobStatusService) GetJobStatus() *JobStatus {
-	// Get queue status (queued counts per phase - jobs in channel buffer)
+	// Get queue status (queued + active counts per phase from worker pools)
 	queueStatus := s.processingService.GetQueueStatus()
 
 	// Get pending counts from database (jobs waiting in DB queue)
@@ -62,26 +62,22 @@ func (s *JobStatusService) GetJobStatus() *JobStatus {
 		pendingByPhase = make(map[string]int)
 	}
 
-	// Get active jobs from job history (status='running')
+	// Get active jobs from job history (status='running') for display in popup
 	activeJobs, err := s.jobHistoryService.ListActiveJobs()
 	if err != nil {
 		s.logger.Error("Failed to list active jobs", zap.Error(err))
 		activeJobs = nil
 	}
 
-	// Count running jobs per phase
-	runningByPhase := make(map[string]int)
-	for _, job := range activeJobs {
-		runningByPhase[job.Phase]++
-	}
-
-	// Calculate actual running jobs per phase (active jobs minus queued jobs)
-	// Active jobs from DB include both jobs being executed AND jobs waiting in queue
-	// Queued jobs are those still waiting in the channel buffer
-	// Running = active - queued (jobs actually being processed by workers)
-	metadataRunning := max(0, runningByPhase["metadata"]-queueStatus.MetadataQueued)
-	thumbnailRunning := max(0, runningByPhase["thumbnail"]-queueStatus.ThumbnailQueued)
-	spritesRunning := max(0, runningByPhase["sprites"]-queueStatus.SpritesQueued)
+	// Use worker pool active counts for accurate running numbers.
+	// Previously we computed running = dbRunning - channelQueued, which had a race
+	// condition: between reading the channel size and the DB count, the feeder could
+	// claim jobs (increasing DB running count while channel count was stale).
+	// Now we use the pool's atomic active counter which tracks jobs truly being
+	// executed by workers, independent of the DB state.
+	metadataRunning := queueStatus.MetadataActive
+	thumbnailRunning := queueStatus.ThumbnailActive
+	spritesRunning := queueStatus.SpritesActive
 
 	// Build phase status map with pending counts
 	byPhase := map[string]PhaseStatus{

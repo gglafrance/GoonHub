@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"goonhub/internal/data"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,21 +15,50 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// scanBatchSize is the number of new scenes to collect before flushing to DB
+	scanBatchSize = 50
+	// progressDBInterval is the minimum interval between DB progress writes
+	progressDBInterval = 2 * time.Second
+	// progressEventInterval is the minimum interval between SSE progress events
+	progressEventInterval = 2 * time.Second
+	// progressEventBatchSize is the number of files between SSE progress events
+	progressEventBatchSize = 100
+)
+
 // ScanStatus represents the current state of a scan operation
 type ScanStatus struct {
-	Running      bool             `json:"running"`
-	CurrentScan  *data.ScanHistory `json:"current_scan,omitempty"`
+	Running     bool             `json:"running"`
+	CurrentScan *data.ScanHistory `json:"current_scan,omitempty"`
+}
+
+// pendingScene holds data for a new scene that has not yet been flushed to DB
+type pendingScene struct {
+	scene       *data.Scene
+	storagePath string
+}
+
+// scanLookupIndex provides in-memory lookup structures built once before a scan
+type scanLookupIndex struct {
+	// knownPaths is the set of stored_path values for non-deleted scenes
+	knownPaths map[string]struct{}
+	// lookupByKey maps "size:filename" -> []ScanLookupEntry for move detection
+	lookupByKey map[string][]data.ScanLookupEntry
+}
+
+func buildScanLookupKey(size int64, filename string) string {
+	return fmt.Sprintf("%d:%s", size, filename)
 }
 
 // ScanService handles scanning storage paths for new scene files
 type ScanService struct {
-	storagePathService  *StoragePathService
-	sceneRepo           data.SceneRepository
-	scanHistoryRepo     data.ScanHistoryRepository
-	processingService   *SceneProcessingService
-	eventBus            *EventBus
-	logger              *zap.Logger
-	indexer             SceneIndexer
+	storagePathService *StoragePathService
+	sceneRepo          data.SceneRepository
+	scanHistoryRepo    data.ScanHistoryRepository
+	processingService  *SceneProcessingService
+	eventBus           *EventBus
+	logger             *zap.Logger
+	indexer            SceneIndexer
 
 	mu          sync.Mutex
 	currentScan *data.ScanHistory
@@ -151,6 +181,38 @@ func (s *ScanService) GetHistory(page, limit int) ([]data.ScanHistory, int64, er
 	return s.scanHistoryRepo.List(page, limit)
 }
 
+// buildLookupIndex pre-loads all scene path and size/filename data into memory
+// so that the walk loop can do in-memory lookups instead of per-file DB queries.
+func (s *ScanService) buildLookupIndex() (*scanLookupIndex, error) {
+	// Load known paths (non-deleted scenes)
+	knownPaths, err := s.sceneRepo.GetAllStoredPathSet()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load stored path set: %w", err)
+	}
+
+	// Load scan lookup entries (all scenes, including soft-deleted) for move detection
+	entries, err := s.sceneRepo.GetScanLookupEntries()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load scan lookup entries: %w", err)
+	}
+
+	lookupByKey := make(map[string][]data.ScanLookupEntry, len(entries))
+	for _, e := range entries {
+		key := buildScanLookupKey(e.Size, e.OriginalFilename)
+		lookupByKey[key] = append(lookupByKey[key], e)
+	}
+
+	s.logger.Info("Scan lookup index built",
+		zap.Int("known_paths", len(knownPaths)),
+		zap.Int("lookup_entries", len(entries)),
+	)
+
+	return &scanLookupIndex{
+		knownPaths:  knownPaths,
+		lookupByKey: lookupByKey,
+	}, nil
+}
+
 // runScan performs the actual scan operation
 func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 	defer func() {
@@ -171,9 +233,16 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 		return
 	}
 
-	var filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, errors int
-	lastProgressUpdate := time.Now()
-	progressBatchSize := 100
+	// Pre-load lookup data into memory (eliminates ~80k+ per-file DB queries)
+	lookupIdx, err := s.buildLookupIndex()
+	if err != nil {
+		s.completeScan(scan, "failed", fmt.Sprintf("failed to build lookup index: %v", err))
+		return
+	}
+
+	var filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, scanErrors int
+	lastProgressDBWrite := time.Now()
+	lastProgressEvent := time.Now()
 
 	// Phase 1: Detect missing files (scenes whose source files no longer exist)
 	scenesRemoved = s.detectMissingFiles(ctx, scan, paths)
@@ -182,16 +251,87 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 		return
 	}
 
+	// Pending batch for new scenes
+	var pendingBatch []pendingScene
+
+	// flushBatch writes pending scenes to DB, indexes them, and submits for processing
+	flushBatch := func() {
+		if len(pendingBatch) == 0 {
+			return
+		}
+
+		batch := pendingBatch
+		pendingBatch = nil
+
+		// Collect scene pointers for batch create
+		scenes := make([]*data.Scene, len(batch))
+		for i := range batch {
+			scenes[i] = batch[i].scene
+		}
+
+		// Batch create in DB
+		if err := s.sceneRepo.CreateInBatches(scenes, scanBatchSize); err != nil {
+			s.logger.Error("Failed to batch create scenes", zap.Error(err), zap.Int("count", len(scenes)))
+			scanErrors += len(batch)
+			return
+		}
+
+		// Add newly created paths to the lookup index so duplicates within
+		// the same scan are correctly skipped
+		for _, sc := range scenes {
+			lookupIdx.knownPaths[sc.StoredPath] = struct{}{}
+		}
+
+		// Log each created scene and publish events
+		for _, sc := range scenes {
+			s.logger.Info("Scene record created",
+				zap.Uint("scene_id", sc.ID),
+				zap.String("stored_path", sc.StoredPath),
+				zap.String("title", sc.Title),
+			)
+			s.publishEvent("scan:scene_added", map[string]any{
+				"scene_id":   sc.ID,
+				"scene_path": sc.StoredPath,
+				"title":      sc.Title,
+			})
+		}
+
+		// Batch index in search engine
+		if s.indexer != nil {
+			sceneValues := make([]data.Scene, len(scenes))
+			for i, sc := range scenes {
+				sceneValues[i] = *sc
+			}
+			if err := s.indexer.BulkUpdateSceneIndex(sceneValues); err != nil {
+				s.logger.Warn("Failed to batch index scenes for search", zap.Error(err), zap.Int("count", len(scenes)))
+			}
+		}
+
+		// Submit for processing
+		if s.processingService != nil {
+			for _, sc := range scenes {
+				if err := s.processingService.SubmitScene(sc.ID, sc.StoredPath); err != nil {
+					s.logger.Warn("Failed to submit scene for processing",
+						zap.Uint("scene_id", sc.ID),
+						zap.Error(err),
+					)
+				}
+			}
+		}
+	}
+
 	for _, storagePath := range paths {
 		select {
 		case <-ctx.Done():
+			// Flush any remaining pending scenes before cancelling
+			flushBatch()
 			s.completeScan(scan, "cancelled", "")
 			return
 		default:
 		}
 
-		// Update current path
-		s.updateScanProgress(scan, &storagePath.Path, nil, scan.PathsScanned, filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, errors)
+		// Update current path (in-memory only, DB write is batched)
+		s.updateScanProgressInMemory(scan, &storagePath.Path, nil, scan.PathsScanned, filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, scanErrors)
 
 		err := filepath.WalkDir(storagePath.Path, func(path string, d os.DirEntry, walkErr error) error {
 			select {
@@ -205,7 +345,7 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 					zap.String("path", path),
 					zap.Error(walkErr),
 				)
-				errors++
+				scanErrors++
 				return nil // Continue walking
 			}
 
@@ -221,149 +361,65 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 
 			filesFound++
 			currentFile := path
-			s.updateScanProgress(scan, &storagePath.Path, &currentFile, scan.PathsScanned, filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, errors)
 
-			// Check if scene already exists at this path
-			exists, err := s.sceneRepo.ExistsByStoredPath(path)
-			if err != nil {
-				s.logger.Warn("Error checking scene existence",
-					zap.String("path", path),
-					zap.Error(err),
-				)
-				errors++
-				return nil
+			// Batched progress: update in-memory always, write to DB periodically
+			s.updateScanProgressInMemory(scan, &storagePath.Path, &currentFile, scan.PathsScanned, filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, scanErrors)
+			if time.Since(lastProgressDBWrite) > progressDBInterval {
+				s.flushScanProgressToDB(scan)
+				lastProgressDBWrite = time.Now()
 			}
 
-			if exists {
+			// In-memory check: does scene already exist at this path?
+			if _, exists := lookupIdx.knownPaths[path]; exists {
 				scenesSkipped++
 				return nil
 			}
 
-			// Check if this might be a moved file (same size and filename exists elsewhere)
-			info, err := os.Stat(path)
+			// Get file info from DirEntry (cached, no extra syscall)
+			info, err := d.Info()
 			if err != nil {
 				s.logger.Warn("Error getting file info",
 					zap.String("path", path),
 					zap.Error(err),
 				)
-				errors++
+				scanErrors++
 				return nil
 			}
 
+			// In-memory move detection: check if size+filename matches a known scene
 			filename := filepath.Base(path)
-			existingScene, err := s.sceneRepo.GetBySizeAndFilename(info.Size(), filename)
-			if err != nil {
-				s.logger.Warn("Error checking for moved file",
-					zap.String("path", path),
-					zap.Error(err),
-				)
-				// Don't fail - continue with normal add flow
-			}
-
-			if existingScene != nil {
-				// Check if scene was soft-deleted (marked as missing) or if old path doesn't exist
-				wasSoftDeleted := existingScene.DeletedAt.Valid
-				oldPathMissing := false
-				if !wasSoftDeleted {
-					if _, statErr := os.Stat(existingScene.StoredPath); os.IsNotExist(statErr) {
-						oldPathMissing = true
-					}
-				}
-
-				// If the scene was soft-deleted or its old path is missing, this is a moved/restored file
-				if wasSoftDeleted || oldPathMissing {
-					oldPath := existingScene.StoredPath
-
-					// Restore soft-deleted scene first
-					if wasSoftDeleted {
-						if err := s.sceneRepo.Restore(existingScene.ID); err != nil {
-							s.logger.Warn("Error restoring soft-deleted scene",
-								zap.Uint("scene_id", existingScene.ID),
-								zap.Error(err),
-							)
-							errors++
-							return nil
-						}
-					}
-
-					// Update the stored path
-					if err := s.sceneRepo.UpdateStoredPath(existingScene.ID, path, &storagePath.ID); err != nil {
-						s.logger.Warn("Error updating moved scene path",
-							zap.Uint("scene_id", existingScene.ID),
-							zap.String("old_path", oldPath),
-							zap.String("new_path", path),
-							zap.Error(err),
-						)
-						errors++
-						return nil
-					}
-
-					// Re-index the scene (it was removed from search when soft-deleted)
-					if s.indexer != nil {
-						existingScene.StoredPath = path
-						existingScene.StoragePathID = &storagePath.ID
-						existingScene.DeletedAt.Valid = false // Clear for indexing
-						if err := s.indexer.IndexScene(existingScene); err != nil {
-							s.logger.Warn("Failed to re-index restored scene",
-								zap.Uint("scene_id", existingScene.ID),
-								zap.Error(err),
-							)
-						}
-					}
-
-					scenesMoved++
-					s.logger.Info("Scene file moved/restored detected",
-						zap.Uint("scene_id", existingScene.ID),
-						zap.String("old_path", oldPath),
-						zap.String("new_path", path),
-						zap.Bool("was_soft_deleted", wasSoftDeleted),
-					)
-
-					s.publishEvent("scan:scene_moved", map[string]any{
-						"scene_id": existingScene.ID,
-						"old_path": oldPath,
-						"new_path": path,
-						"title":    existingScene.Title,
-					})
-
+			lookupKey := buildScanLookupKey(info.Size(), filename)
+			if candidates, ok := lookupIdx.lookupByKey[lookupKey]; ok {
+				if handled := s.handleMovedFile(candidates, path, info, &storagePath, &scenesMoved, &scanErrors); handled {
+					// Also add the new path to knownPaths so we don't re-process it
+					lookupIdx.knownPaths[path] = struct{}{}
 					return nil
 				}
-				// Old file still exists and scene wasn't deleted - this is a copy, not a move. Create new record.
 			}
 
-			// Create new scene record
-			scene, err := s.createSceneFromPath(path, &storagePath)
-			if err != nil {
-				s.logger.Warn("Error creating scene from path",
-					zap.String("path", path),
-					zap.Error(err),
-				)
-				errors++
-				return nil
-			}
-
+			// New scene: build record and add to pending batch
+			scene := s.buildSceneRecord(path, info, &storagePath)
+			pendingBatch = append(pendingBatch, pendingScene{scene: scene, storagePath: storagePath.Path})
 			scenesAdded++
 
-			// Publish scene added event
-			s.publishEvent("scan:scene_added", map[string]any{
-				"scene_id":   scene.ID,
-				"scene_path": path,
-				"title":      scene.Title,
-			})
+			// Flush batch if it's full
+			if len(pendingBatch) >= scanBatchSize {
+				flushBatch()
+			}
 
-			// Send batched progress updates
-			if filesFound%progressBatchSize == 0 || time.Since(lastProgressUpdate) > 2*time.Second {
+			// Send batched SSE progress events
+			if filesFound%progressEventBatchSize == 0 || time.Since(lastProgressEvent) > progressEventInterval {
 				s.publishEvent("scan:progress", map[string]any{
 					"files_found":    filesFound,
 					"scenes_added":   scenesAdded,
 					"scenes_skipped": scenesSkipped,
 					"scenes_removed": scenesRemoved,
 					"scenes_moved":   scenesMoved,
-					"errors":         errors,
+					"errors":         scanErrors,
 					"current_path":   storagePath.Path,
 					"current_file":   currentFile,
 				})
-				lastProgressUpdate = time.Now()
+				lastProgressEvent = time.Now()
 			}
 
 			return nil
@@ -371,6 +427,7 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 
 		if err != nil {
 			if err == context.Canceled {
+				flushBatch()
 				s.completeScan(scan, "cancelled", "")
 				return
 			}
@@ -378,11 +435,14 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 				zap.String("path", storagePath.Path),
 				zap.Error(err),
 			)
-			errors++
+			scanErrors++
 		}
 
 		scan.PathsScanned++
 	}
+
+	// Flush any remaining pending scenes
+	flushBatch()
 
 	// Update final stats
 	scan.FilesFound = filesFound
@@ -390,51 +450,122 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 	scan.VideosSkipped = scenesSkipped
 	scan.VideosRemoved = scenesRemoved
 	scan.VideosMoved = scenesMoved
-	scan.Errors = errors
+	scan.Errors = scanErrors
 
 	s.completeScan(scan, "completed", "")
 }
 
-// detectMissingFiles checks all scenes with storage paths and soft-deletes those whose files no longer exist
-func (s *ScanService) detectMissingFiles(ctx context.Context, scan *data.ScanHistory, storagePaths []data.StoragePath) int {
-	// Build a set of valid storage path prefixes
-	validPrefixes := make(map[uint]string)
-	for _, sp := range storagePaths {
-		validPrefixes[sp.ID] = sp.Path
+// handleMovedFile checks lookup candidates and handles a moved/restored file.
+// Returns true if the file was handled as a move (caller should skip creation).
+func (s *ScanService) handleMovedFile(candidates []data.ScanLookupEntry, newPath string, info fs.FileInfo, storagePath *data.StoragePath, scenesMoved, scanErrors *int) bool {
+	for _, candidate := range candidates {
+		wasSoftDeleted := candidate.IsDeleted
+		oldPathMissing := false
+		if !wasSoftDeleted {
+			if _, statErr := os.Stat(candidate.StoredPath); os.IsNotExist(statErr) {
+				oldPathMissing = true
+			}
+		}
+
+		if !wasSoftDeleted && !oldPathMissing {
+			continue // Old file still exists - this is a copy, not a move
+		}
+
+		oldPath := candidate.StoredPath
+
+		// Restore soft-deleted scene first
+		if wasSoftDeleted {
+			if err := s.sceneRepo.Restore(candidate.ID); err != nil {
+				s.logger.Warn("Error restoring soft-deleted scene",
+					zap.Uint("scene_id", candidate.ID),
+					zap.Error(err),
+				)
+				*scanErrors++
+				return true
+			}
+		}
+
+		// Update the stored path
+		if err := s.sceneRepo.UpdateStoredPath(candidate.ID, newPath, &storagePath.ID); err != nil {
+			s.logger.Warn("Error updating moved scene path",
+				zap.Uint("scene_id", candidate.ID),
+				zap.String("old_path", oldPath),
+				zap.String("new_path", newPath),
+				zap.Error(err),
+			)
+			*scanErrors++
+			return true
+		}
+
+		// Re-index the scene
+		if s.indexer != nil {
+			// Fetch full scene for indexing (moved files are rare, so individual fetch is acceptable)
+			if scene, err := s.sceneRepo.GetByID(candidate.ID); err == nil {
+				if err := s.indexer.IndexScene(scene); err != nil {
+					s.logger.Warn("Failed to re-index restored scene",
+						zap.Uint("scene_id", candidate.ID),
+						zap.Error(err),
+					)
+				}
+			}
+		}
+
+		*scenesMoved++
+		s.logger.Info("Scene file moved/restored detected",
+			zap.Uint("scene_id", candidate.ID),
+			zap.String("old_path", oldPath),
+			zap.String("new_path", newPath),
+			zap.Bool("was_soft_deleted", wasSoftDeleted),
+		)
+
+		s.publishEvent("scan:scene_moved", map[string]any{
+			"scene_id": candidate.ID,
+			"old_path": oldPath,
+			"new_path": newPath,
+		})
+
+		return true
 	}
 
-	// Get all scenes that have storage paths (excludes soft-deleted ones)
-	scenes, err := s.sceneRepo.GetAllWithStoragePath()
+	return false
+}
+
+// detectMissingFiles checks all scenes with storage paths and soft-deletes those whose files no longer exist.
+// Uses lightweight ScenePathInfo instead of full Scene objects.
+func (s *ScanService) detectMissingFiles(ctx context.Context, scan *data.ScanHistory, storagePaths []data.StoragePath) int {
+	// Build a set of valid storage path IDs
+	validPathIDs := make(map[uint]struct{})
+	for _, sp := range storagePaths {
+		validPathIDs[sp.ID] = struct{}{}
+	}
+
+	// Get lightweight scene path info (only id, stored_path, storage_path_id, title)
+	sceneInfos, err := s.sceneRepo.GetScenePathsForMissingDetection()
 	if err != nil {
 		s.logger.Error("Failed to get scenes for missing file detection", zap.Error(err))
 		return 0
 	}
 
 	var scenesRemoved int
-	for _, scene := range scenes {
+	for _, info := range sceneInfos {
 		select {
 		case <-ctx.Done():
 			return scenesRemoved
 		default:
 		}
 
-		// Skip scenes without storage path ID (shouldn't happen but defensive)
-		if scene.StoragePathID == nil {
-			continue
-		}
-
 		// Skip scenes not in our scanned storage paths
-		if _, ok := validPrefixes[*scene.StoragePathID]; !ok {
+		if _, ok := validPathIDs[info.StoragePathID]; !ok {
 			continue
 		}
 
 		// Check if file exists
-		if _, err := os.Stat(scene.StoredPath); os.IsNotExist(err) {
+		if _, err := os.Stat(info.StoredPath); os.IsNotExist(err) {
 			// File doesn't exist - soft-delete the scene
-			if err := s.sceneRepo.MarkAsMissing(scene.ID); err != nil {
+			if err := s.sceneRepo.MarkAsMissing(info.ID); err != nil {
 				s.logger.Warn("Failed to soft-delete missing scene",
-					zap.Uint("scene_id", scene.ID),
-					zap.String("stored_path", scene.StoredPath),
+					zap.Uint("scene_id", info.ID),
+					zap.String("stored_path", info.StoredPath),
 					zap.Error(err),
 				)
 				continue
@@ -442,9 +573,9 @@ func (s *ScanService) detectMissingFiles(ctx context.Context, scan *data.ScanHis
 
 			// Remove from search index
 			if s.indexer != nil {
-				if err := s.indexer.DeleteSceneIndex(scene.ID); err != nil {
+				if err := s.indexer.DeleteSceneIndex(info.ID); err != nil {
 					s.logger.Warn("Failed to remove missing scene from search index",
-						zap.Uint("scene_id", scene.ID),
+						zap.Uint("scene_id", info.ID),
 						zap.Error(err),
 					)
 				}
@@ -452,15 +583,15 @@ func (s *ScanService) detectMissingFiles(ctx context.Context, scan *data.ScanHis
 
 			scenesRemoved++
 			s.logger.Info("Scene file missing - soft deleted",
-				zap.Uint("scene_id", scene.ID),
-				zap.String("stored_path", scene.StoredPath),
-				zap.String("title", scene.Title),
+				zap.Uint("scene_id", info.ID),
+				zap.String("stored_path", info.StoredPath),
+				zap.String("title", info.Title),
 			)
 
 			s.publishEvent("scan:scene_removed", map[string]any{
-				"scene_id":   scene.ID,
-				"scene_path": scene.StoredPath,
-				"title":      scene.Title,
+				"scene_id":   info.ID,
+				"scene_path": info.StoredPath,
+				"title":      info.Title,
 			})
 		}
 	}
@@ -468,13 +599,8 @@ func (s *ScanService) detectMissingFiles(ctx context.Context, scan *data.ScanHis
 	return scenesRemoved
 }
 
-// createSceneFromPath creates a scene record from a file path
-func (s *ScanService) createSceneFromPath(path string, storagePath *data.StoragePath) (*data.Scene, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to stat file: %w", err)
-	}
-
+// buildSceneRecord creates a Scene struct from file path and info without writing to DB.
+func (s *ScanService) buildSceneRecord(path string, info fs.FileInfo, storagePath *data.StoragePath) *data.Scene {
 	filename := filepath.Base(path)
 	title := strings.TrimSuffix(filename, filepath.Ext(filename))
 
@@ -492,43 +618,12 @@ func (s *ScanService) createSceneFromPath(path string, storagePath *data.Storage
 	modTime := info.ModTime()
 	scene.FileCreatedAt = &modTime
 
-	if err := s.sceneRepo.Create(scene); err != nil {
-		return nil, fmt.Errorf("failed to create scene record: %w", err)
-	}
-
-	s.logger.Info("Scene record created",
-		zap.Uint("scene_id", scene.ID),
-		zap.String("stored_path", scene.StoredPath),
-		zap.String("title", scene.Title),
-	)
-
-	// Index scene in search engine
-	if s.indexer != nil {
-		if err := s.indexer.IndexScene(scene); err != nil {
-			s.logger.Warn("Failed to index scene for search",
-				zap.Uint("scene_id", scene.ID),
-				zap.Error(err),
-			)
-		}
-	}
-
-	// Submit for processing synchronously - this is just a queue operation,
-	// not the actual processing work, so it's safe to block briefly
-	if s.processingService != nil {
-		if err := s.processingService.SubmitScene(scene.ID, path); err != nil {
-			s.logger.Warn("Failed to submit scene for processing",
-				zap.Uint("scene_id", scene.ID),
-				zap.Error(err),
-			)
-			// Don't fail the scan - scene is saved but processing won't start automatically
-		}
-	}
-
-	return scene, nil
+	return scene
 }
 
-// updateScanProgress updates the scan progress in the database
-func (s *ScanService) updateScanProgress(scan *data.ScanHistory, currentPath, currentFile *string, pathsScanned, filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, errors int) {
+// updateScanProgressInMemory updates the in-memory scan state without writing to DB.
+// This allows status queries to return current progress while batching DB writes.
+func (s *ScanService) updateScanProgressInMemory(scan *data.ScanHistory, currentPath, currentFile *string, pathsScanned, filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, errors int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -541,6 +636,12 @@ func (s *ScanService) updateScanProgress(scan *data.ScanHistory, currentPath, cu
 	scan.VideosRemoved = scenesRemoved
 	scan.VideosMoved = scenesMoved
 	scan.Errors = errors
+}
+
+// flushScanProgressToDB writes the current in-memory scan state to the database.
+func (s *ScanService) flushScanProgressToDB(scan *data.ScanHistory) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if err := s.scanHistoryRepo.Update(scan); err != nil {
 		s.logger.Warn("Failed to update scan progress", zap.Error(err))

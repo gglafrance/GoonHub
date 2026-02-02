@@ -75,7 +75,7 @@ func SecurityHeaders(environment string) gin.HandlerFunc {
 			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
 			"img-src 'self' data: blob:; " +
 			"media-src 'self' blob:; " +
-			"font-src 'self' https://fonts.gstatic.com; " +
+			"font-src 'self' https://fonts.gstatic.com data:; " +
 			"connect-src 'self'; " +
 			"worker-src 'self' blob:; " +
 			"frame-ancestors 'none'; " +
