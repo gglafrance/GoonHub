@@ -13,18 +13,33 @@ const emit = defineEmits<{
     apply: [data: Partial<UpdateActorInput>];
 }>();
 
-const api = useApi();
+const apiPornDB = useApiPornDB();
 
-// State
-const searchQuery = ref(props.actorName);
-const isSearching = ref(false);
-const searchResults = ref<PornDBPerformer[]>([]);
-const searchError = ref<string | null>(null);
+// Use the fetch metadata composable for race condition handling
+const {
+    searchQuery,
+    isSearching,
+    searchResults,
+    searchError,
+    selectedItem: selectedPerformer,
+    isFetchingDetails,
+    itemDetails: performerDetails,
+    detailsError,
+    prefetchingId,
+    search: searchPerformers,
+    fetchDetails: fetchPerformerDetails,
+    handleHover,
+    handleHoverLeave,
+    goBack,
+    cleanup,
+} = useFetchMetadata<PornDBPerformer, PornDBPerformerDetails>({
+    searchFn: apiPornDB.searchPornDBPerformers,
+    fetchDetailsFn: apiPornDB.getPornDBPerformer,
+    getItemId: (p) => p.id,
+});
 
-const selectedPerformer = ref<PornDBPerformer | null>(null);
-const isFetchingDetails = ref(false);
-const performerDetails = ref<PornDBPerformerDetails | null>(null);
-const detailsError = ref<string | null>(null);
+// Get the selected performer's ID for template comparison (type-safe)
+const selectedPerformerId = computed(() => selectedPerformer.value?.id ?? null);
 
 // Field selection for applying metadata
 const selectedFields = ref<Record<string, boolean>>({});
@@ -89,49 +104,10 @@ const fieldDefinitions: {
     },
 ];
 
-// Search performers
-const searchPerformers = async () => {
-    if (!searchQuery.value.trim()) return;
-
-    isSearching.value = true;
-    searchError.value = null;
-    searchResults.value = [];
-    selectedPerformer.value = null;
-    performerDetails.value = null;
-
-    try {
-        const results = await api.searchPornDBPerformers(searchQuery.value);
-        searchResults.value = results;
-
-        if (searchResults.value.length === 0) {
-            searchError.value = 'No performers found';
-        }
-    } catch (err) {
-        searchError.value = err instanceof Error ? err.message : 'Search failed';
-    } finally {
-        isSearching.value = false;
-    }
-};
-
-// Fetch performer details
-const fetchPerformerDetails = async (performer: PornDBPerformer) => {
-    selectedPerformer.value = performer;
-    isFetchingDetails.value = true;
-    detailsError.value = null;
-    performerDetails.value = null;
+// Wrapper to trigger search and field selection on details load
+const handleFetchPerformerDetails = (performer: PornDBPerformer) => {
     selectedFields.value = {};
-
-    try {
-        const details = await api.getPornDBPerformer(performer.id);
-        performerDetails.value = details;
-
-        // Pre-select fields that have new data and current actor is missing
-        initializeFieldSelection();
-    } catch (err) {
-        detailsError.value = err instanceof Error ? err.message : 'Failed to fetch details';
-    } finally {
-        isFetchingDetails.value = false;
-    }
+    fetchPerformerDetails(performer);
 };
 
 // Initialize field selection - pre-check fields where we have new data and current is empty
@@ -152,10 +128,7 @@ const initializeFieldSelection = () => {
 };
 
 // Format value for display
-const formatValue = (
-    value: unknown,
-    format?: (val: unknown) => string,
-): string => {
+const formatValue = (value: unknown, format?: (val: unknown) => string): string => {
     if (value === null || value === undefined || value === '') return '-';
     if (format) return format(value);
     return String(value);
@@ -178,9 +151,13 @@ const hasFieldChanged = (field: (typeof fieldDefinitions)[0]): boolean => {
 
     // Normalize values for comparison
     const normalizedPorndb =
-        porndbValue === null || porndbValue === undefined || porndbValue === '' ? null : porndbValue;
+        porndbValue === null || porndbValue === undefined || porndbValue === ''
+            ? null
+            : porndbValue;
     const normalizedCurrent =
-        currentValue === null || currentValue === undefined || currentValue === '' ? null : currentValue;
+        currentValue === null || currentValue === undefined || currentValue === ''
+            ? null
+            : currentValue;
 
     return normalizedPorndb !== normalizedCurrent && normalizedPorndb !== null;
 };
@@ -289,12 +266,10 @@ const deselectAll = () => {
     }
 };
 
-// Go back to search results
-const goBack = () => {
-    selectedPerformer.value = null;
-    performerDetails.value = null;
-    detailsError.value = null;
+// Handle going back - reset selected fields
+const handleGoBack = () => {
     selectedFields.value = {};
+    goBack();
 };
 
 // Handle close
@@ -302,12 +277,27 @@ const handleClose = () => {
     emit('close');
 };
 
-// Search on mount
-onMounted(() => {
-    if (searchQuery.value) {
-        searchPerformers();
+// Initialize field selection when performer details are loaded
+watch(performerDetails, (details) => {
+    if (details) {
+        initializeFieldSelection();
     }
 });
+
+// Initialize search when modal opens
+watch(
+    () => props.visible,
+    (visible) => {
+        if (visible && props.actorName) {
+            searchQuery.value = props.actorName;
+            searchPerformers(props.actorName);
+        }
+    },
+    { immediate: true },
+);
+
+// Cleanup on unmount
+onUnmounted(cleanup);
 </script>
 
 <template>
@@ -324,8 +314,8 @@ onMounted(() => {
                     <div class="flex items-center gap-2">
                         <button
                             v-if="selectedPerformer"
-                            @click="goBack"
-                            class="text-dim hover:text-white transition-colors"
+                            @click="handleGoBack"
+                            class="text-dim transition-colors hover:text-white"
                         >
                             <Icon name="heroicons:arrow-left" size="18" />
                         </button>
@@ -333,7 +323,10 @@ onMounted(() => {
                             {{ selectedPerformer ? 'Preview Metadata' : 'Fetch Actor Metadata' }}
                         </h3>
                     </div>
-                    <button @click="handleClose" class="text-dim hover:text-white transition-colors">
+                    <button
+                        @click="handleClose"
+                        class="text-dim transition-colors hover:text-white"
+                    >
                         <Icon name="heroicons:x-mark" size="18" />
                     </button>
                 </div>
@@ -349,13 +342,13 @@ onMounted(() => {
                             class="border-border bg-void/80 placeholder-dim/50 focus:border-lava/40
                                 focus:ring-lava/20 flex-1 rounded-lg border px-3 py-2 text-sm
                                 text-white transition-all focus:ring-1 focus:outline-none"
-                            @keyup.enter="searchPerformers"
+                            @keyup.enter="searchPerformers(searchQuery)"
                         />
                         <button
-                            @click="searchPerformers"
+                            @click="searchPerformers(searchQuery)"
                             :disabled="isSearching || !searchQuery.trim()"
-                            class="bg-lava hover:bg-lava-glow flex items-center gap-1.5 rounded-lg px-4
-                                py-2 text-xs font-semibold text-white transition-all
+                            class="bg-lava hover:bg-lava-glow flex items-center gap-1.5 rounded-lg
+                                px-4 py-2 text-xs font-semibold text-white transition-all
                                 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                             <Icon
@@ -381,14 +374,22 @@ onMounted(() => {
                     <!-- Search Results -->
                     <div
                         v-if="searchResults.length > 0"
-                        class="border-border max-h-96 space-y-1 overflow-y-auto rounded-lg border p-2"
+                        class="border-border max-h-96 space-y-1 overflow-y-auto rounded-lg border
+                            p-2"
                     >
                         <button
                             v-for="performer in searchResults"
                             :key="performer.id"
-                            @click="fetchPerformerDetails(performer)"
+                            @click="handleFetchPerformerDetails(performer)"
+                            @mouseenter="handleHover(performer)"
+                            @mouseleave="handleHoverLeave"
                             class="border-border hover:border-lava/30 hover:bg-lava/5 flex w-full
-                                items-center gap-3 rounded-lg border p-2 text-left transition-colors"
+                                items-center gap-3 rounded-lg border p-2 text-left
+                                transition-colors"
+                            :class="{
+                                'pointer-events-none opacity-50':
+                                    isFetchingDetails && selectedPerformerId !== performer.id,
+                            }"
                         >
                             <div
                                 class="bg-surface border-border h-12 w-9 shrink-0 overflow-hidden
@@ -416,7 +417,19 @@ onMounted(() => {
                                     {{ performer.bio }}
                                 </div>
                             </div>
-                            <Icon name="heroicons:chevron-right" size="16" class="text-dim shrink-0" />
+                            <!-- Prefetch indicator or chevron -->
+                            <Icon
+                                v-if="prefetchingId === performer.id"
+                                name="heroicons:arrow-path"
+                                size="14"
+                                class="text-dim shrink-0 animate-spin"
+                            />
+                            <Icon
+                                v-else
+                                name="heroicons:chevron-right"
+                                size="16"
+                                class="text-dim shrink-0"
+                            />
                         </button>
                     </div>
 
@@ -444,7 +457,8 @@ onMounted(() => {
                     <!-- Details Error -->
                     <div
                         v-else-if="detailsError"
-                        class="border-lava/20 bg-lava/5 text-lava rounded-lg border px-3 py-2 text-xs"
+                        class="border-lava/20 bg-lava/5 text-lava rounded-lg border px-3 py-2
+                            text-xs"
                     >
                         {{ detailsError }}
                     </div>
@@ -462,8 +476,8 @@ onMounted(() => {
                                     Current
                                 </div>
                                 <div
-                                    class="bg-surface border-border mx-auto h-32 w-24 overflow-hidden
-                                        rounded-lg border"
+                                    class="bg-surface border-border mx-auto h-32 w-24
+                                        overflow-hidden rounded-lg border"
                                 >
                                     <img
                                         v-if="currentActor.image_url"
@@ -473,7 +487,8 @@ onMounted(() => {
                                     />
                                     <div
                                         v-else
-                                        class="text-dim flex h-full w-full items-center justify-center"
+                                        class="text-dim flex h-full w-full items-center
+                                            justify-center"
                                     >
                                         <Icon name="heroicons:user" size="32" />
                                     </div>
@@ -488,8 +503,8 @@ onMounted(() => {
                                     ThePornDB
                                 </div>
                                 <div
-                                    class="bg-surface border-border mx-auto h-32 w-24 overflow-hidden
-                                        rounded-lg border"
+                                    class="bg-surface border-border mx-auto h-32 w-24
+                                        overflow-hidden rounded-lg border"
                                 >
                                     <img
                                         v-if="performerDetails.image"
@@ -499,7 +514,8 @@ onMounted(() => {
                                     />
                                     <div
                                         v-else
-                                        class="text-dim flex h-full w-full items-center justify-center"
+                                        class="text-dim flex h-full w-full items-center
+                                            justify-center"
                                     >
                                         <Icon name="heroicons:user" size="32" />
                                     </div>
@@ -525,7 +541,7 @@ onMounted(() => {
                                 <span class="text-dim">|</span>
                                 <button
                                     @click="deselectAll"
-                                    class="text-dim hover:text-white text-xs transition-colors"
+                                    class="text-dim text-xs transition-colors hover:text-white"
                                 >
                                     Deselect all
                                 </button>
@@ -534,14 +550,14 @@ onMounted(() => {
 
                         <!-- Fields Comparison -->
                         <div
-                            class="border-border max-h-72 space-y-1 overflow-y-auto rounded-lg border
-                                p-2"
+                            class="border-border max-h-72 space-y-1 overflow-y-auto rounded-lg
+                                border p-2"
                         >
                             <div
                                 v-for="field in fieldDefinitions"
                                 :key="field.key"
-                                class="hover:bg-white/[0.02] flex items-center gap-3 rounded px-2 py-1.5
-                                    text-sm"
+                                class="flex items-center gap-3 rounded px-2 py-1.5 text-sm
+                                    hover:bg-white/[0.02]"
                                 :class="{
                                     'bg-lava/5': selectedFields[field.key],
                                 }"
@@ -570,7 +586,10 @@ onMounted(() => {
                                 <div class="min-w-0 flex-1">
                                     <span class="text-dim truncate text-xs">
                                         {{
-                                            formatValue(getCurrentValue(field.actorKey), field.format)
+                                            formatValue(
+                                                getCurrentValue(field.actorKey),
+                                                field.format,
+                                            )
                                         }}
                                     </span>
                                 </div>
@@ -601,8 +620,8 @@ onMounted(() => {
                         <div class="mt-4 flex justify-end gap-2">
                             <button
                                 @click="handleClose"
-                                class="text-dim hover:text-white rounded-lg px-3 py-1.5 text-xs
-                                    transition-colors"
+                                class="text-dim rounded-lg px-3 py-1.5 text-xs transition-colors
+                                    hover:text-white"
                             >
                                 Cancel
                             </button>
@@ -610,8 +629,8 @@ onMounted(() => {
                                 @click="applyMetadata"
                                 :disabled="selectedFieldCount === 0"
                                 class="bg-lava hover:bg-lava-glow rounded-lg px-4 py-1.5 text-xs
-                                    font-semibold text-white transition-all disabled:cursor-not-allowed
-                                    disabled:opacity-40"
+                                    font-semibold text-white transition-all
+                                    disabled:cursor-not-allowed disabled:opacity-40"
                             >
                                 Apply Selected
                             </button>

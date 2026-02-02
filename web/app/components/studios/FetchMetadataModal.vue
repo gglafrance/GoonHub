@@ -20,18 +20,33 @@ const emit = defineEmits<{
     apply: [data: Partial<UpdateStudioInput>];
 }>();
 
-const api = useApi();
+const apiPornDB = useApiPornDB();
 
-// State
-const searchQuery = ref(props.studioName);
-const isSearching = ref(false);
-const searchResults = ref<PornDBSiteSearchResult[]>([]);
-const searchError = ref<string | null>(null);
+// Use the fetch metadata composable for race condition handling
+const {
+    searchQuery,
+    isSearching,
+    searchResults,
+    searchError,
+    selectedItem: selectedSite,
+    isFetchingDetails,
+    itemDetails: siteDetails,
+    detailsError,
+    prefetchingId,
+    search: searchSites,
+    fetchDetails: fetchSiteDetails,
+    handleHover,
+    handleHoverLeave,
+    goBack,
+    cleanup,
+} = useFetchMetadata<PornDBSiteSearchResult, PornDBSiteDetails>({
+    searchFn: apiPornDB.searchPornDBSites,
+    fetchDetailsFn: apiPornDB.getPornDBSite,
+    getItemId: (s) => s.id,
+});
 
-const selectedSite = ref<PornDBSiteSearchResult | null>(null);
-const isFetchingDetails = ref(false);
-const siteDetails = ref<PornDBSiteDetails | null>(null);
-const detailsError = ref<string | null>(null);
+// Get the selected site's ID for template comparison (type-safe)
+const selectedSiteId = computed(() => selectedSite.value?.id ?? null);
 
 // Field selection for applying metadata
 const selectedFields = ref<Record<string, boolean>>({});
@@ -56,49 +71,10 @@ const fieldDefinitions: {
     },
 ];
 
-// Search sites
-const searchSites = async () => {
-    if (!searchQuery.value.trim()) return;
-
-    isSearching.value = true;
-    searchError.value = null;
-    searchResults.value = [];
-    selectedSite.value = null;
-    siteDetails.value = null;
-
-    try {
-        const results = await api.searchPornDBSites(searchQuery.value);
-        searchResults.value = results;
-
-        if (searchResults.value.length === 0) {
-            searchError.value = 'No sites found';
-        }
-    } catch (err) {
-        searchError.value = err instanceof Error ? err.message : 'Search failed';
-    } finally {
-        isSearching.value = false;
-    }
-};
-
-// Fetch site details
-const fetchSiteDetails = async (site: PornDBSiteSearchResult) => {
-    selectedSite.value = site;
-    isFetchingDetails.value = true;
-    detailsError.value = null;
-    siteDetails.value = null;
+// Wrapper to trigger fetch and reset field selection
+const handleFetchSiteDetails = (site: PornDBSiteSearchResult) => {
     selectedFields.value = {};
-
-    try {
-        const details = await api.getPornDBSite(site.id);
-        siteDetails.value = details;
-
-        // Pre-select fields that have new data and current studio is missing
-        initializeFieldSelection();
-    } catch (err) {
-        detailsError.value = err instanceof Error ? err.message : 'Failed to fetch details';
-    } finally {
-        isFetchingDetails.value = false;
-    }
+    fetchSiteDetails(site);
 };
 
 // Initialize field selection - pre-check fields where we have new data and current is empty
@@ -217,12 +193,10 @@ const deselectAll = () => {
     }
 };
 
-// Go back to search results
-const goBack = () => {
-    selectedSite.value = null;
-    siteDetails.value = null;
-    detailsError.value = null;
+// Handle going back - reset selected fields
+const handleGoBack = () => {
     selectedFields.value = {};
+    goBack();
 };
 
 // Handle close
@@ -230,12 +204,27 @@ const handleClose = () => {
     emit('close');
 };
 
-// Search on mount
-onMounted(() => {
-    if (searchQuery.value) {
-        searchSites();
+// Initialize field selection when site details are loaded
+watch(siteDetails, (details) => {
+    if (details) {
+        initializeFieldSelection();
     }
 });
+
+// Initialize search when modal opens
+watch(
+    () => props.visible,
+    (visible) => {
+        if (visible && props.studioName) {
+            searchQuery.value = props.studioName;
+            searchSites(props.studioName);
+        }
+    },
+    { immediate: true },
+);
+
+// Cleanup on unmount
+onUnmounted(cleanup);
 </script>
 
 <template>
@@ -252,7 +241,7 @@ onMounted(() => {
                     <div class="flex items-center gap-2">
                         <button
                             v-if="selectedSite"
-                            @click="goBack"
+                            @click="handleGoBack"
                             class="text-dim transition-colors hover:text-white"
                         >
                             <Icon name="heroicons:arrow-left" size="18" />
@@ -280,10 +269,10 @@ onMounted(() => {
                             class="border-border bg-void/80 placeholder-dim/50 focus:border-lava/40
                                 focus:ring-lava/20 flex-1 rounded-lg border px-3 py-2 text-sm
                                 text-white transition-all focus:ring-1 focus:outline-none"
-                            @keyup.enter="searchSites"
+                            @keyup.enter="searchSites(searchQuery)"
                         />
                         <button
-                            @click="searchSites"
+                            @click="searchSites(searchQuery)"
                             :disabled="isSearching || !searchQuery.trim()"
                             class="bg-lava hover:bg-lava-glow flex items-center gap-1.5 rounded-lg
                                 px-4 py-2 text-xs font-semibold text-white transition-all
@@ -318,10 +307,16 @@ onMounted(() => {
                         <button
                             v-for="site in searchResults"
                             :key="site.id"
-                            @click="fetchSiteDetails(site)"
+                            @click="handleFetchSiteDetails(site)"
+                            @mouseenter="handleHover(site)"
+                            @mouseleave="handleHoverLeave"
                             class="border-border hover:border-lava/30 hover:bg-lava/5 flex w-full
                                 items-center gap-3 rounded-lg border p-2 text-left
                                 transition-colors"
+                            :class="{
+                                'pointer-events-none opacity-50':
+                                    isFetchingDetails && selectedSiteId !== site.id,
+                            }"
                         >
                             <div
                                 class="bg-surface border-border h-12 w-12 shrink-0 overflow-hidden
@@ -352,7 +347,15 @@ onMounted(() => {
                                     {{ site.short_name }}
                                 </div>
                             </div>
+                            <!-- Prefetch indicator or chevron -->
                             <Icon
+                                v-if="prefetchingId === site.id"
+                                name="heroicons:arrow-path"
+                                size="14"
+                                class="text-dim shrink-0 animate-spin"
+                            />
+                            <Icon
+                                v-else
                                 name="heroicons:chevron-right"
                                 size="16"
                                 class="text-dim shrink-0"
