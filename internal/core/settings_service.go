@@ -58,14 +58,15 @@ func (s *SettingsService) GetSettings(userID uint) (*data.UserSettings, error) {
 	if err != nil {
 		// Return defaults if no row exists
 		return &data.UserSettings{
-			UserID:           userID,
-			Autoplay:         false,
-			DefaultVolume:    100,
-			Loop:             false,
-			VideosPerPage:    20,
-			DefaultSortOrder: "created_at_desc",
-			DefaultTagSort:   "az",
-			HomepageConfig:   data.DefaultHomepageConfig(),
+			UserID:                 userID,
+			Autoplay:               false,
+			DefaultVolume:          100,
+			Loop:                   false,
+			VideosPerPage:          20,
+			DefaultSortOrder:       "created_at_desc",
+			DefaultTagSort:         "az",
+			MarkerThumbnailCycling: true,
+			HomepageConfig:         data.DefaultHomepageConfig(),
 		}, nil
 	}
 	return settings, nil
@@ -185,7 +186,7 @@ func (s *SettingsService) UpdatePlayerSettings(userID uint, autoplay bool, volum
 	return settings, nil
 }
 
-func (s *SettingsService) UpdateAppSettings(userID uint, videosPerPage int, sortOrder string) (*data.UserSettings, error) {
+func (s *SettingsService) UpdateAppSettings(userID uint, videosPerPage int, sortOrder string, markerThumbnailCycling bool) (*data.UserSettings, error) {
 	if videosPerPage < 1 || videosPerPage > 100 {
 		return nil, fmt.Errorf("videos per page must be between 1 and 100")
 	}
@@ -201,6 +202,7 @@ func (s *SettingsService) UpdateAppSettings(userID uint, videosPerPage int, sort
 
 	settings.VideosPerPage = videosPerPage
 	settings.DefaultSortOrder = sortOrder
+	settings.MarkerThumbnailCycling = markerThumbnailCycling
 
 	if err := s.settingsRepo.Upsert(settings); err != nil {
 		return nil, fmt.Errorf("failed to update app settings: %w", err)

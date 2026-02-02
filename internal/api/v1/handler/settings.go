@@ -72,7 +72,7 @@ func (h *SettingsHandler) UpdateAppSettings(c *gin.Context) {
 		return
 	}
 
-	settings, err := h.SettingsService.UpdateAppSettings(userPayload.UserID, req.VideosPerPage, req.DefaultSortOrder)
+	settings, err := h.SettingsService.UpdateAppSettings(userPayload.UserID, req.VideosPerPage, req.DefaultSortOrder, req.MarkerThumbnailCycling)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

@@ -7,6 +7,7 @@ export interface UserSettings {
     videos_per_page: number;
     default_sort_order: SortOrder;
     default_tag_sort: TagSort;
+    marker_thumbnail_cycling: boolean;
     created_at: string;
     updated_at: string;
 }
@@ -20,6 +21,7 @@ export interface PlayerSettings {
 export interface AppSettings {
     videos_per_page: number;
     default_sort_order: SortOrder;
+    marker_thumbnail_cycling: boolean;
 }
 
 export type SortOrder =

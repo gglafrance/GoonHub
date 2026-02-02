@@ -48,6 +48,9 @@ func TestGetSettings_Defaults(t *testing.T) {
 	if settings.DefaultTagSort != "az" {
 		t.Fatalf("expected default tag sort 'az', got %s", settings.DefaultTagSort)
 	}
+	if settings.MarkerThumbnailCycling != true {
+		t.Fatal("expected default marker thumbnail cycling true")
+	}
 }
 
 func TestUpdatePlayerSettings_VolumeBoundaries(t *testing.T) {
@@ -98,7 +101,7 @@ func TestUpdateAppSettings_ValidSortOrders(t *testing.T) {
 			settingsRepo.EXPECT().GetByUserID(uint(1)).Return(&data.UserSettings{UserID: 1}, nil)
 			settingsRepo.EXPECT().Upsert(gomock.Any()).Return(nil)
 
-			_, err := svc.UpdateAppSettings(1, 20, order)
+			_, err := svc.UpdateAppSettings(1, 20, order, true)
 			if err != nil {
 				t.Fatalf("expected valid sort order %q to be accepted, got error: %v", order, err)
 			}
@@ -109,7 +112,7 @@ func TestUpdateAppSettings_ValidSortOrders(t *testing.T) {
 func TestUpdateAppSettings_InvalidSortOrder(t *testing.T) {
 	svc, _, _ := newTestSettingsService(t)
 
-	_, err := svc.UpdateAppSettings(1, 20, "random_order")
+	_, err := svc.UpdateAppSettings(1, 20, "random_order", true)
 	if err == nil {
 		t.Fatal("expected error for invalid sort order")
 	}
@@ -139,7 +142,7 @@ func TestUpdateAppSettings_VideosPerPageBoundaries(t *testing.T) {
 				settingsRepo.EXPECT().Upsert(gomock.Any()).Return(nil)
 			}
 
-			_, err := svc.UpdateAppSettings(1, tt.count, "created_at_desc")
+			_, err := svc.UpdateAppSettings(1, tt.count, "created_at_desc", true)
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error")
 			}

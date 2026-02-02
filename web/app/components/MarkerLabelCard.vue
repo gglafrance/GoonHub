@@ -5,6 +5,9 @@ const props = defineProps<{
     group: MarkerLabelGroup;
 }>();
 
+const settingsStore = useSettingsStore();
+const cyclingEnabled = computed(() => settingsStore.markerThumbnailCycling);
+
 const ids = computed(() => {
     const arr = props.group.thumbnail_marker_ids;
     if (arr && arr.length > 0) return arr;
@@ -20,8 +23,16 @@ const currentUrl = computed(() => `/marker-thumbnails/${ids.value[currentIndex.v
 const nextIndex = computed(() => (currentIndex.value + 1) % ids.value.length);
 const nextUrl = computed(() => `/marker-thumbnails/${ids.value[nextIndex.value]}`);
 
+function stopCycling() {
+    if (cycleTimer) {
+        clearTimeout(cycleTimer);
+        cycleTimer = null;
+    }
+}
+
 function scheduleCycle() {
-    if (ids.value.length <= 1) return;
+    stopCycling();
+    if (!cyclingEnabled.value || ids.value.length <= 1) return;
     const delay = 2000 + Math.random() * 2000; // 2-4s
     cycleTimer = setTimeout(() => {
         // Preload next image then crossfade
@@ -45,6 +56,14 @@ function scheduleCycle() {
     }, delay);
 }
 
+watch(cyclingEnabled, (enabled) => {
+    if (enabled) {
+        scheduleCycle();
+    } else {
+        stopCycling();
+    }
+});
+
 onMounted(() => {
     // Start at a random index so cards don't all show the same frame
     if (ids.value.length > 1) {
@@ -54,7 +73,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-    if (cycleTimer) clearTimeout(cycleTimer);
+    stopCycling();
 });
 </script>
 
