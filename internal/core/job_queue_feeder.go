@@ -16,6 +16,7 @@ import (
 type JobQueueFeeder struct {
 	repo        data.JobHistoryRepository
 	sceneRepo   data.SceneRepository
+	markerRepo  data.MarkerRepository
 	poolManager *processing.PoolManager
 	logger      *zap.Logger
 
@@ -36,12 +37,14 @@ type JobQueueFeeder struct {
 func NewJobQueueFeeder(
 	repo data.JobHistoryRepository,
 	sceneRepo data.SceneRepository,
+	markerRepo data.MarkerRepository,
 	poolManager *processing.PoolManager,
 	logger *zap.Logger,
 ) *JobQueueFeeder {
 	return &JobQueueFeeder{
 		repo:             repo,
 		sceneRepo:        sceneRepo,
+		markerRepo:       markerRepo,
 		poolManager:      poolManager,
 		logger:           logger.With(zap.String("component", "job_queue_feeder")),
 		pollInterval:     2 * time.Second,
@@ -285,6 +288,10 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 			qualityConfig.FrameQualityLg,
 			f.sceneRepo,
 			f.logger,
+			f.markerRepo,
+			cfg.MarkerThumbnailDir,
+			scene.Width,
+			scene.Height,
 		)
 		return f.poolManager.SubmitToThumbnailPool(job)
 

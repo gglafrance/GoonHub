@@ -30,6 +30,9 @@ type MarkerRepository interface {
 	ApplyLabelTagsToMarker(userID uint, markerID uint, label string) error
 	GetMarkerIDsByLabel(userID uint, label string) ([]uint, error)
 
+	// Scene-level methods (not user-scoped)
+	GetBySceneWithoutThumbnail(sceneID uint) ([]UserSceneMarker, error)
+
 	// Search filter methods
 	GetSceneIDsByLabels(userID uint, labels []string) ([]uint, error)
 }
@@ -462,6 +465,17 @@ func (r *MarkerRepositoryImpl) GetMarkerIDsByLabel(userID uint, label string) ([
 		return nil, err
 	}
 	return markerIDs, nil
+}
+
+// GetBySceneWithoutThumbnail returns all markers for a scene (regardless of user) where thumbnail_path is empty
+func (r *MarkerRepositoryImpl) GetBySceneWithoutThumbnail(sceneID uint) ([]UserSceneMarker, error) {
+	var markers []UserSceneMarker
+	err := r.DB.Where("scene_id = ? AND (thumbnail_path = '' OR thumbnail_path IS NULL)", sceneID).
+		Find(&markers).Error
+	if err != nil {
+		return nil, err
+	}
+	return markers, nil
 }
 
 // GetSceneIDsByLabels returns distinct scene IDs that have markers with any of the given labels for a user

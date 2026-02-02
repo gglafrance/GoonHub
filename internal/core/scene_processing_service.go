@@ -74,6 +74,7 @@ type SceneProcessingService struct {
 // NewSceneProcessingService creates a new SceneProcessingService
 func NewSceneProcessingService(
 	repo data.SceneRepository,
+	markerRepo data.MarkerRepository,
 	cfg config.ProcessingConfig,
 	logger *zap.Logger,
 	eventBus *EventBus,
@@ -101,7 +102,7 @@ func NewSceneProcessingService(
 	}
 
 	// Create result handler
-	resultHandler := processing.NewResultHandler(repo, eventAdapter, historyAdapter, phaseTracker, poolManager, logger)
+	resultHandler := processing.NewResultHandler(repo, markerRepo, eventAdapter, historyAdapter, phaseTracker, poolManager, logger)
 
 	// Create job submitter
 	jobSubmitter := processing.NewJobSubmitter(repo, poolManager, phaseTracker, historyAdapter, logger)

@@ -11,6 +11,7 @@ import (
 // ResultHandler processes job results from worker pools
 type ResultHandler struct {
 	repo         data.SceneRepository
+	markerRepo   data.MarkerRepository
 	eventBus     EventPublisher
 	jobHistory   JobHistoryRecorder
 	phaseTracker *PhaseTracker
@@ -25,6 +26,7 @@ type ResultHandler struct {
 // NewResultHandler creates a new ResultHandler
 func NewResultHandler(
 	repo data.SceneRepository,
+	markerRepo data.MarkerRepository,
 	eventBus EventPublisher,
 	jobHistory JobHistoryRecorder,
 	phaseTracker *PhaseTracker,
@@ -33,6 +35,7 @@ func NewResultHandler(
 ) *ResultHandler {
 	return &ResultHandler{
 		repo:         repo,
+		markerRepo:   markerRepo,
 		eventBus:     eventBus,
 		jobHistory:   jobHistory,
 		phaseTracker: phaseTracker,
@@ -178,6 +181,10 @@ func (rh *ResultHandler) onMetadataComplete(result jobs.JobResult) {
 			qualityConfig.FrameQualityLg,
 			rh.repo,
 			rh.logger,
+			rh.markerRepo,
+			cfg.MarkerThumbnailDir,
+			meta.Width,
+			meta.Height,
 		)
 
 		thumbnailErr := rh.poolManager.SubmitToThumbnailPool(thumbnailJob)
