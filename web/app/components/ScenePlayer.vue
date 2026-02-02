@@ -335,6 +335,13 @@ onBeforeUnmount(() => {
     filter: drop-shadow(0 0 8px rgba(255, 77, 77, 0.5));
 }
 
+:deep(.video-js:hover .vjs-big-play-button, .video-js .vjs-big-play-button:focus) {
+    border-color: rgba(255, 77, 77, 0.6);
+    background-color: rgba(255, 77, 77, 0.1);
+    transform: scale(1.05);
+    transition: all 0.15s ease;
+}
+
 /* ========================================
    FLOATING CONTROL BAR
    ======================================== */
@@ -349,7 +356,7 @@ onBeforeUnmount(() => {
     backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 14px;
-    padding: 0 6px;
+    padding: 4px 6px 0 6px;
     box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.5),
         0 0 0 1px rgba(255, 255, 255, 0.03) inset;
@@ -381,14 +388,13 @@ onBeforeUnmount(() => {
 
 :deep(.vjs-control:hover) {
     color: #ffffff;
-    background: rgba(255, 255, 255, 0.08);
 }
 
 /* Play/Pause button - slightly larger */
 :deep(.vjs-play-control) {
-    width: 40px;
-    height: 40px;
-    margin-right: 2px;
+    width: 34px;
+    height: 34px;
+    margin-right: 4px;
 }
 
 :deep(.vjs-play-control:hover) {
@@ -402,7 +408,6 @@ onBeforeUnmount(() => {
 }
 
 /* Volume Panel */
-
 :deep(.vjs-mute-control) {
     width: 36px;
     height: 36px;
@@ -452,11 +457,11 @@ onBeforeUnmount(() => {
    ======================================== */
 :deep(.vjs-progress-control) {
     position: absolute;
-    top: -2px;
+    top: -5px;
     left: 12px;
     right: 12px;
     width: auto;
-    height: 10px;
+    height: 16px;
     flex: none;
     order: -1;
 }
