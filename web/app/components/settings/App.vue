@@ -192,31 +192,29 @@ const handleSaveSearchConfig = async () => {
             </div>
         </div>
 
-        <!-- Search Index -->
-        <div class="glass-panel p-5">
-            <h3 class="mb-2 text-sm font-semibold text-white">Search Index</h3>
+        <!-- Search Configuration (admin only) -->
+        <div v-if="isAdmin" class="glass-panel p-5">
+            <h3 class="mb-2 text-sm font-semibold text-white">Search</h3>
             <p class="text-dim mb-4 text-xs">
-                Rebuild the search index to sync all video data including actors, tags, and view
-                counts.
+                Configure search engine settings.
             </p>
 
-            <!-- Max Total Hits (admin only) -->
-            <div v-if="isAdmin" class="mb-5">
-                <div
-                    v-if="searchConfigMessage"
-                    class="border-emerald/20 bg-emerald/5 text-emerald mb-3 rounded-lg border px-3
-                        py-2 text-xs"
-                >
-                    {{ searchConfigMessage }}
-                </div>
-                <div
-                    v-if="searchConfigError"
-                    class="border-lava/20 bg-lava/5 text-lava mb-3 rounded-lg border px-3 py-2
-                        text-xs"
-                >
-                    {{ searchConfigError }}
-                </div>
+            <div
+                v-if="searchConfigMessage"
+                class="border-emerald/20 bg-emerald/5 text-emerald mb-4 rounded-lg border px-3
+                    py-2 text-xs"
+            >
+                {{ searchConfigMessage }}
+            </div>
+            <div
+                v-if="searchConfigError"
+                class="border-lava/20 bg-lava/5 text-lava mb-4 rounded-lg border px-3 py-2
+                    text-xs"
+            >
+                {{ searchConfigError }}
+            </div>
 
+            <div>
                 <label
                     class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider uppercase"
                 >
@@ -246,6 +244,15 @@ const handleSaveSearchConfig = async () => {
                     </button>
                 </div>
             </div>
+        </div>
+
+        <!-- Search Index -->
+        <div class="glass-panel p-5">
+            <h3 class="mb-2 text-sm font-semibold text-white">Search Index</h3>
+            <p class="text-dim mb-4 text-xs">
+                Rebuild the search index to sync all video data including actors, tags, and view
+                counts.
+            </p>
 
             <div
                 v-if="reindexMessage"
