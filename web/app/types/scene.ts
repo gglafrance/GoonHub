@@ -15,6 +15,7 @@ export interface SceneListItem {
 // Used by: scene player page, scene details editor
 export interface Scene extends SceneListItem {
     original_filename: string;
+    stored_path: string;
     view_count: number;
     width?: number;
     height?: number;

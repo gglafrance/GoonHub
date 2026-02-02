@@ -80,7 +80,7 @@ type Scene struct {
 	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`
 	Title            string         `json:"title"`
 	OriginalFilename string         `json:"original_filename"`
-	StoredPath       string         `json:"-"` // Don't expose internal path
+	StoredPath       string         `json:"stored_path"`
 	Size             int64          `json:"size"`
 	ViewCount        int64          `json:"view_count"`
 	Duration         int            `json:"duration"`

@@ -149,6 +149,13 @@ const getResolutionLabel = (h?: number): string => {
                     </p>
                 </div>
 
+                <div v-if="scene.stored_path" class="border-border border-b py-2.5">
+                    <span class="text-dim text-[11px]">Path</span>
+                    <p class="text-dim/70 mt-0.5 font-mono text-[10px] break-all">
+                        {{ scene.stored_path }}
+                    </p>
+                </div>
+
                 <div v-if="scene.file_created_at" class="flex items-center justify-between py-2.5">
                     <span class="text-dim text-[11px]">File Date</span>
                     <span class="text-muted font-mono text-[11px]">
