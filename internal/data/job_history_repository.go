@@ -31,6 +31,9 @@ type JobHistoryRepository interface {
 	ResetJobsToPending(jobIDs []string) (int64, error)
 	MarkRunningAsInterrupted() (int64, error)
 	MarkStuckPendingJobsAsFailed(olderThan time.Duration) (int64, error)
+
+	// Scene-specific methods
+	CancelPendingJobsForScene(sceneID uint) (int64, error)
 }
 
 type JobHistoryRepositoryImpl struct {
@@ -304,6 +307,20 @@ func (r *JobHistoryRepositoryImpl) MarkStuckPendingJobsAsFailed(olderThan time.D
 			"error_message": errMsg,
 			"completed_at":  time.Now(),
 			"is_retryable":  true,
+		})
+
+	return result.RowsAffected, result.Error
+}
+
+// CancelPendingJobsForScene cancels all pending jobs for a scene (marks them as cancelled).
+func (r *JobHistoryRepositoryImpl) CancelPendingJobsForScene(sceneID uint) (int64, error) {
+	result := r.DB.Model(&JobHistory{}).
+		Where("scene_id = ? AND status = ?", sceneID, JobStatusPending).
+		Updates(map[string]any{
+			"status":        "cancelled",
+			"error_message": "Scene moved to trash",
+			"completed_at":  time.Now(),
+			"is_retryable":  false,
 		})
 
 	return result.RowsAffected, result.Error

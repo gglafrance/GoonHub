@@ -20,6 +20,10 @@ let savedTimeout: ReturnType<typeof setTimeout> | null = null;
 // Fetch metadata modal state
 const showFetchMetadataModal = ref(false);
 
+// Delete modal state
+const showDeleteModal = ref(false);
+const router = useRouter();
+
 // Tag manager ref for reloading
 const tagManagerRef = ref<{ reload: () => void } | null>(null);
 
@@ -126,6 +130,11 @@ function showSavedIndicator() {
     savedTimeout = setTimeout(() => {
         saved.value = false;
     }, 2000);
+}
+
+function handleSceneDeleted() {
+    showDeleteModal.value = false;
+    router.push('/');
 }
 </script>
 
@@ -269,6 +278,19 @@ function showSavedIndicator() {
         <div class="border-border/50 bg-surface/30 rounded-xl border p-4">
             <WatchActors />
         </div>
+
+        <!-- Admin actions -->
+        <div v-if="isAdmin" class="flex justify-end">
+            <button
+                @click="showDeleteModal = true"
+                class="hover:border-lava/40 hover:text-lava text-dim flex items-center gap-2
+                    rounded-md border border-dashed border-white/10 px-3 py-1.5 text-xs
+                    transition-colors"
+            >
+                <Icon name="heroicons:trash" size="12" />
+                Delete Scene
+            </button>
+        </div>
     </div>
 
     <!-- Fetch Scene Metadata Modal -->
@@ -278,5 +300,15 @@ function showSavedIndicator() {
         :scene="scene"
         @close="showFetchMetadataModal = false"
         @applied="handleMetadataApplied"
+    />
+
+    <!-- Delete Scene Modal -->
+    <WatchSceneDeleteModal
+        v-if="scene"
+        :visible="showDeleteModal"
+        :scene-id="scene.id"
+        :scene-title="scene.title"
+        @close="showDeleteModal = false"
+        @deleted="handleSceneDeleted"
     />
 </template>

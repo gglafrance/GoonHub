@@ -13,7 +13,16 @@ useSeoMeta({
     ogDescription: 'Configure your GoonHub preferences',
 });
 
-type TabType = 'account' | 'player' | 'app' | 'homepage' | 'tags' | 'users' | 'jobs' | 'storage';
+type TabType =
+    | 'account'
+    | 'player'
+    | 'app'
+    | 'homepage'
+    | 'tags'
+    | 'users'
+    | 'jobs'
+    | 'storage'
+    | 'trash';
 const activeTab = ref<TabType>('account');
 
 const availableTabs = computed(() => {
@@ -22,6 +31,7 @@ const availableTabs = computed(() => {
         tabs.push('users');
         tabs.push('jobs');
         tabs.push('storage');
+        tabs.push('trash');
     }
     return tabs;
 });
@@ -76,5 +86,6 @@ definePageMeta({
         <SettingsUsers v-if="activeTab === 'users'" />
         <SettingsJobs v-if="activeTab === 'jobs'" />
         <SettingsStorage v-if="activeTab === 'storage'" />
+        <SettingsTrash v-if="activeTab === 'trash'" />
     </div>
 </template>

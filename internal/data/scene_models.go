@@ -111,6 +111,7 @@ type Scene struct {
 	PornDBSceneID    string         `json:"porndb_scene_id" gorm:"column:porndb_scene_id"`
 	Origin           string         `json:"origin" gorm:"size:100"`
 	Type             string         `json:"type" gorm:"size:50"`
+	TrashedAt        *time.Time     `json:"trashed_at,omitempty" gorm:"index"`
 }
 
 func (Scene) TableName() string {

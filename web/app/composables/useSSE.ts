@@ -8,7 +8,8 @@ interface SceneEventData {
 
 type FieldExtractor = (event: SceneEventData) => Record<string, unknown>;
 
-const EVENT_HANDLERS: Record<string, FieldExtractor> = {
+// Events that update scene fields
+const SCENE_UPDATE_HANDLERS: Record<string, FieldExtractor> = {
     'scene:metadata_complete': (e) => ({
         duration: e.data?.duration,
         width: e.data?.width,
@@ -37,15 +38,38 @@ const EVENT_HANDLERS: Record<string, FieldExtractor> = {
     }),
 };
 
+// Events that remove scenes from the store
+const SCENE_REMOVE_EVENTS = ['scene:trashed', 'scene:deleted'];
+
+// Events that restore scenes (trigger reload)
+const SCENE_RESTORE_EVENTS = ['scene:restored'];
+
+// Combine all event types for iteration
+const EVENT_HANDLERS: Record<string, FieldExtractor> = SCENE_UPDATE_HANDLERS;
+
 function handleSSEEvent(
     eventType: string,
     rawData: string,
     sceneStore: ReturnType<typeof useSceneStore>,
 ) {
+    const event: SceneEventData = JSON.parse(rawData);
+
+    // Handle scene removal events (trashed or deleted)
+    if (SCENE_REMOVE_EVENTS.includes(eventType)) {
+        sceneStore.removeScene(event.scene_id);
+        return;
+    }
+
+    // Handle scene restore events (trigger a reload to get the scene back)
+    if (SCENE_RESTORE_EVENTS.includes(eventType)) {
+        sceneStore.loadScenes(sceneStore.currentPage);
+        return;
+    }
+
+    // Handle scene update events
     const handler = EVENT_HANDLERS[eventType];
     if (!handler) return;
 
-    const event: SceneEventData = JSON.parse(rawData);
     sceneStore.updateSceneFields(event.scene_id, handler(event));
 }
 
@@ -171,10 +195,26 @@ function useSSEFallback() {
             jobStatusStore.setConnected(true);
         });
 
+        // Scene update handlers
         for (const [eventType, handler] of Object.entries(EVENT_HANDLERS)) {
             eventSource.addEventListener(eventType, (e: MessageEvent) => {
                 const event: SceneEventData = JSON.parse(e.data);
                 sceneStore.updateSceneFields(event.scene_id, handler(event));
+            });
+        }
+
+        // Scene remove handlers (trash, delete)
+        for (const eventType of SCENE_REMOVE_EVENTS) {
+            eventSource.addEventListener(eventType, (e: MessageEvent) => {
+                const event: SceneEventData = JSON.parse(e.data);
+                sceneStore.removeScene(event.scene_id);
+            });
+        }
+
+        // Scene restore handlers
+        for (const eventType of SCENE_RESTORE_EVENTS) {
+            eventSource.addEventListener(eventType, () => {
+                sceneStore.loadScenes(sceneStore.currentPage);
             });
         }
 

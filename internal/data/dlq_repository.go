@@ -14,6 +14,7 @@ type DLQRepository interface {
 	UpdateStatus(jobID string, status string) error
 	MarkAbandoned(jobID string) error
 	Delete(jobID string) error
+	DeleteBySceneID(sceneID uint) (int64, error)
 	CountByStatus(status string) (int64, error)
 	AutoAbandon(olderThan time.Duration) (int64, error)
 }
@@ -82,6 +83,11 @@ func (r *DLQRepositoryImpl) MarkAbandoned(jobID string) error {
 
 func (r *DLQRepositoryImpl) Delete(jobID string) error {
 	return r.DB.Where("job_id = ?", jobID).Delete(&DLQEntry{}).Error
+}
+
+func (r *DLQRepositoryImpl) DeleteBySceneID(sceneID uint) (int64, error) {
+	result := r.DB.Where("scene_id = ?", sceneID).Delete(&DLQEntry{})
+	return result.RowsAffected, result.Error
 }
 
 func (r *DLQRepositoryImpl) CountByStatus(status string) (int64, error) {

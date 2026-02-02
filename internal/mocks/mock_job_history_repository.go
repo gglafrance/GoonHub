@@ -41,6 +41,21 @@ func (m *MockJobHistoryRepository) EXPECT() *MockJobHistoryRepositoryMockRecorde
 	return m.recorder
 }
 
+// CancelPendingJobsForScene mocks base method.
+func (m *MockJobHistoryRepository) CancelPendingJobsForScene(sceneID uint) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CancelPendingJobsForScene", sceneID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CancelPendingJobsForScene indicates an expected call of CancelPendingJobsForScene.
+func (mr *MockJobHistoryRepositoryMockRecorder) CancelPendingJobsForScene(sceneID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelPendingJobsForScene", reflect.TypeOf((*MockJobHistoryRepository)(nil).CancelPendingJobsForScene), sceneID)
+}
+
 // ClaimPendingJobs mocks base method.
 func (m *MockJobHistoryRepository) ClaimPendingJobs(phase string, limit int) ([]data.JobHistory, error) {
 	m.ctrl.T.Helper()
