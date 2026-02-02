@@ -10,7 +10,6 @@ import (
 	"goonhub/internal/core"
 	"goonhub/internal/data"
 	"goonhub/internal/streaming"
-	"io"
 	"mime"
 	"net/http"
 	"os"
@@ -312,23 +311,22 @@ func (h *SceneHandler) StreamScene(c *gin.Context) {
 		return
 	}
 
-	fileInfo, err := os.Stat(filePath)
+	file, err := os.Open(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Scene file not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to access scene file"})
-		return
-	}
-
-	fileSize := fileInfo.Size()
-	file, err := os.Open(filePath)
-	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open scene file"})
 		return
 	}
 	defer file.Close()
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to access scene file"})
+		return
+	}
 
 	ext := strings.ToLower(filepath.Ext(filePath))
 	mimeType := mime.TypeByExtension(ext)
@@ -336,84 +334,17 @@ func (h *SceneHandler) StreamScene(c *gin.Context) {
 		mimeType = "video/mp4"
 	}
 
-	// Get pooled buffer for efficient streaming
-	buf := h.StreamManager.BufferPool().Get()
-	defer h.StreamManager.BufferPool().Put(buf)
-
-	rangeHeader := c.GetHeader("Range")
-	if rangeHeader == "" {
-		c.Header("Content-Length", strconv.FormatInt(fileSize, 10))
-		c.Header("Content-Type", mimeType)
-		c.Header("Accept-Ranges", "bytes")
-		c.Header("Cache-Control", "public, max-age=86400")
-
-		_, err = io.CopyBuffer(c.Writer, file, buf)
-		if err != nil {
-			// Client disconnected or write error - not an internal server error
-			return
-		}
-		return
-	}
-
-	if !strings.HasPrefix(rangeHeader, "bytes=") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Range header"})
-		return
-	}
-
-	rangeSpec := strings.TrimPrefix(rangeHeader, "bytes=")
-	ranges := strings.Split(rangeSpec, "-")
-	if len(ranges) != 2 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Range format"})
-		return
-	}
-
-	var start, end int64
-	start, err = strconv.ParseInt(ranges[0], 10, 64)
-	if err != nil {
-		start = 0
-	}
-
-	if ranges[1] == "" {
-		end = fileSize - 1
-	} else {
-		end, err = strconv.ParseInt(ranges[1], 10, 64)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Range end value"})
-			return
-		}
-	}
-
-	if start < 0 || end >= fileSize || start > end {
-		c.JSON(http.StatusRequestedRangeNotSatisfiable, gin.H{
-			"error":     "Requested Range Not Satisfiable",
-			"start":     start,
-			"end":       end,
-			"file_size": fileSize,
-		})
-		return
-	}
-
-	contentLength := end - start + 1
-	c.Header("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, fileSize))
-	c.Header("Content-Length", strconv.FormatInt(contentLength, 10))
+	// Set content type and caching headers
 	c.Header("Content-Type", mimeType)
-	c.Header("Accept-Ranges", "bytes")
 	c.Header("Cache-Control", "public, max-age=86400")
-	c.Status(http.StatusPartialContent)
 
-	_, err = file.Seek(start, 0)
-	if err != nil {
-		// Cannot return error at this point - headers already sent
-		return
-	}
-
-	// Use LimitReader + CopyBuffer for range requests
-	lr := io.LimitReader(file, contentLength)
-	_, err = io.CopyBuffer(c.Writer, lr, buf)
-	if err != nil {
-		// Client disconnected or write error - not an internal server error
-		return
-	}
+	// Use http.ServeContent for optimal range request handling.
+	// It handles:
+	// - Range requests (partial content)
+	// - If-Modified-Since / If-None-Match (304 responses)
+	// - Proper Content-Length and Content-Range headers
+	// - Connection keep-alive optimization
+	http.ServeContent(c.Writer, c.Request, filepath.Base(filePath), fileInfo.ModTime(), file)
 }
 
 func (h *SceneHandler) ExtractThumbnail(c *gin.Context) {
