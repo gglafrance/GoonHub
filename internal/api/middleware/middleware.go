@@ -69,14 +69,15 @@ func SecurityHeaders(environment string) gin.HandlerFunc {
 		}
 
 		// Content Security Policy - restrictive default
-		// Allows self, inline styles (for Tailwind), and specific domains
+		// Allows self, inline styles (for Tailwind), Google Fonts, and specific domains
 		csp := "default-src 'self'; " +
 			"script-src 'self' 'unsafe-inline'; " +
-			"style-src 'self' 'unsafe-inline'; " +
+			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
 			"img-src 'self' data: blob:; " +
 			"media-src 'self' blob:; " +
-			"font-src 'self'; " +
+			"font-src 'self' https://fonts.gstatic.com; " +
 			"connect-src 'self'; " +
+			"worker-src 'self' blob:; " +
 			"frame-ancestors 'none'; " +
 			"base-uri 'self'; " +
 			"form-action 'self'"

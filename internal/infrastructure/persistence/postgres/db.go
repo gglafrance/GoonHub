@@ -12,11 +12,24 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
+func gormLogLevel(cfg *config.Config) gormlogger.LogLevel {
+	switch cfg.Log.Level {
+	case "debug":
+		return gormlogger.Info
+	case "error":
+		return gormlogger.Error
+	case "silent":
+		return gormlogger.Silent
+	default:
+		return gormlogger.Warn
+	}
+}
+
 func NewDB(cfg *config.Config, logger *logging.Logger) (*gorm.DB, error) {
 	dsn := cfg.Database.DSN()
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: gormlogger.Default.LogMode(gormlogger.Info),
+		Logger: gormlogger.Default.LogMode(gormLogLevel(cfg)),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to postgres: %w", err)
