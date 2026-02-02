@@ -6,7 +6,9 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     if (!isPublicRoute) {
         // Determine if this is initial load (from server or direct URL access)
         // vs in-app navigation (clicking links within the app)
-        const isInitialLoad = !from.name || from.path === to.path;
+        // Note: !from.name means no previous route (initial page load)
+        // Query-only changes (same path) are NOT initial loads
+        const isInitialLoad = !from.name;
 
         // Case 1: No user in store at all - redirect to login
         if (!authStore.user) {
