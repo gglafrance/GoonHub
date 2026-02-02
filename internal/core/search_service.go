@@ -289,6 +289,7 @@ func buildSceneDocument(scene *data.Scene, tags []data.Tag, actors []data.Actor)
 		ID:               scene.ID,
 		Title:            scene.Title,
 		OriginalFilename: scene.OriginalFilename,
+		Path:             scene.StoredPath,
 		Description:      scene.Description,
 		Studio:           scene.Studio,
 		Actors:           actorNames,

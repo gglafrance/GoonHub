@@ -67,6 +67,7 @@ func (c *Client) EnsureIndex() error {
 	searchableTask, err := index.UpdateSearchableAttributes(&[]string{
 		"title",
 		"original_filename",
+		"path",
 		"description",
 		"actors",
 		"tag_names",
