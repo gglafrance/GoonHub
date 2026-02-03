@@ -34,7 +34,7 @@ const {
     cleanup,
 } = useFetchMetadata<PornDBPerformer, PornDBPerformerDetails>({
     searchFn: apiPornDB.searchPornDBPerformers,
-    fetchDetailsFn: apiPornDB.getPornDBPerformer,
+    fetchDetailsFn: apiPornDB.getPornDBPerformerWithFallback,
     getItemId: (p) => p.id,
 });
 

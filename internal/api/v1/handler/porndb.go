@@ -49,7 +49,7 @@ func (h *PornDBHandler) SearchPerformers(c *gin.Context) {
 	})
 }
 
-// GetPerformer returns detailed information about a performer
+// GetPerformer returns detailed information about a performer from the /performers endpoint
 func (h *PornDBHandler) GetPerformer(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -63,6 +63,31 @@ func (h *PornDBHandler) GetPerformer(c *gin.Context) {
 	}
 
 	performer, err := h.Service.GetPerformerDetails(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": performer,
+	})
+}
+
+// GetPerformerSite returns detailed information about a performer from the /performer-sites endpoint
+// This is needed because IDs from performer-sites search cannot be used with the /performers endpoint
+func (h *PornDBHandler) GetPerformerSite(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Performer site ID is required"})
+		return
+	}
+
+	if !h.Service.IsConfigured() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "PornDB integration is not configured"})
+		return
+	}
+
+	performer, err := h.Service.GetPerformerSiteDetails(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

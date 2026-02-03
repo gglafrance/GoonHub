@@ -207,6 +207,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					admin.GET("/porndb/status", pornDBHandler.GetStatus)
 					admin.GET("/porndb/performers", pornDBHandler.SearchPerformers)
 					admin.GET("/porndb/performers/:id", pornDBHandler.GetPerformer)
+					admin.GET("/porndb/performer-sites/:id", pornDBHandler.GetPerformerSite)
 					admin.GET("/porndb/scenes", pornDBHandler.SearchScenes)
 					admin.GET("/porndb/scenes/:id", pornDBHandler.GetScene)
 					admin.GET("/porndb/sites", pornDBHandler.SearchSites)

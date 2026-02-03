@@ -33,6 +33,27 @@ export const useApiPornDB = () => {
         return result.data;
     };
 
+    const getPornDBPerformerSite = async (id: string, signal?: AbortSignal) => {
+        const response = await fetch(`/api/v1/admin/porndb/performer-sites/${id}`, {
+            headers: getAuthHeaders(),
+            signal,
+            ...fetchOptions(),
+        });
+        const result = await handleResponse(response);
+        return result.data;
+    };
+
+    // Tries /performers/:id first, falls back to /performer-sites/:id
+    // This is needed because search results merge both endpoints and IDs are not interchangeable
+    const getPornDBPerformerWithFallback = async (id: string, signal?: AbortSignal) => {
+        try {
+            return await getPornDBPerformer(id, signal);
+        } catch {
+            // If /performers fails, try /performer-sites
+            return await getPornDBPerformerSite(id, signal);
+        }
+    };
+
     const searchPornDBScenes = async (params: {
         q?: string;
         title?: string;
@@ -108,6 +129,8 @@ export const useApiPornDB = () => {
         getPornDBStatus,
         searchPornDBPerformers,
         getPornDBPerformer,
+        getPornDBPerformerSite,
+        getPornDBPerformerWithFallback,
         searchPornDBScenes,
         getPornDBScene,
         searchPornDBSites,
