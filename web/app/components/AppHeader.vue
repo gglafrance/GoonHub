@@ -21,7 +21,7 @@ const showShortcuts = ref(false);
                         </h1>
                     </NuxtLink>
 
-                    <div v-if="authStore.isAuthenticated" class="flex items-center gap-3">
+                    <div v-if="authStore.isAuthenticated" class="flex items-center gap-2 sm:gap-3">
                         <div class="flex items-center gap-2">
                             <div
                                 class="border-border bg-panel flex h-7 w-7 items-center
@@ -48,10 +48,11 @@ const showShortcuts = ref(false);
                             </div>
                         </div>
 
+                        <!-- Keyboard shortcuts - hidden on mobile -->
                         <button
-                            class="border-border text-dim hover:border-lava/30 hover:text-lava flex
-                                h-7 w-7 items-center justify-center rounded-md border
-                                transition-all"
+                            class="border-border text-dim hover:border-lava/30 hover:text-lava
+                                hidden h-7 w-7 items-center justify-center rounded-md border
+                                transition-all sm:flex"
                             title="Keyboard shortcuts"
                             @click="showShortcuts = true"
                         >
@@ -69,13 +70,19 @@ const showShortcuts = ref(false);
                             <Icon name="heroicons:cog-6-tooth" size="16" />
                         </NuxtLink>
 
+                        <!-- Logout - icon only on mobile -->
                         <button
                             @click="authStore.logout()"
-                            class="border-border text-dim hover:border-lava/30 hover:text-lava
-                                rounded-md border px-2.5 py-1 text-[11px] font-medium
-                                transition-all"
+                            class="border-border text-dim hover:border-lava/30 hover:text-lava flex
+                                h-7 w-7 items-center justify-center rounded-md border transition-all
+                                sm:h-auto sm:w-auto sm:px-2.5 sm:py-1"
                         >
-                            Logout
+                            <Icon
+                                name="heroicons:arrow-right-on-rectangle"
+                                size="16"
+                                class="sm:hidden"
+                            />
+                            <span class="hidden text-[11px] font-medium sm:inline">Logout</span>
                         </button>
                     </div>
                 </div>
@@ -88,65 +95,87 @@ const showShortcuts = ref(false);
             class="border-border bg-void/60 border-b backdrop-blur-sm"
         >
             <div class="mx-auto max-w-415 px-4 sm:px-5">
-                <div class="flex h-9 items-center gap-1">
+                <div
+                    class="flex h-10 items-center justify-between sm:h-9 sm:justify-start sm:gap-1"
+                >
                     <NuxtLink
                         to="/search"
-                        class="text-dim flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px]
-                            font-medium transition-all hover:bg-white/5 hover:text-white"
+                        class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
+                            text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
+                            sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
                         active-class="!text-lava bg-lava/10"
+                        title="Search"
                     >
-                        <Icon name="heroicons:magnifying-glass" size="14" />
-                        <span>Search</span>
+                        <Icon
+                            name="heroicons:magnifying-glass"
+                            size="18"
+                            class="sm:!h-3.5 sm:!w-3.5"
+                        />
+                        <span class="hidden sm:inline">Search</span>
                     </NuxtLink>
 
                     <NuxtLink
                         to="/history"
-                        class="text-dim flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px]
-                            font-medium transition-all hover:bg-white/5 hover:text-white"
+                        class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
+                            text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
+                            sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
                         active-class="!text-lava bg-lava/10"
+                        title="History"
                     >
-                        <Icon name="heroicons:clock" size="14" />
-                        <span>History</span>
+                        <Icon name="heroicons:clock" size="18" class="sm:!h-3.5 sm:!w-3.5" />
+                        <span class="hidden sm:inline">History</span>
                     </NuxtLink>
 
                     <NuxtLink
                         to="/actors"
-                        class="text-dim flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px]
-                            font-medium transition-all hover:bg-white/5 hover:text-white"
+                        class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
+                            text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
+                            sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
                         active-class="!text-lava bg-lava/10"
+                        title="Actors"
                     >
-                        <Icon name="heroicons:user-group" size="14" />
-                        <span>Actors</span>
+                        <Icon name="heroicons:user-group" size="18" class="sm:!h-3.5 sm:!w-3.5" />
+                        <span class="hidden sm:inline">Actors</span>
                     </NuxtLink>
 
                     <NuxtLink
                         to="/studios"
-                        class="text-dim flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px]
-                            font-medium transition-all hover:bg-white/5 hover:text-white"
+                        class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
+                            text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
+                            sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
                         active-class="!text-lava bg-lava/10"
+                        title="Studios"
                     >
-                        <Icon name="heroicons:building-office-2" size="14" />
-                        <span>Studios</span>
+                        <Icon
+                            name="heroicons:building-office-2"
+                            size="18"
+                            class="sm:!h-3.5 sm:!w-3.5"
+                        />
+                        <span class="hidden sm:inline">Studios</span>
                     </NuxtLink>
 
                     <NuxtLink
                         to="/explorer"
-                        class="text-dim flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px]
-                            font-medium transition-all hover:bg-white/5 hover:text-white"
+                        class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
+                            text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
+                            sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
                         active-class="!text-lava bg-lava/10"
+                        title="Explorer"
                     >
-                        <Icon name="heroicons:folder" size="14" />
-                        <span>Explorer</span>
+                        <Icon name="heroicons:folder" size="18" class="sm:!h-3.5 sm:!w-3.5" />
+                        <span class="hidden sm:inline">Explorer</span>
                     </NuxtLink>
 
                     <NuxtLink
                         to="/markers"
-                        class="text-dim flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px]
-                            font-medium transition-all hover:bg-white/5 hover:text-white"
+                        class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
+                            text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
+                            sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
                         active-class="!text-lava bg-lava/10"
+                        title="Markers"
                     >
-                        <Icon name="heroicons:bookmark" size="14" />
-                        <span>Markers</span>
+                        <Icon name="heroicons:bookmark" size="18" class="sm:!h-3.5 sm:!w-3.5" />
+                        <span class="hidden sm:inline">Markers</span>
                     </NuxtLink>
                 </div>
             </div>

@@ -111,40 +111,48 @@ const seeAllLink = computed(() => {
 </script>
 
 <template>
-    <div class="mb-8">
+    <div class="mb-6 sm:mb-8">
         <!-- Section Header -->
-        <div class="mb-4 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <h2 class="text-sm font-semibold tracking-wide text-white uppercase">
+        <div class="mb-3 flex items-center justify-between sm:mb-4">
+            <div class="flex min-w-0 items-center gap-2 sm:gap-3">
+                <h2
+                    class="truncate text-xs font-semibold tracking-wide text-white uppercase
+                        sm:text-sm"
+                >
                     {{ displayTitle }}
                 </h2>
                 <span
                     v-if="data"
-                    class="border-border bg-panel text-dim rounded-full border px-2 py-0.5 font-mono
-                        text-[10px]"
+                    class="border-border bg-panel text-dim shrink-0 rounded-full border px-1.5
+                        py-0.5 font-mono text-[9px] sm:px-2 sm:text-[10px]"
                 >
                     {{ data.total }}
                 </span>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex shrink-0 items-center gap-1 sm:gap-2">
                 <button
                     @click="handleRefresh"
                     :disabled="isRefreshing"
-                    class="text-dim flex items-center gap-1 text-xs transition-colors
-                        hover:text-white disabled:opacity-50"
+                    class="text-dim flex h-7 w-7 items-center justify-center rounded-md
+                        transition-colors hover:bg-white/5 hover:text-white disabled:opacity-50
+                        sm:h-auto sm:w-auto sm:rounded-none sm:bg-transparent
+                        sm:hover:bg-transparent"
                 >
                     <Icon
                         name="heroicons:arrow-path"
-                        size="14"
+                        size="16"
+                        class="sm:h-3.5 sm:w-3.5"
                         :class="{ 'animate-spin': isRefreshing }"
                     />
                 </button>
                 <NuxtLink
                     :to="seeAllLink"
-                    class="text-dim hover:text-lava flex items-center gap-1 text-xs
-                        transition-colors"
+                    class="text-dim hover:text-lava flex items-center gap-0.5 rounded-md px-2 py-1.5
+                        text-xs transition-colors hover:bg-white/5 sm:gap-1 sm:rounded-none
+                        sm:bg-transparent sm:p-0 sm:hover:bg-transparent"
                 >
-                    See all
+                    <span class="hidden sm:inline">See all</span>
+                    <span class="sm:hidden">All</span>
                     <Icon name="heroicons:chevron-right" size="14" />
                 </NuxtLink>
             </div>

@@ -161,3 +161,13 @@ input[type='password'] {
 @utility h-safe-bottom {
     height: env(safe-area-inset-bottom);
 }
+
+/* Hide scrollbar utility for horizontal scroll areas */
+.scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+    display: none;
+}

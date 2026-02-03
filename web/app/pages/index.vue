@@ -24,7 +24,7 @@ definePageMeta({
 </script>
 
 <template>
-    <div class="min-h-screen px-4 py-6 sm:px-5">
+    <div class="min-h-[calc(100svh-5.25rem)] px-4 py-4 sm:min-h-[calc(100vh-5.25rem)] sm:py-6">
         <div class="mx-auto max-w-415">
             <!-- Upload Section -->
             <SceneUpload v-if="homepageStore.config?.show_upload !== false" />
@@ -46,7 +46,7 @@ definePageMeta({
             </div>
 
             <!-- Dynamic Sections -->
-            <div v-else class="mt-8">
+            <div v-else class="mt-5 sm:mt-8">
                 <HomepageSection
                     v-for="section in homepageStore.enabledSections"
                     :key="section.id"

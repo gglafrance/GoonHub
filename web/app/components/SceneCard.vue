@@ -77,9 +77,15 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
             @click="handleCardClick"
             class="group border-border bg-surface hover:border-border-hover hover:bg-elevated
                 relative block overflow-hidden rounded-lg border transition-all duration-200"
-            :class="[fluid ? 'w-full' : 'w-[320px]', selected ? 'ring-lava/50 ring-2' : '']"
+            :class="[
+                fluid ? 'w-full' : 'w-[280px] sm:w-[320px]',
+                selected ? 'ring-lava/50 ring-2' : '',
+            ]"
         >
-            <div class="bg-void relative" :class="fluid ? 'aspect-video w-full' : 'h-45'">
+            <div
+                class="bg-void relative"
+                :class="fluid ? 'aspect-video w-full' : 'h-[158px] sm:h-45'"
+            >
                 <!-- Blurred background (stretched to fill) -->
                 <img
                     v-if="thumbnailUrl"
