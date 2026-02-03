@@ -20,7 +20,7 @@ type JobHistory struct {
 	SceneID      uint       `gorm:"not null;column:scene_id" json:"scene_id"`
 	SceneTitle   string     `gorm:"not null;size:255;default:'';column:scene_title" json:"scene_title"`
 	Phase        string     `gorm:"not null;size:20" json:"phase"`
-	Status       string     `gorm:"not null;size:20;default:'running'" json:"status"`
+	Status       string     `gorm:"not null;size:20;default:'pending'" json:"status"`
 	ErrorMessage *string    `gorm:"type:text" json:"error_message,omitempty"`
 	StartedAt    time.Time  `gorm:"not null;default:now()" json:"started_at"`
 	CompletedAt  *time.Time `json:"completed_at,omitempty"`

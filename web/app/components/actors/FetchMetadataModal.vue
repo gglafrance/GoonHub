@@ -52,6 +52,12 @@ const fieldDefinitions: {
     format?: (val: unknown) => string;
 }[] = [
     { key: 'name', actorKey: 'name', label: 'Name' },
+    {
+        key: 'aliases',
+        actorKey: 'aliases',
+        label: 'Aliases',
+        format: (val) => (val as string[])?.join(', ') || '-',
+    },
     { key: 'image', actorKey: 'image_url', label: 'Image' },
     { key: 'gender', actorKey: 'gender', label: 'Gender' },
     {
@@ -119,9 +125,12 @@ const initializeFieldSelection = () => {
         const currentValue = props.currentActor[field.actorKey];
 
         // Pre-select if PornDB has data and current value is empty/null/undefined
-        const hasNewData = porndbValue !== null && porndbValue !== undefined && porndbValue !== '';
-        const currentIsEmpty =
-            currentValue === null || currentValue === undefined || currentValue === '';
+        const hasNewData = Array.isArray(porndbValue)
+            ? porndbValue.length > 0
+            : porndbValue !== null && porndbValue !== undefined && porndbValue !== '';
+        const currentIsEmpty = Array.isArray(currentValue)
+            ? currentValue.length === 0
+            : currentValue === null || currentValue === undefined || currentValue === '';
 
         selectedFields.value[field.key] = hasNewData && currentIsEmpty;
     }
@@ -148,6 +157,15 @@ const getPornDBValue = (key: keyof PornDBPerformerDetails): unknown => {
 const hasFieldChanged = (field: (typeof fieldDefinitions)[0]): boolean => {
     const porndbValue = getPornDBValue(field.key);
     const currentValue = getCurrentValue(field.actorKey);
+
+    // Handle array comparison (e.g. aliases)
+    if (Array.isArray(porndbValue) || Array.isArray(currentValue)) {
+        const pArr = (porndbValue as string[]) || [];
+        const cArr = (currentValue as string[]) || [];
+        if (pArr.length === 0) return false;
+        if (pArr.length !== cArr.length) return true;
+        return pArr.some((v, i) => v !== cArr[i]);
+    }
 
     // Normalize values for comparison
     const normalizedPorndb =
@@ -181,6 +199,9 @@ const applyMetadata = () => {
                 switch (field.key) {
                     case 'name':
                         data.name = value as string;
+                        break;
+                    case 'aliases':
+                        data.aliases = value as string[];
                         break;
                     case 'image':
                         data.image_url = value as string;

@@ -137,7 +137,7 @@ func (r *ActorRepositoryImpl) Search(query string, page, limit int, sort string)
 	offset := (page - 1) * limit
 	searchPattern := "%" + query + "%"
 
-	countQuery := r.DB.Model(&Actor{}).Where("name ILIKE ?", searchPattern)
+	countQuery := r.DB.Model(&Actor{}).Where("(name ILIKE ? OR array_to_string(aliases, ',') ILIKE ?)", searchPattern, searchPattern)
 	if err := countQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -150,7 +150,7 @@ func (r *ActorRepositoryImpl) Search(query string, page, limit int, sort string)
 		Joins("LEFT JOIN scene_actors ON scene_actors.actor_id = actors.id").
 		Joins("LEFT JOIN scenes ON scenes.id = scene_actors.scene_id AND scenes.deleted_at IS NULL").
 		Where("actors.deleted_at IS NULL").
-		Where("actors.name ILIKE ?", searchPattern).
+		Where("(actors.name ILIKE ? OR array_to_string(actors.aliases, ',') ILIKE ?)", searchPattern, searchPattern).
 		Group("actors.id").
 		Order(orderClause).
 		Limit(limit).

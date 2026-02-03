@@ -250,6 +250,12 @@ func (s *JobHistoryService) GetByJobID(jobID string) (*data.JobHistory, error) {
 // CreatePendingJob creates a job with status='pending' in the database.
 // Used for DB-backed job queue where jobs are created pending and later claimed by the feeder.
 func (s *JobHistoryService) CreatePendingJob(jobID string, sceneID uint, sceneTitle string, phase string) error {
+	return s.CreatePendingJobWithPriority(jobID, sceneID, sceneTitle, phase, 0)
+}
+
+// CreatePendingJobWithPriority creates a pending job with a specific priority.
+// Higher priority values are claimed first by the feeder.
+func (s *JobHistoryService) CreatePendingJobWithPriority(jobID string, sceneID uint, sceneTitle string, phase string, priority int) error {
 	now := time.Now()
 	record := &data.JobHistory{
 		JobID:       jobID,
@@ -259,12 +265,14 @@ func (s *JobHistoryService) CreatePendingJob(jobID string, sceneID uint, sceneTi
 		Status:      data.JobStatusPending,
 		CreatedAt:   now,
 		IsRetryable: true,
+		Priority:    priority,
 	}
 	if err := s.repo.CreatePending(record); err != nil {
 		s.logger.Error("Failed to create pending job",
 			zap.String("job_id", jobID),
 			zap.Uint("scene_id", sceneID),
 			zap.String("phase", phase),
+			zap.Int("priority", priority),
 			zap.Error(err),
 		)
 		return err
@@ -273,6 +281,7 @@ func (s *JobHistoryService) CreatePendingJob(jobID string, sceneID uint, sceneTi
 		zap.String("job_id", jobID),
 		zap.Uint("scene_id", sceneID),
 		zap.String("phase", phase),
+		zap.Int("priority", priority),
 	)
 	return nil
 }
@@ -286,4 +295,14 @@ func (s *JobHistoryService) ExistsPendingOrRunning(sceneID uint, phase string) (
 // CountPendingByPhase returns the count of pending jobs per phase.
 func (s *JobHistoryService) CountPendingByPhase() (map[string]int, error) {
 	return s.repo.CountPendingByPhase()
+}
+
+// CancelPendingJob cancels a single pending job by job ID in the database.
+func (s *JobHistoryService) CancelPendingJob(jobID string) error {
+	return s.repo.CancelPendingJob(jobID)
+}
+
+// CountRecentFailedByPhase returns the count of recently failed jobs per phase.
+func (s *JobHistoryService) CountRecentFailedByPhase(since time.Duration) (map[string]int, error) {
+	return s.repo.CountRecentFailedByPhase(since)
 }

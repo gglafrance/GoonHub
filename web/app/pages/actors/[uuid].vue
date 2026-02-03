@@ -423,6 +423,12 @@ definePageMeta({
                                 <h1 class="truncate text-xl font-bold text-white sm:text-2xl">
                                     {{ actor.name }}
                                 </h1>
+                                <p
+                                    v-if="actor.aliases?.length"
+                                    class="text-dim mt-0.5 text-sm"
+                                >
+                                    Also known as: {{ actor.aliases.join(', ') }}
+                                </p>
                                 <div class="text-dim mt-1 text-sm">
                                     {{ actor.scene_count }}
                                     {{ actor.scene_count === 1 ? 'scene' : 'scenes' }}

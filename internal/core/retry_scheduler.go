@@ -161,17 +161,17 @@ func (rs *RetryScheduler) CalculateNextRetryTime(phase string, retryCount int) t
 func (rs *RetryScheduler) ScheduleRetry(jobID string, phase string, sceneID uint, retryCount int, errorMsg string) error {
 	cfg := rs.GetConfigForPhase(phase)
 
-	// Check if we've exhausted retries (including the next attempt)
-	// If retryCount+1 >= maxRetries, this would be the last retry, so move to DLQ instead
-	if retryCount+1 >= cfg.MaxRetries {
+	// Check if we've exhausted retries.
+	// retryCount tracks attempts already made. Move to DLQ when retryCount >= maxRetries.
+	if retryCount >= cfg.MaxRetries {
 		// Update retry info to reflect final state before moving to DLQ
-		if err := rs.jobHistoryRepo.UpdateRetryInfo(jobID, retryCount+1, cfg.MaxRetries, nil); err != nil {
+		if err := rs.jobHistoryRepo.UpdateRetryInfo(jobID, retryCount, cfg.MaxRetries, nil); err != nil {
 			rs.logger.Warn("Failed to update final retry info before DLQ",
 				zap.String("job_id", jobID),
 				zap.Error(err),
 			)
 		}
-		return rs.moveToDLQ(jobID, phase, sceneID, errorMsg, retryCount+1)
+		return rs.moveToDLQ(jobID, phase, sceneID, errorMsg, retryCount)
 	}
 
 	// Calculate next retry time
@@ -326,8 +326,8 @@ func (rs *RetryScheduler) retryJob(job data.JobHistory) {
 
 		// If resubmission fails, schedule another retry or move to DLQ
 		errorMsg := err.Error()
-		if job.RetryCount+1 >= cfg.MaxRetries {
-			if dlqErr := rs.moveToDLQ(job.JobID, job.Phase, job.SceneID, errorMsg, job.RetryCount+1); dlqErr != nil {
+		if job.RetryCount >= cfg.MaxRetries {
+			if dlqErr := rs.moveToDLQ(job.JobID, job.Phase, job.SceneID, errorMsg, job.RetryCount); dlqErr != nil {
 				rs.logger.Error("Failed to move job to DLQ after retry failure", zap.Error(dlqErr))
 			}
 		} else {

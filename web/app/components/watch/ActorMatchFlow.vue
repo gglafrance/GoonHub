@@ -110,6 +110,7 @@ async function selectPornDBPerformer(performer: PornDBPerformerDetails) {
         const details = await api.getPornDBPerformer(performer.id);
         const newActor = await api.createActor({
             name: details.name,
+            aliases: details.aliases,
             image_url: details.image,
             gender: details.gender,
             birthday: details.birthday,
@@ -161,6 +162,7 @@ async function createActorWithMetadata() {
         const details = await api.getPornDBPerformer(performer.id);
         const newActor = await api.createActor({
             name: details.name,
+            aliases: details.aliases,
             image_url: details.image,
             gender: details.gender,
             birthday: details.birthday,

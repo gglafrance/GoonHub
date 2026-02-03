@@ -49,21 +49,23 @@ type pornDBPerformerExtras struct {
 
 // pornDBPerformerRaw is the raw API response structure
 type pornDBPerformerRaw struct {
-	ID     string                 `json:"id"`
-	Slug   string                 `json:"slug"`
-	Name   string                 `json:"name"`
-	Image  string                 `json:"image,omitempty"`
-	Bio    string                 `json:"bio,omitempty"`
-	Extras *pornDBPerformerExtras `json:"extras,omitempty"`
+	ID      string                 `json:"id"`
+	Slug    string                 `json:"slug"`
+	Name    string                 `json:"name"`
+	Image   string                 `json:"image,omitempty"`
+	Bio     string                 `json:"bio,omitempty"`
+	Aliases []string               `json:"aliases,omitempty"`
+	Extras  *pornDBPerformerExtras `json:"extras,omitempty"`
 }
 
 // PornDBPerformerDetails is the flattened response we send to the frontend
 type PornDBPerformerDetails struct {
-	ID              string `json:"id"`
-	Slug            string `json:"slug"`
-	Name            string `json:"name"`
-	Image           string `json:"image,omitempty"`
-	Bio             string `json:"bio,omitempty"`
+	ID              string   `json:"id"`
+	Slug            string   `json:"slug"`
+	Name            string   `json:"name"`
+	Image           string   `json:"image,omitempty"`
+	Bio             string   `json:"bio,omitempty"`
+	Aliases         []string `json:"aliases,omitempty"`
 	Gender          string `json:"gender,omitempty"`
 	Birthday        string `json:"birthday,omitempty"`
 	Deathday        string `json:"deathday,omitempty"`
@@ -191,6 +193,7 @@ type pornDBPerformerSiteDetailRaw struct {
 	Bio       string                     `json:"bio,omitempty"`
 	Image     string                     `json:"image,omitempty"`
 	Thumbnail string                     `json:"thumbnail,omitempty"`
+	Aliases   []string                   `json:"aliases,omitempty"`
 	Extra     *pornDBPerformerSiteExtras `json:"extra,omitempty"` // Note: "extra" not "extras"
 }
 
@@ -464,11 +467,12 @@ func (s *PornDBService) GetPerformerDetails(id string) (*PornDBPerformerDetails,
 	// Flatten the response for the frontend
 	raw := result.Data
 	details := &PornDBPerformerDetails{
-		ID:    raw.ID,
-		Slug:  raw.Slug,
-		Name:  raw.Name,
-		Image: raw.Image,
-		Bio:   raw.Bio,
+		ID:      raw.ID,
+		Slug:    raw.Slug,
+		Name:    raw.Name,
+		Image:   raw.Image,
+		Bio:     raw.Bio,
+		Aliases: raw.Aliases,
 	}
 
 	// Copy fields from extras if present
@@ -548,10 +552,11 @@ func (s *PornDBService) GetPerformerSiteDetails(id string) (*PornDBPerformerDeta
 	}
 
 	details := &PornDBPerformerDetails{
-		ID:    raw.ID,
-		Name:  raw.Name,
-		Image: image,
-		Bio:   raw.Bio,
+		ID:      raw.ID,
+		Name:    raw.Name,
+		Image:   image,
+		Bio:     raw.Bio,
+		Aliases: raw.Aliases,
 	}
 
 	// Copy fields from extra if present (note: field names differ from /performers endpoint)

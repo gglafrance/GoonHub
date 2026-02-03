@@ -72,8 +72,8 @@ func (s *DLQService) RetryFromDLQ(jobID string) error {
 		s.logger.Warn("Failed to update DLQ status to retrying", zap.String("job_id", jobID), zap.Error(err))
 	}
 
-	// Resubmit the job
-	if err := s.processingService.SubmitPhase(entry.SceneID, entry.Phase); err != nil {
+	// Resubmit the job with elevated priority (manual retry should process before auto-imports)
+	if err := s.processingService.SubmitPhaseWithPriority(entry.SceneID, entry.Phase, 1); err != nil {
 		// Revert status on failure
 		if revertErr := s.dlqRepo.UpdateStatus(jobID, "pending_review"); revertErr != nil {
 			s.logger.Warn("Failed to revert DLQ status", zap.String("job_id", jobID), zap.Error(revertErr))

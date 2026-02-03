@@ -124,6 +124,15 @@ export const useApiJobs = () => {
         return handleResponse(response);
     };
 
+    const cancelJob = async (jobID: string) => {
+        const response = await fetch(`/api/v1/admin/jobs/${jobID}/cancel`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
     return {
         fetchJobs,
         fetchPoolConfig,
@@ -136,5 +145,6 @@ export const useApiJobs = () => {
         triggerBulkPhase,
         fetchRetryConfig,
         updateRetryConfig,
+        cancelJob,
     };
 };

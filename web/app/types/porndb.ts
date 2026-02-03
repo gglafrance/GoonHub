@@ -12,6 +12,7 @@ export interface PornDBPerformerDetails {
     name: string;
     image?: string;
     bio?: string;
+    aliases?: string[];
     gender?: string;
     birthday?: string; // ISO date string
     deathday?: string;

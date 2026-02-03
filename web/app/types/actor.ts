@@ -3,6 +3,7 @@ export interface ActorListItem {
     id: number;
     uuid: string;
     name: string;
+    aliases: string[];
     image_url: string;
     gender: string;
     scene_count: number;
@@ -15,6 +16,7 @@ export interface Actor {
     created_at: string;
     updated_at: string;
     name: string;
+    aliases?: string[];
     image_url?: string;
     gender?: string;
     birthday?: string;
@@ -47,6 +49,7 @@ export interface ActorListResponse {
 
 export interface CreateActorInput {
     name: string;
+    aliases?: string[];
     image_url?: string;
     gender?: string;
     birthday?: string;
@@ -71,6 +74,7 @@ export interface CreateActorInput {
 
 export interface UpdateActorInput {
     name?: string;
+    aliases?: string[];
     image_url?: string;
     gender?: string;
     birthday?: string;

@@ -8,9 +8,9 @@ const saving = ref(false);
 const error = ref('');
 const message = ref('');
 
-const metadataWorkers = ref(3);
-const thumbnailWorkers = ref(1);
-const spritesWorkers = ref(1);
+const metadataWorkers = ref(0);
+const thumbnailWorkers = ref(0);
+const spritesWorkers = ref(0);
 
 const loadConfig = async () => {
     loading.value = true;

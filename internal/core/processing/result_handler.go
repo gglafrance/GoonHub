@@ -219,6 +219,12 @@ func (rh *ResultHandler) onMetadataComplete(result jobs.JobResult) {
 			rh.repo,
 			rh.logger,
 		)
+		if rh.jobHistory != nil {
+			jh := rh.jobHistory
+			spritesJob.SetProgressCallback(func(jobID string, progress int) {
+				jh.UpdateProgress(jobID, progress)
+			})
+		}
 
 		spritesErr := rh.poolManager.SubmitToSpritesPool(spritesJob)
 		if spritesErr != nil {

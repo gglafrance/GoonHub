@@ -91,6 +91,13 @@ const genderInfo = computed(() => {
             >
                 {{ actor.name }}
             </h3>
+            <p
+                v-if="actor.aliases?.length"
+                class="text-dim mt-0.5 truncate text-[11px]"
+                :title="actor.aliases.join(', ')"
+            >
+                {{ actor.aliases.join(', ') }}
+            </p>
         </div>
     </NuxtLink>
 </template>

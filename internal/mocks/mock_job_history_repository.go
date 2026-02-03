@@ -41,6 +41,20 @@ func (m *MockJobHistoryRepository) EXPECT() *MockJobHistoryRepositoryMockRecorde
 	return m.recorder
 }
 
+// CancelPendingJob mocks base method.
+func (m *MockJobHistoryRepository) CancelPendingJob(jobID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CancelPendingJob", jobID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CancelPendingJob indicates an expected call of CancelPendingJob.
+func (mr *MockJobHistoryRepositoryMockRecorder) CancelPendingJob(jobID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelPendingJob", reflect.TypeOf((*MockJobHistoryRepository)(nil).CancelPendingJob), jobID)
+}
+
 // CancelPendingJobsForScene mocks base method.
 func (m *MockJobHistoryRepository) CancelPendingJobsForScene(sceneID uint) (int64, error) {
 	m.ctrl.T.Helper()
@@ -84,6 +98,21 @@ func (m *MockJobHistoryRepository) CountPendingByPhase() (map[string]int, error)
 func (mr *MockJobHistoryRepositoryMockRecorder) CountPendingByPhase() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountPendingByPhase", reflect.TypeOf((*MockJobHistoryRepository)(nil).CountPendingByPhase))
+}
+
+// CountRecentFailedByPhase mocks base method.
+func (m *MockJobHistoryRepository) CountRecentFailedByPhase(since time.Duration) (map[string]int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountRecentFailedByPhase", since)
+	ret0, _ := ret[0].(map[string]int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountRecentFailedByPhase indicates an expected call of CountRecentFailedByPhase.
+func (mr *MockJobHistoryRepositoryMockRecorder) CountRecentFailedByPhase(since any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountRecentFailedByPhase", reflect.TypeOf((*MockJobHistoryRepository)(nil).CountRecentFailedByPhase), since)
 }
 
 // Create mocks base method.

@@ -1,6 +1,7 @@
 package data
 
 import (
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -34,6 +35,10 @@ type JobHistoryRepository interface {
 
 	// Scene-specific methods
 	CancelPendingJobsForScene(sceneID uint) (int64, error)
+	CancelPendingJob(jobID string) error
+
+	// Monitoring methods
+	CountRecentFailedByPhase(since time.Duration) (map[string]int, error)
 }
 
 type JobHistoryRepositoryImpl struct {
@@ -324,4 +329,48 @@ func (r *JobHistoryRepositoryImpl) CancelPendingJobsForScene(sceneID uint) (int6
 		})
 
 	return result.RowsAffected, result.Error
+}
+
+// CancelPendingJob cancels a single pending job by job ID.
+// Returns an error if the job is not found or not in pending state.
+func (r *JobHistoryRepositoryImpl) CancelPendingJob(jobID string) error {
+	now := time.Now()
+	result := r.DB.Model(&JobHistory{}).
+		Where("job_id = ? AND status = ?", jobID, JobStatusPending).
+		Updates(map[string]any{
+			"status":       JobStatusCancelled,
+			"completed_at": now,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("job not found or not in pending state: %s", jobID)
+	}
+	return nil
+}
+
+// CountRecentFailedByPhase returns the count of failed jobs per phase within a time window.
+func (r *JobHistoryRepositoryImpl) CountRecentFailedByPhase(since time.Duration) (map[string]int, error) {
+	type phaseCount struct {
+		Phase string
+		Count int
+	}
+
+	cutoff := time.Now().Add(-since)
+	var counts []phaseCount
+	if err := r.DB.Model(&JobHistory{}).
+		Select("phase, COUNT(*) as count").
+		Where("status = ? AND completed_at >= ?", JobStatusFailed, cutoff).
+		Group("phase").
+		Scan(&counts).Error; err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]int)
+	for _, c := range counts {
+		result[c.Phase] = c.Count
+	}
+
+	return result, nil
 }

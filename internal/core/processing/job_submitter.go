@@ -63,6 +63,28 @@ func (js *JobSubmitter) SubmitPhase(sceneID uint, phase string) error {
 	return js.SubmitPhaseWithRetry(sceneID, phase, 0, 0)
 }
 
+// SubmitPhaseWithPriority submits a phase with a specific priority (higher = processed first).
+// Used for manual triggers and DLQ retries.
+func (js *JobSubmitter) SubmitPhaseWithPriority(sceneID uint, phase string, priority int) error {
+	switch phase {
+	case "metadata", "thumbnail", "sprites":
+	default:
+		return fmt.Errorf("unknown phase: %s", phase)
+	}
+
+	if phase == "thumbnail" || phase == "sprites" {
+		scene, err := js.repo.GetByID(sceneID)
+		if err != nil {
+			return fmt.Errorf("failed to get scene: %w", err)
+		}
+		if scene.Duration == 0 {
+			return fmt.Errorf("metadata must be extracted before %s generation", phase)
+		}
+	}
+
+	return js.createPendingJobWithPriority(sceneID, phase, priority)
+}
+
 // SubmitPhaseWithRetry submits a phase for processing with retry tracking.
 // Creates a pending job in the database; the JobQueueFeeder will pick it up.
 // retryCount is the current retry attempt (0 for first attempt).
@@ -90,9 +112,14 @@ func (js *JobSubmitter) SubmitPhaseWithRetry(sceneID uint, phase string, retryCo
 	return js.createPendingJob(sceneID, phase)
 }
 
-// createPendingJob creates a pending job in the database.
-// This is the core of the DB-backed queue approach.
+// createPendingJob creates a pending job in the database with default priority.
 func (js *JobSubmitter) createPendingJob(sceneID uint, phase string) error {
+	return js.createPendingJobWithPriority(sceneID, phase, 0)
+}
+
+// createPendingJobWithPriority creates a pending job in the database with a specific priority.
+// Higher priority values are claimed first by the feeder.
+func (js *JobSubmitter) createPendingJobWithPriority(sceneID uint, phase string, priority int) error {
 	if js.jobQueue == nil {
 		return fmt.Errorf("job queue recorder not configured")
 	}
@@ -125,20 +152,27 @@ func (js *JobSubmitter) createPendingJob(sceneID uint, phase string) error {
 	jobID := uuid.New().String()
 
 	// Create the pending job in the database
-	if err := js.jobQueue.CreatePendingJob(jobID, sceneID, sceneTitle, phase); err != nil {
+	var createErr error
+	if priority > 0 {
+		createErr = js.jobQueue.CreatePendingJobWithPriority(jobID, sceneID, sceneTitle, phase, priority)
+	} else {
+		createErr = js.jobQueue.CreatePendingJob(jobID, sceneID, sceneTitle, phase)
+	}
+	if createErr != nil {
 		js.logger.Error("Failed to create pending job",
 			zap.String("job_id", jobID),
 			zap.Uint("scene_id", sceneID),
 			zap.String("phase", phase),
-			zap.Error(err),
+			zap.Error(createErr),
 		)
-		return fmt.Errorf("failed to create pending job: %w", err)
+		return fmt.Errorf("failed to create pending job: %w", createErr)
 	}
 
 	js.logger.Info("Pending job created",
 		zap.String("job_id", jobID),
 		zap.Uint("scene_id", sceneID),
 		zap.String("phase", phase),
+		zap.Int("priority", priority),
 	)
 	return nil
 }

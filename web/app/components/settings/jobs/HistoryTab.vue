@@ -37,9 +37,18 @@ const { autoRefresh, toggle: toggleAutoRefresh } = useJobAutoRefresh({
     onRefresh: () => loadJobs(true),
 });
 
+const jobStatusStore = useJobStatusStore();
+
 onMounted(() => {
     loadJobs();
 });
+
+watch(
+    () => jobStatusStore.lastReconnectedAt,
+    (val) => {
+        if (val > 0) loadJobs(true);
+    },
+);
 </script>
 
 <template>
@@ -55,7 +64,7 @@ onMounted(() => {
         <SettingsJobsQueueStatus :pool-config="poolConfig" />
 
         <!-- Active Jobs -->
-        <SettingsJobsActiveJobs :active-jobs="activeJobs" />
+        <SettingsJobsActiveJobs :active-jobs="activeJobs" @reload="loadJobs(true)" />
 
         <!-- Job History Table -->
         <div class="glass-panel p-5">

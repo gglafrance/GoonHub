@@ -120,6 +120,7 @@ export interface JobStatusPhase {
     running: number;
     queued: number;
     pending: number;
+    failed: number;
 }
 
 export interface ActiveJobInfo {
@@ -134,6 +135,7 @@ export interface JobStatusData {
     total_running: number;
     total_queued: number;
     total_pending: number;
+    total_failed: number;
     by_phase: Record<string, JobStatusPhase>;
     active_jobs: ActiveJobInfo[];
     more_count: number;

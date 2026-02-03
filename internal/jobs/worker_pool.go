@@ -83,72 +83,7 @@ func (p *WorkerPool) worker(id int) {
 				zap.Int("queue_depth", p.QueueSize()),
 			)
 
-			result := JobResult{
-				JobID:   job.GetID(),
-				SceneID: job.GetSceneID(),
-				Phase:   job.GetPhase(),
-			}
-
-			// Create execution context with optional timeout
-			var execCtx context.Context
-			var execCancel context.CancelFunc
-			if p.timeout > 0 {
-				execCtx, execCancel = context.WithTimeout(p.ctx, p.timeout)
-			} else {
-				execCtx, execCancel = context.WithCancel(p.ctx)
-			}
-
-			err := job.ExecuteWithContext(execCtx)
-			execCancel()
-
-			// Unregister the job from the registry after execution
-			p.registry.Unregister(job.GetID())
-
-			if err != nil {
-				// Check for timeout vs cancellation vs other failures
-				jobStatus := job.GetStatus()
-				if jobStatus == JobStatusTimedOut {
-					result.Status = JobStatusTimedOut
-					result.Error = err
-					p.logger.Warn("Worker job timed out",
-						zap.Int("worker_id", id),
-						zap.String("job_id", job.GetID()),
-						zap.String("phase", job.GetPhase()),
-						zap.Uint("scene_id", job.GetSceneID()),
-						zap.Duration("timeout", p.timeout),
-					)
-				} else if jobStatus == JobStatusCancelled {
-					result.Status = JobStatusCancelled
-					result.Error = err
-					p.logger.Warn("Worker job cancelled",
-						zap.Int("worker_id", id),
-						zap.String("job_id", job.GetID()),
-						zap.String("phase", job.GetPhase()),
-						zap.Uint("scene_id", job.GetSceneID()),
-					)
-				} else {
-					result.Status = JobStatusFailed
-					result.Error = err
-					p.logger.Error("Worker job failed",
-						zap.Int("worker_id", id),
-						zap.String("job_id", job.GetID()),
-						zap.String("phase", job.GetPhase()),
-						zap.Uint("scene_id", job.GetSceneID()),
-						zap.Error(err),
-					)
-				}
-			} else {
-				result.Status = JobStatusCompleted
-				result.Data = job
-				p.logger.Debug("Worker job completed",
-					zap.Int("worker_id", id),
-					zap.String("job_id", job.GetID()),
-					zap.String("phase", job.GetPhase()),
-					zap.Uint("scene_id", job.GetSceneID()),
-				)
-			}
-
-			p.activeCount.Add(-1)
+			result := p.executeJob(id, job)
 
 			select {
 			case p.resultChan <- result:
@@ -157,6 +92,97 @@ func (p *WorkerPool) worker(id int) {
 			}
 		}
 	}
+}
+
+// executeJob runs a single job with panic recovery, ensuring activeCount is always decremented.
+func (p *WorkerPool) executeJob(workerID int, job Job) (result JobResult) {
+	defer func() {
+		p.activeCount.Add(-1)
+		if r := recover(); r != nil {
+			p.registry.Unregister(job.GetID())
+			result = JobResult{
+				JobID:   job.GetID(),
+				SceneID: job.GetSceneID(),
+				Phase:   job.GetPhase(),
+				Status:  JobStatusFailed,
+				Error:   fmt.Errorf("job panicked: %v", r),
+			}
+			p.logger.Error("Worker job panicked",
+				zap.Int("worker_id", workerID),
+				zap.String("job_id", job.GetID()),
+				zap.String("phase", job.GetPhase()),
+				zap.Uint("scene_id", job.GetSceneID()),
+				zap.Any("panic", r),
+			)
+		}
+	}()
+
+	result = JobResult{
+		JobID:   job.GetID(),
+		SceneID: job.GetSceneID(),
+		Phase:   job.GetPhase(),
+	}
+
+	// Create execution context with optional timeout
+	var execCtx context.Context
+	var execCancel context.CancelFunc
+	if p.timeout > 0 {
+		execCtx, execCancel = context.WithTimeout(p.ctx, p.timeout)
+	} else {
+		execCtx, execCancel = context.WithCancel(p.ctx)
+	}
+
+	err := job.ExecuteWithContext(execCtx)
+	execCancel()
+
+	// Unregister the job from the registry after execution
+	p.registry.Unregister(job.GetID())
+
+	if err != nil {
+		// Check for timeout vs cancellation vs other failures
+		jobStatus := job.GetStatus()
+		if jobStatus == JobStatusTimedOut {
+			result.Status = JobStatusTimedOut
+			result.Error = err
+			p.logger.Warn("Worker job timed out",
+				zap.Int("worker_id", workerID),
+				zap.String("job_id", job.GetID()),
+				zap.String("phase", job.GetPhase()),
+				zap.Uint("scene_id", job.GetSceneID()),
+				zap.Duration("timeout", p.timeout),
+			)
+		} else if jobStatus == JobStatusCancelled {
+			result.Status = JobStatusCancelled
+			result.Error = err
+			p.logger.Warn("Worker job cancelled",
+				zap.Int("worker_id", workerID),
+				zap.String("job_id", job.GetID()),
+				zap.String("phase", job.GetPhase()),
+				zap.Uint("scene_id", job.GetSceneID()),
+			)
+		} else {
+			result.Status = JobStatusFailed
+			result.Error = err
+			p.logger.Error("Worker job failed",
+				zap.Int("worker_id", workerID),
+				zap.String("job_id", job.GetID()),
+				zap.String("phase", job.GetPhase()),
+				zap.Uint("scene_id", job.GetSceneID()),
+				zap.Error(err),
+			)
+		}
+	} else {
+		result.Status = JobStatusCompleted
+		result.Data = job
+		p.logger.Debug("Worker job completed",
+			zap.Int("worker_id", workerID),
+			zap.String("job_id", job.GetID()),
+			zap.String("phase", job.GetPhase()),
+			zap.Uint("scene_id", job.GetSceneID()),
+		)
+	}
+
+	return result
 }
 
 func (p *WorkerPool) Submit(job Job) error {

@@ -117,8 +117,13 @@ onBeforeUnmount(() => {
 
             <!-- Phase Breakdown -->
             <div class="border-border border-b px-4 py-3">
-                <div class="mb-2 text-[10px] font-medium tracking-wider text-white/40 uppercase">
-                    By Phase
+                <div class="mb-2 flex items-center justify-between">
+                    <span class="text-[10px] font-medium tracking-wider text-white/40 uppercase">
+                        By Phase
+                    </span>
+                    <span class="text-[9px] text-white/25">
+                        run / wait / fail
+                    </span>
                 </div>
                 <div class="space-y-2">
                     <div
@@ -163,6 +168,19 @@ onBeforeUnmount(() => {
                                     }}
                                 </span>
                                 <span class="text-[10px] text-white/30">wait</span>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <span
+                                    class="text-xs font-medium"
+                                    :class="
+                                        (jobStatusStore.byPhase[phase]?.failed ?? 0) > 0
+                                            ? 'text-red-400'
+                                            : 'text-white/40'
+                                    "
+                                >
+                                    {{ jobStatusStore.byPhase[phase]?.failed ?? 0 }}
+                                </span>
+                                <span class="text-[10px] text-white/30">fail</span>
                             </div>
                         </div>
                     </div>
