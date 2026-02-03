@@ -140,3 +140,63 @@ func (h *WatchHistoryHandler) GetUserHistory(c *gin.Context) {
 		"limit":   limit,
 	})
 }
+
+func (h *WatchHistoryHandler) GetUserHistoryByDateRange(c *gin.Context) {
+	payload, err := middleware.GetUserFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	rangeDays := 30
+	if rangeStr := c.Query("range"); rangeStr != "" {
+		if parsed, err := strconv.Atoi(rangeStr); err == nil && parsed >= 0 {
+			rangeDays = parsed
+		}
+	}
+
+	limit := 2000
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
+			limit = parsed
+			if limit > 5000 {
+				limit = 5000
+			}
+		}
+	}
+
+	entries, err := h.Service.GetUserHistoryByDateRange(payload.UserID, rangeDays, limit)
+	if err != nil {
+		response.InternalError(c, "Failed to get history")
+		return
+	}
+
+	response.OK(c, gin.H{
+		"entries": response.ToWatchHistoryEntriesResponse(entries),
+	})
+}
+
+func (h *WatchHistoryHandler) GetDailyActivity(c *gin.Context) {
+	payload, err := middleware.GetUserFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	rangeDays := 30
+	if rangeStr := c.Query("range"); rangeStr != "" {
+		if parsed, err := strconv.Atoi(rangeStr); err == nil && parsed >= 0 {
+			rangeDays = parsed
+		}
+	}
+
+	counts, err := h.Service.GetDailyActivity(payload.UserID, rangeDays)
+	if err != nil {
+		response.InternalError(c, "Failed to get activity data")
+		return
+	}
+
+	response.OK(c, gin.H{
+		"counts": counts,
+	})
+}

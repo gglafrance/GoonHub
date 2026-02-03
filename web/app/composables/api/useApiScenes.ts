@@ -220,6 +220,29 @@ export const useApiScenes = () => {
         return handleResponse(response);
     };
 
+    const getUserWatchHistoryByDateRange = async (rangeDays = 30, limit = 2000) => {
+        const params = new URLSearchParams({
+            range: rangeDays.toString(),
+            limit: limit.toString(),
+        });
+        const response = await fetch(`/api/v1/history/by-date?${params}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const getDailyActivity = async (rangeDays = 30) => {
+        const params = new URLSearchParams({
+            range: rangeDays.toString(),
+        });
+        const response = await fetch(`/api/v1/history/activity?${params}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
     const fetchRelatedScenes = async (sceneId: number, limit = 12) => {
         const params = new URLSearchParams({ limit: limit.toString() });
         const response = await fetch(`/api/v1/scenes/${sceneId}/related?${params}`, {
@@ -264,6 +287,8 @@ export const useApiScenes = () => {
         getResumePosition,
         getSceneWatchHistory,
         getUserWatchHistory,
+        getUserWatchHistoryByDateRange,
+        getDailyActivity,
         fetchRelatedScenes,
         deleteScene,
     };

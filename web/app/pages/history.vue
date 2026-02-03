@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import type { WatchHistoryEntry } from '~/types/watch';
+import type { WatchHistoryEntry, DailyActivityCount, DateGroup } from '~/types/watch';
 
-const { getUserWatchHistory } = useApi();
-const { formatDuration } = useFormatter();
-const settingsStore = useSettingsStore();
+const { getUserWatchHistoryByDateRange, getDailyActivity } = useApiScenes();
 
 useHead({ title: 'Watch History' });
 
@@ -14,46 +12,99 @@ useSeoMeta({
     ogDescription: 'Your recently watched scenes',
 });
 
+const rangeDays = ref(30);
 const entries = ref<WatchHistoryEntry[]>([]);
+const activityCounts = ref<DailyActivityCount[]>([]);
 const isLoading = ref(true);
-const total = ref(0);
-const page = useUrlPagination();
-const limit = computed(() => settingsStore.videosPerPage);
 
-// Filter out entries where scene was deleted
-const validEntries = computed(() => entries.value.filter((e) => e.scene));
+const totalScenes = computed(() => {
+    const seen = new Set<number>();
+    for (const e of entries.value) {
+        if (e.scene) seen.add(e.scene.id);
+    }
+    return seen.size;
+});
 
-const loadHistory = async (newPage = 1) => {
+const formatDateLabel = (dateKey: string) => {
+    const today = new Date();
+    const todayKey =
+        today.getFullYear() +
+        '-' +
+        String(today.getMonth() + 1).padStart(2, '0') +
+        '-' +
+        String(today.getDate()).padStart(2, '0');
+
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey =
+        yesterday.getFullYear() +
+        '-' +
+        String(yesterday.getMonth() + 1).padStart(2, '0') +
+        '-' +
+        String(yesterday.getDate()).padStart(2, '0');
+
+    if (dateKey === todayKey) return 'Today';
+    if (dateKey === yesterdayKey) return 'Yesterday';
+
+    const d = new Date(dateKey + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+};
+
+const dateGroups = computed<DateGroup[]>(() => {
+    const groups = new Map<string, WatchHistoryEntry[]>();
+
+    for (const entry of entries.value) {
+        const d = new Date(entry.watch.watched_at);
+        const key =
+            d.getFullYear() +
+            '-' +
+            String(d.getMonth() + 1).padStart(2, '0') +
+            '-' +
+            String(d.getDate()).padStart(2, '0');
+
+        if (!groups.has(key)) {
+            groups.set(key, []);
+        }
+        groups.get(key)!.push(entry);
+    }
+
+    return Array.from(groups.entries()).map(([dateKey, groupEntries]) => ({
+        dateKey,
+        date: formatDateLabel(dateKey),
+        entries: groupEntries,
+    }));
+});
+
+const loadData = async () => {
     isLoading.value = true;
     try {
-        const data = await getUserWatchHistory(newPage, limit.value);
-        entries.value = data.entries || [];
-        total.value = data.total || 0;
-        page.value = newPage;
+        const [historyData, activityData] = await Promise.all([
+            getUserWatchHistoryByDateRange(rangeDays.value, 2000),
+            getDailyActivity(rangeDays.value),
+        ]);
+        entries.value = historyData.entries || [];
+        activityCounts.value = activityData.counts || [];
     } catch {
         entries.value = [];
+        activityCounts.value = [];
     } finally {
         isLoading.value = false;
     }
 };
 
-const getProgress = (entry: WatchHistoryEntry) => {
-    if (entry.watch.completed || !entry.scene?.duration) return undefined;
-    return {
-        last_position: entry.watch.last_position,
-        duration: entry.scene.duration,
-    };
+const scrollToDate = (dateKey: string) => {
+    const el = document.getElementById('date-' + dateKey);
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+    }
 };
 
-watch(
-    () => page.value,
-    (newPage) => {
-        loadHistory(newPage);
-    },
-);
+watch(rangeDays, () => {
+    loadData();
+});
 
 onMounted(() => {
-    loadHistory(page.value);
+    loadData();
 });
 
 definePageMeta({
@@ -82,8 +133,26 @@ definePageMeta({
                     class="border-border bg-panel text-dim rounded-full border px-2.5 py-0.5
                         font-mono text-[11px]"
                 >
-                    {{ total }} scenes
+                    {{ totalScenes }} scenes
                 </span>
+            </div>
+
+            <!-- Range Selector -->
+            <div class="mb-4">
+                <HistoryRangeSelector v-model="rangeDays" />
+            </div>
+
+            <!-- Activity Chart -->
+            <div class="border-border bg-panel mb-6 rounded-xl border p-3">
+                <div class="text-dim mb-2 text-[11px] font-medium uppercase tracking-wider">
+                    Activity
+                </div>
+                <HistoryActivityChart
+                    :counts="activityCounts"
+                    :range-days="rangeDays"
+                    :is-loading="isLoading"
+                    @bar-click="scrollToDate"
+                />
             </div>
 
             <!-- Loading State -->
@@ -95,50 +164,18 @@ definePageMeta({
             </div>
 
             <!-- Empty State -->
-            <div
-                v-else-if="entries.length === 0"
-                class="border-border flex h-64 flex-col items-center justify-center rounded-xl
-                    border border-dashed text-center"
-            >
-                <div
-                    class="bg-panel border-border flex h-10 w-10 items-center justify-center
-                        rounded-lg border"
-                >
-                    <Icon name="heroicons:clock" size="20" class="text-dim" />
-                </div>
-                <p class="text-muted mt-3 text-sm">No watch history</p>
-                <p class="text-dim mt-1 text-xs">Scenes you watch will appear here</p>
-                <NuxtLink
-                    to="/"
-                    class="border-border bg-surface text-muted hover:border-border-hover mt-4
-                        rounded-lg border px-4 py-2 text-xs font-medium transition-all
-                        hover:text-white"
-                >
-                    Browse Library
-                </NuxtLink>
-            </div>
+            <HistoryEmptyState v-else-if="entries.length === 0" />
 
-            <!-- History Grid -->
-            <div v-else>
-                <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                    <SceneCard
-                        v-for="entry in validEntries"
-                        :key="entry.watch.id"
-                        :scene="entry.scene!"
-                        :progress="getProgress(entry)"
-                        :completed="entry.watch.completed"
-                        fluid
-                    >
-                        <template #footer>
-                            <NuxtTime :datetime="new Date(entry.watch.watched_at)" relative />
-                            <span v-if="!entry.watch.completed && entry.watch.last_position > 0">
-                                {{ formatDuration(entry.watch.last_position) }}
-                            </span>
-                        </template>
-                    </SceneCard>
-                </div>
-
-                <Pagination v-model="page" :total="total" :limit="limit" />
+            <!-- Date-grouped History -->
+            <div v-else class="space-y-8">
+                <HistoryDateSection
+                    v-for="group in dateGroups"
+                    :key="group.dateKey"
+                    :date-key="group.dateKey"
+                    :date-label="group.date"
+                    :entries="group.entries"
+                    :entry-count="group.entries.length"
+                />
             </div>
         </div>
     </div>

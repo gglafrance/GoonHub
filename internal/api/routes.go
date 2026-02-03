@@ -69,6 +69,8 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 				history := protected.Group("/history")
 				{
 					history.GET("", watchHistoryHandler.GetUserHistory)
+					history.GET("/by-date", watchHistoryHandler.GetUserHistoryByDateRange)
+					history.GET("/activity", watchHistoryHandler.GetDailyActivity)
 				}
 
 				tags := protected.Group("/tags")
