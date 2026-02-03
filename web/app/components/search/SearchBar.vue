@@ -16,7 +16,7 @@ const sortOptions = [
 </script>
 
 <template>
-    <div class="flex gap-3">
+    <div class="flex gap-2 sm:gap-3">
         <div class="relative flex-1">
             <Icon
                 name="heroicons:magnifying-glass"
@@ -27,16 +27,17 @@ const sortOptions = [
                 v-model="searchStore.query"
                 type="text"
                 placeholder="Search videos..."
-                class="border-border bg-surface placeholder:text-dim w-full rounded-lg border py-2
-                    pr-3 pl-9 text-sm text-white transition-colors focus:border-white/20
+                class="border-border bg-surface placeholder:text-dim h-10 w-full rounded-lg border
+                    py-2 pr-3 pl-9 text-sm text-white transition-colors focus:border-white/20
                     focus:outline-none"
+                enterkeyhint="search"
             />
         </div>
 
         <select
             v-model="searchStore.sort"
-            class="border-border bg-surface text-dim rounded-lg border px-3 py-2 text-xs
-                transition-colors focus:border-white/20 focus:outline-none"
+            class="border-border bg-surface text-dim hidden h-10 rounded-lg border px-3 py-2 text-xs
+                transition-colors focus:border-white/20 focus:outline-none sm:block"
         >
             <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">
                 {{ opt.label }}
