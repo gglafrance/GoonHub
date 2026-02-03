@@ -21,7 +21,9 @@ function updateScrollState() {
 
 function scroll(direction: 'left' | 'right') {
     if (!scrollContainer.value) return;
-    const scrollAmount = 320 * 3; // Scroll 3 cards (SceneCard width)
+    // Responsive scroll: 280px on mobile, 320px on desktop (matches SceneCard widths)
+    const cardWidth = window.innerWidth < 640 ? 280 : 320;
+    const scrollAmount = cardWidth * 3;
     scrollContainer.value.scrollBy({
         left: direction === 'left' ? -scrollAmount : scrollAmount,
         behavior: 'smooth',

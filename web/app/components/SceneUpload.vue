@@ -41,7 +41,7 @@ const queueFiles = (files: FileList) => {
 </script>
 
 <template>
-    <div class="border-border bg-surface/50 rounded-xl border p-4 backdrop-blur-sm">
+    <div class="border-border bg-surface/50 rounded-xl border p-3 backdrop-blur-sm sm:p-4">
         <div v-if="!authStore.isAuthenticated" class="py-6 text-center">
             <Icon name="heroicons:lock-closed" size="24" class="text-dim mx-auto mb-2" />
             <h3 class="text-muted text-xs font-medium">Authentication Required</h3>
@@ -49,7 +49,9 @@ const queueFiles = (files: FileList) => {
         </div>
 
         <div v-else>
-            <h2 class="text-muted mb-3 text-xs font-semibold tracking-wider uppercase">Upload</h2>
+            <h2 class="text-muted mb-2.5 text-xs font-semibold tracking-wider uppercase sm:mb-3">
+                Upload
+            </h2>
 
             <div
                 @dragover="handleDragOver"
@@ -57,8 +59,8 @@ const queueFiles = (files: FileList) => {
                 @drop="handleDrop"
                 @click="fileInput?.click()"
                 :class="[
-                    `cursor-pointer rounded-lg border border-dashed p-6 text-center transition-all
-                    duration-200`,
+                    `cursor-pointer rounded-lg border border-dashed p-5 text-center transition-all
+                    duration-200 active:scale-[0.99] sm:p-6 sm:active:scale-100`,
                     isDragging
                         ? 'border-lava/50 bg-lava/5'
                         : 'border-border hover:border-border-hover hover:bg-elevated/50',
@@ -75,16 +77,21 @@ const queueFiles = (files: FileList) => {
 
                 <div class="flex flex-col items-center gap-2">
                     <div
-                        class="border-border bg-panel flex h-8 w-8 items-center justify-center
-                            rounded-lg border"
+                        class="border-border bg-panel flex h-10 w-10 items-center justify-center
+                            rounded-lg border sm:h-8 sm:w-8"
                     >
-                        <Icon name="heroicons:arrow-up-tray" size="16" class="text-dim" />
+                        <Icon
+                            name="heroicons:arrow-up-tray"
+                            class="text-dim h-5 w-5 sm:h-4 sm:w-4"
+                        />
                     </div>
-                    <div class="text-muted text-xs font-medium">Drop scenes or click to upload</div>
+                    <div class="text-muted text-sm font-medium sm:text-xs">
+                        <span class="hidden sm:inline">Drop scenes or click to upload</span>
+                        <span class="sm:hidden">Tap to upload scenes</span>
+                    </div>
                     <div class="text-dim font-mono text-[10px]">MP4, MKV, AVI, WEBM</div>
                 </div>
             </div>
-
         </div>
     </div>
 </template>

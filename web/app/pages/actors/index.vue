@@ -73,12 +73,20 @@ watch(searchQuery, () => {
         clearTimeout(searchTimeout);
     }
     searchTimeout = setTimeout(() => {
-        currentPage.value = 1;
+        if (currentPage.value === 1) {
+            loadActors(1);
+        } else {
+            currentPage.value = 1;
+        }
     }, 300);
 });
 
 watch(sortOrder, () => {
-    currentPage.value = 1;
+    if (currentPage.value === 1) {
+        loadActors(1);
+    } else {
+        currentPage.value = 1;
+    }
 });
 
 const handleActorCreated = (newActor: Actor) => {

@@ -152,6 +152,19 @@ type pornDBSearchResponse struct {
 	Data []PornDBPerformer `json:"data"`
 }
 
+// pornDBPerformerSiteRaw is the raw API response structure for a performer site
+type pornDBPerformerSiteRaw struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Bio       string `json:"bio,omitempty"`
+	Image     string `json:"image,omitempty"`
+	Thumbnail string `json:"thumbnail,omitempty"`
+}
+
+type pornDBPerformerSitesSearchResponse struct {
+	Data []pornDBPerformerSiteRaw `json:"data"`
+}
+
 type pornDBPerformerResponse struct {
 	Data pornDBPerformerRaw `json:"data"`
 }
@@ -224,12 +237,35 @@ func (s *PornDBService) IsConfigured() bool {
 	return s.apiKey != ""
 }
 
-// SearchPerformers searches for performers by name
+// SearchPerformers searches for performers by name, querying both /performers and /performer-sites endpoints
 func (s *PornDBService) SearchPerformers(query string) ([]PornDBPerformer, error) {
 	if !s.IsConfigured() {
 		return nil, fmt.Errorf("PornDB API key is not configured")
 	}
 
+	// Search the /performers endpoint
+	performers, err := s.searchPerformersEndpoint(query)
+	if err != nil {
+		return nil, err
+	}
+
+	// Search the /performer-sites endpoint
+	sitePerformers, err := s.searchPerformerSites(query)
+	if err != nil {
+		// Log warning but continue with performers results
+		s.logger.Warn("failed to search performer-sites, continuing with performers only",
+			zap.String("query", query),
+			zap.Error(err),
+		)
+		return performers, nil
+	}
+
+	// Merge and deduplicate results
+	return mergePerformers(performers, sitePerformers), nil
+}
+
+// searchPerformersEndpoint searches the /performers API endpoint
+func (s *PornDBService) searchPerformersEndpoint(query string) ([]PornDBPerformer, error) {
 	params := url.Values{}
 	params.Set("q", query)
 
@@ -249,7 +285,7 @@ func (s *PornDBService) SearchPerformers(query string) ([]PornDBPerformer, error
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		s.logger.Warn("PornDB search failed",
+		s.logger.Warn("PornDB performers search failed",
 			zap.Int("status", resp.StatusCode),
 			zap.String("body", string(body)),
 		)
@@ -262,6 +298,78 @@ func (s *PornDBService) SearchPerformers(query string) ([]PornDBPerformer, error
 	}
 
 	return result.Data, nil
+}
+
+// searchPerformerSites searches the /performer-sites API endpoint
+func (s *PornDBService) searchPerformerSites(query string) ([]PornDBPerformer, error) {
+	params := url.Values{}
+	params.Set("q", query)
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/performer-sites?%s", pornDBBaseURL, params.Encode()), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.apiKey))
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		s.logger.Warn("PornDB performer-sites search failed",
+			zap.Int("status", resp.StatusCode),
+			zap.String("body", string(body)),
+		)
+		return nil, fmt.Errorf("PornDB API returned status %d", resp.StatusCode)
+	}
+
+	var result pornDBPerformerSitesSearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	// Convert performer-sites results to PornDBPerformer format
+	performers := make([]PornDBPerformer, 0, len(result.Data))
+	for _, raw := range result.Data {
+		image := raw.Image
+		if image == "" && raw.Thumbnail != "" {
+			image = raw.Thumbnail
+		}
+		performers = append(performers, PornDBPerformer{
+			ID:    raw.ID,
+			Name:  raw.Name,
+			Image: image,
+			Bio:   raw.Bio,
+		})
+	}
+
+	return performers, nil
+}
+
+// mergePerformers combines two slices of performers, deduplicating by ID
+// Primary results take precedence over secondary results
+func mergePerformers(primary, secondary []PornDBPerformer) []PornDBPerformer {
+	seen := make(map[string]bool)
+	result := make([]PornDBPerformer, 0, len(primary)+len(secondary))
+
+	for _, p := range primary {
+		if !seen[p.ID] {
+			seen[p.ID] = true
+			result = append(result, p)
+		}
+	}
+	for _, p := range secondary {
+		if !seen[p.ID] {
+			seen[p.ID] = true
+			result = append(result, p)
+		}
+	}
+	return result
 }
 
 // parseNumericValue extracts a number from a string like "160cm" or "50kg"

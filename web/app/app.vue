@@ -26,7 +26,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="cosmic-bg min-h-screen">
+    <div class="cosmic-bg min-h-screen overflow-x-hidden">
         <AppHeader />
         <NuxtPage />
         <UploadIndicator />

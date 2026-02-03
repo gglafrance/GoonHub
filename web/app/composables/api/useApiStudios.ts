@@ -65,7 +65,7 @@ export const useApiStudios = () => {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
-        return handleResponse(response);
+        await handleResponseWithNoContent(response);
     };
 
     const uploadStudioLogo = async (id: number, file: File) => {
@@ -134,6 +134,22 @@ export const useApiStudios = () => {
         return handleResponse(response);
     };
 
+    const fetchAllStudioSceneIDs = async (uuid: string): Promise<number[]> => {
+        const allIds: number[] = [];
+        let page = 1;
+        const limit = 100;
+        let hasMore = true;
+
+        while (hasMore) {
+            const response = await fetchStudioScenes(uuid, page, limit);
+            const sceneIds = response.data.map((scene: { id: number }) => scene.id);
+            allIds.push(...sceneIds);
+            hasMore = response.data.length === limit && allIds.length < response.total;
+            page++;
+        }
+        return allIds;
+    };
+
     return {
         fetchStudios,
         fetchStudioByUUID,
@@ -148,5 +164,6 @@ export const useApiStudios = () => {
         setStudioRating,
         deleteStudioRating,
         toggleStudioLike,
+        fetchAllStudioSceneIDs,
     };
 };

@@ -7,7 +7,15 @@ defineProps<{
 </script>
 
 <template>
-    <div class="grid justify-center gap-3" style="grid-template-columns: repeat(auto-fill, 320px)">
-        <SceneCard v-for="scene in scenes" :key="scene.id" :scene="scene" />
+    <div class="c_grid grid grid-cols-2 gap-2 sm:gap-3">
+        <SceneCard v-for="scene in scenes" :key="scene.id" :scene="scene" fluid />
     </div>
 </template>
+
+<style scoped>
+.c_grid {
+    @media (width >= 40rem /* 640px */) {
+        grid-template-columns: repeat(auto-fill, 320px);
+    }
+}
+</style>

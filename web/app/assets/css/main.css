@@ -148,3 +148,26 @@ input[type='password'] {
     font-family: var(--font-sans);
     font-size: 13px;
 }
+
+/* Safe area utilities for notched devices */
+@utility pt-safe-top {
+    padding-top: max(1rem, env(safe-area-inset-top));
+}
+
+@utility pb-safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+@utility h-safe-bottom {
+    height: env(safe-area-inset-bottom);
+}
+
+/* Hide scrollbar utility for horizontal scroll areas */
+.scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+    display: none;
+}

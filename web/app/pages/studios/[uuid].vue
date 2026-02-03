@@ -19,6 +19,7 @@ const error = ref<string | null>(null);
 const showEditModal = ref(false);
 const showCreateModal = ref(false);
 const showFetchModal = ref(false);
+const showDeleteModal = ref(false);
 
 // Rating state
 const currentRating = ref(0);
@@ -28,6 +29,12 @@ const isHovering = ref(false);
 // Like state
 const liked = ref(false);
 const likeAnimating = ref(false);
+
+// Mobile admin menu
+const showAdminMenu = ref(false);
+
+// Details collapsed state (collapsed by default on mobile)
+const detailsExpanded = ref(false);
 
 const pageTitle = computed(() => studio.value?.name || 'Studio');
 useHead({ title: pageTitle });
@@ -180,6 +187,11 @@ const handleStudioUpdated = () => {
 const handleStudioCreated = (newStudio: Studio) => {
     showCreateModal.value = false;
     router.push(`/studios/${newStudio.uuid}`);
+};
+
+const handleStudioDeleted = () => {
+    showDeleteModal.value = false;
+    router.push('/studios');
 };
 
 const handleApplyMetadata = async (data: Partial<UpdateStudioInput>) => {
@@ -352,9 +364,22 @@ definePageMeta({
 
                     <!-- Basic Info -->
                     <div class="flex-1">
-                        <div class="flex items-start justify-between">
-                            <h1 class="text-2xl font-bold text-white">{{ studio.name }}</h1>
-                            <div v-if="isAdmin" class="flex items-center gap-2">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0 flex-1">
+                                <h1 class="truncate text-xl font-bold text-white sm:text-2xl">
+                                    {{ studio.name }}
+                                </h1>
+                                <div v-if="studio.short_name" class="text-dim mt-1 text-sm">
+                                    {{ studio.short_name }}
+                                </div>
+                                <div class="text-dim mt-1 text-sm">
+                                    {{ studio.scene_count }}
+                                    {{ studio.scene_count === 1 ? 'scene' : 'scenes' }}
+                                </div>
+                            </div>
+
+                            <!-- Desktop: Full admin buttons -->
+                            <div v-if="isAdmin" class="hidden items-center gap-2 sm:flex">
                                 <button
                                     @click="showCreateModal = true"
                                     class="border-border bg-panel hover:border-lava/50
@@ -382,20 +407,97 @@ definePageMeta({
                                     <Icon name="heroicons:pencil" size="14" />
                                     Edit
                                 </button>
+                                <button
+                                    @click="showDeleteModal = true"
+                                    class="border-border bg-panel text-dim flex items-center gap-1
+                                        rounded-lg border px-3 py-1.5 text-sm transition-colors
+                                        hover:border-red-500/50 hover:text-red-500"
+                                >
+                                    <Icon name="heroicons:trash" size="14" />
+                                    Delete
+                                </button>
+                            </div>
+
+                            <!-- Mobile: Dropdown menu -->
+                            <div v-if="isAdmin" class="relative sm:hidden">
+                                <button
+                                    @click="showAdminMenu = !showAdminMenu"
+                                    class="border-border bg-panel text-dim flex h-9 w-9 items-center
+                                        justify-center rounded-lg border transition-colors
+                                        hover:border-white/20 hover:text-white"
+                                >
+                                    <Icon name="heroicons:ellipsis-vertical" size="18" />
+                                </button>
+
+                                <!-- Dropdown -->
+                                <Transition name="fade">
+                                    <div
+                                        v-if="showAdminMenu"
+                                        class="border-border bg-surface absolute top-11 right-0 z-20
+                                            w-40 rounded-lg border py-1 shadow-xl"
+                                    >
+                                        <button
+                                            @click="
+                                                showCreateModal = true;
+                                                showAdminMenu = false;
+                                            "
+                                            class="text-dim flex w-full items-center gap-2 px-3 py-2
+                                                text-sm transition-colors hover:bg-white/5
+                                                hover:text-white"
+                                        >
+                                            <Icon name="heroicons:plus" size="16" />
+                                            New Studio
+                                        </button>
+                                        <button
+                                            @click="
+                                                showFetchModal = true;
+                                                showAdminMenu = false;
+                                            "
+                                            class="text-dim flex w-full items-center gap-2 px-3 py-2
+                                                text-sm transition-colors hover:bg-white/5
+                                                hover:text-white"
+                                        >
+                                            <Icon name="heroicons:cloud-arrow-down" size="16" />
+                                            Fetch Metadata
+                                        </button>
+                                        <button
+                                            @click="
+                                                showEditModal = true;
+                                                showAdminMenu = false;
+                                            "
+                                            class="text-dim flex w-full items-center gap-2 px-3 py-2
+                                                text-sm transition-colors hover:bg-white/5
+                                                hover:text-white"
+                                        >
+                                            <Icon name="heroicons:pencil" size="16" />
+                                            Edit
+                                        </button>
+                                        <div class="border-border my-1 border-t" />
+                                        <button
+                                            @click="
+                                                showDeleteModal = true;
+                                                showAdminMenu = false;
+                                            "
+                                            class="flex w-full items-center gap-2 px-3 py-2 text-sm
+                                                text-red-400 transition-colors hover:bg-red-500/10"
+                                        >
+                                            <Icon name="heroicons:trash" size="16" />
+                                            Delete
+                                        </button>
+                                    </div>
+                                </Transition>
+
+                                <!-- Backdrop to close menu -->
+                                <div
+                                    v-if="showAdminMenu"
+                                    class="fixed inset-0 z-10"
+                                    @click="showAdminMenu = false"
+                                />
                             </div>
                         </div>
 
-                        <div v-if="studio.short_name" class="text-dim mt-1 text-sm">
-                            {{ studio.short_name }}
-                        </div>
-
-                        <div class="text-dim mt-1 text-sm">
-                            {{ studio.scene_count }}
-                            {{ studio.scene_count === 1 ? 'scene' : 'scenes' }}
-                        </div>
-
-                        <!-- Quick Info -->
-                        <div class="mt-4 space-y-2 text-sm">
+                        <!-- Quick Info - Desktop only -->
+                        <div class="mt-4 hidden space-y-2 text-sm sm:block">
                             <div v-if="studio.url">
                                 <span class="text-dim">Website:</span>
                                 <a
@@ -413,13 +515,65 @@ definePageMeta({
                             </div>
                         </div>
 
-                        <!-- Description -->
-                        <div v-if="studio.description" class="mt-4">
+                        <!-- Description - Desktop only -->
+                        <div v-if="studio.description" class="mt-4 hidden sm:block">
                             <p class="text-dim text-sm leading-relaxed">
                                 {{ studio.description }}
                             </p>
                         </div>
                     </div>
+                </div>
+
+                <!-- Mobile: Collapsible Details Section -->
+                <div v-if="studio.url || studio.rating || studio.description" class="sm:hidden">
+                    <button
+                        @click="detailsExpanded = !detailsExpanded"
+                        class="border-border bg-surface hover:bg-elevated flex w-full items-center
+                            justify-between rounded-lg border px-4 py-3 transition-colors"
+                    >
+                        <span class="text-sm font-medium text-white">Studio Details</span>
+                        <Icon
+                            name="heroicons:chevron-down"
+                            size="18"
+                            class="text-dim transition-transform duration-200"
+                            :class="{ 'rotate-180': detailsExpanded }"
+                        />
+                    </button>
+
+                    <Transition name="collapse">
+                        <div v-if="detailsExpanded" class="mt-3 space-y-3">
+                            <div class="border-border bg-surface rounded-lg border p-4">
+                                <dl class="space-y-3 text-sm">
+                                    <div v-if="studio.url">
+                                        <dt class="text-dim text-[11px] uppercase">Website</dt>
+                                        <dd>
+                                            <a
+                                                :href="studio.url"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                class="text-lava hover:text-lava-glow break-all
+                                                    transition-colors"
+                                            >
+                                                {{ studio.url }}
+                                            </a>
+                                        </dd>
+                                    </div>
+                                    <div v-if="studio.rating">
+                                        <dt class="text-dim text-[11px] uppercase">
+                                            PornDB Rating
+                                        </dt>
+                                        <dd class="text-white">{{ studio.rating }}</dd>
+                                    </div>
+                                    <div v-if="studio.description">
+                                        <dt class="text-dim text-[11px] uppercase">Description</dt>
+                                        <dd class="text-dim mt-1 leading-relaxed">
+                                            {{ studio.description }}
+                                        </dd>
+                                    </div>
+                                </dl>
+                            </div>
+                        </div>
+                    </Transition>
                 </div>
 
                 <!-- Scenes Section -->
@@ -487,6 +641,15 @@ definePageMeta({
                 @close="showFetchModal = false"
                 @apply="handleApplyMetadata"
             />
+
+            <!-- Delete Modal -->
+            <StudiosDeleteModal
+                v-if="studio && showDeleteModal"
+                :visible="showDeleteModal"
+                :studio="studio"
+                @close="showDeleteModal = false"
+                @deleted="handleStudioDeleted"
+            />
         </div>
     </div>
 </template>
@@ -494,10 +657,21 @@ definePageMeta({
 <style scoped>
 .fade-enter-active,
 .fade-leave-active {
-    transition: opacity 0.3s ease;
+    transition: opacity 0.15s ease;
 }
 .fade-enter-from,
 .fade-leave-to {
     opacity: 0;
+}
+
+.collapse-enter-active,
+.collapse-leave-active {
+    transition: all 0.2s ease;
+    overflow: hidden;
+}
+.collapse-enter-from,
+.collapse-leave-to {
+    opacity: 0;
+    transform: translateY(-8px);
 }
 </style>

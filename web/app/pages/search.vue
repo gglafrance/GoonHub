@@ -25,7 +25,26 @@ let isSyncingFromUrl = false;
 // Saved searches state
 const savedSearchesPanel = ref<{ reload: () => Promise<void> } | null>(null);
 const showSaveModal = ref(false);
+const showMobileFilters = ref(false);
 const currentFilters = computed(() => searchStore.getCurrentFilters());
+
+// Active filter count for mobile button badge
+const activeFilterCount = computed(() => {
+    let count = 0;
+    if (searchStore.selectedTags.length > 0) count += searchStore.selectedTags.length;
+    if (searchStore.selectedActors.length > 0) count += searchStore.selectedActors.length;
+    if (searchStore.selectedMarkerLabels.length > 0)
+        count += searchStore.selectedMarkerLabels.length;
+    if (searchStore.studio) count++;
+    if (searchStore.minDuration > 0 || searchStore.maxDuration > 0) count++;
+    if (searchStore.minDate || searchStore.maxDate) count++;
+    if (searchStore.resolution) count++;
+    if (searchStore.liked) count++;
+    if (searchStore.minRating > 0 || searchStore.maxRating > 0) count++;
+    if (searchStore.minJizzCount > 0 || searchStore.maxJizzCount > 0) count++;
+    if (searchStore.matchType !== 'broad') count++;
+    return count;
+});
 
 const syncFromUrl = () => {
     isSyncingFromUrl = true;
@@ -172,17 +191,37 @@ const handleSearchSaved = (search: SavedSearch) => {
 </script>
 
 <template>
-    <div class="mx-auto max-w-415 px-4 py-6 sm:px-5">
-        <div class="mb-5 flex items-center gap-3">
+    <div class="mx-auto max-w-415 px-4 py-4 sm:py-6">
+        <div class="mb-4 flex items-center gap-2 sm:mb-5 sm:gap-3">
             <div class="min-w-0 flex-1">
                 <SearchBar />
             </div>
+
+            <!-- Mobile: Filter button -->
+            <button
+                @click="showMobileFilters = true"
+                class="border-border bg-surface hover:border-lava/40 hover:bg-lava/10 relative flex
+                    h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-all
+                    lg:hidden"
+                title="Filters"
+            >
+                <Icon name="heroicons:adjustments-horizontal" size="18" class="text-white" />
+                <span
+                    v-if="activeFilterCount > 0"
+                    class="bg-lava absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center
+                        justify-center rounded-full px-1 text-[10px] font-bold text-white"
+                >
+                    {{ activeFilterCount }}
+                </span>
+            </button>
+
+            <!-- Save search button -->
             <button
                 v-if="searchStore.hasActiveFilters"
                 @click="showSaveModal = true"
-                class="border-border bg-surface hover:border-lava/40 hover:bg-lava/10 flex shrink-0
-                    items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium text-white
-                    transition-all"
+                class="border-border bg-surface hover:border-lava/40 hover:bg-lava/10 flex h-10
+                    shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium
+                    text-white transition-all sm:py-2"
                 title="Save current search"
             >
                 <Icon name="heroicons:bookmark" size="14" />
@@ -190,7 +229,7 @@ const handleSearchSaved = (search: SavedSearch) => {
             </button>
         </div>
 
-        <SearchActiveFilters class="mb-4" />
+        <SearchActiveFilters class="mb-3 sm:mb-4" />
 
         <div class="flex gap-5">
             <aside class="hidden w-56 shrink-0 lg:block">
@@ -202,6 +241,9 @@ const handleSearchSaved = (search: SavedSearch) => {
                 <SearchResults />
             </div>
         </div>
+
+        <!-- Mobile Filters Drawer -->
+        <SearchMobileFilters :visible="showMobileFilters" @close="showMobileFilters = false" />
 
         <SearchSaveSearchModal
             :visible="showSaveModal"
