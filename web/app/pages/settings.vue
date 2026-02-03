@@ -162,11 +162,78 @@ definePageMeta({
 </script>
 
 <template>
-    <div class="flex h-[calc(100vh-96px)] overflow-hidden">
-        <!-- Sidebar -->
+    <div class="flex h-[calc(100vh-6rem)] flex-col overflow-hidden lg:flex-row">
+        <!-- Mobile: Horizontal scrollable tabs -->
+        <div class="border-border bg-surface/50 shrink-0 border-b backdrop-blur-sm lg:hidden">
+            <!-- Main tabs row -->
+            <div class="scrollbar-none -mx-px flex overflow-x-auto px-4 py-2">
+                <template v-for="tab in regularTabs" :key="tab.id">
+                    <button
+                        @click="setTab(tab)"
+                        class="flex shrink-0 flex-col items-center gap-1 rounded-lg px-4 py-2
+                            transition-all"
+                        :class="
+                            isTabActive(tab)
+                                ? 'bg-lava/10 text-lava'
+                                : 'text-dim hover:bg-white/5 hover:text-white'
+                        "
+                    >
+                        <Icon :name="tab.icon" size="20" />
+                        <span class="text-[10px] font-medium">{{ tab.label }}</span>
+                    </button>
+                </template>
+
+                <!-- Admin divider -->
+                <div
+                    v-if="adminTabs.length > 0"
+                    class="mx-2 my-auto h-8 w-px shrink-0 bg-white/10"
+                />
+
+                <template v-for="tab in adminTabs" :key="tab.id">
+                    <button
+                        @click="setTab(tab)"
+                        class="flex shrink-0 flex-col items-center gap-1 rounded-lg px-4 py-2
+                            transition-all"
+                        :class="
+                            isTabActive(tab)
+                                ? 'bg-lava/10 text-lava'
+                                : 'text-dim hover:bg-white/5 hover:text-white'
+                        "
+                    >
+                        <Icon :name="tab.icon" size="20" />
+                        <span class="text-[10px] font-medium">{{ tab.label }}</span>
+                    </button>
+                </template>
+
+                <!-- End spacer for scroll -->
+                <div class="w-4 shrink-0" />
+            </div>
+
+            <!-- Sub-tabs row (for Jobs) -->
+            <div
+                v-if="activeTab === 'jobs' && tabConfig.find((t) => t.id === 'jobs')?.subTabs"
+                class="border-border scrollbar-none flex gap-1 overflow-x-auto border-t px-4 py-2"
+            >
+                <button
+                    v-for="subTab in tabConfig.find((t) => t.id === 'jobs')?.subTabs"
+                    :key="subTab.id"
+                    @click="setSubTab(tabConfig.find((t) => t.id === 'jobs')!, subTab.id)"
+                    class="shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-all"
+                    :class="
+                        isSubTabActive(subTab.id)
+                            ? 'bg-lava text-white'
+                            : 'text-dim bg-white/5 hover:bg-white/10 hover:text-white'
+                    "
+                >
+                    {{ subTab.label }}
+                </button>
+            </div>
+        </div>
+
+        <!-- Desktop: Sidebar (unchanged) -->
         <aside
-            class="sticky top-16 h-[calc(100vh-96px)] w-55 shrink-0 border-r border-white/8
-                bg-[rgba(10,10,10,0.5)] backdrop-blur-xl"
+            class="sticky top-16 hidden h-[calc(100vh-5.25rem)] w-55 shrink-0 border-r
+                border-white/8 bg-[rgba(10,10,10,0.5)] backdrop-blur-xl lg:block"
         >
             <div class="p-4">
                 <h1 class="mb-5 text-sm font-semibold tracking-tight text-white">Settings</h1>
@@ -285,7 +352,7 @@ definePageMeta({
         </aside>
 
         <!-- Content area -->
-        <main class="min-w-0 flex-1 overflow-y-auto p-8">
+        <main class="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
             <div class="mx-auto max-w-3xl">
                 <SettingsAccount v-if="activeTab === 'account'" />
                 <SettingsPlayer v-if="activeTab === 'player'" />
