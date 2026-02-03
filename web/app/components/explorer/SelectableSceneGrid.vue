@@ -13,7 +13,7 @@ const handleToggleSelection = (sceneId: number) => {
 </script>
 
 <template>
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+    <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         <SceneCard
             v-for="scene in scenes"
             :key="scene.id"
