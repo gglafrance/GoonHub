@@ -29,9 +29,17 @@ const phaseIcons: Record<string, string> = {
 function updatePosition() {
     if (!props.anchorEl) return;
     const rect = props.anchorEl.getBoundingClientRect();
+    const popupWidth = 320; // w-80 = 320px
+    const padding = 8;
+    const viewportWidth = window.innerWidth;
+
+    // Center under anchor, but clamp to viewport bounds
+    let left = rect.left + rect.width / 2 - popupWidth / 2;
+    left = Math.max(padding, Math.min(left, viewportWidth - popupWidth - padding));
+
     position.value = {
         top: rect.bottom + 8,
-        left: Math.max(8, rect.left + rect.width / 2 - 160),
+        left,
     };
 }
 
