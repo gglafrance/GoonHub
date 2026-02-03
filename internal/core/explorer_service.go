@@ -527,6 +527,74 @@ type FolderSearchResponse struct {
 	Limit  int          `json:"limit"`
 }
 
+// SceneMatchInfo contains minimal data for bulk PornDB matching
+type SceneMatchInfo struct {
+	ID               uint     `json:"id"`
+	Title            string   `json:"title"`
+	OriginalFilename string   `json:"original_filename"`
+	PornDBSceneID    *string  `json:"porndb_scene_id"`
+	Actors           []string `json:"actors"`
+	Studio           *string  `json:"studio"`
+	ThumbnailPath    string   `json:"thumbnail_path"`
+	Duration         int      `json:"duration"`
+}
+
+// GetScenesMatchInfo returns minimal scene data needed for bulk PornDB matching
+func (s *ExplorerService) GetScenesMatchInfo(sceneIDs []uint) ([]SceneMatchInfo, error) {
+	if len(sceneIDs) == 0 {
+		return []SceneMatchInfo{}, nil
+	}
+
+	scenes, err := s.sceneRepo.GetByIDs(sceneIDs)
+	if err != nil {
+		return nil, apperrors.NewInternalError("failed to fetch scenes", err)
+	}
+
+	// Build a map for fast lookup of actors by scene ID
+	actorsByScene, err := s.actorRepo.GetSceneActorsMultiple(sceneIDs)
+	if err != nil {
+		s.logger.Warn("Failed to fetch actors for scenes", zap.Error(err))
+		// Continue without actors
+		actorsByScene = make(map[uint][]data.Actor)
+	}
+
+	result := make([]SceneMatchInfo, 0, len(scenes))
+	for _, scene := range scenes {
+		// Get actor names for this scene
+		var actorNames []string
+		if actors, ok := actorsByScene[scene.ID]; ok {
+			actorNames = make([]string, len(actors))
+			for i, actor := range actors {
+				actorNames[i] = actor.Name
+			}
+		}
+
+		// Handle nullable PornDBSceneID and Studio
+		var porndbID *string
+		if scene.PornDBSceneID != "" {
+			porndbID = &scene.PornDBSceneID
+		}
+
+		var studio *string
+		if scene.Studio != "" {
+			studio = &scene.Studio
+		}
+
+		result = append(result, SceneMatchInfo{
+			ID:               scene.ID,
+			Title:            scene.Title,
+			OriginalFilename: scene.OriginalFilename,
+			PornDBSceneID:    porndbID,
+			Actors:           actorNames,
+			Studio:           studio,
+			ThumbnailPath:    scene.ThumbnailPath,
+			Duration:         scene.Duration,
+		})
+	}
+
+	return result, nil
+}
+
 // SearchInFolder searches for scenes within a folder scope
 func (s *ExplorerService) SearchInFolder(req FolderSearchRequest) (*FolderSearchResponse, error) {
 	if s.searchService == nil {

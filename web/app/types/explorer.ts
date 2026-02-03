@@ -91,3 +91,22 @@ export interface FolderSearchResponse {
     page: number;
     limit: number;
 }
+
+export interface ScenesMatchInfoRequest {
+    scene_ids: number[];
+}
+
+export interface SceneMatchInfo {
+    id: number;
+    title: string;
+    original_filename: string;
+    porndb_scene_id: string | null;
+    actors: string[];
+    studio: string | null;
+    thumbnail_path: string;
+    duration: number;
+}
+
+export interface ScenesMatchInfoResponse {
+    scenes: SceneMatchInfo[];
+}

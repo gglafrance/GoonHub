@@ -110,6 +110,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					explorer.DELETE("/bulk/scenes", middleware.RequirePermission(rbacService, "scenes:delete"), explorerHandler.BulkDeleteScenes)
 					explorer.POST("/folder/scene-ids", explorerHandler.GetFolderSceneIDs)
 					explorer.POST("/search", explorerHandler.SearchInFolder)
+					explorer.POST("/scenes/match-info", explorerHandler.GetScenesMatchInfo)
 				}
 
 				settings := protected.Group("/settings")

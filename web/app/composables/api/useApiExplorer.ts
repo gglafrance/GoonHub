@@ -11,6 +11,7 @@ import type {
     BulkDeleteResponse,
     FolderSearchRequest,
     FolderSearchResponse,
+    ScenesMatchInfoResponse,
 } from '~/types/explorer';
 
 /**
@@ -111,6 +112,15 @@ export const useApiExplorer = () => {
         return handleResponse(response);
     };
 
+    const getScenesMatchInfo = async (sceneIds: number[]): Promise<ScenesMatchInfoResponse> => {
+        const response = await fetch('/api/v1/explorer/scenes/match-info', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ scene_ids: sceneIds }),
+        });
+        return handleResponse(response);
+    };
+
     return {
         getStoragePaths,
         getFolderContents,
@@ -120,5 +130,6 @@ export const useApiExplorer = () => {
         getFolderSceneIDs,
         bulkDeleteScenes,
         searchInFolder,
+        getScenesMatchInfo,
     };
 };

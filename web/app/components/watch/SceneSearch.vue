@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import type { Scene } from '~/types/scene';
 import type { PornDBScene } from '~/types/porndb';
 
+// Minimal scene data needed for search - only title and studio are used
+interface SceneSearchInfo {
+    title?: string;
+    studio?: string | null;
+}
+
 const props = defineProps<{
-    scene: Scene | null;
+    scene: SceneSearchInfo | null;
 }>();
 
 const emit = defineEmits<{
