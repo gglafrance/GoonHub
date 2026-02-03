@@ -21,7 +21,9 @@ onMounted(async () => {
 async function loadConfig() {
     loading.value = true;
     try {
-        config.value = await getHomepageConfig();
+        const data = await getHomepageConfig();
+        if (!data.sections) data.sections = [];
+        config.value = data;
         originalConfig.value = JSON.stringify(config.value);
         hasChanges.value = false;
     } catch (e: unknown) {

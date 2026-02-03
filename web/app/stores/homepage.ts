@@ -10,7 +10,7 @@ export const useHomepageStore = defineStore('homepage', () => {
     const { fetchHomepageData, fetchSectionData } = useApiHomepage();
 
     const enabledSections = computed(() => {
-        if (!config.value) return [];
+        if (!config.value?.sections) return [];
         return [...config.value.sections]
             .filter((s) => s.enabled)
             .sort((a, b) => a.order - b.order);
