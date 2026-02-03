@@ -32,12 +32,23 @@ export const useApiActors = () => {
         return handleResponse(response);
     };
 
-    const fetchActorScenes = async (uuid: string, page = 1, limit = 20) => {
+    const fetchActorScenes = async (
+        uuid: string,
+        page = 1,
+        limit = 20,
+        query?: string,
+        sort?: string,
+        actorName?: string,
+    ) => {
         const params = new URLSearchParams({
             page: page.toString(),
             limit: limit.toString(),
         });
-        const response = await fetch(`/api/v1/actors/${uuid}/scenes?${params}`, {
+        if (actorName) params.set('actors', actorName);
+        if (query) params.set('q', query);
+        if (sort) params.set('sort', sort);
+
+        const response = await fetch(`/api/v1/scenes?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });

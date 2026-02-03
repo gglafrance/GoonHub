@@ -21,6 +21,22 @@ const showCreateModal = ref(false);
 const showFetchModal = ref(false);
 const showDeleteModal = ref(false);
 
+// Scene search/sort state
+const scenesQuery = ref('');
+const scenesSort = ref('');
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+const sortOptions = [
+    { value: '', label: 'Newest' },
+    { value: 'created_at_asc', label: 'Oldest' },
+    { value: 'title_asc', label: 'Title A-Z' },
+    { value: 'title_desc', label: 'Title Z-A' },
+    { value: 'duration_asc', label: 'Shortest' },
+    { value: 'duration_desc', label: 'Longest' },
+    { value: 'view_count_desc', label: 'Most Viewed' },
+    { value: 'view_count_asc', label: 'Least Viewed' },
+];
+
 // Rating state
 const currentRating = ref(0);
 const hoverRating = ref(0);
@@ -145,9 +161,17 @@ async function onLikeClick() {
 }
 
 const loadScenes = async (page: number) => {
+    if (!actor.value) return;
     try {
         isLoadingScenes.value = true;
-        const response = await api.fetchActorScenes(actorUuid.value, page, scenesLimit.value);
+        const response = await api.fetchActorScenes(
+            actorUuid.value,
+            page,
+            scenesLimit.value,
+            scenesQuery.value || undefined,
+            scenesSort.value || undefined,
+            actor.value.name,
+        );
         scenes.value = response.data;
         scenesTotal.value = response.total;
     } catch {
@@ -155,6 +179,19 @@ const loadScenes = async (page: number) => {
     } finally {
         isLoadingScenes.value = false;
     }
+};
+
+const onSearchInput = () => {
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+        scenesPage.value = 1;
+        loadScenes(1);
+    }, 300);
+};
+
+const onSortChange = () => {
+    scenesPage.value = 1;
+    loadScenes(1);
 };
 
 onMounted(() => {
@@ -827,6 +864,40 @@ definePageMeta({
                         >
                             {{ scenesTotal }} scenes
                         </span>
+                    </div>
+
+                    <!-- Search and Sort Controls -->
+                    <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                        <!-- Search Input -->
+                        <div class="relative flex-1">
+                            <Icon
+                                name="heroicons:magnifying-glass"
+                                size="16"
+                                class="text-dim absolute top-1/2 left-3 -translate-y-1/2"
+                            />
+                            <input
+                                v-model="scenesQuery"
+                                type="text"
+                                placeholder="Search scenes..."
+                                class="border-border bg-surface placeholder:text-dim h-10 w-full
+                                    rounded-lg border py-2 pr-3 pl-9 text-sm text-white
+                                    transition-colors focus:border-white/20 focus:outline-none"
+                                @input="onSearchInput"
+                            />
+                        </div>
+
+                        <!-- Sort Dropdown -->
+                        <select
+                            v-model="scenesSort"
+                            class="border-border bg-surface text-dim h-10 shrink-0 rounded-lg border
+                                px-3 py-2 text-xs transition-colors focus:border-white/20
+                                focus:outline-none sm:w-40"
+                            @change="onSortChange"
+                        >
+                            <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">
+                                {{ opt.label }}
+                            </option>
+                        </select>
                     </div>
 
                     <div v-if="isLoadingScenes" class="flex h-32 items-center justify-center">

@@ -29,12 +29,23 @@ export const useApiStudios = () => {
         return handleResponse(response);
     };
 
-    const fetchStudioScenes = async (uuid: string, page = 1, limit = 20) => {
+    const fetchStudioScenes = async (
+        uuid: string,
+        page = 1,
+        limit = 20,
+        query?: string,
+        sort?: string,
+        studioName?: string,
+    ) => {
         const params = new URLSearchParams({
             page: page.toString(),
             limit: limit.toString(),
         });
-        const response = await fetch(`/api/v1/studios/${uuid}/scenes?${params}`, {
+        if (studioName) params.set('studio', studioName);
+        if (query) params.set('q', query);
+        if (sort) params.set('sort', sort);
+
+        const response = await fetch(`/api/v1/scenes?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
