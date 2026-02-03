@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"goonhub/internal/api/v1/response"
 	"goonhub/internal/api/v1/validators"
 	"goonhub/internal/core"
 	"goonhub/internal/data"
@@ -32,6 +33,7 @@ func NewJobHandler(
 func (h *JobHandler) ListJobs(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	status := c.Query("status")
 
 	if page < 1 {
 		page = 1
@@ -43,7 +45,7 @@ func (h *JobHandler) ListJobs(c *gin.Context) {
 		limit = 100
 	}
 
-	jobs, total, err := h.jobHistoryService.ListJobs(page, limit)
+	jobs, total, err := h.jobHistoryService.ListJobs(page, limit, status)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list jobs"})
 		return
@@ -168,4 +170,95 @@ func (h *JobHandler) CancelJob(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Job cancelled", "job_id": jobID})
+}
+
+// RetryJob manually retries a failed job
+func (h *JobHandler) RetryJob(c *gin.Context) {
+	jobID := c.Param("id")
+	if jobID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "job ID is required"})
+		return
+	}
+
+	if err := h.jobHistoryService.RetryJob(jobID); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Job retried", "job_id": jobID})
+}
+
+// ListRecentFailed returns recently failed jobs
+func (h *JobHandler) ListRecentFailed(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "5"))
+	if limit < 1 {
+		limit = 5
+	}
+	if limit > 20 {
+		limit = 20
+	}
+
+	jobs, err := h.jobHistoryService.ListRecentFailed(limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list recent failed jobs"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": jobs})
+}
+
+// RetryAllFailed retries all failed jobs
+func (h *JobHandler) RetryAllFailed(c *gin.Context) {
+	retried, err := h.jobHistoryService.RetryAllFailed()
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("Retried %d failed jobs", retried),
+		"retried": retried,
+	})
+}
+
+// RetryBatch retries a batch of failed jobs by their IDs
+func (h *JobHandler) RetryBatch(c *gin.Context) {
+	var req struct {
+		JobIDs []string `json:"job_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	if len(req.JobIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "job_ids must not be empty"})
+		return
+	}
+	if len(req.JobIDs) > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "job_ids must not exceed 100 items"})
+		return
+	}
+
+	retried, errors := h.jobHistoryService.RetryBatch(req.JobIDs)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("Retried %d jobs (%d errors)", retried, errors),
+		"retried": retried,
+		"errors":  errors,
+	})
+}
+
+// ClearFailed deletes all failed jobs from history
+func (h *JobHandler) ClearFailed(c *gin.Context) {
+	deleted, err := h.jobHistoryService.ClearFailed()
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("Cleared %d failed jobs", deleted),
+		"deleted": deleted,
+	})
 }

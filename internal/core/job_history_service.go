@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"goonhub/internal/apperrors"
 	"goonhub/internal/config"
 	"goonhub/internal/data"
 
@@ -11,12 +12,13 @@ import (
 )
 
 type JobHistoryService struct {
-	repo           data.JobHistoryRepository
-	retention      time.Duration
-	retentionStr   string
-	logger         *zap.Logger
-	cancel         context.CancelFunc
-	retryScheduler *RetryScheduler
+	repo              data.JobHistoryRepository
+	retention         time.Duration
+	retentionStr      string
+	logger            *zap.Logger
+	cancel            context.CancelFunc
+	retryScheduler    *RetryScheduler
+	processingService *SceneProcessingService
 }
 
 func NewJobHistoryService(repo data.JobHistoryRepository, cfg config.ProcessingConfig, logger *zap.Logger) *JobHistoryService {
@@ -149,8 +151,8 @@ func (s *JobHistoryService) Cleanup() {
 	}
 }
 
-func (s *JobHistoryService) ListJobs(page, limit int) ([]data.JobHistory, int64, error) {
-	return s.repo.ListAll(page, limit)
+func (s *JobHistoryService) ListJobs(page, limit int, status string) ([]data.JobHistory, int64, error) {
+	return s.repo.ListAll(page, limit, status)
 }
 
 func (s *JobHistoryService) ListActiveJobs() ([]data.JobHistory, error) {
@@ -164,6 +166,50 @@ func (s *JobHistoryService) GetRetention() string {
 // SetRetryScheduler sets the retry scheduler for handling failed jobs.
 func (s *JobHistoryService) SetRetryScheduler(scheduler *RetryScheduler) {
 	s.retryScheduler = scheduler
+}
+
+// SetProcessingService sets the processing service for manual job retries.
+func (s *JobHistoryService) SetProcessingService(service *SceneProcessingService) {
+	s.processingService = service
+}
+
+// ListRecentFailed returns recently failed jobs within the last hour.
+func (s *JobHistoryService) ListRecentFailed(limit int) ([]data.JobHistory, error) {
+	return s.repo.ListRecentFailed(limit, 1*time.Hour)
+}
+
+// RetryJob manually retries a failed job by resubmitting it with elevated priority.
+func (s *JobHistoryService) RetryJob(jobID string) error {
+	job, err := s.repo.GetByJobID(jobID)
+	if err != nil {
+		return apperrors.NewNotFoundError("job", jobID)
+	}
+
+	if job.Status != data.JobStatusFailed {
+		return apperrors.NewValidationError("only failed jobs can be retried")
+	}
+
+	if s.processingService == nil {
+		return apperrors.NewInternalError("processing service not configured", nil)
+	}
+
+	// Mark as not retryable to prevent RetryScheduler from double-processing
+	if err := s.repo.MarkNotRetryable(jobID); err != nil {
+		return apperrors.NewInternalError("failed to mark job as not retryable", err)
+	}
+
+	// Resubmit with elevated priority
+	if err := s.processingService.SubmitPhaseWithPriority(job.SceneID, job.Phase, 1); err != nil {
+		return apperrors.NewInternalError("failed to resubmit job", err)
+	}
+
+	s.logger.Info("Manually retried failed job",
+		zap.String("job_id", jobID),
+		zap.Uint("scene_id", job.SceneID),
+		zap.String("phase", job.Phase),
+	)
+
+	return nil
 }
 
 // RecordJobStartWithRetry records a job start with retry configuration.
@@ -305,4 +351,80 @@ func (s *JobHistoryService) CancelPendingJob(jobID string) error {
 // CountRecentFailedByPhase returns the count of recently failed jobs per phase.
 func (s *JobHistoryService) CountRecentFailedByPhase(since time.Duration) (map[string]int, error) {
 	return s.repo.CountRecentFailedByPhase(since)
+}
+
+// RetryAllFailed retries all failed jobs by resubmitting them with elevated priority.
+// Returns the number of jobs successfully retried.
+func (s *JobHistoryService) RetryAllFailed() (int, error) {
+	if s.processingService == nil {
+		return 0, apperrors.NewInternalError("processing service not configured", nil)
+	}
+
+	jobs, err := s.repo.GetFailedJobs()
+	if err != nil {
+		return 0, apperrors.NewInternalError("failed to fetch failed jobs", err)
+	}
+
+	retried := 0
+	for _, job := range jobs {
+		if err := s.repo.MarkNotRetryable(job.JobID); err != nil {
+			s.logger.Error("Failed to mark job as not retryable during bulk retry",
+				zap.String("job_id", job.JobID),
+				zap.Error(err),
+			)
+			continue
+		}
+
+		if err := s.processingService.SubmitPhaseWithPriority(job.SceneID, job.Phase, 1); err != nil {
+			s.logger.Error("Failed to resubmit job during bulk retry",
+				zap.String("job_id", job.JobID),
+				zap.Uint("scene_id", job.SceneID),
+				zap.String("phase", job.Phase),
+				zap.Error(err),
+			)
+			continue
+		}
+
+		retried++
+	}
+
+	s.logger.Info("Bulk retried failed jobs",
+		zap.Int("total_failed", len(jobs)),
+		zap.Int("retried", retried),
+	)
+
+	return retried, nil
+}
+
+// RetryBatch retries a batch of jobs by their IDs.
+// Returns the number of successfully retried jobs and the number of errors.
+func (s *JobHistoryService) RetryBatch(jobIDs []string) (int, int) {
+	retried := 0
+	errored := 0
+
+	for _, jobID := range jobIDs {
+		if err := s.RetryJob(jobID); err != nil {
+			s.logger.Error("Failed to retry job in batch",
+				zap.String("job_id", jobID),
+				zap.Error(err),
+			)
+			errored++
+		} else {
+			retried++
+		}
+	}
+
+	return retried, errored
+}
+
+// ClearFailed deletes all failed jobs from history.
+// Returns the number of deleted records.
+func (s *JobHistoryService) ClearFailed() (int64, error) {
+	deleted, err := s.repo.DeleteByStatus(data.JobStatusFailed)
+	if err != nil {
+		return 0, apperrors.NewInternalError("failed to clear failed jobs", err)
+	}
+
+	s.logger.Info("Cleared failed jobs", zap.Int64("deleted", deleted))
+	return deleted, nil
 }

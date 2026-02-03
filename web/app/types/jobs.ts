@@ -1,8 +1,8 @@
 export interface JobHistory {
     id: number;
     job_id: string;
-    video_id: number;
-    video_title: string;
+    scene_id: number;
+    scene_title: string;
     phase: 'metadata' | 'thumbnail' | 'sprites';
     status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timed_out';
     error_message?: string;
@@ -80,8 +80,8 @@ export interface BulkJobResponse {
 export interface DLQEntry {
     id: number;
     job_id: string;
-    video_id: number;
-    video_title: string;
+    scene_id: number;
+    scene_title: string;
     phase: 'metadata' | 'thumbnail' | 'sprites';
     original_error: string;
     failure_count: number;
