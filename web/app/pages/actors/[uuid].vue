@@ -30,6 +30,12 @@ const isHovering = ref(false);
 const liked = ref(false);
 const likeAnimating = ref(false);
 
+// Mobile admin menu
+const showAdminMenu = ref(false);
+
+// Details collapsed state (collapsed by default on mobile)
+const detailsExpanded = ref(false);
+
 const pageTitle = computed(() => actor.value?.name || 'Actor');
 useHead({ title: pageTitle });
 
@@ -375,9 +381,19 @@ definePageMeta({
 
                     <!-- Basic Info -->
                     <div class="flex-1">
-                        <div class="flex items-start justify-between">
-                            <h1 class="text-2xl font-bold text-white">{{ actor.name }}</h1>
-                            <div v-if="isAdmin" class="flex items-center gap-2">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0 flex-1">
+                                <h1 class="truncate text-xl font-bold text-white sm:text-2xl">
+                                    {{ actor.name }}
+                                </h1>
+                                <div class="text-dim mt-1 text-sm">
+                                    {{ actor.scene_count }}
+                                    {{ actor.scene_count === 1 ? 'scene' : 'scenes' }}
+                                </div>
+                            </div>
+
+                            <!-- Desktop: Full admin buttons -->
+                            <div v-if="isAdmin" class="hidden items-center gap-2 sm:flex">
                                 <button
                                     @click="showCreateModal = true"
                                     class="border-border bg-panel hover:border-lava/50
@@ -415,15 +431,87 @@ definePageMeta({
                                     Delete
                                 </button>
                             </div>
+
+                            <!-- Mobile: Dropdown menu -->
+                            <div v-if="isAdmin" class="relative sm:hidden">
+                                <button
+                                    @click="showAdminMenu = !showAdminMenu"
+                                    class="border-border bg-panel text-dim flex h-9 w-9 items-center
+                                        justify-center rounded-lg border transition-colors
+                                        hover:border-white/20 hover:text-white"
+                                >
+                                    <Icon name="heroicons:ellipsis-vertical" size="18" />
+                                </button>
+
+                                <!-- Dropdown -->
+                                <Transition name="fade">
+                                    <div
+                                        v-if="showAdminMenu"
+                                        class="border-border bg-surface absolute top-11 right-0 z-20
+                                            w-40 rounded-lg border py-1 shadow-xl"
+                                    >
+                                        <button
+                                            @click="
+                                                showCreateModal = true;
+                                                showAdminMenu = false;
+                                            "
+                                            class="text-dim flex w-full items-center gap-2 px-3 py-2
+                                                text-sm transition-colors hover:bg-white/5
+                                                hover:text-white"
+                                        >
+                                            <Icon name="heroicons:plus" size="16" />
+                                            New Actor
+                                        </button>
+                                        <button
+                                            @click="
+                                                showFetchModal = true;
+                                                showAdminMenu = false;
+                                            "
+                                            class="text-dim flex w-full items-center gap-2 px-3 py-2
+                                                text-sm transition-colors hover:bg-white/5
+                                                hover:text-white"
+                                        >
+                                            <Icon name="heroicons:cloud-arrow-down" size="16" />
+                                            Fetch Metadata
+                                        </button>
+                                        <button
+                                            @click="
+                                                showEditModal = true;
+                                                showAdminMenu = false;
+                                            "
+                                            class="text-dim flex w-full items-center gap-2 px-3 py-2
+                                                text-sm transition-colors hover:bg-white/5
+                                                hover:text-white"
+                                        >
+                                            <Icon name="heroicons:pencil" size="16" />
+                                            Edit
+                                        </button>
+                                        <div class="border-border my-1 border-t" />
+                                        <button
+                                            @click="
+                                                showDeleteModal = true;
+                                                showAdminMenu = false;
+                                            "
+                                            class="flex w-full items-center gap-2 px-3 py-2 text-sm
+                                                text-red-400 transition-colors hover:bg-red-500/10"
+                                        >
+                                            <Icon name="heroicons:trash" size="16" />
+                                            Delete
+                                        </button>
+                                    </div>
+                                </Transition>
+
+                                <!-- Backdrop to close menu -->
+                                <div
+                                    v-if="showAdminMenu"
+                                    class="fixed inset-0 z-10"
+                                    @click="showAdminMenu = false"
+                                />
+                            </div>
                         </div>
 
-                        <div class="text-dim mt-1 text-sm">
-                            {{ actor.scene_count }}
-                            {{ actor.scene_count === 1 ? 'scene' : 'scenes' }}
-                        </div>
-
-                        <!-- Quick Info -->
-                        <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
+                        <!-- Quick Info - Desktop only -->
+                        <div class="mt-4 hidden grid-cols-2 gap-3 text-sm sm:grid">
                             <div v-if="actor.nationality">
                                 <span class="text-dim">Nationality:</span>
                                 <span class="ml-1 text-white">{{ actor.nationality }}</span>
@@ -454,8 +542,175 @@ definePageMeta({
                     </div>
                 </div>
 
-                <!-- Detailed Info Sections -->
-                <div class="grid gap-6 md:grid-cols-2">
+                <!-- Mobile: Collapsible Details Section -->
+                <div class="sm:hidden">
+                    <button
+                        @click="detailsExpanded = !detailsExpanded"
+                        class="border-border bg-surface hover:bg-elevated flex w-full items-center
+                            justify-between rounded-lg border px-4 py-3 transition-colors"
+                    >
+                        <span class="text-sm font-medium text-white">Actor Details</span>
+                        <Icon
+                            name="heroicons:chevron-down"
+                            size="18"
+                            class="text-dim transition-transform duration-200"
+                            :class="{ 'rotate-180': detailsExpanded }"
+                        />
+                    </button>
+
+                    <Transition name="collapse">
+                        <div v-if="detailsExpanded" class="mt-3 space-y-3">
+                            <!-- Quick Info (mobile) -->
+                            <div class="border-border bg-surface rounded-lg border p-4">
+                                <h3 class="mb-3 text-xs font-semibold text-white uppercase">
+                                    Quick Info
+                                </h3>
+                                <dl class="grid grid-cols-2 gap-2 text-sm">
+                                    <div v-if="actor.nationality">
+                                        <dt class="text-dim text-[11px]">Nationality</dt>
+                                        <dd class="text-white">{{ actor.nationality }}</dd>
+                                    </div>
+                                    <div v-if="actor.birthday">
+                                        <dt class="text-dim text-[11px]">Age</dt>
+                                        <dd class="text-white">{{ formatAge(actor.birthday) }}</dd>
+                                    </div>
+                                    <div v-if="actor.height_cm">
+                                        <dt class="text-dim text-[11px]">Height</dt>
+                                        <dd class="text-white">
+                                            {{ formatHeight(actor.height_cm) }}
+                                        </dd>
+                                    </div>
+                                    <div v-if="actor.measurements">
+                                        <dt class="text-dim text-[11px]">Measurements</dt>
+                                        <dd class="text-white">{{ actor.measurements }}</dd>
+                                    </div>
+                                    <div v-if="actor.hair_color">
+                                        <dt class="text-dim text-[11px]">Hair</dt>
+                                        <dd class="text-white">{{ actor.hair_color }}</dd>
+                                    </div>
+                                    <div v-if="actor.eye_color">
+                                        <dt class="text-dim text-[11px]">Eyes</dt>
+                                        <dd class="text-white">{{ actor.eye_color }}</dd>
+                                    </div>
+                                </dl>
+                            </div>
+
+                            <!-- Demographics (mobile) -->
+                            <div
+                                v-if="
+                                    actor.birthplace ||
+                                    actor.ethnicity ||
+                                    actor.astrology ||
+                                    actor.birthday
+                                "
+                                class="border-border bg-surface rounded-lg border p-4"
+                            >
+                                <h3 class="mb-3 text-xs font-semibold text-white uppercase">
+                                    Demographics
+                                </h3>
+                                <dl class="space-y-2 text-sm">
+                                    <div v-if="actor.birthday" class="flex justify-between">
+                                        <dt class="text-dim">Birthday</dt>
+                                        <dd class="text-white">
+                                            {{ new Date(actor.birthday).toLocaleDateString() }}
+                                        </dd>
+                                    </div>
+                                    <div v-if="actor.birthplace" class="flex justify-between">
+                                        <dt class="text-dim">Birthplace</dt>
+                                        <dd class="text-white">{{ actor.birthplace }}</dd>
+                                    </div>
+                                    <div v-if="actor.ethnicity" class="flex justify-between">
+                                        <dt class="text-dim">Ethnicity</dt>
+                                        <dd class="text-white">{{ actor.ethnicity }}</dd>
+                                    </div>
+                                    <div v-if="actor.astrology" class="flex justify-between">
+                                        <dt class="text-dim">Astrology</dt>
+                                        <dd class="text-white">{{ actor.astrology }}</dd>
+                                    </div>
+                                </dl>
+                            </div>
+
+                            <!-- Career Info (mobile) -->
+                            <div
+                                v-if="actor.career_start_year || actor.career_end_year"
+                                class="border-border bg-surface rounded-lg border p-4"
+                            >
+                                <h3 class="mb-3 text-xs font-semibold text-white uppercase">
+                                    Career
+                                </h3>
+                                <dl class="space-y-2 text-sm">
+                                    <div
+                                        v-if="actor.career_start_year"
+                                        class="flex justify-between"
+                                    >
+                                        <dt class="text-dim">Career Start</dt>
+                                        <dd class="text-white">{{ actor.career_start_year }}</dd>
+                                    </div>
+                                    <div v-if="actor.career_end_year" class="flex justify-between">
+                                        <dt class="text-dim">Career End</dt>
+                                        <dd class="text-white">{{ actor.career_end_year }}</dd>
+                                    </div>
+                                </dl>
+                            </div>
+
+                            <!-- Physical Attributes (mobile) -->
+                            <div
+                                v-if="
+                                    actor.weight_kg ||
+                                    actor.cupsize ||
+                                    actor.fake_boobs ||
+                                    actor.same_sex_only
+                                "
+                                class="border-border bg-surface rounded-lg border p-4"
+                            >
+                                <h3 class="mb-3 text-xs font-semibold text-white uppercase">
+                                    Physical
+                                </h3>
+                                <dl class="space-y-2 text-sm">
+                                    <div v-if="actor.weight_kg" class="flex justify-between">
+                                        <dt class="text-dim">Weight</dt>
+                                        <dd class="text-white">{{ actor.weight_kg }} kg</dd>
+                                    </div>
+                                    <div v-if="actor.cupsize" class="flex justify-between">
+                                        <dt class="text-dim">Cup Size</dt>
+                                        <dd class="text-white">{{ actor.cupsize }}</dd>
+                                    </div>
+                                    <div v-if="actor.fake_boobs" class="flex justify-between">
+                                        <dt class="text-dim">Enhanced</dt>
+                                        <dd class="text-white">Yes</dd>
+                                    </div>
+                                    <div v-if="actor.same_sex_only" class="flex justify-between">
+                                        <dt class="text-dim">Same-sex Only</dt>
+                                        <dd class="text-white">Yes</dd>
+                                    </div>
+                                </dl>
+                            </div>
+
+                            <!-- Body Modifications (mobile) -->
+                            <div
+                                v-if="actor.tattoos || actor.piercings"
+                                class="border-border bg-surface rounded-lg border p-4"
+                            >
+                                <h3 class="mb-3 text-xs font-semibold text-white uppercase">
+                                    Modifications
+                                </h3>
+                                <dl class="space-y-2 text-sm">
+                                    <div v-if="actor.tattoos">
+                                        <dt class="text-dim mb-1">Tattoos</dt>
+                                        <dd class="text-white">{{ actor.tattoos }}</dd>
+                                    </div>
+                                    <div v-if="actor.piercings">
+                                        <dt class="text-dim mb-1">Piercings</dt>
+                                        <dd class="text-white">{{ actor.piercings }}</dd>
+                                    </div>
+                                </dl>
+                            </div>
+                        </div>
+                    </Transition>
+                </div>
+
+                <!-- Desktop: Detailed Info Sections (unchanged) -->
+                <div class="hidden gap-6 sm:grid md:grid-cols-2">
                     <!-- Demographics -->
                     <div
                         v-if="
@@ -641,10 +896,21 @@ definePageMeta({
 <style scoped>
 .fade-enter-active,
 .fade-leave-active {
-    transition: opacity 0.3s ease;
+    transition: opacity 0.15s ease;
 }
 .fade-enter-from,
 .fade-leave-to {
     opacity: 0;
+}
+
+.collapse-enter-active,
+.collapse-leave-active {
+    transition: all 0.2s ease;
+    overflow: hidden;
+}
+.collapse-enter-from,
+.collapse-leave-to {
+    opacity: 0;
+    transform: translateY(-8px);
 }
 </style>
