@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"goonhub/internal/data"
+	"time"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -155,4 +156,70 @@ func (s *WatchHistoryService) GetSceneHistory(userID, sceneID uint, limit int) (
 		limit = 10
 	}
 	return s.repo.ListSceneWatches(userID, sceneID, limit)
+}
+
+// computeSinceTime converts a day count to a start time.
+// 0 means all time (uses year 2000 as sentinel).
+func computeSinceTime(rangeDays int) time.Time {
+	if rangeDays <= 0 {
+		return time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+	}
+	return time.Now().UTC().AddDate(0, 0, -rangeDays)
+}
+
+// GetUserHistoryByDateRange returns watch history entries within a date range, enriched with scene data.
+func (s *WatchHistoryService) GetUserHistoryByDateRange(userID uint, rangeDays, limit int) ([]WatchHistoryEntry, error) {
+	if limit <= 0 {
+		limit = 2000
+	}
+
+	since := computeSinceTime(rangeDays)
+
+	watches, err := s.repo.ListUserHistoryByDateRange(userID, since, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list history by date range: %w", err)
+	}
+
+	// Collect scene IDs
+	sceneIDs := make([]uint, 0, len(watches))
+	for _, w := range watches {
+		sceneIDs = append(sceneIDs, w.SceneID)
+	}
+
+	// Fetch scenes
+	scenes, err := s.sceneRepo.GetByIDs(sceneIDs)
+	if err != nil {
+		s.logger.Warn("Failed to fetch scenes for history",
+			zap.Error(err),
+		)
+		scenes = nil
+	}
+
+	// Create scene map
+	sceneMap := make(map[uint]*data.Scene)
+	for i := range scenes {
+		sceneMap[scenes[i].ID] = &scenes[i]
+	}
+
+	// Build result
+	entries := make([]WatchHistoryEntry, 0, len(watches))
+	for _, w := range watches {
+		entry := WatchHistoryEntry{
+			Watch: w,
+			Scene: sceneMap[w.SceneID],
+		}
+		entries = append(entries, entry)
+	}
+
+	return entries, nil
+}
+
+// GetDailyActivity returns daily activity counts for a user within a date range.
+func (s *WatchHistoryService) GetDailyActivity(userID uint, rangeDays int) ([]data.DailyActivityCount, error) {
+	since := computeSinceTime(rangeDays)
+	counts, err := s.repo.GetDailyActivityCounts(userID, since)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get daily activity counts: %w", err)
+	}
+	return counts, nil
 }

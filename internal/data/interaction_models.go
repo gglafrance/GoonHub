@@ -94,3 +94,9 @@ type UserSceneViewCount struct {
 func (UserSceneViewCount) TableName() string {
 	return "user_scene_view_counts"
 }
+
+// DailyActivityCount represents the number of distinct scenes watched on a given day.
+type DailyActivityCount struct {
+	Date  time.Time `json:"date"`
+	Count int       `json:"count"`
+}
