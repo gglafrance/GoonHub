@@ -82,7 +82,9 @@ const showShortcuts = ref(false);
                                 size="16"
                                 class="sm:hidden"
                             />
-                            <span class="hidden text-[11px] font-medium sm:inline">Logout</span>
+                            <span class="ml-1.5 hidden text-[11px] font-medium sm:inline"
+                                >Logout</span
+                            >
                         </button>
                     </div>
                 </div>

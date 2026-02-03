@@ -41,6 +41,20 @@ func (m *MockJobHistoryRepository) EXPECT() *MockJobHistoryRepositoryMockRecorde
 	return m.recorder
 }
 
+// CancelPendingJob mocks base method.
+func (m *MockJobHistoryRepository) CancelPendingJob(jobID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CancelPendingJob", jobID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CancelPendingJob indicates an expected call of CancelPendingJob.
+func (mr *MockJobHistoryRepositoryMockRecorder) CancelPendingJob(jobID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelPendingJob", reflect.TypeOf((*MockJobHistoryRepository)(nil).CancelPendingJob), jobID)
+}
+
 // CancelPendingJobsForScene mocks base method.
 func (m *MockJobHistoryRepository) CancelPendingJobsForScene(sceneID uint) (int64, error) {
 	m.ctrl.T.Helper()
@@ -86,6 +100,21 @@ func (mr *MockJobHistoryRepositoryMockRecorder) CountPendingByPhase() *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountPendingByPhase", reflect.TypeOf((*MockJobHistoryRepository)(nil).CountPendingByPhase))
 }
 
+// CountRecentFailedByPhase mocks base method.
+func (m *MockJobHistoryRepository) CountRecentFailedByPhase(since time.Duration) (map[string]int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountRecentFailedByPhase", since)
+	ret0, _ := ret[0].(map[string]int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountRecentFailedByPhase indicates an expected call of CountRecentFailedByPhase.
+func (mr *MockJobHistoryRepositoryMockRecorder) CountRecentFailedByPhase(since any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountRecentFailedByPhase", reflect.TypeOf((*MockJobHistoryRepository)(nil).CountRecentFailedByPhase), since)
+}
+
 // Create mocks base method.
 func (m *MockJobHistoryRepository) Create(record *data.JobHistory) error {
 	m.ctrl.T.Helper()
@@ -126,6 +155,21 @@ func (m *MockJobHistoryRepository) CreatePending(record *data.JobHistory) error 
 func (mr *MockJobHistoryRepositoryMockRecorder) CreatePending(record any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePending", reflect.TypeOf((*MockJobHistoryRepository)(nil).CreatePending), record)
+}
+
+// DeleteByStatus mocks base method.
+func (m *MockJobHistoryRepository) DeleteByStatus(status string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteByStatus", status)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteByStatus indicates an expected call of DeleteByStatus.
+func (mr *MockJobHistoryRepositoryMockRecorder) DeleteByStatus(status any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByStatus", reflect.TypeOf((*MockJobHistoryRepository)(nil).DeleteByStatus), status)
 }
 
 // DeleteOlderThan mocks base method.
@@ -173,6 +217,21 @@ func (mr *MockJobHistoryRepositoryMockRecorder) GetByJobID(jobID any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByJobID", reflect.TypeOf((*MockJobHistoryRepository)(nil).GetByJobID), jobID)
 }
 
+// GetFailedJobs mocks base method.
+func (m *MockJobHistoryRepository) GetFailedJobs() ([]data.JobHistory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFailedJobs")
+	ret0, _ := ret[0].([]data.JobHistory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFailedJobs indicates an expected call of GetFailedJobs.
+func (mr *MockJobHistoryRepositoryMockRecorder) GetFailedJobs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFailedJobs", reflect.TypeOf((*MockJobHistoryRepository)(nil).GetFailedJobs))
+}
+
 // GetRetryableJobs mocks base method.
 func (m *MockJobHistoryRepository) GetRetryableJobs() ([]data.JobHistory, error) {
 	m.ctrl.T.Helper()
@@ -218,9 +277,9 @@ func (mr *MockJobHistoryRepositoryMockRecorder) ListActive() *gomock.Call {
 }
 
 // ListAll mocks base method.
-func (m *MockJobHistoryRepository) ListAll(page, limit int) ([]data.JobHistory, int64, error) {
+func (m *MockJobHistoryRepository) ListAll(page, limit int, status string) ([]data.JobHistory, int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAll", page, limit)
+	ret := m.ctrl.Call(m, "ListAll", page, limit, status)
 	ret0, _ := ret[0].([]data.JobHistory)
 	ret1, _ := ret[1].(int64)
 	ret2, _ := ret[2].(error)
@@ -228,9 +287,24 @@ func (m *MockJobHistoryRepository) ListAll(page, limit int) ([]data.JobHistory, 
 }
 
 // ListAll indicates an expected call of ListAll.
-func (mr *MockJobHistoryRepositoryMockRecorder) ListAll(page, limit any) *gomock.Call {
+func (mr *MockJobHistoryRepositoryMockRecorder) ListAll(page, limit, status any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAll", reflect.TypeOf((*MockJobHistoryRepository)(nil).ListAll), page, limit)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAll", reflect.TypeOf((*MockJobHistoryRepository)(nil).ListAll), page, limit, status)
+}
+
+// ListRecentFailed mocks base method.
+func (m *MockJobHistoryRepository) ListRecentFailed(limit int, since time.Duration) ([]data.JobHistory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListRecentFailed", limit, since)
+	ret0, _ := ret[0].([]data.JobHistory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListRecentFailed indicates an expected call of ListRecentFailed.
+func (mr *MockJobHistoryRepositoryMockRecorder) ListRecentFailed(limit, since any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRecentFailed", reflect.TypeOf((*MockJobHistoryRepository)(nil).ListRecentFailed), limit, since)
 }
 
 // MarkNotRetryable mocks base method.

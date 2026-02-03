@@ -38,6 +38,9 @@ const SCENE_UPDATE_HANDLERS: Record<string, FieldExtractor> = {
     }),
 };
 
+// Scan events routed through SSE
+const SCAN_EVENTS = ['scan:progress', 'scan:completed', 'scan:failed', 'scan:cancelled', 'scan:video_added', 'scan:video_removed', 'scan:video_moved'];
+
 // Events that remove scenes from the store
 const SCENE_REMOVE_EVENTS = ['scene:trashed', 'scene:deleted'];
 
@@ -63,6 +66,21 @@ function handleSSEEvent(
     // Handle scene restore events (trigger a reload to get the scene back)
     if (SCENE_RESTORE_EVENTS.includes(eventType)) {
         sceneStore.loadScenes(sceneStore.currentPage);
+        return;
+    }
+
+    // Handle scan events
+    if (SCAN_EVENTS.includes(eventType)) {
+        const scanStore = useScanStore();
+        if (eventType === 'scan:progress') {
+            scanStore.updateProgress(event.data as any);
+        } else if (eventType === 'scan:completed') {
+            scanStore.markCompleted();
+        } else if (eventType === 'scan:failed') {
+            scanStore.markFailed(event.data?.error_message as string ?? 'Unknown error');
+        } else if (eventType === 'scan:cancelled') {
+            scanStore.markCancelled();
+        }
         return;
     }
 
@@ -112,6 +130,7 @@ function useSSESharedWorker() {
             jobStatusStore.setConnected(true);
         } else if (type === 'sse-reconnecting') {
             jobStatusStore.setConnected(false);
+            jobStatusStore.markReconnected();
             sceneStore.loadScenes(sceneStore.currentPage);
         }
     }
@@ -221,6 +240,13 @@ function useSSELeaderElection() {
             });
         }
 
+        for (const eventType of SCAN_EVENTS) {
+            eventSource.addEventListener(eventType, (e: MessageEvent) => {
+                dispatchEvent(eventType, e.data);
+                channel?.postMessage({ type: 'sse-event', eventType, data: e.data });
+            });
+        }
+
         eventSource.onerror = () => {
             eventSource?.close();
             eventSource = null;
@@ -247,6 +273,7 @@ function useSSELeaderElection() {
 
         reconnectTimer = setTimeout(() => {
             reconnectTimer = null;
+            jobStatusStore.markReconnected();
             sceneStore.loadScenes(sceneStore.currentPage);
             if (role === 'leader') openEventSource();
         }, reconnectDelay);
@@ -368,6 +395,7 @@ function useSSELeaderElection() {
             case 'sse-reconnecting':
                 if (role === 'follower') {
                     jobStatusStore.setConnected(false);
+                    jobStatusStore.markReconnected();
                     sceneStore.loadScenes(sceneStore.currentPage);
                 }
                 break;
@@ -460,6 +488,13 @@ function useSSEFallback() {
             });
         }
 
+        // Scan event handlers
+        for (const eventType of SCAN_EVENTS) {
+            eventSource.addEventListener(eventType, (e: MessageEvent) => {
+                handleSSEEvent(eventType, e.data, sceneStore);
+            });
+        }
+
         // Scene remove handlers (trash, delete)
         for (const eventType of SCENE_REMOVE_EVENTS) {
             eventSource.addEventListener(eventType, (e: MessageEvent) => {
@@ -500,6 +535,7 @@ function useSSEFallback() {
 
         reconnectTimer = setTimeout(() => {
             reconnectTimer = null;
+            jobStatusStore.markReconnected();
             sceneStore.loadScenes(sceneStore.currentPage);
             connect();
         }, reconnectDelay);

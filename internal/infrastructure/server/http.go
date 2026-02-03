@@ -163,6 +163,11 @@ func (s *Server) Start() error {
 		s.jobHistoryService.SetRetryScheduler(s.retryScheduler)
 	}
 
+	// Wire processing service to job history service for manual job retries
+	if s.jobHistoryService != nil && s.processingService != nil {
+		s.jobHistoryService.SetProcessingService(s.processingService)
+	}
+
 	s.srv = &http.Server{
 		Addr:        ":" + s.cfg.Server.Port,
 		Handler:     s.router,

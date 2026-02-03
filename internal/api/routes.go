@@ -110,6 +110,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					explorer.DELETE("/bulk/scenes", middleware.RequirePermission(rbacService, "scenes:delete"), explorerHandler.BulkDeleteScenes)
 					explorer.POST("/folder/scene-ids", explorerHandler.GetFolderSceneIDs)
 					explorer.POST("/search", explorerHandler.SearchInFolder)
+					explorer.POST("/scenes/match-info", explorerHandler.GetScenesMatchInfo)
 				}
 
 				settings := protected.Group("/settings")
@@ -173,7 +174,12 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					admin.POST("/scenes/:id/process/:phase", jobHandler.TriggerPhase)
 					admin.PUT("/scenes/:id/scene-metadata", sceneHandler.ApplySceneMetadata)
 					admin.POST("/jobs/bulk", jobHandler.TriggerBulkPhase)
+					admin.POST("/jobs/retry-all-failed", jobHandler.RetryAllFailed)
+					admin.POST("/jobs/retry-batch", jobHandler.RetryBatch)
+					admin.DELETE("/jobs/failed", jobHandler.ClearFailed)
 					admin.POST("/jobs/:id/cancel", jobHandler.CancelJob)
+					admin.POST("/jobs/:id/retry", jobHandler.RetryJob)
+					admin.GET("/jobs/recent-failed", jobHandler.ListRecentFailed)
 					admin.GET("/dlq", dlqHandler.ListDLQ)
 					admin.POST("/dlq/:job_id/retry", dlqHandler.RetryFromDLQ)
 					admin.POST("/dlq/:job_id/abandon", dlqHandler.AbandonDLQ)
@@ -207,6 +213,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					admin.GET("/porndb/status", pornDBHandler.GetStatus)
 					admin.GET("/porndb/performers", pornDBHandler.SearchPerformers)
 					admin.GET("/porndb/performers/:id", pornDBHandler.GetPerformer)
+					admin.GET("/porndb/performer-sites/:id", pornDBHandler.GetPerformerSite)
 					admin.GET("/porndb/scenes", pornDBHandler.SearchScenes)
 					admin.GET("/porndb/scenes/:id", pornDBHandler.GetScene)
 					admin.GET("/porndb/sites", pornDBHandler.SearchSites)

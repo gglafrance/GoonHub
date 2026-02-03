@@ -49,21 +49,23 @@ type pornDBPerformerExtras struct {
 
 // pornDBPerformerRaw is the raw API response structure
 type pornDBPerformerRaw struct {
-	ID     string                 `json:"id"`
-	Slug   string                 `json:"slug"`
-	Name   string                 `json:"name"`
-	Image  string                 `json:"image,omitempty"`
-	Bio    string                 `json:"bio,omitempty"`
-	Extras *pornDBPerformerExtras `json:"extras,omitempty"`
+	ID      string                 `json:"id"`
+	Slug    string                 `json:"slug"`
+	Name    string                 `json:"name"`
+	Image   string                 `json:"image,omitempty"`
+	Bio     string                 `json:"bio,omitempty"`
+	Aliases []string               `json:"aliases,omitempty"`
+	Extras  *pornDBPerformerExtras `json:"extras,omitempty"`
 }
 
 // PornDBPerformerDetails is the flattened response we send to the frontend
 type PornDBPerformerDetails struct {
-	ID              string `json:"id"`
-	Slug            string `json:"slug"`
-	Name            string `json:"name"`
-	Image           string `json:"image,omitempty"`
-	Bio             string `json:"bio,omitempty"`
+	ID              string   `json:"id"`
+	Slug            string   `json:"slug"`
+	Name            string   `json:"name"`
+	Image           string   `json:"image,omitempty"`
+	Bio             string   `json:"bio,omitempty"`
+	Aliases         []string `json:"aliases,omitempty"`
 	Gender          string `json:"gender,omitempty"`
 	Birthday        string `json:"birthday,omitempty"`
 	Deathday        string `json:"deathday,omitempty"`
@@ -163,6 +165,40 @@ type pornDBPerformerSiteRaw struct {
 
 type pornDBPerformerSitesSearchResponse struct {
 	Data []pornDBPerformerSiteRaw `json:"data"`
+}
+
+// pornDBPerformerSiteExtras contains the nested extra data from performer-sites API
+type pornDBPerformerSiteExtras struct {
+	Gender       string `json:"gender,omitempty"`
+	Birthday     string `json:"birthday,omitempty"`
+	Birthplace   string `json:"birthplace,omitempty"`
+	Astrology    string `json:"astrology,omitempty"`
+	Ethnicity    string `json:"ethnicity,omitempty"`
+	Nationality  string `json:"nationality,omitempty"`
+	HairColor    string `json:"haircolor,omitempty"` // Note: different field name than /performers
+	EyeColour    string `json:"eye_colour,omitempty"`
+	Weight       string `json:"weight,omitempty"`
+	Height       string `json:"height,omitempty"`
+	Measurements string `json:"measurements,omitempty"`
+	Cupsize      string `json:"cupsize,omitempty"`
+	Tattoos      string `json:"tattoos,omitempty"`
+	Piercings    string `json:"piercings,omitempty"`
+	FakeBoobs    *bool  `json:"fakeboobs,omitempty"` // Note: different field name than /performers
+}
+
+// pornDBPerformerSiteDetailRaw is the raw API response for /performer-sites/{id}
+type pornDBPerformerSiteDetailRaw struct {
+	ID        string                     `json:"id"`
+	Name      string                     `json:"name"`
+	Bio       string                     `json:"bio,omitempty"`
+	Image     string                     `json:"image,omitempty"`
+	Thumbnail string                     `json:"thumbnail,omitempty"`
+	Aliases   []string                   `json:"aliases,omitempty"`
+	Extra     *pornDBPerformerSiteExtras `json:"extra,omitempty"` // Note: "extra" not "extras"
+}
+
+type pornDBPerformerSiteDetailResponse struct {
+	Data pornDBPerformerSiteDetailRaw `json:"data"`
 }
 
 type pornDBPerformerResponse struct {
@@ -431,11 +467,12 @@ func (s *PornDBService) GetPerformerDetails(id string) (*PornDBPerformerDetails,
 	// Flatten the response for the frontend
 	raw := result.Data
 	details := &PornDBPerformerDetails{
-		ID:    raw.ID,
-		Slug:  raw.Slug,
-		Name:  raw.Name,
-		Image: raw.Image,
-		Bio:   raw.Bio,
+		ID:      raw.ID,
+		Slug:    raw.Slug,
+		Name:    raw.Name,
+		Image:   raw.Image,
+		Bio:     raw.Bio,
+		Aliases: raw.Aliases,
 	}
 
 	// Copy fields from extras if present
@@ -462,6 +499,86 @@ func (s *PornDBService) GetPerformerDetails(id string) (*PornDBPerformerDetails,
 		// Parse height and weight from strings like "160cm" and "50kg"
 		details.Height = parseNumericValue(extras.Height)
 		details.Weight = parseNumericValue(extras.Weight)
+	}
+
+	return details, nil
+}
+
+// GetPerformerSiteDetails fetches detailed information about a performer from the performer-sites endpoint
+// This is needed because IDs from /performer-sites search cannot be used with /performers endpoint
+func (s *PornDBService) GetPerformerSiteDetails(id string) (*PornDBPerformerDetails, error) {
+	if !s.IsConfigured() {
+		return nil, fmt.Errorf("PornDB API key is not configured")
+	}
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/performer-sites/%s", pornDBBaseURL, id), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.apiKey))
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		s.logger.Warn("PornDB get performer-site failed",
+			zap.String("id", id),
+			zap.Int("status", resp.StatusCode),
+			zap.String("body", string(body)),
+		)
+		return nil, fmt.Errorf("PornDB API returned status %d", resp.StatusCode)
+	}
+
+	var result pornDBPerformerSiteDetailResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	// Convert to the same PornDBPerformerDetails format for consistency
+	raw := result.Data
+	image := raw.Image
+	if image == "" && raw.Thumbnail != "" {
+		image = raw.Thumbnail
+	}
+
+	details := &PornDBPerformerDetails{
+		ID:      raw.ID,
+		Name:    raw.Name,
+		Image:   image,
+		Bio:     raw.Bio,
+		Aliases: raw.Aliases,
+	}
+
+	// Copy fields from extra if present (note: field names differ from /performers endpoint)
+	if raw.Extra != nil {
+		extra := raw.Extra
+		details.Gender = extra.Gender
+		details.Birthday = extra.Birthday
+		details.Birthplace = extra.Birthplace
+		details.Astrology = extra.Astrology
+		details.Ethnicity = extra.Ethnicity
+		details.Nationality = extra.Nationality
+		details.HairColour = extra.HairColor // Map haircolor -> HairColour
+		details.EyeColour = extra.EyeColour
+		details.Measurements = extra.Measurements
+		details.Cupsize = extra.Cupsize
+		details.Tattoos = extra.Tattoos
+		details.Piercings = extra.Piercings
+		details.FakeBoobs = extra.FakeBoobs
+
+		// Parse height and weight from strings like "160cm" and "50kg"
+		details.Height = parseNumericValue(extra.Height)
+		details.Weight = parseNumericValue(extra.Weight)
 	}
 
 	return details, nil

@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import type { ScanHistory, ScanStatus, ScanProgressEvent } from '~/types/scan';
+import type { ScanHistory, ScanStatus } from '~/types/scan';
 import type { BulkJobResponse } from '~/types/jobs';
 
 const { startScan, cancelScan, getScanStatus, getScanHistory, triggerBulkPhase } = useApi();
 const { message, error, clearMessages } = useSettingsMessage();
-const authStore = useAuthStore();
 
 // Scan state
 const scanLoading = ref(false);
@@ -25,8 +24,7 @@ const bulkResults = ref<Record<string, BulkJobResponse | null>>({
     sprites: null,
 });
 
-// SSE for scan events
-let eventSource: EventSource | null = null;
+const scanStore = useScanStore();
 
 const loadScanStatus = async () => {
     try {
@@ -53,7 +51,7 @@ const handleStartScan = async () => {
         const scan = await startScan();
         scanStatus.value = { running: true, current_scan: scan };
         message.value = 'Library scan started';
-        connectSSE();
+        scanStore.reset();
     } catch (e: unknown) {
         error.value = e instanceof Error ? e.message : 'Failed to start scan';
     } finally {
@@ -94,93 +92,41 @@ const handleBulkJob = async (
     }
 };
 
-const connectSSE = () => {
-    if (!authStore.isAuthenticated || eventSource) return;
-
-    // Use credentials to send HTTP-only cookies for authentication
-    const url = '/api/v1/events';
-    eventSource = new EventSource(url, { withCredentials: true });
-
-    eventSource.addEventListener('scan:progress', (e: MessageEvent) => {
-        const event = JSON.parse(e.data);
-        const data = event.data as ScanProgressEvent;
-        if (scanStatus.value.current_scan && data) {
-            scanStatus.value.current_scan.files_found = data.files_found;
-            scanStatus.value.current_scan.videos_added = data.videos_added;
-            scanStatus.value.current_scan.videos_skipped = data.videos_skipped;
-            scanStatus.value.current_scan.videos_removed = data.videos_removed;
-            scanStatus.value.current_scan.videos_moved = data.videos_moved;
-            scanStatus.value.current_scan.errors = data.errors;
-            scanStatus.value.current_scan.current_path = data.current_path;
-            scanStatus.value.current_scan.current_file = data.current_file;
-        }
-    });
-
-    eventSource.addEventListener('scan:video_added', () => {
-        if (scanStatus.value.current_scan) {
-            scanStatus.value.current_scan.videos_added =
-                (scanStatus.value.current_scan.videos_added || 0) + 1;
-        }
-    });
-
-    eventSource.addEventListener('scan:video_removed', () => {
-        if (scanStatus.value.current_scan) {
-            scanStatus.value.current_scan.videos_removed =
-                (scanStatus.value.current_scan.videos_removed || 0) + 1;
-        }
-    });
-
-    eventSource.addEventListener('scan:video_moved', () => {
-        if (scanStatus.value.current_scan) {
-            scanStatus.value.current_scan.videos_moved =
-                (scanStatus.value.current_scan.videos_moved || 0) + 1;
-        }
-    });
-
-    eventSource.addEventListener('scan:completed', async () => {
-        scanStatus.value = { running: false };
-        message.value = 'Library scan completed successfully';
-        await loadScanHistory();
-        disconnectSSE();
-    });
-
-    eventSource.addEventListener('scan:failed', async (e: MessageEvent) => {
-        const event = JSON.parse(e.data);
-        const data = event.data;
-        scanStatus.value = { running: false };
-        error.value = `Scan failed: ${data?.error_message || 'Unknown error'}`;
-        await loadScanHistory();
-        disconnectSSE();
-    });
-
-    eventSource.addEventListener('scan:cancelled', async () => {
-        scanStatus.value = { running: false };
-        message.value = 'Scan was cancelled';
-        await loadScanHistory();
-        disconnectSSE();
-    });
-
-    eventSource.onerror = () => {
-        disconnectSSE();
-    };
-};
-
-const disconnectSSE = () => {
-    if (eventSource) {
-        eventSource.close();
-        eventSource = null;
-    }
-};
-
 onMounted(async () => {
     await Promise.all([loadScanStatus(), loadScanHistory()]);
-    if (scanStatus.value.running) {
-        connectSSE();
-    }
 });
 
-onUnmounted(() => {
-    disconnectSSE();
+watch(() => scanStore.progress, (data) => {
+    if (!data || !scanStatus.value.current_scan) return;
+    scanStatus.value.current_scan.files_found = data.files_found;
+    scanStatus.value.current_scan.videos_added = data.videos_added;
+    scanStatus.value.current_scan.videos_skipped = data.videos_skipped;
+    scanStatus.value.current_scan.videos_removed = data.videos_removed;
+    scanStatus.value.current_scan.videos_moved = data.videos_moved;
+    scanStatus.value.current_scan.errors = data.errors;
+    scanStatus.value.current_scan.current_path = data.current_path;
+    scanStatus.value.current_scan.current_file = data.current_file;
+});
+
+watch(() => scanStore.completed, async (val) => {
+    if (!val) return;
+    scanStatus.value = { running: false };
+    message.value = 'Library scan completed successfully';
+    await loadScanHistory();
+});
+
+watch(() => scanStore.failed, async (val) => {
+    if (!val) return;
+    scanStatus.value = { running: false };
+    error.value = `Scan failed: ${scanStore.errorMessage || 'Unknown error'}`;
+    await loadScanHistory();
+});
+
+watch(() => scanStore.cancelled, async (val) => {
+    if (!val) return;
+    scanStatus.value = { running: false };
+    message.value = 'Scan was cancelled';
+    await loadScanHistory();
 });
 
 const formatDateTime = (dateStr: string): string => {

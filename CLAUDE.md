@@ -199,6 +199,7 @@ Config loaded via Viper: YAML file path set by `GOONHUB_CONFIG` env var. All con
 
 - **PostgreSQL 18** is the database (run via `docker/docker-compose.yml`)
 - Migrations are managed by `golang-migrate` (embedded in binary, run automatically on startup)
+- **IMPORTANT:** Before making any database schema changes or additions, read `docs/DATABASE.md` for the complete schema reference, naming conventions, and architectural patterns
 
 ### External Dependencies
 
@@ -290,3 +291,4 @@ When working on GoonHub, remember:
 - Use typed errors from `internal/apperrors/` - check with `apperrors.IsNotFound()`, `apperrors.IsValidation()`, etc.
 - In handlers, use `response.Error(c, err)` for automatic HTTP status and error code mapping
 - Never add a `Co-Authored-By` line to git commit messages
+- Before any database schema change, read `docs/DATABASE.md` for schema reference and conventions

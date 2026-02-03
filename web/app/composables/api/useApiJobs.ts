@@ -4,11 +4,12 @@
 export const useApiJobs = () => {
     const { fetchOptions, getAuthHeaders, handleResponse } = useApiCore();
 
-    const fetchJobs = async (page: number, limit: number) => {
+    const fetchJobs = async (page: number, limit: number, status?: string) => {
         const params = new URLSearchParams({
             page: page.toString(),
             limit: limit.toString(),
         });
+        if (status) params.set('status', status);
         const response = await fetch(`/api/v1/admin/jobs?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
@@ -124,6 +125,60 @@ export const useApiJobs = () => {
         return handleResponse(response);
     };
 
+    const cancelJob = async (jobID: string) => {
+        const response = await fetch(`/api/v1/admin/jobs/${jobID}/cancel`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const retryJob = async (jobID: string) => {
+        const response = await fetch(`/api/v1/admin/jobs/${jobID}/retry`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const fetchRecentFailedJobs = async (limit: number = 5) => {
+        const params = new URLSearchParams({ limit: limit.toString() });
+        const response = await fetch(`/api/v1/admin/jobs/recent-failed?${params}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const retryAllFailed = async () => {
+        const response = await fetch('/api/v1/admin/jobs/retry-all-failed', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const retryBatchJobs = async (jobIds: string[]) => {
+        const response = await fetch('/api/v1/admin/jobs/retry-batch', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ job_ids: jobIds }),
+        });
+        return handleResponse(response);
+    };
+
+    const clearFailedJobs = async () => {
+        const response = await fetch('/api/v1/admin/jobs/failed', {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
     return {
         fetchJobs,
         fetchPoolConfig,
@@ -136,5 +191,11 @@ export const useApiJobs = () => {
         triggerBulkPhase,
         fetchRetryConfig,
         updateRetryConfig,
+        cancelJob,
+        retryJob,
+        fetchRecentFailedJobs,
+        retryAllFailed,
+        retryBatchJobs,
+        clearFailedJobs,
     };
 };

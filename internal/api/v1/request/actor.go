@@ -1,9 +1,10 @@
 package request
 
 type CreateActorRequest struct {
-	Name            string  `json:"name" binding:"required"`
-	ImageURL        string  `json:"image_url"`
-	Gender          string  `json:"gender"`
+	Name            string   `json:"name" binding:"required"`
+	Aliases         []string `json:"aliases"`
+	ImageURL        string   `json:"image_url"`
+	Gender          string   `json:"gender"`
 	Birthday        *string `json:"birthday"`
 	DateOfDeath     *string `json:"date_of_death"`
 	Astrology       string  `json:"astrology"`
@@ -25,8 +26,9 @@ type CreateActorRequest struct {
 }
 
 type UpdateActorRequest struct {
-	Name            *string `json:"name"`
-	ImageURL        *string `json:"image_url"`
+	Name            *string   `json:"name"`
+	Aliases         *[]string `json:"aliases"`
+	ImageURL        *string   `json:"image_url"`
 	Gender          *string `json:"gender"`
 	Birthday        *string `json:"birthday"`
 	DateOfDeath     *string `json:"date_of_death"`

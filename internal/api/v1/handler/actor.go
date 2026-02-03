@@ -54,10 +54,15 @@ func (h *ActorHandler) ListActors(c *gin.Context) {
 func toActorListItems(actors []data.ActorWithCount) []response.ActorListItem {
 	items := make([]response.ActorListItem, len(actors))
 	for i, a := range actors {
+		aliases := []string(a.Aliases)
+		if aliases == nil {
+			aliases = []string{}
+		}
 		items[i] = response.ActorListItem{
 			ID:         a.ID,
 			UUID:       a.UUID,
 			Name:       a.Name,
+			Aliases:    aliases,
 			ImageURL:   a.ImageURL,
 			Gender:     a.Gender,
 			SceneCount: a.SceneCount,
@@ -129,6 +134,7 @@ func (h *ActorHandler) CreateActor(c *gin.Context) {
 
 	input := core.CreateActorInput{
 		Name:            req.Name,
+		Aliases:         req.Aliases,
 		ImageURL:        req.ImageURL,
 		Gender:          req.Gender,
 		Astrology:       req.Astrology,
@@ -191,6 +197,7 @@ func (h *ActorHandler) UpdateActor(c *gin.Context) {
 
 	input := core.UpdateActorInput{
 		Name:            req.Name,
+		Aliases:         req.Aliases,
 		ImageURL:        req.ImageURL,
 		Gender:          req.Gender,
 		Astrology:       req.Astrology,

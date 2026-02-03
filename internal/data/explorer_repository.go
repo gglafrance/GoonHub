@@ -8,6 +8,20 @@ import (
 	"gorm.io/gorm"
 )
 
+// buildFullPath constructs a full path by joining a storage base path with a
+// relative folder path. It uses string concatenation instead of filepath.Join
+// to preserve the original storage path format (e.g. a "./data/videos" prefix).
+// filepath.Join calls filepath.Clean which strips prefixes like "./" causing
+// LIKE pattern mismatches against stored_path values in the database.
+func buildFullPath(basePath, relativePath string) string {
+	base := strings.TrimRight(basePath, string(filepath.Separator))
+	if relativePath == "" || relativePath == "/" {
+		return base + string(filepath.Separator)
+	}
+	rel := strings.Trim(relativePath, string(filepath.Separator))
+	return base + string(filepath.Separator) + rel + string(filepath.Separator)
+}
+
 // ExplorerRepository provides folder-based scene access
 type ExplorerRepository interface {
 	GetStoragePathsWithCounts() ([]StoragePathWithCount, error)
@@ -56,18 +70,8 @@ func (r *ExplorerRepositoryImpl) GetScenesByFolder(storagePathID uint, folderPat
 		return nil, 0, err
 	}
 
-	// Build the full folder path
-	var fullPath string
-	if folderPath == "" || folderPath == "/" {
-		fullPath = storagePath.Path
-	} else {
-		fullPath = filepath.Join(storagePath.Path, folderPath)
-	}
-
-	// Ensure path has trailing separator for matching
-	if !strings.HasSuffix(fullPath, string(filepath.Separator)) {
-		fullPath = fullPath + string(filepath.Separator)
-	}
+	// Build the full folder path (avoid filepath.Join which strips "./" prefixes)
+	fullPath := buildFullPath(storagePath.Path, folderPath)
 
 	// Query for scenes directly in this folder (not in subfolders)
 	// Match scenes where stored_path starts with fullPath but has no more path separators after that
@@ -102,18 +106,8 @@ func (r *ExplorerRepositoryImpl) GetSubfolders(storagePathID uint, parentPath st
 		return nil, err
 	}
 
-	// Build the full parent path
-	var fullParentPath string
-	if parentPath == "" || parentPath == "/" {
-		fullParentPath = storagePath.Path
-	} else {
-		fullParentPath = filepath.Join(storagePath.Path, parentPath)
-	}
-
-	// Ensure path has trailing separator
-	if !strings.HasSuffix(fullParentPath, string(filepath.Separator)) {
-		fullParentPath = fullParentPath + string(filepath.Separator)
-	}
+	// Build the full parent path (avoid filepath.Join which strips "./" prefixes)
+	fullParentPath := buildFullPath(storagePath.Path, parentPath)
 
 	// Use SQL to extract subfolder names and aggregate scene counts, duration, and size
 	// SUBSTRING extracts the relative path after the parent
@@ -189,18 +183,8 @@ func (r *ExplorerRepositoryImpl) GetSceneIDsByFolder(storagePathID uint, folderP
 		return nil, err
 	}
 
-	// Build the full folder path
-	var fullPath string
-	if folderPath == "" || folderPath == "/" {
-		fullPath = storagePath.Path
-	} else {
-		fullPath = filepath.Join(storagePath.Path, folderPath)
-	}
-
-	// Ensure path has trailing separator
-	if !strings.HasSuffix(fullPath, string(filepath.Separator)) {
-		fullPath = fullPath + string(filepath.Separator)
-	}
+	// Build the full folder path (avoid filepath.Join which strips "./" prefixes)
+	fullPath := buildFullPath(storagePath.Path, folderPath)
 
 	var ids []uint
 	query := r.DB.Model(&Scene{}).

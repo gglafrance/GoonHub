@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"goonhub/internal/core/processing"
 	"goonhub/internal/data"
 	"goonhub/internal/jobs"
@@ -209,7 +210,10 @@ func (f *JobQueueFeeder) feedPhase(phase string) {
 		for _, j := range claimedJobs {
 			errMsg := "Failed to fetch scene data: " + err.Error()
 			now := time.Now()
-			_ = f.repo.UpdateStatus(j.JobID, data.JobStatusFailed, &errMsg, &now)
+			if updateErr := f.repo.UpdateStatus(j.JobID, data.JobStatusFailed, &errMsg, &now); updateErr != nil {
+				f.logger.Error("Failed to update job status, job may be stuck",
+					zap.String("job_id", j.JobID), zap.Error(updateErr))
+			}
 		}
 		return
 	}
@@ -229,7 +233,10 @@ func (f *JobQueueFeeder) feedPhase(phase string) {
 			)
 			errMsg := "Scene not found"
 			now := time.Now()
-			_ = f.repo.UpdateStatus(jobRecord.JobID, data.JobStatusFailed, &errMsg, &now)
+			if updateErr := f.repo.UpdateStatus(jobRecord.JobID, data.JobStatusFailed, &errMsg, &now); updateErr != nil {
+				f.logger.Error("Failed to update job status, job may be stuck",
+					zap.String("job_id", jobRecord.JobID), zap.Error(updateErr))
+			}
 			continue
 		}
 
@@ -243,7 +250,10 @@ func (f *JobQueueFeeder) feedPhase(phase string) {
 			// Mark as failed so it can be retried
 			errMsg := "Failed to submit to worker pool: " + err.Error()
 			now := time.Now()
-			_ = f.repo.UpdateStatus(jobRecord.JobID, data.JobStatusFailed, &errMsg, &now)
+			if updateErr := f.repo.UpdateStatus(jobRecord.JobID, data.JobStatusFailed, &errMsg, &now); updateErr != nil {
+				f.logger.Error("Failed to update job status, job may be stuck",
+					zap.String("job_id", jobRecord.JobID), zap.Error(updateErr))
+			}
 		}
 	}
 }
@@ -270,7 +280,7 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 
 	case "thumbnail":
 		if scene.Duration == 0 {
-			return nil // Skip if metadata not extracted
+			return fmt.Errorf("scene duration is 0: metadata not yet extracted")
 		}
 		tileWidthSm, tileHeightSm := scene.ThumbnailWidth, scene.ThumbnailHeight
 		if tileWidthSm == 0 || tileHeightSm == 0 {
@@ -295,13 +305,13 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 
 	case "sprites":
 		if scene.Duration == 0 {
-			return nil // Skip if metadata not extracted
+			return fmt.Errorf("scene duration is 0: metadata not yet extracted")
 		}
 		tileW, tileH := scene.ThumbnailWidth, scene.ThumbnailHeight
 		if tileW == 0 || tileH == 0 {
 			tileW, tileH = ffmpeg.CalculateTileDimensions(scene.Width, scene.Height, qualityConfig.MaxFrameDimensionSm)
 		}
-		job = jobs.NewSpritesJobWithID(
+		spritesJob := jobs.NewSpritesJobWithID(
 			jobRecord.JobID,
 			jobRecord.SceneID,
 			scene.StoredPath,
@@ -318,7 +328,13 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 			f.sceneRepo,
 			f.logger,
 		)
-		return f.poolManager.SubmitToSpritesPool(job)
+		spritesJob.SetProgressCallback(func(jobID string, progress int) {
+			if err := f.repo.UpdateProgress(jobID, progress); err != nil {
+				f.logger.Warn("Failed to update sprite job progress",
+					zap.String("job_id", jobID), zap.Int("progress", progress), zap.Error(err))
+			}
+		})
+		return f.poolManager.SubmitToSpritesPool(spritesJob)
 	}
 
 	return nil

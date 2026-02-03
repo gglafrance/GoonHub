@@ -2,11 +2,12 @@
 import type { JobHistory } from '~/types/jobs';
 
 const route = useRoute();
-const { triggerScenePhase, fetchJobs } = useApi();
+const { triggerScenePhase, fetchJobs, cancelJob } = useApi();
 
 const sceneId = computed(() => parseInt(route.params.id as string));
 
 const triggeringPhase = ref<string | null>(null);
+const cancellingJobId = ref<string | null>(null);
 const error = ref('');
 const message = ref('');
 const loading = ref(true);
@@ -43,6 +44,28 @@ const triggerPhase = async (phase: string) => {
     } finally {
         triggeringPhase.value = null;
     }
+};
+
+const handleCancel = async (job: JobHistory) => {
+    if (cancellingJobId.value) return;
+    cancellingJobId.value = job.job_id;
+    error.value = '';
+    try {
+        await cancelJob(job.job_id);
+        message.value = `Job cancelled`;
+        setTimeout(() => {
+            message.value = '';
+        }, 4000);
+        await loadJobs();
+    } catch (e: unknown) {
+        error.value = e instanceof Error ? e.message : 'Failed to cancel job';
+    } finally {
+        cancellingJobId.value = null;
+    }
+};
+
+const isCancellable = (status: string): boolean => {
+    return status === 'running' || status === 'pending';
 };
 
 const phaseLabel = (phase: string): string => {
@@ -165,7 +188,8 @@ onMounted(() => {
                         <th class="pr-4 pb-2 font-medium">Phase</th>
                         <th class="pr-4 pb-2 font-medium">Status</th>
                         <th class="pr-4 pb-2 font-medium">Duration</th>
-                        <th class="pb-2 font-medium">Started</th>
+                        <th class="pr-4 pb-2 font-medium">Started</th>
+                        <th class="pb-2 font-medium"></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -195,6 +219,24 @@ onMounted(() => {
                         </td>
                         <td class="text-dim py-2 text-[11px]">
                             {{ formatTime(job.started_at) }}
+                        </td>
+                        <td class="py-2 text-right">
+                            <button
+                                v-if="isCancellable(job.status)"
+                                :disabled="cancellingJobId !== null"
+                                class="text-dim hover:text-lava rounded p-0.5 transition-colors
+                                    disabled:opacity-30"
+                                title="Cancel job"
+                                @click="handleCancel(job)"
+                            >
+                                <Icon
+                                    :name="cancellingJobId === job.job_id
+                                        ? 'heroicons:arrow-path'
+                                        : 'heroicons:x-mark'"
+                                    size="12"
+                                    :class="{ 'animate-spin': cancellingJobId === job.job_id }"
+                                />
+                            </button>
                         </td>
                     </tr>
                 </tbody>

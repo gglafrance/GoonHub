@@ -9,6 +9,8 @@ const error = ref('');
 const message = ref('');
 
 const entries = ref<DLQEntry[]>([]);
+const selectedEntryId = ref<string | null>(null);
+const selectedEntry = computed(() => entries.value.find(e => e.job_id === selectedEntryId.value) ?? entries.value[0] ?? null);
 const stats = ref({ pending_review: 0, retrying: 0, abandoned: 0, total: 0 });
 const total = ref(0);
 const page = ref(1);
@@ -249,7 +251,9 @@ onMounted(() => {
                         <tr
                             v-for="entry in entries"
                             :key="entry.job_id"
-                            class="border-border/50 border-b last:border-0"
+                            class="border-border/50 cursor-pointer border-b last:border-0 hover:bg-white/2"
+                            :class="{ 'bg-white/3': selectedEntryId === entry.job_id }"
+                            @click="selectedEntryId = entry.job_id"
                         >
                             <td class="max-w-40 truncate py-2.5 pr-4 text-white">
                                 {{ entry.scene_title || `Scene #${entry.scene_id}` }}
@@ -282,7 +286,7 @@ onMounted(() => {
                                 >
                                     <button
                                         @click="handleRetry(entry.job_id)"
-                                        :disabled="actionLoading === entry.job_id"
+                                        :disabled="actionLoading !== null"
                                         class="rounded px-2 py-1 text-[10px] font-medium
                                             text-emerald-400 transition-colors
                                             hover:bg-emerald-500/10 disabled:opacity-50"
@@ -291,7 +295,7 @@ onMounted(() => {
                                     </button>
                                     <button
                                         @click="handleAbandon(entry.job_id)"
-                                        :disabled="actionLoading === entry.job_id"
+                                        :disabled="actionLoading !== null"
                                         class="text-dim rounded px-2 py-1 text-[10px] font-medium
                                             transition-colors hover:bg-white/5 hover:text-white
                                             disabled:opacity-50"
@@ -314,15 +318,21 @@ onMounted(() => {
                 <!-- Error Details (shown on hover/click) -->
                 <div class="border-border mt-4 border-t pt-4">
                     <div class="text-dim mb-2 text-[10px] font-medium tracking-wider uppercase">
-                        Last Error
+                        Error Details
+                        <span v-if="selectedEntry" class="text-white/30 normal-case">
+                            &mdash; {{ selectedEntry.scene_title || `Scene #${selectedEntry.scene_id}` }}
+                        </span>
                     </div>
                     <div
-                        v-if="entries.length > 0"
+                        v-if="selectedEntry"
                         class="bg-surface rounded-lg border border-white/5 p-3"
                     >
                         <code class="text-lava text-[11px] break-all">
-                            {{ entries[0]?.last_error || 'No error details' }}
+                            {{ selectedEntry.last_error || 'No error details' }}
                         </code>
+                    </div>
+                    <div v-else class="text-dim py-2 text-[11px]">
+                        Click a row to view its error details
                     </div>
                 </div>
             </div>

@@ -33,6 +33,11 @@ type BulkDeleteRequest struct {
 	Permanent bool   `json:"permanent"` // false = trash (default), true = permanent delete
 }
 
+// ScenesMatchInfoRequest represents a request to get minimal scene data for bulk matching
+type ScenesMatchInfoRequest struct {
+	SceneIDs []uint `json:"scene_ids" binding:"required,min=1"`
+}
+
 // FolderSearchRequest represents a request to search within a folder
 type FolderSearchRequest struct {
 	StoragePathID uint     `json:"storage_path_id" binding:"required"`

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -33,6 +34,7 @@ func (s *ActorService) SetIndexer(indexer SceneIndexer) {
 
 type CreateActorInput struct {
 	Name            string
+	Aliases         []string
 	ImageURL        string
 	Gender          string
 	Birthday        *time.Time
@@ -57,6 +59,7 @@ type CreateActorInput struct {
 
 type UpdateActorInput struct {
 	Name            *string
+	Aliases         *[]string
 	ImageURL        *string
 	Gender          *string
 	Birthday        *time.Time
@@ -90,6 +93,7 @@ func (s *ActorService) Create(input CreateActorInput) (*data.Actor, error) {
 	actor := &data.Actor{
 		UUID:            uuid.New(),
 		Name:            input.Name,
+		Aliases:         pq.StringArray(input.Aliases),
 		ImageURL:        input.ImageURL,
 		Gender:          input.Gender,
 		Birthday:        input.Birthday,
@@ -229,6 +233,9 @@ func (s *ActorService) Update(id uint, input UpdateActorInput) (*data.Actor, err
 	}
 	if input.SameSexOnly != nil {
 		actor.SameSexOnly = *input.SameSexOnly
+	}
+	if input.Aliases != nil {
+		actor.Aliases = pq.StringArray(*input.Aliases)
 	}
 
 	if err := s.actorRepo.Update(actor); err != nil {

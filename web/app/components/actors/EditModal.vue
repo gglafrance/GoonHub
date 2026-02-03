@@ -19,6 +19,7 @@ const isEditMode = computed(() => !!props.actor);
 
 const form = ref({
     name: '',
+    aliases: [] as string[],
     image_url: '',
     gender: '',
     birthday: '',
@@ -41,14 +42,29 @@ const form = ref({
     same_sex_only: false,
 });
 
+const newAlias = ref('');
+
 const loading = ref(false);
 const error = ref('');
 const imageFile = ref<File | null>(null);
 const imagePreview = ref<string | null>(null);
 
+const addAlias = () => {
+    const alias = newAlias.value.trim();
+    if (alias && !form.value.aliases.includes(alias)) {
+        form.value.aliases.push(alias);
+    }
+    newAlias.value = '';
+};
+
+const removeAlias = (index: number) => {
+    form.value.aliases.splice(index, 1);
+};
+
 const resetForm = () => {
     form.value = {
         name: props.initialName || '',
+        aliases: [],
         image_url: '',
         gender: '',
         birthday: '',
@@ -70,6 +86,7 @@ const resetForm = () => {
         fake_boobs: false,
         same_sex_only: false,
     };
+    newAlias.value = '';
     imagePreview.value = null;
 };
 
@@ -80,6 +97,7 @@ const syncForm = () => {
     }
     form.value = {
         name: props.actor.name,
+        aliases: [...(props.actor.aliases || [])],
         image_url: props.actor.image_url || '',
         gender: props.actor.gender || '',
         birthday: props.actor.birthday?.split('T')[0] ?? '',
@@ -297,6 +315,55 @@ const genderOptions = [
                                     {{ opt.label }}
                                 </option>
                             </select>
+                        </div>
+                    </div>
+
+                    <!-- Aliases -->
+                    <div>
+                        <label
+                            class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
+                                uppercase"
+                        >
+                            Aliases
+                        </label>
+                        <div class="flex gap-2">
+                            <input
+                                v-model="newAlias"
+                                type="text"
+                                placeholder="Add alias..."
+                                class="border-border bg-void/80 placeholder-dim/50
+                                    focus:border-lava/40 focus:ring-lava/20 flex-1 rounded-lg border
+                                    px-3 py-2 text-sm text-white transition-all focus:ring-1
+                                    focus:outline-none"
+                                @keyup.enter="addAlias"
+                            />
+                            <button
+                                type="button"
+                                @click="addAlias"
+                                :disabled="!newAlias.trim()"
+                                class="border-border bg-panel hover:border-lava/50 hover:text-lava
+                                    text-dim shrink-0 rounded-lg border px-3 py-2 text-sm
+                                    transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                                Add
+                            </button>
+                        </div>
+                        <div v-if="form.aliases.length > 0" class="mt-2 flex flex-wrap gap-1.5">
+                            <span
+                                v-for="(alias, index) in form.aliases"
+                                :key="index"
+                                class="border-border bg-surface inline-flex items-center gap-1
+                                    rounded-full border px-2.5 py-1 text-xs text-white"
+                            >
+                                {{ alias }}
+                                <button
+                                    type="button"
+                                    @click="removeAlias(index)"
+                                    class="text-dim hover:text-lava transition-colors"
+                                >
+                                    <Icon name="heroicons:x-mark" size="12" />
+                                </button>
+                            </span>
                         </div>
                     </div>
 

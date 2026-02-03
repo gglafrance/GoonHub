@@ -179,6 +179,23 @@ func (h *ExplorerHandler) BulkDeleteScenes(c *gin.Context) {
 	})
 }
 
+// GetScenesMatchInfo returns minimal scene data for bulk PornDB matching
+func (h *ExplorerHandler) GetScenesMatchInfo(c *gin.Context) {
+	var req request.ScenesMatchInfoRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	scenes, err := h.Service.GetScenesMatchInfo(req.SceneIDs)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, response.ScenesMatchInfoResponse{Scenes: scenes})
+}
+
 // SearchInFolder searches for videos within a folder scope
 func (h *ExplorerHandler) SearchInFolder(c *gin.Context) {
 	var req request.FolderSearchRequest

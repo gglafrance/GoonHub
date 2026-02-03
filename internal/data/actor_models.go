@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
@@ -14,7 +15,8 @@ type Actor struct {
 	UpdatedAt       time.Time      `json:"updated_at"`
 	DeletedAt       gorm.DeletedAt `gorm:"index" json:"-"`
 
-	Name            string     `gorm:"size:255;not null" json:"name"`
+	Name            string         `gorm:"size:255;not null" json:"name"`
+	Aliases         pq.StringArray `gorm:"type:text[];default:'{}'" json:"aliases"`
 	ImageURL        string     `gorm:"size:512" json:"image_url"`
 	Gender          string     `gorm:"size:50" json:"gender"`
 	Birthday        *time.Time `json:"birthday"`

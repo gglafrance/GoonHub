@@ -1,6 +1,7 @@
 package data
 
 import (
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -9,7 +10,8 @@ import (
 type JobHistoryRepository interface {
 	Create(record *JobHistory) error
 	UpdateStatus(jobID string, status string, errorMessage *string, completedAt *time.Time) error
-	ListAll(page, limit int) ([]JobHistory, int64, error)
+	ListAll(page, limit int, status string) ([]JobHistory, int64, error)
+	ListRecentFailed(limit int, since time.Duration) ([]JobHistory, error)
 	ListActive() ([]JobHistory, error)
 	DeleteOlderThan(before time.Time) (int64, error)
 	UpdateProgress(jobID string, progress int) error
@@ -34,6 +36,14 @@ type JobHistoryRepository interface {
 
 	// Scene-specific methods
 	CancelPendingJobsForScene(sceneID uint) (int64, error)
+	CancelPendingJob(jobID string) error
+
+	// Monitoring methods
+	CountRecentFailedByPhase(since time.Duration) (map[string]int, error)
+
+	// Bulk operations
+	GetFailedJobs() ([]JobHistory, error)
+	DeleteByStatus(status string) (int64, error)
 }
 
 type JobHistoryRepositoryImpl struct {
@@ -61,21 +71,49 @@ func (r *JobHistoryRepositoryImpl) UpdateStatus(jobID string, status string, err
 	return r.DB.Model(&JobHistory{}).Where("job_id = ?", jobID).Updates(updates).Error
 }
 
-func (r *JobHistoryRepositoryImpl) ListAll(page, limit int) ([]JobHistory, int64, error) {
+func (r *JobHistoryRepositoryImpl) ListAll(page, limit int, status string) ([]JobHistory, int64, error) {
 	var records []JobHistory
 	var total int64
 
 	offset := (page - 1) * limit
 
-	if err := r.DB.Model(&JobHistory{}).Where("status != ?", "running").Count(&total).Error; err != nil {
+	query := r.DB.Model(&JobHistory{})
+	if status != "" {
+		query = query.Where("status = ?", status)
+	} else {
+		query = query.Where("status != ?", "running")
+	}
+
+	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	if err := r.DB.Where("status != ?", "running").Limit(limit).Offset(offset).Order("started_at desc").Find(&records).Error; err != nil {
+	listQuery := r.DB.Model(&JobHistory{})
+	if status != "" {
+		listQuery = listQuery.Where("status = ?", status)
+	} else {
+		listQuery = listQuery.Where("status != ?", "running")
+	}
+
+	if err := listQuery.Limit(limit).Offset(offset).Order("started_at desc").Find(&records).Error; err != nil {
 		return nil, 0, err
 	}
 
 	return records, total, nil
+}
+
+func (r *JobHistoryRepositoryImpl) ListRecentFailed(limit int, since time.Duration) ([]JobHistory, error) {
+	var records []JobHistory
+	cutoff := time.Now().Add(-since)
+
+	if err := r.DB.Where("status = ? AND completed_at >= ?", JobStatusFailed, cutoff).
+		Order("completed_at desc").
+		Limit(limit).
+		Find(&records).Error; err != nil {
+		return nil, err
+	}
+
+	return records, nil
 }
 
 func (r *JobHistoryRepositoryImpl) ListActive() ([]JobHistory, error) {
@@ -323,5 +361,66 @@ func (r *JobHistoryRepositoryImpl) CancelPendingJobsForScene(sceneID uint) (int6
 			"is_retryable":  false,
 		})
 
+	return result.RowsAffected, result.Error
+}
+
+// CancelPendingJob cancels a single pending job by job ID.
+// Returns an error if the job is not found or not in pending state.
+func (r *JobHistoryRepositoryImpl) CancelPendingJob(jobID string) error {
+	now := time.Now()
+	result := r.DB.Model(&JobHistory{}).
+		Where("job_id = ? AND status = ?", jobID, JobStatusPending).
+		Updates(map[string]any{
+			"status":       JobStatusCancelled,
+			"completed_at": now,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("job not found or not in pending state: %s", jobID)
+	}
+	return nil
+}
+
+// CountRecentFailedByPhase returns the count of failed jobs per phase within a time window.
+func (r *JobHistoryRepositoryImpl) CountRecentFailedByPhase(since time.Duration) (map[string]int, error) {
+	type phaseCount struct {
+		Phase string
+		Count int
+	}
+
+	cutoff := time.Now().Add(-since)
+	var counts []phaseCount
+	if err := r.DB.Model(&JobHistory{}).
+		Select("phase, COUNT(*) as count").
+		Where("status = ? AND completed_at >= ?", JobStatusFailed, cutoff).
+		Group("phase").
+		Scan(&counts).Error; err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]int)
+	for _, c := range counts {
+		result[c.Phase] = c.Count
+	}
+
+	return result, nil
+}
+
+// GetFailedJobs returns all jobs with status 'failed'.
+func (r *JobHistoryRepositoryImpl) GetFailedJobs() ([]JobHistory, error) {
+	var jobs []JobHistory
+	if err := r.DB.Where("status = ?", JobStatusFailed).
+		Order("completed_at desc").
+		Find(&jobs).Error; err != nil {
+		return nil, err
+	}
+	return jobs, nil
+}
+
+// DeleteByStatus deletes all jobs with the given status and returns the number of rows affected.
+func (r *JobHistoryRepositoryImpl) DeleteByStatus(status string) (int64, error) {
+	result := r.DB.Where("status = ?", status).Delete(&JobHistory{})
 	return result.RowsAffected, result.Error
 }

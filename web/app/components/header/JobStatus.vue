@@ -19,6 +19,16 @@ const badgeText = computed(() => {
     return `${r}/${w}`;
 });
 
+const tooltipText = computed(() => {
+    const parts: string[] = [];
+    parts.push(`${jobStatusStore.totalRunning} running`);
+    parts.push(`${jobStatusStore.totalWaiting} waiting`);
+    if (jobStatusStore.totalFailed > 0) {
+        parts.push(`${jobStatusStore.totalFailed} failed (1h)`);
+    }
+    return parts.join(', ');
+});
+
 function togglePopup() {
     showPopup.value = !showPopup.value;
 }
@@ -32,9 +42,10 @@ function togglePopup() {
                 gap-1.5 rounded-md border px-2 transition-all"
             :class="{
                 'border-lava/30 text-lava': jobStatusStore.isActive,
+                'border-red-500/40 text-red-400': jobStatusStore.hasFailed && !jobStatusStore.isActive,
                 'opacity-50': !jobStatusStore.isConnected,
             }"
-            title="Job Status"
+            :title="tooltipText"
             @click="togglePopup"
         >
             <Icon
@@ -42,7 +53,10 @@ function togglePopup() {
                 size="14"
                 :class="{ 'animate-pulse': jobStatusStore.isActive }"
             />
-            <span v-if="badgeText" class="font-mono text-[10px]">{{ badgeText }}</span>
+            <span v-if="jobStatusStore.hasFailed && !badgeText" class="text-red-400 font-mono text-[10px]">
+                {{ jobStatusStore.totalFailed }}!
+            </span>
+            <span v-else-if="badgeText" class="font-mono text-[10px]">{{ badgeText }}</span>
             <span v-else class="text-dim font-mono text-[10px]">0/0</span>
         </button>
 

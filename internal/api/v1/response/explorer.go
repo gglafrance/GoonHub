@@ -5,6 +5,11 @@ import (
 	"goonhub/internal/data"
 )
 
+// ScenesMatchInfoResponse contains minimal scene data for bulk PornDB matching
+type ScenesMatchInfoResponse struct {
+	Scenes []core.SceneMatchInfo `json:"scenes"`
+}
+
 // FolderContentsResponse contains the contents of a folder with lightweight scenes.
 type FolderContentsResponse struct {
 	StoragePath *data.StoragePath `json:"storage_path"`

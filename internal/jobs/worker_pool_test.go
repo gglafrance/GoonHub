@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -736,4 +737,76 @@ func TestWorkerPool_GracefulStopTimeout(t *testing.T) {
 	if elapsed > 200*time.Millisecond {
 		t.Fatalf("graceful stop took too long: %v (expected ~50ms)", elapsed)
 	}
+}
+
+// panicJob is a job that panics during execution
+type panicJob struct {
+	id      string
+	sceneID uint
+	status  JobStatus
+}
+
+func (j *panicJob) Execute() error                        { return j.ExecuteWithContext(context.Background()) }
+func (j *panicJob) ExecuteWithContext(ctx context.Context) error { panic("test panic in job execution") }
+func (j *panicJob) Cancel()                               {}
+func (j *panicJob) GetID() string                         { return j.id }
+func (j *panicJob) GetSceneID() uint                      { return j.sceneID }
+func (j *panicJob) GetPhase() string                      { return "test" }
+func (j *panicJob) GetStatus() JobStatus                  { return j.status }
+func (j *panicJob) GetError() error                       { return nil }
+
+func TestWorkerPool_PanicRecovery(t *testing.T) {
+	pool := NewWorkerPool(1, 10)
+	pool.Start()
+
+	// Submit a panicking job
+	pj := &panicJob{
+		id:      "panic-job",
+		sceneID: uint(testJobCounter.Add(1)),
+		status:  JobStatusPending,
+	}
+	if err := pool.Submit(pj); err != nil {
+		t.Fatalf("failed to submit panicking job: %v", err)
+	}
+
+	// Should receive a failed result
+	select {
+	case result := <-pool.Results():
+		if result.JobID != "panic-job" {
+			t.Fatalf("expected job ID 'panic-job', got %s", result.JobID)
+		}
+		if result.Status != JobStatusFailed {
+			t.Fatalf("expected failed status, got %s", result.Status)
+		}
+		if result.Error == nil {
+			t.Fatal("expected non-nil error for panicking job")
+		}
+		if !strings.Contains(result.Error.Error(), "panicked") {
+			t.Fatalf("expected panic error message, got: %v", result.Error)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for panic job result")
+	}
+
+	// Active count should be back to 0
+	if pool.ActiveJobCount() != 0 {
+		t.Fatalf("expected active job count 0 after panic, got %d", pool.ActiveJobCount())
+	}
+
+	// Worker should still be alive and accept new jobs
+	normalJob := newTestJob("after-panic", func() error { return nil })
+	if err := pool.Submit(normalJob); err != nil {
+		t.Fatalf("failed to submit job after panic: %v", err)
+	}
+
+	select {
+	case result := <-pool.Results():
+		if result.Status != JobStatusCompleted {
+			t.Fatalf("expected completed status for job after panic, got %s", result.Status)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for job result after panic")
+	}
+
+	pool.Stop()
 }

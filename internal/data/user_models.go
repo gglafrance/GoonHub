@@ -97,7 +97,16 @@ func (h *HomepageConfig) Scan(value any) error {
 		return errors.New("failed to scan HomepageConfig: expected []byte")
 	}
 
-	return json.Unmarshal(bytes, h)
+	if err := json.Unmarshal(bytes, h); err != nil {
+		return err
+	}
+
+	// Ensure Sections is never nil so it serializes as [] instead of null
+	if h.Sections == nil {
+		h.Sections = []HomepageSection{}
+	}
+
+	return nil
 }
 
 // DefaultHomepageConfig returns the default homepage configuration

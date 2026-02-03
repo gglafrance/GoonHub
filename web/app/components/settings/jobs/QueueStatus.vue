@@ -45,13 +45,13 @@ function phaseWaiting(phase: string): number {
                     {{ phaseLabel(phase) }}
                 </div>
                 <div class="flex items-baseline gap-3">
-                    <div class="flex items-baseline gap-1">
+                    <div class="flex items-baseline gap-1" title="Workers">
                         <span class="text-dim text-[10px]">W</span>
                         <span class="text-xs font-medium text-white">{{
                             poolConfig[`${phase}_workers` as keyof typeof poolConfig]
                         }}</span>
                     </div>
-                    <div class="flex items-baseline gap-1">
+                    <div class="flex items-baseline gap-1" title="Running">
                         <span class="text-[10px] text-emerald-400">R</span>
                         <span
                             class="text-xs font-medium"
@@ -63,7 +63,7 @@ function phaseWaiting(phase: string): number {
                             >{{ jobStatusStore.byPhase[phase]?.running ?? 0 }}</span
                         >
                     </div>
-                    <div class="flex items-baseline gap-1">
+                    <div class="flex items-baseline gap-1" title="Pending (queued + DB)">
                         <span class="text-[10px] text-amber-400">P</span>
                         <span
                             class="text-xs font-medium"

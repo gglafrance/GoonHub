@@ -126,10 +126,10 @@ func TestRetryScheduler_ScheduleRetry_WithinMaxRetries(t *testing.T) {
 	}
 }
 
-func TestRetryScheduler_ScheduleRetry_ExhaustedRetries(t *testing.T) {
-	svc, jobHistoryRepo, dlqRepo, retryConfigRepo, sceneRepo := newTestRetryScheduler(t)
+func TestRetryScheduler_ScheduleRetry_LastRetryBeforeDLQ(t *testing.T) {
+	svc, jobHistoryRepo, _, retryConfigRepo, _ := newTestRetryScheduler(t)
 
-	// Setup config
+	// Setup config with MaxRetries=3
 	retryConfigRepo.EXPECT().GetAll().Return([]data.RetryConfigRecord{
 		{Phase: "metadata", MaxRetries: 3, InitialDelaySeconds: 30, MaxDelaySeconds: 3600, BackoffFactor: 2.0},
 	}, nil)
@@ -137,7 +137,27 @@ func TestRetryScheduler_ScheduleRetry_ExhaustedRetries(t *testing.T) {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	// Expect update of retry info before DLQ move (with nil nextRetryAt)
+	// retryCount=2 with MaxRetries=3: 2 >= 3 is false, so this should retry (not DLQ)
+	jobHistoryRepo.EXPECT().UpdateRetryInfo("job-123", 3, 3, gomock.Any()).Return(nil)
+
+	err := svc.ScheduleRetry("job-123", "metadata", 1, 2, "test error")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+}
+
+func TestRetryScheduler_ScheduleRetry_ExhaustedRetries(t *testing.T) {
+	svc, jobHistoryRepo, dlqRepo, retryConfigRepo, sceneRepo := newTestRetryScheduler(t)
+
+	// Setup config with MaxRetries=3
+	retryConfigRepo.EXPECT().GetAll().Return([]data.RetryConfigRecord{
+		{Phase: "metadata", MaxRetries: 3, InitialDelaySeconds: 30, MaxDelaySeconds: 3600, BackoffFactor: 2.0},
+	}, nil)
+	if err := svc.refreshConfigCache(); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	// retryCount=3 with MaxRetries=3: 3 >= 3 is true, so this should move to DLQ
 	jobHistoryRepo.EXPECT().UpdateRetryInfo("job-123", 3, 3, nil).Return(nil)
 
 	// Expect move to DLQ
@@ -145,8 +165,7 @@ func TestRetryScheduler_ScheduleRetry_ExhaustedRetries(t *testing.T) {
 	sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{ID: 1, Title: "Test Scene"}, nil)
 	dlqRepo.EXPECT().Create(gomock.Any()).Return(nil)
 
-	// Schedule retry when next attempt would exceed max (count=2, so count+1=3 >= max_retries=3)
-	err := svc.ScheduleRetry("job-123", "metadata", 1, 2, "test error")
+	err := svc.ScheduleRetry("job-123", "metadata", 1, 3, "test error")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}

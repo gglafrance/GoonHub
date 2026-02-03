@@ -54,8 +54,16 @@ func (a *jobHistoryAdapter) RecordJobFailedWithRetry(jobID string, sceneID uint,
 	a.service.RecordJobFailedWithRetry(jobID, sceneID, phase, err)
 }
 
+func (a *jobHistoryAdapter) UpdateProgress(jobID string, progress int) {
+	a.service.UpdateProgress(jobID, progress)
+}
+
 func (a *jobHistoryAdapter) CreatePendingJob(jobID string, sceneID uint, sceneTitle string, phase string) error {
 	return a.service.CreatePendingJob(jobID, sceneID, sceneTitle, phase)
+}
+
+func (a *jobHistoryAdapter) CreatePendingJobWithPriority(jobID string, sceneID uint, sceneTitle string, phase string, priority int) error {
+	return a.service.CreatePendingJobWithPriority(jobID, sceneID, sceneTitle, phase, priority)
 }
 
 func (a *jobHistoryAdapter) ExistsPendingOrRunning(sceneID uint, phase string) (bool, error) {
@@ -68,6 +76,7 @@ type SceneProcessingService struct {
 	phaseTracker  *processing.PhaseTracker
 	resultHandler *processing.ResultHandler
 	jobSubmitter  *processing.JobSubmitter
+	jobHistory    *JobHistoryService
 	logger        *zap.Logger
 }
 
@@ -120,6 +129,7 @@ func NewSceneProcessingService(
 		phaseTracker:  phaseTracker,
 		resultHandler: resultHandler,
 		jobSubmitter:  jobSubmitter,
+		jobHistory:    jobHistory,
 		logger:        logger,
 	}
 }
@@ -159,6 +169,12 @@ func (s *SceneProcessingService) SubmitPhase(sceneID uint, phase string) error {
 	return s.jobSubmitter.SubmitPhase(sceneID, phase)
 }
 
+// SubmitPhaseWithPriority submits a phase with a specific priority (higher = processed first).
+// Used for manual triggers and DLQ retries.
+func (s *SceneProcessingService) SubmitPhaseWithPriority(sceneID uint, phase string, priority int) error {
+	return s.jobSubmitter.SubmitPhaseWithPriority(sceneID, phase, priority)
+}
+
 // SubmitPhaseWithRetry submits a phase for processing with retry tracking
 func (s *SceneProcessingService) SubmitPhaseWithRetry(sceneID uint, phase string, retryCount, maxRetries int) error {
 	return s.jobSubmitter.SubmitPhaseWithRetry(sceneID, phase, retryCount, maxRetries)
@@ -169,9 +185,19 @@ func (s *SceneProcessingService) SubmitBulkPhase(phase string, mode string) (*Bu
 	return s.jobSubmitter.SubmitBulkPhase(phase, mode)
 }
 
-// CancelJob cancels a running job by its ID
+// CancelJob cancels a job by its ID.
+// First attempts to cancel in the worker pool (running/queued jobs).
+// Falls back to cancelling a pending job directly in the database.
 func (s *SceneProcessingService) CancelJob(jobID string) error {
-	return s.poolManager.CancelJob(jobID)
+	err := s.poolManager.CancelJob(jobID)
+	if err == nil {
+		return nil
+	}
+	// Fallback: cancel pending job directly in DB
+	if s.jobHistory != nil {
+		return s.jobHistory.CancelPendingJob(jobID)
+	}
+	return err
 }
 
 // GetJob retrieves a job by its ID from any pool

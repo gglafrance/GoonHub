@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { JobHistory } from '~/types/jobs';
+
 const props = defineProps<{
     visible: boolean;
     anchorEl: HTMLElement | null;
@@ -9,6 +11,7 @@ const emit = defineEmits<{
 }>();
 
 const jobStatusStore = useJobStatusStore();
+const { fetchRecentFailedJobs, retryJob } = useApiJobs();
 const popupRef = ref<HTMLDivElement | null>(null);
 const position = ref({ top: 0, left: 0 });
 
@@ -25,6 +28,39 @@ const phaseIcons: Record<string, string> = {
     thumbnail: 'heroicons:photo',
     sprites: 'heroicons:squares-2x2',
 };
+
+const recentFailures = ref<JobHistory[]>([]);
+const failuresLoading = ref(false);
+const retryingJobId = ref<string | null>(null);
+
+async function loadRecentFailures() {
+    failuresLoading.value = true;
+    try {
+        const data = await fetchRecentFailedJobs(3);
+        recentFailures.value = data.data || [];
+    } catch {
+        recentFailures.value = [];
+    } finally {
+        failuresLoading.value = false;
+    }
+}
+
+async function handleRetryJob(jobId: string) {
+    retryingJobId.value = jobId;
+    try {
+        await retryJob(jobId);
+        recentFailures.value = recentFailures.value.filter((j) => j.job_id !== jobId);
+    } catch {
+        // Silently fail - the button will reset
+    } finally {
+        retryingJobId.value = null;
+    }
+}
+
+function navigateToFailedJobs() {
+    emit('close');
+    navigateTo('/settings?tab=jobs&subtab=history&status=failed');
+}
 
 function updatePosition() {
     if (!props.anchorEl) return;
@@ -78,6 +114,9 @@ watch(
             updatePosition();
             window.addEventListener('resize', updatePosition);
             document.addEventListener('mousedown', onClickOutside);
+            if (jobStatusStore.hasFailed) {
+                loadRecentFailures();
+            }
         } else {
             window.removeEventListener('resize', updatePosition);
             document.removeEventListener('mousedown', onClickOutside);
@@ -117,8 +156,13 @@ onBeforeUnmount(() => {
 
             <!-- Phase Breakdown -->
             <div class="border-border border-b px-4 py-3">
-                <div class="mb-2 text-[10px] font-medium tracking-wider text-white/40 uppercase">
-                    By Phase
+                <div class="mb-2 flex items-center justify-between">
+                    <span class="text-[10px] font-medium tracking-wider text-white/40 uppercase">
+                        By Phase
+                    </span>
+                    <span class="text-[9px] text-white/25">
+                        run / wait / fail
+                    </span>
                 </div>
                 <div class="space-y-2">
                     <div
@@ -164,6 +208,103 @@ onBeforeUnmount(() => {
                                 </span>
                                 <span class="text-[10px] text-white/30">wait</span>
                             </div>
+                            <button
+                                class="flex items-center gap-1 transition-colors"
+                                :class="
+                                    (jobStatusStore.byPhase[phase]?.failed ?? 0) > 0
+                                        ? 'cursor-pointer hover:opacity-80'
+                                        : 'cursor-default'
+                                "
+                                @click="
+                                    (jobStatusStore.byPhase[phase]?.failed ?? 0) > 0 &&
+                                        navigateToFailedJobs()
+                                "
+                            >
+                                <span
+                                    class="text-xs font-medium"
+                                    :class="
+                                        (jobStatusStore.byPhase[phase]?.failed ?? 0) > 0
+                                            ? 'text-red-400'
+                                            : 'text-white/40'
+                                    "
+                                >
+                                    {{ jobStatusStore.byPhase[phase]?.failed ?? 0 }}
+                                </span>
+                                <span class="text-[10px] text-white/30">fail</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Failures -->
+            <div
+                v-if="jobStatusStore.hasFailed"
+                class="border-border border-b px-4 py-3"
+            >
+                <div class="mb-2 flex items-center justify-between">
+                    <span
+                        class="text-[10px] font-medium tracking-wider text-red-400/70 uppercase"
+                    >
+                        Recent Failures
+                    </span>
+                    <button
+                        class="text-[9px] text-red-400/50 transition-colors hover:text-red-400"
+                        @click="navigateToFailedJobs"
+                    >
+                        View all
+                    </button>
+                </div>
+
+                <div v-if="failuresLoading" class="py-2">
+                    <span class="text-dim text-xs">Loading...</span>
+                </div>
+
+                <div
+                    v-else-if="recentFailures.length === 0"
+                    class="py-2"
+                >
+                    <span class="text-xs text-white/40">No recent failures</span>
+                </div>
+
+                <div v-else class="space-y-2">
+                    <div
+                        v-for="job in recentFailures"
+                        :key="job.job_id"
+                        class="bg-void/50 rounded-md p-2"
+                    >
+                        <div class="flex items-center gap-2">
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-1.5">
+                                    <Icon
+                                        :name="phaseIcons[job.phase] ?? ''"
+                                        size="10"
+                                        class="shrink-0 text-red-400"
+                                    />
+                                    <span
+                                        class="truncate text-xs text-white"
+                                        :title="job.scene_title || `Scene #${job.scene_id}`"
+                                    >
+                                        {{ job.scene_title || `Scene #${job.scene_id}` }}
+                                    </span>
+                                </div>
+                                <p
+                                    v-if="job.error_message"
+                                    class="mt-0.5 truncate text-[10px] text-red-400/50"
+                                    :title="job.error_message"
+                                >
+                                    {{ job.error_message }}
+                                </p>
+                            </div>
+                            <button
+                                class="border-border hover:border-lava/50 hover:text-lava shrink-0
+                                    rounded border px-1.5 py-0.5 text-[10px] text-white/50
+                                    transition-colors disabled:opacity-30"
+                                :disabled="retryingJobId === job.job_id"
+                                @click="handleRetryJob(job.job_id)"
+                            >
+                                {{ retryingJobId === job.job_id ? '...' : 'Retry' }}
+                            </button>
                         </div>
                     </div>
                 </div>

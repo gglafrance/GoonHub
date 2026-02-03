@@ -87,6 +87,12 @@ export const useApi = () => {
         triggerBulkPhase: jobs.triggerBulkPhase,
         fetchRetryConfig: jobs.fetchRetryConfig,
         updateRetryConfig: jobs.updateRetryConfig,
+        cancelJob: jobs.cancelJob,
+        retryJob: jobs.retryJob,
+        fetchRecentFailedJobs: jobs.fetchRecentFailedJobs,
+        retryAllFailed: jobs.retryAllFailed,
+        retryBatchJobs: jobs.retryBatchJobs,
+        clearFailedJobs: jobs.clearFailedJobs,
 
         // Tag operations
         fetchTags: tags.fetchTags,
