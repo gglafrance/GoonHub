@@ -58,7 +58,11 @@ watch(searchQuery, () => {
         clearTimeout(searchTimeout);
     }
     searchTimeout = setTimeout(() => {
-        currentPage.value = 1;
+        if (currentPage.value === 1) {
+            loadStudios(1);
+        } else {
+            currentPage.value = 1;
+        }
     }, 300);
 });
 
