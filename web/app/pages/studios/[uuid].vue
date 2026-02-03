@@ -19,6 +19,7 @@ const error = ref<string | null>(null);
 const showEditModal = ref(false);
 const showCreateModal = ref(false);
 const showFetchModal = ref(false);
+const showDeleteModal = ref(false);
 
 // Rating state
 const currentRating = ref(0);
@@ -180,6 +181,11 @@ const handleStudioUpdated = () => {
 const handleStudioCreated = (newStudio: Studio) => {
     showCreateModal.value = false;
     router.push(`/studios/${newStudio.uuid}`);
+};
+
+const handleStudioDeleted = () => {
+    showDeleteModal.value = false;
+    router.push('/studios');
 };
 
 const handleApplyMetadata = async (data: Partial<UpdateStudioInput>) => {
@@ -382,6 +388,15 @@ definePageMeta({
                                     <Icon name="heroicons:pencil" size="14" />
                                     Edit
                                 </button>
+                                <button
+                                    @click="showDeleteModal = true"
+                                    class="border-border bg-panel text-dim flex items-center gap-1
+                                        rounded-lg border px-3 py-1.5 text-sm transition-colors
+                                        hover:border-red-500/50 hover:text-red-500"
+                                >
+                                    <Icon name="heroicons:trash" size="14" />
+                                    Delete
+                                </button>
                             </div>
                         </div>
 
@@ -486,6 +501,15 @@ definePageMeta({
                 :current-studio="studio"
                 @close="showFetchModal = false"
                 @apply="handleApplyMetadata"
+            />
+
+            <!-- Delete Modal -->
+            <StudiosDeleteModal
+                v-if="studio && showDeleteModal"
+                :visible="showDeleteModal"
+                :studio="studio"
+                @close="showDeleteModal = false"
+                @deleted="handleStudioDeleted"
             />
         </div>
     </div>

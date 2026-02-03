@@ -68,7 +68,7 @@ export const useApiActors = () => {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
-        return handleResponse(response);
+        await handleResponseWithNoContent(response);
     };
 
     const uploadActorImage = async (id: number, file: File) => {
@@ -137,6 +137,22 @@ export const useApiActors = () => {
         return handleResponse(response);
     };
 
+    const fetchAllActorSceneIDs = async (uuid: string): Promise<number[]> => {
+        const allIds: number[] = [];
+        let page = 1;
+        const limit = 100;
+        let hasMore = true;
+
+        while (hasMore) {
+            const response = await fetchActorScenes(uuid, page, limit);
+            const sceneIds = response.data.map((scene: { id: number }) => scene.id);
+            allIds.push(...sceneIds);
+            hasMore = response.data.length === limit && allIds.length < response.total;
+            page++;
+        }
+        return allIds;
+    };
+
     return {
         fetchActors,
         fetchActorByUUID,
@@ -151,5 +167,6 @@ export const useApiActors = () => {
         setActorRating,
         deleteActorRating,
         toggleActorLike,
+        fetchAllActorSceneIDs,
     };
 };

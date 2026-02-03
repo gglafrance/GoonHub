@@ -19,6 +19,7 @@ const error = ref<string | null>(null);
 const showEditModal = ref(false);
 const showCreateModal = ref(false);
 const showFetchModal = ref(false);
+const showDeleteModal = ref(false);
 
 // Rating state
 const currentRating = ref(0);
@@ -180,6 +181,11 @@ const handleActorUpdated = () => {
 const handleActorCreated = (newActor: Actor) => {
     showCreateModal.value = false;
     router.push(`/actors/${newActor.uuid}`);
+};
+
+const handleActorDeleted = () => {
+    showDeleteModal.value = false;
+    router.push('/actors');
 };
 
 const handleApplyMetadata = async (data: Partial<UpdateActorInput>) => {
@@ -399,6 +405,15 @@ definePageMeta({
                                     <Icon name="heroicons:pencil" size="14" />
                                     Edit
                                 </button>
+                                <button
+                                    @click="showDeleteModal = true"
+                                    class="border-border bg-panel text-dim flex items-center gap-1
+                                        rounded-lg border px-3 py-1.5 text-sm transition-colors
+                                        hover:border-red-500/50 hover:text-red-500"
+                                >
+                                    <Icon name="heroicons:trash" size="14" />
+                                    Delete
+                                </button>
                             </div>
                         </div>
 
@@ -609,6 +624,15 @@ definePageMeta({
                 :current-actor="actor"
                 @close="showFetchModal = false"
                 @apply="handleApplyMetadata"
+            />
+
+            <!-- Delete Modal -->
+            <ActorsDeleteModal
+                v-if="actor && showDeleteModal"
+                :visible="showDeleteModal"
+                :actor="actor"
+                @close="showDeleteModal = false"
+                @deleted="handleActorDeleted"
             />
         </div>
     </div>
