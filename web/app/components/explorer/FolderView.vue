@@ -1,10 +1,27 @@
 <script setup lang="ts">
+import type { FolderInfo } from '~/types/explorer';
+
 const route = useRoute();
 const router = useRouter();
 const explorerStore = useExplorerStore();
 
 let isUpdatingUrl = false;
 let isSyncingFromUrl = false;
+
+// Folder delete modal state
+const showDeleteModal = ref(false);
+const folderToDelete = ref<FolderInfo | null>(null);
+
+const handleFolderDelete = (folder: FolderInfo) => {
+    folderToDelete.value = folder;
+    showDeleteModal.value = true;
+};
+
+const onFolderDeleted = async () => {
+    showDeleteModal.value = false;
+    folderToDelete.value = null;
+    await explorerStore.loadFolderContents();
+};
 
 // Sync URL when store page changes
 watch(
@@ -105,6 +122,7 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
                         v-for="folder in explorerStore.subfolders"
                         :key="folder.path"
                         :folder="folder"
+                        @delete="handleFolderDelete"
                     />
                 </div>
             </div>
@@ -170,5 +188,16 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
                 />
             </div>
         </div>
+
+        <!-- Folder Delete Modal -->
+        <ExplorerFolderDeleteModal
+            v-if="explorerStore.currentStoragePathID"
+            :visible="showDeleteModal"
+            :folder-name="folderToDelete?.name ?? ''"
+            :storage-path-id="explorerStore.currentStoragePathID"
+            :folder-path="folderToDelete?.path ?? ''"
+            @close="showDeleteModal = false"
+            @deleted="onFolderDeleted"
+        />
     </div>
 </template>

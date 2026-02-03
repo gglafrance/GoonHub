@@ -43,17 +43,18 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	}
 	sceneRepository := provideSceneRepository(db)
 	markerRepository := provideMarkerRepository(db)
+	tagRepository := provideTagRepository(db)
+	markerService := provideMarkerService(markerRepository, sceneRepository, tagRepository, configConfig, logger)
 	eventBus := provideEventBus(logger)
 	jobHistoryRepository := provideJobHistoryRepository(db)
 	jobHistoryService := provideJobHistoryService(jobHistoryRepository, configConfig, logger)
 	poolConfigRepository := providePoolConfigRepository(db)
 	processingConfigRepository := provideProcessingConfigRepository(db)
 	triggerConfigRepository := provideTriggerConfigRepository(db)
-	sceneProcessingService := provideSceneProcessingService(sceneRepository, markerRepository, configConfig, logger, eventBus, jobHistoryService, poolConfigRepository, processingConfigRepository, triggerConfigRepository)
+	sceneProcessingService := provideSceneProcessingService(sceneRepository, markerService, configConfig, logger, eventBus, jobHistoryService, poolConfigRepository, processingConfigRepository, triggerConfigRepository)
 	dlqRepository := provideDLQRepository(db)
 	appSettingsRepository := provideAppSettingsRepository(db)
 	sceneService := provideSceneService(sceneRepository, configConfig, sceneProcessingService, eventBus, logger, jobHistoryRepository, dlqRepository, appSettingsRepository)
-	tagRepository := provideTagRepository(db)
 	tagService := provideTagService(tagRepository, sceneRepository, logger)
 	searchConfigRepository := provideSearchConfigRepository(db)
 	client, err := provideMeilisearchClient(configConfig, searchConfigRepository, logger)
@@ -65,7 +66,6 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	searchService := provideSearchService(client, sceneRepository, interactionRepository, tagRepository, actorRepository, markerRepository, logger)
 	studioRepository := provideStudioRepository(db)
 	relatedScenesService := provideRelatedScenesService(sceneRepository, tagRepository, actorRepository, studioRepository, logger)
-	markerService := provideMarkerService(markerRepository, sceneRepository, tagRepository, configConfig, logger)
 	manager := provideStreamManager(configConfig, sceneRepository, logger)
 	sceneHandler := provideSceneHandler(sceneService, sceneProcessingService, tagService, searchService, relatedScenesService, markerService, manager)
 	userRepository := provideUserRepository(db)
@@ -120,7 +120,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	scanService := provideScanService(storagePathService, sceneRepository, scanHistoryRepository, sceneProcessingService, eventBus, logger)
 	scanHandler := provideScanHandler(scanService)
 	explorerRepository := provideExplorerRepository(db)
-	explorerService := provideExplorerService(explorerRepository, storagePathRepository, sceneRepository, tagRepository, actorRepository, eventBus, logger, configConfig)
+	explorerService := provideExplorerService(explorerRepository, storagePathRepository, sceneRepository, tagRepository, actorRepository, jobHistoryRepository, eventBus, logger, configConfig)
 	explorerHandler := provideExplorerHandler(explorerService)
 	pornDBService := providePornDBService(configConfig, logger)
 	pornDBHandler := providePornDBHandler(pornDBService)
@@ -134,7 +134,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	streamStatsHandler := provideStreamStatsHandler(manager)
 	ipRateLimiter := provideRateLimiter(configConfig)
 	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, authService, rbacService, ipRateLimiter)
-	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, markerRepository, sceneProcessingService, logger)
+	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, markerService, sceneProcessingService, logger)
 	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService)
 	return serverServer, nil
 }
@@ -340,8 +340,8 @@ func provideRelatedScenesService(sceneRepo data.SceneRepository, tagRepo data.Ta
 	return core.NewRelatedScenesService(sceneRepo, tagRepo, actorRepo, studioRepo, logger.Logger)
 }
 
-func provideSceneProcessingService(repo data.SceneRepository, markerRepo data.MarkerRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository) *core.SceneProcessingService {
-	return core.NewSceneProcessingService(repo, markerRepo, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo, triggerConfigRepo)
+func provideSceneProcessingService(repo data.SceneRepository, markerService *core.MarkerService, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository) *core.SceneProcessingService {
+	return core.NewSceneProcessingService(repo, markerService, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo, triggerConfigRepo)
 }
 
 func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config, logger *logging.Logger) *core.JobHistoryService {
@@ -352,8 +352,8 @@ func provideJobStatusService(jobHistoryService *core.JobHistoryService, processi
 	return core.NewJobStatusService(jobHistoryService, processingService, logger.Logger)
 }
 
-func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, markerRepo data.MarkerRepository, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobQueueFeeder {
-	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerRepo, processingService.GetPoolManager(), logger.Logger)
+func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, markerService *core.MarkerService, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobQueueFeeder {
+	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerService, processingService.GetPoolManager(), logger.Logger)
 }
 
 func provideTriggerScheduler(triggerConfigRepo data.TriggerConfigRepository, sceneRepo data.SceneRepository, processingService *core.SceneProcessingService, logger *logging.Logger) *core.TriggerScheduler {
@@ -376,8 +376,8 @@ func provideScanService(storagePathService *core.StoragePathService, sceneRepo d
 	return core.NewScanService(storagePathService, sceneRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
 }
 
-func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config) *core.ExplorerService {
-	return core.NewExplorerService(explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir)
+func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, jobHistoryRepo data.JobHistoryRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config) *core.ExplorerService {
+	return core.NewExplorerService(explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, jobHistoryRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir)
 }
 
 func providePornDBService(cfg *config.Config, logger *logging.Logger) *core.PornDBService {

@@ -19,6 +19,7 @@ func newTestExplorerService(t *testing.T) (
 	*mocks.MockSceneRepository,
 	*mocks.MockTagRepository,
 	*mocks.MockActorRepository,
+	*mocks.MockJobHistoryRepository,
 ) {
 	ctrl := gomock.NewController(t)
 	explorerRepo := mocks.NewMockExplorerRepository(ctrl)
@@ -26,6 +27,7 @@ func newTestExplorerService(t *testing.T) (
 	sceneRepo := mocks.NewMockSceneRepository(ctrl)
 	tagRepo := mocks.NewMockTagRepository(ctrl)
 	actorRepo := mocks.NewMockActorRepository(ctrl)
+	jobHistoryRepo := mocks.NewMockJobHistoryRepository(ctrl)
 
 	svc := NewExplorerService(
 		explorerRepo,
@@ -33,11 +35,12 @@ func newTestExplorerService(t *testing.T) (
 		sceneRepo,
 		tagRepo,
 		actorRepo,
+		jobHistoryRepo,
 		nil, // EventBus
 		zap.NewNop(),
 		"", // metadataPath
 	)
-	return svc, explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo
+	return svc, explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, jobHistoryRepo
 }
 
 // =============================================================================
@@ -45,7 +48,7 @@ func newTestExplorerService(t *testing.T) (
 // =============================================================================
 
 func TestGetStoragePathsWithCounts_Success(t *testing.T) {
-	svc, explorerRepo, _, _, _, _ := newTestExplorerService(t)
+	svc, explorerRepo, _, _, _, _, _ := newTestExplorerService(t)
 
 	expected := []data.StoragePathWithCount{
 		{StoragePath: data.StoragePath{ID: 1, Name: "Movies", Path: "/data/movies"}, SceneCount: 50},
@@ -69,7 +72,7 @@ func TestGetStoragePathsWithCounts_Success(t *testing.T) {
 }
 
 func TestGetStoragePathsWithCounts_Error(t *testing.T) {
-	svc, explorerRepo, _, _, _, _ := newTestExplorerService(t)
+	svc, explorerRepo, _, _, _, _, _ := newTestExplorerService(t)
 
 	explorerRepo.EXPECT().GetStoragePathsWithCounts().Return(nil, gorm.ErrInvalidDB)
 
@@ -87,7 +90,7 @@ func TestGetStoragePathsWithCounts_Error(t *testing.T) {
 // =============================================================================
 
 func TestGetFolderContents_Success(t *testing.T) {
-	svc, explorerRepo, storagePathRepo, _, _, _ := newTestExplorerService(t)
+	svc, explorerRepo, storagePathRepo, _, _, _, _ := newTestExplorerService(t)
 
 	storagePath := &data.StoragePath{ID: 1, Name: "Movies", Path: "/data/movies"}
 	storagePathRepo.EXPECT().GetByID(uint(1)).Return(storagePath, nil)
@@ -123,7 +126,7 @@ func TestGetFolderContents_Success(t *testing.T) {
 }
 
 func TestGetFolderContents_StoragePathNotFound(t *testing.T) {
-	svc, _, storagePathRepo, _, _, _ := newTestExplorerService(t)
+	svc, _, storagePathRepo, _, _, _, _ := newTestExplorerService(t)
 
 	storagePathRepo.EXPECT().GetByID(uint(999)).Return(nil, gorm.ErrRecordNotFound)
 
@@ -137,7 +140,7 @@ func TestGetFolderContents_StoragePathNotFound(t *testing.T) {
 }
 
 func TestGetFolderContents_DefaultPagination(t *testing.T) {
-	svc, explorerRepo, storagePathRepo, _, _, _ := newTestExplorerService(t)
+	svc, explorerRepo, storagePathRepo, _, _, _, _ := newTestExplorerService(t)
 
 	storagePath := &data.StoragePath{ID: 1, Name: "Movies", Path: "/data/movies"}
 	storagePathRepo.EXPECT().GetByID(uint(1)).Return(storagePath, nil)
@@ -163,7 +166,7 @@ func TestGetFolderContents_DefaultPagination(t *testing.T) {
 // =============================================================================
 
 func TestGetFolderSceneIDs_Success(t *testing.T) {
-	svc, explorerRepo, storagePathRepo, _, _, _ := newTestExplorerService(t)
+	svc, explorerRepo, storagePathRepo, _, _, _, _ := newTestExplorerService(t)
 
 	storagePath := &data.StoragePath{ID: 1, Name: "Movies", Path: "/data/movies"}
 	storagePathRepo.EXPECT().GetByID(uint(1)).Return(storagePath, nil)
@@ -181,7 +184,7 @@ func TestGetFolderSceneIDs_Success(t *testing.T) {
 }
 
 func TestGetFolderSceneIDs_StoragePathNotFound(t *testing.T) {
-	svc, _, storagePathRepo, _, _, _ := newTestExplorerService(t)
+	svc, _, storagePathRepo, _, _, _, _ := newTestExplorerService(t)
 
 	storagePathRepo.EXPECT().GetByID(uint(999)).Return(nil, gorm.ErrRecordNotFound)
 
@@ -199,7 +202,7 @@ func TestGetFolderSceneIDs_StoragePathNotFound(t *testing.T) {
 // =============================================================================
 
 func TestBulkUpdateTags_AddMode_Success(t *testing.T) {
-	svc, _, _, sceneRepo, tagRepo, _ := newTestExplorerService(t)
+	svc, _, _, sceneRepo, tagRepo, _, _ := newTestExplorerService(t)
 
 	scenes := []data.Scene{{ID: 1}, {ID: 2}, {ID: 3}}
 	sceneRepo.EXPECT().GetByIDs([]uint{1, 2, 3}).Return(scenes, nil)
@@ -224,7 +227,7 @@ func TestBulkUpdateTags_AddMode_Success(t *testing.T) {
 }
 
 func TestBulkUpdateTags_RemoveMode_Success(t *testing.T) {
-	svc, _, _, sceneRepo, tagRepo, _ := newTestExplorerService(t)
+	svc, _, _, sceneRepo, tagRepo, _, _ := newTestExplorerService(t)
 
 	scenes := []data.Scene{{ID: 1}, {ID: 2}}
 	sceneRepo.EXPECT().GetByIDs([]uint{1, 2}).Return(scenes, nil)
@@ -246,7 +249,7 @@ func TestBulkUpdateTags_RemoveMode_Success(t *testing.T) {
 }
 
 func TestBulkUpdateTags_ReplaceMode_Success(t *testing.T) {
-	svc, _, _, sceneRepo, tagRepo, _ := newTestExplorerService(t)
+	svc, _, _, sceneRepo, tagRepo, _, _ := newTestExplorerService(t)
 
 	scenes := []data.Scene{{ID: 1}}
 	sceneRepo.EXPECT().GetByIDs([]uint{1}).Return(scenes, nil)
@@ -271,7 +274,7 @@ func TestBulkUpdateTags_ReplaceMode_Success(t *testing.T) {
 }
 
 func TestBulkUpdateTags_EmptySceneIDs(t *testing.T) {
-	svc, _, _, _, _, _ := newTestExplorerService(t)
+	svc, _, _, _, _, _, _ := newTestExplorerService(t)
 
 	req := BulkUpdateTagsRequest{
 		SceneIDs: []uint{},
@@ -291,7 +294,7 @@ func TestBulkUpdateTags_EmptySceneIDs(t *testing.T) {
 }
 
 func TestBulkUpdateTags_InvalidMode(t *testing.T) {
-	svc, _, _, _, _, _ := newTestExplorerService(t)
+	svc, _, _, _, _, _, _ := newTestExplorerService(t)
 
 	req := BulkUpdateTagsRequest{
 		SceneIDs: []uint{1},
@@ -311,7 +314,7 @@ func TestBulkUpdateTags_InvalidMode(t *testing.T) {
 }
 
 func TestBulkUpdateTags_SceneNotFound(t *testing.T) {
-	svc, _, _, sceneRepo, _, _ := newTestExplorerService(t)
+	svc, _, _, sceneRepo, _, _, _ := newTestExplorerService(t)
 
 	// Return only 2 scenes when 3 were requested
 	scenes := []data.Scene{{ID: 1}, {ID: 2}}
@@ -335,7 +338,7 @@ func TestBulkUpdateTags_SceneNotFound(t *testing.T) {
 }
 
 func TestBulkUpdateTags_TagNotFound(t *testing.T) {
-	svc, _, _, sceneRepo, tagRepo, _ := newTestExplorerService(t)
+	svc, _, _, sceneRepo, tagRepo, _, _ := newTestExplorerService(t)
 
 	scenes := []data.Scene{{ID: 1}}
 	sceneRepo.EXPECT().GetByIDs([]uint{1}).Return(scenes, nil)
@@ -366,7 +369,7 @@ func TestBulkUpdateTags_TagNotFound(t *testing.T) {
 // =============================================================================
 
 func TestBulkUpdateActors_AddMode_Success(t *testing.T) {
-	svc, _, _, sceneRepo, _, actorRepo := newTestExplorerService(t)
+	svc, _, _, sceneRepo, _, actorRepo, _ := newTestExplorerService(t)
 
 	scenes := []data.Scene{{ID: 1}, {ID: 2}}
 	sceneRepo.EXPECT().GetByIDs([]uint{1, 2}).Return(scenes, nil)
@@ -391,7 +394,7 @@ func TestBulkUpdateActors_AddMode_Success(t *testing.T) {
 }
 
 func TestBulkUpdateActors_RemoveMode_Success(t *testing.T) {
-	svc, _, _, sceneRepo, _, actorRepo := newTestExplorerService(t)
+	svc, _, _, sceneRepo, _, actorRepo, _ := newTestExplorerService(t)
 
 	scenes := []data.Scene{{ID: 1}}
 	sceneRepo.EXPECT().GetByIDs([]uint{1}).Return(scenes, nil)
@@ -413,7 +416,7 @@ func TestBulkUpdateActors_RemoveMode_Success(t *testing.T) {
 }
 
 func TestBulkUpdateActors_EmptySceneIDs(t *testing.T) {
-	svc, _, _, _, _, _ := newTestExplorerService(t)
+	svc, _, _, _, _, _, _ := newTestExplorerService(t)
 
 	req := BulkUpdateActorsRequest{
 		SceneIDs: []uint{},
@@ -430,7 +433,7 @@ func TestBulkUpdateActors_EmptySceneIDs(t *testing.T) {
 }
 
 func TestBulkUpdateActors_ActorNotFound(t *testing.T) {
-	svc, _, _, sceneRepo, _, actorRepo := newTestExplorerService(t)
+	svc, _, _, sceneRepo, _, actorRepo, _ := newTestExplorerService(t)
 
 	scenes := []data.Scene{{ID: 1}}
 	sceneRepo.EXPECT().GetByIDs([]uint{1}).Return(scenes, nil)
@@ -461,7 +464,7 @@ func TestBulkUpdateActors_ActorNotFound(t *testing.T) {
 // =============================================================================
 
 func TestBulkUpdateStudio_Success(t *testing.T) {
-	svc, _, _, sceneRepo, _, _ := newTestExplorerService(t)
+	svc, _, _, sceneRepo, _, _, _ := newTestExplorerService(t)
 
 	scenes := []data.Scene{{ID: 1}, {ID: 2}, {ID: 3}}
 	sceneRepo.EXPECT().GetByIDs([]uint{1, 2, 3}).Return(scenes, nil)
@@ -482,7 +485,7 @@ func TestBulkUpdateStudio_Success(t *testing.T) {
 }
 
 func TestBulkUpdateStudio_EmptySceneIDs(t *testing.T) {
-	svc, _, _, _, _, _ := newTestExplorerService(t)
+	svc, _, _, _, _, _, _ := newTestExplorerService(t)
 
 	req := BulkUpdateStudioRequest{
 		SceneIDs: []uint{},
@@ -498,7 +501,7 @@ func TestBulkUpdateStudio_EmptySceneIDs(t *testing.T) {
 }
 
 func TestBulkUpdateStudio_ClearStudio(t *testing.T) {
-	svc, _, _, sceneRepo, _, _ := newTestExplorerService(t)
+	svc, _, _, sceneRepo, _, _, _ := newTestExplorerService(t)
 
 	scenes := []data.Scene{{ID: 1}}
 	sceneRepo.EXPECT().GetByIDs([]uint{1}).Return(scenes, nil)

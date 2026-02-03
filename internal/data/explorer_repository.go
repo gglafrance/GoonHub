@@ -32,7 +32,7 @@ func (r *ExplorerRepositoryImpl) GetStoragePathsWithCounts() ([]StoragePathWithC
 	err := r.DB.
 		Table("storage_paths").
 		Select("storage_paths.*, COALESCE(COUNT(scenes.id), 0) as scene_count").
-		Joins("LEFT JOIN scenes ON scenes.storage_path_id = storage_paths.id AND scenes.deleted_at IS NULL").
+		Joins("LEFT JOIN scenes ON scenes.storage_path_id = storage_paths.id AND scenes.deleted_at IS NULL AND scenes.trashed_at IS NULL").
 		Group("storage_paths.id").
 		Order("storage_paths.is_default DESC, storage_paths.name ASC").
 		Find(&results).Error
@@ -71,10 +71,12 @@ func (r *ExplorerRepositoryImpl) GetScenesByFolder(storagePathID uint, folderPat
 
 	// Query for scenes directly in this folder (not in subfolders)
 	// Match scenes where stored_path starts with fullPath but has no more path separators after that
+	// Exclude trashed scenes
 	baseQuery := r.DB.Model(&Scene{}).
 		Where("storage_path_id = ?", storagePathID).
 		Where("stored_path LIKE ?", fullPath+"%").
-		Where("stored_path NOT LIKE ?", fullPath+"%"+string(filepath.Separator)+"%")
+		Where("stored_path NOT LIKE ?", fullPath+"%"+string(filepath.Separator)+"%").
+		Where("trashed_at IS NULL")
 
 	if err := baseQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -145,6 +147,7 @@ func (r *ExplorerRepositoryImpl) GetSubfolders(storagePathID uint, parentPath st
 			  AND stored_path LIKE ?
 			  AND POSITION('/' IN SUBSTRING(stored_path FROM %d)) > 0
 			  AND deleted_at IS NULL
+			  AND trashed_at IS NULL
 		) AS subq
 		WHERE folder_name != ''
 		GROUP BY folder_name
@@ -202,7 +205,8 @@ func (r *ExplorerRepositoryImpl) GetSceneIDsByFolder(storagePathID uint, folderP
 	var ids []uint
 	query := r.DB.Model(&Scene{}).
 		Where("storage_path_id = ?", storagePathID).
-		Where("stored_path LIKE ?", fullPath+"%")
+		Where("stored_path LIKE ?", fullPath+"%").
+		Where("trashed_at IS NULL")
 
 	if !recursive {
 		// Only direct children
@@ -221,6 +225,7 @@ func (r *ExplorerRepositoryImpl) GetSceneCountByStoragePath(storagePathID uint) 
 	var count int64
 	err := r.DB.Model(&Scene{}).
 		Where("storage_path_id = ?", storagePathID).
+		Where("trashed_at IS NULL").
 		Count(&count).Error
 	return count, err
 }

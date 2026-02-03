@@ -434,8 +434,8 @@ func provideRelatedScenesService(sceneRepo data.SceneRepository, tagRepo data.Ta
 
 // --- Processing & Job Services ---
 
-func provideSceneProcessingService(repo data.SceneRepository, markerRepo data.MarkerRepository, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository) *core.SceneProcessingService {
-	return core.NewSceneProcessingService(repo, markerRepo, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo, triggerConfigRepo)
+func provideSceneProcessingService(repo data.SceneRepository, markerService *core.MarkerService, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository) *core.SceneProcessingService {
+	return core.NewSceneProcessingService(repo, markerService, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo, triggerConfigRepo)
 }
 
 func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config, logger *logging.Logger) *core.JobHistoryService {
@@ -446,8 +446,8 @@ func provideJobStatusService(jobHistoryService *core.JobHistoryService, processi
 	return core.NewJobStatusService(jobHistoryService, processingService, logger.Logger)
 }
 
-func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, markerRepo data.MarkerRepository, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobQueueFeeder {
-	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerRepo, processingService.GetPoolManager(), logger.Logger)
+func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, markerService *core.MarkerService, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobQueueFeeder {
+	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerService, processingService.GetPoolManager(), logger.Logger)
 }
 
 func provideTriggerScheduler(triggerConfigRepo data.TriggerConfigRepository, sceneRepo data.SceneRepository, processingService *core.SceneProcessingService, logger *logging.Logger) *core.TriggerScheduler {
@@ -472,8 +472,8 @@ func provideScanService(storagePathService *core.StoragePathService, sceneRepo d
 	return core.NewScanService(storagePathService, sceneRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
 }
 
-func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config) *core.ExplorerService {
-	return core.NewExplorerService(explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir)
+func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, jobHistoryRepo data.JobHistoryRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config) *core.ExplorerService {
+	return core.NewExplorerService(explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, jobHistoryRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir)
 }
 
 // --- External API Services ---
