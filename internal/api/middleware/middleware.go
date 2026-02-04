@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -17,6 +18,9 @@ import (
 func Setup(r *gin.Engine, logger *logging.Logger, allowedOrigins []string, environment string) {
 	// Panic Recovery
 	r.Use(gin.Recovery())
+
+	// Gzip Compression
+	r.Use(gzip.Gzip(gzip.DefaultCompression))
 
 	// Security Headers
 	r.Use(SecurityHeaders(environment))

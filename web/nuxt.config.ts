@@ -16,6 +16,16 @@ export default defineNuxtConfig({
                 style: 'background-color:#050505',
             },
             link: [
+                { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+                {
+                    rel: 'preconnect',
+                    href: 'https://fonts.gstatic.com',
+                    crossorigin: '',
+                },
+                {
+                    rel: 'stylesheet',
+                    href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap',
+                },
                 { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
                 { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
                 { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
@@ -36,8 +46,7 @@ export default defineNuxtConfig({
 
     vue: {
         compilerOptions: {
-            isCustomElement: (tag) =>
-                tag.startsWith('media-') || tag === 'videojs-video' || tag === 'media-theme',
+            isCustomElement: (tag) => tag.startsWith('media-'),
         },
     },
 
@@ -140,6 +149,27 @@ export default defineNuxtConfig({
 
     vite: {
         plugins: [tailwindcss()],
+        build: {
+            rollupOptions: {
+                output: {
+                    manualChunks(id) {
+                        if (
+                            id.includes('node_modules/vue/') ||
+                            id.includes('node_modules/@vue/') ||
+                            id.includes('node_modules/vue-router/')
+                        ) {
+                            return 'vue-vendor';
+                        }
+                        if (
+                            id.includes('node_modules/video.js/') ||
+                            id.includes('node_modules/@videojs/')
+                        ) {
+                            return 'videojs';
+                        }
+                    },
+                },
+            },
+        },
         server: {
             proxy: {
                 '/api': {

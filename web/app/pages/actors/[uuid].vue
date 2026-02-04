@@ -890,10 +890,7 @@ definePageMeta({
                         </div>
 
                         <!-- Sort Dropdown -->
-                        <UiSortSelect
-                            v-model="scenesSort"
-                            :options="sortOptions"
-                        />
+                        <UiSortSelect v-model="scenesSort" :options="sortOptions" />
                     </div>
 
                     <div v-if="isLoadingScenes" class="flex h-32 items-center justify-center">
