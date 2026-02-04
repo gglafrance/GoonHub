@@ -91,10 +91,11 @@ export function useParsingRulesEngine() {
 
             case 'word_length_filter': {
                 const minLen = rule.config.minLength || 2;
-                return input
-                    .split(/\s+/)
-                    .filter((w) => w.length >= minLen)
-                    .join(' ');
+                // Match sequences of letters only, remove those shorter than minLen
+                // This preserves punctuation, numbers, and spaces while filtering short words
+                return input.replace(/[a-zA-Z]+/g, (match) =>
+                    match.length >= minLen ? match : '',
+                );
             }
 
             case 'case_normalize':
