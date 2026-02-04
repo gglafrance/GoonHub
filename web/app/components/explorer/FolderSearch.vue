@@ -112,7 +112,7 @@ watch(
         </button>
 
         <div v-if="explorerStore.isSearchActive" class="text-dim shrink-0 text-[11px]">
-            {{ explorerStore.totalVideos }} result{{ explorerStore.totalVideos === 1 ? '' : 's' }}
+            {{ explorerStore.totalScenes }} result{{ explorerStore.totalScenes === 1 ? '' : 's' }}
         </div>
     </div>
 </template>
