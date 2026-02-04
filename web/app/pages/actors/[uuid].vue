@@ -893,7 +893,6 @@ definePageMeta({
                         <UiSortSelect
                             v-model="scenesSort"
                             :options="sortOptions"
-                            class="shrink-0 sm:w-40"
                         />
                     </div>
 
