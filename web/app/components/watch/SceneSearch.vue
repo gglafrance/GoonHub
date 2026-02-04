@@ -1,10 +1,20 @@
 <script setup lang="ts">
 import type { PornDBScene } from '~/types/porndb';
+import type { ConfidenceBreakdown } from '~/types/bulk-match';
 
-// Minimal scene data needed for search - only title and studio are used
+// Extended scene data for search with confidence calculation
 interface SceneSearchInfo {
     title?: string;
     studio?: string | null;
+    // Extended fields for confidence & parsing
+    original_filename?: string;
+    actors?: string[];
+    duration?: number;
+}
+
+// Extended result type with confidence
+interface SearchResultWithConfidence extends PornDBScene {
+    confidence?: ConfidenceBreakdown;
 }
 
 const props = defineProps<{
@@ -16,16 +26,50 @@ const emit = defineEmits<{
 }>();
 
 const api = useApi();
+const settingsStore = useSettingsStore();
+const { calculateConfidence } = useConfidenceCalculator();
+const { applyRules, getBuiltInPresets } = useParsingRulesEngine();
 
 const title = ref('');
 const year = ref('');
 const site = ref('');
+const selectedPresetId = ref<string | null>(null);
 
 const searching = ref(false);
 const hasSearched = ref(false);
-const searchResults = ref<PornDBScene[]>([]);
+const searchResults = ref<SearchResultWithConfidence[]>([]);
 const searchError = ref('');
 const loadingScene = ref(false);
+
+// Available presets (built-in + user presets)
+const availablePresets = computed(() => {
+    const builtIn = getBuiltInPresets();
+    const userPresets = settingsStore.parsingRules?.presets.filter((p) => !p.isBuiltIn) || [];
+    return [...builtIn, ...userPresets];
+});
+
+// Get rules for selected preset
+const selectedPresetRules = computed(() => {
+    if (!selectedPresetId.value) return undefined;
+
+    // Check built-in presets
+    const builtIn = getBuiltInPresets().find((p) => p.id === selectedPresetId.value);
+    if (builtIn) return builtIn.rules;
+
+    // Check user presets
+    const userPreset = settingsStore.parsingRules?.presets.find(
+        (p) => p.id === selectedPresetId.value,
+    );
+    return userPreset?.rules;
+});
+
+// Check if scene has enough data for confidence calculation
+const canCalculateConfidence = computed(() => {
+    return (
+        props.scene &&
+        (props.scene.original_filename || props.scene.duration || props.scene.actors?.length)
+    );
+});
 
 const hasAnyFilter = computed(() => {
     return title.value.trim() !== '' || year.value.trim() !== '' || site.value.trim() !== '';
@@ -43,12 +87,23 @@ function clearFilters() {
     site.value = '';
 }
 
+function getQueryFromScene(): string {
+    if (!props.scene) return '';
+
+    // If parsing rules are selected, apply them to original_filename
+    if (selectedPresetRules.value && props.scene.original_filename) {
+        return applyRules(props.scene.original_filename, selectedPresetRules.value);
+    }
+
+    // Fallback to title
+    return props.scene.title || '';
+}
+
 function populateFromScene() {
     if (!props.scene) return;
 
-    if (props.scene.title) {
-        title.value = props.scene.title;
-    }
+    title.value = getQueryFromScene();
+
     if (props.scene.studio) {
         site.value = props.scene.studio;
     }
@@ -87,12 +142,58 @@ async function searchScenes() {
             params.site = site.value.trim();
         }
 
-        searchResults.value = await api.searchPornDBScenes(params);
+        const results = await api.searchPornDBScenes(params);
+
+        // Calculate confidence for each result if we have scene data
+        if (canCalculateConfidence.value && props.scene) {
+            const localScene = {
+                id: 0, // Not used for confidence
+                title: props.scene.original_filename || props.scene.title || '',
+                original_filename: props.scene.original_filename || '',
+                porndb_scene_id: null,
+                actors: props.scene.actors || [],
+                studio: props.scene.studio || null,
+                thumbnail_path: '',
+                duration: props.scene.duration || 0,
+            };
+
+            const resultsWithConfidence: SearchResultWithConfidence[] = results.map(
+                (result: PornDBScene) => ({
+                    ...result,
+                    confidence: calculateConfidence(localScene, result),
+                }),
+            );
+
+            // Sort by confidence (highest first)
+            resultsWithConfidence.sort(
+                (a, b) => (b.confidence?.total || 0) - (a.confidence?.total || 0),
+            );
+            searchResults.value = resultsWithConfidence;
+        } else {
+            searchResults.value = results;
+        }
     } catch (e: unknown) {
         searchError.value = e instanceof Error ? e.message : 'Search failed';
     } finally {
         searching.value = false;
     }
+}
+
+function getConfidenceColorClass(confidence: ConfidenceBreakdown | undefined): string {
+    if (!confidence) return 'bg-white/10 text-white/60';
+    if (confidence.total >= 80) return 'bg-emerald-500/15 text-emerald-400';
+    if (confidence.total >= 50) return 'bg-amber-500/15 text-amber-400';
+    return 'bg-red-500/15 text-red-400';
+}
+
+function getConfidenceTooltip(confidence: ConfidenceBreakdown | undefined): string {
+    if (!confidence) return '';
+    return `Title: ${confidence.titleScore}/30, Actors: ${confidence.actorScore}/30, Studio: ${confidence.studioScore}/20, Duration: ${confidence.durationScore}/20`;
+}
+
+// Re-populate search field when preset changes
+function handlePresetChange() {
+    title.value = getQueryFromScene();
 }
 
 async function selectScene(scene: PornDBScene) {
@@ -108,7 +209,14 @@ async function selectScene(scene: PornDBScene) {
     }
 }
 
-onMounted(() => {
+onMounted(async () => {
+    // Load parsing rules if not already loaded
+    if (!settingsStore.parsingRules) {
+        await settingsStore.loadParsingRules();
+    }
+    // Set default preset from settings
+    selectedPresetId.value = settingsStore.parsingRules?.activePresetId || null;
+
     populateFromScene();
 });
 </script>
@@ -129,6 +237,31 @@ onMounted(() => {
             </div>
 
             <div class="mt-2 grid grid-cols-6 gap-2">
+                <!-- Parsing Rules Preset -->
+                <div class="col-span-6">
+                    <label
+                        class="text-dim mb-1 block text-[10px] font-medium tracking-wider uppercase"
+                    >
+                        Parsing Rules
+                    </label>
+                    <select
+                        v-model="selectedPresetId"
+                        @change="handlePresetChange"
+                        class="border-border bg-void/80 focus:border-lava/40 focus:ring-lava/20
+                            w-full rounded-lg border px-2.5 py-1.5 text-xs text-white transition-all
+                            focus:ring-1 focus:outline-none"
+                    >
+                        <option :value="null">No parsing rules</option>
+                        <option
+                            v-for="preset in availablePresets"
+                            :key="preset.id"
+                            :value="preset.id"
+                        >
+                            {{ preset.name }}
+                        </option>
+                    </select>
+                </div>
+
                 <!-- Title -->
                 <div class="col-span-6">
                     <label
@@ -245,7 +378,18 @@ onMounted(() => {
                         </div>
                     </div>
                     <div class="min-w-0 flex-1 py-0.5">
-                        <p class="text-sm font-medium text-white">{{ scene.title }}</p>
+                        <div class="flex items-start justify-between gap-2">
+                            <p class="text-sm font-medium text-white">{{ scene.title }}</p>
+                            <!-- Confidence Badge -->
+                            <div
+                                v-if="scene.confidence"
+                                :class="getConfidenceColorClass(scene.confidence)"
+                                :title="getConfidenceTooltip(scene.confidence)"
+                                class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
+                            >
+                                {{ scene.confidence.total }}%
+                            </div>
+                        </div>
                         <p v-if="scene.site?.name" class="text-dim mt-0.5 text-xs">
                             {{ scene.site.name }}
                         </p>
