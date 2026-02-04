@@ -3,15 +3,17 @@
 # ============================================================================
 # Stage 1: Build frontend
 # ============================================================================
-FROM oven/bun:1.3.6-alpine AS frontend-builder
+# Pin to host platform — output is static HTML/JS/CSS, architecture-independent
+FROM --platform=$BUILDPLATFORM oven/bun:1.3.6-alpine AS frontend-builder
 
 WORKDIR /app/web
 
 # Copy package files first for better caching
 COPY web/package.json web/bun.lock* ./
 
-# Install dependencies
-RUN bun install --frozen-lockfile
+# Install dependencies with BuildKit cache mount for bun
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
 
 # Copy frontend source
 COPY web/ ./
@@ -22,7 +24,11 @@ RUN bun run generate
 # ============================================================================
 # Stage 2: Build Go backend
 # ============================================================================
-FROM golang:1.24-alpine AS backend-builder
+# Pin to host platform — Go cross-compiles natively without QEMU
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS backend-builder
+
+ARG TARGETOS
+ARG TARGETARCH
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
@@ -35,7 +41,8 @@ WORKDIR /src
 
 # Copy go mod files first for better caching
 COPY go.mod go.sum ./
-RUN go mod download && go mod verify
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download && go mod verify
 
 # Copy source code
 COPY . .
@@ -43,8 +50,10 @@ COPY . .
 # Copy built frontend from previous stage
 COPY --from=frontend-builder /app/web/dist ./web/dist
 
-# Build the binary (platform is determined by the container)
-RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o /src/goonhub ./cmd/server
+# Cross-compile the binary with BuildKit cache mounts
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build,id=gobuild-${TARGETARCH} \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-w -s" -o /src/goonhub ./cmd/server
 
 # ============================================================================
 # Stage 3: Production runtime
