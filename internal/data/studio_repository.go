@@ -11,8 +11,8 @@ type StudioRepository interface {
 	GetByName(name string) (*Studio, error)
 	Update(studio *Studio) error
 	Delete(id uint) error
-	List(page, limit int) ([]StudioWithCount, int64, error)
-	Search(query string, page, limit int) ([]StudioWithCount, int64, error)
+	List(page, limit int, sort string) ([]StudioWithCount, int64, error)
+	Search(query string, page, limit int, sort string) ([]StudioWithCount, int64, error)
 
 	// Scene associations (one-to-many: scene has one studio)
 	GetSceneStudio(sceneID uint) (*Studio, error)
@@ -75,7 +75,25 @@ func (r *StudioRepositoryImpl) Delete(id uint) error {
 	return nil
 }
 
-func (r *StudioRepositoryImpl) List(page, limit int) ([]StudioWithCount, int64, error) {
+// studioSortMap maps sort parameter values to SQL ORDER BY clauses.
+// This whitelist approach prevents SQL injection.
+var studioSortMap = map[string]string{
+	"name_asc":         "studios.name ASC",
+	"name_desc":        "studios.name DESC",
+	"scene_count_asc":  "scene_count ASC",
+	"scene_count_desc": "scene_count DESC",
+	"created_at_asc":   "studios.created_at ASC",
+	"created_at_desc":  "studios.created_at DESC",
+}
+
+func getStudioOrderClause(sort string) string {
+	if clause, ok := studioSortMap[sort]; ok {
+		return clause
+	}
+	return "studios.name ASC" // default sort
+}
+
+func (r *StudioRepositoryImpl) List(page, limit int, sort string) ([]StudioWithCount, int64, error) {
 	var studios []StudioWithCount
 	var total int64
 
@@ -85,13 +103,15 @@ func (r *StudioRepositoryImpl) List(page, limit int) ([]StudioWithCount, int64, 
 		return nil, 0, err
 	}
 
+	orderClause := getStudioOrderClause(sort)
+
 	err := r.DB.
 		Table("studios").
 		Select("studios.*, COALESCE(COUNT(scenes.id), 0) as scene_count").
 		Joins("LEFT JOIN scenes ON scenes.studio_id = studios.id AND scenes.deleted_at IS NULL").
 		Where("studios.deleted_at IS NULL").
 		Group("studios.id").
-		Order("studios.name ASC").
+		Order(orderClause).
 		Limit(limit).
 		Offset(offset).
 		Find(&studios).Error
@@ -102,7 +122,7 @@ func (r *StudioRepositoryImpl) List(page, limit int) ([]StudioWithCount, int64, 
 	return studios, total, nil
 }
 
-func (r *StudioRepositoryImpl) Search(query string, page, limit int) ([]StudioWithCount, int64, error) {
+func (r *StudioRepositoryImpl) Search(query string, page, limit int, sort string) ([]StudioWithCount, int64, error) {
 	var studios []StudioWithCount
 	var total int64
 
@@ -114,6 +134,8 @@ func (r *StudioRepositoryImpl) Search(query string, page, limit int) ([]StudioWi
 		return nil, 0, err
 	}
 
+	orderClause := getStudioOrderClause(sort)
+
 	err := r.DB.
 		Table("studios").
 		Select("studios.*, COALESCE(COUNT(scenes.id), 0) as scene_count").
@@ -121,7 +143,7 @@ func (r *StudioRepositoryImpl) Search(query string, page, limit int) ([]StudioWi
 		Where("studios.deleted_at IS NULL").
 		Where("studios.name ILIKE ?", searchPattern).
 		Group("studios.id").
-		Order("studios.name ASC").
+		Order(orderClause).
 		Limit(limit).
 		Offset(offset).
 		Find(&studios).Error

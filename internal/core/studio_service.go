@@ -205,7 +205,7 @@ func (s *StudioService) Delete(id uint) error {
 	return nil
 }
 
-func (s *StudioService) List(page, limit int, query string) ([]data.StudioWithCount, int64, error) {
+func (s *StudioService) List(page, limit int, query, sort string) ([]data.StudioWithCount, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -214,9 +214,9 @@ func (s *StudioService) List(page, limit int, query string) ([]data.StudioWithCo
 	}
 
 	if query != "" {
-		return s.studioRepo.Search(query, page, limit)
+		return s.studioRepo.Search(query, page, limit, sort)
 	}
-	return s.studioRepo.List(page, limit)
+	return s.studioRepo.List(page, limit, sort)
 }
 
 func (s *StudioService) GetSceneStudio(sceneID uint) (*data.Studio, error) {

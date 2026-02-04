@@ -3,6 +3,18 @@ import type { Marker } from '~/types/marker';
 
 type Player = ReturnType<typeof videojs>;
 
+interface VideoJsControlBar {
+    progressControl?: {
+        seekBar?: {
+            el: () => HTMLElement | undefined;
+        };
+    };
+}
+
+interface VideoJsPlayerWithControls extends Player {
+    controlBar?: VideoJsControlBar;
+}
+
 export function useMarkerIndicators(
     player: Ref<Player | null>,
     markers: Ref<Marker[]>,
@@ -14,9 +26,8 @@ export function useMarkerIndicators(
     function setup() {
         if (!player.value) return;
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const progressHolder = (
-            player.value as unknown as Record<string, any>
+            player.value as unknown as VideoJsPlayerWithControls
         ).controlBar?.progressControl?.seekBar?.el();
         if (!progressHolder) return;
 

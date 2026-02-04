@@ -34,8 +34,9 @@ func (h *StudioHandler) ListStudios(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	query := c.Query("q")
+	sort := c.Query("sort")
 
-	studios, total, err := h.Service.List(page, limit, query)
+	studios, total, err := h.Service.List(page, limit, query, sort)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list studios"})
 		return

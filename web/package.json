@@ -10,7 +10,7 @@
         "postinstall": "nuxt prepare",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",
-        "prettier": "prettier --write ."
+        "prettier": "prettier --write --cache ."
     },
     "dependencies": {
         "@iconify-json/fluent-emoji-high-contrast": "^1.2.5",

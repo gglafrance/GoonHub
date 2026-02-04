@@ -189,10 +189,10 @@ const onSearchInput = () => {
     }, 300);
 };
 
-const onSortChange = () => {
+watch(scenesSort, () => {
     scenesPage.value = 1;
     loadScenes(1);
-};
+});
 
 onMounted(() => {
     loadStudio();
@@ -628,7 +628,7 @@ definePageMeta({
                     </div>
 
                     <!-- Search and Sort Controls -->
-                    <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                    <div class="mb-4 flex flex-row gap-2 sm:items-center sm:gap-3">
                         <!-- Search Input -->
                         <div class="relative flex-1">
                             <Icon
@@ -648,17 +648,7 @@ definePageMeta({
                         </div>
 
                         <!-- Sort Dropdown -->
-                        <select
-                            v-model="scenesSort"
-                            class="border-border bg-surface text-dim h-10 shrink-0 rounded-lg border
-                                px-3 py-2 text-xs transition-colors focus:border-white/20
-                                focus:outline-none sm:w-40"
-                            @change="onSortChange"
-                        >
-                            <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">
-                                {{ opt.label }}
-                            </option>
-                        </select>
+                        <UiSortSelect v-model="scenesSort" :options="sortOptions" />
                     </div>
 
                     <div v-if="isLoadingScenes" class="flex h-32 items-center justify-center">

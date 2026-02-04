@@ -207,29 +207,7 @@ definePageMeta({
                     </div>
                     <div v-else class="flex-1" />
 
-                    <div class="relative">
-                        <select
-                            v-model="sortBy"
-                            class="border-border bg-panel focus:border-lava/50 focus:ring-lava/20
-                                h-full cursor-pointer appearance-none rounded-lg border py-2 pr-8
-                                pl-3 text-sm text-white transition-all focus:ring-2
-                                focus:outline-none"
-                        >
-                            <option
-                                v-for="option in sortOptions"
-                                :key="option.value"
-                                :value="option.value"
-                            >
-                                {{ option.label }}
-                            </option>
-                        </select>
-                        <Icon
-                            name="heroicons:chevron-down"
-                            size="14"
-                            class="text-dim pointer-events-none absolute top-1/2 right-2.5
-                                -translate-y-1/2"
-                        />
-                    </div>
+                    <UiSortSelect v-model="sortBy" :options="sortOptions" />
                 </div>
             </div>
 

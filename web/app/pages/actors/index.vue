@@ -143,15 +143,7 @@ definePageMeta({
                         />
                     </div>
 
-                    <select
-                        v-model="sortOrder"
-                        class="border-border bg-panel text-dim rounded-lg border px-3 py-2 text-xs
-                            transition-colors focus:border-white/20 focus:outline-none"
-                    >
-                        <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">
-                            {{ opt.label }}
-                        </option>
-                    </select>
+                    <UiSortSelect v-model="sortOrder" :options="sortOptions" />
                 </div>
             </div>
 

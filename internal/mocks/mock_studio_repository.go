@@ -174,9 +174,9 @@ func (mr *MockStudioRepositoryMockRecorder) GetStudioScenes(studioID, page, limi
 }
 
 // List mocks base method.
-func (m *MockStudioRepository) List(page, limit int) ([]data.StudioWithCount, int64, error) {
+func (m *MockStudioRepository) List(page, limit int, sort string) ([]data.StudioWithCount, int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "List", page, limit)
+	ret := m.ctrl.Call(m, "List", page, limit, sort)
 	ret0, _ := ret[0].([]data.StudioWithCount)
 	ret1, _ := ret[1].(int64)
 	ret2, _ := ret[2].(error)
@@ -184,15 +184,15 @@ func (m *MockStudioRepository) List(page, limit int) ([]data.StudioWithCount, in
 }
 
 // List indicates an expected call of List.
-func (mr *MockStudioRepositoryMockRecorder) List(page, limit any) *gomock.Call {
+func (mr *MockStudioRepositoryMockRecorder) List(page, limit, sort any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockStudioRepository)(nil).List), page, limit)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockStudioRepository)(nil).List), page, limit, sort)
 }
 
 // Search mocks base method.
-func (m *MockStudioRepository) Search(query string, page, limit int) ([]data.StudioWithCount, int64, error) {
+func (m *MockStudioRepository) Search(query string, page, limit int, sort string) ([]data.StudioWithCount, int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Search", query, page, limit)
+	ret := m.ctrl.Call(m, "Search", query, page, limit, sort)
 	ret0, _ := ret[0].([]data.StudioWithCount)
 	ret1, _ := ret[1].(int64)
 	ret2, _ := ret[2].(error)
@@ -200,9 +200,9 @@ func (m *MockStudioRepository) Search(query string, page, limit int) ([]data.Stu
 }
 
 // Search indicates an expected call of Search.
-func (mr *MockStudioRepositoryMockRecorder) Search(query, page, limit any) *gomock.Call {
+func (mr *MockStudioRepositoryMockRecorder) Search(query, page, limit, sort any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Search", reflect.TypeOf((*MockStudioRepository)(nil).Search), query, page, limit)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Search", reflect.TypeOf((*MockStudioRepository)(nil).Search), query, page, limit, sort)
 }
 
 // SetSceneStudio mocks base method.
