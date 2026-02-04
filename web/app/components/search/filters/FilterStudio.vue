@@ -44,13 +44,13 @@ const badge = computed(() => (searchStore.studio ? searchStore.studio : undefine
             <button
                 v-for="studio in filteredStudios"
                 :key="studio"
-                @click="selectStudio(studio)"
                 class="w-full rounded px-2 py-1 text-left text-xs transition-colors"
                 :class="
                     searchStore.studio === studio
                         ? 'bg-lava/10 text-white'
                         : 'text-dim hover:bg-white/5 hover:text-white'
                 "
+                @click="selectStudio(studio)"
             >
                 {{ studio }}
             </button>

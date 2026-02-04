@@ -142,9 +142,9 @@ const shouldShowThumbnail = (scene: TrashedScene): boolean => {
                 </div>
                 <button
                     v-if="trashedScenes.length > 0"
-                    @click="showEmptyModal = true"
                     class="rounded-lg bg-red-600 px-3 py-1.5 text-[11px] font-semibold text-white
                         transition-all hover:bg-red-500"
+                    @click="showEmptyModal = true"
                 >
                     Empty Trash
                 </button>
@@ -214,16 +214,16 @@ const shouldShowThumbnail = (scene: TrashedScene): boolean => {
                     <!-- Actions -->
                     <div class="flex shrink-0 gap-2">
                         <button
-                            @click="handleRestore(scene)"
                             class="text-dim hover:text-emerald rounded p-1.5 transition-colors"
                             title="Restore"
+                            @click="handleRestore(scene)"
                         >
                             <Icon name="heroicons:arrow-uturn-left" size="14" />
                         </button>
                         <button
-                            @click="handlePermanentDelete(scene)"
                             class="text-dim hover:text-lava rounded p-1.5 transition-colors"
                             title="Delete permanently"
+                            @click="handlePermanentDelete(scene)"
                         >
                             <Icon name="heroicons:trash" size="14" />
                         </button>

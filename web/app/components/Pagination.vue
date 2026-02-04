@@ -69,11 +69,11 @@ onUnmounted(() => {
 <template>
     <div v-if="totalPages > 1" class="flex items-center justify-center gap-2 py-6">
         <button
-            @click="setPage(modelValue - 1)"
             :disabled="modelValue === 1"
             class="border-border bg-surface text-muted hover:border-border-hover rounded-md border
                 px-3 py-1.5 text-[11px] font-medium transition-all hover:text-white
                 disabled:cursor-not-allowed disabled:opacity-30"
+            @click="setPage(modelValue - 1)"
         >
             Prev
         </button>
@@ -83,29 +83,30 @@ onUnmounted(() => {
                 v-if="editing"
                 ref="pageInput"
                 v-model="editValue"
+                type="text"
+                inputmode="numeric"
+                class="text-lava bg-surface border-border w-10 rounded border text-center
+                    text-[11px] font-semibold outline-none focus:border-[#FF4D4D]"
                 @keydown.enter="confirmEdit"
                 @keydown.escape="cancelEdit"
                 @blur="confirmEdit"
-                type="text"
-                inputmode="numeric"
-                class="text-lava bg-surface border-border w-10 rounded border text-center text-[11px]
-                    font-semibold outline-none focus:border-[#FF4D4D]"
             />
             <span
                 v-else
-                @click="startEditing"
                 class="text-lava cursor-pointer font-semibold hover:underline"
-            >{{ modelValue }}</span>
+                @click="startEditing"
+                >{{ modelValue }}</span
+            >
             <span class="mx-1">/</span>
             {{ totalPages }}
         </span>
 
         <button
-            @click="setPage(modelValue + 1)"
             :disabled="modelValue === totalPages"
             class="border-border bg-surface text-muted hover:border-border-hover rounded-md border
                 px-3 py-1.5 text-[11px] font-medium transition-all hover:text-white
                 disabled:cursor-not-allowed disabled:opacity-30"
+            @click="setPage(modelValue + 1)"
         >
             Next
         </button>

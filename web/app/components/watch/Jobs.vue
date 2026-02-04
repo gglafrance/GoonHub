@@ -142,7 +142,6 @@ onMounted(() => {
             <button
                 v-for="phase in ['metadata', 'thumbnail', 'sprites'] as const"
                 :key="phase"
-                @click="triggerPhase(phase)"
                 :disabled="triggeringPhase !== null"
                 :class="[
                     `flex cursor-pointer items-center gap-1 rounded-lg border px-3 py-1.5
@@ -151,6 +150,7 @@ onMounted(() => {
                         ? 'border-lava/30 bg-lava/15 text-lava'
                         : 'border-white/10 bg-white/5 text-white hover:bg-white/10',
                 ]"
+                @click="triggerPhase(phase)"
             >
                 <Icon :name="phaseIcon(phase)" size="12" />
                 {{ triggeringPhase === phase ? 'Submitting...' : phaseLabel(phase) }}
@@ -230,9 +230,11 @@ onMounted(() => {
                                 @click="handleCancel(job)"
                             >
                                 <Icon
-                                    :name="cancellingJobId === job.job_id
-                                        ? 'heroicons:arrow-path'
-                                        : 'heroicons:x-mark'"
+                                    :name="
+                                        cancellingJobId === job.job_id
+                                            ? 'heroicons:arrow-path'
+                                            : 'heroicons:x-mark'
+                                    "
                                     size="12"
                                     :class="{ 'animate-spin': cancellingJobId === job.job_id }"
                                 />

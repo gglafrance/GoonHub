@@ -1,7 +1,7 @@
-"use strict";
+'use strict';
 
-var SSE_URL = "/api/v1/events";
-var CHANNEL_NAME = "sse-events";
+var SSE_URL = '/api/v1/events';
+var CHANNEL_NAME = 'sse-events';
 
 var eventSource = null;
 var tabCount = 0;
@@ -11,14 +11,14 @@ var maxReconnectDelay = 30000;
 var channel = null;
 
 var SSE_EVENT_TYPES = [
-    "scene:metadata_complete",
-    "scene:thumbnail_complete",
-    "scene:sprites_complete",
-    "scene:completed",
-    "scene:failed",
-    "scene:cancelled",
-    "scene:timed_out",
-    "jobs:status"
+    'scene:metadata_complete',
+    'scene:thumbnail_complete',
+    'scene:sprites_complete',
+    'scene:completed',
+    'scene:failed',
+    'scene:cancelled',
+    'scene:timed_out',
+    'jobs:status',
 ];
 
 function broadcast(type, payload) {
@@ -31,7 +31,9 @@ function broadcast(type, payload) {
                 }
             }
             channel.postMessage(msg);
-        } catch (e) {}
+        } catch {
+            /* broadcast errors are non-fatal */
+        }
     }
 }
 
@@ -41,25 +43,27 @@ function connectSSE() {
     try {
         eventSource = new EventSource(SSE_URL, { withCredentials: true });
 
-        eventSource.onopen = function() {
+        eventSource.onopen = function () {
             reconnectDelay = 1000;
-            broadcast("sse-connected", {});
+            broadcast('sse-connected', {});
         };
 
         for (var i = 0; i < SSE_EVENT_TYPES.length; i++) {
-            (function(eventType) {
-                eventSource.addEventListener(eventType, function(e) {
-                    broadcast("sse-event", { eventType: eventType, data: e.data });
+            (function (eventType) {
+                eventSource.addEventListener(eventType, function (e) {
+                    broadcast('sse-event', { eventType: eventType, data: e.data });
                 });
             })(SSE_EVENT_TYPES[i]);
         }
 
-        eventSource.onerror = function() {
+        eventSource.onerror = function () {
             disconnectSSE();
-            broadcast("sse-reconnecting", {});
+            broadcast('sse-reconnecting', {});
             scheduleReconnect();
         };
-    } catch (e) {}
+    } catch {
+        /* SSE connection errors are handled via reconnect */
+    }
 }
 
 function disconnectSSE() {
@@ -77,7 +81,7 @@ function disconnectSSE() {
 function scheduleReconnect() {
     if (tabCount <= 0) return;
 
-    reconnectTimer = setTimeout(function() {
+    reconnectTimer = setTimeout(function () {
         reconnectTimer = null;
         connectSSE();
     }, reconnectDelay);
@@ -89,19 +93,19 @@ function handleMessage(e) {
     var type = e.data.type;
 
     switch (type) {
-        case "tab-join":
+        case 'tab-join':
             tabCount++;
             break;
-        case "tab-leave":
+        case 'tab-leave':
             tabCount = Math.max(0, tabCount - 1);
             if (tabCount === 0) {
                 disconnectSSE();
             }
             break;
-        case "connect":
+        case 'connect':
             connectSSE();
             break;
-        case "disconnect":
+        case 'disconnect':
             disconnectSSE();
             tabCount = 0;
             break;
@@ -111,10 +115,12 @@ function handleMessage(e) {
 try {
     channel = new BroadcastChannel(CHANNEL_NAME);
     channel.onmessage = handleMessage;
-    broadcast("worker-ready", {});
-} catch (e) {}
+    broadcast('worker-ready', {});
+} catch {
+    /* BroadcastChannel not available */
+}
 
-self.onconnect = function(e) {
+self.onconnect = function (e) {
     var port = e.ports[0];
     if (port) {
         port.start();

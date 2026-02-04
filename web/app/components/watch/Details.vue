@@ -257,10 +257,10 @@ function handleSceneDeleted() {
                     <!-- Fetch/Refresh button -->
                     <button
                         v-if="isAdmin && pornDBConfigured"
-                        @click="showFetchMetadataModal = true"
                         class="hover:border-lava/40 hover:text-lava text-dim flex w-full
                             items-center justify-center gap-2 rounded-md border border-dashed
                             border-white/10 px-2 py-1.5 text-xs transition-colors"
+                        @click="showFetchMetadataModal = true"
                     >
                         <Icon name="heroicons:cloud-arrow-down" size="12" />
                         {{ scene?.porndb_scene_id ? 'Refresh' : 'Fetch' }}
@@ -282,10 +282,10 @@ function handleSceneDeleted() {
         <!-- Admin actions -->
         <div v-if="isAdmin" class="flex justify-end">
             <button
-                @click="showDeleteModal = true"
                 class="hover:border-lava/40 hover:text-lava text-dim flex items-center gap-2
                     rounded-md border border-dashed border-white/10 px-3 py-1.5 text-xs
                     transition-colors"
+                @click="showDeleteModal = true"
             >
                 <Icon name="heroicons:trash" size="12" />
                 Delete Scene

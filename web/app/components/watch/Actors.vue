@@ -149,11 +149,11 @@ async function onActorCreated(actor: Actor) {
                 </NuxtLink>
                 <!-- Remove button -->
                 <button
-                    @click="removeActor(actor.id)"
                     class="bg-void/80 hover:bg-lava absolute -top-1 -right-1 flex h-5 w-5
                         items-center justify-center rounded-full opacity-0 backdrop-blur-sm
                         transition-all group-hover:opacity-100"
                     title="Remove actor"
+                    @click="removeActor(actor.id)"
                 >
                     <Icon name="heroicons:x-mark" size="12" class="text-white" />
                 </button>
@@ -162,13 +162,13 @@ async function onActorCreated(actor: Actor) {
             <!-- Add actor button -->
             <button
                 ref="anchorRef"
-                @click="onAddActorClick"
                 class="border-border hover:border-lava/40 text-dim hover:text-lava flex w-20
                     flex-col items-center justify-center rounded-lg border border-dashed
                     transition-colors"
                 :class="sceneActors.length > 0 ? 'aspect-[2/3]' : 'h-20'"
                 :disabled="loadingAllActors"
                 title="Add actor"
+                @click="onAddActorClick"
             >
                 <Icon
                     v-if="loadingAllActors"

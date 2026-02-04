@@ -1,5 +1,6 @@
 import type { Actor } from '~/types/actor';
-import type { PornDBScenePerformer } from '~/types/porndb';
+import type { PornDBScenePerformer, PornDBPerformerDetails } from '~/types/porndb';
+import type { BulkRequestCache } from './useBulkRequestCache';
 
 interface ActorMatchResult {
     actorIds: number[];
@@ -29,11 +30,13 @@ export function useSilentActorMatcher() {
      *
      * @param sceneId - The scene to link actors to
      * @param performers - PornDB performers from the matched scene
+     * @param cache - Optional cache for bulk operations to avoid redundant requests
      * @returns Object with actor IDs, count of newly created actors, and any errors
      */
     async function matchActors(
         sceneId: number,
         performers: PornDBScenePerformer[],
+        cache?: BulkRequestCache,
     ): Promise<ActorMatchResult> {
         const actorIds: number[] = [];
         let created = 0;
@@ -54,10 +57,19 @@ export function useSilentActorMatcher() {
         for (const performer of performers) {
             if (!performer || !performer.name) continue;
 
+            const nameLower = performer.name.toLowerCase();
+            const localActorsCacheKey = `local-actors:${nameLower}`;
+
             try {
-                // Step 1: Search for existing local actor by exact name
-                const result = await fetchActors(1, 10, performer.name);
-                const localActors: Actor[] = result.data || [];
+                // Step 1: Search for existing local actor by exact name (cached)
+                let localActors: Actor[];
+                if (cache?.has(localActorsCacheKey)) {
+                    localActors = cache.get<Actor[]>(localActorsCacheKey) || [];
+                } else {
+                    const result = await fetchActors(1, 10, performer.name);
+                    localActors = result.data || [];
+                    cache?.set(localActorsCacheKey, localActors);
+                }
 
                 // Find exact name match (case-insensitive) - also check aliases
                 const exactMatch = localActors.find((a) => {
@@ -82,20 +94,37 @@ export function useSilentActorMatcher() {
                     continue;
                 }
 
-                // Step 2: No local match - search PornDB performers by name
+                // Step 2: No local match - search PornDB performers by name (cached)
+                const porndbSearchCacheKey = `porndb-performers:${nameLower}`;
                 let porndbSearchResults: { id: string; name: string; image?: string }[] = [];
                 try {
-                    porndbSearchResults = await searchPornDBPerformers(performer.name);
+                    if (cache?.has(porndbSearchCacheKey)) {
+                        porndbSearchResults =
+                            cache.get<{ id: string; name: string; image?: string }[]>(
+                                porndbSearchCacheKey,
+                            ) || [];
+                    } else {
+                        porndbSearchResults = await searchPornDBPerformers(performer.name);
+                        cache?.set(porndbSearchCacheKey, porndbSearchResults);
+                    }
                 } catch {
                     // PornDB search failed, will fall back to basic creation
                 }
 
                 if (porndbSearchResults.length > 0) {
-                    // Step 3: Take the first result and fetch full details
+                    // Step 3: Take the first result and fetch full details (cached)
                     const firstResult = porndbSearchResults[0];
                     if (firstResult) {
+                        const porndbDetailsCacheKey = `porndb-performer:${firstResult.id}`;
                         try {
-                            const details = await getPornDBPerformer(firstResult.id);
+                            let details: PornDBPerformerDetails;
+                            if (cache?.has(porndbDetailsCacheKey)) {
+                                details = cache.get<PornDBPerformerDetails>(porndbDetailsCacheKey)!;
+                            } else {
+                                details = await getPornDBPerformer(firstResult.id);
+                                cache?.set(porndbDetailsCacheKey, details);
+                            }
+
                             const newActor = await createActor({
                                 name: details.name,
                                 aliases: details.aliases,
@@ -118,6 +147,11 @@ export function useSilentActorMatcher() {
                                 fake_boobs: details.fake_boobs,
                                 same_sex_only: details.same_sex_only,
                             });
+
+                            // Update cache with newly created actor
+                            const updatedLocalActors = [...localActors, newActor];
+                            cache?.set(localActorsCacheKey, updatedLocalActors);
+
                             actorIds.push(newActor.id);
                             created++;
                             continue;
@@ -128,6 +162,11 @@ export function useSilentActorMatcher() {
                                     name: firstResult.name,
                                     image_url: firstResult.image,
                                 });
+
+                                // Update cache with newly created actor
+                                const updatedLocalActors = [...localActors, newActor];
+                                cache?.set(localActorsCacheKey, updatedLocalActors);
+
                                 actorIds.push(newActor.id);
                                 created++;
                                 continue;
@@ -144,6 +183,11 @@ export function useSilentActorMatcher() {
                         name: performer.name,
                         image_url: performer.image,
                     });
+
+                    // Update cache with newly created actor
+                    const updatedLocalActors = [...localActors, newActor];
+                    cache?.set(localActorsCacheKey, updatedLocalActors);
+
                     actorIds.push(newActor.id);
                     created++;
                 } catch (e) {

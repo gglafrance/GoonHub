@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Studio, StudioListItem } from '~/types/studio';
+import type { StudioListItem } from '~/types/studio';
 import type { PornDBSiteDetails } from '~/types/porndb';
 
 const props = defineProps<{
@@ -163,9 +163,9 @@ onMounted(() => {
                 <div
                     v-for="studio in localStudioResults"
                     :key="studio.id"
-                    @click="selectLocalStudio(studio)"
                     class="border-border bg-surface hover:border-lava/40 cursor-pointer
                         overflow-hidden rounded-lg border transition-colors"
+                    @click="selectLocalStudio(studio)"
                 >
                     <div class="bg-void flex aspect-square w-full items-center justify-center p-4">
                         <img
@@ -192,8 +192,8 @@ onMounted(() => {
                 </div>
             </div>
             <button
-                @click="skipLocalMatch"
                 class="text-dim w-full text-center text-xs transition-colors hover:text-white"
+                @click="skipLocalMatch"
             >
                 None of these - search ThePornDB instead
             </button>
@@ -215,9 +215,9 @@ onMounted(() => {
                 <div
                     v-for="site in porndbSiteResults"
                     :key="site.id"
-                    @click="selectPornDBSite(site)"
                     class="border-border bg-surface hover:border-lava/40 cursor-pointer
                         overflow-hidden rounded-lg border transition-colors"
+                    @click="selectPornDBSite(site)"
                 >
                     <div class="bg-void flex aspect-square w-full items-center justify-center p-4">
                         <img
@@ -242,15 +242,15 @@ onMounted(() => {
             </div>
             <div class="flex justify-center gap-2">
                 <button
-                    @click="createStudioWithName"
                     class="border-border hover:border-lava/40 rounded-lg border px-3 py-1.5 text-xs
                         text-white transition-colors"
+                    @click="createStudioWithName"
                 >
                     Create studio "{{ siteName }}"
                 </button>
                 <button
-                    @click="skip"
                     class="text-dim px-3 py-1.5 text-xs transition-colors hover:text-white"
+                    @click="skip"
                 >
                     Skip
                 </button>
@@ -262,15 +262,15 @@ onMounted(() => {
             <p class="text-dim text-xs">No matches found. Would you like to create a new studio?</p>
             <div class="flex justify-center gap-2">
                 <button
-                    @click="createStudioWithName"
                     class="bg-lava hover:bg-lava-glow rounded-lg px-4 py-1.5 text-xs font-semibold
                         text-white transition-all"
+                    @click="createStudioWithName"
                 >
                     Create "{{ siteName }}"
                 </button>
                 <button
-                    @click="skip"
                     class="text-dim px-3 py-1.5 text-xs transition-colors hover:text-white"
+                    @click="skip"
                 >
                     Skip
                 </button>

@@ -150,11 +150,11 @@ async function onStudioCreated(studio: Studio) {
                 <!-- Remove/change button -->
                 <button
                     ref="anchorRef"
-                    @click="onChangeStudioClick"
                     class="bg-void/80 hover:bg-lava absolute -top-1 -right-1 flex h-4 w-4
                         items-center justify-center rounded-full opacity-0 backdrop-blur-sm
                         transition-all group-hover:opacity-100"
                     title="Change studio"
+                    @click="onChangeStudioClick"
                 >
                     <Icon name="heroicons:pencil-square" size="10" class="text-white" />
                 </button>
@@ -164,12 +164,12 @@ async function onStudioCreated(studio: Studio) {
             <button
                 v-else
                 ref="anchorRef"
-                @click="onChangeStudioClick"
                 class="hover:border-lava/40 text-dim hover:text-lava -mx-1 flex items-center gap-2
                     rounded-md border border-transparent px-1 py-1 text-sm transition-colors
                     hover:bg-white/3"
                 :disabled="loadingAllStudios"
                 title="Add studio"
+                @click="onChangeStudioClick"
             >
                 <Icon
                     v-if="loadingAllStudios"

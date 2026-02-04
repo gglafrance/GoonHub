@@ -97,8 +97,8 @@ export const useSearchStore = defineStore('search', () => {
             const result = await api.searchScenes(params);
             scenes.value = result.data;
             total.value = result.total;
-        } catch (e: any) {
-            error.value = e.message || 'Search failed';
+        } catch (e: unknown) {
+            error.value = e instanceof Error ? e.message : 'Search failed';
         } finally {
             isLoading.value = false;
         }
@@ -115,7 +115,7 @@ export const useSearchStore = defineStore('search', () => {
                 origins: result.origins || [],
                 types: result.types || [],
             };
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error('Failed to load filter options:', e);
         }
     };

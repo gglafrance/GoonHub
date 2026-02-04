@@ -281,9 +281,9 @@ onMounted(() => {
                                     {{ cfg.cron_expression }}
                                 </span>
                                 <button
-                                    @click="startEdit(cfg.phase)"
                                     class="text-dim ml-2 text-[11px] transition-colors
                                         hover:text-white"
+                                    @click="startEdit(cfg.phase)"
                                 >
                                     Edit
                                 </button>
@@ -299,8 +299,8 @@ onMounted(() => {
                                 {{ phaseLabel(cfg.phase) }}
                             </div>
                             <button
-                                @click="cancelEdit"
                                 class="text-dim text-[11px] transition-colors hover:text-white"
+                                @click="cancelEdit"
                             >
                                 Cancel
                             </button>
@@ -311,7 +311,6 @@ onMounted(() => {
                             <button
                                 v-for="tt in triggerTypes(cfg.phase)"
                                 :key="tt.value"
-                                @click="editForm.trigger_type = tt.value"
                                 :class="[
                                     `rounded-full border px-2.5 py-1 text-[11px] font-medium
                                     transition-colors`,
@@ -320,6 +319,7 @@ onMounted(() => {
                                         : 'text-dim border-white/5 bg-white/2 hover:text-white',
                                 ]"
                                 :title="tt.description"
+                                @click="editForm.trigger_type = tt.value"
                             >
                                 {{ tt.label }}
                             </button>
@@ -352,7 +352,6 @@ onMounted(() => {
                                 <button
                                     v-for="preset in cronPresets"
                                     :key="preset.value"
-                                    @click="editForm.cron_expression = preset.value"
                                     :class="[
                                         `rounded-full border px-2 py-0.5 text-[10px] font-medium
                                         transition-colors`,
@@ -360,14 +359,15 @@ onMounted(() => {
                                             ? 'border-amber-500/30 bg-amber-500/15 text-amber-400'
                                             : 'text-dim border-white/5 bg-white/2 hover:text-white',
                                     ]"
+                                    @click="editForm.cron_expression = preset.value"
                                 >
                                     {{ preset.label }}
                                 </button>
                                 <button
-                                    @click="showAdvancedCron = true"
                                     class="text-dim rounded-full border border-white/5 bg-white/2
                                         px-2 py-0.5 text-[10px] font-medium transition-colors
                                         hover:text-white"
+                                    @click="showAdvancedCron = true"
                                 >
                                     Advanced
                                 </button>
@@ -382,8 +382,8 @@ onMounted(() => {
                                         focus:outline-none"
                                 />
                                 <button
-                                    @click="showAdvancedCron = false"
                                     class="text-dim text-[10px] transition-colors hover:text-white"
+                                    @click="showAdvancedCron = false"
                                 >
                                     Presets
                                 </button>
@@ -396,10 +396,10 @@ onMounted(() => {
                         <!-- Save button -->
                         <div class="flex justify-end pt-1">
                             <button
-                                @click="saveConfig(cfg.phase)"
                                 :disabled="saving"
                                 class="bg-lava hover:bg-lava/90 rounded-lg px-3 py-1 text-[11px]
                                     font-medium text-white transition-colors disabled:opacity-50"
+                                @click="saveConfig(cfg.phase)"
                             >
                                 {{ saving ? 'Saving...' : 'Save' }}
                             </button>

@@ -98,7 +98,7 @@ async function onApply(fields: {
             }
         }
         if (fields.tags && selectedScene.value.tags?.length) {
-            payload.tag_names = selectedScene.value.tags.map((t: any) => t.name);
+            payload.tag_names = selectedScene.value.tags.map((t: { name: string }) => t.name);
         }
         if (fields.release_date && selectedScene.value.date) {
             payload.release_date = selectedScene.value.date;
@@ -198,8 +198,8 @@ function handleClose() {
                         {{ phaseTitle }}
                     </h3>
                     <button
-                        @click="handleClose"
                         class="text-dim transition-colors hover:text-white"
+                        @click="handleClose"
                     >
                         <Icon name="heroicons:x-mark" size="20" />
                     </button>

@@ -6,7 +6,7 @@ type Player = ReturnType<typeof videojs>;
 export function useMarkerIndicators(
     player: Ref<Player | null>,
     markers: Ref<Marker[]>,
-    onSeek?: (timestamp: number) => void
+    onSeek?: (timestamp: number) => void,
 ) {
     let container: HTMLDivElement | null = null;
     let boundUpdate: (() => void) | null = null;
@@ -14,8 +14,10 @@ export function useMarkerIndicators(
     function setup() {
         if (!player.value) return;
 
-        const progressHolder = (player.value as any).controlBar
-            ?.progressControl?.seekBar?.el();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const progressHolder = (
+            player.value as unknown as Record<string, any>
+        ).controlBar?.progressControl?.seekBar?.el();
         if (!progressHolder) return;
 
         // Create container for marker ticks

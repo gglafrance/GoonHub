@@ -127,12 +127,12 @@ async function handleDelete(tag: Tag) {
                 </label>
                 <UiSelectMenu
                     :model-value="selectedTagSort"
+                    :options="tagSortOptions"
+                    class="max-w-48"
                     @update:model-value="
                         selectedTagSort = $event as TagSort;
                         handleSortChange();
                     "
-                    :options="tagSortOptions"
-                    class="max-w-48"
                 />
                 <p class="text-dim mt-1.5 text-[10px]">
                     Default sort order when opening the tag picker
@@ -173,7 +173,6 @@ async function handleDelete(tag: Tag) {
                         <button
                             v-for="color in colorPresets"
                             :key="color"
-                            @click="newTagColor = color"
                             class="h-6 w-6 rounded-full border-2 transition-all"
                             :class="
                                 newTagColor === color
@@ -181,14 +180,15 @@ async function handleDelete(tag: Tag) {
                                     : 'border-transparent hover:scale-110'
                             "
                             :style="{ backgroundColor: color }"
+                            @click="newTagColor = color"
                         />
                     </div>
                 </div>
                 <button
-                    @click="handleCreate"
                     :disabled="!newTagName.trim() || creating"
                     class="bg-lava hover:bg-lava-glow rounded-lg px-4 py-2 text-xs font-semibold
                         text-white transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                    @click="handleCreate"
                 >
                     Create Tag
                 </button>
@@ -217,10 +217,10 @@ async function handleDelete(tag: Tag) {
                     <span class="h-3 w-3 rounded-full" :style="{ backgroundColor: tag.color }" />
                     <span class="flex-1 text-xs text-white">{{ tag.name }}</span>
                     <button
-                        @click="handleDelete(tag)"
                         class="text-dim flex items-center justify-center opacity-0 transition-all
                             group-hover:opacity-100 hover:text-red-400"
                         title="Delete tag"
+                        @click="handleDelete(tag)"
                     >
                         <Icon name="heroicons:trash" size="14" />
                     </button>

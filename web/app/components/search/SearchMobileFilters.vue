@@ -111,9 +111,9 @@ onUnmounted(() => {
                         </span>
                     </div>
                     <button
-                        @click="emit('close')"
                         class="text-dim flex h-8 w-8 items-center justify-center rounded-full
                             transition-colors hover:bg-white/10 hover:text-white"
+                        @click="emit('close')"
                     >
                         <Icon name="heroicons:x-mark" size="20" />
                     </button>
@@ -124,9 +124,9 @@ onUnmounted(() => {
                     <div class="space-y-1">
                         <!-- Sort (mobile only) -->
                         <SearchFiltersFilterSelect
+                            v-model="searchStore.sort"
                             title="Sort By"
                             icon="heroicons:arrows-up-down"
-                            v-model="searchStore.sort"
                             :options="sortOptions"
                         />
 
@@ -153,9 +153,9 @@ onUnmounted(() => {
 
                         <!-- Resolution -->
                         <SearchFiltersFilterSelect
+                            v-model="searchStore.resolution"
                             title="Resolution"
                             icon="heroicons:tv"
-                            v-model="searchStore.resolution"
                             :options="resolutionOptions"
                             default-collapsed
                         />
@@ -178,17 +178,17 @@ onUnmounted(() => {
                 >
                     <button
                         v-if="activeFilterCount > 0"
-                        @click="handleReset"
                         class="border-border text-dim flex-1 rounded-xl border py-3 text-sm
                             font-medium transition-colors hover:border-white/20 hover:text-white"
+                        @click="handleReset"
                     >
                         Reset
                     </button>
                     <button
-                        @click="handleApply"
                         class="bg-lava hover:bg-lava-glow flex-1 rounded-xl py-3 text-sm
                             font-semibold text-white transition-colors"
                         :class="{ 'flex-2': activeFilterCount > 0 }"
+                        @click="handleApply"
                     >
                         Show Results
                     </button>

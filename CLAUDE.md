@@ -44,6 +44,9 @@ bun run dev
 
 # Production build (output to web/dist, embedded into Go binary)
 bun run build
+
+# Linter checks
+bun run lint
 ```
 
 ### Testing (Go Backend)

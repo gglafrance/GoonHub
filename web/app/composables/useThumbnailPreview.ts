@@ -7,7 +7,9 @@ export function useThumbnailPreview(player: Ref<Player | null>, vttCues: Ref<Vtt
     function setup() {
         if (!player.value) return;
 
-        const progressControl = (player.value as any).controlBar?.progressControl;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const progressControl = (player.value as unknown as Record<string, any>).controlBar
+            ?.progressControl;
         if (!progressControl) return;
 
         const seekBar = progressControl.seekBar;

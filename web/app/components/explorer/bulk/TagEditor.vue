@@ -76,15 +76,13 @@ const handleSubmit = async () => {
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
             @click.self="$emit('close')"
         >
-            <div
-                class="border-border bg-panel w-full max-w-md rounded-xl border shadow-2xl"
-            >
+            <div class="border-border bg-panel w-full max-w-md rounded-xl border shadow-2xl">
                 <!-- Header -->
                 <div class="border-border flex items-center justify-between border-b px-4 py-3">
                     <h2 class="text-sm font-semibold text-white">Bulk Edit Tags</h2>
                     <button
+                        class="text-dim transition-colors hover:text-white"
                         @click="$emit('close')"
-                        class="text-dim hover:text-white transition-colors"
                     >
                         <Icon name="heroicons:x-mark" size="18" />
                     </button>
@@ -98,27 +96,36 @@ const handleSubmit = async () => {
 
                     <!-- Mode Selection -->
                     <div class="mb-4">
-                        <label class="text-dim mb-2 block text-[11px] font-medium uppercase tracking-wider">
+                        <label
+                            class="text-dim mb-2 block text-[11px] font-medium tracking-wider
+                                uppercase"
+                        >
                             Mode
                         </label>
                         <div class="flex gap-2">
                             <button
                                 v-for="m in ['add', 'remove', 'replace'] as const"
                                 :key="m"
-                                @click="mode = m"
-                                class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-all"
+                                class="rounded-lg border px-3 py-1.5 text-xs font-medium
+                                    transition-all"
                                 :class="
                                     mode === m
                                         ? 'border-lava bg-lava/10 text-lava'
-                                        : 'border-border hover:border-border-hover text-dim hover:text-white'
+                                        : `border-border hover:border-border-hover text-dim
+                                            hover:text-white`
                                 "
+                                @click="mode = m"
                             >
                                 {{ m.charAt(0).toUpperCase() + m.slice(1) }}
                             </button>
                         </div>
                         <p class="text-dim mt-1.5 text-[10px]">
-                            <template v-if="mode === 'add'">Add selected tags to existing tags</template>
-                            <template v-else-if="mode === 'remove'">Remove selected tags from videos</template>
+                            <template v-if="mode === 'add'"
+                                >Add selected tags to existing tags</template
+                            >
+                            <template v-else-if="mode === 'remove'"
+                                >Remove selected tags from videos</template
+                            >
                             <template v-else>Replace all tags with selected tags</template>
                         </p>
                     </div>
@@ -128,7 +135,10 @@ const handleSubmit = async () => {
 
                     <!-- Tag Selection -->
                     <div class="mb-4">
-                        <label class="text-dim mb-2 block text-[11px] font-medium uppercase tracking-wider">
+                        <label
+                            class="text-dim mb-2 block text-[11px] font-medium tracking-wider
+                                uppercase"
+                        >
                             Tags
                         </label>
 
@@ -136,7 +146,10 @@ const handleSubmit = async () => {
                             <LoadingSpinner />
                         </div>
 
-                        <div v-else-if="allTags.length === 0" class="text-dim py-4 text-center text-xs">
+                        <div
+                            v-else-if="allTags.length === 0"
+                            class="text-dim py-4 text-center text-xs"
+                        >
                             No tags available
                         </div>
 
@@ -145,7 +158,6 @@ const handleSubmit = async () => {
                                 <button
                                     v-for="tag in allTags"
                                     :key="tag.id"
-                                    @click="toggleTag(tag.id)"
                                     class="flex items-center gap-1.5 rounded-full border px-2.5 py-1
                                         text-[11px] font-medium transition-all"
                                     :class="
@@ -159,6 +171,7 @@ const handleSubmit = async () => {
                                         color: 'white',
                                         '--tw-ring-color': tag.color,
                                     }"
+                                    @click="toggleTag(tag.id)"
                                 >
                                     <span
                                         class="inline-block h-2 w-2 rounded-full"
@@ -179,17 +192,17 @@ const handleSubmit = async () => {
                 <!-- Footer -->
                 <div class="border-border flex items-center justify-end gap-2 border-t px-4 py-3">
                     <button
-                        @click="$emit('close')"
                         class="border-border hover:border-border-hover rounded-lg border px-3 py-1.5
                             text-xs font-medium text-white transition-all"
+                        @click="$emit('close')"
                     >
                         Cancel
                     </button>
                     <button
-                        @click="handleSubmit"
                         :disabled="loading"
-                        class="bg-lava hover:bg-lava-glow rounded-lg px-3 py-1.5 text-xs font-semibold
-                            text-white transition-colors disabled:opacity-50"
+                        class="bg-lava hover:bg-lava-glow rounded-lg px-3 py-1.5 text-xs
+                            font-semibold text-white transition-colors disabled:opacity-50"
+                        @click="handleSubmit"
                     >
                         <span v-if="loading">Applying...</span>
                         <span v-else>Apply</span>

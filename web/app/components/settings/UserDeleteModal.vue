@@ -47,27 +47,30 @@ const handleClose = () => {
                 <h3 class="mb-2 text-sm font-semibold text-white">Delete User</h3>
                 <div
                     v-if="error"
-                    class="border-lava/20 bg-lava/5 text-lava mb-3 rounded-lg border px-3 py-2 text-xs"
+                    class="border-lava/20 bg-lava/5 text-lava mb-3 rounded-lg border px-3 py-2
+                        text-xs"
                 >
                     {{ error }}
                 </div>
                 <p class="text-dim mb-4 text-xs">
                     Are you sure you want to delete
-                    <span class="text-white">{{ user?.username }}</span>? This action cannot be undone.
+                    <span class="text-white">{{ user?.username }}</span
+                    >? This action cannot be undone.
                 </p>
                 <div class="flex justify-end gap-2">
                     <button
+                        class="text-dim rounded-lg px-3 py-1.5 text-xs transition-colors
+                            hover:text-white"
                         @click="handleClose"
-                        class="text-dim hover:text-white rounded-lg px-3 py-1.5 text-xs transition-colors"
                     >
                         Cancel
                     </button>
                     <button
-                        @click="handleDelete"
                         :disabled="loading"
                         class="rounded-lg bg-red-600 px-4 py-1.5 text-xs font-semibold text-white
                             transition-all hover:bg-red-500 disabled:cursor-not-allowed
                             disabled:opacity-40"
+                        @click="handleDelete"
                     >
                         Delete
                     </button>

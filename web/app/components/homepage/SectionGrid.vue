@@ -40,10 +40,10 @@ onMounted(() => {
         <!-- Left arrow -->
         <button
             v-if="canScrollLeft"
-            @click="scroll('left')"
             class="from-background/95 to-background/0 absolute top-0 bottom-0 left-0 z-30 flex w-12
                 cursor-pointer items-center justify-start bg-linear-to-r pl-1 opacity-0
                 transition-opacity group-hover/carousel:opacity-100"
+            @click="scroll('left')"
         >
             <div
                 class="bg-surface/90 border-border hover:bg-elevated flex h-8 w-8 items-center
@@ -56,8 +56,8 @@ onMounted(() => {
         <!-- Horizontal scroll container -->
         <div
             ref="scrollContainer"
-            @scroll="updateScrollState"
             class="scrollbar-hide -mx-4 flex gap-4 overflow-x-auto px-4 pb-2"
+            @scroll="updateScrollState"
         >
             <div v-for="scene in scenes" :key="scene.id" class="shrink-0">
                 <SceneCard
@@ -71,10 +71,10 @@ onMounted(() => {
         <!-- Right arrow -->
         <button
             v-if="canScrollRight"
-            @click="scroll('right')"
             class="from-background/95 to-background/0 absolute top-0 right-0 bottom-0 z-30 flex w-12
                 cursor-pointer items-center justify-end bg-linear-to-l pr-1 opacity-0
                 transition-opacity group-hover/carousel:opacity-100"
+            @click="scroll('right')"
         >
             <div
                 class="bg-surface/90 border-border hover:bg-elevated flex h-8 w-8 items-center

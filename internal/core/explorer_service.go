@@ -127,26 +127,96 @@ func (s *ExplorerService) GetFolderContents(storagePathID uint, folderPath strin
 	}, nil
 }
 
+// FolderSceneIDsRequest represents a request to get scene IDs in a folder with optional filters
+type FolderSceneIDsRequest struct {
+	StoragePathID uint
+	FolderPath    string
+	Recursive     bool
+	Query         string
+	TagIDs        []uint
+	Actors        []string
+	HasPornDBID   *bool
+}
+
 // GetFolderSceneIDs returns all scene IDs in a folder
 func (s *ExplorerService) GetFolderSceneIDs(storagePathID uint, folderPath string, recursive bool) ([]uint, error) {
+	return s.GetFolderSceneIDsFiltered(FolderSceneIDsRequest{
+		StoragePathID: storagePathID,
+		FolderPath:    folderPath,
+		Recursive:     recursive,
+	})
+}
+
+// GetFolderSceneIDsFiltered returns scene IDs in a folder with optional filters applied
+func (s *ExplorerService) GetFolderSceneIDsFiltered(req FolderSceneIDsRequest) ([]uint, error) {
 	// Verify storage path exists
-	storagePath, err := s.storagePathRepo.GetByID(storagePathID)
+	storagePath, err := s.storagePathRepo.GetByID(req.StoragePathID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, apperrors.NewNotFoundError("storage path", storagePathID)
+			return nil, apperrors.NewNotFoundError("storage path", req.StoragePathID)
 		}
 		return nil, apperrors.NewInternalError("failed to get storage path", err)
 	}
 	if storagePath == nil {
-		return nil, apperrors.NewNotFoundError("storage path", storagePathID)
+		return nil, apperrors.NewNotFoundError("storage path", req.StoragePathID)
 	}
 
-	ids, err := s.explorerRepo.GetSceneIDsByFolder(storagePathID, folderPath, recursive)
+	// Get all scene IDs in the folder first
+	folderSceneIDs, err := s.explorerRepo.GetSceneIDsByFolder(req.StoragePathID, req.FolderPath, req.Recursive)
 	if err != nil {
 		return nil, apperrors.NewInternalError("failed to get scene IDs", err)
 	}
 
-	return ids, nil
+	// If no filters, return all IDs
+	hasFilters := req.Query != "" || len(req.TagIDs) > 0 || len(req.Actors) > 0 || req.HasPornDBID != nil
+	if !hasFilters {
+		return folderSceneIDs, nil
+	}
+
+	// If folder is empty, no point in filtering
+	if len(folderSceneIDs) == 0 {
+		return []uint{}, nil
+	}
+
+	// Use search service to filter
+	if s.searchService == nil {
+		return nil, apperrors.NewInternalError("search service not available", nil)
+	}
+
+	// Search with a very high limit to get all matching IDs
+	// We'll use pagination internally to fetch all results
+	const batchSize = 1000
+	var allMatchingIDs []uint
+	page := 1
+
+	for {
+		searchParams := data.SceneSearchParams{
+			Query:       req.Query,
+			TagIDs:      req.TagIDs,
+			Actors:      req.Actors,
+			HasPornDBID: req.HasPornDBID,
+			Page:        page,
+			Limit:       batchSize,
+			SceneIDs:    folderSceneIDs, // Pre-filter to folder scenes
+		}
+
+		scenes, total, err := s.searchService.Search(searchParams)
+		if err != nil {
+			return nil, apperrors.NewInternalError("search failed", err)
+		}
+
+		for _, scene := range scenes {
+			allMatchingIDs = append(allMatchingIDs, scene.ID)
+		}
+
+		// Check if we've fetched all results
+		if int64(page*batchSize) >= total {
+			break
+		}
+		page++
+	}
+
+	return allMatchingIDs, nil
 }
 
 // BulkUpdateTagsRequest represents a request to bulk update tags

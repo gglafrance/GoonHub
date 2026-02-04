@@ -335,8 +335,8 @@ onUnmounted(cleanup);
                     <div class="flex items-center gap-2">
                         <button
                             v-if="selectedPerformer"
-                            @click="handleGoBack"
                             class="text-dim transition-colors hover:text-white"
+                            @click="handleGoBack"
                         >
                             <Icon name="heroicons:arrow-left" size="18" />
                         </button>
@@ -345,8 +345,8 @@ onUnmounted(cleanup);
                         </h3>
                     </div>
                     <button
-                        @click="handleClose"
                         class="text-dim transition-colors hover:text-white"
+                        @click="handleClose"
                     >
                         <Icon name="heroicons:x-mark" size="18" />
                     </button>
@@ -366,11 +366,11 @@ onUnmounted(cleanup);
                             @keyup.enter="searchPerformers(searchQuery)"
                         />
                         <button
-                            @click="searchPerformers(searchQuery)"
                             :disabled="isSearching || !searchQuery.trim()"
                             class="bg-lava hover:bg-lava-glow flex items-center gap-1.5 rounded-lg
                                 px-4 py-2 text-xs font-semibold text-white transition-all
                                 disabled:cursor-not-allowed disabled:opacity-40"
+                            @click="searchPerformers(searchQuery)"
                         >
                             <Icon
                                 v-if="isSearching"
@@ -401,9 +401,6 @@ onUnmounted(cleanup);
                         <button
                             v-for="performer in searchResults"
                             :key="performer.id"
-                            @click="handleFetchPerformerDetails(performer)"
-                            @mouseenter="handleHover(performer)"
-                            @mouseleave="handleHoverLeave"
                             class="border-border hover:border-lava/30 hover:bg-lava/5 flex w-full
                                 items-center gap-3 rounded-lg border p-2 text-left
                                 transition-colors"
@@ -411,6 +408,9 @@ onUnmounted(cleanup);
                                 'pointer-events-none opacity-50':
                                     isFetchingDetails && selectedPerformerId !== performer.id,
                             }"
+                            @click="handleFetchPerformerDetails(performer)"
+                            @mouseenter="handleHover(performer)"
+                            @mouseleave="handleHoverLeave"
                         >
                             <div
                                 class="bg-surface border-border h-12 w-9 shrink-0 overflow-hidden
@@ -554,15 +554,15 @@ onUnmounted(cleanup);
                             </span>
                             <div class="flex gap-2">
                                 <button
-                                    @click="selectAllChanged"
                                     class="text-lava hover:text-lava-glow text-xs transition-colors"
+                                    @click="selectAllChanged"
                                 >
                                     Select all with changes
                                 </button>
                                 <span class="text-dim">|</span>
                                 <button
-                                    @click="deselectAll"
                                     class="text-dim text-xs transition-colors hover:text-white"
+                                    @click="deselectAll"
                                 >
                                     Deselect all
                                 </button>
@@ -640,18 +640,18 @@ onUnmounted(cleanup);
                         <!-- Actions -->
                         <div class="mt-4 flex justify-end gap-2">
                             <button
-                                @click="handleClose"
                                 class="text-dim rounded-lg px-3 py-1.5 text-xs transition-colors
                                     hover:text-white"
+                                @click="handleClose"
                             >
                                 Cancel
                             </button>
                             <button
-                                @click="applyMetadata"
                                 :disabled="selectedFieldCount === 0"
                                 class="bg-lava hover:bg-lava-glow rounded-lg px-4 py-1.5 text-xs
                                     font-semibold text-white transition-all
                                     disabled:cursor-not-allowed disabled:opacity-40"
+                                @click="applyMetadata"
                             >
                                 Apply Selected
                             </button>

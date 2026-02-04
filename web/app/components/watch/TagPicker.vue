@@ -120,10 +120,10 @@ onBeforeUnmount(() => {
                     @click.stop
                 />
                 <button
-                    @click.stop="cycleSortMode()"
                     class="text-dim shrink-0 rounded px-1.5 py-0.5 text-[9px] transition-colors
                         hover:bg-white/5 hover:text-white/80"
                     :title="`Sort: ${sortLabels[sortMode]}`"
+                    @click.stop="cycleSortMode()"
                 >
                     {{ sortLabels[sortMode] }}
                 </button>
@@ -138,9 +138,9 @@ onBeforeUnmount(() => {
                 <button
                     v-for="tag in filteredTags"
                     :key="tag.id"
-                    @click="emit('select', tag.id)"
                     class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px]
                         text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+                    @click="emit('select', tag.id)"
                 >
                     <span
                         class="inline-block h-2 w-2 shrink-0 rounded-full"

@@ -177,14 +177,14 @@ const statusColor = computed(() => {
                     <!-- Actions -->
                     <div class="mt-1.5 flex gap-2">
                         <button
-                            @click="emit('manualSearch', result.sceneId)"
                             class="text-dim text-[10px] transition-colors hover:text-white"
+                            @click="emit('manualSearch', result.sceneId)"
                         >
                             Explore more
                         </button>
                         <button
-                            @click="emit('removeMatch', result.sceneId)"
                             class="text-[10px] text-red-400 transition-colors hover:text-red-300"
+                            @click="emit('removeMatch', result.sceneId)"
                         >
                             Unmatch
                         </button>
@@ -199,8 +199,8 @@ const statusColor = computed(() => {
                         {{ result.status === 'removed' ? 'Match removed' : 'No match found' }}
                     </p>
                     <button
-                        @click="emit('manualSearch', result.sceneId)"
                         class="text-lava hover:text-lava-glow text-xs font-medium transition-colors"
+                        @click="emit('manualSearch', result.sceneId)"
                     >
                         Search manually
                     </button>

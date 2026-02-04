@@ -27,9 +27,9 @@ const badge = computed(() => (props.modelValue ? props.modelValue : undefined));
     >
         <select
             :value="modelValue"
-            @change="emit('update:modelValue', ($event.target as HTMLSelectElement).value)"
             class="border-border bg-surface text-dim w-full rounded-md border px-2 py-1.5 text-xs
                 focus:border-white/20 focus:outline-none"
+            @change="emit('update:modelValue', ($event.target as HTMLSelectElement).value)"
         >
             <option v-if="placeholder" value="">{{ placeholder }}</option>
             <option v-for="opt in options" :key="opt.value" :value="opt.value">

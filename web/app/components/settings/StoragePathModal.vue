@@ -101,7 +101,7 @@ const handleClose = () => {
                 >
                     {{ error }}
                 </div>
-                <form @submit.prevent="handleSubmit" class="space-y-4">
+                <form class="space-y-4" @submit.prevent="handleSubmit">
                     <div>
                         <label
                             class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
@@ -137,11 +137,11 @@ const handleClose = () => {
                             />
                             <button
                                 type="button"
-                                @click="handleValidate"
                                 :disabled="validating || !path"
                                 class="border-border rounded-lg border px-3 text-xs text-white
                                     transition-all hover:border-white/20 hover:bg-white/5
                                     disabled:cursor-not-allowed disabled:opacity-40"
+                                @click="handleValidate"
                             >
                                 {{ validating ? '...' : 'Validate' }}
                             </button>
@@ -174,9 +174,9 @@ const handleClose = () => {
                     <div class="flex justify-end gap-2 pt-2">
                         <button
                             type="button"
-                            @click="handleClose"
                             class="text-dim rounded-lg px-3 py-1.5 text-xs transition-colors
                                 hover:text-white"
+                            @click="handleClose"
                         >
                             Cancel
                         </button>

@@ -96,12 +96,12 @@ onMounted(() => {
                 </div>
                 <input
                     v-model.number="metadataWorkers"
-                    @change="metadataWorkers = clamp(metadataWorkers)"
                     type="number"
                     min="1"
                     max="10"
                     class="border-border bg-surface w-16 rounded-lg border px-2 py-1.5 text-center
                         text-xs text-white focus:border-white/20 focus:outline-none"
+                    @change="metadataWorkers = clamp(metadataWorkers)"
                 />
             </div>
 
@@ -118,12 +118,12 @@ onMounted(() => {
                 </div>
                 <input
                     v-model.number="thumbnailWorkers"
-                    @change="thumbnailWorkers = clamp(thumbnailWorkers)"
                     type="number"
                     min="1"
                     max="10"
                     class="border-border bg-surface w-16 rounded-lg border px-2 py-1.5 text-center
                         text-xs text-white focus:border-white/20 focus:outline-none"
+                    @change="thumbnailWorkers = clamp(thumbnailWorkers)"
                 />
             </div>
 
@@ -140,12 +140,12 @@ onMounted(() => {
                 </div>
                 <input
                     v-model.number="spritesWorkers"
-                    @change="spritesWorkers = clamp(spritesWorkers)"
                     type="number"
                     min="1"
                     max="10"
                     class="border-border bg-surface w-16 rounded-lg border px-2 py-1.5 text-center
                         text-xs text-white focus:border-white/20 focus:outline-none"
+                    @change="spritesWorkers = clamp(spritesWorkers)"
                 />
             </div>
 
@@ -153,10 +153,10 @@ onMounted(() => {
             <div class="border-border flex items-center justify-between border-t pt-4">
                 <span class="text-dim text-[10px]">Range: 1-10 workers per pool</span>
                 <button
-                    @click="applyConfig"
                     :disabled="saving"
                     class="bg-lava hover:bg-lava/90 rounded-lg px-4 py-1.5 text-xs font-medium
                         text-white transition-colors disabled:opacity-50"
+                    @click="applyConfig"
                 >
                     {{ saving ? 'Applying...' : 'Apply' }}
                 </button>

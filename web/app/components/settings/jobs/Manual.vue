@@ -96,38 +96,50 @@ onMounted(async () => {
     await Promise.all([loadScanStatus(), loadScanHistory()]);
 });
 
-watch(() => scanStore.progress, (data) => {
-    if (!data || !scanStatus.value.current_scan) return;
-    scanStatus.value.current_scan.files_found = data.files_found;
-    scanStatus.value.current_scan.videos_added = data.videos_added;
-    scanStatus.value.current_scan.videos_skipped = data.videos_skipped;
-    scanStatus.value.current_scan.videos_removed = data.videos_removed;
-    scanStatus.value.current_scan.videos_moved = data.videos_moved;
-    scanStatus.value.current_scan.errors = data.errors;
-    scanStatus.value.current_scan.current_path = data.current_path;
-    scanStatus.value.current_scan.current_file = data.current_file;
-});
+watch(
+    () => scanStore.progress,
+    (data) => {
+        if (!data || !scanStatus.value.current_scan) return;
+        scanStatus.value.current_scan.files_found = data.files_found;
+        scanStatus.value.current_scan.videos_added = data.videos_added;
+        scanStatus.value.current_scan.videos_skipped = data.videos_skipped;
+        scanStatus.value.current_scan.videos_removed = data.videos_removed;
+        scanStatus.value.current_scan.videos_moved = data.videos_moved;
+        scanStatus.value.current_scan.errors = data.errors;
+        scanStatus.value.current_scan.current_path = data.current_path;
+        scanStatus.value.current_scan.current_file = data.current_file;
+    },
+);
 
-watch(() => scanStore.completed, async (val) => {
-    if (!val) return;
-    scanStatus.value = { running: false };
-    message.value = 'Library scan completed successfully';
-    await loadScanHistory();
-});
+watch(
+    () => scanStore.completed,
+    async (val) => {
+        if (!val) return;
+        scanStatus.value = { running: false };
+        message.value = 'Library scan completed successfully';
+        await loadScanHistory();
+    },
+);
 
-watch(() => scanStore.failed, async (val) => {
-    if (!val) return;
-    scanStatus.value = { running: false };
-    error.value = `Scan failed: ${scanStore.errorMessage || 'Unknown error'}`;
-    await loadScanHistory();
-});
+watch(
+    () => scanStore.failed,
+    async (val) => {
+        if (!val) return;
+        scanStatus.value = { running: false };
+        error.value = `Scan failed: ${scanStore.errorMessage || 'Unknown error'}`;
+        await loadScanHistory();
+    },
+);
 
-watch(() => scanStore.cancelled, async (val) => {
-    if (!val) return;
-    scanStatus.value = { running: false };
-    message.value = 'Scan was cancelled';
-    await loadScanHistory();
-});
+watch(
+    () => scanStore.cancelled,
+    async (val) => {
+        if (!val) return;
+        scanStatus.value = { running: false };
+        message.value = 'Scan was cancelled';
+        await loadScanHistory();
+    },
+);
 
 const formatDateTime = (dateStr: string): string => {
     const d = new Date(dateStr);
@@ -241,21 +253,21 @@ const phaseDescription = (phase: string): string => {
                 <div class="flex gap-2">
                     <button
                         v-if="!scanStatus.running"
-                        @click="handleStartScan"
                         :disabled="scanLoading"
                         class="bg-lava hover:bg-lava-glow disabled:bg-lava/50 rounded-lg px-3 py-1.5
                             text-[11px] font-semibold text-white transition-all
                             disabled:cursor-not-allowed"
+                        @click="handleStartScan"
                     >
                         {{ scanLoading ? 'Starting...' : 'Start Scan' }}
                     </button>
                     <button
                         v-else
-                        @click="handleCancelScan"
                         :disabled="scanLoading"
                         class="rounded-lg border border-amber-500/30 bg-amber-500/15 px-3 py-1.5
                             text-[11px] font-semibold text-amber-500 transition-all
                             hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+                        @click="handleCancelScan"
                     >
                         {{ scanLoading ? 'Cancelling...' : 'Cancel Scan' }}
                     </button>
@@ -432,21 +444,21 @@ const phaseDescription = (phase: string): string => {
                         </div>
                         <div class="flex gap-2">
                             <button
-                                @click="handleBulkJob(phase, 'missing')"
                                 :disabled="bulkLoading[phase]"
                                 class="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5
                                     text-[11px] font-medium text-white transition-all
                                     hover:bg-white/10 disabled:cursor-not-allowed
                                     disabled:opacity-50"
+                                @click="handleBulkJob(phase, 'missing')"
                             >
                                 {{ bulkLoading[phase] ? 'Queuing...' : 'Missing' }}
                             </button>
                             <button
-                                @click="handleBulkJob(phase, 'all')"
                                 :disabled="bulkLoading[phase]"
                                 class="bg-lava/80 hover:bg-lava disabled:bg-lava/40 rounded-lg px-3
                                     py-1.5 text-[11px] font-medium text-white transition-all
                                     disabled:cursor-not-allowed"
+                                @click="handleBulkJob(phase, 'all')"
                             >
                                 {{ bulkLoading[phase] ? 'Queuing...' : 'All' }}
                             </button>

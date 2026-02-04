@@ -229,8 +229,8 @@ onMounted(async () => {
                 <p class="text-dim text-[11px] font-medium tracking-wider uppercase">Filters</p>
                 <button
                     v-if="hasAnyFilter"
-                    @click="clearFilters"
                     class="text-dim text-[11px] transition-colors hover:text-white"
+                    @click="clearFilters"
                 >
                     Clear all
                 </button>
@@ -246,10 +246,10 @@ onMounted(async () => {
                     </label>
                     <select
                         v-model="selectedPresetId"
-                        @change="handlePresetChange"
                         class="border-border bg-void/80 focus:border-lava/40 focus:ring-lava/20
                             w-full rounded-lg border px-2.5 py-1.5 text-xs text-white transition-all
                             focus:ring-1 focus:outline-none"
+                        @change="handlePresetChange"
                     >
                         <option :value="null">No parsing rules</option>
                         <option
@@ -320,11 +320,11 @@ onMounted(async () => {
                 <!-- Search button -->
                 <div class="col-span-3 flex items-end">
                     <button
-                        @click="searchScenes"
                         :disabled="searching || !hasAnyFilter"
                         class="bg-lava hover:bg-lava-glow flex w-full items-center justify-center
                             gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold text-white
                             transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                        @click="searchScenes"
                     >
                         <Icon
                             v-if="searching"
@@ -361,16 +361,16 @@ onMounted(async () => {
             </div>
             <div class="divide-y divide-white/5">
                 <div
-                    v-for="scene in searchResults"
-                    :key="scene.id"
-                    @click="selectScene(scene)"
+                    v-for="result in searchResults"
+                    :key="result.id"
                     class="hover:bg-surface flex cursor-pointer gap-4 p-4 transition-colors"
+                    @click="selectScene(result)"
                 >
                     <div class="bg-void h-24 w-40 shrink-0 overflow-hidden rounded-lg">
                         <img
-                            v-if="scene.image || scene.poster"
-                            :src="scene.image || scene.poster"
-                            :alt="scene.title"
+                            v-if="result.image || result.poster"
+                            :src="result.image || result.poster"
+                            :alt="result.title"
                             class="h-full w-full object-cover"
                         />
                         <div v-else class="text-dim flex h-full w-full items-center justify-center">
@@ -379,35 +379,35 @@ onMounted(async () => {
                     </div>
                     <div class="min-w-0 flex-1 py-0.5">
                         <div class="flex items-start justify-between gap-2">
-                            <p class="text-sm font-medium text-white">{{ scene.title }}</p>
+                            <p class="text-sm font-medium text-white">{{ result.title }}</p>
                             <!-- Confidence Badge -->
                             <div
-                                v-if="scene.confidence"
-                                :class="getConfidenceColorClass(scene.confidence)"
-                                :title="getConfidenceTooltip(scene.confidence)"
+                                v-if="result.confidence"
+                                :class="getConfidenceColorClass(result.confidence)"
+                                :title="getConfidenceTooltip(result.confidence)"
                                 class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
                             >
-                                {{ scene.confidence.total }}%
+                                {{ result.confidence.total }}%
                             </div>
                         </div>
-                        <p v-if="scene.site?.name" class="text-dim mt-0.5 text-xs">
-                            {{ scene.site.name }}
+                        <p v-if="result.site?.name" class="text-dim mt-0.5 text-xs">
+                            {{ result.site.name }}
                         </p>
                         <div
                             class="text-dim mt-2 flex flex-wrap items-center gap-x-3 gap-y-1
                                 text-[11px]"
                         >
-                            <span v-if="scene.date" class="flex items-center gap-1">
+                            <span v-if="result.date" class="flex items-center gap-1">
                                 <Icon name="heroicons:calendar" size="12" />
-                                {{ scene.date }}
+                                {{ result.date }}
                             </span>
-                            <span v-if="scene.duration" class="flex items-center gap-1">
+                            <span v-if="result.duration" class="flex items-center gap-1">
                                 <Icon name="heroicons:clock" size="12" />
-                                {{ formatDuration(scene.duration) }}
+                                {{ formatDuration(result.duration) }}
                             </span>
-                            <span v-if="scene.performers?.length" class="flex items-center gap-1">
+                            <span v-if="result.performers?.length" class="flex items-center gap-1">
                                 <Icon name="heroicons:users" size="12" />
-                                {{ scene.performers.map((p) => p.name).join(', ') }}
+                                {{ result.performers.map((p) => p.name).join(', ') }}
                             </span>
                         </div>
                     </div>

@@ -92,8 +92,8 @@ defineExpose({ reload: loadSearches });
 <template>
     <div class="mb-4">
         <button
-            @click="expanded = !expanded"
             class="mb-2 flex w-full items-center justify-between text-left"
+            @click="expanded = !expanded"
         >
             <h3 class="text-xs font-semibold tracking-wide text-white uppercase">Saved Searches</h3>
             <Icon
@@ -129,20 +129,20 @@ defineExpose({ reload: loadSearches });
                             v-model="editName"
                             type="text"
                             maxlength="255"
-                            @keyup.enter="saveEdit(search.uuid)"
-                            @keyup.escape="cancelEdit"
                             class="border-border bg-void/80 focus:border-lava/40 focus:ring-lava/20
                                 min-w-0 flex-1 rounded border px-2 py-1 text-xs text-white
                                 focus:ring-1 focus:outline-none"
+                            @keyup.enter="saveEdit(search.uuid)"
+                            @keyup.escape="cancelEdit"
                         />
                         <button
-                            @click="saveEdit(search.uuid)"
                             :disabled="editLoading || !editName.trim()"
                             class="text-lava hover:text-lava/80 disabled:opacity-50"
+                            @click="saveEdit(search.uuid)"
                         >
                             <Icon name="heroicons:check" size="14" />
                         </button>
-                        <button @click="cancelEdit" class="text-dim hover:text-white">
+                        <button class="text-dim hover:text-white" @click="cancelEdit">
                             <Icon name="heroicons:x-mark" size="14" />
                         </button>
                     </div>
@@ -150,9 +150,9 @@ defineExpose({ reload: loadSearches });
                     <div v-else>
                         <div class="flex items-start justify-between gap-2">
                             <button
-                                @click="handleLoad(search)"
                                 class="min-w-0 flex-1 text-left"
                                 :title="'Load: ' + search.name"
+                                @click="handleLoad(search)"
                             >
                                 <div class="truncate text-xs font-medium text-white">
                                     {{ search.name }}
@@ -167,16 +167,16 @@ defineExpose({ reload: loadSearches });
                                     group-hover:opacity-100"
                             >
                                 <button
-                                    @click.stop="startEdit(search)"
                                     class="text-dim hover:text-white"
                                     title="Rename"
+                                    @click.stop="startEdit(search)"
                                 >
                                     <Icon name="heroicons:pencil" size="12" />
                                 </button>
                                 <button
-                                    @click.stop="handleDelete(search.uuid)"
                                     class="text-dim hover:text-lava"
                                     title="Delete"
+                                    @click.stop="handleDelete(search.uuid)"
                                 >
                                     <Icon name="heroicons:trash" size="12" />
                                 </button>

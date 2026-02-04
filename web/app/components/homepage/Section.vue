@@ -131,12 +131,12 @@ const seeAllLink = computed(() => {
             </div>
             <div class="flex shrink-0 items-center gap-1 sm:gap-2">
                 <button
-                    @click="handleRefresh"
                     :disabled="isRefreshing"
                     class="text-dim flex h-7 w-7 items-center justify-center rounded-md
                         transition-colors hover:bg-white/5 hover:text-white disabled:opacity-50
                         sm:h-auto sm:w-auto sm:rounded-none sm:bg-transparent
                         sm:hover:bg-transparent"
+                    @click="handleRefresh"
                 >
                     <Icon
                         name="heroicons:arrow-path"

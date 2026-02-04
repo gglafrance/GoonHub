@@ -202,10 +202,10 @@ const totalCount = computed(() => config.value?.sections.length ?? 0);
                         </div>
                     </div>
                     <button
-                        @click="handleAddSection"
                         class="bg-lava hover:bg-lava-glow flex items-center gap-1.5 rounded-lg px-3
                             py-2 text-xs font-medium text-white transition-all hover:scale-[1.02]
                             active:scale-[0.98]"
+                        @click="handleAddSection"
                     >
                         <Icon name="heroicons:plus" size="14" />
                         Add Section
@@ -228,10 +228,10 @@ const totalCount = computed(() => config.value?.sections.length ?? 0);
                         Add sections to customize what content appears on your homepage
                     </p>
                     <button
-                        @click="handleAddSection"
                         class="border-border hover:border-lava/30 hover:bg-lava/5 flex items-center
                             gap-2 rounded-lg border px-4 py-2 text-xs font-medium text-white
                             transition-all"
+                        @click="handleAddSection"
                     >
                         <Icon name="heroicons:plus" size="14" class="text-lava" />
                         Create your first section
@@ -269,12 +269,12 @@ const totalCount = computed(() => config.value?.sections.length ?? 0);
                     <span v-else>All changes saved</span>
                 </div>
                 <button
-                    @click="handleSave"
                     :disabled="saving || !hasChanges"
                     class="bg-lava hover:bg-lava-glow flex items-center gap-2 rounded-lg px-5 py-2.5
                         text-xs font-semibold text-white transition-all hover:scale-[1.02]
                         active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40
                         disabled:hover:scale-100"
+                    @click="handleSave"
                 >
                     <Icon
                         v-if="saving"

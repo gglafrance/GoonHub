@@ -64,14 +64,25 @@ const handleClose = () => {
                 </h3>
                 <div
                     v-if="error"
-                    class="border-lava/20 bg-lava/5 text-lava mb-3 rounded-lg border px-3 py-2 text-xs"
+                    class="border-lava/20 bg-lava/5 text-lava mb-3 rounded-lg border px-3 py-2
+                        text-xs"
                 >
                     {{ error }}
                 </div>
-                <form @submit.prevent="handleSubmit" class="space-y-3">
-                    <input type="text" :value="user?.username" autocomplete="username" class="hidden" aria-hidden="true" tabindex="-1" />
+                <form class="space-y-3" @submit.prevent="handleSubmit">
+                    <input
+                        type="text"
+                        :value="user?.username"
+                        autocomplete="username"
+                        class="hidden"
+                        aria-hidden="true"
+                        tabindex="-1"
+                    />
                     <div>
-                        <label class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider uppercase">
+                        <label
+                            class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
+                                uppercase"
+                        >
                             New Password
                         </label>
                         <input
@@ -87,8 +98,9 @@ const handleClose = () => {
                     <div class="flex justify-end gap-2 pt-2">
                         <button
                             type="button"
+                            class="text-dim rounded-lg px-3 py-1.5 text-xs transition-colors
+                                hover:text-white"
                             @click="handleClose"
-                            class="text-dim hover:text-white rounded-lg px-3 py-1.5 text-xs transition-colors"
                         >
                             Cancel
                         </button>

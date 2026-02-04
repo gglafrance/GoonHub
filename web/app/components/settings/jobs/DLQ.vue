@@ -10,7 +10,9 @@ const message = ref('');
 
 const entries = ref<DLQEntry[]>([]);
 const selectedEntryId = ref<string | null>(null);
-const selectedEntry = computed(() => entries.value.find(e => e.job_id === selectedEntryId.value) ?? entries.value[0] ?? null);
+const selectedEntry = computed(
+    () => entries.value.find((e) => e.job_id === selectedEntryId.value) ?? entries.value[0] ?? null,
+);
 const stats = ref({ pending_review: 0, retrying: 0, abandoned: 0, total: 0 });
 const total = ref(0);
 const page = ref(1);
@@ -138,8 +140,8 @@ onMounted(() => {
             <div class="mb-3 flex items-center justify-between">
                 <h3 class="text-sm font-semibold text-white">Dead Letter Queue</h3>
                 <button
-                    @click="loadDLQ"
                     class="text-dim text-[11px] transition-colors hover:text-white"
+                    @click="loadDLQ"
                 >
                     Refresh
                 </button>
@@ -150,13 +152,13 @@ onMounted(() => {
 
             <div class="grid grid-cols-4 gap-3">
                 <button
-                    @click="changeFilter('')"
                     :class="[
                         'rounded-lg border px-3 py-2.5 text-left transition-colors',
                         statusFilter === ''
                             ? 'border-white/20 bg-white/5'
                             : 'border-white/5 bg-white/2 hover:border-white/10',
                     ]"
+                    @click="changeFilter('')"
                 >
                     <div class="text-dim mb-1 text-[10px] font-medium tracking-wider uppercase">
                         Total
@@ -164,13 +166,13 @@ onMounted(() => {
                     <div class="text-lg font-semibold text-white">{{ stats.total }}</div>
                 </button>
                 <button
-                    @click="changeFilter('pending_review')"
                     :class="[
                         'rounded-lg border px-3 py-2.5 text-left transition-colors',
                         statusFilter === 'pending_review'
                             ? 'border-amber-500/30 bg-amber-500/10'
                             : 'border-white/5 bg-white/2 hover:border-white/10',
                     ]"
+                    @click="changeFilter('pending_review')"
                 >
                     <div class="text-dim mb-1 text-[10px] font-medium tracking-wider uppercase">
                         Pending
@@ -180,13 +182,13 @@ onMounted(() => {
                     </div>
                 </button>
                 <button
-                    @click="changeFilter('retrying')"
                     :class="[
                         'rounded-lg border px-3 py-2.5 text-left transition-colors',
                         statusFilter === 'retrying'
                             ? 'border-blue-500/30 bg-blue-500/10'
                             : 'border-white/5 bg-white/2 hover:border-white/10',
                     ]"
+                    @click="changeFilter('retrying')"
                 >
                     <div class="text-dim mb-1 text-[10px] font-medium tracking-wider uppercase">
                         Retrying
@@ -194,13 +196,13 @@ onMounted(() => {
                     <div class="text-lg font-semibold text-blue-400">{{ stats.retrying }}</div>
                 </button>
                 <button
-                    @click="changeFilter('abandoned')"
                     :class="[
                         'rounded-lg border px-3 py-2.5 text-left transition-colors',
                         statusFilter === 'abandoned'
                             ? 'border-white/20 bg-white/5'
                             : 'border-white/5 bg-white/2 hover:border-white/10',
                     ]"
+                    @click="changeFilter('abandoned')"
                 >
                     <div class="text-dim mb-1 text-[10px] font-medium tracking-wider uppercase">
                         Abandoned
@@ -251,7 +253,8 @@ onMounted(() => {
                         <tr
                             v-for="entry in entries"
                             :key="entry.job_id"
-                            class="border-border/50 cursor-pointer border-b last:border-0 hover:bg-white/2"
+                            class="border-border/50 cursor-pointer border-b last:border-0
+                                hover:bg-white/2"
                             :class="{ 'bg-white/3': selectedEntryId === entry.job_id }"
                             @click="selectedEntryId = entry.job_id"
                         >
@@ -285,20 +288,20 @@ onMounted(() => {
                                     class="flex items-center gap-2"
                                 >
                                     <button
-                                        @click="handleRetry(entry.job_id)"
                                         :disabled="actionLoading !== null"
                                         class="rounded px-2 py-1 text-[10px] font-medium
                                             text-emerald-400 transition-colors
                                             hover:bg-emerald-500/10 disabled:opacity-50"
+                                        @click="handleRetry(entry.job_id)"
                                     >
                                         Retry
                                     </button>
                                     <button
-                                        @click="handleAbandon(entry.job_id)"
                                         :disabled="actionLoading !== null"
                                         class="text-dim rounded px-2 py-1 text-[10px] font-medium
                                             transition-colors hover:bg-white/5 hover:text-white
                                             disabled:opacity-50"
+                                        @click="handleAbandon(entry.job_id)"
                                     >
                                         Abandon
                                     </button>
@@ -320,7 +323,8 @@ onMounted(() => {
                     <div class="text-dim mb-2 text-[10px] font-medium tracking-wider uppercase">
                         Error Details
                         <span v-if="selectedEntry" class="text-white/30 normal-case">
-                            &mdash; {{ selectedEntry.scene_title || `Scene #${selectedEntry.scene_id}` }}
+                            &mdash;
+                            {{ selectedEntry.scene_title || `Scene #${selectedEntry.scene_id}` }}
                         </span>
                     </div>
                     <div
@@ -345,19 +349,19 @@ onMounted(() => {
                 <span class="text-dim text-[11px]">{{ total }} total entries</span>
                 <div class="flex items-center gap-3">
                     <button
-                        @click="prevPage"
                         :disabled="page <= 1"
                         class="text-dim disabled:hover:text-dim text-[11px] transition-colors
                             hover:text-white disabled:opacity-30"
+                        @click="prevPage"
                     >
                         Previous
                     </button>
                     <span class="text-dim text-[11px]">{{ page }} / {{ totalPages }}</span>
                     <button
-                        @click="nextPage"
                         :disabled="page >= totalPages"
                         class="text-dim disabled:hover:text-dim text-[11px] transition-colors
                             hover:text-white disabled:opacity-30"
+                        @click="nextPage"
                     >
                         Next
                     </button>

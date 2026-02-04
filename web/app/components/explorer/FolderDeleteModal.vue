@@ -135,14 +135,13 @@ const handleClose = () => {
 
                 <div class="flex justify-end gap-2">
                     <button
-                        @click="handleClose"
                         class="text-dim rounded-lg px-3 py-1.5 text-xs transition-colors
                             hover:text-white"
+                        @click="handleClose"
                     >
                         Cancel
                     </button>
                     <button
-                        @click="handleDelete"
                         :disabled="loading || loadingSceneIds"
                         class="rounded-lg px-4 py-1.5 text-xs font-semibold text-white
                             transition-all disabled:cursor-not-allowed disabled:opacity-40"
@@ -151,6 +150,7 @@ const handleClose = () => {
                                 ? 'bg-red-600 hover:bg-red-500'
                                 : 'bg-amber-600 hover:bg-amber-500'
                         "
+                        @click="handleDelete"
                     >
                         <template v-if="loading">
                             <Icon name="heroicons:arrow-path" size="14" class="mr-1 animate-spin" />

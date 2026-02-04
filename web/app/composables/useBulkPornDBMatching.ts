@@ -2,6 +2,10 @@ import type { PornDBScene } from '~/types/porndb';
 import type { SceneMatchInfo } from '~/types/explorer';
 import type { BulkMatchResult, ApplyPhase, ConfidenceBreakdown } from '~/types/bulk-match';
 import type { ParsingRule } from '~/types/parsing-rules';
+import type { BulkRequestCache } from './useBulkRequestCache';
+
+// Number of scenes to process concurrently during apply phase
+const APPLY_CONCURRENCY_LIMIT = 3;
 
 /**
  * Main orchestrator for bulk PornDB scene matching.
@@ -13,6 +17,9 @@ export function useBulkPornDBMatching() {
     const { matchActors } = useSilentActorMatcher();
     const { matchStudio } = useSilentStudioMatcher();
     const { applyRules } = useParsingRulesEngine();
+
+    // Session-scoped request cache for bulk operations
+    const requestCache = useBulkRequestCache();
 
     // State
     const results = ref<Map<number, BulkMatchResult>>(new Map());
@@ -229,8 +236,13 @@ export function useBulkPornDBMatching() {
 
     /**
      * Apply metadata from a single matched scene.
+     * @param result - The bulk match result to apply
+     * @param cache - Optional cache for bulk operations to avoid redundant requests
      */
-    async function applySingleScene(result: BulkMatchResult): Promise<void> {
+    async function applySingleScene(
+        result: BulkMatchResult,
+        cache?: BulkRequestCache,
+    ): Promise<void> {
         if (!result.match || result.status !== 'matched') return;
 
         const sceneId = result.sceneId;
@@ -240,7 +252,7 @@ export function useBulkPornDBMatching() {
         results.value.set(sceneId, { ...result, status: 'applying' });
 
         try {
-            // Apply basic metadata
+            // Apply basic metadata first (must complete before actor/studio matching)
             await applySceneMetadata(sceneId, {
                 title: match.title,
                 description: match.description,
@@ -248,16 +260,22 @@ export function useBulkPornDBMatching() {
                 thumbnail_url: match.image || match.poster,
                 release_date: match.date,
                 porndb_scene_id: match.id,
+                tag_names: match.tags?.map((t) => t.name),
             });
 
-            // Match actors silently
+            // Match actors and studio in parallel (they're independent operations)
+            const parallelTasks: Promise<unknown>[] = [];
+
             if (match.performers && match.performers.length > 0) {
-                await matchActors(sceneId, match.performers);
+                parallelTasks.push(matchActors(sceneId, match.performers, cache));
             }
 
-            // Match studio silently
             if (match.site?.name) {
-                await matchStudio(sceneId, match.site.name);
+                parallelTasks.push(matchStudio(sceneId, match.site.name, cache));
+            }
+
+            if (parallelTasks.length > 0) {
+                await Promise.all(parallelTasks);
             }
 
             results.value.set(sceneId, { ...result, status: 'applied' });
@@ -269,7 +287,41 @@ export function useBulkPornDBMatching() {
     }
 
     /**
-     * Apply all matched scenes sequentially.
+     * Process an array of items with a concurrency limit.
+     * @param items - Items to process
+     * @param concurrency - Maximum number of concurrent operations
+     * @param processor - Async function to process each item
+     */
+    async function processWithConcurrency<T>(
+        items: T[],
+        concurrency: number,
+        processor: (item: T) => Promise<void>,
+    ): Promise<void> {
+        const queue = [...items];
+        const workers: Promise<void>[] = [];
+
+        async function worker(): Promise<void> {
+            while (queue.length > 0) {
+                const item = queue.shift();
+                if (item !== undefined) {
+                    await processor(item);
+                }
+            }
+        }
+
+        // Start workers up to concurrency limit
+        const workerCount = Math.min(concurrency, items.length);
+        for (let i = 0; i < workerCount; i++) {
+            workers.push(worker());
+        }
+
+        await Promise.all(workers);
+    }
+
+    /**
+     * Apply all matched scenes with parallel processing.
+     * Uses a session-scoped cache to avoid redundant API calls for shared actors/studios.
+     * Processes multiple scenes concurrently for faster throughput.
      */
     async function applyAllMatched(): Promise<void> {
         const matchedResults = resultsArray.value.filter((r) => r.status === 'matched');
@@ -280,9 +332,12 @@ export function useBulkPornDBMatching() {
         applyProgress.value = { current: 0, total: matchedResults.length, failed: 0 };
         failedScenes.value = [];
 
-        for (const result of matchedResults) {
+        // Clear cache at start of bulk operation
+        requestCache.clear();
+
+        await processWithConcurrency(matchedResults, APPLY_CONCURRENCY_LIMIT, async (result) => {
             try {
-                await applySingleScene(result);
+                await applySingleScene(result, requestCache);
             } catch {
                 applyProgress.value.failed++;
                 const failedResult = results.value.get(result.sceneId);
@@ -291,13 +346,14 @@ export function useBulkPornDBMatching() {
                 }
             }
             applyProgress.value.current++;
-        }
+        });
 
         applyPhase.value = 'done';
     }
 
     /**
-     * Retry all failed scenes.
+     * Retry all failed scenes with parallel processing.
+     * Uses a session-scoped cache to avoid redundant API calls for shared actors/studios.
      */
     async function retryFailed(): Promise<void> {
         const toRetry = [...failedScenes.value];
@@ -305,16 +361,21 @@ export function useBulkPornDBMatching() {
         applyProgress.value = { current: 0, total: toRetry.length, failed: 0 };
         applyPhase.value = 'applying';
 
+        // Clear cache at start of retry operation
+        requestCache.clear();
+
+        // Reset all statuses to matched before starting
         for (const result of toRetry) {
-            // Reset status to matched for retry
             results.value.set(result.sceneId, {
                 ...result,
                 status: 'matched',
                 error: undefined,
             });
+        }
 
+        await processWithConcurrency(toRetry, APPLY_CONCURRENCY_LIMIT, async (result) => {
             try {
-                await applySingleScene(results.value.get(result.sceneId)!);
+                await applySingleScene(results.value.get(result.sceneId)!, requestCache);
             } catch {
                 applyProgress.value.failed++;
                 const failedResult = results.value.get(result.sceneId);
@@ -323,7 +384,7 @@ export function useBulkPornDBMatching() {
                 }
             }
             applyProgress.value.current++;
-        }
+        });
 
         applyPhase.value = 'done';
     }
@@ -345,6 +406,7 @@ export function useBulkPornDBMatching() {
         applyPhase.value = 'idle';
         applyProgress.value = { current: 0, total: 0, failed: 0 };
         failedScenes.value = [];
+        requestCache.clear();
     }
 
     return {

@@ -72,10 +72,10 @@ const showShortcuts = ref(false);
 
                         <!-- Logout - icon only on mobile -->
                         <button
-                            @click="authStore.logout()"
                             class="border-border text-dim hover:border-lava/30 hover:text-lava flex
                                 h-7 w-7 items-center justify-center rounded-md border transition-all
                                 sm:h-auto sm:w-auto sm:px-2.5 sm:py-1"
+                            @click="authStore.logout()"
                         >
                             <Icon
                                 name="heroicons:arrow-right-on-rectangle"

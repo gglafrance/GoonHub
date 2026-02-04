@@ -92,15 +92,13 @@ const handleSubmit = async () => {
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
             @click.self="$emit('close')"
         >
-            <div
-                class="border-border bg-panel w-full max-w-md rounded-xl border shadow-2xl"
-            >
+            <div class="border-border bg-panel w-full max-w-md rounded-xl border shadow-2xl">
                 <!-- Header -->
                 <div class="border-border flex items-center justify-between border-b px-4 py-3">
                     <h2 class="text-sm font-semibold text-white">Bulk Edit Actors</h2>
                     <button
+                        class="text-dim transition-colors hover:text-white"
                         @click="$emit('close')"
-                        class="text-dim hover:text-white transition-colors"
                     >
                         <Icon name="heroicons:x-mark" size="18" />
                     </button>
@@ -114,27 +112,36 @@ const handleSubmit = async () => {
 
                     <!-- Mode Selection -->
                     <div class="mb-4">
-                        <label class="text-dim mb-2 block text-[11px] font-medium uppercase tracking-wider">
+                        <label
+                            class="text-dim mb-2 block text-[11px] font-medium tracking-wider
+                                uppercase"
+                        >
                             Mode
                         </label>
                         <div class="flex gap-2">
                             <button
                                 v-for="m in ['add', 'remove', 'replace'] as const"
                                 :key="m"
-                                @click="mode = m"
-                                class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-all"
+                                class="rounded-lg border px-3 py-1.5 text-xs font-medium
+                                    transition-all"
                                 :class="
                                     mode === m
                                         ? 'border-lava bg-lava/10 text-lava'
-                                        : 'border-border hover:border-border-hover text-dim hover:text-white'
+                                        : `border-border hover:border-border-hover text-dim
+                                            hover:text-white`
                                 "
+                                @click="mode = m"
                             >
                                 {{ m.charAt(0).toUpperCase() + m.slice(1) }}
                             </button>
                         </div>
                         <p class="text-dim mt-1.5 text-[10px]">
-                            <template v-if="mode === 'add'">Add selected actors to existing cast</template>
-                            <template v-else-if="mode === 'remove'">Remove selected actors from videos</template>
+                            <template v-if="mode === 'add'"
+                                >Add selected actors to existing cast</template
+                            >
+                            <template v-else-if="mode === 'remove'"
+                                >Remove selected actors from videos</template
+                            >
                             <template v-else>Replace all actors with selected actors</template>
                         </p>
                     </div>
@@ -154,9 +161,10 @@ const handleSubmit = async () => {
                                 v-model="searchQuery"
                                 type="text"
                                 placeholder="Search actors..."
-                                class="border-border bg-surface focus:border-lava/50 focus:ring-lava/20
-                                    w-full rounded-lg border py-2 pr-3 pl-8 text-xs text-white
-                                    placeholder-white/40 transition-all focus:ring-2 focus:outline-none"
+                                class="border-border bg-surface focus:border-lava/50
+                                    focus:ring-lava/20 w-full rounded-lg border py-2 pr-3 pl-8
+                                    text-xs text-white placeholder-white/40 transition-all
+                                    focus:ring-2 focus:outline-none"
                             />
                         </div>
                     </div>
@@ -167,7 +175,10 @@ const handleSubmit = async () => {
                             <LoadingSpinner />
                         </div>
 
-                        <div v-else-if="actors.length === 0" class="text-dim py-4 text-center text-xs">
+                        <div
+                            v-else-if="actors.length === 0"
+                            class="text-dim py-4 text-center text-xs"
+                        >
                             No actors found
                         </div>
 
@@ -176,14 +187,20 @@ const handleSubmit = async () => {
                                 <button
                                     v-for="actor in actors"
                                     :key="actor.id"
+                                    class="border-border hover:border-border-hover flex w-full
+                                        items-center gap-2 rounded-lg border p-2 text-left
+                                        transition-all"
+                                    :class="
+                                        isActorSelected(actor.id)
+                                            ? 'ring-lava/50 border-lava/30 ring-2'
+                                            : ''
+                                    "
                                     @click="toggleActor(actor.id)"
-                                    class="border-border hover:border-border-hover flex w-full items-center
-                                        gap-2 rounded-lg border p-2 text-left transition-all"
-                                    :class="isActorSelected(actor.id) ? 'ring-lava/50 ring-2 border-lava/30' : ''"
                                 >
                                     <div
-                                        class="bg-panel border-border flex h-8 w-8 shrink-0 items-center
-                                            justify-center overflow-hidden rounded-full border"
+                                        class="bg-panel border-border flex h-8 w-8 shrink-0
+                                            items-center justify-center overflow-hidden rounded-full
+                                            border"
                                     >
                                         <img
                                             v-if="actor.image_url"
@@ -191,7 +208,12 @@ const handleSubmit = async () => {
                                             :alt="actor.name"
                                             class="h-full w-full object-cover"
                                         />
-                                        <Icon v-else name="heroicons:user" size="16" class="text-dim" />
+                                        <Icon
+                                            v-else
+                                            name="heroicons:user"
+                                            size="16"
+                                            class="text-dim"
+                                        />
                                     </div>
                                     <div class="min-w-0 flex-1">
                                         <p class="truncate text-xs font-medium text-white">
@@ -221,17 +243,17 @@ const handleSubmit = async () => {
                 <!-- Footer -->
                 <div class="border-border flex items-center justify-end gap-2 border-t px-4 py-3">
                     <button
-                        @click="$emit('close')"
                         class="border-border hover:border-border-hover rounded-lg border px-3 py-1.5
                             text-xs font-medium text-white transition-all"
+                        @click="$emit('close')"
                     >
                         Cancel
                     </button>
                     <button
-                        @click="handleSubmit"
                         :disabled="loading"
-                        class="bg-lava hover:bg-lava-glow rounded-lg px-3 py-1.5 text-xs font-semibold
-                            text-white transition-colors disabled:opacity-50"
+                        class="bg-lava hover:bg-lava-glow rounded-lg px-3 py-1.5 text-xs
+                            font-semibold text-white transition-colors disabled:opacity-50"
+                        @click="handleSubmit"
                     >
                         <span v-if="loading">Applying...</span>
                         <span v-else>Apply</span>

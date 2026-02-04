@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const props = defineProps<{
+defineProps<{
     title: string;
     icon: string;
     collapsed: boolean;
@@ -14,8 +14,8 @@ const emit = defineEmits<{
 <template>
     <div class="border-border rounded-md border">
         <button
-            @click="emit('toggle')"
             class="flex w-full items-center justify-between px-2.5 py-2"
+            @click="emit('toggle')"
         >
             <div class="flex items-center gap-1.5">
                 <Icon :name="icon" size="12" class="text-dim" />

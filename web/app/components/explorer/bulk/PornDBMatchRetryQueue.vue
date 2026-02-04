@@ -24,16 +24,16 @@ const emit = defineEmits<{
             </div>
             <div class="flex gap-2">
                 <button
-                    @click="emit('retry')"
                     class="bg-lava hover:bg-lava-glow rounded-lg px-3 py-1.5 text-xs font-semibold
                         text-white transition-colors"
+                    @click="emit('retry')"
                 >
                     Retry All
                 </button>
                 <button
-                    @click="emit('dismiss')"
                     class="border-border hover:border-border-hover rounded-lg border px-3 py-1.5
                         text-xs font-medium text-white transition-all"
+                    @click="emit('dismiss')"
                 >
                     Dismiss
                 </button>

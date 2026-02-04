@@ -287,11 +287,11 @@ async function handleSpriteClick(cue: VttCue) {
                     <span class="text-white">{{ formattedTime }}</span>
                 </div>
                 <button
-                    @click="handleExtractFromPlayer"
                     :disabled="loading || currentTime <= 0"
                     class="bg-lava/10 text-lava border-lava/30 hover:bg-lava/20 ml-auto rounded-md
                         border px-3 py-1.5 text-[11px] font-medium transition-all
                         disabled:pointer-events-none disabled:opacity-40"
+                    @click="handleExtractFromPlayer"
                 >
                     Use This Frame
                 </button>
@@ -331,20 +331,20 @@ async function handleSpriteClick(cue: VttCue) {
                     </div>
                     <div class="flex gap-2">
                         <button
-                            @click="handleUpload"
                             :disabled="loading"
                             class="bg-lava/10 text-lava border-lava/30 hover:bg-lava/20 rounded-md
                                 border px-3 py-1.5 text-[11px] font-medium transition-all
                                 disabled:pointer-events-none disabled:opacity-40"
+                            @click="handleUpload"
                         >
                             Upload
                         </button>
                         <button
-                            @click="clearUpload"
                             :disabled="loading"
                             class="text-dim border-border bg-panel hover:border-border-hover
                                 rounded-md border px-3 py-1.5 text-[11px] font-medium transition-all
                                 hover:text-white disabled:pointer-events-none disabled:opacity-40"
+                            @click="clearUpload"
                         >
                             Cancel
                         </button>
@@ -373,11 +373,11 @@ async function handleSpriteClick(cue: VttCue) {
                 <button
                     v-for="(cue, index) in vttCues"
                     :key="index"
-                    @click="handleSpriteClick(cue)"
                     :disabled="loading"
                     class="border-border hover:border-lava/50 group relative overflow-hidden rounded
                         border transition-all disabled:pointer-events-none disabled:opacity-40"
                     :title="formatDuration(Math.floor(cue.start))"
+                    @click="handleSpriteClick(cue)"
                 >
                     <div class="w-full" :style="getSpriteStyle(cue)" />
                     <div

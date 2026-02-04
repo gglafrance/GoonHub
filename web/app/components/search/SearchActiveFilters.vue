@@ -26,7 +26,7 @@ const removeMarkerLabel = (label: string) => {
                 text-[11px] font-medium"
         >
             "{{ searchStore.query }}"
-            <button @click="searchStore.query = ''" class="hover:text-white">
+            <button class="hover:text-white" @click="searchStore.query = ''">
                 <Icon name="heroicons:x-mark" size="12" />
             </button>
         </span>
@@ -38,7 +38,7 @@ const removeMarkerLabel = (label: string) => {
                 font-medium text-white"
         >
             {{ tag }}
-            <button @click="removeTag(tag)" class="text-dim hover:text-white">
+            <button class="text-dim hover:text-white" @click="removeTag(tag)">
                 <Icon name="heroicons:x-mark" size="12" />
             </button>
         </span>
@@ -50,7 +50,7 @@ const removeMarkerLabel = (label: string) => {
                 font-medium text-white"
         >
             {{ actor }}
-            <button @click="removeActor(actor)" class="text-dim hover:text-white">
+            <button class="text-dim hover:text-white" @click="removeActor(actor)">
                 <Icon name="heroicons:x-mark" size="12" />
             </button>
         </span>
@@ -63,7 +63,7 @@ const removeMarkerLabel = (label: string) => {
         >
             <Icon name="heroicons:bookmark" size="10" class="opacity-50" />
             {{ label }}
-            <button @click="removeMarkerLabel(label)" class="text-dim hover:text-white">
+            <button class="text-dim hover:text-white" @click="removeMarkerLabel(label)">
                 <Icon name="heroicons:x-mark" size="12" />
             </button>
         </span>
@@ -74,7 +74,7 @@ const removeMarkerLabel = (label: string) => {
                 font-medium text-white"
         >
             Studio: {{ searchStore.studio }}
-            <button @click="searchStore.studio = ''" class="text-dim hover:text-white">
+            <button class="text-dim hover:text-white" @click="searchStore.studio = ''">
                 <Icon name="heroicons:x-mark" size="12" />
             </button>
         </span>
@@ -95,11 +95,11 @@ const removeMarkerLabel = (label: string) => {
             </template>
             <template v-else> &lt; {{ Math.floor(searchStore.maxDuration / 60) }} min </template>
             <button
+                class="text-dim hover:text-white"
                 @click="
                     searchStore.minDuration = 0;
                     searchStore.maxDuration = 0;
                 "
-                class="text-dim hover:text-white"
             >
                 <Icon name="heroicons:x-mark" size="12" />
             </button>
@@ -111,7 +111,7 @@ const removeMarkerLabel = (label: string) => {
                 font-medium text-white"
         >
             {{ searchStore.resolution }}
-            <button @click="searchStore.resolution = ''" class="text-dim hover:text-white">
+            <button class="text-dim hover:text-white" @click="searchStore.resolution = ''">
                 <Icon name="heroicons:x-mark" size="12" />
             </button>
         </span>
@@ -123,11 +123,11 @@ const removeMarkerLabel = (label: string) => {
         >
             {{ searchStore.minDate || 'start' }} - {{ searchStore.maxDate || 'now' }}
             <button
+                class="text-dim hover:text-white"
                 @click="
                     searchStore.minDate = '';
                     searchStore.maxDate = '';
                 "
-                class="text-dim hover:text-white"
             >
                 <Icon name="heroicons:x-mark" size="12" />
             </button>
@@ -139,7 +139,7 @@ const removeMarkerLabel = (label: string) => {
                 font-medium text-white"
         >
             Liked
-            <button @click="searchStore.liked = false" class="text-dim hover:text-white">
+            <button class="text-dim hover:text-white" @click="searchStore.liked = false">
                 <Icon name="heroicons:x-mark" size="12" />
             </button>
         </span>
@@ -158,11 +158,11 @@ const removeMarkerLabel = (label: string) => {
             </template>
             <template v-else> &lt;{{ searchStore.maxRating }} </template>
             <button
+                class="text-dim hover:text-white"
                 @click="
                     searchStore.minRating = 0;
                     searchStore.maxRating = 0;
                 "
-                class="text-dim hover:text-white"
             >
                 <Icon name="heroicons:x-mark" size="12" />
             </button>
@@ -182,11 +182,11 @@ const removeMarkerLabel = (label: string) => {
             </template>
             <template v-else> &lt;{{ searchStore.maxJizzCount }} </template>
             <button
+                class="text-dim hover:text-white"
                 @click="
                     searchStore.minJizzCount = 0;
                     searchStore.maxJizzCount = 0;
                 "
-                class="text-dim hover:text-white"
             >
                 <Icon name="heroicons:x-mark" size="12" />
             </button>
@@ -198,7 +198,7 @@ const removeMarkerLabel = (label: string) => {
                 font-medium text-white"
         >
             {{ searchStore.matchType === 'strict' ? 'Strict Match' : 'Frequency Match' }}
-            <button @click="searchStore.matchType = 'broad'" class="text-dim hover:text-white">
+            <button class="text-dim hover:text-white" @click="searchStore.matchType = 'broad'">
                 <Icon name="heroicons:x-mark" size="12" />
             </button>
         </span>

@@ -138,10 +138,10 @@ onMounted(() => {
                             </div>
                         </div>
                         <button
-                            @click="saveConfig(config)"
                             :disabled="saving === config.phase"
                             class="rounded-lg bg-white/5 px-3 py-1 text-[11px] font-medium
                                 text-white transition-colors hover:bg-white/10 disabled:opacity-50"
+                            @click="saveConfig(config)"
                         >
                             {{ saving === config.phase ? 'Saving...' : 'Save' }}
                         </button>
@@ -156,12 +156,12 @@ onMounted(() => {
                             </label>
                             <input
                                 v-model.number="config.max_retries"
-                                @change="config.max_retries = clampRetries(config.max_retries)"
                                 type="number"
                                 min="0"
                                 max="10"
                                 class="border-border bg-surface w-full rounded-lg border px-3 py-1.5
                                     text-xs text-white focus:border-white/20 focus:outline-none"
+                                @change="config.max_retries = clampRetries(config.max_retries)"
                             />
                             <span class="text-dim text-[9px]">0 = no retries</span>
                         </div>
@@ -173,16 +173,16 @@ onMounted(() => {
                             </label>
                             <input
                                 v-model.number="config.initial_delay_seconds"
-                                @change="
-                                    config.initial_delay_seconds = clampDelay(
-                                        config.initial_delay_seconds,
-                                    )
-                                "
                                 type="number"
                                 min="1"
                                 max="3600"
                                 class="border-border bg-surface w-full rounded-lg border px-3 py-1.5
                                     text-xs text-white focus:border-white/20 focus:outline-none"
+                                @change="
+                                    config.initial_delay_seconds = clampDelay(
+                                        config.initial_delay_seconds,
+                                    )
+                                "
                             />
                             <span class="text-dim text-[9px]">
                                 {{ formatDelay(config.initial_delay_seconds) }} before first retry
@@ -196,14 +196,14 @@ onMounted(() => {
                             </label>
                             <input
                                 v-model.number="config.max_delay_seconds"
-                                @change="
-                                    config.max_delay_seconds = clampDelay(config.max_delay_seconds)
-                                "
                                 type="number"
                                 min="1"
                                 max="86400"
                                 class="border-border bg-surface w-full rounded-lg border px-3 py-1.5
                                     text-xs text-white focus:border-white/20 focus:outline-none"
+                                @change="
+                                    config.max_delay_seconds = clampDelay(config.max_delay_seconds)
+                                "
                             />
                             <span class="text-dim text-[9px]">
                                 Cap at {{ formatDelay(config.max_delay_seconds) }}
@@ -217,15 +217,15 @@ onMounted(() => {
                             </label>
                             <input
                                 v-model.number="config.backoff_factor"
-                                @change="
-                                    config.backoff_factor = clampBackoff(config.backoff_factor)
-                                "
                                 type="number"
                                 min="1.0"
                                 max="5.0"
                                 step="0.1"
                                 class="border-border bg-surface w-full rounded-lg border px-3 py-1.5
                                     text-xs text-white focus:border-white/20 focus:outline-none"
+                                @change="
+                                    config.backoff_factor = clampBackoff(config.backoff_factor)
+                                "
                             />
                             <span class="text-dim text-[9px]">Exponential multiplier</span>
                         </div>

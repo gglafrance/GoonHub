@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import type { SceneMatchInfo } from '~/types/explorer';
 import type { PornDBScene } from '~/types/porndb';
-import type { ParsingPreset } from '~/types/parsing-rules';
-
-const props = defineProps<{
+defineProps<{
     visible: boolean;
 }>();
 
@@ -270,8 +268,8 @@ const appliedCount = computed(() => {
                         </div>
                     </div>
                     <button
-                        @click="handleClose"
                         class="text-dim transition-colors hover:text-white"
+                        @click="handleClose"
                     >
                         <Icon name="heroicons:x-mark" size="20" />
                     </button>
@@ -297,9 +295,9 @@ const appliedCount = computed(() => {
                             />
                             <p class="mt-3 text-sm text-red-400">{{ error }}</p>
                             <button
-                                @click="handleClose"
                                 class="border-border hover:border-border-hover mt-4 rounded-lg
                                     border px-4 py-2 text-xs font-medium text-white transition-all"
+                                @click="handleClose"
                             >
                                 Close
                             </button>
@@ -341,19 +339,19 @@ const appliedCount = computed(() => {
                         py-3"
                 >
                     <button
-                        @click="handleClose"
                         class="border-border hover:border-border-hover rounded-lg border px-4 py-2
                             text-xs font-medium text-white transition-all"
+                        @click="handleClose"
                     >
                         {{ applyPhase === 'done' ? 'Done' : 'Cancel' }}
                     </button>
                     <button
                         v-if="applyPhase === 'idle'"
-                        @click="handleApplyAll"
                         :disabled="matchedCount === 0 || isSearching || loading"
                         class="bg-lava hover:bg-lava-glow rounded-lg px-4 py-2 text-xs font-semibold
                             text-white transition-colors disabled:cursor-not-allowed
                             disabled:opacity-50"
+                        @click="handleApplyAll"
                     >
                         Apply {{ matchedCount }} Matches
                     </button>

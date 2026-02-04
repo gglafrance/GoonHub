@@ -54,10 +54,6 @@ const queueFiles = (files: FileList) => {
             </h2>
 
             <div
-                @dragover="handleDragOver"
-                @dragleave="handleDragLeave"
-                @drop="handleDrop"
-                @click="fileInput?.click()"
                 :class="[
                     `cursor-pointer rounded-lg border border-dashed p-5 text-center transition-all
                     duration-200 active:scale-[0.99] sm:p-6 sm:active:scale-100`,
@@ -65,6 +61,10 @@ const queueFiles = (files: FileList) => {
                         ? 'border-lava/50 bg-lava/5'
                         : 'border-border hover:border-border-hover hover:bg-elevated/50',
                 ]"
+                @dragover="handleDragOver"
+                @dragleave="handleDragLeave"
+                @drop="handleDrop"
+                @click="fileInput?.click()"
             >
                 <input
                     ref="fileInput"

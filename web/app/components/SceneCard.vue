@@ -18,7 +18,7 @@ const emit = defineEmits<{
 
 const isPerfectRating = computed(() => props.rating === 5);
 
-const slots = defineSlots<{
+defineSlots<{
     footer?: () => unknown;
 }>();
 
@@ -59,7 +59,6 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
         <!-- Selection Checkbox -->
         <button
             v-if="selectable"
-            @click="handleCheckboxClick"
             class="absolute top-2 left-2 z-30 flex h-5 w-5 items-center justify-center rounded
                 border transition-all"
             :class="
@@ -68,19 +67,20 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                     : `bg-void/60 border-white/30 text-transparent group-hover:text-white/50
                         hover:border-white/50`
             "
+            @click="handleCheckboxClick"
         >
             <Icon name="heroicons:check" size="12" />
         </button>
 
         <NuxtLink
             :to="`/watch/${scene.id}`"
-            @click="handleCardClick"
             class="group border-border bg-surface hover:border-border-hover hover:bg-elevated
                 relative block overflow-hidden rounded-lg border transition-all duration-200"
             :class="[
                 fluid ? 'w-full' : 'w-[280px] sm:w-[320px]',
                 selected ? 'ring-lava/50 ring-2' : '',
             ]"
+            @click="handleCardClick"
         >
             <div
                 class="bg-void relative"

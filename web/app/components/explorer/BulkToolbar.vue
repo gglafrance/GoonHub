@@ -61,8 +61,8 @@ defineExpose({
                 <!-- Selection Info -->
                 <div class="flex items-center gap-3">
                     <button
-                        @click="explorerStore.clearSelection()"
                         class="text-dim transition-colors hover:text-white"
+                        @click="explorerStore.clearSelection()"
                     >
                         <Icon name="heroicons:x-mark" size="18" />
                     </button>
@@ -74,30 +74,30 @@ defineExpose({
                 <!-- Actions -->
                 <div class="flex items-center gap-2">
                     <button
-                        @click="showTagEditor = true"
                         class="border-border bg-panel hover:border-lava/30 hover:text-lava flex
                             items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium
                             text-white transition-all"
+                        @click="showTagEditor = true"
                     >
                         <Icon name="heroicons:tag" size="14" />
                         Tags
                     </button>
 
                     <button
-                        @click="showActorEditor = true"
                         class="border-border bg-panel hover:border-lava/30 hover:text-lava flex
                             items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium
                             text-white transition-all"
+                        @click="showActorEditor = true"
                     >
                         <Icon name="heroicons:user-group" size="14" />
                         Actors
                     </button>
 
                     <button
-                        @click="showStudioEditor = true"
                         class="border-border bg-panel hover:border-lava/30 hover:text-lava flex
                             items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium
                             text-white transition-all"
+                        @click="showStudioEditor = true"
                     >
                         <Icon name="heroicons:building-office" size="14" />
                         Studio
@@ -107,7 +107,6 @@ defineExpose({
 
                     <!-- PornDB Match Button -->
                     <button
-                        @click="showPornDBMatchModal = true"
                         :disabled="allScenesMatched || checkingMatchStatus"
                         :title="
                             allScenesMatched
@@ -122,6 +121,7 @@ defineExpose({
                                 ? 'text-dim'
                                 : 'hover:border-lava/30 hover:text-lava text-white'
                         "
+                        @click="showPornDBMatchModal = true"
                     >
                         <Icon
                             :name="
@@ -137,10 +137,10 @@ defineExpose({
                     <div class="border-border mx-1 h-4 border-l" />
 
                     <button
-                        @click="showDeleteModal = true"
                         class="border-border bg-panel flex items-center gap-1.5 rounded-lg border
                             px-3 py-1.5 text-xs font-medium text-red-400 transition-all
                             hover:border-red-500/50 hover:text-red-300"
+                        @click="showDeleteModal = true"
                     >
                         <Icon name="heroicons:trash" size="14" />
                         Delete

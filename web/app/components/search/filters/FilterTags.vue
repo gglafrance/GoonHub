@@ -47,7 +47,6 @@ const badge = computed(() =>
             <button
                 v-for="tag in filteredTags"
                 :key="tag.id"
-                @click="toggleTag(tag.name)"
                 class="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs
                     transition-colors"
                 :class="
@@ -55,6 +54,7 @@ const badge = computed(() =>
                         ? 'bg-lava/10 text-white'
                         : 'text-dim hover:bg-white/5 hover:text-white'
                 "
+                @click="toggleTag(tag.name)"
             >
                 <span
                     class="h-2 w-2 shrink-0 rounded-full"

@@ -53,18 +53,18 @@ watch(
             v-if="editing"
             ref="textareaRef"
             v-model="editValue"
-            @blur="save"
-            @input="autoResize"
             rows="2"
             class="border-border focus:border-lava/50 w-full resize-none rounded-md border
                 bg-white/5 px-2 py-1.5 text-sm text-white/80 transition-colors outline-none"
+            @blur="save"
+            @input="autoResize"
         />
         <p
             v-else
-            @click="startEditing"
             class="text-dim -mx-2 min-h-8 cursor-pointer rounded-md px-2 py-1.5 text-sm
                 whitespace-pre-wrap transition-colors hover:bg-white/3 hover:text-white"
             :class="{ 'text-white/70': description }"
+            @click="startEditing"
         >
             {{ description || 'No description' }}
         </p>

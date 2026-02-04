@@ -79,24 +79,23 @@ watch(
             <input
                 ref="inputRef"
                 v-model="localQuery"
-                @input="handleInput"
                 type="text"
                 placeholder="Search in this folder..."
                 class="border-border bg-panel focus:border-lava/50 focus:ring-lava/20 w-full
                     rounded-lg border py-1.5 pr-8 pl-9 text-xs text-white placeholder-gray-500
                     transition-colors focus:ring-2 focus:outline-none"
+                @input="handleInput"
             />
             <button
                 v-if="localQuery"
-                @click="handleClear"
                 class="absolute inset-y-0 right-0 flex items-center pr-2"
+                @click="handleClear"
             >
                 <Icon name="heroicons:x-mark" size="14" class="text-dim hover:text-white" />
             </button>
         </div>
 
         <button
-            @click="togglePornDBFilter"
             :class="[
                 'shrink-0 rounded px-2 py-1.5 text-[10px] font-medium tracking-wide uppercase',
                 'border transition-all duration-150',
@@ -107,6 +106,7 @@ watch(
                       : 'border-border bg-panel text-dim hover:border-white/20 hover:text-white/70',
             ]"
             :title="pornDBFilterTitle"
+            @click="togglePornDBFilter"
         >
             {{ pornDBFilterLabel }}
         </button>

@@ -96,9 +96,9 @@ const formatDate = (dateStr: string): string => {
                     </p>
                 </div>
                 <button
-                    @click="openCreate"
                     class="bg-lava hover:bg-lava-glow rounded-lg px-3 py-1.5 text-[11px]
                         font-semibold text-white transition-all"
+                    @click="openCreate"
                 >
                     Add Path
                 </button>
@@ -148,17 +148,17 @@ const formatDate = (dateStr: string): string => {
                             <td class="py-2.5">
                                 <div class="flex gap-2">
                                     <button
-                                        @click="openEdit(path)"
                                         class="text-dim text-[11px] transition-colors
                                             hover:text-white"
+                                        @click="openEdit(path)"
                                     >
                                         Edit
                                     </button>
                                     <button
                                         v-if="storagePaths.length > 1"
-                                        @click="handleDelete(path)"
                                         class="text-lava/70 hover:text-lava text-[11px]
                                             transition-colors"
+                                        @click="handleDelete(path)"
                                     >
                                         Delete
                                     </button>

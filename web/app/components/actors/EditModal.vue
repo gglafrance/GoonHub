@@ -220,7 +220,7 @@ const genderOptions = [
                     {{ error }}
                 </div>
 
-                <form @submit.prevent="handleSubmit" class="space-y-4">
+                <form class="space-y-4" @submit.prevent="handleSubmit">
                     <!-- Image upload -->
                     <div class="flex items-start gap-4">
                         <div
@@ -250,10 +250,10 @@ const genderOptions = [
                             <input
                                 type="file"
                                 accept="image/*"
-                                @change="handleImageChange"
                                 class="border-border bg-void/80 file:bg-panel file:text-dim w-full
                                     rounded-lg border px-3 py-2 text-sm text-white file:mr-3
                                     file:rounded-lg file:border-0 file:px-3 file:py-1 file:text-xs"
+                                @change="handleImageChange"
                             />
                             <div class="mt-2">
                                 <label
@@ -339,11 +339,12 @@ const genderOptions = [
                             />
                             <button
                                 type="button"
-                                @click="addAlias"
                                 :disabled="!newAlias.trim()"
                                 class="border-border bg-panel hover:border-lava/50 hover:text-lava
                                     text-dim shrink-0 rounded-lg border px-3 py-2 text-sm
-                                    transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                                    transition-colors disabled:cursor-not-allowed
+                                    disabled:opacity-40"
+                                @click="addAlias"
                             >
                                 Add
                             </button>
@@ -358,8 +359,8 @@ const genderOptions = [
                                 {{ alias }}
                                 <button
                                     type="button"
-                                    @click="removeAlias(index)"
                                     class="text-dim hover:text-lava transition-colors"
+                                    @click="removeAlias(index)"
                                 >
                                     <Icon name="heroicons:x-mark" size="12" />
                                 </button>
@@ -638,9 +639,9 @@ const genderOptions = [
                     <div class="flex justify-end gap-2 pt-2">
                         <button
                             type="button"
-                            @click="handleClose"
                             class="text-dim rounded-lg px-3 py-1.5 text-xs transition-colors
                                 hover:text-white"
+                            @click="handleClose"
                         >
                             Cancel
                         </button>
