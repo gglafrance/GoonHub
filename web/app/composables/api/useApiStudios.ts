@@ -145,14 +145,21 @@ export const useApiStudios = () => {
         return handleResponse(response);
     };
 
-    const fetchAllStudioSceneIDs = async (uuid: string): Promise<number[]> => {
+    const fetchAllStudioSceneIDs = async (uuid: string, studioName: string): Promise<number[]> => {
         const allIds: number[] = [];
         let page = 1;
         const limit = 100;
         let hasMore = true;
 
         while (hasMore) {
-            const response = await fetchStudioScenes(uuid, page, limit);
+            const response = await fetchStudioScenes(
+                uuid,
+                page,
+                limit,
+                undefined,
+                undefined,
+                studioName,
+            );
             const sceneIds = response.data.map((scene: { id: number }) => scene.id);
             allIds.push(...sceneIds);
             hasMore = response.data.length === limit && allIds.length < response.total;

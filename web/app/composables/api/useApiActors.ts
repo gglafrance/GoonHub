@@ -148,14 +148,21 @@ export const useApiActors = () => {
         return handleResponse(response);
     };
 
-    const fetchAllActorSceneIDs = async (uuid: string): Promise<number[]> => {
+    const fetchAllActorSceneIDs = async (uuid: string, actorName: string): Promise<number[]> => {
         const allIds: number[] = [];
         let page = 1;
         const limit = 100;
         let hasMore = true;
 
         while (hasMore) {
-            const response = await fetchActorScenes(uuid, page, limit);
+            const response = await fetchActorScenes(
+                uuid,
+                page,
+                limit,
+                undefined,
+                undefined,
+                actorName,
+            );
             const sceneIds = response.data.map((scene: { id: number }) => scene.id);
             allIds.push(...sceneIds);
             hasMore = response.data.length === limit && allIds.length < response.total;

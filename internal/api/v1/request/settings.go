@@ -40,3 +40,33 @@ type HomepageSectionRequest struct {
 	Sort    string                 `json:"sort"`
 	Config  map[string]interface{} `json:"config"`
 }
+
+type UpdateParsingRulesRequest struct {
+	Presets        []ParsingPresetRequest `json:"presets" binding:"dive"`
+	ActivePresetID *string                `json:"activePresetId"`
+}
+
+type ParsingPresetRequest struct {
+	ID        string                `json:"id" binding:"required"`
+	Name      string                `json:"name" binding:"required,max=100"`
+	IsBuiltIn bool                  `json:"isBuiltIn"`
+	Rules     []ParsingRuleRequest  `json:"rules" binding:"dive"`
+}
+
+type ParsingRuleRequest struct {
+	ID      string                   `json:"id" binding:"required"`
+	Type    string                   `json:"type" binding:"required"`
+	Enabled bool                     `json:"enabled"`
+	Order   int                      `json:"order" binding:"min=0"`
+	Config  ParsingRuleConfigRequest `json:"config"`
+}
+
+type ParsingRuleConfigRequest struct {
+	KeepContent   bool   `json:"keepContent,omitempty"`
+	Pattern       string `json:"pattern,omitempty"`
+	Find          string `json:"find,omitempty"`
+	Replace       string `json:"replace,omitempty"`
+	CaseSensitive bool   `json:"caseSensitive,omitempty"`
+	MinLength     int    `json:"minLength,omitempty"`
+	CaseType      string `json:"caseType,omitempty"`
+}

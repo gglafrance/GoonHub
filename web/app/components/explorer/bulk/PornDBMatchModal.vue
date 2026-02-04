@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SceneMatchInfo } from '~/types/explorer';
 import type { PornDBScene } from '~/types/porndb';
+import type { ParsingPreset } from '~/types/parsing-rules';
 
 const props = defineProps<{
     visible: boolean;
@@ -12,8 +13,10 @@ const emit = defineEmits<{
 }>();
 
 const explorerStore = useExplorerStore();
+const settingsStore = useSettingsStore();
 const { getScenesMatchInfo } = useApiExplorer();
 const { calculateConfidence } = useConfidenceCalculator();
+const { getBuiltInPresets } = useParsingRulesEngine();
 
 const {
     results,
@@ -35,9 +38,40 @@ const {
 const loading = ref(false);
 const error = ref<string | null>(null);
 const manualSearchScene = ref<SceneMatchInfo | null>(null);
+const selectedPresetId = ref<string | null>(null);
+const loadedScenes = ref<SceneMatchInfo[]>([]);
 
-// Load and search when modal opens
-onMounted(() => {
+// Available presets (built-in + user presets)
+const availablePresets = computed(() => {
+    const builtIn = getBuiltInPresets();
+    const userPresets = settingsStore.parsingRules?.presets.filter((p) => !p.isBuiltIn) || [];
+    return [...builtIn, ...userPresets];
+});
+
+// Get rules for selected preset
+const selectedPresetRules = computed(() => {
+    if (!selectedPresetId.value) return undefined;
+
+    // Check built-in presets
+    const builtIn = getBuiltInPresets().find((p) => p.id === selectedPresetId.value);
+    if (builtIn) return builtIn.rules;
+
+    // Check user presets
+    const userPreset = settingsStore.parsingRules?.presets.find(
+        (p) => p.id === selectedPresetId.value,
+    );
+    return userPreset?.rules;
+});
+
+// Load parsing rules and search when modal opens
+onMounted(async () => {
+    // Load parsing rules if not already loaded
+    if (!settingsStore.parsingRules) {
+        await settingsStore.loadParsingRules();
+    }
+    // Set default preset from settings
+    selectedPresetId.value = settingsStore.parsingRules?.activePresetId || null;
+
     loadAndSearch();
 });
 
@@ -49,6 +83,7 @@ async function loadAndSearch() {
         const sceneIds = explorerStore.getSelectedSceneIDs();
         if (sceneIds.length === 0) {
             error.value = 'No scenes selected';
+            loading.value = false;
             return;
         }
 
@@ -56,22 +91,45 @@ async function loadAndSearch() {
         const response = await getScenesMatchInfo(sceneIds);
         const scenes = response.scenes;
 
+        // Store scenes for re-searching when preset changes
+        loadedScenes.value = scenes;
+
         // Filter out already matched scenes from automatic search
         const unmatchedScenes = scenes.filter((s) => !s.porndb_scene_id);
 
         if (unmatchedScenes.length === 0 && scenes.length > 0) {
             error.value = 'All selected scenes already have PornDB matches';
+            loading.value = false;
             return;
         }
 
-        // Start searching
-        await searchScenes(scenes);
+        // Done loading scene data - show results immediately as search progresses
+        loading.value = false;
+
+        // Start searching with selected preset rules (don't await - let results stream in)
+        searchScenes(scenes, selectedPresetRules.value);
     } catch (e) {
         error.value = e instanceof Error ? e.message : 'Failed to load scenes';
-    } finally {
         loading.value = false;
     }
 }
+
+// Re-search when preset changes
+async function handlePresetChange() {
+    // Don't re-search if no scenes loaded, still loading, or already applying
+    if (loadedScenes.value.length === 0 || loading.value || applyPhase.value !== 'idle') return;
+
+    // Reset and re-search with new rules
+    reset();
+    await searchScenes(loadedScenes.value, selectedPresetRules.value);
+}
+
+// Watch for preset changes (skip initial value)
+watch(selectedPresetId, (_newVal, oldVal) => {
+    // Skip if this is the initial setup (oldVal is undefined on first watch trigger)
+    if (oldVal === undefined) return;
+    handlePresetChange();
+});
 
 async function handleApplyAll() {
     await applyAllMatched();
@@ -152,23 +210,62 @@ const appliedCount = computed(() => {
                 >
                     <div class="flex items-center gap-3">
                         <h2 class="text-sm font-semibold text-white">Bulk Match with ThePornDB</h2>
-                        <!-- Status badge -->
-                        <div v-if="isSearching" class="flex items-center gap-2">
-                            <LoadingSpinner class="h-4 w-4" />
+                        <!-- Preset selector -->
+                        <select
+                            v-model="selectedPresetId"
+                            :disabled="isSearching || loading"
+                            class="border-border bg-void/80 focus:border-lava/40 focus:ring-lava/20
+                                rounded border px-2 py-1 text-xs text-white transition-all
+                                focus:ring-1 focus:outline-none disabled:opacity-50"
+                        >
+                            <option :value="null">No parsing rules</option>
+                            <option
+                                v-for="preset in availablePresets"
+                                :key="preset.id"
+                                :value="preset.id"
+                            >
+                                {{ preset.name }}
+                            </option>
+                        </select>
+                        <!-- Status badges -->
+                        <div v-if="isSearching" class="flex items-center gap-1.5">
+                            <LoadingSpinner class="scale-50" />
                             <span class="text-dim text-xs">
                                 Searching {{ searchProgress.current }}/{{ searchProgress.total }}...
                             </span>
                         </div>
-                        <div v-else-if="!loading" class="text-dim text-xs">
-                            {{ matchedCount }} matches found
-                            <span v-if="skippedCount > 0">
-                                &middot; {{ skippedCount }} skipped</span
+                        <div v-else-if="!loading" class="flex items-center gap-1.5">
+                            <span
+                                v-if="matchedCount > 0"
+                                class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15
+                                    px-2 py-0.5 text-xs font-medium text-emerald-400"
                             >
-                            <span v-if="noMatchCount > 0">
-                                &middot; {{ noMatchCount }} no match</span
+                                <Icon name="heroicons:check-circle-16-solid" size="12" />
+                                {{ matchedCount }} matched
+                            </span>
+                            <span
+                                v-if="skippedCount > 0"
+                                class="inline-flex items-center gap-1 rounded-full bg-amber-500/15
+                                    px-2 py-0.5 text-xs font-medium text-amber-400"
                             >
-                            <span v-if="appliedCount > 0" class="text-emerald-400">
-                                &middot; {{ appliedCount }} applied
+                                <Icon name="heroicons:arrow-right-circle-16-solid" size="12" />
+                                {{ skippedCount }} skipped
+                            </span>
+                            <span
+                                v-if="noMatchCount > 0"
+                                class="text-dim inline-flex items-center gap-1 rounded-full
+                                    bg-white/5 px-2 py-0.5 text-xs font-medium"
+                            >
+                                <Icon name="heroicons:x-circle-16-solid" size="12" />
+                                {{ noMatchCount }} no match
+                            </span>
+                            <span
+                                v-if="appliedCount > 0"
+                                class="inline-flex items-center gap-1 rounded-full bg-sky-500/15
+                                    px-2 py-0.5 text-xs font-medium text-sky-400"
+                            >
+                                <Icon name="heroicons:cloud-arrow-up-16-solid" size="12" />
+                                {{ appliedCount }} applied
                             </span>
                         </div>
                     </div>

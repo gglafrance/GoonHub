@@ -1,3 +1,5 @@
+import type { ParsingRulesSettings } from './parsing-rules';
+
 export interface UserSettings {
     id: number;
     user_id: number;
@@ -8,6 +10,7 @@ export interface UserSettings {
     default_sort_order: SortOrder;
     default_tag_sort: TagSort;
     marker_thumbnail_cycling: boolean;
+    parsing_rules: ParsingRulesSettings;
     created_at: string;
     updated_at: string;
 }

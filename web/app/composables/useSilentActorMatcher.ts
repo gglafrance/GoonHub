@@ -74,8 +74,11 @@ export function useSilentActorMatcher() {
                     return false;
                 });
 
-                if (exactMatch && !actorIds.includes(exactMatch.id)) {
-                    actorIds.push(exactMatch.id);
+                if (exactMatch) {
+                    if (!actorIds.includes(exactMatch.id)) {
+                        actorIds.push(exactMatch.id);
+                    }
+                    // Skip to next performer - actor already exists locally
                     continue;
                 }
 

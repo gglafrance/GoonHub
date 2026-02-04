@@ -19,6 +19,7 @@ type TabType =
     | 'app'
     | 'homepage'
     | 'tags'
+    | 'parsing-rules'
     | 'users'
     | 'jobs'
     | 'storage'
@@ -47,6 +48,7 @@ const tabConfig: TabConfig[] = [
     { id: 'app', label: 'App', icon: 'heroicons:cog-6-tooth' },
     { id: 'homepage', label: 'Homepage', icon: 'heroicons:home' },
     { id: 'tags', label: 'Tags', icon: 'heroicons:tag' },
+    { id: 'parsing-rules', label: 'Parsing Rules', icon: 'heroicons:funnel' },
     { id: 'users', label: 'Users', icon: 'heroicons:users', admin: true },
     {
         id: 'jobs',
@@ -359,6 +361,7 @@ definePageMeta({
                 <SettingsApp v-if="activeTab === 'app'" />
                 <SettingsHomepage v-if="activeTab === 'homepage'" />
                 <SettingsTags v-if="activeTab === 'tags'" />
+                <SettingsParsingRules v-if="activeTab === 'parsing-rules'" />
                 <SettingsUsers v-if="activeTab === 'users'" />
                 <SettingsJobs v-if="activeTab === 'jobs'" :active-sub-tab="activeSubTab" />
                 <SettingsStorage v-if="activeTab === 'storage'" />

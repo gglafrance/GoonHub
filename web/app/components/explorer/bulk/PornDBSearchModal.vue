@@ -12,10 +12,13 @@ const emit = defineEmits<{
     select: [scene: PornDBScene];
 }>();
 
-// Convert SceneMatchInfo to minimal object for WatchSceneSearch
+// Convert SceneMatchInfo to full object for WatchSceneSearch (enables confidence calculation)
 const sceneForSearch = computed(() => ({
     title: props.scene.title,
     studio: props.scene.studio,
+    original_filename: props.scene.original_filename,
+    actors: props.scene.actors,
+    duration: props.scene.duration,
 }));
 
 function onSceneSelected(scene: PornDBScene) {
@@ -28,8 +31,7 @@ function onSceneSelected(scene: PornDBScene) {
     <Teleport to="body">
         <div
             v-if="visible"
-            class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80
-                backdrop-blur-sm"
+            class="fixed inset-0 z-60 flex items-center justify-center bg-black/80 backdrop-blur-sm"
             @click.self="emit('close')"
         >
             <div

@@ -123,6 +123,8 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					settings.PUT("/username", settingsHandler.ChangeUsername)
 					settings.GET("/homepage", settingsHandler.GetHomepageConfig)
 					settings.PUT("/homepage", settingsHandler.UpdateHomepageConfig)
+					settings.GET("/parsing-rules", settingsHandler.GetParsingRules)
+					settings.PUT("/parsing-rules", settingsHandler.UpdateParsingRules)
 				}
 
 				homepage := protected.Group("/homepage")

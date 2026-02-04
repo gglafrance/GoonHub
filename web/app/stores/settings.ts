@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import type { UserSettings, SortOrder, TagSort, KeyboardLayout } from '~/types/settings';
+import type { ParsingRulesSettings, ParsingPreset } from '~/types/parsing-rules';
 
 export const useSettingsStore = defineStore(
     'settings',
@@ -9,12 +10,16 @@ export const useSettingsStore = defineStore(
         const error = ref<string | null>(null);
         const theaterMode = ref(false);
         const keyboardLayout = ref<KeyboardLayout>('qwerty');
+        const parsingRules = ref<ParsingRulesSettings | null>(null);
+        const parsingRulesLoading = ref(false);
 
         const {
             fetchSettings: apiFetchSettings,
             updatePlayerSettings: apiUpdatePlayer,
             updateAppSettings: apiUpdateApp,
             updateTagSettings: apiUpdateTags,
+            getParsingRules: apiGetParsingRules,
+            updateParsingRules: apiUpdateParsingRules,
         } = useApi();
 
         const autoplay = computed(() => settings.value?.autoplay ?? false);
@@ -112,6 +117,45 @@ export const useSettingsStore = defineStore(
             keyboardLayout.value = layout;
         };
 
+        // Parsing rules
+        const activePreset = computed<ParsingPreset | null>(() => {
+            if (!parsingRules.value || !parsingRules.value.activePresetId) return null;
+            return (
+                parsingRules.value.presets.find(
+                    (p) => p.id === parsingRules.value!.activePresetId,
+                ) || null
+            );
+        });
+
+        const loadParsingRules = async () => {
+            parsingRulesLoading.value = true;
+            try {
+                const data = await apiGetParsingRules();
+                parsingRules.value = data;
+            } catch (e: unknown) {
+                const message = e instanceof Error ? e.message : 'Unknown error';
+                if (message !== 'Unauthorized') {
+                    console.error('Failed to load parsing rules:', message);
+                }
+            } finally {
+                parsingRulesLoading.value = false;
+            }
+        };
+
+        const saveParsingRules = async (rules: ParsingRulesSettings) => {
+            parsingRulesLoading.value = true;
+            try {
+                const data = await apiUpdateParsingRules(rules);
+                parsingRules.value = data;
+            } catch (e: unknown) {
+                const message = e instanceof Error ? e.message : 'Unknown error';
+                error.value = message;
+                throw e;
+            } finally {
+                parsingRulesLoading.value = false;
+            }
+        };
+
         return {
             settings,
             isLoading,
@@ -125,12 +169,17 @@ export const useSettingsStore = defineStore(
             markerThumbnailCycling,
             theaterMode,
             keyboardLayout,
+            parsingRules,
+            parsingRulesLoading,
+            activePreset,
             loadSettings,
             updatePlayer,
             updateApp,
             updateTags,
             toggleTheaterMode,
             setKeyboardLayout,
+            loadParsingRules,
+            saveParsingRules,
         };
     },
     {

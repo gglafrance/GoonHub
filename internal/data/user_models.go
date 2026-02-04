@@ -60,6 +60,7 @@ type UserSettings struct {
 	DefaultTagSort          string         `gorm:"not null;default:'az'" json:"default_tag_sort"`
 	MarkerThumbnailCycling  bool           `gorm:"not null;default:true" json:"marker_thumbnail_cycling"`
 	HomepageConfig          HomepageConfig `gorm:"type:jsonb;not null" json:"homepage_config"`
+	ParsingRules            ParsingRulesSettings `gorm:"type:jsonb;not null" json:"parsing_rules"`
 }
 
 // HomepageConfig represents the user's homepage layout configuration
@@ -125,5 +126,76 @@ func DefaultHomepageConfig() HomepageConfig {
 				Config:  map[string]interface{}{},
 			},
 		},
+	}
+}
+
+// ParsingRulesSettings represents the user's parsing rules configuration
+type ParsingRulesSettings struct {
+	Presets        []ParsingPreset `json:"presets"`
+	ActivePresetID *string         `json:"activePresetId"`
+}
+
+// ParsingPreset represents a saved set of parsing rules
+type ParsingPreset struct {
+	ID        string        `json:"id"`
+	Name      string        `json:"name"`
+	IsBuiltIn bool          `json:"isBuiltIn"`
+	Rules     []ParsingRule `json:"rules"`
+}
+
+// ParsingRule represents a single filename parsing rule
+type ParsingRule struct {
+	ID      string            `json:"id"`
+	Type    string            `json:"type"`
+	Enabled bool              `json:"enabled"`
+	Order   int               `json:"order"`
+	Config  ParsingRuleConfig `json:"config"`
+}
+
+// ParsingRuleConfig holds configuration for specific rule types
+type ParsingRuleConfig struct {
+	KeepContent   bool   `json:"keepContent,omitempty"`   // remove_brackets: keep content inside brackets
+	Pattern       string `json:"pattern,omitempty"`       // regex_remove
+	Find          string `json:"find,omitempty"`          // text_replace
+	Replace       string `json:"replace,omitempty"`       // text_replace
+	CaseSensitive bool   `json:"caseSensitive,omitempty"` // text_replace
+	MinLength     int    `json:"minLength,omitempty"`     // word_length_filter
+	CaseType      string `json:"caseType,omitempty"`      // case_normalize
+}
+
+// Value implements the driver.Valuer interface for JSONB storage
+func (p ParsingRulesSettings) Value() (driver.Value, error) {
+	return json.Marshal(p)
+}
+
+// Scan implements the sql.Scanner interface for JSONB retrieval
+func (p *ParsingRulesSettings) Scan(value any) error {
+	if value == nil {
+		*p = DefaultParsingRulesSettings()
+		return nil
+	}
+
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("failed to scan ParsingRulesSettings: expected []byte")
+	}
+
+	if err := json.Unmarshal(bytes, p); err != nil {
+		return err
+	}
+
+	// Ensure Presets is never nil so it serializes as [] instead of null
+	if p.Presets == nil {
+		p.Presets = []ParsingPreset{}
+	}
+
+	return nil
+}
+
+// DefaultParsingRulesSettings returns the default parsing rules configuration
+func DefaultParsingRulesSettings() ParsingRulesSettings {
+	return ParsingRulesSettings{
+		Presets:        []ParsingPreset{},
+		ActivePresetID: nil,
 	}
 }

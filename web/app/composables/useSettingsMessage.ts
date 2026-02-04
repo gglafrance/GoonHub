@@ -7,10 +7,19 @@ export const useSettingsMessage = () => {
         error.value = '';
     };
 
-    const setError = (e: unknown, fallback: string) => {
+    const setMessage = (msg: string) => {
         clearMessages();
-        error.value = e instanceof Error ? e.message : fallback;
+        message.value = msg;
     };
 
-    return { message, error, clearMessages, setError };
+    const setError = (e: unknown, fallback?: string) => {
+        clearMessages();
+        if (typeof e === 'string') {
+            error.value = e;
+        } else {
+            error.value = e instanceof Error ? e.message : (fallback ?? 'Unknown error');
+        }
+    };
+
+    return { message, error, clearMessages, setMessage, setError };
 };

@@ -1,6 +1,7 @@
 import type { PornDBScene } from '~/types/porndb';
 import type { SceneMatchInfo } from '~/types/explorer';
 import type { BulkMatchResult, ApplyPhase, ConfidenceBreakdown } from '~/types/bulk-match';
+import type { ParsingRule } from '~/types/parsing-rules';
 
 /**
  * Main orchestrator for bulk PornDB scene matching.
@@ -11,6 +12,7 @@ export function useBulkPornDBMatching() {
     const { calculateConfidence } = useConfidenceCalculator();
     const { matchActors } = useSilentActorMatcher();
     const { matchStudio } = useSilentStudioMatcher();
+    const { applyRules } = useParsingRulesEngine();
 
     // State
     const results = ref<Map<number, BulkMatchResult>>(new Map());
@@ -63,9 +65,15 @@ export function useBulkPornDBMatching() {
     /**
      * Build a search query from scene info.
      * Uses filename + actors + studio, falls back to title.
+     * @param scene The scene to build a query for
+     * @param rules Optional parsing rules to apply to filename
      */
-    function buildSearchQuery(scene: SceneMatchInfo): string {
-        const filename = cleanFilename(scene.original_filename);
+    function buildSearchQuery(scene: SceneMatchInfo, rules?: ParsingRule[]): string {
+        // Use parsing rules if provided, otherwise use cleanFilename
+        const filename =
+            rules && rules.length > 0
+                ? applyRules(scene.original_filename, rules)
+                : cleanFilename(scene.original_filename);
 
         // Start with cleaned filename
         let query = filename;
@@ -133,8 +141,10 @@ export function useBulkPornDBMatching() {
     /**
      * Search for matches for all provided scenes.
      * Results are streamed as they arrive.
+     * @param scenes Scenes to search for
+     * @param rules Optional parsing rules to apply to filenames
      */
-    async function searchScenes(scenes: SceneMatchInfo[]): Promise<void> {
+    async function searchScenes(scenes: SceneMatchInfo[], rules?: ParsingRule[]): Promise<void> {
         isSearching.value = true;
         searchProgress.value = { current: 0, total: scenes.length };
         results.value = new Map();
@@ -164,7 +174,7 @@ export function useBulkPornDBMatching() {
             });
 
             try {
-                const query = buildSearchQuery(scene);
+                const query = buildSearchQuery(scene, rules);
                 const searchResults = await searchPornDBScenes({ title: query });
                 const best = selectBestMatch(scene, searchResults);
 

@@ -32,7 +32,7 @@ watch(
             sceneIds.value = [];
             loadingSceneIds.value = true;
             try {
-                sceneIds.value = await fetchAllActorSceneIDs(props.actor.uuid);
+                sceneIds.value = await fetchAllActorSceneIDs(props.actor.uuid, props.actor.name);
             } catch (e: unknown) {
                 error.value = e instanceof Error ? e.message : 'Failed to fetch actor scenes';
             } finally {

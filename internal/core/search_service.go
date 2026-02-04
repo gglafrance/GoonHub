@@ -86,6 +86,31 @@ func (s *SearchService) Search(params data.SceneSearchParams) ([]data.Scene, int
 		}
 	}
 
+	// Handle PornDB ID filter by pre-querying PostgreSQL
+	if params.HasPornDBID != nil {
+		var porndbIDs []uint
+		var err error
+		if *params.HasPornDBID {
+			porndbIDs, err = s.sceneRepo.GetSceneIDsWithPornDBID()
+		} else {
+			porndbIDs, err = s.sceneRepo.GetSceneIDsWithoutPornDBID()
+		}
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to get PornDB scene IDs: %w", err)
+		}
+		if len(porndbIDs) == 0 {
+			return []data.Scene{}, 0, nil
+		}
+		if len(preFilteredIDs) > 0 {
+			preFilteredIDs = intersect(preFilteredIDs, porndbIDs)
+			if len(preFilteredIDs) == 0 {
+				return []data.Scene{}, 0, nil
+			}
+		} else {
+			preFilteredIDs = porndbIDs
+		}
+	}
+
 	// Build Meilisearch search params
 	meiliParams := s.buildMeiliParams(params, preFilteredIDs)
 

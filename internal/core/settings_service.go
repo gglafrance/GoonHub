@@ -273,3 +273,118 @@ func (s *SettingsService) ChangeUsername(userID uint, newUsername string) error 
 	s.logger.Info("Username changed", zap.Uint("user_id", userID), zap.String("new_username", newUsername))
 	return nil
 }
+
+func (s *SettingsService) GetParsingRules(userID uint) (*data.ParsingRulesSettings, error) {
+	settings, err := s.settingsRepo.GetByUserID(userID)
+	if err != nil {
+		defaultRules := data.DefaultParsingRulesSettings()
+		return &defaultRules, nil
+	}
+	return &settings.ParsingRules, nil
+}
+
+func (s *SettingsService) UpdateParsingRules(userID uint, rules data.ParsingRulesSettings) (*data.UserSettings, error) {
+	if err := s.validateParsingRules(&rules); err != nil {
+		return nil, err
+	}
+
+	settings, err := s.settingsRepo.GetByUserID(userID)
+	if err != nil {
+		settings = &data.UserSettings{
+			UserID:         userID,
+			HomepageConfig: data.DefaultHomepageConfig(),
+			ParsingRules:   data.DefaultParsingRulesSettings(),
+		}
+	}
+
+	settings.ParsingRules = rules
+
+	if err := s.settingsRepo.Upsert(settings); err != nil {
+		return nil, fmt.Errorf("failed to update parsing rules: %w", err)
+	}
+
+	return settings, nil
+}
+
+var allowedRuleTypes = map[string]bool{
+	"remove_brackets":      true,
+	"remove_numbers":       true,
+	"remove_years":         true,
+	"remove_special_chars": true,
+	"remove_stopwords":     true,
+	"remove_duplicates":    true,
+	"regex_remove":         true,
+	"text_replace":         true,
+	"word_length_filter":   true,
+	"case_normalize":       true,
+}
+
+var allowedCaseTypes = map[string]bool{
+	"lower": true,
+	"upper": true,
+	"title": true,
+}
+
+func (s *SettingsService) validateParsingRules(rules *data.ParsingRulesSettings) error {
+	if len(rules.Presets) > 20 {
+		return fmt.Errorf("maximum of 20 presets allowed")
+	}
+
+	seenIDs := make(map[string]bool)
+	for i, preset := range rules.Presets {
+		if preset.ID == "" {
+			return fmt.Errorf("preset %d: id is required", i)
+		}
+		if seenIDs[preset.ID] {
+			return fmt.Errorf("preset %d: duplicate id '%s'", i, preset.ID)
+		}
+		seenIDs[preset.ID] = true
+
+		if preset.Name == "" {
+			return fmt.Errorf("preset %d: name is required", i)
+		}
+		if len(preset.Name) > 100 {
+			return fmt.Errorf("preset %d: name must be 100 characters or less", i)
+		}
+
+		if len(preset.Rules) > 50 {
+			return fmt.Errorf("preset %d: maximum of 50 rules per preset allowed", i)
+		}
+
+		for j, rule := range preset.Rules {
+			if rule.ID == "" {
+				return fmt.Errorf("preset %d, rule %d: id is required", i, j)
+			}
+			if !allowedRuleTypes[rule.Type] {
+				return fmt.Errorf("preset %d, rule %d: invalid type '%s'", i, j, rule.Type)
+			}
+
+			// Validate rule-specific config
+			if rule.Type == "case_normalize" && rule.Config.CaseType != "" {
+				if !allowedCaseTypes[rule.Config.CaseType] {
+					return fmt.Errorf("preset %d, rule %d: invalid case type '%s'", i, j, rule.Config.CaseType)
+				}
+			}
+
+			if rule.Type == "word_length_filter" && rule.Config.MinLength < 0 {
+				return fmt.Errorf("preset %d, rule %d: minLength must be non-negative", i, j)
+			}
+		}
+	}
+
+	// Validate activePresetId references an existing preset
+	if rules.ActivePresetID != nil && *rules.ActivePresetID != "" {
+		found := false
+		for _, preset := range rules.Presets {
+			if preset.ID == *rules.ActivePresetID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("activePresetId references non-existent preset")
+		}
+	}
+
+	return nil
+}
