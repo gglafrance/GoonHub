@@ -83,6 +83,7 @@ async function loadAndSearch() {
         const sceneIds = explorerStore.getSelectedSceneIDs();
         if (sceneIds.length === 0) {
             error.value = 'No scenes selected';
+            loading.value = false;
             return;
         }
 
@@ -98,14 +99,17 @@ async function loadAndSearch() {
 
         if (unmatchedScenes.length === 0 && scenes.length > 0) {
             error.value = 'All selected scenes already have PornDB matches';
+            loading.value = false;
             return;
         }
 
-        // Start searching with selected preset rules
-        await searchScenes(scenes, selectedPresetRules.value);
+        // Done loading scene data - show results immediately as search progresses
+        loading.value = false;
+
+        // Start searching with selected preset rules (don't await - let results stream in)
+        searchScenes(scenes, selectedPresetRules.value);
     } catch (e) {
         error.value = e instanceof Error ? e.message : 'Failed to load scenes';
-    } finally {
         loading.value = false;
     }
 }
@@ -223,23 +227,45 @@ const appliedCount = computed(() => {
                                 {{ preset.name }}
                             </option>
                         </select>
-                        <!-- Status badge -->
-                        <div v-if="isSearching" class="flex items-center gap-2">
-                            <LoadingSpinner class="h-4 w-4" />
+                        <!-- Status badges -->
+                        <div v-if="isSearching" class="flex items-center gap-1.5">
+                            <LoadingSpinner class="scale-50" />
                             <span class="text-dim text-xs">
                                 Searching {{ searchProgress.current }}/{{ searchProgress.total }}...
                             </span>
                         </div>
-                        <div v-else-if="!loading" class="text-dim text-xs">
-                            {{ matchedCount }} matches found
-                            <span v-if="skippedCount > 0">
-                                &middot; {{ skippedCount }} skipped</span
+                        <div v-else-if="!loading" class="flex items-center gap-1.5">
+                            <span
+                                v-if="matchedCount > 0"
+                                class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15
+                                    px-2 py-0.5 text-xs font-medium text-emerald-400"
                             >
-                            <span v-if="noMatchCount > 0">
-                                &middot; {{ noMatchCount }} no match</span
+                                <Icon name="heroicons:check-circle-16-solid" size="12" />
+                                {{ matchedCount }} matched
+                            </span>
+                            <span
+                                v-if="skippedCount > 0"
+                                class="inline-flex items-center gap-1 rounded-full bg-amber-500/15
+                                    px-2 py-0.5 text-xs font-medium text-amber-400"
                             >
-                            <span v-if="appliedCount > 0" class="text-emerald-400">
-                                &middot; {{ appliedCount }} applied
+                                <Icon name="heroicons:arrow-right-circle-16-solid" size="12" />
+                                {{ skippedCount }} skipped
+                            </span>
+                            <span
+                                v-if="noMatchCount > 0"
+                                class="text-dim inline-flex items-center gap-1 rounded-full
+                                    bg-white/5 px-2 py-0.5 text-xs font-medium"
+                            >
+                                <Icon name="heroicons:x-circle-16-solid" size="12" />
+                                {{ noMatchCount }} no match
+                            </span>
+                            <span
+                                v-if="appliedCount > 0"
+                                class="inline-flex items-center gap-1 rounded-full bg-sky-500/15
+                                    px-2 py-0.5 text-xs font-medium text-sky-400"
+                            >
+                                <Icon name="heroicons:cloud-arrow-up-16-solid" size="12" />
+                                {{ appliedCount }} applied
                             </span>
                         </div>
                     </div>
