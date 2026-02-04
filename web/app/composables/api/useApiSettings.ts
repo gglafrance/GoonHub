@@ -1,7 +1,8 @@
 import type { HomepageConfig } from '~/types/homepage';
+import type { ParsingRulesSettings } from '~/types/parsing-rules';
 
 /**
- * User settings API operations: player, app, tags, account, homepage.
+ * User settings API operations: player, app, tags, account, homepage, parsing rules.
  */
 export const useApiSettings = () => {
     const { fetchOptions, getAuthHeaders, handleResponse } = useApiCore();
@@ -84,6 +85,25 @@ export const useApiSettings = () => {
         return handleResponse(response);
     };
 
+    const getParsingRules = async (): Promise<ParsingRulesSettings> => {
+        const response = await fetch('/api/v1/settings/parsing-rules', {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const updateParsingRules = async (
+        settings: ParsingRulesSettings,
+    ): Promise<ParsingRulesSettings> => {
+        const response = await fetch('/api/v1/settings/parsing-rules', {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(settings),
+        });
+        return handleResponse(response);
+    };
+
     return {
         fetchSettings,
         updatePlayerSettings,
@@ -93,5 +113,7 @@ export const useApiSettings = () => {
         changeUsername,
         getHomepageConfig,
         updateHomepageConfig,
+        getParsingRules,
+        updateParsingRules,
     };
 };

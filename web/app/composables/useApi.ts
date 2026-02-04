@@ -62,6 +62,8 @@ export const useApi = () => {
         updateTagSettings: settings.updateTagSettings,
         changePassword: settings.changePassword,
         changeUsername: settings.changeUsername,
+        getParsingRules: settings.getParsingRules,
+        updateParsingRules: settings.updateParsingRules,
 
         // Admin user operations
         fetchAdminUsers: admin.fetchAdminUsers,
