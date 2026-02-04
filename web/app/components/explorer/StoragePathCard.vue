@@ -5,18 +5,14 @@ const props = defineProps<{
     storagePath: StoragePathWithCount;
 }>();
 
-const router = useRouter();
-
-const handleClick = () => {
-    router.push(`/explorer/${props.storagePath.id}`);
-};
+const href = computed(() => `/explorer/${props.storagePath.id}`);
 </script>
 
 <template>
-    <button
+    <NuxtLink
+        :to="href"
         class="border-border bg-panel hover:border-lava/30 group flex flex-col items-start gap-3
             rounded-xl border p-4 text-left transition-all"
-        @click="handleClick"
     >
         <div class="flex w-full items-start justify-between">
             <div
@@ -46,5 +42,5 @@ const handleClick = () => {
             <Icon name="heroicons:film" size="14" />
             <span>{{ storagePath.scene_count }} scenes</span>
         </div>
-    </button>
+    </NuxtLink>
 </template>

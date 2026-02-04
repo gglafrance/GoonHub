@@ -9,14 +9,13 @@ const emit = defineEmits<{
     delete: [folder: FolderInfo];
 }>();
 
-const router = useRouter();
 const explorerStore = useExplorerStore();
 
-const handleClick = () => {
-    if (!explorerStore.currentStoragePathID) return;
+const href = computed(() => {
+    if (!explorerStore.currentStoragePathID) return '/explorer';
     const cleanPath = props.folder.path.replace(/^\/+/, '');
-    router.push(`/explorer/${explorerStore.currentStoragePathID}/${cleanPath}`);
-};
+    return `/explorer/${explorerStore.currentStoragePathID}/${cleanPath}`;
+});
 
 const handleDelete = (e: Event) => {
     e.stopPropagation();
@@ -46,10 +45,10 @@ const formatSize = (bytes: number): string => {
 
 <template>
     <div class="group relative">
-        <button
+        <NuxtLink
+            :to="href"
             class="border-border bg-panel hover:border-lava/30 flex w-full flex-col items-center
                 gap-2 rounded-lg border p-3 text-center transition-all"
-            @click="handleClick"
         >
             <div
                 class="bg-lava/10 group-hover:bg-lava/20 flex h-10 w-10 items-center justify-center
@@ -72,7 +71,7 @@ const formatSize = (bytes: number): string => {
                     </template>
                 </p>
             </div>
-        </button>
+        </NuxtLink>
 
         <!-- Delete button (visible on hover) -->
         <button
