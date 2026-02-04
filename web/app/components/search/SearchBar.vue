@@ -34,14 +34,6 @@ const sortOptions = [
             />
         </div>
 
-        <select
-            v-model="searchStore.sort"
-            class="border-border bg-surface text-dim hidden h-10 rounded-lg border px-3 py-2 text-xs
-                transition-colors focus:border-white/20 focus:outline-none sm:block"
-        >
-            <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-            </option>
-        </select>
+        <UiSortSelect v-model="searchStore.sort" :options="sortOptions" class="hidden sm:block" />
     </div>
 </template>

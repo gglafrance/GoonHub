@@ -6,13 +6,16 @@ export const useApiStudios = () => {
         useApiCore();
 
     // Studio CRUD
-    const fetchStudios = async (page = 1, limit = 20, query?: string) => {
+    const fetchStudios = async (page = 1, limit = 20, query?: string, sort?: string) => {
         const params = new URLSearchParams({
             page: page.toString(),
             limit: limit.toString(),
         });
         if (query) {
             params.set('q', query);
+        }
+        if (sort) {
+            params.set('sort', sort);
         }
         const response = await fetch(`/api/v1/studios?${params}`, {
             headers: getAuthHeaders(),

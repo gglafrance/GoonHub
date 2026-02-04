@@ -187,6 +187,14 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, sceneHandler *handler
 			contentType = "text/plain; charset=utf-8"
 		}
 
+		// Cache hashed _nuxt/ assets immutably (filenames contain content hashes)
+		if strings.HasPrefix(filePath, "_nuxt/") {
+			c.Header("Cache-Control", "public, max-age=31536000, immutable")
+		} else if filePath == "index.html" || filePath == "sw.js" {
+			// HTML and service worker must always be revalidated
+			c.Header("Cache-Control", "no-cache, must-revalidate")
+		}
+
 		c.Data(http.StatusOK, contentType, content)
 		return true
 	}

@@ -19,9 +19,19 @@ const total = ref(0);
 const currentPage = useUrlPagination();
 const limit = ref(20);
 const searchQuery = ref('');
+const sortOrder = ref('name_asc');
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 const showCreateModal = ref(false);
+
+const sortOptions = [
+    { value: 'name_asc', label: 'Name A-Z' },
+    { value: 'name_desc', label: 'Name Z-A' },
+    { value: 'scene_count_desc', label: 'Most Scenes' },
+    { value: 'scene_count_asc', label: 'Least Scenes' },
+    { value: 'created_at_desc', label: 'Newest' },
+    { value: 'created_at_asc', label: 'Oldest' },
+];
 
 const isAdmin = computed(() => authStore.user?.role === 'admin');
 
@@ -31,7 +41,12 @@ const loadStudios = async (page = 1) => {
     isLoading.value = true;
     error.value = null;
     try {
-        const response = await api.fetchStudios(page, limit.value, searchQuery.value);
+        const response = await api.fetchStudios(
+            page,
+            limit.value,
+            searchQuery.value,
+            sortOrder.value,
+        );
         studios.value = response.data;
         total.value = response.total;
         currentPage.value = page;
@@ -64,6 +79,14 @@ watch(searchQuery, () => {
             currentPage.value = 1;
         }
     }, 300);
+});
+
+watch(sortOrder, () => {
+    if (currentPage.value === 1) {
+        loadStudios(1);
+    } else {
+        currentPage.value = 1;
+    }
 });
 
 const handleStudioCreated = (newStudio: Studio) => {
@@ -102,9 +125,9 @@ definePageMeta({
                     </div>
                 </div>
 
-                <!-- Search bar -->
-                <div class="mt-4">
-                    <div class="relative">
+                <!-- Search bar and sort -->
+                <div class="mt-4 flex gap-3">
+                    <div class="relative flex-1">
                         <Icon
                             name="heroicons:magnifying-glass"
                             size="16"
@@ -119,6 +142,8 @@ definePageMeta({
                                 placeholder-white/40 transition-all focus:ring-2 focus:outline-none"
                         />
                     </div>
+
+                    <UiSortSelect v-model="sortOrder" :options="sortOptions" />
                 </div>
             </div>
 

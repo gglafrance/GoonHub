@@ -67,6 +67,13 @@ const isPortrait = computed(() => {
     return scene.value?.width && scene.value?.height && scene.value.height > scene.value.width;
 });
 
+const playerAspectRatio = computed(() => {
+    if (scene.value?.width && scene.value?.height) {
+        return `${scene.value.width} / ${scene.value.height}`;
+    }
+    return '16 / 9';
+});
+
 const streamUrl = computed(() => {
     if (!scene.value) return '';
     return `/api/v1/scenes/${scene.value.id}/stream`;
@@ -342,6 +349,7 @@ definePageMeta({
                             <div
                                 class="border-border bg-void relative z-10 overflow-hidden
                                     rounded-xl border"
+                                :style="{ aspectRatio: playerAspectRatio }"
                             >
                                 <!-- Resume Prompt (overlaid on scene player) -->
                                 <WatchResumePrompt
@@ -353,7 +361,7 @@ definePageMeta({
                                     @dismiss="showResumePrompt = false"
                                 />
 
-                                <ScenePlayer
+                                <LazyScenePlayer
                                     ref="playerRef"
                                     :scene-url="streamUrl"
                                     :poster-url="posterUrl"
