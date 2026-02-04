@@ -248,6 +248,7 @@ export function useBulkPornDBMatching() {
                 thumbnail_url: match.image || match.poster,
                 release_date: match.date,
                 porndb_scene_id: match.id,
+                tag_names: match.tags?.map((t) => t.name),
             });
 
             // Match actors silently
