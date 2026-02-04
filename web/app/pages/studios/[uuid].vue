@@ -252,9 +252,9 @@ definePageMeta({
         <div class="mx-auto max-w-415">
             <!-- Back Button -->
             <button
-                @click="goBack"
                 class="text-dim hover:text-lava mb-4 flex items-center gap-1 text-sm
                     transition-colors"
+                @click="goBack"
             >
                 <Icon name="heroicons:arrow-left" size="16" />
                 Back to Studios
@@ -361,7 +361,6 @@ definePageMeta({
 
                             <!-- Like button -->
                             <button
-                                @click="onLikeClick"
                                 class="group flex flex-col items-center gap-1 rounded-lg border px-3
                                     py-1.5 transition-all duration-200"
                                 :class="[
@@ -370,6 +369,7 @@ definePageMeta({
                                         : `border-border hover:border-border-hover bg-white/[0.02]
                                             hover:bg-white/[0.04]`,
                                 ]"
+                                @click="onLikeClick"
                             >
                                 <div
                                     class="transition-all duration-200"
@@ -418,37 +418,37 @@ definePageMeta({
                             <!-- Desktop: Full admin buttons -->
                             <div v-if="isAdmin" class="hidden items-center gap-2 sm:flex">
                                 <button
-                                    @click="showCreateModal = true"
                                     class="border-border bg-panel hover:border-lava/50
                                         hover:text-lava text-dim flex items-center gap-1 rounded-lg
                                         border px-3 py-1.5 text-sm transition-colors"
+                                    @click="showCreateModal = true"
                                 >
                                     <Icon name="heroicons:plus" size="14" />
                                     New
                                 </button>
                                 <button
-                                    @click="showFetchModal = true"
                                     class="border-border bg-panel hover:border-lava/50
                                         hover:text-lava text-dim flex items-center gap-1 rounded-lg
                                         border px-3 py-1.5 text-sm transition-colors"
+                                    @click="showFetchModal = true"
                                 >
                                     <Icon name="heroicons:cloud-arrow-down" size="14" />
                                     Fetch
                                 </button>
                                 <button
-                                    @click="showEditModal = true"
                                     class="border-border bg-panel hover:border-lava/50
                                         hover:text-lava text-dim flex items-center gap-1 rounded-lg
                                         border px-3 py-1.5 text-sm transition-colors"
+                                    @click="showEditModal = true"
                                 >
                                     <Icon name="heroicons:pencil" size="14" />
                                     Edit
                                 </button>
                                 <button
-                                    @click="showDeleteModal = true"
                                     class="border-border bg-panel text-dim flex items-center gap-1
                                         rounded-lg border px-3 py-1.5 text-sm transition-colors
                                         hover:border-red-500/50 hover:text-red-500"
+                                    @click="showDeleteModal = true"
                                 >
                                     <Icon name="heroicons:trash" size="14" />
                                     Delete
@@ -458,10 +458,10 @@ definePageMeta({
                             <!-- Mobile: Dropdown menu -->
                             <div v-if="isAdmin" class="relative sm:hidden">
                                 <button
-                                    @click="showAdminMenu = !showAdminMenu"
                                     class="border-border bg-panel text-dim flex h-9 w-9 items-center
                                         justify-center rounded-lg border transition-colors
                                         hover:border-white/20 hover:text-white"
+                                    @click="showAdminMenu = !showAdminMenu"
                                 >
                                     <Icon name="heroicons:ellipsis-vertical" size="18" />
                                 </button>
@@ -474,49 +474,49 @@ definePageMeta({
                                             w-40 rounded-lg border py-1 shadow-xl"
                                     >
                                         <button
+                                            class="text-dim flex w-full items-center gap-2 px-3 py-2
+                                                text-sm transition-colors hover:bg-white/5
+                                                hover:text-white"
                                             @click="
                                                 showCreateModal = true;
                                                 showAdminMenu = false;
                                             "
-                                            class="text-dim flex w-full items-center gap-2 px-3 py-2
-                                                text-sm transition-colors hover:bg-white/5
-                                                hover:text-white"
                                         >
                                             <Icon name="heroicons:plus" size="16" />
                                             New Studio
                                         </button>
                                         <button
+                                            class="text-dim flex w-full items-center gap-2 px-3 py-2
+                                                text-sm transition-colors hover:bg-white/5
+                                                hover:text-white"
                                             @click="
                                                 showFetchModal = true;
                                                 showAdminMenu = false;
                                             "
-                                            class="text-dim flex w-full items-center gap-2 px-3 py-2
-                                                text-sm transition-colors hover:bg-white/5
-                                                hover:text-white"
                                         >
                                             <Icon name="heroicons:cloud-arrow-down" size="16" />
                                             Fetch Metadata
                                         </button>
                                         <button
+                                            class="text-dim flex w-full items-center gap-2 px-3 py-2
+                                                text-sm transition-colors hover:bg-white/5
+                                                hover:text-white"
                                             @click="
                                                 showEditModal = true;
                                                 showAdminMenu = false;
                                             "
-                                            class="text-dim flex w-full items-center gap-2 px-3 py-2
-                                                text-sm transition-colors hover:bg-white/5
-                                                hover:text-white"
                                         >
                                             <Icon name="heroicons:pencil" size="16" />
                                             Edit
                                         </button>
                                         <div class="border-border my-1 border-t" />
                                         <button
+                                            class="flex w-full items-center gap-2 px-3 py-2 text-sm
+                                                text-red-400 transition-colors hover:bg-red-500/10"
                                             @click="
                                                 showDeleteModal = true;
                                                 showAdminMenu = false;
                                             "
-                                            class="flex w-full items-center gap-2 px-3 py-2 text-sm
-                                                text-red-400 transition-colors hover:bg-red-500/10"
                                         >
                                             <Icon name="heroicons:trash" size="16" />
                                             Delete
@@ -564,9 +564,9 @@ definePageMeta({
                 <!-- Mobile: Collapsible Details Section -->
                 <div v-if="studio.url || studio.rating || studio.description" class="sm:hidden">
                     <button
-                        @click="detailsExpanded = !detailsExpanded"
                         class="border-border bg-surface hover:bg-elevated flex w-full items-center
                             justify-between rounded-lg border px-4 py-3 transition-colors"
+                        @click="detailsExpanded = !detailsExpanded"
                     >
                         <span class="text-sm font-medium text-white">Studio Details</span>
                         <Icon

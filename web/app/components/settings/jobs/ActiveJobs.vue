@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { JobHistory } from '~/types/jobs';
 
-const props = defineProps<{
+defineProps<{
     activeJobs: JobHistory[];
 }>();
 
@@ -33,8 +33,8 @@ const handleCancel = async (job: JobHistory) => {
         <div class="mb-3 flex items-center gap-2">
             <span class="relative flex h-2 w-2">
                 <span
-                    class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400
-                        opacity-75"
+                    class="absolute inline-flex h-full w-full animate-ping rounded-full
+                        bg-emerald-400 opacity-75"
                 ></span>
                 <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
             </span>
@@ -75,9 +75,11 @@ const handleCancel = async (job: JobHistory) => {
                             @click.stop="handleCancel(job)"
                         >
                             <Icon
-                                :name="cancellingJobId === job.job_id
-                                    ? 'heroicons:arrow-path'
-                                    : 'heroicons:x-mark'"
+                                :name="
+                                    cancellingJobId === job.job_id
+                                        ? 'heroicons:arrow-path'
+                                        : 'heroicons:x-mark'
+                                "
                                 size="12"
                                 :class="{ 'animate-spin': cancellingJobId === job.job_id }"
                             />

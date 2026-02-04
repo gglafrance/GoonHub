@@ -5,9 +5,7 @@ const expanded = ref(false);
 const completedCount = computed(
     () => uploadStore.uploads.filter((u) => u.status === 'completed').length,
 );
-const failedCount = computed(
-    () => uploadStore.uploads.filter((u) => u.status === 'failed').length,
-);
+const failedCount = computed(() => uploadStore.uploads.filter((u) => u.status === 'failed').length);
 
 function formatSize(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
@@ -18,16 +16,13 @@ function formatSize(bytes: number): string {
 
 <template>
     <Teleport to="body">
-        <div
-            v-if="uploadStore.uploads.length > 0"
-            class="fixed right-4 bottom-4 z-50"
-        >
+        <div v-if="uploadStore.uploads.length > 0" class="fixed right-4 bottom-4 z-50">
             <!-- Collapsed Pill -->
             <button
                 v-if="!expanded"
+                class="border-border/50 bg-panel/95 flex items-center gap-2 rounded-full border px-3
+                    py-2 shadow-lg backdrop-blur-md transition-all hover:border-white/20"
                 @click="expanded = true"
-                class="border-border/50 bg-panel/95 flex items-center gap-2 rounded-full border
-                    px-3 py-2 shadow-lg backdrop-blur-md transition-all hover:border-white/20"
             >
                 <div
                     v-if="uploadStore.hasActive"
@@ -40,12 +35,7 @@ function formatSize(bytes: number): string {
                     size="14"
                     class="text-red-400"
                 />
-                <Icon
-                    v-else
-                    name="heroicons:check-circle"
-                    size="14"
-                    class="text-emerald-400"
-                />
+                <Icon v-else name="heroicons:check-circle" size="14" class="text-emerald-400" />
                 <span class="text-muted text-xs font-medium">
                     {{ uploadStore.activeCount }} uploading
                     <span v-if="completedCount > 0" class="text-emerald-400">
@@ -61,25 +51,23 @@ function formatSize(bytes: number): string {
                     backdrop-blur-md"
             >
                 <!-- Header -->
-                <div
-                    class="border-border/30 flex items-center justify-between border-b px-3 py-2"
-                >
+                <div class="border-border/30 flex items-center justify-between border-b px-3 py-2">
                     <span class="text-muted text-xs font-semibold tracking-wider uppercase"
                         >Uploads</span
                     >
                     <div class="flex items-center gap-1">
                         <button
                             v-if="completedCount > 0"
-                            @click="uploadStore.removeCompleted()"
                             class="text-dim hover:text-muted rounded p-1 text-[10px]
                                 transition-colors"
                             title="Clear completed"
+                            @click="uploadStore.removeCompleted()"
                         >
                             Clear
                         </button>
                         <button
-                            @click="expanded = false"
                             class="text-dim hover:text-muted rounded p-1 transition-colors"
+                            @click="expanded = false"
                         >
                             <Icon name="heroicons:chevron-down" size="14" />
                         </button>
@@ -97,8 +85,8 @@ function formatSize(bytes: number): string {
                             <!-- Status Icon -->
                             <div
                                 v-if="upload.status === 'uploading'"
-                                class="border-lava/30 border-t-lava h-3 w-3 shrink-0
-                                    animate-spin rounded-full border-2"
+                                class="border-lava/30 border-t-lava h-3 w-3 shrink-0 animate-spin
+                                    rounded-full border-2"
                             ></div>
                             <Icon
                                 v-else-if="upload.status === 'queued'"
@@ -132,15 +120,15 @@ function formatSize(bytes: number): string {
                             <!-- Cancel Button -->
                             <button
                                 v-if="upload.status === 'uploading' || upload.status === 'queued'"
-                                @click="uploadStore.cancelUpload(upload.id)"
                                 class="text-dim hover:text-lava shrink-0 transition-colors"
+                                @click="uploadStore.cancelUpload(upload.id)"
                             >
                                 <Icon name="heroicons:x-mark" size="12" />
                             </button>
                             <button
                                 v-else
-                                @click="uploadStore.removeUpload(upload.id)"
                                 class="text-dim hover:text-muted shrink-0 transition-colors"
+                                @click="uploadStore.removeUpload(upload.id)"
                             >
                                 <Icon name="heroicons:x-mark" size="12" />
                             </button>

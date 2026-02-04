@@ -49,7 +49,6 @@ const badge = computed(() =>
             <button
                 v-for="item in filteredLabels"
                 :key="item.label"
-                @click="toggleLabel(item.label)"
                 class="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs
                     transition-colors"
                 :class="
@@ -57,6 +56,7 @@ const badge = computed(() =>
                         ? 'bg-lava/10 text-white'
                         : 'text-dim hover:bg-white/5 hover:text-white'
                 "
+                @click="toggleLabel(item.label)"
             >
                 <Icon name="heroicons:bookmark" size="12" class="shrink-0 opacity-50" />
                 <span class="flex-1 truncate">{{ item.label }}</span>

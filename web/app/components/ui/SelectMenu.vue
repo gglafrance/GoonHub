@@ -13,10 +13,10 @@ defineEmits<{
     <div class="relative">
         <select
             :value="modelValue"
-            @change="$emit('update:modelValue', ($event.target as HTMLSelectElement).value)"
             class="border-border bg-void/80 focus:border-lava/40 focus:ring-lava/20 w-full
                 appearance-none rounded-lg border py-2.5 pr-9 pl-3.5 text-sm text-white
                 transition-all focus:ring-1 focus:outline-none"
+            @change="$emit('update:modelValue', ($event.target as HTMLSelectElement).value)"
         >
             <option v-for="opt in options" :key="opt.value" :value="opt.value" class="bg-panel">
                 {{ opt.label }}

@@ -18,7 +18,7 @@ const { validateRegex } = useParsingRulesEngine();
 
 const ruleInfo = computed(() => RULE_TYPE_INFO[props.rule.type as ParsingRuleType]);
 const regexError = ref<string | null>(null);
-const isExpanded = ref(ruleInfo.value.hasConfig);
+const _isExpanded = ref(ruleInfo.value.hasConfig);
 
 // Rule type icons
 const ruleIcons: Record<ParsingRuleType, string> = {
@@ -125,13 +125,13 @@ const categoryColor = computed(() => {
 
             <!-- Toggle switch -->
             <button
-                @click="toggleEnabled"
                 class="relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-all duration-200"
                 :class="
                     rule.enabled
                         ? 'bg-emerald-500/20 ring-1 ring-emerald-500/30'
                         : 'bg-white/5 ring-1 ring-white/10 hover:ring-white/20'
                 "
+                @click="toggleEnabled"
             >
                 <span
                     class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full transition-all
@@ -178,7 +178,6 @@ const categoryColor = computed(() => {
                     <!-- remove_brackets -->
                     <div v-if="rule.type === 'remove_brackets'" class="flex gap-1.5">
                         <button
-                            @click="updateConfig('keepContent', false)"
                             class="rounded-lg px-3 py-1.5 text-[11px] font-medium transition-all"
                             :class="
                                 !rule.config.keepContent
@@ -186,6 +185,7 @@ const categoryColor = computed(() => {
                                     : `text-dim bg-white/5 ring-1 ring-white/5 hover:bg-white/10
                                         hover:text-white`
                             "
+                            @click="updateConfig('keepContent', false)"
                         >
                             <span class="flex items-center gap-1.5">
                                 <Icon name="heroicons:trash" size="11" />
@@ -193,7 +193,6 @@ const categoryColor = computed(() => {
                             </span>
                         </button>
                         <button
-                            @click="updateConfig('keepContent', true)"
                             class="rounded-lg px-3 py-1.5 text-[11px] font-medium transition-all"
                             :class="
                                 rule.config.keepContent
@@ -201,6 +200,7 @@ const categoryColor = computed(() => {
                                     : `text-dim bg-white/5 ring-1 ring-white/5 hover:bg-white/10
                                         hover:text-white`
                             "
+                            @click="updateConfig('keepContent', true)"
                         >
                             <span class="flex items-center gap-1.5">
                                 <Icon name="heroicons:code-bracket" size="11" />
@@ -220,12 +220,6 @@ const categoryColor = computed(() => {
                             </div>
                             <input
                                 :value="rule.config.pattern || ''"
-                                @input="
-                                    updateConfig(
-                                        'pattern',
-                                        ($event.target as HTMLInputElement).value,
-                                    )
-                                "
                                 type="text"
                                 placeholder="regex pattern"
                                 class="bg-void/80 placeholder:text-dim/40 w-full rounded-lg border
@@ -236,6 +230,12 @@ const categoryColor = computed(() => {
                                         ? `border-red-500/50 focus:border-red-500/50
                                             focus:ring-red-500/20`
                                         : 'border-border focus:border-lava/40 focus:ring-lava/20'
+                                "
+                                @input="
+                                    updateConfig(
+                                        'pattern',
+                                        ($event.target as HTMLInputElement).value,
+                                    )
                                 "
                             />
                             <div
@@ -262,15 +262,15 @@ const categoryColor = computed(() => {
                         <div class="relative flex-1">
                             <input
                                 :value="rule.config.find || ''"
-                                @input="
-                                    updateConfig('find', ($event.target as HTMLInputElement).value)
-                                "
                                 type="text"
                                 placeholder="Find..."
                                 class="border-border bg-void/80 placeholder:text-dim/40
                                     focus:border-lava/40 focus:ring-lava/20 w-full min-w-24
                                     rounded-lg border px-3 py-2 text-xs text-white transition-all
                                     focus:ring-1 focus:outline-none"
+                                @input="
+                                    updateConfig('find', ($event.target as HTMLInputElement).value)
+                                "
                             />
                         </div>
                         <div class="flex h-8 w-8 shrink-0 items-center justify-center">
@@ -279,18 +279,18 @@ const categoryColor = computed(() => {
                         <div class="relative flex-1">
                             <input
                                 :value="rule.config.replace || ''"
-                                @input="
-                                    updateConfig(
-                                        'replace',
-                                        ($event.target as HTMLInputElement).value,
-                                    )
-                                "
                                 type="text"
                                 placeholder="Replace with..."
                                 class="border-border bg-void/80 placeholder:text-dim/40
                                     focus:border-lava/40 focus:ring-lava/20 w-full min-w-24
                                     rounded-lg border px-3 py-2 text-xs text-white transition-all
                                     focus:ring-1 focus:outline-none"
+                                @input="
+                                    updateConfig(
+                                        'replace',
+                                        ($event.target as HTMLInputElement).value,
+                                    )
+                                "
                             />
                         </div>
                         <label
@@ -305,13 +305,13 @@ const categoryColor = computed(() => {
                             <input
                                 type="checkbox"
                                 :checked="rule.config.caseSensitive"
+                                class="sr-only"
                                 @change="
                                     updateConfig(
                                         'caseSensitive',
                                         ($event.target as HTMLInputElement).checked,
                                     )
                                 "
-                                class="sr-only"
                             />
                             <Icon name="heroicons:language" size="12" />
                             <span class="text-[10px] font-medium">Aa</span>
@@ -326,18 +326,18 @@ const categoryColor = computed(() => {
                         <span class="text-dim text-xs">Remove words shorter than</span>
                         <input
                             :value="rule.config.minLength || 2"
-                            @input="
-                                updateConfig(
-                                    'minLength',
-                                    parseInt(($event.target as HTMLInputElement).value) || 2,
-                                )
-                            "
                             type="number"
                             min="1"
                             max="20"
                             class="border-border bg-void/80 focus:border-lava/40 focus:ring-lava/20
                                 w-14 rounded-lg border px-2 py-1.5 text-center text-xs text-white
                                 tabular-nums transition-all focus:ring-1 focus:outline-none"
+                            @input="
+                                updateConfig(
+                                    'minLength',
+                                    parseInt(($event.target as HTMLInputElement).value) || 2,
+                                )
+                            "
                         />
                         <span class="text-dim text-xs">characters</span>
                     </div>
@@ -347,7 +347,6 @@ const categoryColor = computed(() => {
                         <button
                             v-for="ct in ['lower', 'upper', 'title'] as const"
                             :key="ct"
-                            @click="updateConfig('caseType', ct)"
                             class="rounded-lg px-3 py-1.5 text-[11px] font-medium transition-all"
                             :class="
                                 rule.config.caseType === ct
@@ -355,6 +354,7 @@ const categoryColor = computed(() => {
                                     : `text-dim bg-white/5 ring-1 ring-white/5 hover:bg-white/10
                                         hover:text-white`
                             "
+                            @click="updateConfig('caseType', ct)"
                         >
                             <span v-if="ct === 'lower'">lowercase</span>
                             <span v-else-if="ct === 'upper'">UPPERCASE</span>
@@ -366,10 +366,10 @@ const categoryColor = computed(() => {
 
             <!-- Delete button -->
             <button
-                @click="$emit('delete')"
                 class="text-dim mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg
                     opacity-0 transition-all group-hover:opacity-100 hover:bg-red-500/10
                     hover:text-red-400"
+                @click="$emit('delete')"
             >
                 <Icon name="heroicons:trash" size="14" />
             </button>

@@ -47,20 +47,20 @@ function confirmDelete() {
         <!-- Reorder Controls -->
         <div class="flex flex-col gap-0.5">
             <button
-                @click="emit('move', section.id, 'up')"
                 :disabled="isFirst"
                 class="text-dim -m-1 rounded p-1 transition-all hover:bg-white/10 hover:text-white
                     disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
                 title="Move up"
+                @click="emit('move', section.id, 'up')"
             >
                 <Icon name="heroicons:chevron-up" size="14" />
             </button>
             <button
-                @click="emit('move', section.id, 'down')"
                 :disabled="isLast"
                 class="text-dim -m-1 rounded p-1 transition-all hover:bg-white/10 hover:text-white
                     disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
                 title="Move down"
+                @click="emit('move', section.id, 'down')"
             >
                 <Icon name="heroicons:chevron-down" size="14" />
             </button>
@@ -108,30 +108,30 @@ function confirmDelete() {
         <div class="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
             <!-- Toggle Visibility -->
             <button
-                @click="emit('toggle', section.id)"
                 class="text-dim flex items-center justify-center rounded-lg p-2 transition-all
                     hover:bg-white/10 hover:text-white"
                 :title="section.enabled ? 'Hide section' : 'Show section'"
+                @click="emit('toggle', section.id)"
             >
                 <Icon :name="section.enabled ? 'heroicons:eye' : 'heroicons:eye-slash'" size="16" />
             </button>
 
             <!-- Edit -->
             <button
-                @click="emit('edit', section)"
                 class="text-dim flex items-center justify-center rounded-lg p-2 transition-all
                     hover:bg-white/10 hover:text-white"
                 title="Edit section"
+                @click="emit('edit', section)"
             >
                 <Icon name="heroicons:pencil-square" size="16" />
             </button>
 
             <!-- Delete -->
             <button
-                @click="handleDelete"
                 class="hover:text-lava hover:bg-lava/10 text-dim flex items-center justify-center
                     rounded-lg p-2 transition-all"
                 title="Delete section"
+                @click="handleDelete"
             >
                 <Icon name="heroicons:trash" size="16" />
             </button>
@@ -172,16 +172,16 @@ function confirmDelete() {
                         </div>
                         <div class="border-border flex gap-3 border-t p-4">
                             <button
-                                @click="showDeleteConfirm = false"
                                 class="border-border flex-1 rounded-lg border py-2.5 text-xs
                                     font-medium text-white transition-colors hover:bg-white/5"
+                                @click="showDeleteConfirm = false"
                             >
                                 Cancel
                             </button>
                             <button
-                                @click="confirmDelete"
                                 class="bg-lava hover:bg-lava-glow flex-1 rounded-lg py-2.5 text-xs
                                     font-semibold text-white transition-all"
+                                @click="confirmDelete"
                             >
                                 Delete
                             </button>

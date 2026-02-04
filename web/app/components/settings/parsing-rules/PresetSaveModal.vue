@@ -127,15 +127,14 @@ function handleKeydown(e: KeyboardEvent) {
                             <!-- Actions -->
                             <div class="flex gap-3">
                                 <button
-                                    @click="$emit('close')"
                                     class="border-border hover:border-border-hover flex-1 rounded-lg
                                         border px-4 py-2.5 text-xs font-medium text-white
                                         transition-all hover:bg-white/5"
+                                    @click="$emit('close')"
                                 >
                                     Cancel
                                 </button>
                                 <button
-                                    @click="handleSave"
                                     :disabled="!name.trim()"
                                     class="bg-lava hover:bg-lava-glow hover:shadow-lava/20
                                         disabled:hover:bg-lava flex flex-1 items-center
@@ -143,6 +142,7 @@ function handleKeydown(e: KeyboardEvent) {
                                         font-semibold text-white transition-all hover:shadow-lg
                                         disabled:cursor-not-allowed disabled:opacity-50
                                         disabled:hover:shadow-none"
+                                    @click="handleSave"
                                 >
                                     <Icon name="heroicons:check" size="14" />
                                     Save Preset

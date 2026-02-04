@@ -160,9 +160,7 @@ onBeforeUnmount(() => {
                     <span class="text-[10px] font-medium tracking-wider text-white/40 uppercase">
                         By Phase
                     </span>
-                    <span class="text-[9px] text-white/25">
-                        run / wait / fail
-                    </span>
+                    <span class="text-[9px] text-white/25"> run / wait / fail </span>
                 </div>
                 <div class="space-y-2">
                     <div
@@ -217,7 +215,7 @@ onBeforeUnmount(() => {
                                 "
                                 @click="
                                     (jobStatusStore.byPhase[phase]?.failed ?? 0) > 0 &&
-                                        navigateToFailedJobs()
+                                    navigateToFailedJobs()
                                 "
                             >
                                 <span
@@ -238,14 +236,9 @@ onBeforeUnmount(() => {
             </div>
 
             <!-- Recent Failures -->
-            <div
-                v-if="jobStatusStore.hasFailed"
-                class="border-border border-b px-4 py-3"
-            >
+            <div v-if="jobStatusStore.hasFailed" class="border-border border-b px-4 py-3">
                 <div class="mb-2 flex items-center justify-between">
-                    <span
-                        class="text-[10px] font-medium tracking-wider text-red-400/70 uppercase"
-                    >
+                    <span class="text-[10px] font-medium tracking-wider text-red-400/70 uppercase">
                         Recent Failures
                     </span>
                     <button
@@ -260,10 +253,7 @@ onBeforeUnmount(() => {
                     <span class="text-dim text-xs">Loading...</span>
                 </div>
 
-                <div
-                    v-else-if="recentFailures.length === 0"
-                    class="py-2"
-                >
+                <div v-else-if="recentFailures.length === 0" class="py-2">
                     <span class="text-xs text-white/40">No recent failures</span>
                 </div>
 

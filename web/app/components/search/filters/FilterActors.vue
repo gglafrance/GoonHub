@@ -47,13 +47,13 @@ const badge = computed(() =>
             <button
                 v-for="actor in filteredActors"
                 :key="actor"
-                @click="toggleActor(actor)"
                 class="w-full rounded px-2 py-1 text-left text-xs transition-colors"
                 :class="
                     searchStore.selectedActors.includes(actor)
                         ? 'bg-lava/10 text-white'
                         : 'text-dim hover:bg-white/5 hover:text-white'
                 "
+                @click="toggleActor(actor)"
             >
                 {{ actor }}
             </button>

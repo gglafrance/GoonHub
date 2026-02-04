@@ -140,276 +140,253 @@ function handleClose() {
 
 <template>
     <Teleport to="body">
-        <Transition
-            enter-active-class="transition-all duration-200"
-            enter-from-class="opacity-0"
-            leave-active-class="transition-all duration-150"
-            leave-to-class="opacity-0"
-        >
-            <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-                <!-- Backdrop -->
-                <div
-                    class="bg-void/80 absolute inset-0 backdrop-blur-sm"
-                    @click="handleClose"
-                ></div>
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <!-- Backdrop -->
+            <div class="bg-void/80 absolute inset-0 backdrop-blur-sm" @click="handleClose"></div>
 
-                <!-- Modal -->
-                <Transition
-                    appear
-                    enter-active-class="transition-all duration-200"
-                    enter-from-class="opacity-0 scale-95"
+            <!-- Modal -->
+            <Transition
+                appear
+                enter-active-class="transition-all duration-200"
+                enter-from-class="opacity-0 scale-95"
+            >
+                <div
+                    class="bg-surface border-border relative z-10 w-full max-w-lg rounded-xl border
+                        shadow-2xl"
                 >
-                    <div
-                        class="bg-surface border-border relative z-10 w-full max-w-lg rounded-xl
-                            border shadow-2xl"
-                    >
-                        <!-- Header -->
-                        <div
-                            class="border-border flex items-center justify-between border-b px-6
-                                py-4"
-                        >
-                            <div class="flex items-center gap-3">
-                                <div
-                                    v-if="currentTypeOption"
-                                    class="flex h-8 w-8 items-center justify-center rounded-lg
-                                        border"
-                                    :class="currentTypeOption.color"
-                                >
-                                    <Icon :name="currentTypeOption.icon" size="16" />
-                                </div>
-                                <div>
-                                    <h2 class="text-sm font-semibold text-white">
-                                        {{ isEditing ? 'Edit Section' : 'Add Section' }}
-                                    </h2>
-                                    <p class="text-dim text-[11px]">
-                                        {{
-                                            isEditing
-                                                ? 'Modify section settings'
-                                                : 'Configure a new homepage section'
-                                        }}
-                                    </p>
-                                </div>
-                            </div>
-                            <button
-                                @click="handleClose"
-                                class="text-dim -m-2 flex items-center justify-center rounded-lg p-2
-                                    transition-all hover:bg-white/10 hover:text-white"
+                    <!-- Header -->
+                    <div class="border-border flex items-center justify-between border-b px-6 py-4">
+                        <div class="flex items-center gap-3">
+                            <div
+                                v-if="currentTypeOption"
+                                class="flex h-8 w-8 items-center justify-center rounded-lg border"
+                                :class="currentTypeOption.color"
                             >
-                                <Icon name="heroicons:x-mark" size="20" />
-                            </button>
+                                <Icon :name="currentTypeOption.icon" size="16" />
+                            </div>
+                            <div>
+                                <h2 class="text-sm font-semibold text-white">
+                                    {{ isEditing ? 'Edit Section' : 'Add Section' }}
+                                </h2>
+                                <p class="text-dim text-[11px]">
+                                    {{
+                                        isEditing
+                                            ? 'Modify section settings'
+                                            : 'Configure a new homepage section'
+                                    }}
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            class="text-dim -m-2 flex items-center justify-center rounded-lg p-2
+                                transition-all hover:bg-white/10 hover:text-white"
+                            @click="handleClose"
+                        >
+                            <Icon name="heroicons:x-mark" size="20" />
+                        </button>
+                    </div>
+
+                    <!-- Body -->
+                    <div class="max-h-[60vh] space-y-5 overflow-y-auto p-6">
+                        <!-- Section Type Selection (only for new sections) -->
+                        <div v-if="!isEditing">
+                            <label
+                                class="text-dim mb-2 block text-[11px] font-medium tracking-wider
+                                    uppercase"
+                            >
+                                Section Type
+                            </label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button
+                                    v-for="option in typeOptions"
+                                    :key="option.value"
+                                    class="flex items-start gap-3 rounded-lg border p-3 text-left
+                                        transition-all"
+                                    :class="
+                                        type === option.value
+                                            ? 'border-lava/40 bg-lava/5'
+                                            : 'border-border hover:border-white/20 hover:bg-white/2'
+                                    "
+                                    @click="type = option.value"
+                                >
+                                    <div
+                                        class="mt-0.5 flex h-7 w-7 shrink-0 items-center
+                                            justify-center rounded-md border"
+                                        :class="option.color"
+                                    >
+                                        <Icon :name="option.icon" size="14" />
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div
+                                            class="text-xs font-medium"
+                                            :class="
+                                                type === option.value
+                                                    ? 'text-white'
+                                                    : 'text-white/80'
+                                            "
+                                        >
+                                            {{ option.label }}
+                                        </div>
+                                        <div class="text-dim mt-0.5 line-clamp-2 text-[10px]">
+                                            {{ option.description }}
+                                        </div>
+                                    </div>
+                                </button>
+                            </div>
                         </div>
 
-                        <!-- Body -->
-                        <div class="max-h-[60vh] space-y-5 overflow-y-auto p-6">
-                            <!-- Section Type Selection (only for new sections) -->
-                            <div v-if="!isEditing">
+                        <!-- Section Details -->
+                        <div class="border-border space-y-4 rounded-lg border p-4">
+                            <h3
+                                class="text-dim -mt-1 text-[11px] font-medium tracking-wider
+                                    uppercase"
+                            >
+                                Section Details
+                            </h3>
+
+                            <!-- Title -->
+                            <div>
                                 <label
-                                    class="text-dim mb-2 block text-[11px] font-medium
+                                    class="text-dim mb-1.5 block text-[11px] font-medium
                                         tracking-wider uppercase"
                                 >
-                                    Section Type
+                                    Display Title
                                 </label>
-                                <div class="grid grid-cols-2 gap-2">
-                                    <button
-                                        v-for="option in typeOptions"
-                                        :key="option.value"
-                                        @click="type = option.value"
-                                        class="flex items-start gap-3 rounded-lg border p-3
-                                            text-left transition-all"
-                                        :class="
-                                            type === option.value
-                                                ? 'border-lava/40 bg-lava/5'
-                                                : `border-border hover:border-white/20
-                                                    hover:bg-white/2`
-                                        "
-                                    >
-                                        <div
-                                            class="mt-0.5 flex h-7 w-7 shrink-0 items-center
-                                                justify-center rounded-md border"
-                                            :class="option.color"
-                                        >
-                                            <Icon :name="option.icon" size="14" />
-                                        </div>
-                                        <div class="min-w-0">
-                                            <div
-                                                class="text-xs font-medium"
-                                                :class="
-                                                    type === option.value
-                                                        ? 'text-white'
-                                                        : 'text-white/80'
-                                                "
-                                            >
-                                                {{ option.label }}
-                                            </div>
-                                            <div class="text-dim mt-0.5 line-clamp-2 text-[10px]">
-                                                {{ option.description }}
-                                            </div>
-                                        </div>
-                                    </button>
-                                </div>
+                                <input
+                                    v-model="title"
+                                    type="text"
+                                    maxlength="100"
+                                    placeholder="Enter section title..."
+                                    class="border-border bg-void/80 focus:border-lava/40
+                                        focus:ring-lava/20 placeholder:text-dim/50 w-full rounded-lg
+                                        border px-3.5 py-2.5 text-sm text-white transition-all
+                                        focus:ring-1 focus:outline-none"
+                                />
                             </div>
 
-                            <!-- Section Details -->
-                            <div class="border-border space-y-4 rounded-lg border p-4">
-                                <h3
-                                    class="text-dim -mt-1 text-[11px] font-medium tracking-wider
-                                        uppercase"
-                                >
-                                    Section Details
-                                </h3>
-
-                                <!-- Title -->
-                                <div>
+                            <!-- Limit & Sort Row -->
+                            <div class="flex gap-4">
+                                <!-- Limit -->
+                                <div class="w-28">
                                     <label
                                         class="text-dim mb-1.5 block text-[11px] font-medium
                                             tracking-wider uppercase"
                                     >
-                                        Display Title
+                                        Show
                                     </label>
-                                    <input
-                                        v-model="title"
-                                        type="text"
-                                        maxlength="100"
-                                        placeholder="Enter section title..."
-                                        class="border-border bg-void/80 focus:border-lava/40
-                                            focus:ring-lava/20 placeholder:text-dim/50 w-full
-                                            rounded-lg border px-3.5 py-2.5 text-sm text-white
-                                            transition-all focus:ring-1 focus:outline-none"
-                                    />
-                                </div>
-
-                                <!-- Limit & Sort Row -->
-                                <div class="flex gap-4">
-                                    <!-- Limit -->
-                                    <div class="w-28">
-                                        <label
-                                            class="text-dim mb-1.5 block text-[11px] font-medium
-                                                tracking-wider uppercase"
-                                        >
-                                            Show
-                                        </label>
-                                        <div class="relative">
-                                            <input
-                                                v-model.number="limit"
-                                                type="number"
-                                                min="1"
-                                                max="50"
-                                                class="border-border bg-void/80 focus:border-lava/40
-                                                    focus:ring-lava/20 w-full rounded-lg border
-                                                    px-3.5 py-2.5 pr-12 text-sm text-white
-                                                    transition-all focus:ring-1 focus:outline-none"
-                                            />
-                                            <span
-                                                class="text-dim pointer-events-none absolute top-1/2
-                                                    right-3 -translate-y-1/2 text-xs"
-                                                >items</span
-                                            >
-                                        </div>
-                                    </div>
-
-                                    <!-- Sort -->
-                                    <div v-if="canSort" class="flex-1">
-                                        <label
-                                            class="text-dim mb-1.5 block text-[11px] font-medium
-                                                tracking-wider uppercase"
-                                        >
-                                            Sort Order
-                                        </label>
-                                        <UiSelectMenu
-                                            v-model="sort"
-                                            :options="availableSortOptions"
+                                    <div class="relative">
+                                        <input
+                                            v-model.number="limit"
+                                            type="number"
+                                            min="1"
+                                            max="50"
+                                            class="border-border bg-void/80 focus:border-lava/40
+                                                focus:ring-lava/20 w-full rounded-lg border px-3.5
+                                                py-2.5 pr-12 text-sm text-white transition-all
+                                                focus:ring-1 focus:outline-none"
                                         />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Type-specific config -->
-                            <div
-                                v-if="requiresConfig"
-                                class="border-border space-y-4 rounded-lg border p-4"
-                            >
-                                <h3
-                                    class="text-dim -mt-1 text-[11px] font-medium tracking-wider
-                                        uppercase"
-                                >
-                                    Content Source
-                                </h3>
-
-                                <SettingsHomepageActorConfig
-                                    v-if="type === 'actor'"
-                                    v-model="config"
-                                />
-                                <SettingsHomepageStudioConfig
-                                    v-if="type === 'studio'"
-                                    v-model="config"
-                                />
-                                <SettingsHomepageTagConfig v-if="type === 'tag'" v-model="config" />
-                                <SettingsHomepageSavedSearchConfig
-                                    v-if="type === 'saved_search'"
-                                    v-model="config"
-                                />
-
-                                <!-- Validation Message -->
-                                <div
-                                    v-if="!isConfigValid"
-                                    class="bg-lava/5 border-lava/20 flex items-center gap-2
-                                        rounded-lg border px-3 py-2"
-                                >
-                                    <Icon
-                                        name="heroicons:exclamation-triangle"
-                                        size="14"
-                                        class="text-lava"
-                                    />
-                                    <span class="text-lava text-xs">
-                                        Please select a {{ type.replace('_', ' ') }} to continue.
-                                    </span>
-                                </div>
-                            </div>
-
-                            <!-- Visibility Toggle -->
-                            <div class="border-border rounded-lg border p-4">
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <span class="block text-xs font-medium text-white"
-                                            >Section Enabled</span
-                                        >
-                                        <span class="text-dim text-[11px]"
-                                            >Show this section on the homepage</span
+                                        <span
+                                            class="text-dim pointer-events-none absolute top-1/2
+                                                right-3 -translate-y-1/2 text-xs"
+                                            >items</span
                                         >
                                     </div>
-                                    <UiToggle v-model="enabled" />
+                                </div>
+
+                                <!-- Sort -->
+                                <div v-if="canSort" class="flex-1">
+                                    <label
+                                        class="text-dim mb-1.5 block text-[11px] font-medium
+                                            tracking-wider uppercase"
+                                    >
+                                        Sort Order
+                                    </label>
+                                    <UiSelectMenu v-model="sort" :options="availableSortOptions" />
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Footer -->
+                        <!-- Type-specific config -->
                         <div
-                            class="border-border flex items-center justify-end gap-3 border-t px-6
-                                py-4"
+                            v-if="requiresConfig"
+                            class="border-border space-y-4 rounded-lg border p-4"
                         >
-                            <button
-                                @click="handleClose"
-                                class="border-border rounded-lg border px-4 py-2.5 text-xs
-                                    font-medium text-white transition-colors hover:bg-white/5"
+                            <h3
+                                class="text-dim -mt-1 text-[11px] font-medium tracking-wider
+                                    uppercase"
                             >
-                                Cancel
-                            </button>
-                            <button
-                                @click="handleSave"
-                                :disabled="!title.trim() || !isConfigValid"
-                                class="bg-lava hover:bg-lava-glow flex items-center gap-2 rounded-lg
-                                    px-5 py-2.5 text-xs font-semibold text-white transition-all
-                                    hover:scale-[1.02] active:scale-[0.98]
-                                    disabled:cursor-not-allowed disabled:opacity-40
-                                    disabled:hover:scale-100"
+                                Content Source
+                            </h3>
+
+                            <SettingsHomepageActorConfig v-if="type === 'actor'" v-model="config" />
+                            <SettingsHomepageStudioConfig
+                                v-if="type === 'studio'"
+                                v-model="config"
+                            />
+                            <SettingsHomepageTagConfig v-if="type === 'tag'" v-model="config" />
+                            <SettingsHomepageSavedSearchConfig
+                                v-if="type === 'saved_search'"
+                                v-model="config"
+                            />
+
+                            <!-- Validation Message -->
+                            <div
+                                v-if="!isConfigValid"
+                                class="bg-lava/5 border-lava/20 flex items-center gap-2 rounded-lg
+                                    border px-3 py-2"
                             >
-                                <Icon name="heroicons:check" size="14" />
-                                {{ isEditing ? 'Save Changes' : 'Add Section' }}
-                            </button>
+                                <Icon
+                                    name="heroicons:exclamation-triangle"
+                                    size="14"
+                                    class="text-lava"
+                                />
+                                <span class="text-lava text-xs">
+                                    Please select a {{ type.replace('_', ' ') }} to continue.
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Visibility Toggle -->
+                        <div class="border-border rounded-lg border p-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <span class="block text-xs font-medium text-white"
+                                        >Section Enabled</span
+                                    >
+                                    <span class="text-dim text-[11px]"
+                                        >Show this section on the homepage</span
+                                    >
+                                </div>
+                                <UiToggle v-model="enabled" />
+                            </div>
                         </div>
                     </div>
-                </Transition>
-            </div>
-        </Transition>
+
+                    <!-- Footer -->
+                    <div
+                        class="border-border flex items-center justify-end gap-3 border-t px-6 py-4"
+                    >
+                        <button
+                            class="border-border rounded-lg border px-4 py-2.5 text-xs font-medium
+                                text-white transition-colors hover:bg-white/5"
+                            @click="handleClose"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            :disabled="!title.trim() || !isConfigValid"
+                            class="bg-lava hover:bg-lava-glow flex items-center gap-2 rounded-lg
+                                px-5 py-2.5 text-xs font-semibold text-white transition-all
+                                hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed
+                                disabled:opacity-40 disabled:hover:scale-100"
+                            @click="handleSave"
+                        >
+                            <Icon name="heroicons:check" size="14" />
+                            {{ isEditing ? 'Save Changes' : 'Add Section' }}
+                        </button>
+                    </div>
+                </div>
+            </Transition>
+        </div>
     </Teleport>
 </template>

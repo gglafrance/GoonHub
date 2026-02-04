@@ -135,8 +135,8 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
                         <!-- Deselect all -->
                         <button
                             v-if="explorerStore.hasSelection"
-                            @click="explorerStore.clearSelection()"
                             class="text-dim hover:text-lava text-xs transition-colors"
+                            @click="explorerStore.clearSelection()"
                         >
                             Deselect all
                         </button>
@@ -144,8 +144,8 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
                         <!-- Select all on page -->
                         <button
                             v-if="!explorerStore.allPageScenesSelected"
-                            @click="explorerStore.selectAllOnPage()"
                             class="text-dim hover:text-lava text-xs transition-colors"
+                            @click="explorerStore.selectAllOnPage()"
                         >
                             Select page
                         </button>
@@ -153,10 +153,10 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
                         <!-- Select all in folder -->
                         <button
                             v-if="!explorerStore.allFolderScenesSelected"
-                            @click="explorerStore.selectAllInFolder()"
                             :disabled="explorerStore.isSelectingAll"
                             class="text-lava hover:text-lava/80 text-xs font-medium
                                 transition-colors disabled:opacity-50"
+                            @click="explorerStore.selectAllInFolder()"
                         >
                             <template v-if="explorerStore.isSelectingAll">Selecting...</template>
                             <template v-else>
@@ -167,10 +167,10 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
                         <!-- Select all recursive (when subfolders exist) -->
                         <button
                             v-if="explorerStore.subfolders.length > 0"
-                            @click="explorerStore.selectAllInFolderRecursive()"
                             :disabled="explorerStore.isSelectingAll"
                             class="text-dim hover:text-lava text-xs transition-colors
                                 disabled:opacity-50"
+                            @click="explorerStore.selectAllInFolderRecursive()"
                         >
                             <template v-if="explorerStore.isSelectingAll">Selecting...</template>
                             <template v-else>+ subfolders</template>

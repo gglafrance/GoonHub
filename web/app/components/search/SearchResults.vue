@@ -24,7 +24,9 @@ const searchStore = useSearchStore();
 
         <!-- Loading -->
         <div v-if="searchStore.isLoading" class="flex items-center justify-center py-20">
-            <div class="border-lava h-6 w-6 animate-spin rounded-full border-2 border-t-transparent"></div>
+            <div
+                class="border-lava h-6 w-6 animate-spin rounded-full border-2 border-t-transparent"
+            ></div>
         </div>
 
         <!-- Results Grid -->
@@ -46,8 +48,11 @@ const searchStore = useSearchStore();
             <Icon name="heroicons:magnifying-glass" size="40" class="text-dim mb-3 opacity-30" />
             <p class="text-dim text-sm">No results found</p>
             <button
-                @click="searchStore.resetFilters(); searchStore.search()"
                 class="text-lava mt-2 text-xs hover:underline"
+                @click="
+                    searchStore.resetFilters();
+                    searchStore.search();
+                "
             >
                 Clear all filters
             </button>

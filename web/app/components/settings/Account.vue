@@ -75,10 +75,11 @@ const handleChangePassword = async () => {
         <!-- Username Change -->
         <div class="glass-panel p-5">
             <h3 class="mb-4 text-sm font-semibold text-white">Change Username</h3>
-            <form @submit.prevent="handleChangeUsername" class="space-y-3">
+            <form class="space-y-3" @submit.prevent="handleChangeUsername">
                 <div>
                     <label
-                        class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider uppercase"
+                        class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
+                            uppercase"
                     >
                         New Username
                     </label>
@@ -107,11 +108,19 @@ const handleChangePassword = async () => {
         <!-- Password Change -->
         <div class="glass-panel p-5">
             <h3 class="mb-4 text-sm font-semibold text-white">Change Password</h3>
-            <form @submit.prevent="handleChangePassword" class="space-y-3">
-                <input type="text" :value="authStore.user?.username" autocomplete="username" class="hidden" aria-hidden="true" tabindex="-1" />
+            <form class="space-y-3" @submit.prevent="handleChangePassword">
+                <input
+                    type="text"
+                    :value="authStore.user?.username"
+                    autocomplete="username"
+                    class="hidden"
+                    aria-hidden="true"
+                    tabindex="-1"
+                />
                 <div>
                     <label
-                        class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider uppercase"
+                        class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
+                            uppercase"
                     >
                         Current Password
                     </label>
@@ -129,7 +138,8 @@ const handleChangePassword = async () => {
                 </div>
                 <div>
                     <label
-                        class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider uppercase"
+                        class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
+                            uppercase"
                     >
                         New Password
                     </label>
@@ -147,7 +157,8 @@ const handleChangePassword = async () => {
                 </div>
                 <div>
                     <label
-                        class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider uppercase"
+                        class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
+                            uppercase"
                     >
                         Confirm New Password
                     </label>
@@ -165,7 +176,9 @@ const handleChangePassword = async () => {
                 </div>
                 <button
                     type="submit"
-                    :disabled="accountLoading || !currentPassword || !newPassword || !confirmPassword"
+                    :disabled="
+                        accountLoading || !currentPassword || !newPassword || !confirmPassword
+                    "
                     class="bg-lava hover:bg-lava-glow rounded-lg px-4 py-2 text-xs font-semibold
                         text-white transition-all disabled:cursor-not-allowed disabled:opacity-40"
                 >

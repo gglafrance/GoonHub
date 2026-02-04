@@ -47,9 +47,9 @@ watch(
     <div class="flex w-full items-center justify-center gap-3">
         <!-- Like -->
         <button
-            @click="toggleLike"
             class="group flex flex-col items-center gap-0.5 transition-all duration-200"
             title="Like this scene"
+            @click="toggleLike"
         >
             <div
                 class="transition-all duration-200"
@@ -70,9 +70,9 @@ watch(
 
         <!-- Jizz -->
         <button
-            @click="incrementJizzed"
             class="group flex flex-col items-center gap-0.5 transition-all duration-200"
             title="Track completion"
+            @click="incrementJizzed"
         >
             <div
                 class="transition-all duration-200"

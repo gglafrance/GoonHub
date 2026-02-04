@@ -243,10 +243,10 @@ onMounted(() => {
             <div class="border-border flex items-center justify-between border-t pt-4">
                 <span class="text-dim text-[10px]">Applied to newly processed videos</span>
                 <button
-                    @click="applyConfig"
                     :disabled="saving"
                     class="bg-lava hover:bg-lava/90 rounded-lg px-4 py-1.5 text-xs font-medium
                         text-white transition-colors disabled:opacity-50"
+                    @click="applyConfig"
                 >
                     {{ saving ? 'Applying...' : 'Apply' }}
                 </button>

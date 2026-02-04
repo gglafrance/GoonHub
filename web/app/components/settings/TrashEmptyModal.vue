@@ -27,19 +27,19 @@ const emit = defineEmits<{
                 </p>
                 <div class="flex justify-end gap-2">
                     <button
-                        @click="emit('close')"
                         :disabled="loading"
                         class="text-dim rounded-lg px-3 py-1.5 text-xs transition-colors
                             hover:text-white disabled:opacity-40"
+                        @click="emit('close')"
                     >
                         Cancel
                     </button>
                     <button
-                        @click="emit('confirm')"
                         :disabled="loading"
                         class="rounded-lg bg-red-600 px-4 py-1.5 text-xs font-semibold text-white
                             transition-all hover:bg-red-500 disabled:cursor-not-allowed
                             disabled:opacity-40"
+                        @click="emit('confirm')"
                     >
                         {{ loading ? 'Deleting...' : 'Empty Trash' }}
                     </button>

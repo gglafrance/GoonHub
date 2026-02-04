@@ -81,9 +81,9 @@ definePageMeta({
         <div class="mx-auto max-w-415">
             <!-- Back Button -->
             <button
-                @click="goBack"
                 class="text-dim hover:text-lava mb-4 flex items-center gap-1 text-sm
                     transition-colors"
+                @click="goBack"
             >
                 <Icon name="heroicons:arrow-left" size="16" />
                 Back to Markers

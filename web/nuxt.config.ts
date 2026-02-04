@@ -41,7 +41,13 @@ export default defineNuxtConfig({
         },
     },
 
-    modules: ['@nuxt/eslint', '@pinia/nuxt', '@nuxt/icon', '@pinia-plugin-persistedstate/nuxt', '@vite-pwa/nuxt'],
+    modules: [
+        '@nuxt/eslint',
+        '@pinia/nuxt',
+        '@nuxt/icon',
+        '@pinia-plugin-persistedstate/nuxt',
+        '@vite-pwa/nuxt',
+    ],
 
     pwa: {
         registerType: 'autoUpdate',
@@ -56,12 +62,32 @@ export default defineNuxtConfig({
             icons: [
                 { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
                 { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
-                { src: 'pwa-maskable-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-                { src: 'pwa-maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+                {
+                    src: 'pwa-maskable-192x192.png',
+                    sizes: '192x192',
+                    type: 'image/png',
+                    purpose: 'maskable',
+                },
+                {
+                    src: 'pwa-maskable-512x512.png',
+                    sizes: '512x512',
+                    type: 'image/png',
+                    purpose: 'maskable',
+                },
             ],
             screenshots: [
-                { src: 'screenshot-wide.png', sizes: '1280x720', type: 'image/png', form_factor: 'wide' },
-                { src: 'screenshot-narrow.png', sizes: '750x1334', type: 'image/png', form_factor: 'narrow' },
+                {
+                    src: 'screenshot-wide.png',
+                    sizes: '1280x720',
+                    type: 'image/png',
+                    form_factor: 'wide',
+                },
+                {
+                    src: 'screenshot-narrow.png',
+                    sizes: '750x1334',
+                    type: 'image/png',
+                    form_factor: 'narrow',
+                },
             ],
         },
         workbox: {

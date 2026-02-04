@@ -42,7 +42,8 @@ function togglePopup() {
                 gap-1.5 rounded-md border px-2 transition-all"
             :class="{
                 'border-lava/30 text-lava': jobStatusStore.isActive,
-                'border-red-500/40 text-red-400': jobStatusStore.hasFailed && !jobStatusStore.isActive,
+                'border-red-500/40 text-red-400':
+                    jobStatusStore.hasFailed && !jobStatusStore.isActive,
                 'opacity-50': !jobStatusStore.isConnected,
             }"
             :title="tooltipText"
@@ -53,7 +54,10 @@ function togglePopup() {
                 size="14"
                 :class="{ 'animate-pulse': jobStatusStore.isActive }"
             />
-            <span v-if="jobStatusStore.hasFailed && !badgeText" class="text-red-400 font-mono text-[10px]">
+            <span
+                v-if="jobStatusStore.hasFailed && !badgeText"
+                class="font-mono text-[10px] text-red-400"
+            >
                 {{ jobStatusStore.totalFailed }}!
             </span>
             <span v-else-if="badgeText" class="font-mono text-[10px]">{{ badgeText }}</span>

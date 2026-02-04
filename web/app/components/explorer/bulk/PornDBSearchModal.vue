@@ -48,8 +48,8 @@ function onSceneSelected(scene: PornDBScene) {
                         <p class="text-dim mt-0.5 truncate text-xs">{{ scene.title }}</p>
                     </div>
                     <button
-                        @click="emit('close')"
                         class="text-dim ml-4 shrink-0 transition-colors hover:text-white"
+                        @click="emit('close')"
                     >
                         <Icon name="heroicons:x-mark" size="20" />
                     </button>

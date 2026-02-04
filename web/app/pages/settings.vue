@@ -171,7 +171,6 @@ definePageMeta({
             <div class="scrollbar-none -mx-px flex overflow-x-auto px-4 py-2">
                 <template v-for="tab in regularTabs" :key="tab.id">
                     <button
-                        @click="setTab(tab)"
                         class="flex shrink-0 flex-col items-center gap-1 rounded-lg px-4 py-2
                             transition-all"
                         :class="
@@ -179,6 +178,7 @@ definePageMeta({
                                 ? 'bg-lava/10 text-lava'
                                 : 'text-dim hover:bg-white/5 hover:text-white'
                         "
+                        @click="setTab(tab)"
                     >
                         <Icon :name="tab.icon" size="20" />
                         <span class="text-[10px] font-medium">{{ tab.label }}</span>
@@ -193,7 +193,6 @@ definePageMeta({
 
                 <template v-for="tab in adminTabs" :key="tab.id">
                     <button
-                        @click="setTab(tab)"
                         class="flex shrink-0 flex-col items-center gap-1 rounded-lg px-4 py-2
                             transition-all"
                         :class="
@@ -201,6 +200,7 @@ definePageMeta({
                                 ? 'bg-lava/10 text-lava'
                                 : 'text-dim hover:bg-white/5 hover:text-white'
                         "
+                        @click="setTab(tab)"
                     >
                         <Icon :name="tab.icon" size="20" />
                         <span class="text-[10px] font-medium">{{ tab.label }}</span>
@@ -219,13 +219,13 @@ definePageMeta({
                 <button
                     v-for="subTab in tabConfig.find((t) => t.id === 'jobs')?.subTabs"
                     :key="subTab.id"
-                    @click="setSubTab(tabConfig.find((t) => t.id === 'jobs')!, subTab.id)"
                     class="shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-all"
                     :class="
                         isSubTabActive(subTab.id)
                             ? 'bg-lava text-white'
                             : 'text-dim bg-white/5 hover:bg-white/10 hover:text-white'
                     "
+                    @click="setSubTab(tabConfig.find((t) => t.id === 'jobs')!, subTab.id)"
                 >
                     {{ subTab.label }}
                 </button>
@@ -244,7 +244,6 @@ definePageMeta({
                 <nav class="space-y-0.5">
                     <template v-for="tab in regularTabs" :key="tab.id">
                         <button
-                            @click="setTab(tab)"
                             class="group flex w-full items-center gap-2.5 rounded-lg px-3 py-2
                                 text-[13px] font-medium transition-all duration-150"
                             :class="
@@ -252,6 +251,7 @@ definePageMeta({
                                     ? 'bg-lava/10 text-lava shadow-[inset_3px_0_0_#ff4d4d]'
                                     : 'text-white/50 hover:bg-white/3 hover:text-white/80'
                             "
+                            @click="setTab(tab)"
                         >
                             <Icon :name="tab.icon" class="h-4.5 w-4.5 shrink-0" />
                             <span>{{ tab.label }}</span>
@@ -274,7 +274,6 @@ definePageMeta({
                             <!-- Tab with sub-tabs -->
                             <div v-if="tab.subTabs">
                                 <button
-                                    @click="setTab(tab)"
                                     class="group flex w-full items-center gap-2.5 rounded-lg px-3
                                         py-2 text-[13px] font-medium transition-all duration-150"
                                     :class="
@@ -282,13 +281,14 @@ definePageMeta({
                                             ? 'bg-lava/10 text-lava shadow-[inset_3px_0_0_#ff4d4d]'
                                             : 'text-white/50 hover:bg-white/3 hover:text-white/80'
                                     "
+                                    @click="setTab(tab)"
                                 >
                                     <Icon :name="tab.icon" class="h-4.5 w-4.5 shrink-0" />
                                     <span>{{ tab.label }}</span>
                                     <span
-                                        @click="toggleExpand(tab, $event)"
                                         class="ml-auto cursor-pointer rounded p-0.5
                                             transition-colors hover:bg-white/10"
+                                        @click="toggleExpand(tab, $event)"
                                     >
                                         <Icon
                                             name="heroicons:chevron-down"
@@ -307,7 +307,6 @@ definePageMeta({
                                         <button
                                             v-for="subTab in tab.subTabs"
                                             :key="subTab.id"
-                                            @click="setSubTab(tab, subTab.id)"
                                             class="flex w-full items-center gap-2 rounded-md py-1.5
                                                 pr-3 pl-11 text-xs font-medium transition-all
                                                 duration-150"
@@ -317,6 +316,7 @@ definePageMeta({
                                                     : `text-white/40 hover:bg-white/2
                                                         hover:text-white/70`
                                             "
+                                            @click="setSubTab(tab, subTab.id)"
                                         >
                                             <span
                                                 class="h-1 w-1 rounded-full"
@@ -335,7 +335,6 @@ definePageMeta({
                             <!-- Regular admin tab -->
                             <button
                                 v-else
-                                @click="setTab(tab)"
                                 class="group flex w-full items-center gap-2.5 rounded-lg px-3 py-2
                                     text-[13px] font-medium transition-all duration-150"
                                 :class="
@@ -343,6 +342,7 @@ definePageMeta({
                                         ? 'bg-lava/10 text-lava shadow-[inset_3px_0_0_#ff4d4d]'
                                         : 'text-white/50 hover:bg-white/3 hover:text-white/80'
                                 "
+                                @click="setTab(tab)"
                             >
                                 <Icon :name="tab.icon" class="h-4.5 w-4.5 shrink-0" />
                                 <span>{{ tab.label }}</span>

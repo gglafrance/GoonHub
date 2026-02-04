@@ -159,9 +159,9 @@ const roleBadgeClass = (role: string): string => {
             <div class="mb-4 flex items-center justify-between">
                 <h3 class="text-sm font-semibold text-white">User Management</h3>
                 <button
-                    @click="showCreateModal = true"
                     class="bg-lava hover:bg-lava-glow rounded-lg px-3 py-1.5 text-[11px]
                         font-semibold text-white transition-all"
+                    @click="showCreateModal = true"
                 >
                     Create User
                 </button>
@@ -172,11 +172,14 @@ const roleBadgeClass = (role: string): string => {
             <div v-else class="overflow-x-auto">
                 <table class="w-full text-left text-xs">
                     <thead>
-                        <tr class="text-dim border-border border-b text-[11px] uppercase tracking-wider">
-                            <th class="pb-2 pr-4 font-medium">Username</th>
-                            <th class="pb-2 pr-4 font-medium">Role</th>
-                            <th class="pb-2 pr-4 font-medium">Created</th>
-                            <th class="pb-2 pr-4 font-medium">Last Login</th>
+                        <tr
+                            class="text-dim border-border border-b text-[11px] tracking-wider
+                                uppercase"
+                        >
+                            <th class="pr-4 pb-2 font-medium">Username</th>
+                            <th class="pr-4 pb-2 font-medium">Role</th>
+                            <th class="pr-4 pb-2 font-medium">Created</th>
+                            <th class="pr-4 pb-2 font-medium">Last Login</th>
                             <th class="pb-2 font-medium">Actions</th>
                         </tr>
                     </thead>
@@ -189,7 +192,8 @@ const roleBadgeClass = (role: string): string => {
                             <td class="py-2.5 pr-4 text-white">{{ u.username }}</td>
                             <td class="py-2.5 pr-4">
                                 <span
-                                    class="inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize"
+                                    class="inline-block rounded-full border px-2 py-0.5 text-[10px]
+                                        font-medium capitalize"
                                     :class="roleBadgeClass(u.role)"
                                 >
                                     {{ u.role }}
@@ -200,20 +204,23 @@ const roleBadgeClass = (role: string): string => {
                             <td class="py-2.5">
                                 <div class="flex gap-2">
                                     <button
+                                        class="text-dim text-[11px] transition-colors
+                                            hover:text-white"
                                         @click="openEditRole(u)"
-                                        class="text-dim hover:text-white text-[11px] transition-colors"
                                     >
                                         Role
                                     </button>
                                     <button
+                                        class="text-dim text-[11px] transition-colors
+                                            hover:text-white"
                                         @click="openResetPassword(u)"
-                                        class="text-dim hover:text-white text-[11px] transition-colors"
                                     >
                                         Password
                                     </button>
                                     <button
+                                        class="text-lava/70 hover:text-lava text-[11px]
+                                            transition-colors"
                                         @click="openDeleteUser(u)"
-                                        class="text-lava/70 hover:text-lava text-[11px] transition-colors"
                                     >
                                         Delete
                                     </button>
@@ -235,12 +242,13 @@ const roleBadgeClass = (role: string): string => {
                     class="border-border/50 rounded-lg border"
                 >
                     <button
-                        @click="toggleRoleExpand(role.id)"
                         class="flex w-full items-center justify-between px-3 py-2.5 text-left"
+                        @click="toggleRoleExpand(role.id)"
                     >
                         <div class="flex items-center gap-2">
                             <span
-                                class="inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize"
+                                class="inline-block rounded-full border px-2 py-0.5 text-[10px]
+                                    font-medium capitalize"
                                 :class="roleBadgeClass(role.name)"
                             >
                                 {{ role.name }}
@@ -248,7 +256,11 @@ const roleBadgeClass = (role: string): string => {
                             <span class="text-dim text-[11px]">{{ role.description }}</span>
                         </div>
                         <Icon
-                            :name="expandedRole === role.id ? 'lucide:chevron-up' : 'lucide:chevron-down'"
+                            :name="
+                                expandedRole === role.id
+                                    ? 'lucide:chevron-up'
+                                    : 'lucide:chevron-down'
+                            "
                             class="text-dim h-3.5 w-3.5"
                         />
                     </button>
@@ -266,8 +278,8 @@ const roleBadgeClass = (role: string): string => {
                                 <input
                                     type="checkbox"
                                     :checked="getRolePermissionIds(role).includes(perm.id)"
-                                    @change="handleTogglePermission(role, perm.id)"
                                     class="accent-lava h-3 w-3 rounded"
+                                    @change="handleTogglePermission(role, perm.id)"
                                 />
                                 <div>
                                     <div class="text-[11px] text-white">{{ perm.name }}</div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SortOrder, KeyboardLayout } from '~/types/settings';
+import type { SortOrder } from '~/types/settings';
 
 const settingsStore = useSettingsStore();
 const authStore = useAuthStore();
@@ -161,7 +161,6 @@ const handleSaveSearchConfig = async () => {
                     </p>
                     <div class="flex gap-2">
                         <button
-                            @click="setKeyboardLayout('qwerty')"
                             :class="[
                                 'rounded-lg border px-4 py-2 text-xs font-medium transition-all',
                                 keyboardLayout === 'qwerty'
@@ -169,11 +168,11 @@ const handleSaveSearchConfig = async () => {
                                     : `border-border hover:border-border-hover text-muted
                                         hover:text-white`,
                             ]"
+                            @click="setKeyboardLayout('qwerty')"
                         >
                             QWERTY
                         </button>
                         <button
-                            @click="setKeyboardLayout('azerty')"
                             :class="[
                                 'rounded-lg border px-4 py-2 text-xs font-medium transition-all',
                                 keyboardLayout === 'azerty'
@@ -181,6 +180,7 @@ const handleSaveSearchConfig = async () => {
                                     : `border-border hover:border-border-hover text-muted
                                         hover:text-white`,
                             ]"
+                            @click="setKeyboardLayout('azerty')"
                         >
                             AZERTY
                         </button>
@@ -201,10 +201,10 @@ const handleSaveSearchConfig = async () => {
                 </div>
 
                 <button
-                    @click="handleSaveApp"
                     :disabled="settingsStore.isLoading"
                     class="bg-lava hover:bg-lava-glow rounded-lg px-4 py-2 text-xs font-semibold
                         text-white transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                    @click="handleSaveApp"
                 >
                     Save App Settings
                 </button>
@@ -214,21 +214,18 @@ const handleSaveSearchConfig = async () => {
         <!-- Search Configuration (admin only) -->
         <div v-if="isAdmin" class="glass-panel p-5">
             <h3 class="mb-2 text-sm font-semibold text-white">Search</h3>
-            <p class="text-dim mb-4 text-xs">
-                Configure search engine settings.
-            </p>
+            <p class="text-dim mb-4 text-xs">Configure search engine settings.</p>
 
             <div
                 v-if="searchConfigMessage"
-                class="border-emerald/20 bg-emerald/5 text-emerald mb-4 rounded-lg border px-3
-                    py-2 text-xs"
+                class="border-emerald/20 bg-emerald/5 text-emerald mb-4 rounded-lg border px-3 py-2
+                    text-xs"
             >
                 {{ searchConfigMessage }}
             </div>
             <div
                 v-if="searchConfigError"
-                class="border-lava/20 bg-lava/5 text-lava mb-4 rounded-lg border px-3 py-2
-                    text-xs"
+                class="border-lava/20 bg-lava/5 text-lava mb-4 rounded-lg border px-3 py-2 text-xs"
             >
                 {{ searchConfigError }}
             </div>
@@ -253,11 +250,11 @@ const handleSaveSearchConfig = async () => {
                             transition-all focus:ring-1 focus:outline-none"
                     />
                     <button
-                        @click="handleSaveSearchConfig"
                         :disabled="isSavingSearchConfig"
-                        class="border-border hover:border-lava/40 hover:bg-lava/10 rounded-lg
-                            border px-4 py-2 text-xs font-medium text-white transition-all
+                        class="border-border hover:border-lava/40 hover:bg-lava/10 rounded-lg border
+                            px-4 py-2 text-xs font-medium text-white transition-all
                             disabled:cursor-not-allowed disabled:opacity-40"
+                        @click="handleSaveSearchConfig"
                     >
                         {{ isSavingSearchConfig ? 'Saving...' : 'Save' }}
                     </button>
@@ -288,11 +285,11 @@ const handleSaveSearchConfig = async () => {
             </div>
 
             <button
-                @click="handleReindex"
                 :disabled="isReindexing"
                 class="border-border hover:border-lava/40 hover:bg-lava/10 flex items-center gap-2
                     rounded-lg border px-4 py-2 text-xs font-medium text-white transition-all
                     disabled:cursor-not-allowed disabled:opacity-40"
+                @click="handleReindex"
             >
                 <Icon
                     name="heroicons:arrow-path"

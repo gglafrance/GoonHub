@@ -39,7 +39,11 @@ export const useScenePlayerShortcuts = (options: Options) => {
         // Play/Pause
         if (key === ' ' || key === 'k') {
             e.preventDefault();
-            p.paused() ? p.play() : p.pause();
+            if (p.paused()) {
+                p.play();
+            } else {
+                p.pause();
+            }
         }
 
         // Seek backward (short)
@@ -82,7 +86,11 @@ export const useScenePlayerShortcuts = (options: Options) => {
         // Fullscreen toggle
         else if (key === 'f') {
             e.preventDefault();
-            p.isFullscreen() ? p.exitFullscreen() : p.requestFullscreen();
+            if (p.isFullscreen()) {
+                p.exitFullscreen();
+            } else {
+                p.requestFullscreen();
+            }
         }
 
         // Decrease playback speed

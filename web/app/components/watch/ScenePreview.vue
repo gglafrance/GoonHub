@@ -46,7 +46,8 @@ onMounted(() => {
         title: !props.scene?.title,
         description: !props.scene?.description,
         studio: !props.scene?.studio && !!props.porndbScene.site?.name,
-        thumbnail: !props.scene?.thumbnail_path && !!(props.porndbScene.image || props.porndbScene.poster),
+        thumbnail:
+            !props.scene?.thumbnail_path && !!(props.porndbScene.image || props.porndbScene.poster),
         performers: (props.porndbScene.performers?.length ?? 0) > 0,
         tags: (props.porndbScene.tags?.length ?? 0) > 0,
         release_date: !!props.porndbScene.date && !props.scene?.release_date,
@@ -59,8 +60,8 @@ onMounted(() => {
     <div class="space-y-4">
         <!-- Back button -->
         <button
-            @click="emit('back')"
             class="text-dim flex items-center gap-1 text-xs transition-colors hover:text-white"
+            @click="emit('back')"
         >
             <Icon name="heroicons:arrow-left" size="14" />
             Back to search
@@ -81,7 +82,9 @@ onMounted(() => {
             </div>
             <div class="py-1">
                 <p class="text-sm font-medium text-white">{{ porndbScene.title }}</p>
-                <p v-if="porndbScene.site?.name" class="text-dim mt-0.5 text-xs">{{ porndbScene.site.name }}</p>
+                <p v-if="porndbScene.site?.name" class="text-dim mt-0.5 text-xs">
+                    {{ porndbScene.site.name }}
+                </p>
                 <div class="text-dim mt-2 flex flex-wrap gap-3 text-[11px]">
                     <span v-if="porndbScene.date" class="flex items-center gap-1">
                         <Icon name="heroicons:calendar" size="12" />
@@ -231,7 +234,9 @@ onMounted(() => {
                             </div>
                             <div>
                                 <span class="text-dim">New:</span>
-                                <p class="text-lava mt-0.5 line-clamp-3">{{ porndbScene.description }}</p>
+                                <p class="text-lava mt-0.5 line-clamp-3">
+                                    {{ porndbScene.description }}
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -286,7 +291,9 @@ onMounted(() => {
                         class="accent-lava mt-0.5 h-4 w-4 shrink-0 rounded"
                     />
                     <div class="min-w-0 flex-1">
-                        <p class="text-dim text-xs font-medium">Tags ({{ porndbScene.tags.length }})</p>
+                        <p class="text-dim text-xs font-medium">
+                            Tags ({{ porndbScene.tags.length }})
+                        </p>
                         <div class="mt-2 flex flex-wrap gap-1">
                             <span
                                 v-for="tag in porndbScene.tags.slice(0, 15)"
@@ -329,7 +336,10 @@ onMounted(() => {
                                 </span>
                                 {{ marker.title }}
                             </span>
-                            <span v-if="porndbScene.markers.length > 10" class="text-dim text-[10px]">
+                            <span
+                                v-if="porndbScene.markers.length > 10"
+                                class="text-dim text-[10px]"
+                            >
                                 +{{ porndbScene.markers.length - 10 }} more
                             </span>
                         </div>
@@ -344,16 +354,16 @@ onMounted(() => {
         <!-- Actions -->
         <div class="flex justify-end gap-2 pt-2">
             <button
-                @click="emit('close')"
                 class="text-dim rounded-lg px-3 py-1.5 text-xs transition-colors hover:text-white"
+                @click="emit('close')"
             >
                 Cancel
             </button>
             <button
-                @click="emit('apply', { ...selectedFields })"
                 :disabled="!Object.values(selectedFields).some(Boolean)"
                 class="bg-lava hover:bg-lava-glow rounded-lg px-4 py-1.5 text-xs font-semibold
                     text-white transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                @click="emit('apply', { ...selectedFields })"
             >
                 Apply Selected
             </button>

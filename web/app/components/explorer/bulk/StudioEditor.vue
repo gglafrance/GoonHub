@@ -66,15 +66,13 @@ const handleSubmit = async () => {
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
             @click.self="$emit('close')"
         >
-            <div
-                class="border-border bg-panel w-full max-w-md rounded-xl border shadow-2xl"
-            >
+            <div class="border-border bg-panel w-full max-w-md rounded-xl border shadow-2xl">
                 <!-- Header -->
                 <div class="border-border flex items-center justify-between border-b px-4 py-3">
                     <h2 class="text-sm font-semibold text-white">Bulk Edit Studio</h2>
                     <button
+                        class="text-dim transition-colors hover:text-white"
                         @click="$emit('close')"
-                        class="text-dim hover:text-white transition-colors"
                     >
                         <Icon name="heroicons:x-mark" size="18" />
                     </button>
@@ -91,7 +89,10 @@ const handleSubmit = async () => {
 
                     <!-- Studio Input -->
                     <div class="mb-4">
-                        <label class="text-dim mb-2 block text-[11px] font-medium uppercase tracking-wider">
+                        <label
+                            class="text-dim mb-2 block text-[11px] font-medium tracking-wider
+                                uppercase"
+                        >
                             Studio Name
                         </label>
                         <input
@@ -99,7 +100,7 @@ const handleSubmit = async () => {
                             type="text"
                             placeholder="Enter or select a studio..."
                             class="border-border bg-surface focus:border-lava/50 focus:ring-lava/20
-                                w-full rounded-lg border py-2 px-3 text-xs text-white
+                                w-full rounded-lg border px-3 py-2 text-xs text-white
                                 placeholder-white/40 transition-all focus:ring-2 focus:outline-none"
                         />
                         <p class="text-dim mt-1.5 text-[10px]">
@@ -109,7 +110,10 @@ const handleSubmit = async () => {
 
                     <!-- Existing Studios -->
                     <div v-if="studios.length > 0" class="mb-4">
-                        <label class="text-dim mb-2 block text-[11px] font-medium uppercase tracking-wider">
+                        <label
+                            class="text-dim mb-2 block text-[11px] font-medium tracking-wider
+                                uppercase"
+                        >
                             Existing Studios
                         </label>
 
@@ -122,14 +126,15 @@ const handleSubmit = async () => {
                                 <button
                                     v-for="s in filteredStudios"
                                     :key="s"
-                                    @click="selectStudio(s)"
                                     class="rounded-lg border px-2.5 py-1 text-[11px] font-medium
                                         transition-all"
                                     :class="
                                         studio === s
                                             ? 'border-lava bg-lava/10 text-lava'
-                                            : 'border-border hover:border-border-hover text-dim hover:text-white'
+                                            : `border-border hover:border-border-hover text-dim
+                                                hover:text-white`
                                     "
+                                    @click="selectStudio(s)"
                                 >
                                     {{ s }}
                                 </button>
@@ -141,17 +146,17 @@ const handleSubmit = async () => {
                 <!-- Footer -->
                 <div class="border-border flex items-center justify-end gap-2 border-t px-4 py-3">
                     <button
-                        @click="$emit('close')"
                         class="border-border hover:border-border-hover rounded-lg border px-3 py-1.5
                             text-xs font-medium text-white transition-all"
+                        @click="$emit('close')"
                     >
                         Cancel
                     </button>
                     <button
-                        @click="handleSubmit"
                         :disabled="loading"
-                        class="bg-lava hover:bg-lava-glow rounded-lg px-3 py-1.5 text-xs font-semibold
-                            text-white transition-colors disabled:opacity-50"
+                        class="bg-lava hover:bg-lava-glow rounded-lg px-3 py-1.5 text-xs
+                            font-semibold text-white transition-colors disabled:opacity-50"
+                        @click="handleSubmit"
                     >
                         <span v-if="loading">Applying...</span>
                         <span v-else>Apply</span>

@@ -184,7 +184,7 @@ const handleLoadSavedSearch = (filters: SavedSearchFilters) => {
     searchStore.search();
 };
 
-const handleSearchSaved = (search: SavedSearch) => {
+const handleSearchSaved = (_search: SavedSearch) => {
     showSaveModal.value = false;
     savedSearchesPanel.value?.reload();
 };
@@ -199,11 +199,11 @@ const handleSearchSaved = (search: SavedSearch) => {
 
             <!-- Mobile: Filter button -->
             <button
-                @click="showMobileFilters = true"
                 class="border-border bg-surface hover:border-lava/40 hover:bg-lava/10 relative flex
                     h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-all
                     lg:hidden"
                 title="Filters"
+                @click="showMobileFilters = true"
             >
                 <Icon name="heroicons:adjustments-horizontal" size="18" class="text-white" />
                 <span
@@ -218,11 +218,11 @@ const handleSearchSaved = (search: SavedSearch) => {
             <!-- Save search button -->
             <button
                 v-if="searchStore.hasActiveFilters"
-                @click="showSaveModal = true"
                 class="border-border bg-surface hover:border-lava/40 hover:bg-lava/10 flex h-10
                     shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium
                     text-white transition-all sm:py-2"
                 title="Save current search"
+                @click="showSaveModal = true"
             >
                 <Icon name="heroicons:bookmark" size="14" />
                 <span class="hidden sm:inline">Save</span>

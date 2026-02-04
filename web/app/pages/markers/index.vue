@@ -167,24 +167,24 @@ definePageMeta({
                             p-0.5"
                     >
                         <button
-                            @click="viewMode = 'grouped'"
                             class="rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-all"
                             :class="
                                 viewMode === 'grouped'
                                     ? 'bg-lava/15 text-lava'
                                     : 'text-dim hover:text-white'
                             "
+                            @click="viewMode = 'grouped'"
                         >
                             Grouped
                         </button>
                         <button
-                            @click="viewMode = 'all'"
                             class="rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-all"
                             :class="
                                 viewMode === 'all'
                                     ? 'bg-lava/15 text-lava'
                                     : 'text-dim hover:text-white'
                             "
+                            @click="viewMode = 'all'"
                         >
                             All
                         </button>
@@ -259,9 +259,7 @@ definePageMeta({
                         <Icon name="heroicons:bookmark" size="20" class="text-dim" />
                     </div>
                     <p class="text-muted mt-3 text-sm">No marker labels found</p>
-                    <p class="text-dim mt-1 text-xs">
-                        Create markers on scenes to see them here
-                    </p>
+                    <p class="text-dim mt-1 text-xs">Create markers on scenes to see them here</p>
                 </div>
 
                 <!-- No search results -->
@@ -302,9 +300,7 @@ definePageMeta({
                         <Icon name="heroicons:bookmark" size="20" class="text-dim" />
                     </div>
                     <p class="text-muted mt-3 text-sm">No markers found</p>
-                    <p class="text-dim mt-1 text-xs">
-                        Create markers on scenes to see them here
-                    </p>
+                    <p class="text-dim mt-1 text-xs">Create markers on scenes to see them here</p>
                 </div>
 
                 <!-- All markers grid -->
@@ -320,9 +316,7 @@ definePageMeta({
                                 transition-transform duration-200"
                         >
                             <!-- Thumbnail -->
-                            <div
-                                class="relative aspect-video w-full overflow-hidden bg-black/40"
-                            >
+                            <div class="relative aspect-video w-full overflow-hidden bg-black/40">
                                 <img
                                     :src="`/marker-thumbnails/${marker.id}`"
                                     :alt="marker.scene_title"
@@ -339,9 +333,9 @@ definePageMeta({
 
                                 <!-- Timestamp badge -->
                                 <div
-                                    class="absolute right-1.5 bottom-1.5 rounded bg-black/80
-                                        px-1.5 py-0.5 text-[10px] font-semibold text-white/90
-                                        tabular-nums backdrop-blur-sm"
+                                    class="absolute right-1.5 bottom-1.5 rounded bg-black/80 px-1.5
+                                        py-0.5 text-[10px] font-semibold text-white/90 tabular-nums
+                                        backdrop-blur-sm"
                                 >
                                     {{ formatDuration(marker.timestamp) }}
                                 </div>

@@ -132,10 +132,10 @@ onBeforeUnmount(() => {
                     @click.stop
                 />
                 <button
-                    @click.stop="cycleSortMode()"
                     class="text-dim shrink-0 rounded px-1.5 py-0.5 text-[9px] transition-colors
                         hover:bg-white/5 hover:text-white/80"
                     :title="`Sort: ${sortLabels[sortMode]}`"
+                    @click.stop="cycleSortMode()"
                 >
                     {{ sortLabels[sortMode] }}
                 </button>
@@ -144,9 +144,9 @@ onBeforeUnmount(() => {
             <!-- Clear current studio option -->
             <div v-if="currentStudioId" class="border-border/50 border-b py-1">
                 <button
-                    @click="emit('clear')"
                     class="text-lava flex w-full items-center gap-2 px-3 py-1.5 text-left
                         text-[11px] transition-colors hover:bg-white/5"
+                    @click="emit('clear')"
                 >
                     <Icon name="heroicons:x-mark" size="14" />
                     Remove studio
@@ -159,9 +159,9 @@ onBeforeUnmount(() => {
                 </p>
                 <button
                     v-if="searchQuery"
-                    @click="emit('create', searchQuery)"
                     class="text-lava hover:bg-lava/10 mt-2 flex w-full items-center gap-1.5
                         rounded-md px-2 py-1.5 text-left text-[11px] transition-colors"
+                    @click="emit('create', searchQuery)"
                 >
                     <Icon name="heroicons:plus" size="14" />
                     Create "{{ searchQuery }}"
@@ -171,9 +171,9 @@ onBeforeUnmount(() => {
                 <button
                     v-for="studio in filteredStudios"
                     :key="studio.id"
-                    @click="emit('select', studio.id)"
                     class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px]
                         text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+                    @click="emit('select', studio.id)"
                 >
                     <div class="bg-surface h-5 w-5 shrink-0 overflow-hidden rounded">
                         <img

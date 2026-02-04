@@ -47,7 +47,8 @@ const handleClose = () => {
                 <h3 class="mb-2 text-sm font-semibold text-white">Delete Scene</h3>
                 <div
                     v-if="error"
-                    class="border-lava/20 bg-lava/5 text-lava mb-3 rounded-lg border px-3 py-2 text-xs"
+                    class="border-lava/20 bg-lava/5 text-lava mb-3 rounded-lg border px-3 py-2
+                        text-xs"
                 >
                     {{ error }}
                 </div>
@@ -79,21 +80,22 @@ const handleClose = () => {
 
                 <div class="flex justify-end gap-2">
                     <button
+                        class="text-dim rounded-lg px-3 py-1.5 text-xs transition-colors
+                            hover:text-white"
                         @click="handleClose"
-                        class="text-dim hover:text-white rounded-lg px-3 py-1.5 text-xs transition-colors"
                     >
                         Cancel
                     </button>
                     <button
-                        @click="handleDelete"
                         :disabled="loading"
-                        class="rounded-lg px-4 py-1.5 text-xs font-semibold text-white transition-all
-                            disabled:cursor-not-allowed disabled:opacity-40"
+                        class="rounded-lg px-4 py-1.5 text-xs font-semibold text-white
+                            transition-all disabled:cursor-not-allowed disabled:opacity-40"
                         :class="
                             permanent
                                 ? 'bg-red-600 hover:bg-red-500'
                                 : 'bg-amber-600 hover:bg-amber-500'
                         "
+                        @click="handleDelete"
                     >
                         {{ permanent ? 'Delete Permanently' : 'Move to Trash' }}
                     </button>

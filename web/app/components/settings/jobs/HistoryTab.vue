@@ -206,7 +206,7 @@ const { pageSizes, page, limit, total, totalPages, prevPage, nextPage, changePag
         onPageChange: () => loadJobs(),
     });
 
-const { autoRefresh, toggle: toggleAutoRefresh } = useJobAutoRefresh({
+const { autoRefresh: _autoRefresh, toggle: _toggleAutoRefresh } = useJobAutoRefresh({
     onRefresh: () => loadJobs(true),
 });
 
@@ -262,7 +262,6 @@ watch(
                 <button
                     v-for="filter in statusFilters"
                     :key="filter.value"
-                    @click="changeFilter(filter.value)"
                     :class="[
                         'rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors',
                         statusFilter === filter.value
@@ -275,8 +274,9 @@ watch(
                                     : filter.value === 'timed_out'
                                       ? 'border-orange-500/30 bg-orange-500/10 text-orange-400'
                                       : 'border-white/20 bg-white/5 text-white'
-                            : 'border-white/5 text-dim hover:border-white/10 hover:text-white',
+                            : 'text-dim border-white/5 hover:border-white/10 hover:text-white',
                     ]"
+                    @click="changeFilter(filter.value)"
                 >
                     {{ filter.label }}
                 </button>
@@ -288,19 +288,19 @@ watch(
                 class="mb-4 flex flex-wrap items-center gap-2"
             >
                 <button
-                    @click="handleRetryAll"
                     :disabled="bulkAction !== null"
                     class="border-lava/20 text-lava hover:bg-lava/10 rounded border px-2.5 py-1
                         text-[11px] font-medium transition-colors disabled:opacity-50"
+                    @click="handleRetryAll"
                 >
                     {{ bulkAction === 'retry-all' ? 'Retrying...' : 'Retry All Failed' }}
                 </button>
                 <button
-                    @click="handleRetryBatch"
                     :disabled="selectedJobIds.size === 0 || bulkAction !== null"
                     class="rounded border border-emerald-500/20 px-2.5 py-1 text-[11px] font-medium
                         text-emerald-400 transition-colors hover:bg-emerald-500/10
                         disabled:opacity-50"
+                    @click="handleRetryBatch"
                 >
                     {{
                         bulkAction === 'retry-batch'
@@ -309,7 +309,6 @@ watch(
                     }}
                 </button>
                 <button
-                    @click="handleClearFailed"
                     :disabled="bulkAction !== null"
                     class="rounded border border-white/10 px-2.5 py-1 text-[11px] font-medium
                         transition-colors disabled:opacity-50"
@@ -318,6 +317,7 @@ watch(
                             ? 'border-lava/40 bg-lava/10 text-lava'
                             : 'text-dim hover:border-white/20 hover:text-white'
                     "
+                    @click="handleClearFailed"
                 >
                     {{
                         bulkAction === 'clear'
@@ -347,8 +347,8 @@ watch(
                                 <input
                                     type="checkbox"
                                     :checked="allOnPageSelected"
-                                    @change="toggleSelectAll"
                                     class="accent-lava h-3 w-3 cursor-pointer"
+                                    @change="toggleSelectAll"
                                 />
                             </th>
                             <th class="pr-4 pb-2 font-medium">Scene</th>
@@ -373,8 +373,8 @@ watch(
                                 <input
                                     type="checkbox"
                                     :checked="selectedJobIds.has(job.job_id)"
-                                    @click.stop="toggleSelect(job.job_id)"
                                     class="accent-lava h-3 w-3 cursor-pointer"
+                                    @click.stop="toggleSelect(job.job_id)"
                                 />
                             </td>
                             <td class="max-w-40 truncate py-2.5 pr-4 text-white">
@@ -415,11 +415,11 @@ watch(
                             <td class="py-2.5">
                                 <button
                                     v-if="job.status === 'failed'"
-                                    @click.stop="handleRetry(job.job_id)"
                                     :disabled="retryingJobId !== null"
                                     class="rounded px-2 py-1 text-[10px] font-medium
-                                        text-emerald-400 transition-colors
-                                        hover:bg-emerald-500/10 disabled:opacity-50"
+                                        text-emerald-400 transition-colors hover:bg-emerald-500/10
+                                        disabled:opacity-50"
+                                    @click.stop="handleRetry(job.job_id)"
                                 >
                                     {{ retryingJobId === job.job_id ? 'Retrying...' : 'Retry' }}
                                 </button>
@@ -442,40 +442,32 @@ watch(
                             Error Details
                             <span class="text-white/30 normal-case">
                                 &mdash;
-                                {{
-                                    selectedJob.scene_title || `Scene #${selectedJob.scene_id}`
-                                }}
+                                {{ selectedJob.scene_title || `Scene #${selectedJob.scene_id}` }}
                             </span>
                         </span>
                         <button
-                            @click="navigateTo(`/watch/${selectedJob.scene_id}`)"
                             class="text-lava hover:text-lava/80 ml-auto text-[10px] font-medium
-                                normal-case tracking-normal transition-colors"
+                                tracking-normal normal-case transition-colors"
+                            @click="navigateTo(`/watch/${selectedJob.scene_id}`)"
                         >
                             View Scene
                         </button>
                     </div>
                     <div class="bg-surface rounded-lg border border-white/5 p-3">
-                        <code class="text-lava break-all text-[11px]">
+                        <code class="text-lava text-[11px] break-all">
                             {{ selectedJob.error_message }}
                         </code>
                     </div>
-                    <div
-                        v-if="loadingScenePath"
-                        class="text-dim mt-2 text-[10px]"
-                    >
+                    <div v-if="loadingScenePath" class="text-dim mt-2 text-[10px]">
                         Loading file path...
                     </div>
-                    <div
-                        v-else-if="selectedJobPath"
-                        class="mt-2"
-                    >
+                    <div v-else-if="selectedJobPath" class="mt-2">
                         <div class="text-dim mb-1 text-[10px] font-medium tracking-wider uppercase">
                             File Path
                         </div>
                         <code
-                            class="text-dim block break-all rounded border border-white/5
-                                bg-white/2 px-2 py-1.5 text-[11px]"
+                            class="text-dim block rounded border border-white/5 bg-white/2 px-2
+                                py-1.5 text-[11px] break-all"
                         >
                             {{ selectedJobPath }}
                         </code>
@@ -492,30 +484,30 @@ watch(
                     <button
                         v-for="size in pageSizes"
                         :key="size"
-                        @click="changePageSize(size)"
                         :class="[
                             'rounded px-1.5 py-0.5 text-[11px] transition-colors',
                             limit === size ? 'bg-white/10 text-white' : 'text-dim hover:text-white',
                         ]"
+                        @click="changePageSize(size)"
                     >
                         {{ size }}
                     </button>
                 </div>
                 <div class="flex items-center gap-3">
                     <button
-                        @click="prevPage"
                         :disabled="page <= 1"
                         class="text-dim disabled:hover:text-dim text-[11px] transition-colors
                             hover:text-white disabled:opacity-30"
+                        @click="prevPage"
                     >
                         Previous
                     </button>
                     <span class="text-dim text-[11px]">{{ page }} / {{ totalPages }}</span>
                     <button
-                        @click="nextPage"
                         :disabled="page >= totalPages"
                         class="text-dim disabled:hover:text-dim text-[11px] transition-colors
                             hover:text-white disabled:opacity-30"
+                        @click="nextPage"
                     >
                         Next
                     </button>

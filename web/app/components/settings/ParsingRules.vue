@@ -58,11 +58,6 @@ const currentPreset = computed(() => {
     return localPresets.value.find((p) => p.id === selectedPresetId.value) || null;
 });
 
-const allPresets = computed(() => {
-    const builtIn = getBuiltInPresets();
-    return [...builtIn, ...localPresets.value.filter((p) => !p.isBuiltIn)];
-});
-
 const previewOutput = computed(() => {
     if (!currentPreset.value || !previewInput.value) return previewInput.value;
     return applyRules(previewInput.value, currentPreset.value.rules);
@@ -423,11 +418,11 @@ async function handleSave() {
                         <div class="relative">
                             <select
                                 v-model="selectedPresetId"
-                                @change="selectPreset(selectedPresetId)"
                                 class="border-border bg-void/80 focus:border-lava/40
                                     focus:ring-lava/20 w-full appearance-none rounded-lg border
                                     py-2.5 pr-10 pl-4 text-sm text-white transition-all focus:ring-1
                                     focus:outline-none"
+                                @change="selectPreset(selectedPresetId)"
                             >
                                 <option :value="null">No parsing rules</option>
                                 <optgroup label="Built-in Presets">
@@ -463,10 +458,10 @@ async function handleSave() {
 
                     <div class="flex gap-2">
                         <button
-                            @click="showNewPresetModal = true"
                             class="group border-border hover:border-lava/40 hover:bg-lava/5 flex
                                 items-center gap-1.5 rounded-lg border px-3.5 py-3 text-xs
                                 font-medium text-white transition-all"
+                            @click="showNewPresetModal = true"
                         >
                             <Icon
                                 name="heroicons:plus"
@@ -476,23 +471,23 @@ async function handleSave() {
                             <span class="hidden sm:inline">New Preset</span>
                         </button>
                         <button
-                            @click="showSaveModal = true"
                             :disabled="!currentPreset"
                             class="border-border hover:border-lava/40 hover:bg-lava/5
                                 disabled:hover:border-border flex items-center gap-1.5 rounded-lg
                                 border px-3.5 py-3 text-xs font-medium text-white transition-all
                                 disabled:cursor-not-allowed disabled:opacity-40
                                 disabled:hover:bg-transparent"
+                            @click="showSaveModal = true"
                         >
                             <Icon name="heroicons:document-duplicate" size="14" class="text-dim" />
                             <span class="hidden sm:inline">Save As</span>
                         </button>
                         <button
                             v-if="currentPreset && !currentPreset.isBuiltIn"
-                            @click="deletePreset"
                             class="border-border flex items-center gap-1.5 rounded-lg border px-3.5
                                 py-3 text-xs font-medium text-white transition-all
                                 hover:border-red-500/40 hover:bg-red-500/5 hover:text-red-400"
+                            @click="deletePreset"
                         >
                             <Icon name="heroicons:trash" size="14" />
                         </button>
@@ -517,10 +512,10 @@ async function handleSave() {
                     </div>
                     <button
                         ref="addButtonRef"
-                        @click="toggleAddMenu"
                         class="group border-lava/30 bg-lava/5 text-lava hover:border-lava/50
                             hover:bg-lava/10 flex items-center gap-1.5 rounded-lg border px-3 py-1.5
                             text-xs font-medium transition-all"
+                        @click="toggleAddMenu"
                     >
                         <Icon name="heroicons:plus" size="14" />
                         Add Rule
@@ -564,10 +559,10 @@ async function handleSave() {
                                     <button
                                         v-for="type in category.types"
                                         :key="type"
-                                        @click="addRule(type)"
                                         class="group hover:bg-lava/10 flex w-full items-center
                                             justify-between rounded-lg px-2.5 py-2 text-left text-xs
                                             transition-all"
+                                        @click="addRule(type)"
                                     >
                                         <span class="text-white/80 group-hover:text-white">
                                             {{ RULE_TYPE_INFO[type].label }}
@@ -613,10 +608,10 @@ async function handleSave() {
                         v-for="(rule, index) in currentPreset.rules"
                         :key="rule.id"
                         draggable="true"
+                        class="rule-item"
                         @dragstart="handleDragStart(index)"
                         @dragover="(e) => handleDragOver(e, index)"
                         @dragend="handleDragEnd"
-                        class="rule-item"
                     >
                         <SettingsParsingRulesRuleRow
                             :rule="rule"
@@ -746,12 +741,12 @@ async function handleSave() {
                     </Transition>
                 </div>
                 <button
-                    @click="handleSave"
                     :disabled="isLoading"
                     class="group bg-lava hover:bg-lava-glow hover:shadow-lava/20 relative
                         overflow-hidden rounded-lg px-5 py-2.5 text-xs font-semibold text-white
                         transition-all hover:shadow-lg disabled:cursor-not-allowed
                         disabled:opacity-40"
+                    @click="handleSave"
                 >
                     <span class="relative z-10 flex items-center gap-2">
                         <Icon

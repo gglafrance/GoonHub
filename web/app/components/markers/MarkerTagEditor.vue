@@ -180,10 +180,10 @@ defineExpose({ reload });
                 />
                 {{ tag.name }}
                 <span
-                    @click.stop="removeTag(tag.id)"
                     class="cursor-pointer opacity-0 transition-opacity group-hover:opacity-60
                         hover:opacity-100!"
                     :class="{ 'pointer-events-none': saving }"
+                    @click.stop="removeTag(tag.id)"
                 >
                     <Icon name="heroicons:x-mark" size="8" />
                 </span>
@@ -192,11 +192,11 @@ defineExpose({ reload });
             <!-- Add tag button -->
             <button
                 ref="anchorRef"
-                @click.stop="onAddTagClick"
                 class="border-border hover:border-border-hover flex h-4 w-4 items-center
                     justify-center rounded-full border transition-colors"
                 :disabled="loadingAllTags || saving"
                 title="Add tag"
+                @click.stop="onAddTagClick"
             >
                 <Icon
                     v-if="loadingAllTags || saving"

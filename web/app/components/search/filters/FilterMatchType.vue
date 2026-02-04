@@ -61,9 +61,9 @@ const matchOptions = [
 
         <!-- Help panel toggle -->
         <button
-            @click="showHelp = !showHelp"
             class="text-dim hover:text-lava mt-3 flex items-center gap-1 text-[10px]
                 transition-colors"
+            @click="showHelp = !showHelp"
         >
             <Icon
                 :name="showHelp ? 'heroicons:chevron-up' : 'heroicons:information-circle'"

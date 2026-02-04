@@ -272,9 +272,9 @@ onMounted(() => {
                 <div
                     v-for="actor in localActorResults"
                     :key="actor.id"
-                    @click="selectLocalActor(actor)"
                     class="border-border bg-surface hover:border-lava/40 cursor-pointer
                         overflow-hidden rounded-lg border transition-colors"
+                    @click="selectLocalActor(actor)"
                 >
                     <div class="bg-void aspect-[2/3] w-full">
                         <img
@@ -295,8 +295,8 @@ onMounted(() => {
                 </div>
             </div>
             <button
-                @click="skipLocalMatch"
                 class="text-dim w-full text-center text-xs transition-colors hover:text-white"
+                @click="skipLocalMatch"
             >
                 None of these - search ThePornDB instead
             </button>
@@ -318,9 +318,9 @@ onMounted(() => {
                 <div
                     v-for="performer in porndbPerformerResults"
                     :key="performer.id"
-                    @click="selectPornDBPerformer(performer)"
                     class="border-border bg-surface hover:border-lava/40 cursor-pointer
                         overflow-hidden rounded-lg border transition-colors"
+                    @click="selectPornDBPerformer(performer)"
                 >
                     <div class="bg-void aspect-2/3 w-full">
                         <img
@@ -343,15 +343,15 @@ onMounted(() => {
             <div class="flex justify-center gap-2">
                 <button
                     v-if="currentPerformer"
-                    @click="createActorWithMetadata"
                     class="border-border hover:border-lava/40 rounded-lg border px-3 py-1.5 text-xs
                         text-white transition-colors"
+                    @click="createActorWithMetadata"
                 >
                     Create actor "{{ currentPerformer.name }}"
                 </button>
                 <button
-                    @click="skipPerformer"
                     class="text-dim px-3 py-1.5 text-xs transition-colors hover:text-white"
+                    @click="skipPerformer"
                 >
                     Skip
                 </button>
@@ -364,15 +364,15 @@ onMounted(() => {
             <div class="flex justify-center gap-2">
                 <button
                     v-if="currentPerformer"
-                    @click="createActorWithMetadata"
                     class="bg-lava hover:bg-lava-glow rounded-lg px-4 py-1.5 text-xs font-semibold
                         text-white transition-all"
+                    @click="createActorWithMetadata"
                 >
                     Create "{{ currentPerformer.name }}"
                 </button>
                 <button
-                    @click="skipPerformer"
                     class="text-dim px-3 py-1.5 text-xs transition-colors hover:text-white"
+                    @click="skipPerformer"
                 >
                     Skip
                 </button>

@@ -48,18 +48,18 @@ watch(
             v-if="editing"
             ref="inputRef"
             v-model="editValue"
-            @blur="save"
-            @keydown.enter="($event.target as HTMLInputElement).blur()"
             type="text"
             class="border-border focus:border-lava/50 w-full rounded-md border bg-white/5 px-2
                 py-1.5 text-base font-medium text-white transition-colors outline-none"
+            @blur="save"
+            @keydown.enter="($event.target as HTMLInputElement).blur()"
         />
         <p
             v-else
-            @click="startEditing"
             class="text-dim -mx-2 cursor-pointer rounded-md px-2 py-1.5 text-base font-medium
                 transition-colors hover:bg-white/3 hover:text-white"
             :class="{ 'text-white': title }"
+            @click="startEditing"
         >
             {{ title || 'Untitled' }}
         </p>

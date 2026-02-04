@@ -47,9 +47,9 @@ const formatSize = (bytes: number): string => {
 <template>
     <div class="group relative">
         <button
-            @click="handleClick"
             class="border-border bg-panel hover:border-lava/30 flex w-full flex-col items-center
                 gap-2 rounded-lg border p-3 text-center transition-all"
+            @click="handleClick"
         >
             <div
                 class="bg-lava/10 group-hover:bg-lava/20 flex h-10 w-10 items-center justify-center
@@ -76,11 +76,11 @@ const formatSize = (bytes: number): string => {
 
         <!-- Delete button (visible on hover) -->
         <button
-            @click="handleDelete"
             class="text-dim hover:text-lava hover:bg-lava/10 absolute top-2 right-2 flex
                 items-center justify-center rounded p-1.5 opacity-0 transition-all
                 group-hover:opacity-100"
             title="Delete folder"
+            @click="handleDelete"
         >
             <Icon name="heroicons:trash" size="14" />
         </button>

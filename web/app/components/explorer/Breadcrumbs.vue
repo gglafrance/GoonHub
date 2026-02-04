@@ -33,9 +33,9 @@ const navigateTo = (folderPath: string) => {
     <div class="flex items-center gap-2">
         <!-- Back Button -->
         <button
-            @click="navigateUp()"
             class="border-border bg-panel hover:border-lava/30 hover:text-lava flex h-8 w-8
                 items-center justify-center rounded-lg border transition-all"
+            @click="navigateUp()"
         >
             <Icon name="heroicons:arrow-left" size="16" />
         </button>
@@ -45,13 +45,13 @@ const navigateTo = (folderPath: string) => {
             <!-- Storage Path Name (root) -->
             <button
                 v-if="explorerStore.currentStoragePath"
-                @click="navigateTo('')"
                 class="max-w-32 truncate font-medium transition-colors"
                 :class="
                     explorerStore.breadcrumbs.length === 0
                         ? 'text-white'
                         : 'text-dim hover:text-lava'
                 "
+                @click="navigateTo('')"
             >
                 {{ explorerStore.currentStoragePath.name }}
             </button>
@@ -60,13 +60,13 @@ const navigateTo = (folderPath: string) => {
             <template v-for="(crumb, index) in explorerStore.breadcrumbs" :key="crumb.path">
                 <Icon name="heroicons:chevron-right" size="14" class="text-dim shrink-0" />
                 <button
-                    @click="navigateTo(crumb.path)"
                     class="max-w-32 truncate transition-colors"
                     :class="
                         index === explorerStore.breadcrumbs.length - 1
                             ? 'font-medium text-white'
                             : 'text-dim hover:text-lava'
                     "
+                    @click="navigateTo(crumb.path)"
                 >
                     {{ crumb.name }}
                 </button>

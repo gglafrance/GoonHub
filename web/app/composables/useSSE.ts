@@ -39,7 +39,15 @@ const SCENE_UPDATE_HANDLERS: Record<string, FieldExtractor> = {
 };
 
 // Scan events routed through SSE
-const SCAN_EVENTS = ['scan:progress', 'scan:completed', 'scan:failed', 'scan:cancelled', 'scan:video_added', 'scan:video_removed', 'scan:video_moved'];
+const SCAN_EVENTS = [
+    'scan:progress',
+    'scan:completed',
+    'scan:failed',
+    'scan:cancelled',
+    'scan:video_added',
+    'scan:video_removed',
+    'scan:video_moved',
+];
 
 // Events that remove scenes from the store
 const SCENE_REMOVE_EVENTS = ['scene:trashed', 'scene:deleted'];
@@ -73,11 +81,13 @@ function handleSSEEvent(
     if (SCAN_EVENTS.includes(eventType)) {
         const scanStore = useScanStore();
         if (eventType === 'scan:progress') {
-            scanStore.updateProgress(event.data as any);
+            scanStore.updateProgress(
+                event.data as unknown as import('~/types/scan').ScanProgressEvent,
+            );
         } else if (eventType === 'scan:completed') {
             scanStore.markCompleted();
         } else if (eventType === 'scan:failed') {
-            scanStore.markFailed(event.data?.error_message as string ?? 'Unknown error');
+            scanStore.markFailed((event.data?.error_message as string) ?? 'Unknown error');
         } else if (eventType === 'scan:cancelled') {
             scanStore.markCancelled();
         }

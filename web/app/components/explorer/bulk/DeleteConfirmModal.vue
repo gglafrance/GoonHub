@@ -51,8 +51,8 @@ const handleClose = () => {
                 <div class="border-border flex items-center justify-between border-b px-4 py-3">
                     <h2 class="text-sm font-semibold text-white">Delete Scenes</h2>
                     <button
+                        class="text-dim transition-colors hover:text-white"
                         @click="handleClose"
-                        class="text-dim hover:text-white transition-colors"
                     >
                         <Icon name="heroicons:x-mark" size="18" />
                     </button>
@@ -80,13 +80,13 @@ const handleClose = () => {
                             </p>
                             <p class="text-dim mt-1 text-xs">
                                 <template v-if="permanent">
-                                    This will permanently delete the scene files, thumbnails, and all
-                                    associated data. This action cannot be undone.
+                                    This will permanently delete the scene files, thumbnails, and
+                                    all associated data. This action cannot be undone.
                                 </template>
                                 <template v-else>
-                                    Scenes will be moved to trash and automatically deleted after the
-                                    retention period. Video files will be preserved until permanent
-                                    deletion.
+                                    Scenes will be moved to trash and automatically deleted after
+                                    the retention period. Video files will be preserved until
+                                    permanent deletion.
                                 </template>
                             </p>
                         </div>
@@ -101,7 +101,9 @@ const handleClose = () => {
                                 class="accent-lava mt-0.5 h-4 w-4 shrink-0 rounded"
                             />
                             <div>
-                                <span class="text-xs font-medium text-white">Permanently delete</span>
+                                <span class="text-xs font-medium text-white"
+                                    >Permanently delete</span
+                                >
                                 <p class="text-dim mt-0.5 text-xs">
                                     Skip trash and delete immediately. Video files will be removed
                                     from disk. This cannot be undone.
@@ -117,15 +119,14 @@ const handleClose = () => {
                 <!-- Footer -->
                 <div class="border-border flex items-center justify-end gap-2 border-t px-4 py-3">
                     <button
-                        @click="handleClose"
                         :disabled="loading"
                         class="border-border hover:border-border-hover rounded-lg border px-3 py-1.5
                             text-xs font-medium text-white transition-all disabled:opacity-50"
+                        @click="handleClose"
                     >
                         Cancel
                     </button>
                     <button
-                        @click="handleConfirm"
                         :disabled="loading"
                         class="rounded-lg px-3 py-1.5 text-xs font-semibold text-white
                             transition-colors disabled:opacity-50"
@@ -134,9 +135,14 @@ const handleClose = () => {
                                 ? 'bg-red-600 hover:bg-red-500'
                                 : 'bg-amber-600 hover:bg-amber-500'
                         "
+                        @click="handleConfirm"
                     >
                         <template v-if="loading">
-                            <Icon name="heroicons:arrow-path" size="14" class="mr-1 inline animate-spin" />
+                            <Icon
+                                name="heroicons:arrow-path"
+                                size="14"
+                                class="mr-1 inline animate-spin"
+                            />
                             {{ permanent ? 'Deleting...' : 'Moving to trash...' }}
                         </template>
                         <template v-else>

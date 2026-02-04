@@ -67,7 +67,7 @@ const handleLogin = async () => {
 
             <!-- Login Card -->
             <div class="glass-panel p-5 sm:p-6">
-                <form @submit.prevent="handleLogin" class="space-y-5 sm:space-y-4">
+                <form class="space-y-5 sm:space-y-4" @submit.prevent="handleLogin">
                     <div>
                         <label
                             for="username"

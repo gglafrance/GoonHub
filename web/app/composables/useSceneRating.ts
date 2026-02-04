@@ -9,7 +9,9 @@ export const useSceneRating = (sceneId: Ref<number | undefined>) => {
     const hoverRating = ref(0);
     const isHovering = ref(false);
 
-    const displayRating = computed(() => (isHovering.value ? hoverRating.value : currentRating.value));
+    const displayRating = computed(() =>
+        isHovering.value ? hoverRating.value : currentRating.value,
+    );
 
     const getStarState = (starIndex: number): 'full' | 'half' | 'empty' => {
         const rating = displayRating.value;

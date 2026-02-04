@@ -14,9 +14,9 @@ const handleClick = () => {
 
 <template>
     <button
+        class="border-border bg-panel hover:border-lava/30 group flex flex-col items-start gap-3
+            rounded-xl border p-4 text-left transition-all"
         @click="handleClick"
-        class="border-border bg-panel hover:border-lava/30 group flex flex-col items-start
-            gap-3 rounded-xl border p-4 text-left transition-all"
     >
         <div class="flex w-full items-start justify-between">
             <div

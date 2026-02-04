@@ -87,10 +87,10 @@ const handleSavePlayer = async () => {
                 </div>
 
                 <button
-                    @click="handleSavePlayer"
                     :disabled="settingsStore.isLoading"
                     class="bg-lava hover:bg-lava-glow rounded-lg px-4 py-2 text-xs font-semibold
                         text-white transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                    @click="handleSavePlayer"
                 >
                     Save Player Settings
                 </button>

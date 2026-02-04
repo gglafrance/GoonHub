@@ -19,8 +19,8 @@ const resolutionOptions = [
         <div class="mb-3 flex items-center justify-between">
             <h3 class="text-xs font-semibold tracking-wide text-white uppercase">Filters</h3>
             <button
-                @click="showFilters = !showFilters"
                 class="text-dim transition-colors hover:text-white"
+                @click="showFilters = !showFilters"
             >
                 <Icon
                     :name="showFilters ? 'heroicons:chevron-up' : 'heroicons:chevron-down'"
@@ -53,9 +53,9 @@ const resolutionOptions = [
 
             <!-- Resolution -->
             <SearchFiltersFilterSelect
+                v-model="searchStore.resolution"
                 title="Resolution"
                 icon="heroicons:tv"
-                v-model="searchStore.resolution"
                 :options="resolutionOptions"
                 default-collapsed
             />
@@ -72,12 +72,12 @@ const resolutionOptions = [
             <!-- Reset -->
             <button
                 v-if="searchStore.hasActiveFilters"
+                class="text-lava hover:text-lava/80 w-full rounded-md py-2 text-xs font-medium
+                    transition-colors"
                 @click="
                     searchStore.resetFilters();
                     searchStore.search();
                 "
-                class="text-lava hover:text-lava/80 w-full rounded-md py-2 text-xs font-medium
-                    transition-colors"
             >
                 Reset All Filters
             </button>
