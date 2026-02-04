@@ -57,6 +57,7 @@ type SceneSearchParams struct {
 	MarkerLabels     []string // Filter to scenes with markers having these labels (user-specific)
 	Origin           string   // Filter by origin (web, dvd, personal, stash, unknown)
 	Type             string   // Filter by type (standard, jav, hentai, amateur, professional, vr, compilation, pmv)
+	HasPornDBID      *bool    // nil = no filter, true = has, false = missing
 }
 
 // ScanLookupEntry is a lightweight struct for move detection during scans.
@@ -118,6 +119,10 @@ type SceneRepository interface {
 	CountTrashed() (int64, error)
 	GetExpiredTrashScenes(retentionDays int) ([]Scene, error)
 	GetByIDIncludingTrashed(id uint) (*Scene, error)
+
+	// PornDB filtering
+	GetSceneIDsWithPornDBID() ([]uint, error)
+	GetSceneIDsWithoutPornDBID() ([]uint, error)
 }
 
 type SceneRepositoryImpl struct {
@@ -528,6 +533,22 @@ func (r *SceneRepositoryImpl) GetByIDIncludingTrashed(id uint) (*Scene, error) {
 		return nil, err
 	}
 	return &scene, nil
+}
+
+func (r *SceneRepositoryImpl) GetSceneIDsWithPornDBID() ([]uint, error) {
+	var ids []uint
+	err := r.DB.Model(&Scene{}).
+		Where("porndb_scene_id IS NOT NULL AND porndb_scene_id != '' AND trashed_at IS NULL").
+		Pluck("id", &ids).Error
+	return ids, err
+}
+
+func (r *SceneRepositoryImpl) GetSceneIDsWithoutPornDBID() ([]uint, error) {
+	var ids []uint
+	err := r.DB.Model(&Scene{}).
+		Where("(porndb_scene_id IS NULL OR porndb_scene_id = '') AND trashed_at IS NULL").
+		Pluck("id", &ids).Error
+	return ids, err
 }
 
 type UserRepositoryImpl struct {

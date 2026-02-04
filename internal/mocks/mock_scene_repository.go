@@ -322,6 +322,36 @@ func (mr *MockSceneRepositoryMockRecorder) GetScanLookupEntries() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetScanLookupEntries", reflect.TypeOf((*MockSceneRepository)(nil).GetScanLookupEntries))
 }
 
+// GetSceneIDsWithPornDBID mocks base method.
+func (m *MockSceneRepository) GetSceneIDsWithPornDBID() ([]uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSceneIDsWithPornDBID")
+	ret0, _ := ret[0].([]uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSceneIDsWithPornDBID indicates an expected call of GetSceneIDsWithPornDBID.
+func (mr *MockSceneRepositoryMockRecorder) GetSceneIDsWithPornDBID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSceneIDsWithPornDBID", reflect.TypeOf((*MockSceneRepository)(nil).GetSceneIDsWithPornDBID))
+}
+
+// GetSceneIDsWithoutPornDBID mocks base method.
+func (m *MockSceneRepository) GetSceneIDsWithoutPornDBID() ([]uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSceneIDsWithoutPornDBID")
+	ret0, _ := ret[0].([]uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSceneIDsWithoutPornDBID indicates an expected call of GetSceneIDsWithoutPornDBID.
+func (mr *MockSceneRepositoryMockRecorder) GetSceneIDsWithoutPornDBID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSceneIDsWithoutPornDBID", reflect.TypeOf((*MockSceneRepository)(nil).GetSceneIDsWithoutPornDBID))
+}
+
 // GetScenePathsForMissingDetection mocks base method.
 func (m *MockSceneRepository) GetScenePathsForMissingDetection() ([]data.ScenePathInfo, error) {
 	m.ctrl.T.Helper()

@@ -515,6 +515,7 @@ type FolderSearchRequest struct {
 	MinDuration   int
 	MaxDuration   int
 	Sort          string
+	HasPornDBID   *bool // nil = no filter, true = has, false = missing
 	Page          int
 	Limit         int
 }
@@ -646,6 +647,7 @@ func (s *ExplorerService) SearchInFolder(req FolderSearchRequest) (*FolderSearch
 		MinDuration: req.MinDuration,
 		MaxDuration: req.MaxDuration,
 		Sort:        req.Sort,
+		HasPornDBID: req.HasPornDBID,
 		Page:        req.Page,
 		Limit:       req.Limit,
 		SceneIDs:    folderSceneIDs,

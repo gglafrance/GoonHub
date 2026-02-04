@@ -50,6 +50,7 @@ type FolderSearchRequest struct {
 	MinDuration   int      `json:"min_duration"`
 	MaxDuration   int      `json:"max_duration"`
 	Sort          string   `json:"sort"`
+	HasPornDBID   *bool    `json:"has_porndb_id"` // nil = no filter, true = has, false = missing
 	Page          int      `json:"page"`
 	Limit         int      `json:"limit"`
 }

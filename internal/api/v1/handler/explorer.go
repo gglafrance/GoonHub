@@ -215,6 +215,7 @@ func (h *ExplorerHandler) SearchInFolder(c *gin.Context) {
 		MinDuration:   req.MinDuration,
 		MaxDuration:   req.MaxDuration,
 		Sort:          req.Sort,
+		HasPornDBID:   req.HasPornDBID,
 		Page:          req.Page,
 		Limit:         req.Limit,
 	})

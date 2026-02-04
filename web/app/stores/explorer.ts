@@ -40,6 +40,8 @@ export const useExplorerStore = defineStore('explorer', () => {
     const searchQuery = ref('');
     const searchTags = ref<number[]>([]);
     const searchActors = ref<string[]>([]);
+    // null = no filter, true = has PornDB ID, false = missing PornDB ID
+    const searchHasPornDBID = ref<boolean | null>(null);
     const isSearching = ref(false);
 
     // Computed
@@ -82,7 +84,8 @@ export const useExplorerStore = defineStore('explorer', () => {
         () =>
             searchQuery.value.length > 0 ||
             searchTags.value.length > 0 ||
-            searchActors.value.length > 0,
+            searchActors.value.length > 0 ||
+            searchHasPornDBID.value !== null,
     );
 
     // Actions
@@ -261,6 +264,7 @@ export const useExplorerStore = defineStore('explorer', () => {
                 query: searchQuery.value,
                 tag_ids: searchTags.value,
                 actors: searchActors.value,
+                has_porndb_id: searchHasPornDBID.value ?? undefined,
                 page: page.value,
                 limit: limit.value,
             });
@@ -282,6 +286,7 @@ export const useExplorerStore = defineStore('explorer', () => {
         searchQuery.value = '';
         searchTags.value = [];
         searchActors.value = [];
+        searchHasPornDBID.value = null;
         page.value = 1;
         await loadFolderContents();
     };
@@ -322,6 +327,7 @@ export const useExplorerStore = defineStore('explorer', () => {
         searchQuery,
         searchTags,
         searchActors,
+        searchHasPornDBID,
         isSearching,
 
         // Computed

@@ -81,6 +81,7 @@ export interface FolderSearchRequest {
     min_duration?: number;
     max_duration?: number;
     sort?: string;
+    has_porndb_id?: boolean;
     page: number;
     limit: number;
 }
