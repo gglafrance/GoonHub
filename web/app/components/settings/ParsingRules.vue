@@ -394,7 +394,7 @@ async function handleSave() {
                     <div class="relative flex items-start gap-4">
                         <div
                             class="from-lava/20 to-lava/5 ring-lava/20 flex h-11 w-11 shrink-0
-                                items-center justify-center rounded-xl bg-gradient-to-br ring-1"
+                                items-center justify-center rounded-xl bg-linear-to-br ring-1"
                         >
                             <Icon name="heroicons:funnel" size="22" class="text-lava" />
                         </div>
@@ -609,26 +609,24 @@ async function handleSave() {
 
                 <!-- Rules list -->
                 <div v-else class="divide-border/50 divide-y">
-                    <TransitionGroup name="rule" tag="div" class="divide-border/50 divide-y">
-                        <div
-                            v-for="(rule, index) in currentPreset.rules"
-                            :key="rule.id"
-                            draggable="true"
-                            @dragstart="handleDragStart(index)"
-                            @dragover="(e) => handleDragOver(e, index)"
-                            @dragend="handleDragEnd"
-                            class="rule-item"
-                        >
-                            <SettingsParsingRulesRuleRow
-                                :rule="rule"
-                                :index="index"
-                                :is-dragging="draggedIndex === index"
-                                @update="updateRule(rule.id, $event)"
-                                @delete="deleteRule(rule.id)"
-                                @toggle="toggleRule(rule.id)"
-                            />
-                        </div>
-                    </TransitionGroup>
+                    <div
+                        v-for="(rule, index) in currentPreset.rules"
+                        :key="rule.id"
+                        draggable="true"
+                        @dragstart="handleDragStart(index)"
+                        @dragover="(e) => handleDragOver(e, index)"
+                        @dragend="handleDragEnd"
+                        class="rule-item"
+                    >
+                        <SettingsParsingRulesRuleRow
+                            :rule="rule"
+                            :index="index"
+                            :is-dragging="draggedIndex === index"
+                            @update="updateRule(rule.id, $event)"
+                            @delete="deleteRule(rule.id)"
+                            @toggle="toggleRule(rule.id)"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -789,20 +787,4 @@ async function handleSave() {
     </div>
 </template>
 
-<style scoped>
-.rule-enter-active,
-.rule-leave-active {
-    transition: all 0.3s ease;
-}
-.rule-enter-from {
-    opacity: 0;
-    transform: translateX(-20px);
-}
-.rule-leave-to {
-    opacity: 0;
-    transform: translateX(20px);
-}
-.rule-move {
-    transition: transform 0.3s ease;
-}
-</style>
+<style scoped></style>
