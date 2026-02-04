@@ -48,6 +48,10 @@ export interface FolderSceneIDsRequest {
     storage_path_id: number;
     folder_path: string;
     recursive: boolean;
+    query?: string;
+    tag_ids?: number[];
+    actors?: string[];
+    has_porndb_id?: boolean;
 }
 
 export interface BulkUpdateResponse {

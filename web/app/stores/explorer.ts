@@ -205,6 +205,11 @@ export const useExplorerStore = defineStore('explorer', () => {
                 storage_path_id: currentStoragePathID.value,
                 folder_path: currentPath.value,
                 recursive: false,
+                // Pass active search filters so selection respects current view
+                query: searchQuery.value || undefined,
+                tag_ids: searchTags.value.length > 0 ? searchTags.value : undefined,
+                actors: searchActors.value.length > 0 ? searchActors.value : undefined,
+                has_porndb_id: searchHasPornDBID.value ?? undefined,
             });
             allFolderSceneIDs.value = response.scene_ids;
             selectedSceneIDs.value = new Set(response.scene_ids);
@@ -227,6 +232,11 @@ export const useExplorerStore = defineStore('explorer', () => {
                 storage_path_id: currentStoragePathID.value,
                 folder_path: currentPath.value,
                 recursive: true,
+                // Pass active search filters so selection respects current view
+                query: searchQuery.value || undefined,
+                tag_ids: searchTags.value.length > 0 ? searchTags.value : undefined,
+                actors: searchActors.value.length > 0 ? searchActors.value : undefined,
+                has_porndb_id: searchHasPornDBID.value ?? undefined,
             });
             allFolderSceneIDs.value = response.scene_ids;
             selectedSceneIDs.value = new Set(response.scene_ids);

@@ -21,10 +21,15 @@ type BulkUpdateStudioRequest struct {
 }
 
 // FolderSceneIDsRequest represents a request to get scene IDs in a folder
+// Supports optional filters to get only IDs matching search criteria
 type FolderSceneIDsRequest struct {
-	StoragePathID uint   `json:"storage_path_id" binding:"required"`
-	FolderPath    string `json:"folder_path"`
-	Recursive     bool   `json:"recursive"`
+	StoragePathID uint     `json:"storage_path_id" binding:"required"`
+	FolderPath    string   `json:"folder_path"`
+	Recursive     bool     `json:"recursive"`
+	Query         string   `json:"query"`
+	TagIDs        []uint   `json:"tag_ids"`
+	Actors        []string `json:"actors"`
+	HasPornDBID   *bool    `json:"has_porndb_id"` // nil = no filter, true = has, false = missing
 }
 
 // BulkDeleteRequest represents a request to delete multiple videos

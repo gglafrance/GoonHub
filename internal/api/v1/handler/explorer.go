@@ -139,7 +139,7 @@ func (h *ExplorerHandler) BulkUpdateStudio(c *gin.Context) {
 	})
 }
 
-// GetFolderSceneIDs returns all scene IDs in a folder
+// GetFolderSceneIDs returns all scene IDs in a folder, with optional filters
 func (h *ExplorerHandler) GetFolderSceneIDs(c *gin.Context) {
 	var req request.FolderSceneIDsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -147,7 +147,15 @@ func (h *ExplorerHandler) GetFolderSceneIDs(c *gin.Context) {
 		return
 	}
 
-	ids, err := h.Service.GetFolderSceneIDs(req.StoragePathID, req.FolderPath, req.Recursive)
+	ids, err := h.Service.GetFolderSceneIDsFiltered(core.FolderSceneIDsRequest{
+		StoragePathID: req.StoragePathID,
+		FolderPath:    req.FolderPath,
+		Recursive:     req.Recursive,
+		Query:         req.Query,
+		TagIDs:        req.TagIDs,
+		Actors:        req.Actors,
+		HasPornDBID:   req.HasPornDBID,
+	})
 	if err != nil {
 		response.Error(c, err)
 		return
