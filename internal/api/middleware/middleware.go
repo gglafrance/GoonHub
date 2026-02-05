@@ -19,8 +19,12 @@ func Setup(r *gin.Engine, logger *logging.Logger, allowedOrigins []string, envir
 	// Panic Recovery
 	r.Use(gin.Recovery())
 
-	// Gzip Compression
-	r.Use(gzip.Gzip(gzip.DefaultCompression))
+	// Gzip Compression (exclude video streaming — gzip sets Content-Encoding
+	// eagerly which causes http.ServeContent to skip Range request handling,
+	// breaking seeking in Firefox)
+	r.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{
+		`/api/v1/scenes/\d+/stream`,
+	})))
 
 	// Security Headers
 	r.Use(SecurityHeaders(environment))
