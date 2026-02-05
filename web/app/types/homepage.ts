@@ -35,6 +35,7 @@ export interface HomepageSectionData {
     section: HomepageSection;
     scenes: SceneListItem[];
     total: number;
+    seed?: number;
     watch_progress?: Record<number, WatchProgress>;
     ratings?: Record<number, number>;
 }
@@ -64,6 +65,7 @@ export const SORT_OPTIONS = [
     { value: 'duration_desc', label: 'Longest First' },
     { value: 'view_count_desc', label: 'Most Viewed' },
     { value: 'view_count_asc', label: 'Least Viewed' },
+    { value: 'random', label: 'Random' },
 ];
 
 // Sort options available for each section type
@@ -73,7 +75,7 @@ export const SECTION_SORT_OPTIONS: Record<SectionType, typeof SORT_OPTIONS> = {
     actor: SORT_OPTIONS,
     studio: SORT_OPTIONS,
     tag: SORT_OPTIONS,
-    saved_search: SORT_OPTIONS,
+    saved_search: [{ value: '', label: 'From Template' }, ...SORT_OPTIONS],
     continue_watching: [], // No sorting - ordered by watch position
     most_viewed: [
         { value: 'view_count_desc', label: 'Most Viewed' },

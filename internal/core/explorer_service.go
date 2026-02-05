@@ -200,17 +200,17 @@ func (s *ExplorerService) GetFolderSceneIDsFiltered(req FolderSceneIDsRequest) (
 			SceneIDs:    folderSceneIDs, // Pre-filter to folder scenes
 		}
 
-		scenes, total, err := s.searchService.Search(searchParams)
+		result, err := s.searchService.Search(searchParams)
 		if err != nil {
 			return nil, apperrors.NewInternalError("search failed", err)
 		}
 
-		for _, scene := range scenes {
+		for _, scene := range result.Scenes {
 			allMatchingIDs = append(allMatchingIDs, scene.ID)
 		}
 
 		// Check if we've fetched all results
-		if int64(page*batchSize) >= total {
+		if int64(page*batchSize) >= result.Total {
 			break
 		}
 		page++
@@ -726,14 +726,14 @@ func (s *ExplorerService) SearchInFolder(req FolderSearchRequest) (*FolderSearch
 	}
 
 	// Perform search
-	scenes, total, err := s.searchService.Search(searchParams)
+	result, err := s.searchService.Search(searchParams)
 	if err != nil {
 		return nil, apperrors.NewInternalError("search failed", err)
 	}
 
 	return &FolderSearchResponse{
-		Scenes: scenes,
-		Total:  total,
+		Scenes: result.Scenes,
+		Total:  result.Total,
 		Page:   req.Page,
 		Limit:  req.Limit,
 	}, nil

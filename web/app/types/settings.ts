@@ -46,7 +46,8 @@ export type SortOrder =
     | 'duration_asc'
     | 'duration_desc'
     | 'size_asc'
-    | 'size_desc';
+    | 'size_desc'
+    | 'random';
 
 export type TagSort = 'az' | 'za' | 'most' | 'least';
 

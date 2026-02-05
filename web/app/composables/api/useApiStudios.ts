@@ -39,6 +39,7 @@ export const useApiStudios = () => {
         query?: string,
         sort?: string,
         studioName?: string,
+        seed?: number,
     ) => {
         const params = new URLSearchParams({
             page: page.toString(),
@@ -47,6 +48,7 @@ export const useApiStudios = () => {
         if (studioName) params.set('studio', studioName);
         if (query) params.set('q', query);
         if (sort) params.set('sort', sort);
+        if (sort === 'random' && seed) params.set('seed', seed.toString());
 
         const response = await fetch(`/api/v1/scenes?${params}`, {
             headers: getAuthHeaders(),

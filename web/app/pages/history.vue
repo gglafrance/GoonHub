@@ -176,7 +176,7 @@ definePageMeta({
 
             <!-- Activity Chart -->
             <div class="border-border bg-panel mb-6 rounded-xl border p-3">
-                <div class="text-dim mb-2 text-[11px] font-medium uppercase tracking-wider">
+                <div class="text-dim mb-2 text-[11px] font-medium tracking-wider uppercase">
                     Activity
                 </div>
                 <HistoryActivityChart

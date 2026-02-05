@@ -37,6 +37,7 @@ type SearchParams struct {
 	Offset           int
 	Limit            int
 	MatchingStrategy string // Meilisearch matching strategy: "last", "all", or "frequency"
+	FetchAllIDs      bool   // When true, fetch all matching IDs (ignore Offset/Limit, skip sort)
 }
 
 // SearchResult contains the result of a search query.

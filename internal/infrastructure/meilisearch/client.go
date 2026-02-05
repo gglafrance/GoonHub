@@ -230,10 +230,18 @@ func (c *Client) Search(params SearchParams) (*SearchResult, error) {
 	sort := c.buildSort(params)
 
 	searchReq := &meili.SearchRequest{
-		Limit:                int64(params.Limit),
-		Offset:               int64(params.Offset),
 		AttributesToRetrieve: []string{"id"},
 		ShowMatchesPosition:  false,
+	}
+
+	if params.FetchAllIDs {
+		// Fetch all matching IDs: use maxTotalHits as limit, no offset, no sort
+		searchReq.Limit = c.maxTotalHits
+		searchReq.Offset = 0
+		sort = nil
+	} else {
+		searchReq.Limit = int64(params.Limit)
+		searchReq.Offset = int64(params.Offset)
 	}
 
 	if len(filters) > 0 {

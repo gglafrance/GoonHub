@@ -4,6 +4,7 @@ const searchStore = useSearchStore();
 const sortOptions = [
     { value: '', label: 'Default' },
     { value: 'relevance', label: 'Relevance' },
+    { value: 'random', label: 'Random' },
     { value: 'created_at_desc', label: 'Newest' },
     { value: 'created_at_asc', label: 'Oldest' },
     { value: 'title_asc', label: 'Title A-Z' },
@@ -35,5 +36,15 @@ const sortOptions = [
         </div>
 
         <UiSortSelect v-model="searchStore.sort" :options="sortOptions" class="hidden sm:block" />
+
+        <button
+            v-if="searchStore.sort === 'random'"
+            class="border-border bg-surface hover:border-lava/40 hover:bg-lava/10 hidden h-10 w-10
+                shrink-0 items-center justify-center rounded-lg border transition-all sm:flex"
+            title="Reshuffle"
+            @click="searchStore.reshuffle()"
+        >
+            <Icon name="heroicons:arrow-path" size="16" class="text-white" />
+        </button>
     </div>
 </template>

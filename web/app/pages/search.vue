@@ -68,6 +68,7 @@ const syncFromUrl = () => {
     searchStore.selectedMarkerLabels = q.marker_labels
         ? (q.marker_labels as string).split(',')
         : [];
+    searchStore.seed = q.seed ? Number(q.seed) : 0;
     const matchType = q.match_type as string;
     searchStore.matchType =
         matchType === 'strict' || matchType === 'frequency' ? matchType : 'broad';
@@ -88,6 +89,7 @@ const syncToUrl = () => {
     if (searchStore.maxDate) query.max_date = searchStore.maxDate;
     if (searchStore.resolution) query.resolution = searchStore.resolution;
     if (searchStore.sort) query.sort = searchStore.sort;
+    if (searchStore.sort === 'random' && searchStore.seed) query.seed = String(searchStore.seed);
     if (searchStore.page > 1) query.page = String(searchStore.page);
     if (searchStore.liked) query.liked = 'true';
     if (searchStore.minRating > 0) query.min_rating = String(searchStore.minRating);
@@ -172,10 +174,34 @@ watch(
     { deep: true },
 );
 
-onMounted(() => {
-    syncFromUrl();
+const loadSavedSearchFromUrl = async () => {
+    const savedUuid = route.query.saved as string | undefined;
+    if (!savedUuid) return false;
+
+    try {
+        const api = useApi();
+        const savedSearch = await api.fetchSavedSearch(savedUuid);
+        searchStore.loadFilters(savedSearch.filters);
+        // Override seed from URL if provided (e.g. from homepage "See all")
+        if (route.query.seed) {
+            searchStore.seed = Number(route.query.seed);
+        }
+        syncToUrl(); // Expand to individual filter params (removes ?saved=)
+        searchStore.search();
+        return true;
+    } catch {
+        // Saved search not found, fall through to normal sync
+        return false;
+    }
+};
+
+onMounted(async () => {
     searchStore.loadFilterOptions();
-    searchStore.search();
+    const loaded = await loadSavedSearchFromUrl();
+    if (!loaded) {
+        syncFromUrl();
+        searchStore.search();
+    }
 });
 
 const handleLoadSavedSearch = (filters: SavedSearchFilters) => {

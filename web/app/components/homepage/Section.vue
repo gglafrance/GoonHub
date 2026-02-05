@@ -78,34 +78,59 @@ const displayTitle = computed(() => {
 const seeAllLink = computed(() => {
     const type = props.section.type as SectionType;
     const config = props.section.config;
+    const sort = props.section.sort;
+    const seed = props.data?.seed;
+
+    // Helper: append sort & seed params when section uses random sort
+    const withSortParams = (base: string) => {
+        if (sort === 'random' && seed) {
+            const sep = base.includes('?') ? '&' : '?';
+            return `${base}${sep}sort=random&seed=${seed}`;
+        }
+        if (sort && sort !== 'created_at_desc') {
+            const sep = base.includes('?') ? '&' : '?';
+            return `${base}${sep}sort=${sort}`;
+        }
+        return base;
+    };
 
     switch (type) {
         case 'latest':
-            return '/search?sort=created_at_desc';
+            return withSortParams('/search?sort=created_at_desc');
         case 'actor':
-            return config.actor_name
-                ? `/search?actors=${encodeURIComponent(config.actor_name as string)}`
-                : '/search';
+            return withSortParams(
+                config.actor_name
+                    ? `/search?actors=${encodeURIComponent(config.actor_name as string)}`
+                    : '/search',
+            );
         case 'studio':
-            return config.studio_name
-                ? `/search?studio=${encodeURIComponent(config.studio_name as string)}`
-                : '/search';
+            return withSortParams(
+                config.studio_name
+                    ? `/search?studio=${encodeURIComponent(config.studio_name as string)}`
+                    : '/search',
+            );
         case 'tag':
-            return config.tag_name
-                ? `/search?tags=${encodeURIComponent(config.tag_name as string)}`
-                : '/search';
-        case 'saved_search':
-            return config.saved_search_uuid
-                ? `/search?saved=${config.saved_search_uuid}`
-                : '/search';
+            return withSortParams(
+                config.tag_name
+                    ? `/search?tags=${encodeURIComponent(config.tag_name as string)}`
+                    : '/search',
+            );
+        case 'saved_search': {
+            if (!config.saved_search_uuid) return '/search';
+            const params = new URLSearchParams({
+                saved: config.saved_search_uuid as string,
+            });
+            if (seed) params.set('seed', String(seed));
+            return `/search?${params}`;
+        }
         case 'liked':
-            return '/search?liked=true';
+            return withSortParams('/search?liked=true');
         case 'most_viewed':
-            return '/search?sort=view_count_desc';
+            return withSortParams('/search?sort=view_count_desc');
         case 'continue_watching':
             return '/history?filter=in_progress';
         default:
-            return '/search';
+            return withSortParams('/search');
     }
 });
 </script>

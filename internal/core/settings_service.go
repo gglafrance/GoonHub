@@ -26,6 +26,7 @@ var allowedSortOrders = map[string]bool{
 	"size_desc":       true,
 	"view_count_desc": true,
 	"view_count_asc":  true,
+	"random":          true,
 }
 
 var allowedActorSorts = map[string]bool{
@@ -64,6 +65,7 @@ var allowedEntitySceneSorts = map[string]bool{
 	"duration_desc":  true,
 	"view_count_desc": true,
 	"view_count_asc":  true,
+	"random":          true,
 }
 
 var allowedSectionTypes = map[string]bool{

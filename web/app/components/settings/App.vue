@@ -86,6 +86,7 @@ const sortOptions: { value: SortOrder; label: string }[] = [
     { value: 'duration_desc', label: 'Longest First' },
     { value: 'size_asc', label: 'Smallest First' },
     { value: 'size_desc', label: 'Largest First' },
+    { value: 'random', label: 'Random' },
 ];
 
 const actorSortOptions = [
@@ -124,6 +125,7 @@ const entitySceneSortOptions = [
     { value: 'duration_desc', label: 'Longest' },
     { value: 'view_count_desc', label: 'Most Viewed' },
     { value: 'view_count_asc', label: 'Least Viewed' },
+    { value: 'random', label: 'Random' },
 ];
 
 const loadSearchConfig = async () => {

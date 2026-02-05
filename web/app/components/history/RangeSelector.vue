@@ -42,7 +42,8 @@ const selectCustom = () => {
                 :class="
                     mode === 'preset' && modelValue === opt.value
                         ? 'border-lava/40 bg-lava/10 text-lava'
-                        : 'border-border bg-surface text-dim hover:border-border-hover hover:text-muted'
+                        : `border-border bg-surface text-dim hover:border-border-hover
+                            hover:text-muted`
                 "
                 @click="selectPreset(opt.value)"
             >
@@ -53,7 +54,8 @@ const selectCustom = () => {
                 :class="
                     mode === 'custom'
                         ? 'border-lava/40 bg-lava/10 text-lava'
-                        : 'border-border bg-surface text-dim hover:border-border-hover hover:text-muted'
+                        : `border-border bg-surface text-dim hover:border-border-hover
+                            hover:text-muted`
                 "
                 @click="selectCustom"
             >

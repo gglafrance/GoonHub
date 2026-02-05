@@ -119,6 +119,7 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		MinJizzCount:     req.MinJizzCount,
 		MaxJizzCount:     req.MaxJizzCount,
 		MatchingStrategy: matchingStrategy,
+		Seed:             req.Seed,
 	}
 
 	if req.Tags != "" {
@@ -162,18 +163,22 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		}
 	}
 
-	scenes, total, err := h.SearchService.Search(params)
+	result, err := h.SearchService.Search(params)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search scenes"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"data":  response.ToSceneListItems(scenes),
-		"total": total,
+	resp := gin.H{
+		"data":  response.ToSceneListItems(result.Scenes),
+		"total": result.Total,
 		"page":  req.Page,
 		"limit": req.Limit,
-	})
+	}
+	if result.Seed != 0 {
+		resp["seed"] = result.Seed
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *SceneHandler) GetFilterOptions(c *gin.Context) {

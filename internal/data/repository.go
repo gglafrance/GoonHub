@@ -58,6 +58,7 @@ type SceneSearchParams struct {
 	Origin           string   // Filter by origin (web, dvd, personal, stash, unknown)
 	Type             string   // Filter by type (standard, jav, hentai, amateur, professional, vr, compilation, pmv)
 	HasPornDBID      *bool    // nil = no filter, true = has, false = missing
+	Seed             int64    // Random shuffle seed (0 = auto-generate)
 }
 
 // ScanLookupEntry is a lightweight struct for move detection during scans.
