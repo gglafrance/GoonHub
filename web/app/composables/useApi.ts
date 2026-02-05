@@ -60,9 +60,7 @@ export const useApi = () => {
 
         // Settings operations
         fetchSettings: settings.fetchSettings,
-        updatePlayerSettings: settings.updatePlayerSettings,
-        updateAppSettings: settings.updateAppSettings,
-        updateTagSettings: settings.updateTagSettings,
+        updateAllSettings: settings.updateAllSettings,
         changePassword: settings.changePassword,
         changeUsername: settings.changeUsername,
         getParsingRules: settings.getParsingRules,

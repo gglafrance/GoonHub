@@ -1,19 +1,24 @@
 <script setup lang="ts">
-import type {
-    ParsingRule,
-    ParsingPreset,
-    ParsingRuleType,
-    ParsingRulesSettings,
-} from '~/types/parsing-rules';
+import type { ParsingRule, ParsingPreset, ParsingRuleType } from '~/types/parsing-rules';
 import { RULE_TYPE_INFO } from '~/types/parsing-rules';
 
 const settingsStore = useSettingsStore();
-const { message, error, clearMessages, setMessage, setError } = useSettingsMessage();
 const { generateId, applyRules, getBuiltInPresets } = useParsingRulesEngine();
 
-// Local state
-const selectedPresetId = ref<string | null>(null);
-const localPresets = ref<ParsingPreset[]>([]);
+// Local state backed by draft
+const selectedPresetId = computed({
+    get: () => settingsStore.draft?.parsing_rules?.activePresetId ?? null,
+    set: (val) => {
+        if (settingsStore.draft?.parsing_rules)
+            settingsStore.draft.parsing_rules.activePresetId = val;
+    },
+});
+const localPresets = computed({
+    get: () => settingsStore.draft?.parsing_rules?.presets ?? [],
+    set: (val) => {
+        if (settingsStore.draft?.parsing_rules) settingsStore.draft.parsing_rules.presets = val;
+    },
+});
 const isLoading = ref(false);
 const showSaveModal = ref(false);
 const showNewPresetModal = ref(false);
@@ -61,13 +66,6 @@ const currentPreset = computed(() => {
 const previewOutput = computed(() => {
     if (!currentPreset.value || !previewInput.value) return previewInput.value;
     return applyRules(previewInput.value, currentPreset.value.rules);
-});
-
-const hasUnsavedChanges = computed(() => {
-    if (!settingsStore.parsingRules) return false;
-    return (
-        JSON.stringify(localPresets.value) !== JSON.stringify(settingsStore.parsingRules.presets)
-    );
 });
 
 const enabledRulesCount = computed(() => {
@@ -133,19 +131,7 @@ onBeforeUnmount(() => {
     window.removeEventListener('resize', updateDropdownPosition);
 });
 
-// Load data on mount
-onMounted(async () => {
-    isLoading.value = true;
-    try {
-        await settingsStore.loadParsingRules();
-        if (settingsStore.parsingRules) {
-            localPresets.value = JSON.parse(JSON.stringify(settingsStore.parsingRules.presets));
-            selectedPresetId.value = settingsStore.parsingRules.activePresetId;
-        }
-    } finally {
-        isLoading.value = false;
-    }
-});
+// Data comes from draft - no separate loading needed
 
 // Select a preset
 function selectPreset(presetId: string | null) {
@@ -300,68 +286,15 @@ function deletePreset() {
     localPresets.value = localPresets.value.filter((p) => p.id !== currentPreset.value!.id);
     selectedPresetId.value = null;
 }
-
-// Save all changes
-async function handleSave() {
-    clearMessages();
-    isLoading.value = true;
-
-    try {
-        const settings: ParsingRulesSettings = {
-            presets: localPresets.value,
-            activePresetId: selectedPresetId.value,
-        };
-
-        await settingsStore.saveParsingRules(settings);
-        setMessage('Parsing rules saved');
-    } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to save parsing rules');
-    } finally {
-        isLoading.value = false;
-    }
-}
 </script>
 
 <template>
     <div class="space-y-5">
-        <!-- Status messages -->
-        <Transition
-            enter-active-class="transition-all duration-200 ease-out"
-            enter-from-class="opacity-0 -translate-y-2"
-            enter-to-class="opacity-100 translate-y-0"
-            leave-active-class="transition-all duration-150 ease-in"
-            leave-from-class="opacity-100 translate-y-0"
-            leave-to-class="opacity-0 -translate-y-2"
-        >
-            <div
-                v-if="message"
-                class="flex items-center gap-2 rounded-lg border border-emerald-500/20
-                    bg-emerald-500/5 px-4 py-2.5 text-xs text-emerald-400"
-            >
-                <Icon name="heroicons:check-circle" size="16" />
-                {{ message }}
-            </div>
-        </Transition>
-        <Transition
-            enter-active-class="transition-all duration-200 ease-out"
-            enter-from-class="opacity-0 -translate-y-2"
-            enter-to-class="opacity-100 translate-y-0"
-            leave-active-class="transition-all duration-150 ease-in"
-            leave-from-class="opacity-100 translate-y-0"
-            leave-to-class="opacity-0 -translate-y-2"
-        >
-            <div
-                v-if="error"
-                class="border-lava/20 bg-lava/5 text-lava flex items-center gap-2 rounded-lg border
-                    px-4 py-2.5 text-xs"
-            >
-                <Icon name="heroicons:exclamation-circle" size="16" />
-                {{ error }}
-            </div>
-        </Transition>
-
         <!-- Loading state -->
-        <div v-if="isLoading && !settingsStore.parsingRules" class="flex justify-center py-16">
+        <div
+            v-if="isLoading && !settingsStore.draft?.parsing_rules"
+            class="flex justify-center py-16"
+        >
             <div class="text-center">
                 <div class="relative mx-auto h-10 w-10">
                     <div class="bg-lava/20 absolute inset-0 animate-ping rounded-full"></div>
@@ -716,49 +649,6 @@ async function handleSave() {
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Save button -->
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <Transition
-                        enter-active-class="transition-all duration-200"
-                        enter-from-class="opacity-0 scale-90"
-                        enter-to-class="opacity-100 scale-100"
-                        leave-active-class="transition-all duration-150"
-                        leave-from-class="opacity-100 scale-100"
-                        leave-to-class="opacity-0 scale-90"
-                    >
-                        <div
-                            v-if="hasUnsavedChanges"
-                            class="flex items-center gap-1.5 text-xs text-amber-400"
-                        >
-                            <span
-                                class="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400"
-                            ></span>
-                            Unsaved changes
-                        </div>
-                    </Transition>
-                </div>
-                <button
-                    :disabled="isLoading"
-                    class="group bg-lava hover:bg-lava-glow hover:shadow-lava/20 relative
-                        overflow-hidden rounded-lg px-5 py-2.5 text-xs font-semibold text-white
-                        transition-all hover:shadow-lg disabled:cursor-not-allowed
-                        disabled:opacity-40"
-                    @click="handleSave"
-                >
-                    <span class="relative z-10 flex items-center gap-2">
-                        <Icon
-                            v-if="isLoading"
-                            name="heroicons:arrow-path"
-                            size="14"
-                            class="animate-spin"
-                        />
-                        <Icon v-else name="heroicons:check" size="14" />
-                        {{ isLoading ? 'Saving...' : 'Save Changes' }}
-                    </span>
-                </button>
             </div>
         </template>
 

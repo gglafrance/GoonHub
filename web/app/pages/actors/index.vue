@@ -13,13 +13,14 @@ useSeoMeta({
 const api = useApi();
 const router = useRouter();
 const authStore = useAuthStore();
+const settingsStore = useSettingsStore();
 
 const actors = ref<ActorListItem[]>([]);
 const total = ref(0);
 const currentPage = useUrlPagination();
 const limit = ref(20);
 const searchQuery = ref('');
-const sortOrder = ref('name_asc');
+const sortOrder = useUrlSort(settingsStore.sortPreferences?.actors || 'name_asc');
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 const showCreateModal = ref(false);

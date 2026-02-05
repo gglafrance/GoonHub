@@ -73,6 +73,31 @@ const activeTab = ref<TabType>('account');
 const activeSubTab = ref<JobsSubTabType>('manual');
 const expandedTabs = ref<Set<TabType>>(new Set());
 
+// Global save
+const isSaving = ref(false);
+const saveMessage = ref('');
+const saveError = ref('');
+
+const settingsTabs: TabType[] = ['player', 'app', 'tags', 'homepage', 'parsing-rules'];
+const isSettingsTab = computed(() => settingsTabs.includes(activeTab.value));
+
+async function handleGlobalSave() {
+    saveMessage.value = '';
+    saveError.value = '';
+    isSaving.value = true;
+    try {
+        await settingsStore.saveAllSettings();
+        saveMessage.value = 'Settings saved successfully';
+        setTimeout(() => {
+            saveMessage.value = '';
+        }, 3000);
+    } catch (e: unknown) {
+        saveError.value = e instanceof Error ? e.message : 'Failed to save settings';
+    } finally {
+        isSaving.value = false;
+    }
+}
+
 const availableTabs = computed(() => {
     return tabConfig.filter((tab) => !tab.admin || authStore.user?.role === 'admin');
 });
@@ -232,12 +257,12 @@ definePageMeta({
             </div>
         </div>
 
-        <!-- Desktop: Sidebar (unchanged) -->
+        <!-- Desktop: Sidebar -->
         <aside
             class="sticky top-16 hidden h-[calc(100vh-5.25rem)] w-55 shrink-0 border-r
-                border-white/8 bg-[rgba(10,10,10,0.5)] backdrop-blur-xl lg:block"
+                border-white/8 bg-[rgba(10,10,10,0.5)] backdrop-blur-xl lg:flex lg:flex-col"
         >
-            <div class="p-4">
+            <div class="flex-1 overflow-y-auto p-4">
                 <h1 class="mb-5 text-sm font-semibold tracking-tight text-white">Settings</h1>
 
                 <!-- Regular tabs -->
@@ -351,11 +376,73 @@ definePageMeta({
                     </nav>
                 </template>
             </div>
+
+            <!-- Desktop: Global Save -->
+            <Transition
+                enter-active-class="transition-all duration-200 ease-out"
+                enter-from-class=" opacity-0"
+                enter-to-class=" opacity-100"
+                leave-active-class="transition-all duration-150 ease-in"
+                leave-from-class="opacity-100"
+                leave-to-class=" opacity-0"
+            >
+                <div
+                    v-if="settingsStore.hasUnsavedChanges && isSettingsTab"
+                    class="shrink-0 border-t border-white/8 bg-[rgba(10,10,10,0.95)] p-4
+                        backdrop-blur-xl"
+                >
+                    <div class="text-lava mb-3 flex items-center gap-1.5 text-xs font-medium">
+                        <span class="bg-lava h-1.5 w-1.5 animate-pulse rounded-full" />
+                        Unsaved changes
+                    </div>
+                    <button
+                        :disabled="isSaving"
+                        class="bg-lava hover:bg-lava-glow w-full rounded-lg px-3 py-2 text-xs
+                            font-semibold text-white transition-all disabled:cursor-not-allowed
+                            disabled:opacity-40"
+                        @click="handleGlobalSave"
+                    >
+                        {{ isSaving ? 'Saving...' : 'Save' }}
+                    </button>
+                    <button
+                        class="text-dim mt-2 w-full rounded-lg px-3 py-1.5 text-[11px]
+                            transition-colors hover:text-white/80"
+                        @click="settingsStore.discardDraft()"
+                    >
+                        Discard
+                    </button>
+                </div>
+            </Transition>
         </aside>
 
         <!-- Content area -->
         <main class="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
             <div class="mx-auto max-w-3xl">
+                <!-- Global save feedback -->
+                <Transition
+                    enter-active-class="transition-all duration-200 ease-out"
+                    enter-from-class="-translate-y-1 opacity-0"
+                    enter-to-class="translate-y-0 opacity-100"
+                    leave-active-class="transition-all duration-150 ease-in"
+                    leave-from-class="translate-y-0 opacity-100"
+                    leave-to-class="-translate-y-1 opacity-0"
+                >
+                    <div
+                        v-if="saveMessage"
+                        class="border-emerald/20 bg-emerald/5 text-emerald mb-4 rounded-lg border
+                            px-3 py-2 text-xs"
+                    >
+                        {{ saveMessage }}
+                    </div>
+                    <div
+                        v-else-if="saveError"
+                        class="border-lava/20 bg-lava/5 text-lava mb-4 rounded-lg border px-3 py-2
+                            text-xs"
+                    >
+                        {{ saveError }}
+                    </div>
+                </Transition>
+
                 <SettingsAccount v-if="activeTab === 'account'" />
                 <SettingsPlayer v-if="activeTab === 'player'" />
                 <SettingsApp v-if="activeTab === 'app'" />
@@ -368,5 +455,44 @@ definePageMeta({
                 <SettingsTrash v-if="activeTab === 'trash'" />
             </div>
         </main>
+
+        <!-- Mobile: Floating Save Bar -->
+        <Transition
+            enter-active-class="transition-all duration-200 ease-out"
+            enter-from-class="translate-y-full"
+            enter-to-class="translate-y-0"
+            leave-active-class="transition-all duration-150 ease-in"
+            leave-from-class="translate-y-0"
+            leave-to-class="translate-y-full"
+        >
+            <div
+                v-if="settingsStore.hasUnsavedChanges && isSettingsTab"
+                class="bg-surface/95 fixed inset-x-0 bottom-0 z-50 border-t border-white/8 p-3
+                    backdrop-blur-xl lg:hidden"
+            >
+                <div class="flex items-center gap-3">
+                    <span class="text-lava flex flex-1 items-center gap-1.5 text-xs font-medium">
+                        <span class="bg-lava h-1.5 w-1.5 animate-pulse rounded-full" />
+                        Unsaved changes
+                    </span>
+                    <button
+                        class="text-dim rounded-lg px-3 py-2 text-xs transition-colors
+                            hover:text-white/80"
+                        @click="settingsStore.discardDraft()"
+                    >
+                        Discard
+                    </button>
+                    <button
+                        :disabled="isSaving"
+                        class="bg-lava hover:bg-lava-glow rounded-lg px-4 py-2 text-xs font-semibold
+                            text-white transition-all disabled:cursor-not-allowed
+                            disabled:opacity-40"
+                        @click="handleGlobalSave"
+                    >
+                        {{ isSaving ? 'Saving...' : 'Save' }}
+                    </button>
+                </div>
+            </div>
+        </Transition>
     </div>
 </template>

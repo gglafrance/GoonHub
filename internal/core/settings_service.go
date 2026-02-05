@@ -28,6 +28,44 @@ var allowedSortOrders = map[string]bool{
 	"view_count_asc":  true,
 }
 
+var allowedActorSorts = map[string]bool{
+	"name_asc":         true,
+	"name_desc":        true,
+	"scene_count_desc": true,
+	"scene_count_asc":  true,
+	"created_at_desc":  true,
+	"created_at_asc":   true,
+}
+
+var allowedStudioSorts = map[string]bool{
+	"name_asc":         true,
+	"name_desc":        true,
+	"scene_count_desc": true,
+	"scene_count_asc":  true,
+	"created_at_desc":  true,
+	"created_at_asc":   true,
+}
+
+var allowedMarkerSorts = map[string]bool{
+	"label_asc":  true,
+	"label_desc": true,
+	"count_desc": true,
+	"count_asc":  true,
+	"recent":     true,
+	"oldest":     true,
+}
+
+var allowedEntitySceneSorts = map[string]bool{
+	"":               true,
+	"created_at_asc": true,
+	"title_asc":      true,
+	"title_desc":     true,
+	"duration_asc":   true,
+	"duration_desc":  true,
+	"view_count_desc": true,
+	"view_count_asc":  true,
+}
+
 var allowedSectionTypes = map[string]bool{
 	"latest":            true,
 	"actor":             true,
@@ -67,6 +105,7 @@ func (s *SettingsService) GetSettings(userID uint) (*data.UserSettings, error) {
 			DefaultTagSort:         "az",
 			MarkerThumbnailCycling: true,
 			HomepageConfig:         data.DefaultHomepageConfig(),
+			SortPreferences:        data.DefaultSortPreferences(),
 		}, nil
 	}
 	return settings, nil
@@ -165,71 +204,6 @@ func (s *SettingsService) validateSectionConfig(section *data.HomepageSection) e
 	return nil
 }
 
-func (s *SettingsService) UpdatePlayerSettings(userID uint, autoplay bool, volume int, loop bool) (*data.UserSettings, error) {
-	if volume < 0 || volume > 100 {
-		return nil, fmt.Errorf("volume must be between 0 and 100")
-	}
-
-	settings, err := s.settingsRepo.GetByUserID(userID)
-	if err != nil {
-		settings = &data.UserSettings{UserID: userID}
-	}
-
-	settings.Autoplay = autoplay
-	settings.DefaultVolume = volume
-	settings.Loop = loop
-
-	if err := s.settingsRepo.Upsert(settings); err != nil {
-		return nil, fmt.Errorf("failed to update player settings: %w", err)
-	}
-
-	return settings, nil
-}
-
-func (s *SettingsService) UpdateAppSettings(userID uint, videosPerPage int, sortOrder string, markerThumbnailCycling bool) (*data.UserSettings, error) {
-	if videosPerPage < 1 || videosPerPage > 100 {
-		return nil, fmt.Errorf("videos per page must be between 1 and 100")
-	}
-
-	if !allowedSortOrders[sortOrder] {
-		return nil, fmt.Errorf("invalid sort order: %s", sortOrder)
-	}
-
-	settings, err := s.settingsRepo.GetByUserID(userID)
-	if err != nil {
-		settings = &data.UserSettings{UserID: userID}
-	}
-
-	settings.VideosPerPage = videosPerPage
-	settings.DefaultSortOrder = sortOrder
-	settings.MarkerThumbnailCycling = markerThumbnailCycling
-
-	if err := s.settingsRepo.Upsert(settings); err != nil {
-		return nil, fmt.Errorf("failed to update app settings: %w", err)
-	}
-
-	return settings, nil
-}
-
-func (s *SettingsService) UpdateTagSettings(userID uint, defaultTagSort string) (*data.UserSettings, error) {
-	if !allowedTagSorts[defaultTagSort] {
-		return nil, fmt.Errorf("invalid tag sort: %s", defaultTagSort)
-	}
-
-	settings, err := s.settingsRepo.GetByUserID(userID)
-	if err != nil {
-		settings = &data.UserSettings{UserID: userID}
-	}
-
-	settings.DefaultTagSort = defaultTagSort
-
-	if err := s.settingsRepo.Upsert(settings); err != nil {
-		return nil, fmt.Errorf("failed to update tag settings: %w", err)
-	}
-
-	return settings, nil
-}
-
 func (s *SettingsService) ChangePassword(userID uint, currentPassword, newPassword string) error {
 	user, err := s.userRepo.GetByID(userID)
 	if err != nil {
@@ -301,6 +275,69 @@ func (s *SettingsService) UpdateParsingRules(userID uint, rules data.ParsingRule
 
 	if err := s.settingsRepo.Upsert(settings); err != nil {
 		return nil, fmt.Errorf("failed to update parsing rules: %w", err)
+	}
+
+	return settings, nil
+}
+
+func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences) (*data.UserSettings, error) {
+	if volume < 0 || volume > 100 {
+		return nil, fmt.Errorf("volume must be between 0 and 100")
+	}
+	if videosPerPage < 1 || videosPerPage > 100 {
+		return nil, fmt.Errorf("videos per page must be between 1 and 100")
+	}
+	if !allowedSortOrders[sortOrder] {
+		return nil, fmt.Errorf("invalid sort order: %s", sortOrder)
+	}
+	if !allowedTagSorts[tagSort] {
+		return nil, fmt.Errorf("invalid tag sort: %s", tagSort)
+	}
+	if !allowedActorSorts[sortPrefs.Actors] {
+		return nil, fmt.Errorf("invalid actors sort: %s", sortPrefs.Actors)
+	}
+	if !allowedStudioSorts[sortPrefs.Studios] {
+		return nil, fmt.Errorf("invalid studios sort: %s", sortPrefs.Studios)
+	}
+	if !allowedMarkerSorts[sortPrefs.Markers] {
+		return nil, fmt.Errorf("invalid markers sort: %s", sortPrefs.Markers)
+	}
+	if !allowedEntitySceneSorts[sortPrefs.ActorScenes] {
+		return nil, fmt.Errorf("invalid actor_scenes sort: %s", sortPrefs.ActorScenes)
+	}
+	if !allowedEntitySceneSorts[sortPrefs.StudioScenes] {
+		return nil, fmt.Errorf("invalid studio_scenes sort: %s", sortPrefs.StudioScenes)
+	}
+	if err := s.validateHomepageConfig(&homepageConfig); err != nil {
+		return nil, err
+	}
+	if err := s.validateParsingRules(&parsingRules); err != nil {
+		return nil, err
+	}
+
+	settings, err := s.settingsRepo.GetByUserID(userID)
+	if err != nil {
+		settings = &data.UserSettings{
+			UserID:          userID,
+			HomepageConfig:  data.DefaultHomepageConfig(),
+			ParsingRules:    data.DefaultParsingRulesSettings(),
+			SortPreferences: data.DefaultSortPreferences(),
+		}
+	}
+
+	settings.Autoplay = autoplay
+	settings.DefaultVolume = volume
+	settings.Loop = loop
+	settings.VideosPerPage = videosPerPage
+	settings.DefaultSortOrder = sortOrder
+	settings.DefaultTagSort = tagSort
+	settings.MarkerThumbnailCycling = markerThumbnailCycling
+	settings.HomepageConfig = homepageConfig
+	settings.ParsingRules = parsingRules
+	settings.SortPreferences = sortPrefs
+
+	if err := s.settingsRepo.Upsert(settings); err != nil {
+		return nil, fmt.Errorf("failed to update settings: %w", err)
 	}
 
 	return settings, nil

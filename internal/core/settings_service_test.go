@@ -53,133 +53,69 @@ func TestGetSettings_Defaults(t *testing.T) {
 	}
 }
 
-func TestUpdatePlayerSettings_VolumeBoundaries(t *testing.T) {
+func validAllSettingsArgs() (bool, int, bool, int, string, string, bool, data.HomepageConfig, data.ParsingRulesSettings, data.SortPreferences) {
+	return false, 50, false, 20, "created_at_desc", "az", true,
+		data.DefaultHomepageConfig(),
+		data.DefaultParsingRulesSettings(),
+		data.DefaultSortPreferences()
+}
+
+func TestUpdateAllSettings_Success(t *testing.T) {
+	svc, settingsRepo, _ := newTestSettingsService(t)
+
+	settingsRepo.EXPECT().GetByUserID(uint(1)).Return(&data.UserSettings{
+		UserID:          1,
+		HomepageConfig:  data.DefaultHomepageConfig(),
+		ParsingRules:    data.DefaultParsingRulesSettings(),
+		SortPreferences: data.DefaultSortPreferences(),
+	}, nil)
+	settingsRepo.EXPECT().Upsert(gomock.Any()).Return(nil)
+
+	autoplay, volume, loop, vpp, sort, tagSort, mtc, hc, pr, sp := validAllSettingsArgs()
+	settings, err := svc.UpdateAllSettings(1, autoplay, volume, loop, vpp, sort, tagSort, mtc, hc, pr, sp)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if settings.DefaultVolume != 50 {
+		t.Fatalf("expected volume 50, got %d", settings.DefaultVolume)
+	}
+}
+
+func TestUpdateAllSettings_InvalidFields(t *testing.T) {
 	tests := []struct {
-		name    string
-		volume  int
-		wantErr bool
+		name       string
+		volume     int
+		vpp        int
+		sort       string
+		tagSort    string
+		actorSort  string
+		wantSubstr string
 	}{
-		{"volume 0 valid", 0, false},
-		{"volume 100 valid", 100, false},
-		{"volume -1 invalid", -1, true},
-		{"volume 101 invalid", 101, true},
-		{"volume 50 valid", 50, false},
+		{"volume -1", -1, 20, "created_at_desc", "az", "name_asc", "volume must be between"},
+		{"volume 101", 101, 20, "created_at_desc", "az", "name_asc", "volume must be between"},
+		{"vpp 0", 50, 0, "created_at_desc", "az", "name_asc", "videos per page must be between"},
+		{"vpp 101", 50, 101, "created_at_desc", "az", "name_asc", "videos per page must be between"},
+		{"bad sort order", 50, 20, "random", "az", "name_asc", "invalid sort order"},
+		{"bad tag sort", 50, 20, "created_at_desc", "bad", "name_asc", "invalid tag sort"},
+		{"bad actors sort", 50, 20, "created_at_desc", "az", "bad", "invalid actors sort"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc, settingsRepo, _ := newTestSettingsService(t)
+			svc, _, _ := newTestSettingsService(t)
 
-			if !tt.wantErr {
-				settingsRepo.EXPECT().GetByUserID(uint(1)).Return(&data.UserSettings{UserID: 1}, nil)
-				settingsRepo.EXPECT().Upsert(gomock.Any()).Return(nil)
-			}
+			sp := data.DefaultSortPreferences()
+			sp.Actors = tt.actorSort
 
-			_, err := svc.UpdatePlayerSettings(1, false, tt.volume, false)
-			if tt.wantErr && err == nil {
+			_, err := svc.UpdateAllSettings(1, false, tt.volume, false, tt.vpp, tt.sort, tt.tagSort, true,
+				data.DefaultHomepageConfig(), data.DefaultParsingRulesSettings(), sp)
+			if err == nil {
 				t.Fatal("expected error")
 			}
-			if !tt.wantErr && err != nil {
-				t.Fatalf("unexpected error: %v", err)
+			if !strings.Contains(err.Error(), tt.wantSubstr) {
+				t.Fatalf("expected error containing %q, got: %v", tt.wantSubstr, err)
 			}
 		})
-	}
-}
-
-func TestUpdateAppSettings_ValidSortOrders(t *testing.T) {
-	validOrders := []string{
-		"created_at_desc", "created_at_asc",
-		"title_asc", "title_desc",
-		"duration_asc", "duration_desc",
-		"size_asc", "size_desc",
-	}
-
-	for _, order := range validOrders {
-		t.Run(order, func(t *testing.T) {
-			svc, settingsRepo, _ := newTestSettingsService(t)
-
-			settingsRepo.EXPECT().GetByUserID(uint(1)).Return(&data.UserSettings{UserID: 1}, nil)
-			settingsRepo.EXPECT().Upsert(gomock.Any()).Return(nil)
-
-			_, err := svc.UpdateAppSettings(1, 20, order, true)
-			if err != nil {
-				t.Fatalf("expected valid sort order %q to be accepted, got error: %v", order, err)
-			}
-		})
-	}
-}
-
-func TestUpdateAppSettings_InvalidSortOrder(t *testing.T) {
-	svc, _, _ := newTestSettingsService(t)
-
-	_, err := svc.UpdateAppSettings(1, 20, "random_order", true)
-	if err == nil {
-		t.Fatal("expected error for invalid sort order")
-	}
-	if !strings.Contains(err.Error(), "invalid sort order") {
-		t.Fatalf("expected 'invalid sort order' error, got: %v", err)
-	}
-}
-
-func TestUpdateAppSettings_VideosPerPageBoundaries(t *testing.T) {
-	tests := []struct {
-		name    string
-		count   int
-		wantErr bool
-	}{
-		{"1 valid", 1, false},
-		{"100 valid", 100, false},
-		{"0 invalid", 0, true},
-		{"101 invalid", 101, true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			svc, settingsRepo, _ := newTestSettingsService(t)
-
-			if !tt.wantErr {
-				settingsRepo.EXPECT().GetByUserID(uint(1)).Return(&data.UserSettings{UserID: 1}, nil)
-				settingsRepo.EXPECT().Upsert(gomock.Any()).Return(nil)
-			}
-
-			_, err := svc.UpdateAppSettings(1, tt.count, "created_at_desc", true)
-			if tt.wantErr && err == nil {
-				t.Fatal("expected error")
-			}
-			if !tt.wantErr && err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-		})
-	}
-}
-
-func TestUpdateTagSettings_ValidSorts(t *testing.T) {
-	validSorts := []string{"az", "za", "most", "least"}
-
-	for _, sort := range validSorts {
-		t.Run(sort, func(t *testing.T) {
-			svc, settingsRepo, _ := newTestSettingsService(t)
-
-			settingsRepo.EXPECT().GetByUserID(uint(1)).Return(&data.UserSettings{UserID: 1}, nil)
-			settingsRepo.EXPECT().Upsert(gomock.Any()).Return(nil)
-
-			_, err := svc.UpdateTagSettings(1, sort)
-			if err != nil {
-				t.Fatalf("expected valid tag sort %q to be accepted, got error: %v", sort, err)
-			}
-		})
-	}
-}
-
-func TestUpdateTagSettings_InvalidSort(t *testing.T) {
-	svc, _, _ := newTestSettingsService(t)
-
-	_, err := svc.UpdateTagSettings(1, "invalid")
-	if err == nil {
-		t.Fatal("expected error for invalid tag sort")
-	}
-	if !strings.Contains(err.Error(), "invalid tag sort") {
-		t.Fatalf("expected 'invalid tag sort' error, got: %v", err)
 	}
 }
 

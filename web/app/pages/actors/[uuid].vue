@@ -23,7 +23,7 @@ const showDeleteModal = ref(false);
 
 // Scene search/sort state
 const scenesQuery = ref('');
-const scenesSort = ref('');
+const scenesSort = useUrlSort(settingsStore.sortPreferences?.actor_scenes ?? '');
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const sortOptions = [

@@ -13,7 +13,12 @@ const newTagName = ref('');
 const newTagColor = ref('#6B7280');
 const creating = ref(false);
 
-const selectedTagSort = ref<TagSort>(settingsStore.defaultTagSort);
+const selectedTagSort = computed({
+    get: () => (settingsStore.draft?.default_tag_sort ?? 'az') as TagSort,
+    set: (v: TagSort) => {
+        if (settingsStore.draft) settingsStore.draft.default_tag_sort = v;
+    },
+});
 
 const tagSortOptions: { value: TagSort; label: string }[] = [
     { value: 'az', label: 'A-Z' },
@@ -21,23 +26,6 @@ const tagSortOptions: { value: TagSort; label: string }[] = [
     { value: 'most', label: 'Most used' },
     { value: 'least', label: 'Least used' },
 ];
-
-watch(
-    () => settingsStore.defaultTagSort,
-    (val) => {
-        selectedTagSort.value = val;
-    },
-);
-
-async function handleSortChange() {
-    clearMessages();
-    try {
-        await settingsStore.updateTags(selectedTagSort.value);
-        message.value = 'Default tag sort updated';
-    } catch (e: unknown) {
-        error.value = e instanceof Error ? e.message : 'Failed to update tag sort';
-    }
-}
 
 const colorPresets = [
     '#6B7280',
@@ -126,13 +114,9 @@ async function handleDelete(tag: Tag) {
                     Default Sort
                 </label>
                 <UiSelectMenu
-                    :model-value="selectedTagSort"
+                    v-model="selectedTagSort"
                     :options="tagSortOptions"
                     class="max-w-48"
-                    @update:model-value="
-                        selectedTagSort = $event as TagSort;
-                        handleSortChange();
-                    "
                 />
                 <p class="text-dim mt-1.5 text-[10px]">
                     Default sort order when opening the tag picker

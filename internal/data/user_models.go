@@ -61,6 +61,7 @@ type UserSettings struct {
 	MarkerThumbnailCycling  bool           `gorm:"not null;default:true" json:"marker_thumbnail_cycling"`
 	HomepageConfig          HomepageConfig `gorm:"type:jsonb;not null" json:"homepage_config"`
 	ParsingRules            ParsingRulesSettings `gorm:"type:jsonb;not null" json:"parsing_rules"`
+	SortPreferences         SortPreferences      `gorm:"type:jsonb;not null" json:"sort_preferences"`
 }
 
 // HomepageConfig represents the user's homepage layout configuration
@@ -197,5 +198,45 @@ func DefaultParsingRulesSettings() ParsingRulesSettings {
 	return ParsingRulesSettings{
 		Presets:        []ParsingPreset{},
 		ActivePresetID: nil,
+	}
+}
+
+// SortPreferences represents user-configurable default sort orders per page
+type SortPreferences struct {
+	Actors       string `json:"actors"`
+	Studios      string `json:"studios"`
+	Markers      string `json:"markers"`
+	ActorScenes  string `json:"actor_scenes"`
+	StudioScenes string `json:"studio_scenes"`
+}
+
+// Value implements the driver.Valuer interface for JSONB storage
+func (s SortPreferences) Value() (driver.Value, error) {
+	return json.Marshal(s)
+}
+
+// Scan implements the sql.Scanner interface for JSONB retrieval
+func (s *SortPreferences) Scan(value any) error {
+	if value == nil {
+		*s = DefaultSortPreferences()
+		return nil
+	}
+
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("failed to scan SortPreferences: expected []byte")
+	}
+
+	return json.Unmarshal(bytes, s)
+}
+
+// DefaultSortPreferences returns the default sort preferences
+func DefaultSortPreferences() SortPreferences {
+	return SortPreferences{
+		Actors:       "name_asc",
+		Studios:      "name_asc",
+		Markers:      "label_asc",
+		ActorScenes:  "",
+		StudioScenes: "",
 	}
 }

@@ -1,11 +1,18 @@
 import { defineStore } from 'pinia';
-import type { UserSettings, SortOrder, TagSort, KeyboardLayout } from '~/types/settings';
+import type {
+    UserSettings,
+    SortOrder,
+    TagSort,
+    KeyboardLayout,
+    SortPreferences,
+} from '~/types/settings';
 import type { ParsingRulesSettings, ParsingPreset } from '~/types/parsing-rules';
 
 export const useSettingsStore = defineStore(
     'settings',
     () => {
         const settings = ref<UserSettings | null>(null);
+        const draft = ref<UserSettings | null>(null);
         const isLoading = ref(false);
         const error = ref<string | null>(null);
         const theaterMode = ref(false);
@@ -15,9 +22,7 @@ export const useSettingsStore = defineStore(
 
         const {
             fetchSettings: apiFetchSettings,
-            updatePlayerSettings: apiUpdatePlayer,
-            updateAppSettings: apiUpdateApp,
-            updateTagSettings: apiUpdateTags,
+            updateAllSettings: apiUpdateAllSettings,
             getParsingRules: apiGetParsingRules,
             updateParsingRules: apiUpdateParsingRules,
         } = useApi();
@@ -33,6 +38,24 @@ export const useSettingsStore = defineStore(
         const markerThumbnailCycling = computed(
             () => settings.value?.marker_thumbnail_cycling ?? true,
         );
+        const sortPreferences = computed<SortPreferences | null>(
+            () => settings.value?.sort_preferences ?? null,
+        );
+
+        const hasUnsavedChanges = computed(() => {
+            if (!draft.value || !settings.value) return false;
+            return JSON.stringify(draft.value) !== JSON.stringify(settings.value);
+        });
+
+        function initDraft() {
+            if (settings.value) {
+                draft.value = JSON.parse(JSON.stringify(settings.value));
+            }
+        }
+
+        function discardDraft() {
+            initDraft();
+        }
 
         const loadSettings = async () => {
             isLoading.value = true;
@@ -40,6 +63,7 @@ export const useSettingsStore = defineStore(
             try {
                 const data: UserSettings = await apiFetchSettings();
                 settings.value = data;
+                initDraft();
             } catch (e: unknown) {
                 const message = e instanceof Error ? e.message : 'Unknown error';
                 if (message !== 'Unauthorized') {
@@ -50,56 +74,14 @@ export const useSettingsStore = defineStore(
             }
         };
 
-        const updatePlayer = async (autoplay: boolean, defaultVolume: number, loop: boolean) => {
+        const saveAllSettings = async () => {
+            if (!draft.value) return;
             isLoading.value = true;
             error.value = null;
             try {
-                const data: UserSettings = await apiUpdatePlayer({
-                    autoplay,
-                    default_volume: defaultVolume,
-                    loop,
-                });
+                const data: UserSettings = await apiUpdateAllSettings(draft.value);
                 settings.value = data;
-            } catch (e: unknown) {
-                const message = e instanceof Error ? e.message : 'Unknown error';
-                error.value = message;
-                throw e;
-            } finally {
-                isLoading.value = false;
-            }
-        };
-
-        const updateApp = async (
-            videosPerPage: number,
-            sortOrder: SortOrder,
-            markerThumbnailCyclingVal: boolean,
-        ) => {
-            isLoading.value = true;
-            error.value = null;
-            try {
-                const data: UserSettings = await apiUpdateApp({
-                    videos_per_page: videosPerPage,
-                    default_sort_order: sortOrder,
-                    marker_thumbnail_cycling: markerThumbnailCyclingVal,
-                });
-                settings.value = data;
-            } catch (e: unknown) {
-                const message = e instanceof Error ? e.message : 'Unknown error';
-                error.value = message;
-                throw e;
-            } finally {
-                isLoading.value = false;
-            }
-        };
-
-        const updateTags = async (tagSort: TagSort) => {
-            isLoading.value = true;
-            error.value = null;
-            try {
-                const data: UserSettings = await apiUpdateTags({
-                    default_tag_sort: tagSort,
-                });
-                settings.value = data;
+                initDraft();
             } catch (e: unknown) {
                 const message = e instanceof Error ? e.message : 'Unknown error';
                 error.value = message;
@@ -158,6 +140,7 @@ export const useSettingsStore = defineStore(
 
         return {
             settings,
+            draft,
             isLoading,
             error,
             autoplay,
@@ -167,15 +150,17 @@ export const useSettingsStore = defineStore(
             defaultSortOrder,
             defaultTagSort,
             markerThumbnailCycling,
+            sortPreferences,
+            hasUnsavedChanges,
             theaterMode,
             keyboardLayout,
             parsingRules,
             parsingRulesLoading,
             activePreset,
             loadSettings,
-            updatePlayer,
-            updateApp,
-            updateTags,
+            saveAllSettings,
+            initDraft,
+            discardDraft,
             toggleTheaterMode,
             setKeyboardLayout,
             loadParsingRules,

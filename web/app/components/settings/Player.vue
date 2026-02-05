@@ -1,51 +1,30 @@
 <script setup lang="ts">
 const settingsStore = useSettingsStore();
-const { message, error, clearMessages } = useSettingsMessage();
 
-const playerAutoplay = ref(false);
-const playerVolume = ref(100);
-const playerLoop = ref(false);
+const playerAutoplay = computed({
+    get: () => settingsStore.draft?.autoplay ?? false,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.autoplay = v;
+    },
+});
 
-const syncFromStore = () => {
-    playerAutoplay.value = settingsStore.autoplay;
-    playerVolume.value = settingsStore.defaultVolume;
-    playerLoop.value = settingsStore.loop;
-};
+const playerVolume = computed({
+    get: () => settingsStore.draft?.default_volume ?? 100,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.default_volume = v;
+    },
+});
 
-onMounted(syncFromStore);
-
-watch(() => settingsStore.settings, syncFromStore);
-
-const handleSavePlayer = async () => {
-    clearMessages();
-    try {
-        await settingsStore.updatePlayer(
-            playerAutoplay.value,
-            playerVolume.value,
-            playerLoop.value,
-        );
-        message.value = 'Player settings saved';
-    } catch (e: unknown) {
-        error.value = e instanceof Error ? e.message : 'Failed to save settings';
-    }
-};
+const playerLoop = computed({
+    get: () => settingsStore.draft?.loop ?? false,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.loop = v;
+    },
+});
 </script>
 
 <template>
     <div class="space-y-6">
-        <div
-            v-if="message"
-            class="border-emerald/20 bg-emerald/5 text-emerald rounded-lg border px-3 py-2 text-xs"
-        >
-            {{ message }}
-        </div>
-        <div
-            v-if="error"
-            class="border-lava/20 bg-lava/5 text-lava rounded-lg border px-3 py-2 text-xs"
-        >
-            {{ error }}
-        </div>
-
         <div class="glass-panel p-5">
             <h3 class="mb-5 text-sm font-semibold text-white">Player Preferences</h3>
             <div class="space-y-5">
@@ -85,15 +64,6 @@ const handleSavePlayer = async () => {
                         class="accent-lava w-full"
                     />
                 </div>
-
-                <button
-                    :disabled="settingsStore.isLoading"
-                    class="bg-lava hover:bg-lava-glow rounded-lg px-4 py-2 text-xs font-semibold
-                        text-white transition-all disabled:cursor-not-allowed disabled:opacity-40"
-                    @click="handleSavePlayer"
-                >
-                    Save Player Settings
-                </button>
             </div>
         </div>
     </div>

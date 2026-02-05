@@ -3,13 +3,67 @@ import type { SortOrder } from '~/types/settings';
 
 const settingsStore = useSettingsStore();
 const authStore = useAuthStore();
-const { message, error, clearMessages } = useSettingsMessage();
 const { triggerReindex, getSearchConfig, updateSearchConfig } = useApiAdmin();
 const { layout: keyboardLayout, setLayout: setKeyboardLayout } = useKeyboardLayout();
 
-const appVideosPerPage = ref(20);
-const appSortOrder = ref<SortOrder>('created_at_desc');
-const appMarkerThumbnailCycling = ref(true);
+// Writable computeds on draft
+const appVideosPerPage = computed({
+    get: () => settingsStore.draft?.videos_per_page ?? 20,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.videos_per_page = v;
+    },
+});
+
+const appSortOrder = computed({
+    get: () => (settingsStore.draft?.default_sort_order ?? 'created_at_desc') as SortOrder,
+    set: (v: SortOrder) => {
+        if (settingsStore.draft) settingsStore.draft.default_sort_order = v;
+    },
+});
+
+const appMarkerThumbnailCycling = computed({
+    get: () => settingsStore.draft?.marker_thumbnail_cycling ?? true,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.marker_thumbnail_cycling = v;
+    },
+});
+
+const sortActors = computed({
+    get: () => settingsStore.draft?.sort_preferences?.actors ?? 'name_asc',
+    set: (v) => {
+        if (settingsStore.draft?.sort_preferences) settingsStore.draft.sort_preferences.actors = v;
+    },
+});
+
+const sortStudios = computed({
+    get: () => settingsStore.draft?.sort_preferences?.studios ?? 'name_asc',
+    set: (v) => {
+        if (settingsStore.draft?.sort_preferences) settingsStore.draft.sort_preferences.studios = v;
+    },
+});
+
+const sortMarkers = computed({
+    get: () => settingsStore.draft?.sort_preferences?.markers ?? 'label_asc',
+    set: (v) => {
+        if (settingsStore.draft?.sort_preferences) settingsStore.draft.sort_preferences.markers = v;
+    },
+});
+
+const sortActorScenes = computed({
+    get: () => settingsStore.draft?.sort_preferences?.actor_scenes ?? '',
+    set: (v) => {
+        if (settingsStore.draft?.sort_preferences)
+            settingsStore.draft.sort_preferences.actor_scenes = v;
+    },
+});
+
+const sortStudioScenes = computed({
+    get: () => settingsStore.draft?.sort_preferences?.studio_scenes ?? '',
+    set: (v) => {
+        if (settingsStore.draft?.sort_preferences)
+            settingsStore.draft.sort_preferences.studio_scenes = v;
+    },
+});
 
 // Search index state
 const isReindexing = ref(false);
@@ -34,11 +88,43 @@ const sortOptions: { value: SortOrder; label: string }[] = [
     { value: 'size_desc', label: 'Largest First' },
 ];
 
-const syncFromStore = () => {
-    appVideosPerPage.value = settingsStore.videosPerPage;
-    appSortOrder.value = settingsStore.defaultSortOrder;
-    appMarkerThumbnailCycling.value = settingsStore.markerThumbnailCycling;
-};
+const actorSortOptions = [
+    { value: 'name_asc', label: 'Name A-Z' },
+    { value: 'name_desc', label: 'Name Z-A' },
+    { value: 'scene_count_desc', label: 'Most Scenes' },
+    { value: 'scene_count_asc', label: 'Least Scenes' },
+    { value: 'created_at_desc', label: 'Newest' },
+    { value: 'created_at_asc', label: 'Oldest' },
+];
+
+const studioSortOptions = [
+    { value: 'name_asc', label: 'Name A-Z' },
+    { value: 'name_desc', label: 'Name Z-A' },
+    { value: 'scene_count_desc', label: 'Most Scenes' },
+    { value: 'scene_count_asc', label: 'Least Scenes' },
+    { value: 'created_at_desc', label: 'Newest' },
+    { value: 'created_at_asc', label: 'Oldest' },
+];
+
+const markerSortOptions = [
+    { value: 'label_asc', label: 'A-Z' },
+    { value: 'label_desc', label: 'Z-A' },
+    { value: 'count_desc', label: 'Most Markers' },
+    { value: 'count_asc', label: 'Fewest Markers' },
+    { value: 'recent', label: 'Recently Added' },
+    { value: 'oldest', label: 'Oldest' },
+];
+
+const entitySceneSortOptions = [
+    { value: '', label: 'Newest' },
+    { value: 'created_at_asc', label: 'Oldest' },
+    { value: 'title_asc', label: 'Title A-Z' },
+    { value: 'title_desc', label: 'Title Z-A' },
+    { value: 'duration_asc', label: 'Shortest' },
+    { value: 'duration_desc', label: 'Longest' },
+    { value: 'view_count_desc', label: 'Most Viewed' },
+    { value: 'view_count_asc', label: 'Least Viewed' },
+];
 
 const loadSearchConfig = async () => {
     if (!isAdmin.value) return;
@@ -51,25 +137,8 @@ const loadSearchConfig = async () => {
 };
 
 onMounted(() => {
-    syncFromStore();
     loadSearchConfig();
 });
-
-watch(() => settingsStore.settings, syncFromStore);
-
-const handleSaveApp = async () => {
-    clearMessages();
-    try {
-        await settingsStore.updateApp(
-            appVideosPerPage.value,
-            appSortOrder.value,
-            appMarkerThumbnailCycling.value,
-        );
-        message.value = 'App settings saved';
-    } catch (e: unknown) {
-        error.value = e instanceof Error ? e.message : 'Failed to save settings';
-    }
-};
 
 const handleReindex = async () => {
     reindexMessage.value = '';
@@ -102,19 +171,6 @@ const handleSaveSearchConfig = async () => {
 
 <template>
     <div class="space-y-6">
-        <div
-            v-if="message"
-            class="border-emerald/20 bg-emerald/5 text-emerald rounded-lg border px-3 py-2 text-xs"
-        >
-            {{ message }}
-        </div>
-        <div
-            v-if="error"
-            class="border-lava/20 bg-lava/5 text-lava rounded-lg border px-3 py-2 text-xs"
-        >
-            {{ error }}
-        </div>
-
         <div class="glass-panel p-5">
             <h3 class="mb-5 text-sm font-semibold text-white">App Preferences</h3>
             <div class="space-y-5">
@@ -145,7 +201,86 @@ const handleSaveSearchConfig = async () => {
                     >
                         Default Sort Order
                     </label>
+                    <p class="text-dim mb-2 text-xs">
+                        Default sort for the main scenes/search page
+                    </p>
                     <UiSelectMenu v-model="appSortOrder" :options="sortOptions" class="max-w-64" />
+                </div>
+
+                <!-- Page Sort Preferences -->
+                <div class="border-border border-t pt-5">
+                    <h4 class="mb-4 text-xs font-semibold text-white">Page Sort Defaults</h4>
+                    <p class="text-dim mb-4 text-xs">
+                        Set the default sort order for each page. Used when no sort parameter is in
+                        the URL.
+                    </p>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                            <label
+                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
+                                    uppercase"
+                            >
+                                Actors
+                            </label>
+                            <UiSelectMenu
+                                v-model="sortActors"
+                                :options="actorSortOptions"
+                                class="max-w-64"
+                            />
+                        </div>
+                        <div>
+                            <label
+                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
+                                    uppercase"
+                            >
+                                Studios
+                            </label>
+                            <UiSelectMenu
+                                v-model="sortStudios"
+                                :options="studioSortOptions"
+                                class="max-w-64"
+                            />
+                        </div>
+                        <div>
+                            <label
+                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
+                                    uppercase"
+                            >
+                                Markers
+                            </label>
+                            <UiSelectMenu
+                                v-model="sortMarkers"
+                                :options="markerSortOptions"
+                                class="max-w-64"
+                            />
+                        </div>
+                        <div>
+                            <label
+                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
+                                    uppercase"
+                            >
+                                Actor Scenes
+                            </label>
+                            <UiSelectMenu
+                                v-model="sortActorScenes"
+                                :options="entitySceneSortOptions"
+                                class="max-w-64"
+                            />
+                        </div>
+                        <div>
+                            <label
+                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
+                                    uppercase"
+                            >
+                                Studio Scenes
+                            </label>
+                            <UiSelectMenu
+                                v-model="sortStudioScenes"
+                                :options="entitySceneSortOptions"
+                                class="max-w-64"
+                            />
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Keyboard Layout -->
@@ -199,15 +334,6 @@ const handleSaveSearchConfig = async () => {
                     </div>
                     <UiToggle v-model="appMarkerThumbnailCycling" />
                 </div>
-
-                <button
-                    :disabled="settingsStore.isLoading"
-                    class="bg-lava hover:bg-lava-glow rounded-lg px-4 py-2 text-xs font-semibold
-                        text-white transition-all disabled:cursor-not-allowed disabled:opacity-40"
-                    @click="handleSaveApp"
-                >
-                    Save App Settings
-                </button>
             </div>
         </div>
 

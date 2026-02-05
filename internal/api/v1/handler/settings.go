@@ -37,72 +37,6 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, settings)
 }
 
-func (h *SettingsHandler) UpdatePlayerSettings(c *gin.Context) {
-	userPayload, err := middleware.GetUserFromContext(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
-
-	var req request.UpdatePlayerSettingsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
-
-	settings, err := h.SettingsService.UpdatePlayerSettings(userPayload.UserID, req.Autoplay, req.DefaultVolume, req.Loop)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, settings)
-}
-
-func (h *SettingsHandler) UpdateAppSettings(c *gin.Context) {
-	userPayload, err := middleware.GetUserFromContext(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
-
-	var req request.UpdateAppSettingsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
-
-	settings, err := h.SettingsService.UpdateAppSettings(userPayload.UserID, req.VideosPerPage, req.DefaultSortOrder, req.MarkerThumbnailCycling)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, settings)
-}
-
-func (h *SettingsHandler) UpdateTagSettings(c *gin.Context) {
-	userPayload, err := middleware.GetUserFromContext(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
-
-	var req request.UpdateTagSettingsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
-
-	settings, err := h.SettingsService.UpdateTagSettings(userPayload.UserID, req.DefaultTagSort)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, settings)
-}
-
 func (h *SettingsHandler) ChangePassword(c *gin.Context) {
 	userPayload, err := middleware.GetUserFromContext(c)
 	if err != nil {
@@ -143,47 +77,6 @@ func (h *SettingsHandler) ChangeUsername(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Username changed successfully"})
-}
-
-func (h *SettingsHandler) GetHomepageConfig(c *gin.Context) {
-	userPayload, err := middleware.GetUserFromContext(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
-
-	config, err := h.SettingsService.GetHomepageConfig(userPayload.UserID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch homepage config"})
-		return
-	}
-
-	c.JSON(http.StatusOK, config)
-}
-
-func (h *SettingsHandler) UpdateHomepageConfig(c *gin.Context) {
-	userPayload, err := middleware.GetUserFromContext(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
-
-	var req request.UpdateHomepageConfigRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
-
-	// Convert request to data model
-	config := h.convertRequestToConfig(req)
-
-	settings, err := h.SettingsService.UpdateHomepageConfig(userPayload.UserID, config)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, settings.HomepageConfig)
 }
 
 func (h *SettingsHandler) convertRequestToConfig(req request.UpdateHomepageConfigRequest) data.HomepageConfig {
@@ -245,6 +138,50 @@ func (h *SettingsHandler) UpdateParsingRules(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, settings.ParsingRules)
+}
+
+func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
+	userPayload, err := middleware.GetUserFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	var req request.UpdateAllSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	homepageConfig := h.convertRequestToConfig(req.HomepageConfig)
+	parsingRules := h.convertRequestToParsingRules(req.ParsingRules)
+	sortPrefs := data.SortPreferences{
+		Actors:       req.SortPreferences.Actors,
+		Studios:      req.SortPreferences.Studios,
+		Markers:      req.SortPreferences.Markers,
+		ActorScenes:  req.SortPreferences.ActorScenes,
+		StudioScenes: req.SortPreferences.StudioScenes,
+	}
+
+	settings, err := h.SettingsService.UpdateAllSettings(
+		userPayload.UserID,
+		req.Autoplay,
+		req.DefaultVolume,
+		req.Loop,
+		req.VideosPerPage,
+		req.DefaultSortOrder,
+		req.DefaultTagSort,
+		req.MarkerThumbnailCycling,
+		homepageConfig,
+		parsingRules,
+		sortPrefs,
+	)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, settings)
 }
 
 func (h *SettingsHandler) convertRequestToParsingRules(req request.UpdateParsingRulesRequest) data.ParsingRulesSettings {
