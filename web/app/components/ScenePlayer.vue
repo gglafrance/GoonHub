@@ -355,6 +355,7 @@ onBeforeUnmount(() => {
         0 0 0 1px rgba(255, 255, 255, 0.03) inset;
     opacity: 0;
     transform: translateY(8px);
+    transition: opacity 0.3s ease;
     display: flex;
     align-items: center;
     gap: 2px;
@@ -365,6 +366,13 @@ onBeforeUnmount(() => {
 :deep(.video-js.vjs-paused .vjs-control-bar) {
     opacity: 1;
     transform: translateY(0);
+}
+
+/* Override sticky :hover on mobile — hide when user is inactive and video is playing */
+:deep(.video-js.vjs-user-inactive:not(.vjs-paused) .vjs-control-bar) {
+    opacity: 0;
+    transform: translateY(0);
+    pointer-events: none;
 }
 
 /* Control buttons base styling */
