@@ -69,6 +69,8 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 				history := protected.Group("/history")
 				{
 					history.GET("", watchHistoryHandler.GetUserHistory)
+					history.GET("/by-date", watchHistoryHandler.GetUserHistoryByDateRange)
+					history.GET("/activity", watchHistoryHandler.GetDailyActivity)
 				}
 
 				tags := protected.Group("/tags")
@@ -116,13 +118,9 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 				settings := protected.Group("/settings")
 				{
 					settings.GET("", settingsHandler.GetSettings)
-					settings.PUT("/player", settingsHandler.UpdatePlayerSettings)
-					settings.PUT("/app", settingsHandler.UpdateAppSettings)
-					settings.PUT("/tags", settingsHandler.UpdateTagSettings)
+					settings.PUT("", settingsHandler.UpdateAllSettings)
 					settings.PUT("/password", settingsHandler.ChangePassword)
 					settings.PUT("/username", settingsHandler.ChangeUsername)
-					settings.GET("/homepage", settingsHandler.GetHomepageConfig)
-					settings.PUT("/homepage", settingsHandler.UpdateHomepageConfig)
 					settings.GET("/parsing-rules", settingsHandler.GetParsingRules)
 					settings.PUT("/parsing-rules", settingsHandler.UpdateParsingRules)
 				}

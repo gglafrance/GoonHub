@@ -12,6 +12,7 @@ useSeoMeta({
 
 const { fetchLabelGroups, fetchAllMarkers } = useApiMarkers();
 const { formatDuration } = useFormatter();
+const settingsStore = useSettingsStore();
 
 type ViewMode = 'grouped' | 'all';
 const viewMode = ref<ViewMode>('grouped');
@@ -27,7 +28,7 @@ const allTotal = ref(0);
 const currentPage = useUrlPagination();
 const limit = ref(20);
 const searchQuery = ref('');
-const sortBy = ref('label_asc');
+const sortBy = useUrlSort(settingsStore.sortPreferences?.markers || 'label_asc');
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 

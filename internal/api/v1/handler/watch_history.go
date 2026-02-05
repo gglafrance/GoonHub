@@ -7,6 +7,7 @@ import (
 	"goonhub/internal/core"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -138,5 +139,94 @@ func (h *WatchHistoryHandler) GetUserHistory(c *gin.Context) {
 		"total":   total,
 		"page":    page,
 		"limit":   limit,
+	})
+}
+
+func (h *WatchHistoryHandler) GetUserHistoryByDateRange(c *gin.Context) {
+	payload, err := middleware.GetUserFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	limit := 2000
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
+			limit = parsed
+			if limit > 5000 {
+				limit = 5000
+			}
+		}
+	}
+
+	// Custom date range takes precedence over range param
+	sinceStr := c.Query("since")
+	untilStr := c.Query("until")
+	if sinceStr != "" && untilStr != "" {
+		sinceTime, err := time.Parse("2006-01-02", sinceStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid 'since' date format, expected YYYY-MM-DD"})
+			return
+		}
+		untilTime, err := time.Parse("2006-01-02", untilStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid 'until' date format, expected YYYY-MM-DD"})
+			return
+		}
+		// Set until to end of day
+		untilTime = untilTime.Add(24*time.Hour - time.Nanosecond)
+
+		entries, err := h.Service.GetUserHistoryByTimeRange(payload.UserID, sinceTime, untilTime, limit)
+		if err != nil {
+			response.InternalError(c, "Failed to get history")
+			return
+		}
+
+		response.OK(c, gin.H{
+			"entries": response.ToWatchHistoryEntriesResponse(entries),
+		})
+		return
+	}
+
+	rangeDays := 30
+	if rangeStr := c.Query("range"); rangeStr != "" {
+		if parsed, err := strconv.Atoi(rangeStr); err == nil && parsed >= 0 {
+			rangeDays = parsed
+		}
+	}
+
+	entries, err := h.Service.GetUserHistoryByDateRange(payload.UserID, rangeDays, limit)
+	if err != nil {
+		response.InternalError(c, "Failed to get history")
+		return
+	}
+
+	response.OK(c, gin.H{
+		"entries": response.ToWatchHistoryEntriesResponse(entries),
+	})
+}
+
+func (h *WatchHistoryHandler) GetDailyActivity(c *gin.Context) {
+	payload, err := middleware.GetUserFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	rangeDays := 30
+	if rangeStr := c.Query("range"); rangeStr != "" {
+		if parsed, err := strconv.Atoi(rangeStr); err == nil && parsed >= 0 {
+			rangeDays = parsed
+		}
+	}
+
+	counts, err := h.Service.GetDailyActivity(payload.UserID, rangeDays)
+	if err != nil {
+		response.InternalError(c, "Failed to get activity data")
+		return
+	}
+
+	response.OK(c, gin.H{
+		"counts": counts,
 	})
 }

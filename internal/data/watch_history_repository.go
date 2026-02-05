@@ -12,6 +12,9 @@ type WatchHistoryRepository interface {
 	RecordWatch(userID, sceneID uint, duration, position int, completed bool) error
 	GetLastWatch(userID, sceneID uint) (*UserSceneWatch, error)
 	ListUserHistory(userID uint, page, limit int) ([]UserSceneWatch, int64, error)
+	ListUserHistoryByDateRange(userID uint, since time.Time, limit int) ([]UserSceneWatch, error)
+	ListUserHistoryByTimeRange(userID uint, since, until time.Time, limit int) ([]UserSceneWatch, error)
+	GetDailyActivityCounts(userID uint, since time.Time) ([]DailyActivityCount, error)
 	ListSceneWatches(userID, sceneID uint, limit int) ([]UserSceneWatch, error)
 	// TryIncrementViewCount atomically checks if a view should be counted (not counted in last 24h)
 	// and increments the scene view count if so. Returns true if the count was incremented.
@@ -172,6 +175,69 @@ func (r *WatchHistoryRepositoryImpl) TryIncrementViewCount(userID, sceneID uint)
 	})
 
 	return incremented, err
+}
+
+// ListUserHistoryByDateRange returns watch records since the given time, deduped per scene per day.
+// The same scene may appear on multiple days but only once per day (most recent watch kept).
+func (r *WatchHistoryRepositoryImpl) ListUserHistoryByDateRange(userID uint, since time.Time, limit int) ([]UserSceneWatch, error) {
+	var watches []UserSceneWatch
+	err := r.DB.Raw(`
+		WITH ranked AS (
+			SELECT *, ROW_NUMBER() OVER (
+				PARTITION BY scene_id, DATE(watched_at)
+				ORDER BY watched_at DESC
+			) as rn
+			FROM user_scene_watches
+			WHERE user_id = ? AND watched_at >= ?
+		)
+		SELECT id, user_id, scene_id, watched_at, watch_duration, last_position, completed, created_at, updated_at
+		FROM ranked WHERE rn = 1
+		ORDER BY watched_at DESC
+		LIMIT ?
+	`, userID, since, limit).Scan(&watches).Error
+	if err != nil {
+		return nil, err
+	}
+	return watches, nil
+}
+
+// ListUserHistoryByTimeRange returns watch records between since and until, deduped per scene per day.
+func (r *WatchHistoryRepositoryImpl) ListUserHistoryByTimeRange(userID uint, since, until time.Time, limit int) ([]UserSceneWatch, error) {
+	var watches []UserSceneWatch
+	err := r.DB.Raw(`
+		WITH ranked AS (
+			SELECT *, ROW_NUMBER() OVER (
+				PARTITION BY scene_id, DATE(watched_at)
+				ORDER BY watched_at DESC
+			) as rn
+			FROM user_scene_watches
+			WHERE user_id = ? AND watched_at >= ? AND watched_at <= ?
+		)
+		SELECT id, user_id, scene_id, watched_at, watch_duration, last_position, completed, created_at, updated_at
+		FROM ranked WHERE rn = 1
+		ORDER BY watched_at DESC
+		LIMIT ?
+	`, userID, since, until, limit).Scan(&watches).Error
+	if err != nil {
+		return nil, err
+	}
+	return watches, nil
+}
+
+// GetDailyActivityCounts returns the count of distinct scenes watched per day since the given time.
+func (r *WatchHistoryRepositoryImpl) GetDailyActivityCounts(userID uint, since time.Time) ([]DailyActivityCount, error) {
+	var counts []DailyActivityCount
+	err := r.DB.Raw(`
+		SELECT DATE(watched_at) as date, COUNT(DISTINCT scene_id) as count
+		FROM user_scene_watches
+		WHERE user_id = ? AND watched_at >= ?
+		GROUP BY DATE(watched_at)
+		ORDER BY date ASC
+	`, userID, since).Scan(&counts).Error
+	if err != nil {
+		return nil, err
+	}
+	return counts, nil
 }
 
 var _ WatchHistoryRepository = (*WatchHistoryRepositoryImpl)(nil)

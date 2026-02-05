@@ -1,8 +1,8 @@
-import type { HomepageConfig } from '~/types/homepage';
 import type { ParsingRulesSettings } from '~/types/parsing-rules';
+import type { UserSettings } from '~/types/settings';
 
 /**
- * User settings API operations: player, app, tags, account, homepage, parsing rules.
+ * User settings API operations: unified settings, account, parsing rules.
  */
 export const useApiSettings = () => {
     const { fetchOptions, getAuthHeaders, handleResponse } = useApiCore();
@@ -15,34 +15,8 @@ export const useApiSettings = () => {
         return handleResponse(response);
     };
 
-    const updatePlayerSettings = async (settings: {
-        autoplay: boolean;
-        default_volume: number;
-        loop: boolean;
-    }) => {
-        const response = await fetch('/api/v1/settings/player', {
-            method: 'PUT',
-            headers: getAuthHeaders(),
-            body: JSON.stringify(settings),
-        });
-        return handleResponse(response);
-    };
-
-    const updateAppSettings = async (settings: {
-        videos_per_page: number;
-        default_sort_order: string;
-        marker_thumbnail_cycling: boolean;
-    }) => {
-        const response = await fetch('/api/v1/settings/app', {
-            method: 'PUT',
-            headers: getAuthHeaders(),
-            body: JSON.stringify(settings),
-        });
-        return handleResponse(response);
-    };
-
-    const updateTagSettings = async (settings: { default_tag_sort: string }) => {
-        const response = await fetch('/api/v1/settings/tags', {
+    const updateAllSettings = async (settings: UserSettings): Promise<UserSettings> => {
+        const response = await fetch('/api/v1/settings', {
             method: 'PUT',
             headers: getAuthHeaders(),
             body: JSON.stringify(settings),
@@ -68,23 +42,6 @@ export const useApiSettings = () => {
         return handleResponse(response);
     };
 
-    const getHomepageConfig = async (): Promise<HomepageConfig> => {
-        const response = await fetch('/api/v1/settings/homepage', {
-            headers: getAuthHeaders(),
-            ...fetchOptions(),
-        });
-        return handleResponse(response);
-    };
-
-    const updateHomepageConfig = async (config: HomepageConfig): Promise<HomepageConfig> => {
-        const response = await fetch('/api/v1/settings/homepage', {
-            method: 'PUT',
-            headers: getAuthHeaders(),
-            body: JSON.stringify(config),
-        });
-        return handleResponse(response);
-    };
-
     const getParsingRules = async (): Promise<ParsingRulesSettings> => {
         const response = await fetch('/api/v1/settings/parsing-rules', {
             headers: getAuthHeaders(),
@@ -106,13 +63,9 @@ export const useApiSettings = () => {
 
     return {
         fetchSettings,
-        updatePlayerSettings,
-        updateAppSettings,
-        updateTagSettings,
+        updateAllSettings,
         changePassword,
         changeUsername,
-        getHomepageConfig,
-        updateHomepageConfig,
         getParsingRules,
         updateParsingRules,
     };

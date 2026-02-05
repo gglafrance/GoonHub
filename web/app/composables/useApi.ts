@@ -54,12 +54,13 @@ export const useApi = () => {
         getResumePosition: scenes.getResumePosition,
         getSceneWatchHistory: scenes.getSceneWatchHistory,
         getUserWatchHistory: scenes.getUserWatchHistory,
+        getUserWatchHistoryByDateRange: scenes.getUserWatchHistoryByDateRange,
+        getUserWatchHistoryByTimeRange: scenes.getUserWatchHistoryByTimeRange,
+        getDailyActivity: scenes.getDailyActivity,
 
         // Settings operations
         fetchSettings: settings.fetchSettings,
-        updatePlayerSettings: settings.updatePlayerSettings,
-        updateAppSettings: settings.updateAppSettings,
-        updateTagSettings: settings.updateTagSettings,
+        updateAllSettings: settings.updateAllSettings,
         changePassword: settings.changePassword,
         changeUsername: settings.changeUsername,
         getParsingRules: settings.getParsingRules,

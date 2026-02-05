@@ -1,19 +1,11 @@
 package request
 
-type UpdatePlayerSettingsRequest struct {
-	Autoplay      bool `json:"autoplay"`
-	DefaultVolume int  `json:"default_volume" binding:"min=0,max=100"`
-	Loop          bool `json:"loop"`
-}
-
-type UpdateAppSettingsRequest struct {
-	VideosPerPage          int    `json:"videos_per_page" binding:"required,min=1,max=100"`
-	DefaultSortOrder       string `json:"default_sort_order" binding:"required"`
-	MarkerThumbnailCycling bool   `json:"marker_thumbnail_cycling"`
-}
-
-type UpdateTagSettingsRequest struct {
-	DefaultTagSort string `json:"default_tag_sort" binding:"required"`
+type UpdateSortPreferencesRequest struct {
+	Actors       string `json:"actors" binding:"required"`
+	Studios      string `json:"studios" binding:"required"`
+	Markers      string `json:"markers" binding:"required"`
+	ActorScenes  string `json:"actor_scenes"`
+	StudioScenes string `json:"studio_scenes"`
 }
 
 type ChangePasswordRequest struct {
@@ -69,4 +61,17 @@ type ParsingRuleConfigRequest struct {
 	CaseSensitive bool   `json:"caseSensitive,omitempty"`
 	MinLength     int    `json:"minLength,omitempty"`
 	CaseType      string `json:"caseType,omitempty"`
+}
+
+type UpdateAllSettingsRequest struct {
+	Autoplay               bool                        `json:"autoplay"`
+	DefaultVolume          int                         `json:"default_volume" binding:"min=0,max=100"`
+	Loop                   bool                        `json:"loop"`
+	VideosPerPage          int                         `json:"videos_per_page" binding:"required,min=1,max=100"`
+	DefaultSortOrder       string                      `json:"default_sort_order" binding:"required"`
+	DefaultTagSort         string                      `json:"default_tag_sort" binding:"required"`
+	MarkerThumbnailCycling bool                        `json:"marker_thumbnail_cycling"`
+	HomepageConfig         UpdateHomepageConfigRequest  `json:"homepage_config" binding:"required"`
+	ParsingRules           UpdateParsingRulesRequest    `json:"parsing_rules"`
+	SortPreferences        UpdateSortPreferencesRequest `json:"sort_preferences" binding:"required"`
 }

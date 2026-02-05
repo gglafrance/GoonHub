@@ -31,3 +31,19 @@ export interface SceneWatchesResponse {
 export interface ResumePositionResponse {
     position: number;
 }
+
+export interface DailyActivityCount {
+    date: string;
+    count: number;
+}
+
+export interface DateGroup {
+    dateKey: string;
+    date: string;
+    entries: WatchHistoryEntry[];
+}
+
+export interface ChartActivityCount {
+    dateKey: string;
+    count: number;
+}

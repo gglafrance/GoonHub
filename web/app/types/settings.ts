@@ -1,4 +1,13 @@
+import type { HomepageConfig } from './homepage';
 import type { ParsingRulesSettings } from './parsing-rules';
+
+export interface SortPreferences {
+    actors: string;
+    studios: string;
+    markers: string;
+    actor_scenes: string;
+    studio_scenes: string;
+}
 
 export interface UserSettings {
     id: number;
@@ -10,7 +19,9 @@ export interface UserSettings {
     default_sort_order: SortOrder;
     default_tag_sort: TagSort;
     marker_thumbnail_cycling: boolean;
+    homepage_config: HomepageConfig;
     parsing_rules: ParsingRulesSettings;
+    sort_preferences: SortPreferences;
     created_at: string;
     updated_at: string;
 }
