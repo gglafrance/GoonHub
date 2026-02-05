@@ -243,6 +243,19 @@ export const useApiScenes = () => {
         return handleResponse(response);
     };
 
+    const getUserWatchHistoryByTimeRange = async (since: string, until: string, limit = 2000) => {
+        const params = new URLSearchParams({
+            since,
+            until,
+            limit: limit.toString(),
+        });
+        const response = await fetch(`/api/v1/history/by-date?${params}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
     const fetchRelatedScenes = async (sceneId: number, limit = 12) => {
         const params = new URLSearchParams({ limit: limit.toString() });
         const response = await fetch(`/api/v1/scenes/${sceneId}/related?${params}`, {
@@ -288,6 +301,7 @@ export const useApiScenes = () => {
         getSceneWatchHistory,
         getUserWatchHistory,
         getUserWatchHistoryByDateRange,
+        getUserWatchHistoryByTimeRange,
         getDailyActivity,
         fetchRelatedScenes,
         deleteScene,

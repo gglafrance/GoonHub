@@ -42,3 +42,8 @@ export interface DateGroup {
     date: string;
     entries: WatchHistoryEntry[];
 }
+
+export interface ChartActivityCount {
+    dateKey: string;
+    count: number;
+}

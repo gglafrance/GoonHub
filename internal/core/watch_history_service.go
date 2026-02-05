@@ -214,6 +214,51 @@ func (s *WatchHistoryService) GetUserHistoryByDateRange(userID uint, rangeDays, 
 	return entries, nil
 }
 
+// GetUserHistoryByTimeRange returns watch history entries between two explicit timestamps, enriched with scene data.
+func (s *WatchHistoryService) GetUserHistoryByTimeRange(userID uint, since, until time.Time, limit int) ([]WatchHistoryEntry, error) {
+	if limit <= 0 {
+		limit = 2000
+	}
+
+	watches, err := s.repo.ListUserHistoryByTimeRange(userID, since, until, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list history by time range: %w", err)
+	}
+
+	// Collect scene IDs
+	sceneIDs := make([]uint, 0, len(watches))
+	for _, w := range watches {
+		sceneIDs = append(sceneIDs, w.SceneID)
+	}
+
+	// Fetch scenes
+	scenes, err := s.sceneRepo.GetByIDs(sceneIDs)
+	if err != nil {
+		s.logger.Warn("Failed to fetch scenes for history",
+			zap.Error(err),
+		)
+		scenes = nil
+	}
+
+	// Create scene map
+	sceneMap := make(map[uint]*data.Scene)
+	for i := range scenes {
+		sceneMap[scenes[i].ID] = &scenes[i]
+	}
+
+	// Build result
+	entries := make([]WatchHistoryEntry, 0, len(watches))
+	for _, w := range watches {
+		entry := WatchHistoryEntry{
+			Watch: w,
+			Scene: sceneMap[w.SceneID],
+		}
+		entries = append(entries, entry)
+	}
+
+	return entries, nil
+}
+
 // GetDailyActivity returns daily activity counts for a user within a date range.
 func (s *WatchHistoryService) GetDailyActivity(userID uint, rangeDays int) ([]data.DailyActivityCount, error) {
 	since := computeSinceTime(rangeDays)

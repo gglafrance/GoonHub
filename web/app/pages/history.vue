@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { WatchHistoryEntry, DailyActivityCount, DateGroup } from '~/types/watch';
+import type { WatchHistoryEntry, DateGroup, ChartActivityCount } from '~/types/watch';
 
-const { getUserWatchHistoryByDateRange, getDailyActivity } = useApiScenes();
+const { getUserWatchHistoryByDateRange, getUserWatchHistoryByTimeRange } = useApiScenes();
 
 useHead({ title: 'Watch History' });
 
@@ -13,8 +13,10 @@ useSeoMeta({
 });
 
 const rangeDays = ref(30);
+const rangeMode = ref<'preset' | 'custom'>('preset');
+const customSince = ref('');
+const customUntil = ref('');
 const entries = ref<WatchHistoryEntry[]>([]);
-const activityCounts = ref<DailyActivityCount[]>([]);
 const isLoading = ref(true);
 
 const totalScenes = computed(() => {
@@ -75,18 +77,33 @@ const dateGroups = computed<DateGroup[]>(() => {
     }));
 });
 
+const chartCounts = computed<ChartActivityCount[]>(() =>
+    dateGroups.value.map((g) => ({ dateKey: g.dateKey, count: g.entries.length })),
+);
+
+const effectiveRangeDays = computed(() => {
+    if (rangeMode.value === 'preset') return rangeDays.value;
+    if (!customSince.value || !customUntil.value) return 0;
+    const ms = new Date(customUntil.value).getTime() - new Date(customSince.value).getTime();
+    return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+});
+
 const loadData = async () => {
     isLoading.value = true;
     try {
-        const [historyData, activityData] = await Promise.all([
-            getUserWatchHistoryByDateRange(rangeDays.value, 2000),
-            getDailyActivity(rangeDays.value),
-        ]);
-        entries.value = historyData.entries || [];
-        activityCounts.value = activityData.counts || [];
+        if (rangeMode.value === 'custom' && customSince.value && customUntil.value) {
+            const historyData = await getUserWatchHistoryByTimeRange(
+                customSince.value,
+                customUntil.value,
+                2000,
+            );
+            entries.value = historyData.entries || [];
+        } else {
+            const historyData = await getUserWatchHistoryByDateRange(rangeDays.value, 2000);
+            entries.value = historyData.entries || [];
+        }
     } catch {
         entries.value = [];
-        activityCounts.value = [];
     } finally {
         isLoading.value = false;
     }
@@ -100,7 +117,17 @@ const scrollToDate = (dateKey: string) => {
 };
 
 watch(rangeDays, () => {
-    loadData();
+    if (rangeMode.value === 'preset') loadData();
+});
+
+watch(rangeMode, () => {
+    if (rangeMode.value === 'preset') loadData();
+});
+
+watch([customSince, customUntil], () => {
+    if (rangeMode.value === 'custom' && customSince.value && customUntil.value) {
+        loadData();
+    }
 });
 
 onMounted(() => {
@@ -139,7 +166,12 @@ definePageMeta({
 
             <!-- Range Selector -->
             <div class="mb-4">
-                <HistoryRangeSelector v-model="rangeDays" />
+                <HistoryRangeSelector
+                    v-model="rangeDays"
+                    v-model:mode="rangeMode"
+                    v-model:custom-since="customSince"
+                    v-model:custom-until="customUntil"
+                />
             </div>
 
             <!-- Activity Chart -->
@@ -148,8 +180,8 @@ definePageMeta({
                     Activity
                 </div>
                 <HistoryActivityChart
-                    :counts="activityCounts"
-                    :range-days="rangeDays"
+                    :counts="chartCounts"
+                    :range-days="effectiveRangeDays"
                     :is-loading="isLoading"
                     @bar-click="scrollToDate"
                 />

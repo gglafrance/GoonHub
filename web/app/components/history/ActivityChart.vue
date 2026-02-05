@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { DailyActivityCount } from '~/types/watch';
+import type { ChartActivityCount } from '~/types/watch';
 
 const props = defineProps<{
-    counts: DailyActivityCount[];
+    counts: ChartActivityCount[];
     rangeDays: number;
     isLoading: boolean;
 }>();
@@ -21,14 +21,20 @@ const chartHeight = 120;
 const chartPadding = { top: 8, bottom: 4, left: 0, right: 0 };
 const innerHeight = chartHeight - chartPadding.top - chartPadding.bottom;
 
+const toLocalDateKey = (d: Date) =>
+    d.getFullYear() +
+    '-' +
+    String(d.getMonth() + 1).padStart(2, '0') +
+    '-' +
+    String(d.getDate()).padStart(2, '0');
+
 // Fill gaps: create a continuous day range with zero-count days filled in
 const filledCounts = computed(() => {
     if (props.counts.length === 0) return [];
 
     const countMap = new Map<string, number>();
     for (const c of props.counts) {
-        const key = new Date(c.date).toISOString().slice(0, 10);
-        countMap.set(key, c.count);
+        countMap.set(c.dateKey, c.count);
     }
 
     const days: { dateKey: string; count: number }[] = [];
@@ -38,7 +44,7 @@ const filledCounts = computed(() => {
     start.setDate(start.getDate() - effectiveRange + 1);
 
     for (let d = new Date(start); d <= now; d.setDate(d.getDate() + 1)) {
-        const key = d.toISOString().slice(0, 10);
+        const key = toLocalDateKey(d);
         days.push({ dateKey: key, count: countMap.get(key) || 0 });
     }
 

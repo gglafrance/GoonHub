@@ -134,6 +134,67 @@ func TestGetUserHistoryByDateRange_DeletedScene(t *testing.T) {
 	}
 }
 
+func TestGetUserHistoryByTimeRange_Success(t *testing.T) {
+	service, repo, sceneRepo := newTestWatchHistoryService(t)
+
+	since := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	until := time.Date(2025, 1, 31, 23, 59, 59, 999999999, time.UTC)
+	watches := []data.UserSceneWatch{
+		{ID: 1, UserID: 1, SceneID: 10, WatchedAt: since.Add(time.Hour)},
+		{ID: 2, UserID: 1, SceneID: 20, WatchedAt: since.Add(2 * time.Hour)},
+	}
+	scenes := []data.Scene{
+		{ID: 10, Title: "Scene 10"},
+		{ID: 20, Title: "Scene 20"},
+	}
+
+	repo.EXPECT().ListUserHistoryByTimeRange(uint(1), since, until, 2000).Return(watches, nil)
+	sceneRepo.EXPECT().GetByIDs(gomock.Any()).Return(scenes, nil)
+
+	entries, err := service.GetUserHistoryByTimeRange(1, since, until, 2000)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(entries))
+	}
+	if entries[0].Scene == nil || entries[0].Scene.ID != 10 {
+		t.Fatal("expected first entry to have scene ID 10")
+	}
+}
+
+func TestGetUserHistoryByTimeRange_DefaultLimit(t *testing.T) {
+	service, repo, sceneRepo := newTestWatchHistoryService(t)
+
+	since := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	until := time.Date(2025, 1, 31, 0, 0, 0, 0, time.UTC)
+
+	repo.EXPECT().ListUserHistoryByTimeRange(uint(1), since, until, 2000).Return(nil, nil)
+	sceneRepo.EXPECT().GetByIDs(gomock.Any()).Return(nil, nil)
+
+	entries, err := service.GetUserHistoryByTimeRange(1, since, until, 0)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if entries == nil {
+		t.Fatal("expected empty slice, got nil")
+	}
+}
+
+func TestGetUserHistoryByTimeRange_RepoError(t *testing.T) {
+	service, repo, _ := newTestWatchHistoryService(t)
+
+	since := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	until := time.Date(2025, 1, 31, 0, 0, 0, 0, time.UTC)
+
+	repo.EXPECT().ListUserHistoryByTimeRange(uint(1), since, until, 2000).Return(nil, fmt.Errorf("db error"))
+
+	_, err := service.GetUserHistoryByTimeRange(1, since, until, 2000)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
 func TestGetDailyActivity_Success(t *testing.T) {
 	service, repo, _ := newTestWatchHistoryService(t)
 

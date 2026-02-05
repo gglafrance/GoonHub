@@ -117,6 +117,21 @@ func (mr *MockWatchHistoryRepositoryMockRecorder) ListUserHistoryByDateRange(use
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserHistoryByDateRange", reflect.TypeOf((*MockWatchHistoryRepository)(nil).ListUserHistoryByDateRange), userID, since, limit)
 }
 
+// ListUserHistoryByTimeRange mocks base method.
+func (m *MockWatchHistoryRepository) ListUserHistoryByTimeRange(userID uint, since, until time.Time, limit int) ([]data.UserSceneWatch, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListUserHistoryByTimeRange", userID, since, until, limit)
+	ret0, _ := ret[0].([]data.UserSceneWatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListUserHistoryByTimeRange indicates an expected call of ListUserHistoryByTimeRange.
+func (mr *MockWatchHistoryRepositoryMockRecorder) ListUserHistoryByTimeRange(userID, since, until, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserHistoryByTimeRange", reflect.TypeOf((*MockWatchHistoryRepository)(nil).ListUserHistoryByTimeRange), userID, since, until, limit)
+}
+
 // RecordWatch mocks base method.
 func (m *MockWatchHistoryRepository) RecordWatch(userID, sceneID uint, duration, position int, completed bool) error {
 	m.ctrl.T.Helper()

@@ -55,6 +55,7 @@ export const useApi = () => {
         getSceneWatchHistory: scenes.getSceneWatchHistory,
         getUserWatchHistory: scenes.getUserWatchHistory,
         getUserWatchHistoryByDateRange: scenes.getUserWatchHistoryByDateRange,
+        getUserWatchHistoryByTimeRange: scenes.getUserWatchHistoryByTimeRange,
         getDailyActivity: scenes.getDailyActivity,
 
         // Settings operations
