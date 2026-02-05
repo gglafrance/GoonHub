@@ -154,18 +154,11 @@ func (c *Client) GetMaxTotalHits() int64 {
 }
 
 // IndexScene adds or updates a scene document in the index.
+// Fire-and-forget: Meilisearch processes the task asynchronously.
 func (c *Client) IndexScene(doc SceneDocument) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	index := c.client.Index(c.indexName)
-	task, err := index.AddDocuments([]SceneDocument{doc}, "id")
-	if err != nil {
+	if _, err := index.AddDocuments([]SceneDocument{doc}, "id"); err != nil {
 		return fmt.Errorf("failed to index scene: %w", err)
-	}
-
-	if _, err := c.client.WaitForTask(task.TaskUID, meili.WaitParams{Context: ctx, Interval: 100 * time.Millisecond}); err != nil {
-		return fmt.Errorf("failed to wait for index task: %w", err)
 	}
 
 	c.logger.Debug("indexed scene", zap.Uint("id", doc.ID), zap.String("title", doc.Title))
@@ -178,41 +171,48 @@ func (c *Client) UpdateScene(doc SceneDocument) error {
 }
 
 // DeleteScene removes a scene document from the index.
+// Fire-and-forget: Meilisearch processes the task asynchronously.
 func (c *Client) DeleteScene(id uint) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	index := c.client.Index(c.indexName)
-	task, err := index.DeleteDocument(fmt.Sprintf("%d", id))
-	if err != nil {
+	if _, err := index.DeleteDocument(fmt.Sprintf("%d", id)); err != nil {
 		return fmt.Errorf("failed to delete scene: %w", err)
-	}
-
-	if _, err := c.client.WaitForTask(task.TaskUID, meili.WaitParams{Context: ctx, Interval: 100 * time.Millisecond}); err != nil {
-		return fmt.Errorf("failed to wait for delete task: %w", err)
 	}
 
 	c.logger.Debug("deleted scene from index", zap.Uint("id", id))
 	return nil
 }
 
+// BulkDeleteScenes removes multiple scene documents from the index in a single request.
+// Fire-and-forget: Meilisearch processes the task asynchronously.
+func (c *Client) BulkDeleteScenes(ids []uint) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	strIDs := make([]string, len(ids))
+	for i, id := range ids {
+		strIDs[i] = fmt.Sprintf("%d", id)
+	}
+
+	index := c.client.Index(c.indexName)
+	if _, err := index.DeleteDocuments(strIDs); err != nil {
+		return fmt.Errorf("failed to bulk delete scenes: %w", err)
+	}
+
+	c.logger.Debug("bulk deleted scenes from index", zap.Int("count", len(ids)))
+	return nil
+}
+
 // BulkIndex adds multiple scene documents to the index.
+// Fire-and-forget: Meilisearch processes the task asynchronously.
 func (c *Client) BulkIndex(docs []SceneDocument) error {
 	if len(docs) == 0 {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
 	index := c.client.Index(c.indexName)
-	task, err := index.AddDocuments(docs, "id")
-	if err != nil {
+	if _, err := index.AddDocuments(docs, "id"); err != nil {
 		return fmt.Errorf("failed to bulk index: %w", err)
-	}
-
-	if _, err := c.client.WaitForTask(task.TaskUID, meili.WaitParams{Context: ctx, Interval: 100 * time.Millisecond}); err != nil {
-		return fmt.Errorf("failed to wait for bulk index task: %w", err)
 	}
 
 	c.logger.Info("bulk indexed scenes", zap.Int("count", len(docs)))

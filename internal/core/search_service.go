@@ -17,6 +17,7 @@ type SceneIndexer interface {
 	UpdateSceneIndex(scene *data.Scene) error
 	BulkUpdateSceneIndex(scenes []data.Scene) error
 	DeleteSceneIndex(id uint) error
+	BulkDeleteSceneIndex(ids []uint) error
 }
 
 // SearchService orchestrates search operations using Meilisearch.
@@ -394,6 +395,14 @@ func (s *SearchService) DeleteSceneIndex(id uint) error {
 		return nil
 	}
 	return s.meiliClient.DeleteScene(id)
+}
+
+// BulkDeleteSceneIndex removes multiple scenes from the Meilisearch index in a single request.
+func (s *SearchService) BulkDeleteSceneIndex(ids []uint) error {
+	if s.meiliClient == nil || len(ids) == 0 {
+		return nil
+	}
+	return s.meiliClient.BulkDeleteScenes(ids)
 }
 
 // ReindexAll rebuilds the entire Meilisearch index from PostgreSQL.
