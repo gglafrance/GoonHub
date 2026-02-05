@@ -451,6 +451,7 @@ func (s *ExplorerService) BulkDeleteScenes(sceneIDs []uint, permanent bool) (int
 	}
 
 	deleted := 0
+	deletedIDs := make([]uint, 0, len(scenes))
 	for _, scene := range scenes {
 		// Cancel pending jobs for this scene
 		if s.jobHistoryRepo != nil {
@@ -483,17 +484,18 @@ func (s *ExplorerService) BulkDeleteScenes(sceneIDs []uint, permanent bool) (int
 			}
 		}
 
-		// Remove from search index
-		if s.indexer != nil {
-			if err := s.indexer.DeleteSceneIndex(scene.ID); err != nil {
-				s.logger.Warn("Failed to delete scene from search index",
-					zap.Uint("id", scene.ID),
-					zap.Error(err),
-				)
-			}
-		}
-
+		deletedIDs = append(deletedIDs, scene.ID)
 		deleted++
+	}
+
+	// Remove from search index in a single batch request
+	if s.indexer != nil && len(deletedIDs) > 0 {
+		if err := s.indexer.BulkDeleteSceneIndex(deletedIDs); err != nil {
+			s.logger.Warn("Failed to bulk delete scenes from search index",
+				zap.Int("count", len(deletedIDs)),
+				zap.Error(err),
+			)
+		}
 	}
 
 	// Emit appropriate event
