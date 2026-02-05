@@ -2,12 +2,20 @@ package core
 
 import (
 	"fmt"
+	"math/rand"
 
 	"go.uber.org/zap"
 
 	"goonhub/internal/data"
 	"goonhub/internal/infrastructure/meilisearch"
 )
+
+// SearchResult contains the result of a search query.
+type SearchResult struct {
+	Scenes []data.Scene
+	Total  int64
+	Seed   int64 // Non-zero only for random sort
+}
 
 // SceneIndexer defines the interface for scene search indexing operations.
 // This interface allows services to update the search index without depending
@@ -55,10 +63,12 @@ func NewSearchService(
 }
 
 // Search performs a search for scenes using Meilisearch.
-func (s *SearchService) Search(params data.SceneSearchParams) ([]data.Scene, int64, error) {
+func (s *SearchService) Search(params data.SceneSearchParams) (*SearchResult, error) {
 	if s.meiliClient == nil {
-		return nil, 0, fmt.Errorf("meilisearch is not configured")
+		return nil, fmt.Errorf("meilisearch is not configured")
 	}
+
+	isRandomSort := params.Sort == "random"
 
 	// Start with SceneIDs pre-filter if provided (e.g., folder search)
 	var preFilteredIDs []uint
@@ -70,17 +80,17 @@ func (s *SearchService) Search(params data.SceneSearchParams) ([]data.Scene, int
 	if s.hasUserFilters(params) {
 		ids, err := s.getUserFilteredIDs(params)
 		if err != nil {
-			return nil, 0, fmt.Errorf("failed to get user-filtered IDs: %w", err)
+			return nil, fmt.Errorf("failed to get user-filtered IDs: %w", err)
 		}
 		// If user filters are active but no scenes match, return empty result
 		if len(ids) == 0 {
-			return []data.Scene{}, 0, nil
+			return &SearchResult{Scenes: []data.Scene{}, Total: 0}, nil
 		}
 		// Intersect with folder pre-filter if present
 		if len(preFilteredIDs) > 0 {
 			preFilteredIDs = intersect(preFilteredIDs, ids)
 			if len(preFilteredIDs) == 0 {
-				return []data.Scene{}, 0, nil
+				return &SearchResult{Scenes: []data.Scene{}, Total: 0}, nil
 			}
 		} else {
 			preFilteredIDs = ids
@@ -97,15 +107,15 @@ func (s *SearchService) Search(params data.SceneSearchParams) ([]data.Scene, int
 			porndbIDs, err = s.sceneRepo.GetSceneIDsWithoutPornDBID()
 		}
 		if err != nil {
-			return nil, 0, fmt.Errorf("failed to get PornDB scene IDs: %w", err)
+			return nil, fmt.Errorf("failed to get PornDB scene IDs: %w", err)
 		}
 		if len(porndbIDs) == 0 {
-			return []data.Scene{}, 0, nil
+			return &SearchResult{Scenes: []data.Scene{}, Total: 0}, nil
 		}
 		if len(preFilteredIDs) > 0 {
 			preFilteredIDs = intersect(preFilteredIDs, porndbIDs)
 			if len(preFilteredIDs) == 0 {
-				return []data.Scene{}, 0, nil
+				return &SearchResult{Scenes: []data.Scene{}, Total: 0}, nil
 			}
 		} else {
 			preFilteredIDs = porndbIDs
@@ -115,24 +125,94 @@ func (s *SearchService) Search(params data.SceneSearchParams) ([]data.Scene, int
 	// Build Meilisearch search params
 	meiliParams := s.buildMeiliParams(params, preFilteredIDs)
 
+	if isRandomSort {
+		meiliParams.FetchAllIDs = true
+	}
+
 	// Perform Meilisearch search
 	result, err := s.meiliClient.Search(meiliParams)
 	if err != nil {
-		return nil, 0, fmt.Errorf("meilisearch search failed: %w", err)
+		return nil, fmt.Errorf("meilisearch search failed: %w", err)
 	}
 
 	// If no results, return empty
 	if len(result.IDs) == 0 {
-		return []data.Scene{}, result.TotalCount, nil
+		return &SearchResult{Scenes: []data.Scene{}, Total: 0}, nil
+	}
+
+	// For random sort, shuffle all IDs and paginate in Go
+	if isRandomSort {
+		return s.handleRandomSort(result.IDs, params)
 	}
 
 	// Fetch full scene records from PostgreSQL
 	scenes, err := s.sceneRepo.GetByIDs(result.IDs)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to fetch scenes by IDs: %w", err)
+		return nil, fmt.Errorf("failed to fetch scenes by IDs: %w", err)
 	}
 
-	return scenes, result.TotalCount, nil
+	return &SearchResult{Scenes: scenes, Total: result.TotalCount}, nil
+}
+
+// handleRandomSort deterministically selects a random page of IDs and returns the matching scenes.
+// Uses a virtual Fisher-Yates shuffle that only performs offset+limit iterations instead of
+// shuffling the entire array, achieving O(offset+limit) time complexity instead of O(n).
+func (s *SearchService) handleRandomSort(allIDs []uint, params data.SceneSearchParams) (*SearchResult, error) {
+	seed := params.Seed
+	if seed == 0 {
+		// Generate a random seed within JavaScript's Number.MAX_SAFE_INTEGER (2^53 - 1)
+		// to avoid precision loss when the seed round-trips through JSON/JavaScript.
+		seed = rand.Int63n(9007199254740991) + 1
+	}
+
+	n := len(allIDs)
+	total := int64(n)
+
+	offset := (params.Page - 1) * params.Limit
+	if offset >= n {
+		return &SearchResult{Scenes: []data.Scene{}, Total: total, Seed: seed}, nil
+	}
+
+	end := offset + params.Limit
+	if end > n {
+		end = n
+	}
+
+	// Virtual forward Fisher-Yates: simulate swaps in a map instead of mutating the array.
+	// After k iterations, virtual positions 0..k-1 hold k uniformly random elements.
+	// We only need to iterate to `end` (offset+limit), not the full array length.
+	rng := rand.New(rand.NewSource(seed))
+	swapped := make(map[int]uint, end)
+
+	getVal := func(i int) uint {
+		if v, ok := swapped[i]; ok {
+			return v
+		}
+		return allIDs[i]
+	}
+
+	pageIDs := make([]uint, 0, end-offset)
+	for i := 0; i < end; i++ {
+		j := i + rng.Intn(n-i)
+		vi, vj := getVal(i), getVal(j)
+		swapped[i] = vj
+		swapped[j] = vi
+		if i >= offset {
+			pageIDs = append(pageIDs, vj)
+		}
+	}
+
+	if len(pageIDs) == 0 {
+		return &SearchResult{Scenes: []data.Scene{}, Total: total, Seed: seed}, nil
+	}
+
+	// Fetch full scene records from PostgreSQL
+	scenes, err := s.sceneRepo.GetByIDs(pageIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch scenes by IDs: %w", err)
+	}
+
+	return &SearchResult{Scenes: scenes, Total: total, Seed: seed}, nil
 }
 
 // hasUserFilters returns true if the params include user-specific filters.
@@ -268,6 +348,8 @@ func (s *SearchService) buildMeiliParams(params data.SceneSearchParams, preFilte
 	switch params.Sort {
 	case "relevance":
 		meiliParams.Sort = ""
+	case "random":
+		meiliParams.Sort = "" // No Meilisearch sort; shuffle happens in Go
 	case "title_asc":
 		meiliParams.Sort = "title"
 		meiliParams.SortDir = "asc"

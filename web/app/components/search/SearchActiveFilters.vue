@@ -193,6 +193,20 @@ const removeMarkerLabel = (label: string) => {
         </span>
 
         <span
+            v-if="searchStore.sort === 'random'"
+            class="bg-lava/10 text-lava inline-flex items-center gap-1 rounded-full px-2.5 py-0.5
+                text-[11px] font-medium"
+        >
+            Random
+            <button class="hover:text-white" title="Reshuffle" @click="searchStore.reshuffle()">
+                <Icon name="heroicons:arrow-path" size="11" />
+            </button>
+            <button class="hover:text-white" @click="searchStore.sort = ''">
+                <Icon name="heroicons:x-mark" size="12" />
+            </button>
+        </span>
+
+        <span
             v-if="searchStore.matchType !== 'broad'"
             class="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-0.5 text-[11px]
                 font-medium text-white"

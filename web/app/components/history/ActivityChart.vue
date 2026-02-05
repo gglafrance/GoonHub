@@ -146,12 +146,7 @@ onMounted(() => {
         </div>
 
         <!-- Chart -->
-        <svg
-            v-else
-            :width="containerWidth"
-            :height="chartHeight"
-            class="block"
-        >
+        <svg v-else :width="containerWidth" :height="chartHeight" class="block">
             <rect
                 v-for="(bar, i) in barData"
                 :key="bar.dateKey"
@@ -184,9 +179,7 @@ onMounted(() => {
                 top: Math.max(0, tooltipY - 40) + 'px',
             }"
         >
-            <div
-                class="bg-panel border-border rounded-md border px-2 py-1 shadow-lg"
-            >
+            <div class="bg-panel border-border rounded-md border px-2 py-1 shadow-lg">
                 <p class="text-[10px] font-medium text-white">
                     {{ hoveredBar.count }} scene{{ hoveredBar.count !== 1 ? 's' : '' }}
                 </p>

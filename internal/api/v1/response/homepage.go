@@ -16,6 +16,7 @@ type HomepageSectionData struct {
 	Section       data.HomepageSection   `json:"section"`
 	Scenes        []SceneListItem        `json:"scenes"`
 	Total         int64                  `json:"total"`
+	Seed          int64                  `json:"seed,omitempty"`
 	WatchProgress map[uint]WatchProgress `json:"watch_progress,omitempty"`
 	Ratings       map[uint]float64       `json:"ratings,omitempty"`
 }
@@ -46,6 +47,7 @@ func ToHomepageResponse(resp *core.HomepageResponse) *HomepageResponse {
 			Section:       s.Section,
 			Scenes:        ToSceneListItems(s.Scenes),
 			Total:         s.Total,
+			Seed:          s.Seed,
 			WatchProgress: watchProgress,
 			Ratings:       s.Ratings,
 		}
@@ -74,6 +76,7 @@ func ToHomepageSectionDataResponse(s *core.HomepageSectionData) *HomepageSection
 		Section:       s.Section,
 		Scenes:        ToSceneListItems(s.Scenes),
 		Total:         s.Total,
+		Seed:          s.Seed,
 		WatchProgress: watchProgress,
 		Ratings:       s.Ratings,
 	}

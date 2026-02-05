@@ -23,11 +23,15 @@ const showDeleteModal = ref(false);
 
 // Scene search/sort state
 const scenesQuery = ref('');
-const scenesSort = useUrlSort(settingsStore.sortPreferences?.actor_scenes ?? '');
+const defaultSort = settingsStore.sortPreferences?.actor_scenes ?? '';
+const scenesSort = ref(
+    typeof route.query.sort === 'string' && route.query.sort ? route.query.sort : defaultSort,
+);
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const sortOptions = [
     { value: '', label: 'Newest' },
+    { value: 'random', label: 'Random' },
     { value: 'created_at_asc', label: 'Oldest' },
     { value: 'title_asc', label: 'Title A-Z' },
     { value: 'title_desc', label: 'Title Z-A' },
@@ -36,6 +40,33 @@ const sortOptions = [
     { value: 'view_count_desc', label: 'Most Viewed' },
     { value: 'view_count_asc', label: 'Least Viewed' },
 ];
+
+// Random sort seed (synced to URL for persistence across refresh)
+const generateSeed = () => Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+const scenesSeed = ref(route.query.seed ? Number(route.query.seed) : 0);
+
+// Single URL sync for sort + seed to avoid race conditions
+const syncSortToUrl = () => {
+    const query = { ...route.query };
+    if (scenesSort.value === defaultSort || !scenesSort.value) {
+        delete query.sort;
+    } else {
+        query.sort = scenesSort.value;
+    }
+    if (scenesSort.value === 'random' && scenesSeed.value) {
+        query.seed = String(scenesSeed.value);
+    } else {
+        delete query.seed;
+    }
+    router.replace({ query });
+};
+
+const reshuffle = () => {
+    scenesSeed.value = generateSeed();
+    syncSortToUrl();
+    scenesPage.value = 1;
+    loadScenes(1);
+};
 
 // Rating state
 const currentRating = ref(0);
@@ -171,6 +202,7 @@ const loadScenes = async (page: number) => {
             scenesQuery.value || undefined,
             scenesSort.value || undefined,
             actor.value.name,
+            scenesSort.value === 'random' ? scenesSeed.value : undefined,
         );
         scenes.value = response.data;
         scenesTotal.value = response.total;
@@ -189,10 +221,30 @@ const onSearchInput = () => {
     }, 300);
 };
 
-watch(scenesSort, () => {
+watch(scenesSort, (newSort) => {
+    if (newSort === 'random' && scenesSeed.value === 0) {
+        scenesSeed.value = generateSeed();
+    } else if (newSort !== 'random') {
+        scenesSeed.value = 0;
+    }
+    syncSortToUrl();
     scenesPage.value = 1;
     loadScenes(1);
 });
+
+// Handle browser back/forward navigation
+watch(
+    () => route.query.sort,
+    () => {
+        const urlSort =
+            typeof route.query.sort === 'string' && route.query.sort
+                ? route.query.sort
+                : defaultSort;
+        if (scenesSort.value !== urlSort) {
+            scenesSort.value = urlSort;
+        }
+    },
+);
 
 onMounted(() => {
     loadActor();
@@ -891,6 +943,17 @@ definePageMeta({
 
                         <!-- Sort Dropdown -->
                         <UiSortSelect v-model="scenesSort" :options="sortOptions" />
+
+                        <button
+                            v-if="scenesSort === 'random'"
+                            class="border-border bg-surface hover:border-lava/40 hover:bg-lava/10
+                                flex h-10 w-10 shrink-0 items-center justify-center rounded-lg
+                                border transition-all"
+                            title="Reshuffle"
+                            @click="reshuffle()"
+                        >
+                            <Icon name="heroicons:arrow-path" size="16" class="text-white" />
+                        </button>
                     </div>
 
                     <div v-if="isLoadingScenes" class="flex h-32 items-center justify-center">

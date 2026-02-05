@@ -95,7 +95,7 @@ func TestUpdateAllSettings_InvalidFields(t *testing.T) {
 		{"volume 101", 101, 20, "created_at_desc", "az", "name_asc", "volume must be between"},
 		{"vpp 0", 50, 0, "created_at_desc", "az", "name_asc", "videos per page must be between"},
 		{"vpp 101", 50, 101, "created_at_desc", "az", "name_asc", "videos per page must be between"},
-		{"bad sort order", 50, 20, "random", "az", "name_asc", "invalid sort order"},
+		{"bad sort order", 50, 20, "nonsense", "az", "name_asc", "invalid sort order"},
 		{"bad tag sort", 50, 20, "created_at_desc", "bad", "name_asc", "invalid tag sort"},
 		{"bad actors sort", 50, 20, "created_at_desc", "az", "bad", "invalid actors sort"},
 	}

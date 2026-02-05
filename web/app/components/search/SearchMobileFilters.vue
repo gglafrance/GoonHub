@@ -39,6 +39,7 @@ const resolutionOptions = [
 const sortOptions = [
     { value: '', label: 'Default' },
     { value: 'relevance', label: 'Relevance' },
+    { value: 'random', label: 'Random' },
     { value: 'created_at_desc', label: 'Newest' },
     { value: 'created_at_asc', label: 'Oldest' },
     { value: 'title_asc', label: 'Title A-Z' },
@@ -129,6 +130,18 @@ onUnmounted(() => {
                             icon="heroicons:arrows-up-down"
                             :options="sortOptions"
                         />
+
+                        <!-- Reshuffle button (random sort) -->
+                        <button
+                            v-if="searchStore.sort === 'random'"
+                            class="border-border bg-surface hover:border-lava/40 hover:bg-lava/10
+                                flex w-full items-center justify-center gap-2 rounded-lg border px-3
+                                py-2.5 text-xs font-medium text-white transition-all"
+                            @click="searchStore.reshuffle()"
+                        >
+                            <Icon name="heroicons:arrow-path" size="14" />
+                            Reshuffle
+                        </button>
 
                         <!-- Match Type -->
                         <SearchFiltersFilterMatchType />

@@ -114,8 +114,12 @@ watch(type, (newType) => {
     const options = SECTION_SORT_OPTIONS[newType];
     if (options.length === 0) {
         sort.value = '';
+    } else if (!props.section) {
+        // New sections: use first option as default
+        sort.value = options[0]?.value ?? 'created_at_desc';
     } else if (!options.find((o) => o.value === sort.value)) {
-        sort.value = options[0]?.value || 'created_at_desc';
+        // Editing: only reset if current sort is not available
+        sort.value = options[0]?.value ?? 'created_at_desc';
     }
 });
 

@@ -20,6 +20,9 @@ export const useSearchStore = defineStore('search', () => {
     const limit = computed(() => settingsStore.videosPerPage);
     const matchType = ref<'broad' | 'strict' | 'frequency'>('broad');
 
+    // Random sort seed
+    const seed = ref(0);
+
     // User interaction filters
     const liked = ref(false);
     const minRating = ref(0);
@@ -65,6 +68,8 @@ export const useSearchStore = defineStore('search', () => {
         );
     });
 
+    const generateSeed = () => Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+
     const search = async () => {
         isLoading.value = true;
         error.value = '';
@@ -85,6 +90,7 @@ export const useSearchStore = defineStore('search', () => {
             if (maxDate.value) params.max_date = maxDate.value;
             if (resolution.value) params.resolution = resolution.value;
             if (sort.value) params.sort = sort.value;
+            if (sort.value === 'random' && seed.value) params.seed = seed.value;
             if (liked.value) params.liked = 'true';
             if (minRating.value > 0) params.min_rating = minRating.value;
             if (maxRating.value > 0) params.max_rating = maxRating.value;
@@ -102,6 +108,12 @@ export const useSearchStore = defineStore('search', () => {
         } finally {
             isLoading.value = false;
         }
+    };
+
+    const reshuffle = () => {
+        seed.value = generateSeed();
+        page.value = 1;
+        search();
     };
 
     const loadFilterOptions = async () => {
@@ -131,6 +143,7 @@ export const useSearchStore = defineStore('search', () => {
         maxDate.value = '';
         resolution.value = '';
         sort.value = '';
+        seed.value = 0;
         page.value = 1;
         liked.value = false;
         minRating.value = 0;
@@ -140,6 +153,15 @@ export const useSearchStore = defineStore('search', () => {
         selectedMarkerLabels.value = [];
         matchType.value = 'broad';
     };
+
+    // Generate seed when switching to random, clear when switching away
+    watch(sort, (newSort) => {
+        if (newSort === 'random' && seed.value === 0) {
+            seed.value = generateSeed();
+        } else if (newSort !== 'random') {
+            seed.value = 0;
+        }
+    });
 
     // Export current filters as SavedSearchFilters object (omit pagination)
     const getCurrentFilters = (): SavedSearchFilters => {
@@ -186,6 +208,7 @@ export const useSearchStore = defineStore('search', () => {
         maxJizzCount.value = filters.max_jizz_count || 0;
         selectedMarkerLabels.value = filters.selected_marker_labels || [];
         sort.value = filters.sort || '';
+        seed.value = filters.sort === 'random' ? generateSeed() : 0;
         page.value = 1; // Reset pagination when loading filters
     };
 
@@ -200,6 +223,7 @@ export const useSearchStore = defineStore('search', () => {
         maxDate,
         resolution,
         sort,
+        seed,
         page,
         limit,
         liked,
@@ -216,6 +240,7 @@ export const useSearchStore = defineStore('search', () => {
         filterOptions,
         hasActiveFilters,
         search,
+        reshuffle,
         loadFilterOptions,
         resetFilters,
         getCurrentFilters,

@@ -39,6 +39,7 @@ export const useApiActors = () => {
         query?: string,
         sort?: string,
         actorName?: string,
+        seed?: number,
     ) => {
         const params = new URLSearchParams({
             page: page.toString(),
@@ -47,6 +48,7 @@ export const useApiActors = () => {
         if (actorName) params.set('actors', actorName);
         if (query) params.set('q', query);
         if (sort) params.set('sort', sort);
+        if (sort === 'random' && seed) params.set('seed', seed.toString());
 
         const response = await fetch(`/api/v1/scenes?${params}`, {
             headers: getAuthHeaders(),

@@ -20,6 +20,7 @@ type HomepageSectionData struct {
 	Section       data.HomepageSection   `json:"section"`
 	Scenes        []data.Scene           `json:"scenes"`
 	Total         int64                  `json:"total"`
+	Seed          int64                  `json:"seed,omitempty"`
 	WatchProgress map[uint]WatchProgress `json:"watch_progress,omitempty"`
 	Ratings       map[uint]float64       `json:"ratings,omitempty"`
 }
@@ -208,15 +209,16 @@ func (s *HomepageService) fetchLatestSection(userID uint, section data.HomepageS
 		UserID: userID,
 	}
 
-	scenes, total, err := s.searchService.Search(params)
+	result, err := s.searchService.Search(params)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
 	return &HomepageSectionData{
 		Section: section,
-		Scenes:  scenes,
-		Total:   total,
+		Scenes:  result.Scenes,
+		Total:   result.Total,
+		Seed:    result.Seed,
 	}, nil
 }
 
@@ -245,15 +247,16 @@ func (s *HomepageService) fetchActorSection(userID uint, section data.HomepageSe
 		UserID: userID,
 	}
 
-	scenes, total, err := s.searchService.Search(params)
+	result, err := s.searchService.Search(params)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
 	return &HomepageSectionData{
 		Section: section,
-		Scenes:  scenes,
-		Total:   total,
+		Scenes:  result.Scenes,
+		Total:   result.Total,
+		Seed:    result.Seed,
 	}, nil
 }
 
@@ -282,15 +285,16 @@ func (s *HomepageService) fetchStudioSection(userID uint, section data.HomepageS
 		UserID: userID,
 	}
 
-	scenes, total, err := s.searchService.Search(params)
+	result, err := s.searchService.Search(params)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
 	return &HomepageSectionData{
 		Section: section,
-		Scenes:  scenes,
-		Total:   total,
+		Scenes:  result.Scenes,
+		Total:   result.Total,
+		Seed:    result.Seed,
 	}, nil
 }
 
@@ -322,15 +326,16 @@ func (s *HomepageService) fetchTagSection(userID uint, section data.HomepageSect
 		UserID: userID,
 	}
 
-	scenes, total, err := s.searchService.Search(params)
+	result, err := s.searchService.Search(params)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
 	return &HomepageSectionData{
 		Section: section,
-		Scenes:  scenes,
-		Total:   total,
+		Scenes:  result.Scenes,
+		Total:   result.Total,
+		Seed:    result.Seed,
 	}, nil
 }
 
@@ -404,15 +409,16 @@ func (s *HomepageService) fetchSavedSearchSection(userID uint, section data.Home
 		params.MaxJizzCount = *savedSearch.Filters.MaxJizzCount
 	}
 
-	scenes, total, err := s.searchService.Search(params)
+	result, err := s.searchService.Search(params)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
 	return &HomepageSectionData{
 		Section: section,
-		Scenes:  scenes,
-		Total:   total,
+		Scenes:  result.Scenes,
+		Total:   result.Total,
+		Seed:    result.Seed,
 	}, nil
 }
 
@@ -484,15 +490,16 @@ func (s *HomepageService) fetchMostViewedSection(userID uint, section data.Homep
 		UserID: userID,
 	}
 
-	scenes, total, err := s.searchService.Search(params)
+	result, err := s.searchService.Search(params)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
 	return &HomepageSectionData{
 		Section: section,
-		Scenes:  scenes,
-		Total:   total,
+		Scenes:  result.Scenes,
+		Total:   result.Total,
+		Seed:    result.Seed,
 	}, nil
 }
 
@@ -511,14 +518,15 @@ func (s *HomepageService) fetchLikedSection(userID uint, section data.HomepageSe
 		Liked:  &liked,
 	}
 
-	scenes, total, err := s.searchService.Search(params)
+	result, err := s.searchService.Search(params)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
 	return &HomepageSectionData{
 		Section: section,
-		Scenes:  scenes,
-		Total:   total,
+		Scenes:  result.Scenes,
+		Total:   result.Total,
+		Seed:    result.Seed,
 	}, nil
 }
