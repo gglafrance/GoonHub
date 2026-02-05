@@ -156,7 +156,7 @@ function useSSESharedWorker() {
         if (!authStore.isAuthenticated) return;
         disconnect();
 
-        const workerUrl = new URL('/_worker/sse', window.location.origin).href;
+        const workerUrl = new URL('/workers/sse-worker.js', window.location.origin).href;
 
         try {
             worker = new SharedWorker(workerUrl, { name: 'sse-worker' });
