@@ -11,7 +11,7 @@ const emit = defineEmits<{
 }>();
 
 const explorerStore = useExplorerStore();
-const { fetchActors } = useApiActors();
+const { fetchActors, createActor } = useApiActors();
 const { bulkUpdateActors } = useApiExplorer();
 
 const actors = ref<ActorListItem[]>([]);
@@ -59,6 +59,18 @@ const toggleActor = (actorId: number) => {
 };
 
 const isActorSelected = (actorId: number) => selectedActorIDs.value.has(actorId);
+
+const handleCreateActor = async (name: string) => {
+    try {
+        const res = await createActor({ name });
+        selectedActorIDs.value.add(res.id);
+        selectedActorIDs.value = new Set(selectedActorIDs.value);
+        searchQuery.value = '';
+        await loadActors();
+    } catch (err) {
+        error.value = err instanceof Error ? err.message : 'Failed to create actor';
+    }
+};
 
 const handleSubmit = async () => {
     if (selectedActorIDs.value.size === 0 && mode.value !== 'replace') {
@@ -175,11 +187,17 @@ const handleSubmit = async () => {
                             <LoadingSpinner />
                         </div>
 
-                        <div
-                            v-else-if="actors.length === 0"
-                            class="text-dim py-4 text-center text-xs"
-                        >
-                            No actors found
+                        <div v-else-if="actors.length === 0" class="py-4 text-center text-xs">
+                            <p class="text-dim">No actors found</p>
+                            <button
+                                v-if="searchQuery"
+                                class="text-lava hover:bg-lava/10 mt-2 inline-flex items-center
+                                    gap-1.5 rounded-md px-2 py-1.5 text-xs transition-colors"
+                                @click="handleCreateActor(searchQuery)"
+                            >
+                                <Icon name="heroicons:plus" size="14" />
+                                Create "{{ searchQuery }}"
+                            </button>
                         </div>
 
                         <div v-else class="max-h-64 overflow-y-auto">
