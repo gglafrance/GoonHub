@@ -36,6 +36,8 @@ export interface ProcessingConfig {
     scene_preview_enabled: boolean;
     scene_preview_segments: number;
     scene_preview_segment_duration: number;
+    marker_preview_crf: number;
+    scene_preview_crf: number;
 }
 
 export interface QueueStatus {
@@ -77,6 +79,7 @@ export interface TriggerConfig {
 export interface BulkJobRequest {
     phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails';
     mode: 'missing' | 'all';
+    force_target?: 'markers' | 'previews' | 'both';
 }
 
 export interface BulkJobResponse {

@@ -13,6 +13,19 @@ const message = ref('');
 const loading = ref(true);
 const sceneJobs = ref<JobHistory[]>([]);
 
+// Force regeneration for animated_thumbnails
+const forceEnabled = ref(false);
+const forceMarkers = ref(true);
+const forcePreviews = ref(true);
+
+const computedForceTarget = computed(() => {
+    if (!forceEnabled.value) return undefined;
+    if (forceMarkers.value && forcePreviews.value) return 'both';
+    if (forceMarkers.value) return 'markers';
+    if (forcePreviews.value) return 'previews';
+    return undefined;
+});
+
 const loadJobs = async () => {
     loading.value = true;
     try {
@@ -33,7 +46,8 @@ const triggerPhase = async (phase: string) => {
     error.value = '';
     message.value = '';
     try {
-        await triggerScenePhase(sceneId.value, phase);
+        const ft = phase === 'animated_thumbnails' ? computedForceTarget.value : undefined;
+        await triggerScenePhase(sceneId.value, phase, ft);
         message.value = `${phaseLabel(phase)} job submitted`;
         setTimeout(() => {
             message.value = '';
@@ -164,6 +178,36 @@ onMounted(() => {
                 <Icon :name="phaseIcon(phase)" size="12" />
                 {{ triggeringPhase === phase ? 'Submitting...' : phaseLabel(phase) }}
             </button>
+        </div>
+
+        <!-- Force regeneration options for animated_thumbnails -->
+        <div class="flex items-center gap-4 text-[11px]">
+            <label class="flex cursor-pointer items-center gap-1.5">
+                <input
+                    v-model="forceEnabled"
+                    type="checkbox"
+                    class="accent-lava h-3 w-3 cursor-pointer rounded"
+                />
+                <span class="text-dim font-medium">Force regenerate</span>
+            </label>
+            <template v-if="forceEnabled">
+                <label class="flex cursor-pointer items-center gap-1.5">
+                    <input
+                        v-model="forceMarkers"
+                        type="checkbox"
+                        class="accent-lava h-3 w-3 cursor-pointer rounded"
+                    />
+                    <span class="text-white/70">Marker clips</span>
+                </label>
+                <label class="flex cursor-pointer items-center gap-1.5">
+                    <input
+                        v-model="forcePreviews"
+                        type="checkbox"
+                        class="accent-lava h-3 w-3 cursor-pointer rounded"
+                    />
+                    <span class="text-white/70">Scene preview</span>
+                </label>
+            </template>
         </div>
 
         <div

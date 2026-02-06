@@ -114,6 +114,8 @@ type ProcessingConfig struct {
 	ScenePreviewSegments           int           `mapstructure:"scene_preview_segments"`            // number of segments to sample (2-24)
 	ScenePreviewSegmentDuration    float64       `mapstructure:"scene_preview_segment_duration"`    // duration of each segment in seconds (0.75-5.0)
 	ScenePreviewDir                string        `mapstructure:"scene_preview_dir"`                 // directory for scene preview videos
+	MarkerPreviewCRF               int           `mapstructure:"marker_preview_crf"`                // CRF for marker animated thumbnails (18-40)
+	ScenePreviewCRF                int           `mapstructure:"scene_preview_crf"`                 // CRF for scene preview videos (18-40)
 	JobHistoryRetention            string        `mapstructure:"job_history_retention"`             // duration string e.g. "7d", "24h"
 	MetadataTimeout            time.Duration `mapstructure:"metadata_timeout"`              // timeout for metadata extraction jobs
 	ThumbnailTimeout           time.Duration `mapstructure:"thumbnail_timeout"`             // timeout for thumbnail extraction jobs
@@ -186,6 +188,8 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("processing.scene_preview_segments", 12)
 	v.SetDefault("processing.scene_preview_segment_duration", 1.0)
 	v.SetDefault("processing.scene_preview_dir", "./data/metadata/scene-previews")
+	v.SetDefault("processing.marker_preview_crf", 32)
+	v.SetDefault("processing.scene_preview_crf", 27)
 	v.SetDefault("processing.job_history_retention", "7d")
 	v.SetDefault("processing.metadata_timeout", 5*time.Minute)
 	v.SetDefault("processing.thumbnail_timeout", 2*time.Minute)

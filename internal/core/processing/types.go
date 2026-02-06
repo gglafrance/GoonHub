@@ -21,6 +21,8 @@ type QualityConfig struct {
 	ScenePreviewEnabled        bool    `json:"scene_preview_enabled"`
 	ScenePreviewSegments       int     `json:"scene_preview_segments"`
 	ScenePreviewSegmentDuration float64 `json:"scene_preview_segment_duration"`
+	MarkerPreviewCRF            int     `json:"marker_preview_crf"`
+	ScenePreviewCRF             int     `json:"scene_preview_crf"`
 }
 
 // QueueStatus holds the current queue status for all pools
