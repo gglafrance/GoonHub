@@ -100,6 +100,22 @@ const { hasRecordedView, setupTracking, cleanup } = useWatchTracking({
     scene: sceneRef,
 });
 
+// Attempt autoplay, falling back to muted if browser blocks it.
+// Waits for canplay in Firefox which rejects play() on unbuffered media.
+const tryAutoplay = (p: Player) => {
+    const attempt = () => {
+        p.play()?.catch(() => {
+            p.muted(true);
+            p.play();
+        });
+    };
+    if (p.readyState() >= 3) {
+        attempt();
+    } else {
+        p.one('canplay', attempt);
+    }
+};
+
 const aspectRatio = computed(() => {
     if (props.scene?.width && props.scene?.height) {
         return `${props.scene.width} / ${props.scene.height}`;
@@ -125,7 +141,7 @@ onMounted(async () => {
         controls: true,
         autoplay: props.autoplay ? 'any' : false,
         loop: props.loop ?? false,
-        preload: 'metadata',
+        preload: props.autoplay ? 'auto' : 'metadata',
         fill: true,
         playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2],
         controlBar: {
@@ -190,11 +206,7 @@ onMounted(async () => {
         }
 
         if (props.autoplay) {
-            player.value!.play()?.catch(() => {
-                // Browser blocked unmuted autoplay — retry muted
-                player.value!.muted(true);
-                player.value!.play();
-            });
+            tryAutoplay(player.value!);
         }
     });
 });
@@ -205,10 +217,7 @@ watch(
         if (player.value) {
             player.value.src({ type: 'video/mp4', src: props.sceneUrl });
             if (props.autoplay) {
-                player.value.play()?.catch(() => {
-                    player.value!.muted(true);
-                    player.value!.play();
-                });
+                tryAutoplay(player.value);
             }
         }
     },
@@ -235,10 +244,7 @@ watch(
     (newStartTime) => {
         if (player.value && newStartTime && newStartTime > 0) {
             player.value.currentTime(newStartTime);
-            player.value.play()?.catch(() => {
-                player.value!.muted(true);
-                player.value!.play();
-            });
+            tryAutoplay(player.value);
         }
     },
 );
