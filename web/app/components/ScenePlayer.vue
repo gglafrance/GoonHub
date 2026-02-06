@@ -237,7 +237,7 @@ onMounted(async () => {
         controls: true,
         autoplay: props.autoplay ? 'any' : false,
         loop: props.loop ?? false,
-        preload: props.autoplay ? 'auto' : 'metadata',
+        preload: 'auto',
         fill: true,
         playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2],
         controlBar: {
@@ -332,12 +332,17 @@ onMounted(async () => {
 
 watch(
     () => props.sceneUrl,
-    () => {
-        if (player.value) {
-            player.value.src({ type: 'video/mp4', src: props.sceneUrl });
-            if (props.autoplay) {
-                tryAutoplay(player.value);
-            }
+    (newUrl) => {
+        if (!player.value) return;
+        const p = player.value;
+
+        // Pause and reset before loading new source to flush old buffered data
+        p.pause();
+        p.currentTime(0);
+        p.src({ type: 'video/mp4', src: newUrl });
+
+        if (props.autoplay) {
+            p.ready(() => tryAutoplay(p));
         }
     },
 );
