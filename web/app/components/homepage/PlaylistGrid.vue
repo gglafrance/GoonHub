@@ -1,0 +1,89 @@
+<script setup lang="ts">
+import type { PlaylistListItem } from '~/types/playlist';
+
+defineProps<{
+    playlists: PlaylistListItem[];
+}>();
+
+const scrollContainer = ref<HTMLElement | null>(null);
+const canScrollLeft = ref(false);
+const canScrollRight = ref(true);
+
+function updateScrollState() {
+    if (!scrollContainer.value) return;
+    const el = scrollContainer.value;
+    canScrollLeft.value = el.scrollLeft > 0;
+    canScrollRight.value = el.scrollLeft < el.scrollWidth - el.clientWidth - 1;
+}
+
+function scroll(direction: 'left' | 'right') {
+    if (!scrollContainer.value) return;
+    const cardWidth = window.innerWidth < 640 ? 280 : 320;
+    const scrollAmount = cardWidth * 3;
+    scrollContainer.value.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
+    });
+}
+
+onMounted(() => {
+    updateScrollState();
+});
+</script>
+
+<template>
+    <div class="group/carousel relative">
+        <!-- Left arrow -->
+        <button
+            v-if="canScrollLeft"
+            class="from-background/95 to-background/0 absolute top-0 bottom-0 left-0 z-30 flex w-12
+                cursor-pointer items-center justify-start bg-linear-to-r pl-1 opacity-0
+                transition-opacity group-hover/carousel:opacity-100"
+            @click="scroll('left')"
+        >
+            <div
+                class="bg-surface/90 border-border hover:bg-elevated flex h-8 w-8 items-center
+                    justify-center rounded-full border backdrop-blur-sm transition-colors"
+            >
+                <Icon name="heroicons:chevron-left" size="18" class="text-white" />
+            </div>
+        </button>
+
+        <!-- Horizontal scroll container -->
+        <div
+            ref="scrollContainer"
+            class="scrollbar-hide -mx-4 flex gap-4 overflow-x-auto px-4 pb-2"
+            @scroll="updateScrollState"
+        >
+            <div v-for="playlist in playlists" :key="playlist.uuid" class="shrink-0">
+                <PlaylistCard :playlist="playlist" />
+            </div>
+        </div>
+
+        <!-- Right arrow -->
+        <button
+            v-if="canScrollRight"
+            class="from-background/95 to-background/0 absolute top-0 right-0 bottom-0 z-30 flex w-12
+                cursor-pointer items-center justify-end bg-linear-to-l pr-1 opacity-0
+                transition-opacity group-hover/carousel:opacity-100"
+            @click="scroll('right')"
+        >
+            <div
+                class="bg-surface/90 border-border hover:bg-elevated flex h-8 w-8 items-center
+                    justify-center rounded-full border backdrop-blur-sm transition-colors"
+            >
+                <Icon name="heroicons:chevron-right" size="18" class="text-white" />
+            </div>
+        </button>
+    </div>
+</template>
+
+<style scoped>
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+</style>

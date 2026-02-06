@@ -4,8 +4,13 @@ import type { MarkerWithScene } from '~/types/marker';
 const route = useRoute();
 const router = useRouter();
 const { fetchMarkersByLabel } = useApiMarkers();
+const { fetchProcessingConfig } = useApiJobs();
 const { formatDuration } = useFormatter();
+const { observe } = useAnimatedMarkerPreview();
 const settingsStore = useSettingsStore();
+
+// Marker thumbnail type (static or animated)
+const markerThumbnailType = ref('static');
 
 const markers = ref<MarkerWithScene[]>([]);
 const total = ref(0);
@@ -49,8 +54,14 @@ const loadMarkers = async (page: number) => {
     }
 };
 
-onMounted(() => {
+onMounted(async () => {
     loadMarkers(currentPage.value);
+    try {
+        const config = await fetchProcessingConfig();
+        markerThumbnailType.value = config.marker_thumbnail_type || 'static';
+    } catch {
+        // Default to static
+    }
 });
 
 watch(
@@ -143,7 +154,22 @@ definePageMeta({
                     >
                         <!-- Thumbnail -->
                         <div class="relative aspect-video w-full overflow-hidden bg-black/40">
+                            <video
+                                v-if="
+                                    markerThumbnailType === 'animated' &&
+                                    marker.animated_thumbnail_path
+                                "
+                                :ref="(el) => observe(el as HTMLVideoElement)"
+                                :src="`/marker-thumbnails/${marker.id}/animated`"
+                                muted
+                                loop
+                                playsinline
+                                preload="none"
+                                class="h-full w-full object-contain transition-transform
+                                    duration-300 group-hover:scale-105"
+                            />
                             <img
+                                v-else
                                 :src="`/marker-thumbnails/${marker.id}`"
                                 :alt="marker.scene_title"
                                 class="h-full w-full object-cover transition-transform duration-300

@@ -129,6 +129,8 @@ const seeAllLink = computed(() => {
             return withSortParams('/search?sort=view_count_desc');
         case 'continue_watching':
             return '/history?filter=in_progress';
+        case 'playlist':
+            return '/playlists';
         default:
             return withSortParams('/search');
     }
@@ -188,19 +190,34 @@ const seeAllLink = computed(() => {
             <LoadingSpinner size="sm" />
         </div>
 
-        <div
-            v-else-if="data.scenes.length === 0"
-            class="border-border flex h-48 items-center justify-center rounded-lg border
-                border-dashed"
-        >
-            <p class="text-dim text-sm">No scenes in this section</p>
-        </div>
+        <!-- Playlist section -->
+        <template v-else-if="section.type === 'playlist'">
+            <div
+                v-if="!data.playlists || data.playlists.length === 0"
+                class="border-border flex h-48 items-center justify-center rounded-lg border
+                    border-dashed"
+            >
+                <p class="text-dim text-sm">No playlists in this section</p>
+            </div>
+            <HomepagePlaylistGrid v-else :playlists="data.playlists" />
+        </template>
 
-        <HomepageSectionGrid
-            v-else
-            :scenes="data.scenes"
-            :watch-progress="data.watch_progress"
-            :ratings="data.ratings"
-        />
+        <!-- Scene sections -->
+        <template v-else>
+            <div
+                v-if="data.scenes.length === 0"
+                class="border-border flex h-48 items-center justify-center rounded-lg border
+                    border-dashed"
+            >
+                <p class="text-dim text-sm">No scenes in this section</p>
+            </div>
+
+            <HomepageSectionGrid
+                v-else
+                :scenes="data.scenes"
+                :watch-progress="data.watch_progress"
+                :ratings="data.ratings"
+            />
+        </template>
     </div>
 </template>

@@ -24,7 +24,7 @@ type UpdateHomepageConfigRequest struct {
 
 type HomepageSectionRequest struct {
 	ID      string                 `json:"id" binding:"required"`
-	Type    string                 `json:"type" binding:"required,oneof=latest actor studio tag saved_search continue_watching most_viewed liked"`
+	Type    string                 `json:"type" binding:"required,oneof=latest actor studio tag saved_search continue_watching most_viewed liked playlist"`
 	Title   string                 `json:"title" binding:"required,max=100"`
 	Enabled bool                   `json:"enabled"`
 	Limit   int                    `json:"limit" binding:"required,min=1,max=50"`
@@ -64,14 +64,16 @@ type ParsingRuleConfigRequest struct {
 }
 
 type UpdateAllSettingsRequest struct {
-	Autoplay               bool                        `json:"autoplay"`
-	DefaultVolume          int                         `json:"default_volume" binding:"min=0,max=100"`
-	Loop                   bool                        `json:"loop"`
-	VideosPerPage          int                         `json:"videos_per_page" binding:"required,min=1,max=100"`
-	DefaultSortOrder       string                      `json:"default_sort_order" binding:"required"`
-	DefaultTagSort         string                      `json:"default_tag_sort" binding:"required"`
-	MarkerThumbnailCycling bool                        `json:"marker_thumbnail_cycling"`
-	HomepageConfig         UpdateHomepageConfigRequest  `json:"homepage_config" binding:"required"`
-	ParsingRules           UpdateParsingRulesRequest    `json:"parsing_rules"`
-	SortPreferences        UpdateSortPreferencesRequest `json:"sort_preferences" binding:"required"`
+	Autoplay                  bool                        `json:"autoplay"`
+	DefaultVolume             int                         `json:"default_volume" binding:"min=0,max=100"`
+	Loop                      bool                        `json:"loop"`
+	VideosPerPage             int                         `json:"videos_per_page" binding:"required,min=1,max=100"`
+	DefaultSortOrder          string                      `json:"default_sort_order" binding:"required"`
+	DefaultTagSort            string                      `json:"default_tag_sort" binding:"required"`
+	MarkerThumbnailCycling    bool                        `json:"marker_thumbnail_cycling"`
+	HomepageConfig            UpdateHomepageConfigRequest  `json:"homepage_config" binding:"required"`
+	ParsingRules              UpdateParsingRulesRequest    `json:"parsing_rules"`
+	SortPreferences           UpdateSortPreferencesRequest `json:"sort_preferences" binding:"required"`
+	PlaylistAutoAdvance       string                      `json:"playlist_auto_advance"`
+	PlaylistCountdownSeconds  int                         `json:"playlist_countdown_seconds"`
 }

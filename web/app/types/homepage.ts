@@ -1,4 +1,5 @@
 import type { SceneListItem } from './scene';
+import type { PlaylistListItem } from './playlist';
 
 export type SectionType =
     | 'latest'
@@ -8,7 +9,8 @@ export type SectionType =
     | 'saved_search'
     | 'continue_watching'
     | 'most_viewed'
-    | 'liked';
+    | 'liked'
+    | 'playlist';
 
 export interface HomepageSection {
     id: string;
@@ -38,6 +40,7 @@ export interface HomepageSectionData {
     seed?: number;
     watch_progress?: Record<number, WatchProgress>;
     ratings?: Record<number, number>;
+    playlists?: PlaylistListItem[];
 }
 
 export interface HomepageResponse {
@@ -54,6 +57,7 @@ export const SECTION_TYPE_LABELS: Record<SectionType, string> = {
     continue_watching: 'Continue Watching',
     most_viewed: 'Most Viewed',
     liked: 'Liked Scenes',
+    playlist: 'Playlists',
 };
 
 export const SORT_OPTIONS = [
@@ -82,6 +86,7 @@ export const SECTION_SORT_OPTIONS: Record<SectionType, typeof SORT_OPTIONS> = {
         { value: 'view_count_asc', label: 'Least Viewed' },
     ],
     liked: SORT_OPTIONS,
+    playlist: [], // No scene sorting - displays playlists, not scenes
 };
 
 // Icon names for each section type (heroicons)
@@ -94,6 +99,7 @@ export const SECTION_ICONS: Record<SectionType, string> = {
     continue_watching: 'heroicons:play',
     most_viewed: 'heroicons:fire',
     liked: 'heroicons:heart',
+    playlist: 'heroicons:queue-list',
 };
 
 // Color classes for each section type (icon + background styling)
@@ -106,6 +112,7 @@ export const SECTION_COLORS: Record<SectionType, string> = {
     continue_watching: 'text-lava bg-lava/10',
     most_viewed: 'text-orange-400 bg-orange-400/10',
     liked: 'text-pink-400 bg-pink-400/10',
+    playlist: 'text-indigo-400 bg-indigo-400/10',
 };
 
 // Extended color classes including border (for modal type selection)
@@ -118,6 +125,7 @@ export const SECTION_COLORS_WITH_BORDER: Record<SectionType, string> = {
     continue_watching: 'text-lava bg-lava/10 border-lava/20',
     most_viewed: 'text-orange-400 bg-orange-400/10 border-orange-400/20',
     liked: 'text-pink-400 bg-pink-400/10 border-pink-400/20',
+    playlist: 'text-indigo-400 bg-indigo-400/10 border-indigo-400/20',
 };
 
 // Section type descriptions for UI
@@ -130,4 +138,5 @@ export const SECTION_DESCRIPTIONS: Record<SectionType, string> = {
     continue_watching: 'Resume where you left off',
     most_viewed: 'Popular scenes by view count',
     liked: 'Your liked scenes',
+    playlist: 'Your playlists',
 };

@@ -86,7 +86,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	adminHandler := provideAdminHandler(adminService, rbacService, sceneService)
 	jobHandler := provideJobHandler(jobHistoryService, sceneProcessingService)
 	poolConfigHandler := providePoolConfigHandler(sceneProcessingService, poolConfigRepository)
-	processingConfigHandler := provideProcessingConfigHandler(sceneProcessingService, processingConfigRepository)
+	processingConfigHandler := provideProcessingConfigHandler(sceneProcessingService, processingConfigRepository, markerService)
 	triggerScheduler := provideTriggerScheduler(triggerConfigRepository, sceneRepository, sceneProcessingService, logger)
 	triggerConfigHandler := provideTriggerConfigHandler(triggerConfigRepository, sceneProcessingService, triggerScheduler)
 	dlqService := provideDLQService(dlqRepository, jobHistoryRepository, sceneRepository, eventBus, logger)
@@ -127,13 +127,16 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	savedSearchRepository := provideSavedSearchRepository(db)
 	savedSearchService := provideSavedSearchService(savedSearchRepository, logger)
 	savedSearchHandler := provideSavedSearchHandler(savedSearchService)
-	homepageService := provideHomepageService(settingsService, searchService, savedSearchService, watchHistoryRepository, interactionRepository, sceneRepository, tagRepository, actorRepository, studioRepository, logger)
+	playlistRepository := providePlaylistRepository(db)
+	playlistService := providePlaylistService(playlistRepository, sceneRepository, tagRepository, logger)
+	homepageService := provideHomepageService(settingsService, searchService, savedSearchService, playlistService, watchHistoryRepository, interactionRepository, sceneRepository, tagRepository, actorRepository, studioRepository, logger)
 	homepageHandler := provideHomepageHandler(homepageService)
 	markerHandler := provideMarkerHandler(markerService)
 	importHandler := provideImportHandler(sceneRepository, markerRepository, logger)
 	streamStatsHandler := provideStreamStatsHandler(manager)
+	playlistHandler := providePlaylistHandler(playlistService)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, authService, rbacService, ipRateLimiter)
+	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, authService, rbacService, ipRateLimiter)
 	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, markerService, sceneProcessingService, logger)
 	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService)
 	return serverServer, nil
@@ -245,6 +248,10 @@ func provideMarkerRepository(db *gorm.DB) data.MarkerRepository {
 	return data.NewMarkerRepository(db)
 }
 
+func providePlaylistRepository(db *gorm.DB) data.PlaylistRepository {
+	return data.NewPlaylistRepository(db)
+}
+
 func provideMeilisearchClient(cfg *config.Config, searchConfigRepo data.SearchConfigRepository, logger *logging.Logger) (*meilisearch.Client, error) {
 	var maxTotalHits int64 = 100000
 	record, err := searchConfigRepo.Get()
@@ -353,7 +360,7 @@ func provideJobStatusService(jobHistoryService *core.JobHistoryService, processi
 }
 
 func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, markerService *core.MarkerService, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobQueueFeeder {
-	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerService, processingService.GetPoolManager(), logger.Logger)
+	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerService, markerService, processingService.GetPoolManager(), logger.Logger)
 }
 
 func provideTriggerScheduler(triggerConfigRepo data.TriggerConfigRepository, sceneRepo data.SceneRepository, processingService *core.SceneProcessingService, logger *logging.Logger) *core.TriggerScheduler {
@@ -392,6 +399,7 @@ func provideHomepageService(
 	settingsService *core.SettingsService,
 	searchService *core.SearchService,
 	savedSearchService *core.SavedSearchService,
+	playlistService *core.PlaylistService,
 	watchHistoryRepo data.WatchHistoryRepository,
 	interactionRepo data.InteractionRepository,
 	sceneRepo data.SceneRepository,
@@ -404,6 +412,7 @@ func provideHomepageService(
 		settingsService,
 		searchService,
 		savedSearchService,
+		playlistService,
 		watchHistoryRepo,
 		interactionRepo,
 		sceneRepo,
@@ -416,6 +425,10 @@ func provideHomepageService(
 
 func provideMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
 	return core.NewMarkerService(markerRepo, sceneRepo, tagRepo, cfg, logger.Logger)
+}
+
+func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, logger *logging.Logger) *core.PlaylistService {
+	return core.NewPlaylistService(repo, sceneRepo, tagRepo, logger.Logger)
 }
 
 func provideStreamManager(cfg *config.Config, sceneRepo data.SceneRepository, logger *logging.Logger) *streaming.Manager {
@@ -487,8 +500,8 @@ func providePoolConfigHandler(processingService *core.SceneProcessingService, po
 	return handler.NewPoolConfigHandler(processingService, poolConfigRepo)
 }
 
-func provideProcessingConfigHandler(processingService *core.SceneProcessingService, processingConfigRepo data.ProcessingConfigRepository) *handler.ProcessingConfigHandler {
-	return handler.NewProcessingConfigHandler(processingService, processingConfigRepo)
+func provideProcessingConfigHandler(processingService *core.SceneProcessingService, processingConfigRepo data.ProcessingConfigRepository, markerService *core.MarkerService) *handler.ProcessingConfigHandler {
+	return handler.NewProcessingConfigHandler(processingService, processingConfigRepo, markerService)
 }
 
 func provideTriggerConfigHandler(triggerConfigRepo data.TriggerConfigRepository, processingService *core.SceneProcessingService, triggerScheduler *core.TriggerScheduler) *handler.TriggerConfigHandler {
@@ -535,6 +548,10 @@ func provideMarkerHandler(markerService *core.MarkerService) *handler.MarkerHand
 	return handler.NewMarkerHandler(markerService)
 }
 
+func providePlaylistHandler(service *core.PlaylistService) *handler.PlaylistHandler {
+	return handler.NewPlaylistHandler(service)
+}
+
 func provideImportHandler(sceneRepo data.SceneRepository, markerRepo data.MarkerRepository, logger *logging.Logger) *handler.ImportHandler {
 	return handler.NewImportHandler(sceneRepo, markerRepo, logger.Logger)
 }
@@ -574,6 +591,7 @@ func provideRouter(
 	markerHandler *handler.MarkerHandler,
 	importHandler *handler.ImportHandler,
 	streamStatsHandler *handler.StreamStatsHandler,
+	playlistHandler *handler.PlaylistHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -584,7 +602,8 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
+		playlistHandler, authService, rbacService, rateLimiter,
 	)
 }
 

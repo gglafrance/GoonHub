@@ -89,6 +89,7 @@ func (s *JobStatusService) GetJobStatus() *JobStatus {
 	metadataRunning := queueStatus.MetadataActive
 	thumbnailRunning := queueStatus.ThumbnailActive
 	spritesRunning := queueStatus.SpritesActive
+	animatedThumbnailsRunning := queueStatus.AnimatedThumbnailsActive
 
 	// Build phase status map with pending and failed counts
 	byPhase := map[string]PhaseStatus{
@@ -110,13 +111,19 @@ func (s *JobStatusService) GetJobStatus() *JobStatus {
 			Pending: pendingByPhase["sprites"],
 			Failed:  failedByPhase["sprites"],
 		},
+		"animated_thumbnails": {
+			Running: animatedThumbnailsRunning,
+			Queued:  queueStatus.AnimatedThumbnailsQueued,
+			Pending: pendingByPhase["animated_thumbnails"],
+			Failed:  failedByPhase["animated_thumbnails"],
+		},
 	}
 
 	// Calculate totals
-	totalRunning := metadataRunning + thumbnailRunning + spritesRunning
-	totalQueued := queueStatus.MetadataQueued + queueStatus.ThumbnailQueued + queueStatus.SpritesQueued
-	totalPending := pendingByPhase["metadata"] + pendingByPhase["thumbnail"] + pendingByPhase["sprites"]
-	totalFailed := failedByPhase["metadata"] + failedByPhase["thumbnail"] + failedByPhase["sprites"]
+	totalRunning := metadataRunning + thumbnailRunning + spritesRunning + animatedThumbnailsRunning
+	totalQueued := queueStatus.MetadataQueued + queueStatus.ThumbnailQueued + queueStatus.SpritesQueued + queueStatus.AnimatedThumbnailsQueued
+	totalPending := pendingByPhase["metadata"] + pendingByPhase["thumbnail"] + pendingByPhase["sprites"] + pendingByPhase["animated_thumbnails"]
+	totalFailed := failedByPhase["metadata"] + failedByPhase["thumbnail"] + failedByPhase["sprites"] + failedByPhase["animated_thumbnails"]
 
 	// Filter active jobs to only those actually in the worker pool.
 	// The DB marks jobs as 'running' when claimed by the feeder, but the job may

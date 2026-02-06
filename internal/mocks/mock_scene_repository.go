@@ -556,6 +556,20 @@ func (mr *MockSceneRepositoryMockRecorder) UpdateOriginAndType(id, origin, scene
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOriginAndType", reflect.TypeOf((*MockSceneRepository)(nil).UpdateOriginAndType), id, origin, sceneType)
 }
 
+// UpdatePreviewVideoPath mocks base method.
+func (m *MockSceneRepository) UpdatePreviewVideoPath(id uint, previewVideoPath string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdatePreviewVideoPath", id, previewVideoPath)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdatePreviewVideoPath indicates an expected call of UpdatePreviewVideoPath.
+func (mr *MockSceneRepositoryMockRecorder) UpdatePreviewVideoPath(id, previewVideoPath any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePreviewVideoPath", reflect.TypeOf((*MockSceneRepository)(nil).UpdatePreviewVideoPath), id, previewVideoPath)
+}
+
 // UpdateProcessingStatus mocks base method.
 func (m *MockSceneRepository) UpdateProcessingStatus(id uint, status, errorMsg string) error {
 	m.ctrl.T.Helper()

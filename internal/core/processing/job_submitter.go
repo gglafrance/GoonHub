@@ -67,12 +67,12 @@ func (js *JobSubmitter) SubmitPhase(sceneID uint, phase string) error {
 // Used for manual triggers and DLQ retries.
 func (js *JobSubmitter) SubmitPhaseWithPriority(sceneID uint, phase string, priority int) error {
 	switch phase {
-	case "metadata", "thumbnail", "sprites":
+	case "metadata", "thumbnail", "sprites", "animated_thumbnails":
 	default:
 		return fmt.Errorf("unknown phase: %s", phase)
 	}
 
-	if phase == "thumbnail" || phase == "sprites" {
+	if phase == "thumbnail" || phase == "sprites" || phase == "animated_thumbnails" {
 		scene, err := js.repo.GetByID(sceneID)
 		if err != nil {
 			return fmt.Errorf("failed to get scene: %w", err)
@@ -92,14 +92,14 @@ func (js *JobSubmitter) SubmitPhaseWithPriority(sceneID uint, phase string, prio
 func (js *JobSubmitter) SubmitPhaseWithRetry(sceneID uint, phase string, retryCount, maxRetries int) error {
 	// Validate the phase
 	switch phase {
-	case "metadata", "thumbnail", "sprites":
+	case "metadata", "thumbnail", "sprites", "animated_thumbnails":
 		// Valid phases
 	default:
 		return fmt.Errorf("unknown phase: %s", phase)
 	}
 
-	// For thumbnail/sprites, check if metadata is available
-	if phase == "thumbnail" || phase == "sprites" {
+	// For thumbnail/sprites/animated_thumbnails, check if metadata is available
+	if phase == "thumbnail" || phase == "sprites" || phase == "animated_thumbnails" {
 		scene, err := js.repo.GetByID(sceneID)
 		if err != nil {
 			return fmt.Errorf("failed to get scene: %w", err)
@@ -199,8 +199,8 @@ func (js *JobSubmitter) SubmitBulkPhase(phase string, mode string) (*BulkPhaseRe
 	result := &BulkPhaseResult{}
 
 	for _, scene := range scenes {
-		// For thumbnail/sprites in "all" mode, skip scenes without metadata
-		if mode == "all" && (phase == "thumbnail" || phase == "sprites") && scene.Duration == 0 {
+		// For thumbnail/sprites/animated_thumbnails in "all" mode, skip scenes without metadata
+		if mode == "all" && (phase == "thumbnail" || phase == "sprites" || phase == "animated_thumbnails") && scene.Duration == 0 {
 			result.Skipped++
 			continue
 		}

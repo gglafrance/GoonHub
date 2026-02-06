@@ -16,11 +16,12 @@ import (
 // JobQueueFeeder polls the database for pending jobs and feeds them to worker pools.
 // It acts as a bridge between the infinite-capacity DB queue and the bounded worker pool channels.
 type JobQueueFeeder struct {
-	repo           data.JobHistoryRepository
-	sceneRepo      data.SceneRepository
-	markerThumbGen jobs.MarkerThumbnailGenerator
-	poolManager    *processing.PoolManager
-	logger         *zap.Logger
+	repo              data.JobHistoryRepository
+	sceneRepo         data.SceneRepository
+	markerThumbGen    jobs.MarkerThumbnailGenerator
+	animatedThumbGen  jobs.AnimatedThumbnailGenerator
+	poolManager       *processing.PoolManager
+	logger            *zap.Logger
 
 	pollInterval     time.Duration
 	batchSize        int
@@ -40,6 +41,7 @@ func NewJobQueueFeeder(
 	repo data.JobHistoryRepository,
 	sceneRepo data.SceneRepository,
 	markerThumbGen jobs.MarkerThumbnailGenerator,
+	animatedThumbGen jobs.AnimatedThumbnailGenerator,
 	poolManager *processing.PoolManager,
 	logger *zap.Logger,
 ) *JobQueueFeeder {
@@ -47,6 +49,7 @@ func NewJobQueueFeeder(
 		repo:             repo,
 		sceneRepo:        sceneRepo,
 		markerThumbGen:   markerThumbGen,
+		animatedThumbGen: animatedThumbGen,
 		poolManager:      poolManager,
 		logger:           logger.With(zap.String("component", "job_queue_feeder")),
 		pollInterval:     2 * time.Second,
@@ -75,7 +78,7 @@ func (f *JobQueueFeeder) Start() {
 	f.recoverOrphanedJobs()
 
 	// Start a feeder goroutine for each phase
-	phases := []string{"metadata", "thumbnail", "sprites"}
+	phases := []string{"metadata", "thumbnail", "sprites", "animated_thumbnails"}
 	for _, phase := range phases {
 		f.wg.Add(1)
 		go f.runFeeder(phase)
@@ -156,6 +159,9 @@ func (f *JobQueueFeeder) feedPhase(phase string) {
 	case "sprites":
 		currentQueued = queueStatus.SpritesQueued
 		workerCount = poolConfig.SpritesWorkers
+	case "animated_thumbnails":
+		currentQueued = queueStatus.AnimatedThumbnailsQueued
+		workerCount = poolConfig.AnimatedThumbnailsWorkers
 	}
 
 	// Dynamic threshold: only buffer a small multiple of the worker count.
@@ -335,6 +341,18 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 			}
 		})
 		return f.poolManager.SubmitToSpritesPool(spritesJob)
+
+	case "animated_thumbnails":
+		if scene.Duration == 0 {
+			return fmt.Errorf("scene duration is 0: metadata not yet extracted")
+		}
+		job = jobs.NewAnimatedThumbnailJobWithID(
+			jobRecord.JobID,
+			jobRecord.SceneID,
+			f.animatedThumbGen,
+			f.logger,
+		)
+		return f.poolManager.SubmitToAnimatedThumbnailsPool(job)
 	}
 
 	return nil

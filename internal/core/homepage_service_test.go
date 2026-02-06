@@ -27,7 +27,7 @@ func TestHomepageService_GetHomepageData_EmptySections(t *testing.T) {
 
 	svc := NewHomepageService(
 		settingsService,
-		nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		zap.NewNop(),
 	)
 
@@ -63,7 +63,7 @@ func TestHomepageService_GetHomepageData_DisabledSectionsSkipped(t *testing.T) {
 
 	svc := NewHomepageService(
 		settingsService,
-		nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		zap.NewNop(),
 	)
 
@@ -95,7 +95,7 @@ func TestHomepageService_GetSectionData_NotFound(t *testing.T) {
 
 	svc := NewHomepageService(
 		settingsService,
-		nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		zap.NewNop(),
 	)
 
@@ -113,7 +113,7 @@ func TestHomepageService_ContinueWatching_EmptyHistory(t *testing.T) {
 	watchHistoryRepo := mocks.NewMockWatchHistoryRepository(ctrl)
 
 	svc := NewHomepageService(
-		nil, nil, nil,
+		nil, nil, nil, nil,
 		watchHistoryRepo,
 		nil, nil, nil, nil, nil,
 		zap.NewNop(),
@@ -148,7 +148,7 @@ func TestHomepageService_ContinueWatching_FiltersCompletedVideos(t *testing.T) {
 	sceneRepo := mocks.NewMockSceneRepository(ctrl)
 
 	svc := NewHomepageService(
-		nil, nil, nil,
+		nil, nil, nil, nil,
 		watchHistoryRepo,
 		nil,
 		sceneRepo,
@@ -198,7 +198,7 @@ func TestHomepageService_ContinueWatching_RespectsLimit(t *testing.T) {
 	sceneRepo := mocks.NewMockSceneRepository(ctrl)
 
 	svc := NewHomepageService(
-		nil, nil, nil,
+		nil, nil, nil, nil,
 		watchHistoryRepo,
 		nil,
 		sceneRepo,
@@ -239,7 +239,7 @@ func TestHomepageService_ContinueWatching_RespectsLimit(t *testing.T) {
 
 func TestHomepageService_FetchSectionData_UnknownType(t *testing.T) {
 	svc := NewHomepageService(
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		zap.NewNop(),
 	)
 
@@ -262,7 +262,7 @@ func TestHomepageService_FetchSectionData_UnknownType(t *testing.T) {
 
 func TestHomepageService_ActorSection_MissingUUID(t *testing.T) {
 	svc := NewHomepageService(
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		zap.NewNop(),
 	)
 
@@ -286,7 +286,7 @@ func TestHomepageService_ActorSection_MissingUUID(t *testing.T) {
 
 func TestHomepageService_StudioSection_MissingUUID(t *testing.T) {
 	svc := NewHomepageService(
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		zap.NewNop(),
 	)
 
@@ -310,7 +310,7 @@ func TestHomepageService_StudioSection_MissingUUID(t *testing.T) {
 
 func TestHomepageService_TagSection_MissingID(t *testing.T) {
 	svc := NewHomepageService(
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		zap.NewNop(),
 	)
 
@@ -334,7 +334,7 @@ func TestHomepageService_TagSection_MissingID(t *testing.T) {
 
 func TestHomepageService_SavedSearchSection_MissingUUID(t *testing.T) {
 	svc := NewHomepageService(
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		zap.NewNop(),
 	)
 

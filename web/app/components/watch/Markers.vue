@@ -5,7 +5,9 @@ import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
 const route = useRoute();
 const { createMarker, updateMarker, deleteMarker, fetchLabelSuggestions } = useApiMarkers();
+const { fetchProcessingConfig } = useApiJobs();
 const { formatDuration } = useFormatter();
+const { observe } = useAnimatedMarkerPreview();
 const getPlayerTime = inject<() => number>('getPlayerTime');
 const seekToTime = inject<(time: number) => void>('seekToTime');
 const refreshMarkers = inject<() => Promise<void>>('refreshMarkers');
@@ -31,6 +33,9 @@ const error = ref<string | null>(null);
 // Delete confirmation state
 const markerToDelete = ref<Marker | null>(null);
 const showDeleteConfirm = ref(false);
+
+// Marker thumbnail type (static or animated)
+const markerThumbnailType = ref('static');
 
 // Autocomplete state
 const labelSuggestions = ref<MarkerLabelSuggestion[]>([]);
@@ -241,6 +246,11 @@ const getThumbnailUrl = (marker: Marker) => {
     return `/marker-thumbnails/${marker.id}`;
 };
 
+const getAnimatedUrl = (marker: Marker) => {
+    if (!marker.animated_thumbnail_path) return null;
+    return `/marker-thumbnails/${marker.id}/animated`;
+};
+
 // Watch for pending marker add trigger from parent (when M key is pressed globally)
 watch(
     () => pendingMarkerAdd?.value,
@@ -255,11 +265,19 @@ watch(
     },
 );
 
-onMounted(() => {
+onMounted(async () => {
     // Check if there's a pending marker add on mount (M was pressed before tab opened)
     if (pendingMarkerAdd?.value) {
         handleAddMarker();
         pendingMarkerAdd.value = false;
+    }
+
+    // Load marker thumbnail type from processing config
+    try {
+        const config = await fetchProcessingConfig();
+        markerThumbnailType.value = config.marker_thumbnail_type || 'static';
+    } catch {
+        // Default to static
     }
 });
 </script>
@@ -336,9 +354,21 @@ onMounted(() => {
                     :title="`Seek to ${formatDuration(marker.timestamp)}`"
                     @click="handleSeekToMarker(marker.timestamp)"
                 >
-                    <!-- Thumbnail Image -->
+                    <!-- Animated Thumbnail -->
+                    <video
+                        v-if="markerThumbnailType === 'animated' && getAnimatedUrl(marker)"
+                        :ref="(el) => observe(el as HTMLVideoElement)"
+                        :src="getAnimatedUrl(marker)!"
+                        muted
+                        loop
+                        playsinline
+                        preload="none"
+                        class="h-full w-full object-contain transition-transform duration-200
+                            group-hover:scale-105"
+                    />
+                    <!-- Static Thumbnail Image -->
                     <img
-                        v-if="getThumbnailUrl(marker)"
+                        v-else-if="getThumbnailUrl(marker)"
                         :src="getThumbnailUrl(marker)!"
                         :alt="marker.label || 'Marker thumbnail'"
                         class="h-full w-full object-cover transition-transform duration-200

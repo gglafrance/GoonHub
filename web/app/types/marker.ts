@@ -6,6 +6,7 @@ export interface Marker {
     label: string;
     color: string;
     thumbnail_path: string;
+    animated_thumbnail_path: string;
     created_at: string;
     updated_at: string;
     tags?: MarkerTagInfo[];

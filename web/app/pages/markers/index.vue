@@ -11,8 +11,13 @@ useSeoMeta({
 });
 
 const { fetchLabelGroups, fetchAllMarkers } = useApiMarkers();
+const { fetchProcessingConfig } = useApiJobs();
 const { formatDuration } = useFormatter();
+const { observe } = useAnimatedMarkerPreview();
 const settingsStore = useSettingsStore();
+
+// Marker thumbnail type (static or animated)
+const markerThumbnailType = ref('static');
 
 type ViewMode = 'grouped' | 'all';
 const viewMode = ref<ViewMode>('grouped');
@@ -105,8 +110,14 @@ const loadData = (page = 1) => {
     }
 };
 
-onMounted(() => {
+onMounted(async () => {
     loadData(currentPage.value);
+    try {
+        const config = await fetchProcessingConfig();
+        markerThumbnailType.value = config.marker_thumbnail_type || 'static';
+    } catch {
+        // Default to static
+    }
 });
 
 watch(
@@ -259,7 +270,10 @@ definePageMeta({
 
                 <!-- Label Grid -->
                 <div v-else>
-                    <MarkerLabelGrid :groups="filteredGroups" />
+                    <MarkerLabelGrid
+                        :groups="filteredGroups"
+                        :marker-thumbnail-type="markerThumbnailType"
+                    />
                     <Pagination v-model="currentPage" :total="groupTotal" :limit="limit" />
                 </div>
             </template>
@@ -296,7 +310,22 @@ definePageMeta({
                         >
                             <!-- Thumbnail -->
                             <div class="relative aspect-video w-full overflow-hidden bg-black/40">
+                                <video
+                                    v-if="
+                                        markerThumbnailType === 'animated' &&
+                                        marker.animated_thumbnail_path
+                                    "
+                                    :ref="(el) => observe(el as HTMLVideoElement)"
+                                    :src="`/marker-thumbnails/${marker.id}/animated`"
+                                    muted
+                                    loop
+                                    playsinline
+                                    preload="none"
+                                    class="h-full w-full object-contain transition-transform
+                                        duration-300 group-hover:scale-105"
+                                />
                                 <img
+                                    v-else
                                     :src="`/marker-thumbnails/${marker.id}`"
                                     :alt="marker.scene_title"
                                     class="h-full w-full object-cover transition-transform

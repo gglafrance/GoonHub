@@ -16,6 +16,7 @@
  * - useApiExplorer() for folder browsing and bulk editing
  * - useApiSavedSearches() for saved search templates
  * - useApiMarkers() for scene marker operations
+ * - useApiPlaylists() for playlist operations
  */
 export const useApi = () => {
     const scenes = useApiScenes();
@@ -31,6 +32,7 @@ export const useApi = () => {
     const explorer = useApiExplorer();
     const savedSearches = useApiSavedSearches();
     const markers = useApiMarkers();
+    const playlists = useApiPlaylists();
 
     return {
         // Scene operations
@@ -183,5 +185,21 @@ export const useApi = () => {
         fetchLabelSuggestions: markers.fetchLabelSuggestions,
         fetchLabelGroups: markers.fetchLabelGroups,
         fetchMarkersByLabel: markers.fetchMarkersByLabel,
+
+        // Playlist operations
+        fetchPlaylists: playlists.fetchPlaylists,
+        fetchPlaylist: playlists.fetchPlaylist,
+        createPlaylist: playlists.createPlaylist,
+        updatePlaylist: playlists.updatePlaylist,
+        deletePlaylist: playlists.deletePlaylist,
+        addPlaylistScenes: playlists.addScenes,
+        removePlaylistScene: playlists.removeScene,
+        reorderPlaylistScenes: playlists.reorderScenes,
+        fetchPlaylistTags: playlists.fetchPlaylistTags,
+        setPlaylistTags: playlists.setPlaylistTags,
+        togglePlaylistLike: playlists.toggleLike,
+        getPlaylistLikeStatus: playlists.getLikeStatus,
+        getPlaylistProgress: playlists.getProgress,
+        updatePlaylistProgress: playlists.updateProgress,
     };
 };

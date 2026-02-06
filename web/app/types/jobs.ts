@@ -3,7 +3,7 @@ export interface JobHistory {
     job_id: string;
     scene_id: number;
     scene_title: string;
-    phase: 'metadata' | 'thumbnail' | 'sprites';
+    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails';
     status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timed_out';
     error_message?: string;
     started_at: string;
@@ -21,6 +21,7 @@ export interface PoolConfig {
     metadata_workers: number;
     thumbnail_workers: number;
     sprites_workers: number;
+    animated_thumbnails_workers: number;
 }
 
 export interface ProcessingConfig {
@@ -30,18 +31,26 @@ export interface ProcessingConfig {
     frame_quality_lg: number;
     frame_quality_sprites: number;
     sprites_concurrency: number;
+    marker_thumbnail_type: string;
+    marker_animated_duration: number;
+    scene_preview_enabled: boolean;
+    scene_preview_segments: number;
+    scene_preview_segment_duration: number;
 }
 
 export interface QueueStatus {
     metadata_queued: number;
     thumbnail_queued: number;
     sprites_queued: number;
+    animated_thumbnails_queued: number;
     metadata_running: number;
     thumbnail_running: number;
     sprites_running: number;
+    animated_thumbnails_running: number;
     metadata_pending: number;
     thumbnail_pending: number;
     sprites_pending: number;
+    animated_thumbnails_pending: number;
 }
 
 export interface JobListResponse {
@@ -58,7 +67,7 @@ export interface JobListResponse {
 
 export interface TriggerConfig {
     id: number;
-    phase: 'metadata' | 'thumbnail' | 'sprites' | 'scan';
+    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails' | 'scan';
     trigger_type: 'on_import' | 'after_job' | 'manual' | 'scheduled';
     after_phase: string | null;
     cron_expression: string | null;
@@ -66,7 +75,7 @@ export interface TriggerConfig {
 }
 
 export interface BulkJobRequest {
-    phase: 'metadata' | 'thumbnail' | 'sprites';
+    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails';
     mode: 'missing' | 'all';
 }
 
@@ -82,7 +91,7 @@ export interface DLQEntry {
     job_id: string;
     scene_id: number;
     scene_title: string;
-    phase: 'metadata' | 'thumbnail' | 'sprites';
+    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails';
     original_error: string;
     failure_count: number;
     last_error: string;
@@ -107,7 +116,7 @@ export interface DLQListResponse {
 
 export interface RetryConfig {
     id: number;
-    phase: 'metadata' | 'thumbnail' | 'sprites' | 'scan';
+    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails' | 'scan';
     max_retries: number;
     initial_delay_seconds: number;
     max_delay_seconds: number;
@@ -127,7 +136,7 @@ export interface ActiveJobInfo {
     job_id: string;
     scene_id: number;
     scene_title: string;
-    phase: 'metadata' | 'thumbnail' | 'sprites';
+    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails';
     started_at: string;
 }
 

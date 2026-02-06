@@ -112,7 +112,8 @@ export default defineNuxtConfig({
                     },
                 },
                 {
-                    urlPattern: /^\/(thumbnails|sprites|actor-images|marker-thumbnails)\/.*/i,
+                    urlPattern:
+                        /^\/(thumbnails|sprites|actor-images|marker-thumbnails|scene-previews)\/.*/i,
                     handler: 'CacheFirst',
                     options: {
                         cacheName: 'media-cache',
@@ -193,6 +194,10 @@ export default defineNuxtConfig({
                     changeOrigin: true,
                 },
                 '/marker-thumbnails': {
+                    target: 'http://localhost:8080',
+                    changeOrigin: true,
+                },
+                '/scene-previews': {
                     target: 'http://localhost:8080',
                     changeOrigin: true,
                 },

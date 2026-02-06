@@ -6,6 +6,7 @@ export interface SceneListItem {
     duration: number;
     size: number;
     thumbnail_path: string;
+    preview_video_path: string;
     processing_status: string;
     created_at: string;
     updated_at: string;

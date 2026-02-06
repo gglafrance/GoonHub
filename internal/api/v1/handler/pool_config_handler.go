@@ -42,9 +42,10 @@ func (h *PoolConfigHandler) UpdatePoolConfig(c *gin.Context) {
 
 	// Validate pool configuration
 	if err := validators.ValidatePoolConfig(validators.PoolConfigInput{
-		MetadataWorkers:  req.MetadataWorkers,
-		ThumbnailWorkers: req.ThumbnailWorkers,
-		SpritesWorkers:   req.SpritesWorkers,
+		MetadataWorkers:           req.MetadataWorkers,
+		ThumbnailWorkers:          req.ThumbnailWorkers,
+		SpritesWorkers:            req.SpritesWorkers,
+		AnimatedThumbnailsWorkers: req.AnimatedThumbnailsWorkers,
 	}); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -56,9 +57,10 @@ func (h *PoolConfigHandler) UpdatePoolConfig(c *gin.Context) {
 	}
 
 	record := &data.PoolConfigRecord{
-		MetadataWorkers:  req.MetadataWorkers,
-		ThumbnailWorkers: req.ThumbnailWorkers,
-		SpritesWorkers:   req.SpritesWorkers,
+		MetadataWorkers:           req.MetadataWorkers,
+		ThumbnailWorkers:          req.ThumbnailWorkers,
+		SpritesWorkers:            req.SpritesWorkers,
+		AnimatedThumbnailsWorkers: req.AnimatedThumbnailsWorkers,
 	}
 	if err := h.poolConfigRepo.Upsert(record); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Pool config applied but failed to persist: " + err.Error()})

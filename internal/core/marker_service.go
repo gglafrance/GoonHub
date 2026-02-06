@@ -20,24 +20,54 @@ import (
 const maxMarkersPerScene = 50
 
 type MarkerService struct {
-	markerRepo              data.MarkerRepository
-	sceneRepo               data.SceneRepository
-	tagRepo                 data.TagRepository
-	markerThumbnailDir      string
-	markerThumbnailMaxDim   int
-	markerThumbnailQuality  int
-	logger                  *zap.Logger
+	markerRepo                  data.MarkerRepository
+	sceneRepo                   data.SceneRepository
+	tagRepo                     data.TagRepository
+	markerThumbnailDir          string
+	markerThumbnailMaxDim       int
+	markerThumbnailQuality      int
+	markerAnimatedDuration      int
+	markerThumbnailType         string
+	scenePreviewEnabled         bool
+	scenePreviewSegments        int
+	scenePreviewSegmentDuration float64
+	scenePreviewDir             string
+	scenePreviewMaxDim          int
+	logger                      *zap.Logger
 }
 
 func NewMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *zap.Logger) *MarkerService {
+	markerAnimatedDuration := cfg.Processing.MarkerAnimatedDuration
+	if markerAnimatedDuration <= 0 {
+		markerAnimatedDuration = 10
+	}
+	markerThumbnailType := cfg.Processing.MarkerThumbnailType
+	if markerThumbnailType == "" {
+		markerThumbnailType = "static"
+	}
+	scenePreviewSegments := cfg.Processing.ScenePreviewSegments
+	if scenePreviewSegments <= 0 {
+		scenePreviewSegments = 12
+	}
+	scenePreviewSegmentDuration := cfg.Processing.ScenePreviewSegmentDuration
+	if scenePreviewSegmentDuration <= 0 {
+		scenePreviewSegmentDuration = 1.0
+	}
 	return &MarkerService{
-		markerRepo:             markerRepo,
-		sceneRepo:              sceneRepo,
-		tagRepo:                tagRepo,
-		markerThumbnailDir:     cfg.Processing.MarkerThumbnailDir,
-		markerThumbnailMaxDim:  cfg.Processing.MaxFrameDimension,
-		markerThumbnailQuality: cfg.Processing.FrameQuality,
-		logger:                 logger,
+		markerRepo:                  markerRepo,
+		sceneRepo:                   sceneRepo,
+		tagRepo:                     tagRepo,
+		markerThumbnailDir:          cfg.Processing.MarkerThumbnailDir,
+		markerThumbnailMaxDim:       cfg.Processing.MaxFrameDimension,
+		markerThumbnailQuality:      cfg.Processing.FrameQuality,
+		markerAnimatedDuration:      markerAnimatedDuration,
+		markerThumbnailType:         markerThumbnailType,
+		scenePreviewEnabled:         cfg.Processing.ScenePreviewEnabled,
+		scenePreviewSegments:        scenePreviewSegments,
+		scenePreviewSegmentDuration: scenePreviewSegmentDuration,
+		scenePreviewDir:             cfg.Processing.ScenePreviewDir,
+		scenePreviewMaxDim:          cfg.Processing.MaxFrameDimension,
+		logger:                      logger,
 	}
 }
 
@@ -156,12 +186,21 @@ func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, label,
 		}
 	}
 
-	// Generate thumbnail (best effort - marker is still useful without it)
-	if err := s.generateThumbnail(marker, scene); err != nil {
-		s.logger.Warn("failed to generate marker thumbnail",
-			zap.Uint("markerID", marker.ID),
-			zap.Uint("sceneID", sceneID),
-			zap.Error(err))
+	// Generate the appropriate thumbnail type (best effort - marker is still useful without it)
+	if s.markerThumbnailType == "animated" {
+		if err := s.generateAnimatedThumbnail(marker, scene); err != nil {
+			s.logger.Warn("failed to generate animated marker thumbnail",
+				zap.Uint("markerID", marker.ID),
+				zap.Uint("sceneID", sceneID),
+				zap.Error(err))
+		}
+	} else {
+		if err := s.generateThumbnail(marker, scene); err != nil {
+			s.logger.Warn("failed to generate marker thumbnail",
+				zap.Uint("markerID", marker.ID),
+				zap.Uint("sceneID", sceneID),
+				zap.Error(err))
+		}
 	}
 
 	return marker, nil
@@ -239,6 +278,17 @@ func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color
 			}
 		}
 
+		// Delete old animated thumbnail
+		if marker.AnimatedThumbnailPath != "" {
+			oldAnimPath := filepath.Join(s.markerThumbnailDir, marker.AnimatedThumbnailPath)
+			if err := os.Remove(oldAnimPath); err != nil && !os.IsNotExist(err) {
+				s.logger.Warn("failed to delete old animated marker thumbnail",
+					zap.Uint("markerID", marker.ID),
+					zap.String("path", oldAnimPath),
+					zap.Error(err))
+			}
+		}
+
 		// Fetch scene if not already fetched
 		if scene == nil {
 			var err error
@@ -250,12 +300,20 @@ func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color
 			}
 		}
 
-		// Generate new thumbnail
+		// Generate new thumbnail matching the current type
 		if scene != nil {
-			if err := s.generateThumbnail(marker, scene); err != nil {
-				s.logger.Warn("failed to regenerate marker thumbnail",
-					zap.Uint("markerID", marker.ID),
-					zap.Error(err))
+			if s.markerThumbnailType == "animated" {
+				if err := s.generateAnimatedThumbnail(marker, scene); err != nil {
+					s.logger.Warn("failed to regenerate animated marker thumbnail",
+						zap.Uint("markerID", marker.ID),
+						zap.Error(err))
+				}
+			} else {
+				if err := s.generateThumbnail(marker, scene); err != nil {
+					s.logger.Warn("failed to regenerate marker thumbnail",
+						zap.Uint("markerID", marker.ID),
+						zap.Error(err))
+				}
 			}
 		}
 	}
@@ -278,10 +336,14 @@ func (s *MarkerService) DeleteMarker(userID, markerID uint) error {
 		return apperrors.NewForbiddenError("you do not own this marker")
 	}
 
-	// Store thumbnail path before deleting marker
+	// Store thumbnail paths before deleting marker
 	thumbnailPath := ""
 	if marker.ThumbnailPath != "" {
 		thumbnailPath = filepath.Join(s.markerThumbnailDir, marker.ThumbnailPath)
+	}
+	animatedThumbnailPath := ""
+	if marker.AnimatedThumbnailPath != "" {
+		animatedThumbnailPath = filepath.Join(s.markerThumbnailDir, marker.AnimatedThumbnailPath)
 	}
 
 	// Delete DB record first (this is the critical operation)
@@ -290,12 +352,20 @@ func (s *MarkerService) DeleteMarker(userID, markerID uint) error {
 		return apperrors.NewInternalError("failed to delete marker", err)
 	}
 
-	// Clean up thumbnail file after successful DB delete (best effort)
+	// Clean up thumbnail files after successful DB delete (best effort)
 	if thumbnailPath != "" {
 		if err := os.Remove(thumbnailPath); err != nil && !os.IsNotExist(err) {
 			s.logger.Warn("failed to delete marker thumbnail",
 				zap.Uint("markerID", markerID),
 				zap.String("path", thumbnailPath),
+				zap.Error(err))
+		}
+	}
+	if animatedThumbnailPath != "" {
+		if err := os.Remove(animatedThumbnailPath); err != nil && !os.IsNotExist(err) {
+			s.logger.Warn("failed to delete animated marker thumbnail",
+				zap.Uint("markerID", markerID),
+				zap.String("path", animatedThumbnailPath),
 				zap.Error(err))
 		}
 	}
@@ -501,6 +571,100 @@ func (s *MarkerService) generateThumbnail(marker *data.UserSceneMarker, scene *d
 	return nil
 }
 
+// generateAnimatedThumbnail extracts a short MP4 clip at the marker's timestamp.
+// This is a best-effort operation.
+func (s *MarkerService) generateAnimatedThumbnail(marker *data.UserSceneMarker, scene *data.Scene) error {
+	if err := os.MkdirAll(s.markerThumbnailDir, 0755); err != nil {
+		return fmt.Errorf("failed to create marker thumbnail directory: %w", err)
+	}
+
+	if scene.StoredPath == "" {
+		return fmt.Errorf("scene has no stored path")
+	}
+	if _, err := os.Stat(scene.StoredPath); os.IsNotExist(err) {
+		return fmt.Errorf("scene file not found: %s", scene.StoredPath)
+	}
+
+	animatedFilename := fmt.Sprintf("marker_%d.mp4", marker.ID)
+	animatedPath := filepath.Join(s.markerThumbnailDir, animatedFilename)
+
+	seekPosition := strconv.Itoa(marker.Timestamp)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	if err := ffmpeg.ExtractAnimatedThumbnailWithContext(ctx, scene.StoredPath, animatedPath, seekPosition, s.markerAnimatedDuration, s.markerThumbnailMaxDim); err != nil {
+		return fmt.Errorf("failed to extract animated thumbnail: %w", err)
+	}
+
+	marker.AnimatedThumbnailPath = animatedFilename
+	if err := s.markerRepo.Update(marker); err != nil {
+		os.Remove(animatedPath)
+		return fmt.Errorf("failed to update marker with animated thumbnail path: %w", err)
+	}
+
+	return nil
+}
+
+// GenerateMissingAnimatedForScene finds all markers for a scene that lack animated thumbnails and generates them.
+// Implements jobs.AnimatedThumbnailGenerator.
+func (s *MarkerService) GenerateMissingAnimatedForScene(ctx context.Context, sceneID uint) (int, error) {
+	markers, err := s.markerRepo.GetBySceneWithoutAnimatedThumbnail(sceneID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to query markers without animated thumbnails: %w", err)
+	}
+
+	if len(markers) == 0 {
+		return 0, nil
+	}
+
+	scene, err := s.sceneRepo.GetByID(sceneID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get scene for animated thumbnail generation: %w", err)
+	}
+
+	s.logger.Info("Generating missing animated marker thumbnails",
+		zap.Uint("scene_id", sceneID),
+		zap.Int("count", len(markers)))
+
+	generated := 0
+	for i := range markers {
+		if ctx.Err() != nil {
+			s.logger.Info("Animated marker thumbnail generation interrupted",
+				zap.Uint("scene_id", sceneID),
+				zap.Int("generated", generated),
+				zap.Int("remaining", len(markers)-i))
+			break
+		}
+
+		if err := s.generateAnimatedThumbnail(&markers[i], scene); err != nil {
+			s.logger.Warn("Failed to generate animated marker thumbnail",
+				zap.Uint("marker_id", markers[i].ID),
+				zap.Int("timestamp", markers[i].Timestamp),
+				zap.Error(err))
+			continue
+		}
+		generated++
+	}
+
+	return generated, nil
+}
+
+// GetMarkerThumbnailType returns the current marker thumbnail type setting
+func (s *MarkerService) GetMarkerThumbnailType() string {
+	return s.markerThumbnailType
+}
+
+// SetMarkerThumbnailType updates the marker thumbnail type setting
+func (s *MarkerService) SetMarkerThumbnailType(thumbnailType string) {
+	s.markerThumbnailType = thumbnailType
+}
+
+// SetMarkerAnimatedDuration updates the animated duration setting
+func (s *MarkerService) SetMarkerAnimatedDuration(duration int) {
+	s.markerAnimatedDuration = duration
+}
+
 // GetLabelTags returns the default tags for a label
 func (s *MarkerService) GetLabelTags(userID uint, label string) ([]data.Tag, error) {
 	if label == "" {
@@ -611,6 +775,83 @@ func (s *MarkerService) SetMarkerTags(userID, markerID uint, tagIDs []uint) erro
 		return apperrors.NewInternalError("failed to set marker tags", err)
 	}
 	return nil
+}
+
+// GenerateScenePreview generates a preview video for a scene by sampling multiple segments.
+// Returns nil immediately if scene preview generation is disabled.
+// Implements jobs.AnimatedThumbnailGenerator.
+func (s *MarkerService) GenerateScenePreview(ctx context.Context, sceneID uint) error {
+	if !s.scenePreviewEnabled {
+		return nil
+	}
+
+	scene, err := s.sceneRepo.GetByID(sceneID)
+	if err != nil {
+		return fmt.Errorf("failed to get scene for preview generation: %w", err)
+	}
+
+	// Skip if already has a preview video
+	if scene.PreviewVideoPath != "" {
+		return nil
+	}
+
+	// Validate scene has the required data
+	if scene.StoredPath == "" {
+		return fmt.Errorf("scene has no stored path")
+	}
+	if _, err := os.Stat(scene.StoredPath); os.IsNotExist(err) {
+		return fmt.Errorf("scene file not found: %s", scene.StoredPath)
+	}
+	if scene.Duration <= 0 {
+		return fmt.Errorf("scene has no duration")
+	}
+
+	// Ensure output directory exists
+	if err := os.MkdirAll(s.scenePreviewDir, 0755); err != nil {
+		return fmt.Errorf("failed to create scene preview directory: %w", err)
+	}
+
+	outputFilename := fmt.Sprintf("%d_preview.mp4", scene.ID)
+	outputPath := filepath.Join(s.scenePreviewDir, outputFilename)
+
+	if err := ffmpeg.ExtractScenePreviewWithContext(ctx, scene.StoredPath, outputPath,
+		scene.Duration, s.scenePreviewSegments, s.scenePreviewSegmentDuration, s.scenePreviewMaxDim); err != nil {
+		return fmt.Errorf("failed to generate scene preview: %w", err)
+	}
+
+	// Update scene with preview video path
+	scene.PreviewVideoPath = outputFilename
+	if err := s.sceneRepo.UpdatePreviewVideoPath(scene.ID, outputFilename); err != nil {
+		// Clean up file on DB failure
+		os.Remove(outputPath)
+		return fmt.Errorf("failed to update scene with preview path: %w", err)
+	}
+
+	s.logger.Info("Generated scene preview video",
+		zap.Uint("scene_id", scene.ID),
+		zap.String("output", outputFilename))
+
+	return nil
+}
+
+// SetScenePreviewEnabled updates the scene preview enabled setting
+func (s *MarkerService) SetScenePreviewEnabled(enabled bool) {
+	s.scenePreviewEnabled = enabled
+}
+
+// SetScenePreviewSegments updates the scene preview segments setting
+func (s *MarkerService) SetScenePreviewSegments(segments int) {
+	s.scenePreviewSegments = segments
+}
+
+// SetScenePreviewSegmentDuration updates the scene preview segment duration setting
+func (s *MarkerService) SetScenePreviewSegmentDuration(duration float64) {
+	s.scenePreviewSegmentDuration = duration
+}
+
+// GetScenePreviewEnabled returns whether scene preview generation is enabled
+func (s *MarkerService) GetScenePreviewEnabled() bool {
+	return s.scenePreviewEnabled
 }
 
 // AddMarkerTags adds individual tags to a marker

@@ -11,6 +11,7 @@ const message = ref('');
 const metadataWorkers = ref(0);
 const thumbnailWorkers = ref(0);
 const spritesWorkers = ref(0);
+const animatedThumbnailsWorkers = ref(0);
 
 const loadConfig = async () => {
     loading.value = true;
@@ -20,6 +21,7 @@ const loadConfig = async () => {
         metadataWorkers.value = config.metadata_workers;
         thumbnailWorkers.value = config.thumbnail_workers;
         spritesWorkers.value = config.sprites_workers;
+        animatedThumbnailsWorkers.value = config.animated_thumbnails_workers;
     } catch (e: unknown) {
         error.value = e instanceof Error ? e.message : 'Failed to load pool config';
     } finally {
@@ -36,6 +38,7 @@ const applyConfig = async () => {
             metadata_workers: metadataWorkers.value,
             thumbnail_workers: thumbnailWorkers.value,
             sprites_workers: spritesWorkers.value,
+            animated_thumbnails_workers: animatedThumbnailsWorkers.value,
         });
         message.value = 'Pool configuration updated';
         setTimeout(() => {
@@ -113,7 +116,7 @@ onMounted(() => {
                         Thumbnail
                     </label>
                     <p class="text-dim text-[10px]">
-                        Generates preview thumbnails from video frames
+                        Scene preview images and static marker thumbnails
                     </p>
                 </div>
                 <input
@@ -146,6 +149,26 @@ onMounted(() => {
                     class="border-border bg-surface w-16 rounded-lg border px-2 py-1.5 text-center
                         text-xs text-white focus:border-white/20 focus:outline-none"
                     @change="spritesWorkers = clamp(spritesWorkers)"
+                />
+            </div>
+
+            <!-- Animated Thumbnails Workers -->
+            <div class="flex items-center justify-between">
+                <div>
+                    <label class="flex items-center gap-1.5 text-xs font-medium text-white">
+                        <Icon name="heroicons:film" size="13" class="text-dim" />
+                        Animated Thumbnails
+                    </label>
+                    <p class="text-dim text-[10px]">Looping video clips for marker previews</p>
+                </div>
+                <input
+                    v-model.number="animatedThumbnailsWorkers"
+                    type="number"
+                    min="1"
+                    max="10"
+                    class="border-border bg-surface w-16 rounded-lg border px-2 py-1.5 text-center
+                        text-xs text-white focus:border-white/20 focus:outline-none"
+                    @change="animatedThumbnailsWorkers = clamp(animatedThumbnailsWorkers)"
                 />
             </div>
 

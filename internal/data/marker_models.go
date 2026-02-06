@@ -11,9 +11,10 @@ type UserSceneMarker struct {
 	Timestamp     int       `gorm:"not null" json:"timestamp"` // seconds
 	Label         string    `gorm:"size:100" json:"label"`
 	Color         string    `gorm:"size:7;default:'#FFFFFF'" json:"color"`
-	ThumbnailPath string    `gorm:"size:255" json:"thumbnail_path"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ThumbnailPath         string    `gorm:"size:255" json:"thumbnail_path"`
+	AnimatedThumbnailPath string    `gorm:"size:255" json:"animated_thumbnail_path"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
 }
 
 func (UserSceneMarker) TableName() string {

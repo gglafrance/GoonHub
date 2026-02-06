@@ -57,6 +57,8 @@ const phaseIcon = (phase: string): string => {
             return 'heroicons:photo';
         case 'sprites':
             return 'heroicons:squares-2x2';
+        case 'animated_thumbnails':
+            return 'heroicons:play-circle';
         case 'scan':
             return 'heroicons:folder-open';
         default:
@@ -69,9 +71,11 @@ const phaseDescription = (phase: string): string => {
         case 'metadata':
             return 'Video duration and resolution extraction';
         case 'thumbnail':
-            return 'Preview thumbnail generation';
+            return 'Scene previews and static marker thumbnails';
         case 'sprites':
             return 'Sprite sheets and VTT files';
+        case 'animated_thumbnails':
+            return 'Hover preview videos and animated marker clips';
         case 'scan':
             return 'Library scan operations';
         default:

@@ -5,10 +5,10 @@ import "fmt"
 // Valid phase constants
 var (
 	// AllPhases includes all processing phases including scan
-	AllPhases = map[string]bool{"metadata": true, "thumbnail": true, "sprites": true, "scan": true}
+	AllPhases = map[string]bool{"metadata": true, "thumbnail": true, "sprites": true, "animated_thumbnails": true, "scan": true}
 
 	// ProcessingPhases includes only scene processing phases (not scan)
-	ProcessingPhases = map[string]bool{"metadata": true, "thumbnail": true, "sprites": true}
+	ProcessingPhases = map[string]bool{"metadata": true, "thumbnail": true, "sprites": true, "animated_thumbnails": true}
 
 	// TriggerTypes includes all valid trigger types
 	TriggerTypes = map[string]bool{"on_import": true, "after_job": true, "manual": true, "scheduled": true}
@@ -23,7 +23,7 @@ var (
 // ValidatePhase validates a phase is one of the allowed phases
 func ValidatePhase(phase string) error {
 	if !AllPhases[phase] {
-		return fmt.Errorf("phase must be one of: metadata, thumbnail, sprites, scan")
+		return fmt.Errorf("phase must be one of: metadata, thumbnail, sprites, animated_thumbnails, scan")
 	}
 	return nil
 }
@@ -31,7 +31,7 @@ func ValidatePhase(phase string) error {
 // ValidateProcessingPhase validates a phase is one of the scene processing phases
 func ValidateProcessingPhase(phase string) error {
 	if !ProcessingPhases[phase] {
-		return fmt.Errorf("phase must be one of: metadata, thumbnail, sprites")
+		return fmt.Errorf("phase must be one of: metadata, thumbnail, sprites, animated_thumbnails")
 	}
 	return nil
 }
@@ -64,7 +64,7 @@ func ValidateAfterJobTrigger(phase string, afterPhase *string) error {
 		return fmt.Errorf("after_phase is required when trigger_type is after_job")
 	}
 	if !ProcessingPhases[*afterPhase] {
-		return fmt.Errorf("after_phase must be one of: metadata, thumbnail, sprites")
+		return fmt.Errorf("after_phase must be one of: metadata, thumbnail, sprites, animated_thumbnails")
 	}
 	if *afterPhase == phase {
 		return fmt.Errorf("after_phase cannot be the same as phase")

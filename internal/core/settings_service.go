@@ -68,6 +68,12 @@ var allowedEntitySceneSorts = map[string]bool{
 	"random":          true,
 }
 
+var allowedPlaylistAutoAdvance = map[string]bool{
+	"instant":   true,
+	"countdown": true,
+	"manual":    true,
+}
+
 var allowedSectionTypes = map[string]bool{
 	"latest":            true,
 	"actor":             true,
@@ -77,6 +83,7 @@ var allowedSectionTypes = map[string]bool{
 	"continue_watching": true,
 	"most_viewed":       true,
 	"liked":             true,
+	"playlist":          true,
 }
 
 type SettingsService struct {
@@ -282,7 +289,7 @@ func (s *SettingsService) UpdateParsingRules(userID uint, rules data.ParsingRule
 	return settings, nil
 }
 
-func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences) (*data.UserSettings, error) {
+func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences, playlistAutoAdvance string, playlistCountdownSeconds int) (*data.UserSettings, error) {
 	if volume < 0 || volume > 100 {
 		return nil, fmt.Errorf("volume must be between 0 and 100")
 	}
@@ -316,6 +323,19 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 	if err := s.validateParsingRules(&parsingRules); err != nil {
 		return nil, err
 	}
+	if playlistAutoAdvance == "" {
+		playlistAutoAdvance = "countdown"
+	}
+	if !allowedPlaylistAutoAdvance[playlistAutoAdvance] {
+		return nil, fmt.Errorf("invalid playlist auto advance: %s", playlistAutoAdvance)
+	}
+	if playlistCountdownSeconds < 3 || playlistCountdownSeconds > 15 {
+		if playlistCountdownSeconds == 0 {
+			playlistCountdownSeconds = 5
+		} else {
+			return nil, fmt.Errorf("playlist countdown seconds must be between 3 and 15")
+		}
+	}
 
 	settings, err := s.settingsRepo.GetByUserID(userID)
 	if err != nil {
@@ -337,6 +357,8 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 	settings.HomepageConfig = homepageConfig
 	settings.ParsingRules = parsingRules
 	settings.SortPreferences = sortPrefs
+	settings.PlaylistAutoAdvance = playlistAutoAdvance
+	settings.PlaylistCountdownSeconds = playlistCountdownSeconds
 
 	if err := s.settingsRepo.Upsert(settings); err != nil {
 		return nil, fmt.Errorf("failed to update settings: %w", err)

@@ -81,6 +81,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Marker Repository
 		provideMarkerRepository,
 
+		// Playlist Repository
+		providePlaylistRepository,
+
 		// ============================================================
 		// EXTERNAL SERVICES
 		// ============================================================
@@ -138,6 +141,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Marker Service
 		provideMarkerService,
 
+		// Playlist Service
+		providePlaylistService,
+
 		// Streaming Manager
 		provideStreamManager,
 
@@ -191,6 +197,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Marker Handler
 		provideMarkerHandler,
+
+		// Playlist Handler
+		providePlaylistHandler,
 
 		// Import Handler
 		provideImportHandler,
@@ -323,6 +332,10 @@ func provideMarkerRepository(db *gorm.DB) data.MarkerRepository {
 	return data.NewMarkerRepository(db)
 }
 
+func providePlaylistRepository(db *gorm.DB) data.PlaylistRepository {
+	return data.NewPlaylistRepository(db)
+}
+
 // ============================================================================
 // EXTERNAL SERVICE PROVIDERS
 // ============================================================================
@@ -447,7 +460,7 @@ func provideJobStatusService(jobHistoryService *core.JobHistoryService, processi
 }
 
 func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, markerService *core.MarkerService, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobQueueFeeder {
-	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerService, processingService.GetPoolManager(), logger.Logger)
+	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerService, markerService, processingService.GetPoolManager(), logger.Logger)
 }
 
 func provideTriggerScheduler(triggerConfigRepo data.TriggerConfigRepository, sceneRepo data.SceneRepository, processingService *core.SceneProcessingService, logger *logging.Logger) *core.TriggerScheduler {
@@ -490,6 +503,7 @@ func provideHomepageService(
 	settingsService *core.SettingsService,
 	searchService *core.SearchService,
 	savedSearchService *core.SavedSearchService,
+	playlistService *core.PlaylistService,
 	watchHistoryRepo data.WatchHistoryRepository,
 	interactionRepo data.InteractionRepository,
 	sceneRepo data.SceneRepository,
@@ -502,6 +516,7 @@ func provideHomepageService(
 		settingsService,
 		searchService,
 		savedSearchService,
+		playlistService,
 		watchHistoryRepo,
 		interactionRepo,
 		sceneRepo,
@@ -514,6 +529,10 @@ func provideHomepageService(
 
 func provideMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
 	return core.NewMarkerService(markerRepo, sceneRepo, tagRepo, cfg, logger.Logger)
+}
+
+func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, logger *logging.Logger) *core.PlaylistService {
+	return core.NewPlaylistService(repo, sceneRepo, tagRepo, logger.Logger)
 }
 
 // --- Streaming Manager ---
@@ -601,8 +620,8 @@ func providePoolConfigHandler(processingService *core.SceneProcessingService, po
 	return handler.NewPoolConfigHandler(processingService, poolConfigRepo)
 }
 
-func provideProcessingConfigHandler(processingService *core.SceneProcessingService, processingConfigRepo data.ProcessingConfigRepository) *handler.ProcessingConfigHandler {
-	return handler.NewProcessingConfigHandler(processingService, processingConfigRepo)
+func provideProcessingConfigHandler(processingService *core.SceneProcessingService, processingConfigRepo data.ProcessingConfigRepository, markerService *core.MarkerService) *handler.ProcessingConfigHandler {
+	return handler.NewProcessingConfigHandler(processingService, processingConfigRepo, markerService)
 }
 
 func provideTriggerConfigHandler(triggerConfigRepo data.TriggerConfigRepository, processingService *core.SceneProcessingService, triggerScheduler *core.TriggerScheduler) *handler.TriggerConfigHandler {
@@ -653,6 +672,10 @@ func provideMarkerHandler(markerService *core.MarkerService) *handler.MarkerHand
 	return handler.NewMarkerHandler(markerService)
 }
 
+func providePlaylistHandler(service *core.PlaylistService) *handler.PlaylistHandler {
+	return handler.NewPlaylistHandler(service)
+}
+
 func provideImportHandler(sceneRepo data.SceneRepository, markerRepo data.MarkerRepository, logger *logging.Logger) *handler.ImportHandler {
 	return handler.NewImportHandler(sceneRepo, markerRepo, logger.Logger)
 }
@@ -696,6 +719,7 @@ func provideRouter(
 	markerHandler *handler.MarkerHandler,
 	importHandler *handler.ImportHandler,
 	streamStatsHandler *handler.StreamStatsHandler,
+	playlistHandler *handler.PlaylistHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -706,7 +730,8 @@ func provideRouter(
 		jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler,
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
-		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, authService, rbacService, rateLimiter,
+		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
+		playlistHandler, authService, rbacService, rateLimiter,
 	)
 }
 

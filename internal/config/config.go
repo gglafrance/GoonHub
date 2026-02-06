@@ -105,11 +105,19 @@ type ProcessingConfig struct {
 	MarkerThumbnailDir     string        `mapstructure:"marker_thumbnail_dir"`      // directory for marker thumbnails
 	GridCols               int           `mapstructure:"grid_cols"`                 // number of columns in sprite sheet
 	GridRows               int           `mapstructure:"grid_rows"`                 // number of rows in sprite sheet
-	SpritesConcurrency     int           `mapstructure:"sprites_concurrency"`       // concurrent ffmpeg processes for sprite extraction (0 = auto)
-	JobHistoryRetention    string        `mapstructure:"job_history_retention"`     // duration string e.g. "7d", "24h"
-	MetadataTimeout        time.Duration `mapstructure:"metadata_timeout"`          // timeout for metadata extraction jobs
-	ThumbnailTimeout       time.Duration `mapstructure:"thumbnail_timeout"`         // timeout for thumbnail extraction jobs
-	SpritesTimeout         time.Duration `mapstructure:"sprites_timeout"`           // timeout for sprite sheet generation jobs
+	SpritesConcurrency         int           `mapstructure:"sprites_concurrency"`           // concurrent ffmpeg processes for sprite extraction (0 = auto)
+	AnimatedThumbnailsWorkers  int           `mapstructure:"animated_thumbnails_workers"`   // concurrent animated thumbnail jobs
+	AnimatedThumbnailsTimeout  time.Duration `mapstructure:"animated_thumbnails_timeout"`   // timeout for animated thumbnail jobs
+	MarkerThumbnailType            string        `mapstructure:"marker_thumbnail_type"`             // "static" or "animated"
+	MarkerAnimatedDuration         int           `mapstructure:"marker_animated_duration"`          // animated clip duration in seconds (3-15)
+	ScenePreviewEnabled            bool          `mapstructure:"scene_preview_enabled"`             // enable scene preview video generation
+	ScenePreviewSegments           int           `mapstructure:"scene_preview_segments"`            // number of segments to sample (2-24)
+	ScenePreviewSegmentDuration    float64       `mapstructure:"scene_preview_segment_duration"`    // duration of each segment in seconds (0.75-5.0)
+	ScenePreviewDir                string        `mapstructure:"scene_preview_dir"`                 // directory for scene preview videos
+	JobHistoryRetention            string        `mapstructure:"job_history_retention"`             // duration string e.g. "7d", "24h"
+	MetadataTimeout            time.Duration `mapstructure:"metadata_timeout"`              // timeout for metadata extraction jobs
+	ThumbnailTimeout           time.Duration `mapstructure:"thumbnail_timeout"`             // timeout for thumbnail extraction jobs
+	SpritesTimeout             time.Duration `mapstructure:"sprites_timeout"`               // timeout for sprite sheet generation jobs
 }
 
 type AuthConfig struct {
@@ -170,6 +178,14 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("processing.grid_cols", 12)
 	v.SetDefault("processing.grid_rows", 8)
 	v.SetDefault("processing.sprites_concurrency", 0)
+	v.SetDefault("processing.animated_thumbnails_workers", 1)
+	v.SetDefault("processing.animated_thumbnails_timeout", 5*time.Minute)
+	v.SetDefault("processing.marker_thumbnail_type", "static")
+	v.SetDefault("processing.marker_animated_duration", 10)
+	v.SetDefault("processing.scene_preview_enabled", false)
+	v.SetDefault("processing.scene_preview_segments", 12)
+	v.SetDefault("processing.scene_preview_segment_duration", 1.0)
+	v.SetDefault("processing.scene_preview_dir", "./data/metadata/scene-previews")
 	v.SetDefault("processing.job_history_retention", "7d")
 	v.SetDefault("processing.metadata_timeout", 5*time.Minute)
 	v.SetDefault("processing.thumbnail_timeout", 2*time.Minute)

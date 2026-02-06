@@ -58,10 +58,12 @@ type UserSettings struct {
 	VideosPerPage    int            `gorm:"not null;default:20" json:"videos_per_page"`
 	DefaultSortOrder string         `gorm:"not null;default:'created_at_desc'" json:"default_sort_order"`
 	DefaultTagSort          string         `gorm:"not null;default:'az'" json:"default_tag_sort"`
-	MarkerThumbnailCycling  bool           `gorm:"not null;default:true" json:"marker_thumbnail_cycling"`
-	HomepageConfig          HomepageConfig `gorm:"type:jsonb;not null" json:"homepage_config"`
-	ParsingRules            ParsingRulesSettings `gorm:"type:jsonb;not null" json:"parsing_rules"`
-	SortPreferences         SortPreferences      `gorm:"type:jsonb;not null" json:"sort_preferences"`
+	MarkerThumbnailCycling     bool                 `gorm:"not null;default:true" json:"marker_thumbnail_cycling"`
+	HomepageConfig             HomepageConfig       `gorm:"type:jsonb;not null" json:"homepage_config"`
+	ParsingRules               ParsingRulesSettings `gorm:"type:jsonb;not null" json:"parsing_rules"`
+	SortPreferences            SortPreferences      `gorm:"type:jsonb;not null" json:"sort_preferences"`
+	PlaylistAutoAdvance        string               `gorm:"not null;default:'countdown'" json:"playlist_auto_advance"`
+	PlaylistCountdownSeconds   int                  `gorm:"not null;default:5" json:"playlist_countdown_seconds"`
 }
 
 // HomepageConfig represents the user's homepage layout configuration

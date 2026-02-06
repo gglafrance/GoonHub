@@ -37,6 +37,8 @@ const handleCardClick = (event: MouseEvent) => {
     }
 };
 
+const hovering = ref(false);
+
 const isProcessing = computed(() => isSceneProcessing(props.scene));
 
 const thumbnailUrl = computed(() => {
@@ -44,6 +46,12 @@ const thumbnailUrl = computed(() => {
     const base = `/thumbnails/${props.scene.id}`;
     const v = props.scene.updated_at ? new Date(props.scene.updated_at).getTime() : '';
     return v ? `${base}?v=${v}` : base;
+});
+
+const previewUrl = computed(() => {
+    if (!props.scene.preview_video_path) return null;
+    const v = props.scene.updated_at ? new Date(props.scene.updated_at).getTime() : '';
+    return v ? `/scene-previews/${props.scene.id}?v=${v}` : `/scene-previews/${props.scene.id}`;
 });
 
 const progressPercent = computed(() => {
@@ -85,6 +93,8 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
             <div
                 class="bg-void relative"
                 :class="fluid ? 'aspect-video w-full' : 'h-[158px] sm:h-45'"
+                @mouseenter="hovering = true"
+                @mouseleave="hovering = false"
             >
                 <!-- Blurred background (stretched to fill) -->
                 <img
@@ -104,6 +114,18 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                         duration-300 group-hover:scale-[1.03]"
                     :alt="scene.title"
                     loading="lazy"
+                />
+
+                <!-- Preview video on hover -->
+                <video
+                    v-if="hovering && previewUrl"
+                    :src="previewUrl"
+                    muted
+                    loop
+                    autoplay
+                    playsinline
+                    preload="auto"
+                    class="absolute inset-0 z-15 h-full w-full object-contain"
                 />
 
                 <div

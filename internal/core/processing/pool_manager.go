@@ -16,13 +16,14 @@ import (
 
 // PoolManager manages the worker pools for scene processing phases
 type PoolManager struct {
-	metadataPool  *jobs.WorkerPool
-	thumbnailPool *jobs.WorkerPool
-	spritesPool   *jobs.WorkerPool
-	mu            sync.RWMutex
-	config        config.ProcessingConfig
-	qualityConfig QualityConfig
-	logger        *zap.Logger
+	metadataPool            *jobs.WorkerPool
+	thumbnailPool           *jobs.WorkerPool
+	spritesPool             *jobs.WorkerPool
+	animatedThumbnailsPool  *jobs.WorkerPool
+	mu                      sync.RWMutex
+	config                  config.ProcessingConfig
+	qualityConfig           QualityConfig
+	logger                  *zap.Logger
 
 	// resultHandler is called when a job completes
 	resultHandler func(*jobs.WorkerPool)
@@ -39,28 +40,59 @@ func NewPoolManager(
 	metadataWorkers := cfg.MetadataWorkers
 	thumbnailWorkers := cfg.ThumbnailWorkers
 	spritesWorkers := cfg.SpritesWorkers
+	animatedThumbnailsWorkers := cfg.AnimatedThumbnailsWorkers
+	if animatedThumbnailsWorkers <= 0 {
+		animatedThumbnailsWorkers = 1
+	}
 
 	if poolConfigRepo != nil {
 		if dbConfig, err := poolConfigRepo.Get(); err == nil && dbConfig != nil {
 			metadataWorkers = dbConfig.MetadataWorkers
 			thumbnailWorkers = dbConfig.ThumbnailWorkers
 			spritesWorkers = dbConfig.SpritesWorkers
+			if dbConfig.AnimatedThumbnailsWorkers > 0 {
+				animatedThumbnailsWorkers = dbConfig.AnimatedThumbnailsWorkers
+			}
 			logger.Info("Loaded pool config from database",
 				zap.Int("metadata_workers", metadataWorkers),
 				zap.Int("thumbnail_workers", thumbnailWorkers),
 				zap.Int("sprites_workers", spritesWorkers),
+				zap.Int("animated_thumbnails_workers", animatedThumbnailsWorkers),
 			)
 		}
 	}
 
 	// Initialize processing quality config from YAML defaults
+	markerThumbnailType := cfg.MarkerThumbnailType
+	if markerThumbnailType == "" {
+		markerThumbnailType = "static"
+	}
+	markerAnimatedDuration := cfg.MarkerAnimatedDuration
+	if markerAnimatedDuration <= 0 {
+		markerAnimatedDuration = 10
+	}
+
+	scenePreviewSegments := cfg.ScenePreviewSegments
+	if scenePreviewSegments <= 0 {
+		scenePreviewSegments = 12
+	}
+	scenePreviewSegmentDuration := cfg.ScenePreviewSegmentDuration
+	if scenePreviewSegmentDuration <= 0 {
+		scenePreviewSegmentDuration = 1.0
+	}
+
 	qualityConfig := QualityConfig{
-		MaxFrameDimensionSm: cfg.MaxFrameDimension,
-		MaxFrameDimensionLg: cfg.MaxFrameDimensionLarge,
-		FrameQualitySm:      cfg.FrameQuality,
-		FrameQualityLg:      cfg.FrameQualityLg,
-		FrameQualitySprites: cfg.FrameQualitySprites,
-		SpritesConcurrency:  cfg.SpritesConcurrency,
+		MaxFrameDimensionSm:         cfg.MaxFrameDimension,
+		MaxFrameDimensionLg:         cfg.MaxFrameDimensionLarge,
+		FrameQualitySm:              cfg.FrameQuality,
+		FrameQualityLg:              cfg.FrameQualityLg,
+		FrameQualitySprites:         cfg.FrameQualitySprites,
+		SpritesConcurrency:          cfg.SpritesConcurrency,
+		MarkerThumbnailType:         markerThumbnailType,
+		MarkerAnimatedDuration:      markerAnimatedDuration,
+		ScenePreviewEnabled:         cfg.ScenePreviewEnabled,
+		ScenePreviewSegments:        scenePreviewSegments,
+		ScenePreviewSegmentDuration: scenePreviewSegmentDuration,
 	}
 
 	// Override with DB-persisted processing config if available
@@ -72,6 +104,19 @@ func NewPoolManager(
 			qualityConfig.FrameQualityLg = dbConfig.FrameQualityLg
 			qualityConfig.FrameQualitySprites = dbConfig.FrameQualitySprites
 			qualityConfig.SpritesConcurrency = dbConfig.SpritesConcurrency
+			if dbConfig.MarkerThumbnailType != "" {
+				qualityConfig.MarkerThumbnailType = dbConfig.MarkerThumbnailType
+			}
+			if dbConfig.MarkerAnimatedDuration > 0 {
+				qualityConfig.MarkerAnimatedDuration = dbConfig.MarkerAnimatedDuration
+			}
+			qualityConfig.ScenePreviewEnabled = dbConfig.ScenePreviewEnabled
+			if dbConfig.ScenePreviewSegments > 0 {
+				qualityConfig.ScenePreviewSegments = dbConfig.ScenePreviewSegments
+			}
+			if dbConfig.ScenePreviewSegmentDuration > 0 {
+				qualityConfig.ScenePreviewSegmentDuration = dbConfig.ScenePreviewSegmentDuration
+			}
 			logger.Info("Loaded processing config from database",
 				zap.Int("max_frame_dimension_sm", qualityConfig.MaxFrameDimensionSm),
 				zap.Int("max_frame_dimension_lg", qualityConfig.MaxFrameDimensionLg),
@@ -79,6 +124,11 @@ func NewPoolManager(
 				zap.Int("frame_quality_lg", qualityConfig.FrameQualityLg),
 				zap.Int("frame_quality_sprites", qualityConfig.FrameQualitySprites),
 				zap.Int("sprites_concurrency", qualityConfig.SpritesConcurrency),
+				zap.String("marker_thumbnail_type", qualityConfig.MarkerThumbnailType),
+				zap.Int("marker_animated_duration", qualityConfig.MarkerAnimatedDuration),
+				zap.Bool("scene_preview_enabled", qualityConfig.ScenePreviewEnabled),
+				zap.Int("scene_preview_segments", qualityConfig.ScenePreviewSegments),
+				zap.Float64("scene_preview_segment_duration", qualityConfig.ScenePreviewSegmentDuration),
 			)
 		}
 	}
@@ -123,18 +173,28 @@ func NewPoolManager(
 		logger.Info("Sprites pool timeout set", zap.Duration("timeout", cfg.SpritesTimeout))
 	}
 
+	animatedThumbnailsPool := jobs.NewWorkerPool(animatedThumbnailsWorkers, queueBufferSize)
+	animatedThumbnailsPool.SetLogger(logger.With(zap.String("pool", "animated_thumbnails")))
+	if cfg.AnimatedThumbnailsTimeout > 0 {
+		animatedThumbnailsPool.SetTimeout(cfg.AnimatedThumbnailsTimeout)
+		logger.Info("Animated thumbnails pool timeout set", zap.Duration("timeout", cfg.AnimatedThumbnailsTimeout))
+	}
+
 	// Create output directories
 	createDirIfNotExists(cfg.SpriteDir, logger)
 	createDirIfNotExists(cfg.VttDir, logger)
 	createDirIfNotExists(cfg.ThumbnailDir, logger)
+	createDirIfNotExists(cfg.MarkerThumbnailDir, logger)
+	createDirIfNotExists(cfg.ScenePreviewDir, logger)
 
 	return &PoolManager{
-		metadataPool:  metadataPool,
-		thumbnailPool: thumbnailPool,
-		spritesPool:   spritesPool,
-		config:        cfg,
-		qualityConfig: qualityConfig,
-		logger:        logger,
+		metadataPool:           metadataPool,
+		thumbnailPool:          thumbnailPool,
+		spritesPool:            spritesPool,
+		animatedThumbnailsPool: animatedThumbnailsPool,
+		config:                 cfg,
+		qualityConfig:          qualityConfig,
+		logger:                 logger,
 	}
 }
 
@@ -161,17 +221,20 @@ func (pm *PoolManager) Start() {
 	pm.metadataPool.Start()
 	pm.thumbnailPool.Start()
 	pm.spritesPool.Start()
+	pm.animatedThumbnailsPool.Start()
 
 	if pm.resultHandler != nil {
 		go pm.resultHandler(pm.metadataPool)
 		go pm.resultHandler(pm.thumbnailPool)
 		go pm.resultHandler(pm.spritesPool)
+		go pm.resultHandler(pm.animatedThumbnailsPool)
 	}
 
 	pm.logger.Info("Pool manager started",
 		zap.Int("metadata_workers", pm.metadataPool.ActiveWorkers()),
 		zap.Int("thumbnail_workers", pm.thumbnailPool.ActiveWorkers()),
 		zap.Int("sprites_workers", pm.spritesPool.ActiveWorkers()),
+		zap.Int("animated_thumbnails_workers", pm.animatedThumbnailsPool.ActiveWorkers()),
 	)
 }
 
@@ -181,6 +244,7 @@ func (pm *PoolManager) Stop() {
 	pm.metadataPool.Stop()
 	pm.thumbnailPool.Stop()
 	pm.spritesPool.Stop()
+	pm.animatedThumbnailsPool.Stop()
 }
 
 // GracefulStop performs graceful shutdown of all worker pools.
@@ -203,7 +267,7 @@ func (pm *PoolManager) GracefulStop(timeout time.Duration) map[string][]string {
 		phase  string
 		jobIDs []string
 	}
-	resultChan := make(chan poolResult, 3)
+	resultChan := make(chan poolResult, 4)
 
 	// Gracefully stop all pools in parallel
 	go func() {
@@ -218,9 +282,13 @@ func (pm *PoolManager) GracefulStop(timeout time.Duration) map[string][]string {
 		jobIDs := pm.spritesPool.GracefulStop(timeout)
 		resultChan <- poolResult{phase: "sprites", jobIDs: jobIDs}
 	}()
+	go func() {
+		jobIDs := pm.animatedThumbnailsPool.GracefulStop(timeout)
+		resultChan <- poolResult{phase: "animated_thumbnails", jobIDs: jobIDs}
+	}()
 
 	// Collect results
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 4; i++ {
 		res := <-resultChan
 		if len(res.jobIDs) > 0 {
 			result[res.phase] = res.jobIDs
@@ -237,6 +305,7 @@ func (pm *PoolManager) GracefulStop(timeout time.Duration) map[string][]string {
 		zap.Int("metadata_reclaimed", len(result["metadata"])),
 		zap.Int("thumbnail_reclaimed", len(result["thumbnail"])),
 		zap.Int("sprites_reclaimed", len(result["sprites"])),
+		zap.Int("animated_thumbnails_reclaimed", len(result["animated_thumbnails"])),
 	)
 
 	return result
@@ -279,9 +348,10 @@ func (pm *PoolManager) GetPoolConfig() PoolConfig {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 	return PoolConfig{
-		MetadataWorkers:  pm.metadataPool.ActiveWorkers(),
-		ThumbnailWorkers: pm.thumbnailPool.ActiveWorkers(),
-		SpritesWorkers:   pm.spritesPool.ActiveWorkers(),
+		MetadataWorkers:           pm.metadataPool.ActiveWorkers(),
+		ThumbnailWorkers:          pm.thumbnailPool.ActiveWorkers(),
+		SpritesWorkers:            pm.spritesPool.ActiveWorkers(),
+		AnimatedThumbnailsWorkers: pm.animatedThumbnailsPool.ActiveWorkers(),
 	}
 }
 
@@ -290,12 +360,14 @@ func (pm *PoolManager) GetQueueStatus() QueueStatus {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 	return QueueStatus{
-		MetadataQueued:  pm.metadataPool.QueueSize(),
-		ThumbnailQueued: pm.thumbnailPool.QueueSize(),
-		SpritesQueued:   pm.spritesPool.QueueSize(),
-		MetadataActive:  pm.metadataPool.ActiveJobCount(),
-		ThumbnailActive: pm.thumbnailPool.ActiveJobCount(),
-		SpritesActive:   pm.spritesPool.ActiveJobCount(),
+		MetadataQueued:           pm.metadataPool.QueueSize(),
+		ThumbnailQueued:          pm.thumbnailPool.QueueSize(),
+		SpritesQueued:            pm.spritesPool.QueueSize(),
+		AnimatedThumbnailsQueued: pm.animatedThumbnailsPool.QueueSize(),
+		MetadataActive:           pm.metadataPool.ActiveJobCount(),
+		ThumbnailActive:          pm.thumbnailPool.ActiveJobCount(),
+		SpritesActive:            pm.spritesPool.ActiveJobCount(),
+		AnimatedThumbnailsActive: pm.animatedThumbnailsPool.ActiveJobCount(),
 	}
 }
 
@@ -313,6 +385,8 @@ func (pm *PoolManager) GetConfig() config.ProcessingConfig {
 
 var validDimensionsSm = map[int]bool{160: true, 240: true, 320: true, 480: true}
 var validDimensionsLg = map[int]bool{640: true, 720: true, 960: true, 1280: true, 1920: true}
+
+var validMarkerThumbnailTypes = map[string]bool{"static": true, "animated": true}
 
 // UpdateQualityConfig updates the quality configuration
 func (pm *PoolManager) UpdateQualityConfig(cfg QualityConfig) error {
@@ -334,6 +408,18 @@ func (pm *PoolManager) UpdateQualityConfig(cfg QualityConfig) error {
 	if cfg.SpritesConcurrency < 0 || cfg.SpritesConcurrency > 64 {
 		return fmt.Errorf("sprites_concurrency must be between 0 and 64 (0 = auto)")
 	}
+	if cfg.MarkerThumbnailType != "" && !validMarkerThumbnailTypes[cfg.MarkerThumbnailType] {
+		return fmt.Errorf("marker_thumbnail_type must be one of: static, animated")
+	}
+	if cfg.MarkerAnimatedDuration != 0 && (cfg.MarkerAnimatedDuration < 3 || cfg.MarkerAnimatedDuration > 15) {
+		return fmt.Errorf("marker_animated_duration must be between 3 and 15")
+	}
+	if cfg.ScenePreviewSegments != 0 && (cfg.ScenePreviewSegments < 2 || cfg.ScenePreviewSegments > 24) {
+		return fmt.Errorf("scene_preview_segments must be between 2 and 24")
+	}
+	if cfg.ScenePreviewSegmentDuration != 0 && (cfg.ScenePreviewSegmentDuration < 0.75 || cfg.ScenePreviewSegmentDuration > 5.0) {
+		return fmt.Errorf("scene_preview_segment_duration must be between 0.75 and 5.0")
+	}
 
 	pm.mu.Lock()
 	pm.qualityConfig = cfg
@@ -346,6 +432,11 @@ func (pm *PoolManager) UpdateQualityConfig(cfg QualityConfig) error {
 		zap.Int("frame_quality_lg", cfg.FrameQualityLg),
 		zap.Int("frame_quality_sprites", cfg.FrameQualitySprites),
 		zap.Int("sprites_concurrency", cfg.SpritesConcurrency),
+		zap.String("marker_thumbnail_type", cfg.MarkerThumbnailType),
+		zap.Int("marker_animated_duration", cfg.MarkerAnimatedDuration),
+		zap.Bool("scene_preview_enabled", cfg.ScenePreviewEnabled),
+		zap.Int("scene_preview_segments", cfg.ScenePreviewSegments),
+		zap.Float64("scene_preview_segment_duration", cfg.ScenePreviewSegmentDuration),
 	)
 
 	return nil
@@ -361,6 +452,9 @@ func (pm *PoolManager) UpdatePoolConfig(cfg PoolConfig) error {
 	}
 	if cfg.SpritesWorkers < 1 || cfg.SpritesWorkers > 10 {
 		return fmt.Errorf("sprites_workers must be between 1 and 10")
+	}
+	if cfg.AnimatedThumbnailsWorkers < 1 || cfg.AnimatedThumbnailsWorkers > 10 {
+		return fmt.Errorf("animated_thumbnails_workers must be between 1 and 10")
 	}
 
 	pm.mu.Lock()
@@ -416,6 +510,22 @@ func (pm *PoolManager) UpdatePoolConfig(cfg PoolConfig) error {
 		pm.logger.Info("Resized sprites pool", zap.Int("workers", cfg.SpritesWorkers))
 	}
 
+	// Resize animated thumbnails pool if needed
+	if cfg.AnimatedThumbnailsWorkers != pm.animatedThumbnailsPool.ActiveWorkers() {
+		newPool := jobs.NewWorkerPool(cfg.AnimatedThumbnailsWorkers, queueBufferSize)
+		newPool.SetLogger(pm.logger.With(zap.String("pool", "animated_thumbnails")))
+		newPool.Start()
+		if pm.resultHandler != nil {
+			go pm.resultHandler(newPool)
+		}
+
+		oldPool := pm.animatedThumbnailsPool
+		pm.animatedThumbnailsPool = newPool
+		oldPool.Stop()
+
+		pm.logger.Info("Resized animated thumbnails pool", zap.Int("workers", cfg.AnimatedThumbnailsWorkers))
+	}
+
 	return nil
 }
 
@@ -439,6 +549,11 @@ func (pm *PoolManager) CancelJob(jobID string) error {
 		return nil
 	}
 
+	if err := pm.animatedThumbnailsPool.CancelJob(jobID); err == nil {
+		pm.logger.Info("Job cancelled in animated thumbnails pool", zap.String("job_id", jobID))
+		return nil
+	}
+
 	return fmt.Errorf("job not found: %s", jobID)
 }
 
@@ -454,6 +569,9 @@ func (pm *PoolManager) GetJob(jobID string) (jobs.Job, bool) {
 		return job, true
 	}
 	if job, ok := pm.spritesPool.GetJob(jobID); ok {
+		return job, true
+	}
+	if job, ok := pm.animatedThumbnailsPool.GetJob(jobID); ok {
 		return job, true
 	}
 	return nil, false
@@ -480,6 +598,13 @@ func (pm *PoolManager) SubmitToSpritesPool(job jobs.Job) error {
 	return pm.spritesPool.Submit(job)
 }
 
+// SubmitToAnimatedThumbnailsPool submits a job to the animated thumbnails pool
+func (pm *PoolManager) SubmitToAnimatedThumbnailsPool(job jobs.Job) error {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	return pm.animatedThumbnailsPool.Submit(job)
+}
+
 // LogStatus logs the status of all pools
 func (pm *PoolManager) LogStatus() {
 	pm.logger.Info("Pool manager status")
@@ -488,4 +613,5 @@ func (pm *PoolManager) LogStatus() {
 	pm.metadataPool.LogStatus()
 	pm.thumbnailPool.LogStatus()
 	pm.spritesPool.LogStatus()
+	pm.animatedThumbnailsPool.LogStatus()
 }

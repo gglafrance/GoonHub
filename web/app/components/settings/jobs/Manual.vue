@@ -17,11 +17,13 @@ const bulkLoading = ref<Record<string, boolean>>({
     metadata: false,
     thumbnail: false,
     sprites: false,
+    animated_thumbnails: false,
 });
 const bulkResults = ref<Record<string, BulkJobResponse | null>>({
     metadata: null,
     thumbnail: null,
     sprites: null,
+    animated_thumbnails: null,
 });
 
 const scanStore = useScanStore();
@@ -75,7 +77,7 @@ const handleCancelScan = async () => {
 };
 
 const handleBulkJob = async (
-    phase: 'metadata' | 'thumbnail' | 'sprites',
+    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails',
     mode: 'missing' | 'all',
 ) => {
     bulkLoading.value[phase] = true;
@@ -191,6 +193,8 @@ const phaseLabel = (phase: string): string => {
             return 'Thumbnails';
         case 'sprites':
             return 'Sprites';
+        case 'animated_thumbnails':
+            return 'Previews & Clips';
         default:
             return phase;
     }
@@ -204,6 +208,8 @@ const phaseIcon = (phase: string): string => {
             return 'heroicons:photo';
         case 'sprites':
             return 'heroicons:squares-2x2';
+        case 'animated_thumbnails':
+            return 'heroicons:play-circle';
         default:
             return 'heroicons:cog-6-tooth';
     }
@@ -214,9 +220,11 @@ const phaseDescription = (phase: string): string => {
         case 'metadata':
             return 'Extract video metadata (duration, resolution, codecs)';
         case 'thumbnail':
-            return 'Generate video thumbnails in multiple resolutions';
+            return 'Generate scene preview images and static marker thumbnails';
         case 'sprites':
             return 'Generate sprite sheets and VTT files for video preview';
+        case 'animated_thumbnails':
+            return 'Generate hover preview videos and animated marker clips';
         default:
             return '';
     }
@@ -421,7 +429,12 @@ const phaseDescription = (phase: string): string => {
 
             <div class="space-y-4">
                 <div
-                    v-for="phase in ['metadata', 'thumbnail', 'sprites'] as const"
+                    v-for="phase in [
+                        'metadata',
+                        'thumbnail',
+                        'sprites',
+                        'animated_thumbnails',
+                    ] as const"
                     :key="phase"
                     class="border-border rounded-lg border bg-white/2 p-4"
                 >
@@ -507,12 +520,16 @@ const phaseDescription = (phase: string): string => {
                     duration, resolution, and codec details using ffprobe.
                 </p>
                 <p>
-                    <strong class="text-white/80">Thumbnails:</strong> Generates preview images at
-                    multiple resolutions for video cards and detail views.
+                    <strong class="text-white/80">Thumbnails:</strong> Generates scene preview
+                    images at multiple resolutions and static marker thumbnails.
                 </p>
                 <p>
                     <strong class="text-white/80">Sprites:</strong> Creates sprite sheets and VTT
                     files for timeline preview on hover.
+                </p>
+                <p>
+                    <strong class="text-white/80">Animated Thumbnails:</strong> Generates looping
+                    video clips for marker previews.
                 </p>
                 <p class="text-dim/70 mt-3 italic">
                     Jobs are queued and processed by background workers. Check the History tab to

@@ -14,6 +14,7 @@ type SceneListItem struct {
 	Duration         int       `json:"duration"`
 	Size             int64     `json:"size"`
 	ThumbnailPath    string    `json:"thumbnail_path"`
+	PreviewVideoPath string    `json:"preview_video_path"`
 	ProcessingStatus string    `json:"processing_status"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
@@ -28,6 +29,7 @@ func ToSceneListItem(v data.Scene) SceneListItem {
 		Duration:         v.Duration,
 		Size:             v.Size,
 		ThumbnailPath:    v.ThumbnailPath,
+		PreviewVideoPath: v.PreviewVideoPath,
 		ProcessingStatus: v.ProcessingStatus,
 		CreatedAt:        v.CreatedAt,
 		UpdatedAt:        v.UpdatedAt,

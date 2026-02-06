@@ -4,7 +4,7 @@
 # Stage 1: Build frontend
 # ============================================================================
 # Pin to host platform — output is static HTML/JS/CSS, architecture-independent
-FROM --platform=$BUILDPLATFORM oven/bun:1.3.6-alpine AS frontend-builder
+FROM --platform=$BUILDPLATFORM oven/bun:1.3.8-alpine AS frontend-builder
 
 WORKDIR /app/web
 

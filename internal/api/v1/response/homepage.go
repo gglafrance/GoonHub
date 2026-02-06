@@ -13,12 +13,13 @@ type WatchProgress struct {
 
 // HomepageSectionData represents a section with its scene data (lightweight).
 type HomepageSectionData struct {
-	Section       data.HomepageSection   `json:"section"`
-	Scenes        []SceneListItem        `json:"scenes"`
-	Total         int64                  `json:"total"`
-	Seed          int64                  `json:"seed,omitempty"`
-	WatchProgress map[uint]WatchProgress `json:"watch_progress,omitempty"`
-	Ratings       map[uint]float64       `json:"ratings,omitempty"`
+	Section       data.HomepageSection     `json:"section"`
+	Scenes        []SceneListItem          `json:"scenes"`
+	Total         int64                    `json:"total"`
+	Seed          int64                    `json:"seed,omitempty"`
+	WatchProgress map[uint]WatchProgress   `json:"watch_progress,omitempty"`
+	Ratings       map[uint]float64         `json:"ratings,omitempty"`
+	Playlists     []PlaylistListItemResponse `json:"playlists,omitempty"`
 }
 
 // HomepageResponse represents the full homepage data response.
@@ -43,6 +44,11 @@ func ToHomepageResponse(resp *core.HomepageResponse) *HomepageResponse {
 			}
 		}
 
+		var playlists []PlaylistListItemResponse
+		if len(s.Playlists) > 0 {
+			playlists = NewPlaylistListResponse(s.Playlists)
+		}
+
 		sections[i] = HomepageSectionData{
 			Section:       s.Section,
 			Scenes:        ToSceneListItems(s.Scenes),
@@ -50,6 +56,7 @@ func ToHomepageResponse(resp *core.HomepageResponse) *HomepageResponse {
 			Seed:          s.Seed,
 			WatchProgress: watchProgress,
 			Ratings:       s.Ratings,
+			Playlists:     playlists,
 		}
 	}
 
@@ -72,6 +79,11 @@ func ToHomepageSectionDataResponse(s *core.HomepageSectionData) *HomepageSection
 		}
 	}
 
+	var playlists []PlaylistListItemResponse
+	if len(s.Playlists) > 0 {
+		playlists = NewPlaylistListResponse(s.Playlists)
+	}
+
 	return &HomepageSectionData{
 		Section:       s.Section,
 		Scenes:        ToSceneListItems(s.Scenes),
@@ -79,5 +91,6 @@ func ToHomepageSectionDataResponse(s *core.HomepageSectionData) *HomepageSection
 		Seed:          s.Seed,
 		WatchProgress: watchProgress,
 		Ratings:       s.Ratings,
+		Playlists:     playlists,
 	}
 }
