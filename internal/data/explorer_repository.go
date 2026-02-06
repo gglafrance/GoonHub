@@ -9,12 +9,11 @@ import (
 )
 
 // buildFullPath constructs a full path by joining a storage base path with a
-// relative folder path. It uses string concatenation instead of filepath.Join
-// to preserve the original storage path format (e.g. a "./data/videos" prefix).
-// filepath.Join calls filepath.Clean which strips prefixes like "./" causing
-// LIKE pattern mismatches against stored_path values in the database.
+// relative folder path. It normalizes basePath with filepath.Clean to strip
+// "./" prefixes and trailing separators, matching how Go's filepath.WalkDir
+// and filepath.Join store paths in the database.
 func buildFullPath(basePath, relativePath string) string {
-	base := strings.TrimRight(basePath, string(filepath.Separator))
+	base := filepath.Clean(basePath)
 	if relativePath == "" || relativePath == "/" {
 		return base + string(filepath.Separator)
 	}
@@ -70,7 +69,7 @@ func (r *ExplorerRepositoryImpl) GetScenesByFolder(storagePathID uint, folderPat
 		return nil, 0, err
 	}
 
-	// Build the full folder path (avoid filepath.Join which strips "./" prefixes)
+	// Build the full folder path (normalized to match stored paths)
 	fullPath := buildFullPath(storagePath.Path, folderPath)
 
 	// Query for scenes directly in this folder (not in subfolders)
@@ -106,7 +105,7 @@ func (r *ExplorerRepositoryImpl) GetSubfolders(storagePathID uint, parentPath st
 		return nil, err
 	}
 
-	// Build the full parent path (avoid filepath.Join which strips "./" prefixes)
+	// Build the full parent path (normalized to match stored paths)
 	fullParentPath := buildFullPath(storagePath.Path, parentPath)
 
 	// Use SQL to extract subfolder names and aggregate scene counts, duration, and size
@@ -183,7 +182,7 @@ func (r *ExplorerRepositoryImpl) GetSceneIDsByFolder(storagePathID uint, folderP
 		return nil, err
 	}
 
-	// Build the full folder path (avoid filepath.Join which strips "./" prefixes)
+	// Build the full folder path (normalized to match stored paths)
 	fullPath := buildFullPath(storagePath.Path, folderPath)
 
 	var ids []uint
