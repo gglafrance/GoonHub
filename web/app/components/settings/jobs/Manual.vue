@@ -194,7 +194,7 @@ const phaseLabel = (phase: string): string => {
         case 'sprites':
             return 'Sprites';
         case 'animated_thumbnails':
-            return 'Animated Thumbnails';
+            return 'Previews & Clips';
         default:
             return phase;
     }
@@ -209,7 +209,7 @@ const phaseIcon = (phase: string): string => {
         case 'sprites':
             return 'heroicons:squares-2x2';
         case 'animated_thumbnails':
-            return 'heroicons:film';
+            return 'heroicons:play-circle';
         default:
             return 'heroicons:cog-6-tooth';
     }
@@ -224,7 +224,7 @@ const phaseDescription = (phase: string): string => {
         case 'sprites':
             return 'Generate sprite sheets and VTT files for video preview';
         case 'animated_thumbnails':
-            return 'Generate looping video clips for marker previews';
+            return 'Generate hover preview videos and animated marker clips';
         default:
             return '';
     }

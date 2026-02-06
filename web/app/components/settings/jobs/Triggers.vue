@@ -92,7 +92,7 @@ const phaseLabel = (phase: string): string => {
         case 'sprites':
             return 'Sprites';
         case 'animated_thumbnails':
-            return 'Animated Thumbnails';
+            return 'Previews & Clips';
         case 'scan':
             return 'Library Scan';
         default:
@@ -109,7 +109,7 @@ const phaseIcon = (phase: string): string => {
         case 'sprites':
             return 'heroicons:squares-2x2';
         case 'animated_thumbnails':
-            return 'heroicons:film';
+            return 'heroicons:play-circle';
         case 'scan':
             return 'heroicons:folder-open';
         default:
@@ -126,7 +126,7 @@ const phaseDescription = (phase: string): string => {
         case 'sprites':
             return 'Build sprite sheets and VTT files';
         case 'animated_thumbnails':
-            return 'Looping video clips for marker previews';
+            return 'Hover preview videos and animated marker clips';
         case 'scan':
             return 'Discover new videos in storage paths';
         default:

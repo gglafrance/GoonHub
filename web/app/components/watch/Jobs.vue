@@ -77,7 +77,7 @@ const phaseLabel = (phase: string): string => {
         case 'sprites':
             return 'Sprites';
         case 'animated_thumbnails':
-            return 'Animated';
+            return 'Previews';
         default:
             return phase;
     }
@@ -92,7 +92,7 @@ const phaseIcon = (phase: string): string => {
         case 'sprites':
             return 'heroicons:squares-2x2';
         case 'animated_thumbnails':
-            return 'heroicons:film';
+            return 'heroicons:play-circle';
         default:
             return 'heroicons:cog-6-tooth';
     }

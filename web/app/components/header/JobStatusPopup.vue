@@ -21,14 +21,14 @@ const phaseLabels: Record<string, string> = {
     metadata: 'Metadata',
     thumbnail: 'Thumbnails',
     sprites: 'Sprites',
-    animated_thumbnails: 'Animated',
+    animated_thumbnails: 'Previews',
 };
 
 const phaseIcons: Record<string, string> = {
     metadata: 'heroicons:document-text',
     thumbnail: 'heroicons:photo',
     sprites: 'heroicons:squares-2x2',
-    animated_thumbnails: 'heroicons:film',
+    animated_thumbnails: 'heroicons:play-circle',
 };
 
 const recentFailures = ref<JobHistory[]>([]);

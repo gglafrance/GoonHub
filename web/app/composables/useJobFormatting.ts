@@ -52,7 +52,7 @@ export const useJobFormatting = () => {
             case 'sprites':
                 return 'Sprites';
             case 'animated_thumbnails':
-                return 'Animated';
+                return 'Previews';
             default:
                 return phase;
         }
