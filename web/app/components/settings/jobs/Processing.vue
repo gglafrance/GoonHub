@@ -268,9 +268,7 @@ onMounted(() => {
                             Static shows a single frame, animated shows a short video clip
                         </p>
                     </div>
-                    <div
-                        class="border-border bg-panel flex items-center rounded-lg border p-0.5"
-                    >
+                    <div class="border-border bg-panel flex items-center rounded-lg border p-0.5">
                         <button
                             class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-all"
                             :class="
@@ -313,8 +311,7 @@ onMounted(() => {
                         min="3"
                         max="15"
                         class="border-border bg-surface w-16 rounded-lg border px-2 py-1.5
-                            text-center text-xs text-white focus:border-white/20
-                            focus:outline-none"
+                            text-center text-xs text-white focus:border-white/20 focus:outline-none"
                     />
                 </div>
             </div>
@@ -333,9 +330,7 @@ onMounted(() => {
                             Generate short preview clips that play on hover in scene grids
                         </p>
                     </div>
-                    <div
-                        class="border-border bg-panel flex items-center rounded-lg border p-0.5"
-                    >
+                    <div class="border-border bg-panel flex items-center rounded-lg border p-0.5">
                         <button
                             class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-all"
                             :class="
@@ -362,10 +357,7 @@ onMounted(() => {
                 </div>
 
                 <!-- Segments (shown when enabled) -->
-                <div
-                    v-if="scenePreviewEnabled"
-                    class="flex items-center justify-between"
-                >
+                <div v-if="scenePreviewEnabled" class="flex items-center justify-between">
                     <div>
                         <label class="text-xs font-medium text-white">Segments</label>
                         <p class="text-dim text-[10px]">
@@ -378,16 +370,12 @@ onMounted(() => {
                         min="2"
                         max="24"
                         class="border-border bg-surface w-16 rounded-lg border px-2 py-1.5
-                            text-center text-xs text-white focus:border-white/20
-                            focus:outline-none"
+                            text-center text-xs text-white focus:border-white/20 focus:outline-none"
                     />
                 </div>
 
                 <!-- Segment Duration (shown when enabled) -->
-                <div
-                    v-if="scenePreviewEnabled"
-                    class="flex items-center justify-between"
-                >
+                <div v-if="scenePreviewEnabled" class="flex items-center justify-between">
                     <div>
                         <label class="text-xs font-medium text-white">Segment Duration</label>
                         <p class="text-dim text-[10px]">
@@ -401,8 +389,7 @@ onMounted(() => {
                         max="5"
                         step="0.25"
                         class="border-border bg-surface w-16 rounded-lg border px-2 py-1.5
-                            text-center text-xs text-white focus:border-white/20
-                            focus:outline-none"
+                            text-center text-xs text-white focus:border-white/20 focus:outline-none"
                     />
                 </div>
             </div>

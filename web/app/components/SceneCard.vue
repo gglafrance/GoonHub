@@ -51,9 +51,7 @@ const thumbnailUrl = computed(() => {
 const previewUrl = computed(() => {
     if (!props.scene.preview_video_path) return null;
     const v = props.scene.updated_at ? new Date(props.scene.updated_at).getTime() : '';
-    return v
-        ? `/scene-previews/${props.scene.id}?v=${v}`
-        : `/scene-previews/${props.scene.id}`;
+    return v ? `/scene-previews/${props.scene.id}?v=${v}` : `/scene-previews/${props.scene.id}`;
 });
 
 const progressPercent = computed(() => {

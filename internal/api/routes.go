@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -140,7 +140,25 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					savedSearches.DELETE("/:uuid", savedSearchHandler.Delete)
 				}
 
-				markers := protected.Group("/markers")
+				playlists := protected.Group("/playlists")
+			{
+				playlists.GET("", playlistHandler.List)
+				playlists.GET("/:uuid", playlistHandler.GetByUUID)
+				playlists.POST("", middleware.RequirePermission(rbacService, "playlists:create"), playlistHandler.Create)
+				playlists.PUT("/:uuid", middleware.RequirePermission(rbacService, "playlists:edit"), playlistHandler.Update)
+				playlists.DELETE("/:uuid", middleware.RequirePermission(rbacService, "playlists:delete"), playlistHandler.Delete)
+				playlists.POST("/:uuid/scenes", middleware.RequirePermission(rbacService, "playlists:edit"), playlistHandler.AddScenes)
+				playlists.DELETE("/:uuid/scenes/:sceneId", middleware.RequirePermission(rbacService, "playlists:edit"), playlistHandler.RemoveScene)
+				playlists.PUT("/:uuid/scenes/reorder", middleware.RequirePermission(rbacService, "playlists:edit"), playlistHandler.ReorderScenes)
+				playlists.GET("/:uuid/tags", playlistHandler.GetTags)
+				playlists.PUT("/:uuid/tags", middleware.RequirePermission(rbacService, "playlists:edit"), playlistHandler.SetTags)
+				playlists.POST("/:uuid/like", middleware.RequirePermission(rbacService, "playlists:view_public"), playlistHandler.ToggleLike)
+				playlists.GET("/:uuid/like", playlistHandler.GetLikeStatus)
+				playlists.GET("/:uuid/progress", playlistHandler.GetProgress)
+				playlists.PUT("/:uuid/progress", playlistHandler.UpdateProgress)
+			}
+
+			markers := protected.Group("/markers")
 				{
 					markers.GET("", markerHandler.ListLabelGroups)
 					markers.GET("/all", markerHandler.ListAllMarkers)

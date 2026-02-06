@@ -23,6 +23,7 @@ type HomepageSectionData struct {
 	Seed          int64                  `json:"seed,omitempty"`
 	WatchProgress map[uint]WatchProgress `json:"watch_progress,omitempty"`
 	Ratings       map[uint]float64       `json:"ratings,omitempty"`
+	Playlists     []PlaylistListItem     `json:"playlists,omitempty"`
 }
 
 // HomepageResponse represents the full homepage data
@@ -36,6 +37,7 @@ type HomepageService struct {
 	settingsService    *SettingsService
 	searchService      *SearchService
 	savedSearchService *SavedSearchService
+	playlistService    *PlaylistService
 	watchHistoryRepo   data.WatchHistoryRepository
 	interactionRepo    data.InteractionRepository
 	sceneRepo          data.SceneRepository
@@ -50,6 +52,7 @@ func NewHomepageService(
 	settingsService *SettingsService,
 	searchService *SearchService,
 	savedSearchService *SavedSearchService,
+	playlistService *PlaylistService,
 	watchHistoryRepo data.WatchHistoryRepository,
 	interactionRepo data.InteractionRepository,
 	sceneRepo data.SceneRepository,
@@ -62,6 +65,7 @@ func NewHomepageService(
 		settingsService:    settingsService,
 		searchService:      searchService,
 		savedSearchService: savedSearchService,
+		playlistService:    playlistService,
 		watchHistoryRepo:   watchHistoryRepo,
 		interactionRepo:    interactionRepo,
 		sceneRepo:          sceneRepo,
@@ -160,6 +164,8 @@ func (s *HomepageService) fetchSectionData(userID uint, section data.HomepageSec
 		sectionData, err = s.fetchMostViewedSection(userID, section)
 	case "liked":
 		sectionData, err = s.fetchLikedSection(userID, section)
+	case "playlist":
+		sectionData, err = s.fetchPlaylistSection(userID, section)
 	default:
 		return nil, fmt.Errorf("unknown section type: %s", section.Type)
 	}
@@ -528,5 +534,48 @@ func (s *HomepageService) fetchLikedSection(userID uint, section data.HomepageSe
 		Scenes:  result.Scenes,
 		Total:   result.Total,
 		Seed:    result.Seed,
+	}, nil
+}
+
+func (s *HomepageService) fetchPlaylistSection(userID uint, section data.HomepageSection) (*HomepageSectionData, error) {
+	if s.playlistService == nil {
+		return &HomepageSectionData{
+			Section: section,
+			Scenes:  []data.Scene{},
+		}, nil
+	}
+
+	filter := "all"
+	if f, ok := section.Config["filter"].(string); ok && f != "" {
+		filter = f
+	}
+
+	owner := "all"
+	visibility := ""
+	switch filter {
+	case "own":
+		owner = "me"
+	case "public":
+		visibility = "public"
+	}
+
+	params := data.PlaylistListParams{
+		Owner:      owner,
+		Visibility: visibility,
+		Sort:       "updated_at_desc",
+		Page:       1,
+		Limit:      section.Limit,
+	}
+
+	items, total, err := s.playlistService.List(userID, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list playlists: %w", err)
+	}
+
+	return &HomepageSectionData{
+		Section:   section,
+		Scenes:    []data.Scene{},
+		Total:     total,
+		Playlists: items,
 	}, nil
 }

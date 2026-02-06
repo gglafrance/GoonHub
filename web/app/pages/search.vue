@@ -214,6 +214,34 @@ const handleSearchSaved = (_search: SavedSearch) => {
     showSaveModal.value = false;
     savedSearchesPanel.value?.reload();
 };
+
+// Playlist from search
+const showPlaylistCreateModal = ref(false);
+const allSearchSceneIds = ref<number[]>([]);
+const loadingAllIds = ref(false);
+
+const openPlaylistModal = async () => {
+    loadingAllIds.value = true;
+
+    try {
+        const { searchScenes } = useApiScenes();
+        const params = searchStore.getSearchParams();
+        // Fetch up to 1000 scene IDs from the full result set
+        const result = await searchScenes({ ...params, page: 1, limit: 1000 });
+        allSearchSceneIds.value = result.data.map((s: { id: number }) => s.id);
+    } catch {
+        // Fallback to current page results
+        allSearchSceneIds.value = searchStore.scenes.map((s) => s.id);
+    } finally {
+        loadingAllIds.value = false;
+    }
+
+    showPlaylistCreateModal.value = true;
+};
+
+const handlePlaylistCreated = () => {
+    showPlaylistCreateModal.value = false;
+};
 </script>
 
 <template>
@@ -253,6 +281,23 @@ const handleSearchSaved = (_search: SavedSearch) => {
                 <Icon name="heroicons:bookmark" size="14" />
                 <span class="hidden sm:inline">Save</span>
             </button>
+
+            <!-- Save as Playlist button -->
+            <button
+                v-if="searchStore.scenes.length > 0"
+                class="border-border bg-surface hover:border-lava/40 hover:bg-lava/10 flex h-10
+                    shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium
+                    text-white transition-all disabled:opacity-50 sm:py-2"
+                title="Save results as playlist"
+                :disabled="loadingAllIds"
+                @click="openPlaylistModal()"
+            >
+                <Icon
+                    :name="loadingAllIds ? 'svg-spinners:90-ring-with-bg' : 'heroicons:queue-list'"
+                    size="14"
+                />
+                <span class="hidden sm:inline">Playlist</span>
+            </button>
         </div>
 
         <SearchActiveFilters class="mb-3 sm:mb-4" />
@@ -276,6 +321,14 @@ const handleSearchSaved = (_search: SavedSearch) => {
             :filters="currentFilters"
             @close="showSaveModal = false"
             @saved="handleSearchSaved"
+        />
+
+        <PlaylistCreateModal
+            :visible="showPlaylistCreateModal"
+            :prefill-name="searchStore.query || undefined"
+            :prefill-scene-ids="allSearchSceneIds"
+            @close="showPlaylistCreateModal = false"
+            @created="handlePlaylistCreated"
         />
     </div>
 </template>

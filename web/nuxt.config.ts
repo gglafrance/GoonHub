@@ -112,7 +112,8 @@ export default defineNuxtConfig({
                     },
                 },
                 {
-                    urlPattern: /^\/(thumbnails|sprites|actor-images|marker-thumbnails|scene-previews)\/.*/i,
+                    urlPattern:
+                        /^\/(thumbnails|sprites|actor-images|marker-thumbnails|scene-previews)\/.*/i,
                     handler: 'CacheFirst',
                     options: {
                         cacheName: 'media-cache',

@@ -74,6 +74,7 @@ const props = defineProps<{
 const emit = defineEmits<{
     play: [];
     pause: [];
+    ended: [];
     error: [error: unknown];
     viewRecorded: [];
 }>();
@@ -165,6 +166,7 @@ onMounted(async () => {
 
     player.value.on('play', () => emit('play'));
     player.value.on('pause', () => emit('pause'));
+    player.value.on('ended', () => emit('ended'));
     player.value.on('error', (e: unknown) => emit('error', e));
 
     // Set up watch tracking (handles timeupdate, ended, and beforeunload)

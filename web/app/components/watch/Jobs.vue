@@ -144,7 +144,12 @@ onMounted(() => {
         <div class="flex flex-wrap items-center gap-2">
             <span class="text-dim text-[11px]">Run phase:</span>
             <button
-                v-for="phase in ['metadata', 'thumbnail', 'sprites', 'animated_thumbnails'] as const"
+                v-for="phase in [
+                    'metadata',
+                    'thumbnail',
+                    'sprites',
+                    'animated_thumbnails',
+                ] as const"
                 :key="phase"
                 :disabled="triggeringPhase !== null"
                 :class="[

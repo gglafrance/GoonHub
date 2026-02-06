@@ -8,6 +8,19 @@ const settingsStore = useSettingsStore();
 
 const sceneId = computed(() => parseInt(route.params.id as string));
 
+// Playlist mode
+const playlistUuid = computed(() => route.query.playlist as string | undefined);
+const playlistPos = computed(() => {
+    const pos = route.query.pos;
+    return pos ? parseInt(pos as string, 10) : 0;
+});
+const playlistShuffleSeed = computed(() => {
+    const s = route.query.shuffle as string | undefined;
+    return s ? parseInt(s, 10) : 0;
+});
+const isPlaylistMode = computed(() => !!playlistUuid.value);
+const playlistPlayer = usePlaylistPlayer();
+
 // Centralized data loading with priority tiers
 const watchPageData = useWatchPageData(sceneId);
 const { scene, markers, resumePosition, loading, error, refreshMarkers } = watchPageData;
@@ -126,6 +139,14 @@ async function loadPage() {
     // Load all data via centralized composable
     await watchPageData.refreshAll();
 
+    // Load playlist data if in playlist mode
+    if (playlistUuid.value && !playlistPlayer.playlist.value) {
+        await playlistPlayer.loadPlaylist(playlistUuid.value, playlistPos.value);
+        if (playlistShuffleSeed.value) {
+            playlistPlayer.shuffleWithSeed(playlistShuffleSeed.value, playlistPos.value);
+        }
+    }
+
     // Check for timestamp query parameter (e.g., ?t=120)
     const queryTime = route.query.t;
     if (queryTime) {
@@ -138,6 +159,48 @@ async function loadPage() {
     }
 }
 
+// Playlist navigation helpers
+const navigateToPlaylistScene = (entry: { scene: { id: number } } | null, index: number) => {
+    if (!entry || !playlistUuid.value) return;
+    const query: Record<string, string> = { playlist: playlistUuid.value, pos: String(index) };
+    if (playlistPlayer.shuffleSeed.value) {
+        query.shuffle = String(playlistPlayer.shuffleSeed.value);
+    }
+    router.push({ path: `/watch/${entry.scene.id}`, query });
+};
+
+// Register callback for countdown-triggered navigation
+playlistPlayer.onNavigate((entry, index) => {
+    navigateToPlaylistScene(entry, index);
+});
+
+const handlePlaylistSceneEnd = () => {
+    if (!isPlaylistMode.value) return;
+    const next = playlistPlayer.onSceneEnd();
+    if (next) {
+        navigateToPlaylistScene(next, playlistPlayer.currentIndex.value);
+    }
+};
+
+const handlePlaylistGoToScene = (orderIndex: number) => {
+    const entry = playlistPlayer.goToScene(orderIndex);
+    if (entry) {
+        navigateToPlaylistScene(entry, orderIndex);
+    }
+};
+
+const handlePlaylistNext = () => {
+    const entry = playlistPlayer.goToNext();
+    if (entry) {
+        navigateToPlaylistScene(entry, playlistPlayer.currentIndex.value);
+    }
+};
+
+const handlePlaylistCountdownPlayNow = () => {
+    playlistPlayer.cancelCountdown();
+    handlePlaylistNext();
+};
+
 const handleResume = () => {
     startTime.value = resumePosition.value;
     showResumePrompt.value = false;
@@ -149,7 +212,11 @@ const handleStartOver = () => {
 };
 
 const goBack = () => {
-    router.push('/');
+    if (playlistUuid.value) {
+        router.push(`/playlists/${playlistUuid.value}`);
+    } else {
+        router.push('/');
+    }
 };
 
 // Tab state for DetailTabs (allows switching tabs from keyboard shortcuts)
@@ -244,7 +311,9 @@ definePageMeta({
                     >
                         <Icon name="heroicons:arrow-left" size="12" />
                     </div>
-                    <span class="text-xs font-medium">Library</span>
+                    <span class="text-xs font-medium">{{
+                        isPlaylistMode ? 'Playlist' : 'Library'
+                    }}</span>
                 </button>
 
                 <div v-if="scene" class="text-dim hidden truncate text-xs sm:block">
@@ -367,13 +436,16 @@ definePageMeta({
                                     :poster-url="posterUrl"
                                     :scene="scene"
                                     :markers="markers"
-                                    :autoplay="forceAutoplay || settingsStore.autoplay"
-                                    :loop="settingsStore.loop"
+                                    :autoplay="
+                                        isPlaylistMode || forceAutoplay || settingsStore.autoplay
+                                    "
+                                    :loop="isPlaylistMode ? false : settingsStore.loop"
                                     :default-volume="settingsStore.defaultVolume"
                                     :start-time="startTime"
                                     @play="isScenePlaying = true"
                                     @pause="isScenePlaying = false"
                                     @error="playerError = $event"
+                                    @ended="handlePlaylistSceneEnd"
                                 />
                             </div>
                         </div>
@@ -400,15 +472,35 @@ definePageMeta({
                     </div>
                 </div>
 
-                <!-- Sidebar Metadata (Desktop) -->
+                <!-- Sidebar: Playlist or Metadata (Desktop) -->
                 <div v-if="!settingsStore.theaterMode" class="hidden xl:block">
-                    <SceneMetadata :scene="scene" />
+                    <WatchPlaylistSidebar
+                        v-if="isPlaylistMode && playlistPlayer.playlist.value"
+                        :playlist="playlistPlayer.playlist.value"
+                        :current-index="playlistPlayer.currentIndex.value"
+                        :effective-order="playlistPlayer.effectiveOrder.value"
+                        :is-shuffled="playlistPlayer.isShuffled.value"
+                        @go-to-scene="handlePlaylistGoToScene"
+                        @shuffle="playlistPlayer.shuffle()"
+                        @unshuffle="playlistPlayer.unshuffle()"
+                    />
+                    <SceneMetadata v-else :scene="scene" />
                 </div>
             </div>
 
             <!-- Related Scenes -->
             <WatchRelatedScenes v-if="scene && !isProcessing && !hasProcessingError" />
         </div>
+
+        <!-- Playlist Auto-Advance Overlay -->
+        <WatchPlaylistAutoAdvance
+            v-if="isPlaylistMode"
+            :visible="playlistPlayer.showCountdown.value"
+            :next-scene="playlistPlayer.nextScene.value"
+            :countdown-remaining="playlistPlayer.countdownRemaining.value"
+            @play-now="handlePlaylistCountdownPlayNow"
+            @cancel="playlistPlayer.cancelCountdown()"
+        />
     </div>
 </template>
 

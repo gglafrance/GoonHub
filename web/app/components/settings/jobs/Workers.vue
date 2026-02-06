@@ -159,9 +159,7 @@ onMounted(() => {
                         <Icon name="heroicons:film" size="13" class="text-dim" />
                         Animated Thumbnails
                     </label>
-                    <p class="text-dim text-[10px]">
-                        Looping video clips for marker previews
-                    </p>
+                    <p class="text-dim text-[10px]">Looping video clips for marker previews</p>
                 </div>
                 <input
                     v-model.number="animatedThumbnailsWorkers"

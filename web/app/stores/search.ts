@@ -212,6 +212,30 @@ export const useSearchStore = defineStore('search', () => {
         page.value = 1; // Reset pagination when loading filters
     };
 
+    const getSearchParams = (): Record<string, string | number | undefined> => {
+        const params: Record<string, string | number | undefined> = {};
+        if (query.value) params.q = query.value;
+        if (selectedTags.value.length > 0) params.tags = selectedTags.value.join(',');
+        if (selectedActors.value.length > 0) params.actors = selectedActors.value.join(',');
+        if (studio.value) params.studio = studio.value;
+        if (minDuration.value > 0) params.min_duration = minDuration.value;
+        if (maxDuration.value > 0) params.max_duration = maxDuration.value;
+        if (minDate.value) params.min_date = minDate.value;
+        if (maxDate.value) params.max_date = maxDate.value;
+        if (resolution.value) params.resolution = resolution.value;
+        if (sort.value) params.sort = sort.value;
+        if (sort.value === 'random' && seed.value) params.seed = seed.value;
+        if (liked.value) params.liked = 'true';
+        if (minRating.value > 0) params.min_rating = minRating.value;
+        if (maxRating.value > 0) params.max_rating = maxRating.value;
+        if (minJizzCount.value > 0) params.min_jizz_count = minJizzCount.value;
+        if (maxJizzCount.value > 0) params.max_jizz_count = maxJizzCount.value;
+        if (selectedMarkerLabels.value.length > 0)
+            params.marker_labels = selectedMarkerLabels.value.join(',');
+        if (matchType.value !== 'broad') params.match_type = matchType.value;
+        return params;
+    };
+
     return {
         query,
         selectedTags,
@@ -239,6 +263,7 @@ export const useSearchStore = defineStore('search', () => {
         error,
         filterOptions,
         hasActiveFilters,
+        getSearchParams,
         search,
         reshuffle,
         loadFilterOptions,

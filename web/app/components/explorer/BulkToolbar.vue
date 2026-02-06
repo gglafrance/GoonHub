@@ -5,6 +5,7 @@ const { getScenesMatchInfo } = useApiExplorer();
 const showTagEditor = ref(false);
 const showActorEditor = ref(false);
 const showStudioEditor = ref(false);
+const showPlaylistModal = ref(false);
 const showDeleteModal = ref(false);
 const showPornDBMatchModal = ref(false);
 
@@ -103,6 +104,16 @@ defineExpose({
                         Studio
                     </button>
 
+                    <button
+                        class="border-border bg-panel hover:border-lava/30 hover:text-lava flex
+                            items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium
+                            text-white transition-all"
+                        @click="showPlaylistModal = true"
+                    >
+                        <Icon name="heroicons:queue-list" size="14" />
+                        Playlist
+                    </button>
+
                     <div class="border-border mx-1 h-4 border-l" />
 
                     <!-- PornDB Match Button -->
@@ -169,6 +180,14 @@ defineExpose({
             :visible="showStudioEditor"
             @close="showStudioEditor = false"
             @complete="handleBulkComplete"
+        />
+
+        <PlaylistCreateModal
+            v-if="showPlaylistModal"
+            :visible="showPlaylistModal"
+            :prefill-scene-ids="[...explorerStore.selectedSceneIDs]"
+            @close="showPlaylistModal = false"
+            @created="showPlaylistModal = false"
         />
 
         <ExplorerBulkDeleteConfirmModal

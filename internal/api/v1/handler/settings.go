@@ -175,6 +175,8 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		homepageConfig,
 		parsingRules,
 		sortPrefs,
+		req.PlaylistAutoAdvance,
+		req.PlaylistCountdownSeconds,
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

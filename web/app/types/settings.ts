@@ -22,6 +22,8 @@ export interface UserSettings {
     homepage_config: HomepageConfig;
     parsing_rules: ParsingRulesSettings;
     sort_preferences: SortPreferences;
+    playlist_auto_advance: PlaylistAutoAdvance;
+    playlist_countdown_seconds: number;
     created_at: string;
     updated_at: string;
 }
@@ -52,6 +54,8 @@ export type SortOrder =
 export type TagSort = 'az' | 'za' | 'most' | 'least';
 
 export type KeyboardLayout = 'qwerty' | 'azerty';
+
+export type PlaylistAutoAdvance = 'instant' | 'countdown' | 'manual';
 
 export interface TagSettings {
     default_tag_sort: TagSort;
