@@ -18,6 +18,10 @@ type AddPlaylistScenesRequest struct {
 	SceneIDs []uint `json:"scene_ids" binding:"required"`
 }
 
+type RemovePlaylistScenesRequest struct {
+	SceneIDs []uint `json:"scene_ids" binding:"required"`
+}
+
 type ReorderPlaylistScenesRequest struct {
 	SceneIDs []uint `json:"scene_ids" binding:"required"`
 }

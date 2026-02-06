@@ -316,20 +316,23 @@ func (h *SceneHandler) StreamScene(c *gin.Context) {
 		return
 	}
 
+	sceneID := uint(id)
 	clientIP := c.ClientIP()
 
-	// Acquire stream slot (global + per-IP limits)
-	if !h.StreamManager.Limiter().Acquire(clientIP) {
+	// Acquire stream slot (global + per-IP limits).
+	// The limiter tracks by IP+SceneID so concurrent range requests for the
+	// same video share a single slot instead of exhausting per-IP limits.
+	if !h.StreamManager.Limiter().Acquire(clientIP, sceneID) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"error": "Too many concurrent streams",
 			"code":  "STREAM_LIMIT_EXCEEDED",
 		})
 		return
 	}
-	defer h.StreamManager.Limiter().Release(clientIP)
+	defer h.StreamManager.Limiter().Release(clientIP, sceneID)
 
 	// Get cached path (avoids DB query on repeated range requests)
-	filePath, err := h.StreamManager.GetScenePath(uint(id))
+	filePath, err := h.StreamManager.GetScenePath(sceneID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Scene not found"})
@@ -362,17 +365,14 @@ func (h *SceneHandler) StreamScene(c *gin.Context) {
 		mimeType = "video/mp4"
 	}
 
-	// Set content type and caching headers
 	c.Header("Content-Type", mimeType)
 	c.Header("Cache-Control", "public, max-age=86400")
 
-	// Use http.ServeContent for optimal range request handling.
-	// It handles:
-	// - Range requests (partial content)
-	// - If-Modified-Since / If-None-Match (304 responses)
-	// - Proper Content-Length and Content-Range headers
-	// - Connection keep-alive optimization
-	http.ServeContent(c.Writer, c.Request, filepath.Base(filePath), fileInfo.ModTime(), file)
+	// Use the buffer pool for efficient I/O (256KB vs Go's default 32KB)
+	buf := h.StreamManager.BufferPool().Get()
+	defer h.StreamManager.BufferPool().Put(buf)
+
+	streaming.ServeVideo(c.Writer, c.Request, filepath.Base(filePath), fileInfo.ModTime(), file, buf)
 }
 
 func (h *SceneHandler) ExtractThumbnail(c *gin.Context) {

@@ -141,24 +141,25 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 				}
 
 				playlists := protected.Group("/playlists")
-			{
-				playlists.GET("", playlistHandler.List)
-				playlists.GET("/:uuid", playlistHandler.GetByUUID)
-				playlists.POST("", middleware.RequirePermission(rbacService, "playlists:create"), playlistHandler.Create)
-				playlists.PUT("/:uuid", middleware.RequirePermission(rbacService, "playlists:edit"), playlistHandler.Update)
-				playlists.DELETE("/:uuid", middleware.RequirePermission(rbacService, "playlists:delete"), playlistHandler.Delete)
-				playlists.POST("/:uuid/scenes", middleware.RequirePermission(rbacService, "playlists:edit"), playlistHandler.AddScenes)
-				playlists.DELETE("/:uuid/scenes/:sceneId", middleware.RequirePermission(rbacService, "playlists:edit"), playlistHandler.RemoveScene)
-				playlists.PUT("/:uuid/scenes/reorder", middleware.RequirePermission(rbacService, "playlists:edit"), playlistHandler.ReorderScenes)
-				playlists.GET("/:uuid/tags", playlistHandler.GetTags)
-				playlists.PUT("/:uuid/tags", middleware.RequirePermission(rbacService, "playlists:edit"), playlistHandler.SetTags)
-				playlists.POST("/:uuid/like", middleware.RequirePermission(rbacService, "playlists:view_public"), playlistHandler.ToggleLike)
-				playlists.GET("/:uuid/like", playlistHandler.GetLikeStatus)
-				playlists.GET("/:uuid/progress", playlistHandler.GetProgress)
-				playlists.PUT("/:uuid/progress", playlistHandler.UpdateProgress)
-			}
+				{
+					playlists.GET("", playlistHandler.List)
+					playlists.GET("/:uuid", playlistHandler.GetByUUID)
+					playlists.POST("", middleware.RequirePermission(rbacService, "playlists:create"), playlistHandler.Create)
+					playlists.PUT("/:uuid", middleware.RequirePermission(rbacService, "playlists:edit"), playlistHandler.Update)
+					playlists.DELETE("/:uuid", middleware.RequirePermission(rbacService, "playlists:delete"), playlistHandler.Delete)
+					playlists.POST("/:uuid/scenes", middleware.RequirePermission(rbacService, "playlists:edit"), playlistHandler.AddScenes)
+					playlists.DELETE("/:uuid/scenes/:sceneId", middleware.RequirePermission(rbacService, "playlists:edit"), playlistHandler.RemoveScene)
+					playlists.POST("/:uuid/scenes/remove", middleware.RequirePermission(rbacService, "playlists:edit"), playlistHandler.RemoveScenes)
+					playlists.PUT("/:uuid/scenes/reorder", middleware.RequirePermission(rbacService, "playlists:edit"), playlistHandler.ReorderScenes)
+					playlists.GET("/:uuid/tags", playlistHandler.GetTags)
+					playlists.PUT("/:uuid/tags", middleware.RequirePermission(rbacService, "playlists:edit"), playlistHandler.SetTags)
+					playlists.POST("/:uuid/like", middleware.RequirePermission(rbacService, "playlists:view_public"), playlistHandler.ToggleLike)
+					playlists.GET("/:uuid/like", playlistHandler.GetLikeStatus)
+					playlists.GET("/:uuid/progress", playlistHandler.GetProgress)
+					playlists.PUT("/:uuid/progress", playlistHandler.UpdateProgress)
+				}
 
-			markers := protected.Group("/markers")
+				markers := protected.Group("/markers")
 				{
 					markers.GET("", markerHandler.ListLabelGroups)
 					markers.GET("/all", markerHandler.ListAllMarkers)

@@ -196,6 +196,13 @@ const handlePlaylistNext = () => {
     }
 };
 
+const handlePlaylistPrevious = () => {
+    const entry = playlistPlayer.goToPrevious();
+    if (entry) {
+        navigateToPlaylistScene(entry, playlistPlayer.currentIndex.value);
+    }
+};
+
 const handlePlaylistCountdownPlayNow = () => {
     playlistPlayer.cancelCountdown();
     handlePlaylistNext();
@@ -442,10 +449,15 @@ definePageMeta({
                                     :loop="isPlaylistMode ? false : settingsStore.loop"
                                     :default-volume="settingsStore.defaultVolume"
                                     :start-time="startTime"
+                                    :playlist-mode="isPlaylistMode"
+                                    :has-next="playlistPlayer.hasNext.value"
+                                    :has-previous="playlistPlayer.hasPrevious.value"
                                     @play="isScenePlaying = true"
                                     @pause="isScenePlaying = false"
                                     @error="playerError = $event"
                                     @ended="handlePlaylistSceneEnd"
+                                    @next="handlePlaylistNext"
+                                    @previous="handlePlaylistPrevious"
                                 />
                             </div>
                         </div>
@@ -491,6 +503,23 @@ definePageMeta({
             <!-- Related Scenes -->
             <WatchRelatedScenes v-if="scene && !isProcessing && !hasProcessingError" />
         </div>
+
+        <!-- Playlist Mobile Mini-Bar -->
+        <WatchPlaylistMobileBar
+            v-if="isPlaylistMode && playlistPlayer.playlist.value && scene && !isProcessing"
+            :playlist="playlistPlayer.playlist.value"
+            :current-index="playlistPlayer.currentIndex.value"
+            :effective-order="playlistPlayer.effectiveOrder.value"
+            :is-shuffled="playlistPlayer.isShuffled.value"
+            :has-next="playlistPlayer.hasNext.value"
+            :has-previous="playlistPlayer.hasPrevious.value"
+            :countdown-visible="playlistPlayer.showCountdown.value"
+            @go-to-scene="handlePlaylistGoToScene"
+            @next="handlePlaylistNext"
+            @previous="handlePlaylistPrevious"
+            @shuffle="playlistPlayer.shuffle()"
+            @unshuffle="playlistPlayer.unshuffle()"
+        />
 
         <!-- Playlist Auto-Advance Overlay -->
         <WatchPlaylistAutoAdvance

@@ -65,6 +65,7 @@ type PlaylistListParams struct {
 	Owner      string // "me" or "all"
 	Visibility string // "public", "private", or "" (all)
 	TagIDs     []uint
+	Search     string // name ILIKE search
 	Sort       string
 	Page       int
 	Limit      int

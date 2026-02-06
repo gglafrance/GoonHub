@@ -169,9 +169,13 @@ func (s *Server) Start() error {
 	}
 
 	s.srv = &http.Server{
-		Addr:        ":" + s.cfg.Server.Port,
-		Handler:     s.router,
-		ReadTimeout: s.cfg.Server.ReadTimeout,
+		Addr:    ":" + s.cfg.Server.Port,
+		Handler: s.router,
+		// ReadHeaderTimeout limits only the header-reading phase, protecting
+		// against slowloris attacks without interfering with keep-alive
+		// connections that may idle between range requests.
+		ReadHeaderTimeout: s.cfg.Server.ReadTimeout,
+		ReadTimeout:       s.cfg.Server.ReadTimeout,
 		// WriteTimeout: 0 disables the timeout, required for video streaming.
 		// Video streams can be hours long and must not be killed by timeout.
 		WriteTimeout: 0,

@@ -20,6 +20,9 @@ let savedTimeout: ReturnType<typeof setTimeout> | null = null;
 // Fetch metadata modal state
 const showFetchMetadataModal = ref(false);
 
+// Playlist modal state
+const showPlaylistModal = ref(false);
+
 // Delete modal state
 const showDeleteModal = ref(false);
 const router = useRouter();
@@ -279,9 +282,19 @@ function handleSceneDeleted() {
             <WatchActors />
         </div>
 
-        <!-- Admin actions -->
-        <div v-if="isAdmin" class="flex justify-end">
+        <!-- Actions -->
+        <div class="flex justify-end gap-2">
             <button
+                class="hover:border-lava/40 hover:text-lava text-dim flex items-center gap-2
+                    rounded-md border border-dashed border-white/10 px-3 py-1.5 text-xs
+                    transition-colors"
+                @click="showPlaylistModal = true"
+            >
+                <Icon name="heroicons:queue-list" size="12" />
+                Add to Playlist
+            </button>
+            <button
+                v-if="isAdmin"
                 class="hover:border-lava/40 hover:text-lava text-dim flex items-center gap-2
                     rounded-md border border-dashed border-white/10 px-3 py-1.5 text-xs
                     transition-colors"
@@ -292,6 +305,15 @@ function handleSceneDeleted() {
             </button>
         </div>
     </div>
+
+    <!-- Playlist Modal -->
+    <PlaylistCreateModal
+        v-if="scene"
+        :visible="showPlaylistModal"
+        :prefill-scene-ids="[scene.id]"
+        @close="showPlaylistModal = false"
+        @created="showPlaylistModal = false"
+    />
 
     <!-- Fetch Scene Metadata Modal -->
     <WatchFetchSceneMetadataModal

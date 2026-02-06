@@ -29,6 +29,7 @@ export const usePlaylistStore = defineStore('playlist', () => {
     const visibilityFilter = ref<PlaylistVisibilityFilter>('');
     const sortOrder = ref<PlaylistSortOption>('created_at_desc');
     const tagFilter = ref<number[]>([]);
+    const searchQuery = ref('');
 
     const totalPages = computed(() => Math.ceil(total.value / limit.value));
 
@@ -49,6 +50,9 @@ export const usePlaylistStore = defineStore('playlist', () => {
             }
             if (tagFilter.value.length > 0) {
                 params.tag_ids = tagFilter.value.join(',');
+            }
+            if (searchQuery.value) {
+                params.search = searchQuery.value;
             }
 
             const result = await api.fetchPlaylists(params);
@@ -149,6 +153,23 @@ export const usePlaylistStore = defineStore('playlist', () => {
         }
     };
 
+    const removeScenes = async (uuid: string, sceneIDs: number[]): Promise<boolean> => {
+        try {
+            await api.removeScenes(uuid, sceneIDs);
+            if (currentPlaylist.value?.uuid === uuid) {
+                const removedSet = new Set(sceneIDs);
+                currentPlaylist.value.scenes = currentPlaylist.value.scenes.filter(
+                    (s) => !removedSet.has(s.scene.id),
+                );
+                currentPlaylist.value.scene_count -= sceneIDs.length;
+            }
+            return true;
+        } catch (e: unknown) {
+            error.value = e instanceof Error ? e.message : 'Failed to remove scenes';
+            return false;
+        }
+    };
+
     const reorderScenes = async (uuid: string, sceneIDs: number[]): Promise<boolean> => {
         try {
             await api.reorderScenes(uuid, sceneIDs);
@@ -167,7 +188,7 @@ export const usePlaylistStore = defineStore('playlist', () => {
             const result = await api.toggleLike(uuid);
             // Update in list
             const idx = playlists.value.findIndex((p) => p.uuid === uuid);
-            if (idx !== -1) {
+            if (idx !== -1 && playlists.value[idx]) {
                 playlists.value[idx].is_liked = result.liked;
                 playlists.value[idx].like_count += result.liked ? 1 : -1;
             }
@@ -201,6 +222,7 @@ export const usePlaylistStore = defineStore('playlist', () => {
         visibilityFilter.value = '';
         sortOrder.value = 'created_at_desc';
         tagFilter.value = [];
+        searchQuery.value = '';
         currentPage.value = 1;
     };
 
@@ -224,6 +246,7 @@ export const usePlaylistStore = defineStore('playlist', () => {
         visibilityFilter,
         sortOrder,
         tagFilter,
+        searchQuery,
 
         // Actions
         loadPlaylists,
@@ -233,6 +256,7 @@ export const usePlaylistStore = defineStore('playlist', () => {
         deletePlaylist,
         addScenes,
         removeScene,
+        removeScenes,
         reorderScenes,
         toggleLike,
         updateProgress,

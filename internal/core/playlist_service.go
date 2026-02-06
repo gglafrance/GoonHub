@@ -369,6 +369,34 @@ func (s *PlaylistService) RemoveScene(userID uint, uuid string, sceneID uint) er
 	return nil
 }
 
+// RemoveScenes removes multiple scenes from a playlist
+func (s *PlaylistService) RemoveScenes(userID uint, uuid string, sceneIDs []uint) error {
+	playlist, err := s.repo.GetByUUID(uuid)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.ErrPlaylistNotFound(uuid)
+		}
+		return apperrors.NewInternalError("failed to find playlist", err)
+	}
+
+	if playlist.UserID != userID {
+		return apperrors.ErrPlaylistForbidden
+	}
+
+	if len(sceneIDs) == 0 {
+		return apperrors.NewValidationError("scene_ids must not be empty")
+	}
+
+	if err := s.repo.RemoveScenes(playlist.ID, sceneIDs); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.ErrPlaylistSceneNotInPlaylist
+		}
+		return apperrors.NewInternalError("failed to remove scenes from playlist", err)
+	}
+
+	return nil
+}
+
 // ReorderScenes reorders scenes in a playlist
 func (s *PlaylistService) ReorderScenes(userID uint, uuid string, sceneIDs []uint) error {
 	playlist, err := s.repo.GetByUUID(uuid)

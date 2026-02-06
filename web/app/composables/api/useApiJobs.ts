@@ -59,6 +59,8 @@ export const useApiJobs = () => {
         scene_preview_enabled: boolean;
         scene_preview_segments: number;
         scene_preview_segment_duration: number;
+        marker_preview_crf: number;
+        scene_preview_crf: number;
     }) => {
         const response = await fetch('/api/v1/admin/processing-config', {
             method: 'PUT',

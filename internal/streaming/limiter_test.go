@@ -8,11 +8,11 @@ import (
 
 func TestNewStreamLimiter(t *testing.T) {
 	tests := []struct {
-		name        string
-		maxGlobal   int
-		maxPerIP    int
-		wantGlobal  int
-		wantPerIP   int
+		name       string
+		maxGlobal  int
+		maxPerIP   int
+		wantGlobal int
+		wantPerIP  int
 	}{
 		{"defaults for zero", 0, 0, 100, 10},
 		{"defaults for negative", -1, -1, 100, 10},
@@ -41,9 +41,9 @@ func TestStreamLimiterAcquireRelease(t *testing.T) {
 	defer sl.Stop()
 
 	ip := "192.168.1.1"
+	var sceneID uint = 1
 
-	// Acquire should succeed
-	if !sl.Acquire(ip) {
+	if !sl.Acquire(ip, sceneID) {
 		t.Fatal("expected Acquire to succeed")
 	}
 
@@ -54,8 +54,7 @@ func TestStreamLimiterAcquireRelease(t *testing.T) {
 		t.Fatalf("expected IP count 1, got %d", sl.IPCount(ip))
 	}
 
-	// Release
-	sl.Release(ip)
+	sl.Release(ip, sceneID)
 
 	if sl.GlobalCount() != 0 {
 		t.Fatalf("expected global count 0, got %d", sl.GlobalCount())
@@ -65,26 +64,74 @@ func TestStreamLimiterAcquireRelease(t *testing.T) {
 	}
 }
 
+func TestStreamLimiterRefCounting(t *testing.T) {
+	sl := NewStreamLimiter(100, 10)
+	defer sl.Stop()
+
+	ip := "192.168.1.1"
+	var sceneID uint = 42
+
+	// Multiple concurrent requests for the same IP+scene should share one slot
+	if !sl.Acquire(ip, sceneID) {
+		t.Fatal("expected first Acquire to succeed")
+	}
+	if !sl.Acquire(ip, sceneID) {
+		t.Fatal("expected second Acquire (same scene) to succeed")
+	}
+	if !sl.Acquire(ip, sceneID) {
+		t.Fatal("expected third Acquire (same scene) to succeed")
+	}
+
+	// Should still only count as 1 global stream and 1 per-IP stream
+	if sl.GlobalCount() != 1 {
+		t.Fatalf("expected global count 1, got %d", sl.GlobalCount())
+	}
+	if sl.IPCount(ip) != 1 {
+		t.Fatalf("expected IP count 1, got %d", sl.IPCount(ip))
+	}
+
+	// Release two of the three refs — slot should still be held
+	sl.Release(ip, sceneID)
+	sl.Release(ip, sceneID)
+
+	if sl.GlobalCount() != 1 {
+		t.Fatalf("expected global count 1 after partial release, got %d", sl.GlobalCount())
+	}
+
+	// Release the last ref — slot should be freed
+	sl.Release(ip, sceneID)
+
+	if sl.GlobalCount() != 0 {
+		t.Fatalf("expected global count 0 after full release, got %d", sl.GlobalCount())
+	}
+	if sl.IPCount(ip) != 0 {
+		t.Fatalf("expected IP count 0 after full release, got %d", sl.IPCount(ip))
+	}
+}
+
 func TestStreamLimiterGlobalLimit(t *testing.T) {
 	sl := NewStreamLimiter(3, 10)
 	defer sl.Stop()
 
-	// Acquire up to limit
-	for i := 0; i < 3; i++ {
-		ip := "192.168.1." + string(rune('1'+i))
-		if !sl.Acquire(ip) {
-			t.Fatalf("expected Acquire %d to succeed", i)
-		}
+	// Acquire up to limit with different IPs and scenes
+	if !sl.Acquire("192.168.1.1", 1) {
+		t.Fatal("expected Acquire 1 to succeed")
+	}
+	if !sl.Acquire("192.168.1.2", 2) {
+		t.Fatal("expected Acquire 2 to succeed")
+	}
+	if !sl.Acquire("192.168.1.3", 3) {
+		t.Fatal("expected Acquire 3 to succeed")
 	}
 
 	// Next acquire should fail (global limit reached)
-	if sl.Acquire("192.168.1.100") {
+	if sl.Acquire("192.168.1.100", 4) {
 		t.Fatal("expected Acquire to fail at global limit")
 	}
 
 	// Release one and try again
-	sl.Release("192.168.1.1")
-	if !sl.Acquire("192.168.1.100") {
+	sl.Release("192.168.1.1", 1)
+	if !sl.Acquire("192.168.1.100", 4) {
 		t.Fatal("expected Acquire to succeed after release")
 	}
 }
@@ -95,26 +142,34 @@ func TestStreamLimiterPerIPLimit(t *testing.T) {
 
 	ip := "192.168.1.1"
 
-	// Acquire up to per-IP limit
-	if !sl.Acquire(ip) {
+	// Acquire two different scenes for the same IP
+	if !sl.Acquire(ip, 1) {
 		t.Fatal("expected first Acquire to succeed")
 	}
-	if !sl.Acquire(ip) {
+	if !sl.Acquire(ip, 2) {
 		t.Fatal("expected second Acquire to succeed")
 	}
 
-	// Third should fail
-	if sl.Acquire(ip) {
+	// Third different scene should fail (per-IP limit of 2)
+	if sl.Acquire(ip, 3) {
 		t.Fatal("expected third Acquire to fail (per-IP limit)")
 	}
 
-	// Global count should be 2 (not 3, since the failed acquire should rollback)
+	// Global count should be 2
 	if sl.GlobalCount() != 2 {
 		t.Fatalf("expected global count 2, got %d", sl.GlobalCount())
 	}
 
+	// Same scene should still succeed (refcount, not a new slot)
+	if !sl.Acquire(ip, 1) {
+		t.Fatal("expected same-scene Acquire to succeed via refcount")
+	}
+	if sl.GlobalCount() != 2 {
+		t.Fatalf("expected global count still 2, got %d", sl.GlobalCount())
+	}
+
 	// Different IP should succeed
-	if !sl.Acquire("192.168.1.2") {
+	if !sl.Acquire("192.168.1.2", 1) {
 		t.Fatal("expected different IP to succeed")
 	}
 }
@@ -123,9 +178,9 @@ func TestStreamLimiterStats(t *testing.T) {
 	sl := NewStreamLimiter(100, 10)
 	defer sl.Stop()
 
-	sl.Acquire("192.168.1.1")
-	sl.Acquire("192.168.1.1")
-	sl.Acquire("192.168.1.2")
+	sl.Acquire("192.168.1.1", 1)
+	sl.Acquire("192.168.1.1", 2)
+	sl.Acquire("192.168.1.2", 1)
 
 	stats := sl.Stats()
 	if stats.GlobalCount != 3 {
@@ -141,7 +196,6 @@ func TestStreamLimiterConcurrent(t *testing.T) {
 	defer sl.Stop()
 
 	const numGoroutines = 50
-	const ipsPerGoroutine = 5
 
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines)
@@ -150,20 +204,17 @@ func TestStreamLimiterConcurrent(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			ip := "192.168." + string(rune('0'+id%10)) + ".1"
+			sceneID := uint(id%5 + 1)
 
-			// Acquire
-			if sl.Acquire(ip) {
-				// Hold for a bit
+			if sl.Acquire(ip, sceneID) {
 				time.Sleep(time.Millisecond)
-				// Release
-				sl.Release(ip)
+				sl.Release(ip, sceneID)
 			}
 		}(i)
 	}
 
 	wg.Wait()
 
-	// All should be released
 	if sl.GlobalCount() != 0 {
 		t.Fatalf("expected global count 0, got %d", sl.GlobalCount())
 	}
@@ -174,6 +225,7 @@ func TestStreamLimiterRaceCondition(t *testing.T) {
 	defer sl.Stop()
 
 	ip := "192.168.1.1"
+	var sceneID uint = 1
 	const iterations = 10000
 
 	var wg sync.WaitGroup
@@ -183,8 +235,8 @@ func TestStreamLimiterRaceCondition(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < iterations; i++ {
-			if sl.Acquire(ip) {
-				sl.Release(ip)
+			if sl.Acquire(ip, sceneID) {
+				sl.Release(ip, sceneID)
 			}
 		}
 	}()
@@ -206,7 +258,6 @@ func TestStreamLimiterIPCountNonexistent(t *testing.T) {
 	sl := NewStreamLimiter(10, 5)
 	defer sl.Stop()
 
-	// IP that was never used should return 0
 	if sl.IPCount("10.0.0.1") != 0 {
 		t.Fatal("expected IPCount for nonexistent IP to be 0")
 	}
@@ -216,10 +267,45 @@ func TestStreamLimiterReleaseNonexistent(t *testing.T) {
 	sl := NewStreamLimiter(10, 5)
 	defer sl.Stop()
 
-	// Release on IP that was never acquired should not panic
-	// and should decrement global counter (which would go negative,
-	// but that's acceptable behavior for Release called without Acquire)
-	sl.Release("10.0.0.1")
+	// Release on IP+scene that was never acquired should not panic
+	sl.Release("10.0.0.1", 1)
+
+	// Counts should remain zero
+	if sl.GlobalCount() != 0 {
+		t.Fatalf("expected global count 0, got %d", sl.GlobalCount())
+	}
+}
+
+func TestStreamLimiterConcurrentRefCounting(t *testing.T) {
+	sl := NewStreamLimiter(100, 10)
+	defer sl.Stop()
+
+	ip := "192.168.1.1"
+	var sceneID uint = 42
+	const numGoroutines = 20
+
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+
+	// Simulate many concurrent range requests for the same video
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			if sl.Acquire(ip, sceneID) {
+				time.Sleep(time.Millisecond)
+				sl.Release(ip, sceneID)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	if sl.GlobalCount() != 0 {
+		t.Fatalf("expected global count 0 after all releases, got %d", sl.GlobalCount())
+	}
+	if sl.IPCount(ip) != 0 {
+		t.Fatalf("expected IP count 0 after all releases, got %d", sl.IPCount(ip))
+	}
 }
 
 func BenchmarkStreamLimiterAcquireRelease(b *testing.B) {
@@ -229,9 +315,10 @@ func BenchmarkStreamLimiterAcquireRelease(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		ip := "192.168.1.1"
+		var sceneID uint = 1
 		for pb.Next() {
-			if sl.Acquire(ip) {
-				sl.Release(ip)
+			if sl.Acquire(ip, sceneID) {
+				sl.Release(ip, sceneID)
 			}
 		}
 	})

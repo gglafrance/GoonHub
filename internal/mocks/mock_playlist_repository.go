@@ -277,6 +277,20 @@ func (mr *MockPlaylistRepositoryMockRecorder) RemoveScene(playlistID, sceneID an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveScene", reflect.TypeOf((*MockPlaylistRepository)(nil).RemoveScene), playlistID, sceneID)
 }
 
+// RemoveScenes mocks base method.
+func (m *MockPlaylistRepository) RemoveScenes(playlistID uint, sceneIDs []uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveScenes", playlistID, sceneIDs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveScenes indicates an expected call of RemoveScenes.
+func (mr *MockPlaylistRepositoryMockRecorder) RemoveScenes(playlistID, sceneIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveScenes", reflect.TypeOf((*MockPlaylistRepository)(nil).RemoveScenes), playlistID, sceneIDs)
+}
+
 // ReorderScenes mocks base method.
 func (m *MockPlaylistRepository) ReorderScenes(playlistID uint, sceneIDs []uint) error {
 	m.ctrl.T.Helper()

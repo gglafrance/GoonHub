@@ -22,6 +22,19 @@ const getScene = (orderIndex: number): PlaylistSceneEntry | null => {
     return props.playlist.scenes[sceneIndex] ?? null;
 };
 
+const remainingDuration = computed(() => {
+    let total = 0;
+    for (let i = props.currentIndex + 1; i < props.effectiveOrder.length; i++) {
+        const sceneIndex = props.effectiveOrder[i];
+        if (sceneIndex === undefined) continue;
+        const entry = props.playlist.scenes[sceneIndex];
+        if (entry) {
+            total += entry.scene.duration ?? 0;
+        }
+    }
+    return total;
+});
+
 const scrollContainer = ref<HTMLElement | null>(null);
 
 // Auto-scroll to current scene
@@ -53,6 +66,9 @@ watch(
                 </NuxtLink>
                 <span class="text-dim font-mono text-[10px]">
                     {{ currentIndex + 1 }} of {{ effectiveOrder.length }}
+                    <template v-if="remainingDuration > 0">
+                        &middot; {{ formatDuration(remainingDuration) }} left
+                    </template>
                 </span>
             </div>
             <button

@@ -142,29 +142,37 @@ export function useAmbientGlow(
         isProcessing.value = false;
     }
 
-    function interpolateColors(time: number): ExtractedColors {
-        if (keyframes.value.length === 0) return currentColors.value;
+    // Binary search for the last keyframe at or before the given time
+    function findKeyframeIndex(time: number): number {
+        const kfs = keyframes.value;
+        let lo = 0;
+        let hi = kfs.length - 1;
+        let result = -1;
 
-        // Find surrounding keyframes
-        let before: ColorKeyframe | null = null;
-        let after: ColorKeyframe | null = null;
-
-        for (let i = 0; i < keyframes.value.length; i++) {
-            const kf = keyframes.value[i]!;
-            if (kf.time <= time) {
-                before = kf;
+        while (lo <= hi) {
+            const mid = (lo + hi) >>> 1;
+            if (kfs[mid]!.time <= time) {
+                result = mid;
+                lo = mid + 1;
             } else {
-                after = kf;
-                break;
+                hi = mid - 1;
             }
         }
+        return result;
+    }
 
-        // Edge cases
-        if (!before && !after) return currentColors.value;
-        if (!before) return after!.colors;
-        if (!after) return before.colors;
+    function interpolateColors(time: number): ExtractedColors {
+        const kfs = keyframes.value;
+        if (kfs.length === 0) return currentColors.value;
 
-        // Calculate interpolation factor
+        const beforeIdx = findKeyframeIndex(time);
+
+        if (beforeIdx < 0) return kfs[0]!.colors;
+        if (beforeIdx >= kfs.length - 1) return kfs[beforeIdx]!.colors;
+
+        const before = kfs[beforeIdx]!;
+        const after = kfs[beforeIdx + 1]!;
+
         const duration = after.time - before.time;
         if (duration <= 0) return before.colors;
 
@@ -180,18 +188,15 @@ export function useAmbientGlow(
     }
 
     function updateLoop() {
-        // Only update colors when playing and keyframes are available
-        if (isPlaying.value && keyframes.value.length > 0) {
-            const getCurrentTime = playerRef.value?.getCurrentTime;
-            if (getCurrentTime) {
-                const currentTime = getCurrentTime();
-                const now = performance.now();
+        const getCurrentTime = playerRef.value?.getCurrentTime;
+        if (getCurrentTime) {
+            const currentTime = getCurrentTime();
+            const now = performance.now();
 
-                // Only update if enough time has passed (throttle to ~20fps for color updates)
-                if (now - lastUpdateTime > 50) {
-                    currentColors.value = interpolateColors(currentTime);
-                    lastUpdateTime = now;
-                }
+            // Throttle to ~20fps for color updates
+            if (now - lastUpdateTime > 50) {
+                currentColors.value = interpolateColors(currentTime);
+                lastUpdateTime = now;
             }
         }
 
@@ -211,6 +216,15 @@ export function useAmbientGlow(
         }
     }
 
+    // Start/stop the rAF loop based on playback state to avoid idle CPU usage
+    watch(isPlaying, (playing) => {
+        if (playing && keyframes.value.length > 0) {
+            startAnimation();
+        } else {
+            stopAnimation();
+        }
+    });
+
     async function initialize() {
         // Start with thumbnail colors
         const thumbnailColors = await extractColorsFromThumbnail();
@@ -221,8 +235,10 @@ export function useAmbientGlow(
             await precomputeKeyframes();
         }
 
-        // Start the animation loop (will only update colors when playing)
-        startAnimation();
+        // Start animation only if already playing
+        if (isPlaying.value && keyframes.value.length > 0) {
+            startAnimation();
+        }
     }
 
     // Watch for VTT cues to become available
@@ -231,6 +247,10 @@ export function useAmbientGlow(
         async (newCues) => {
             if (newCues.length > 0 && keyframes.value.length === 0) {
                 await precomputeKeyframes();
+                // Start animation if playing and keyframes just became available
+                if (isPlaying.value && keyframes.value.length > 0) {
+                    startAnimation();
+                }
             }
         },
         { deep: true },

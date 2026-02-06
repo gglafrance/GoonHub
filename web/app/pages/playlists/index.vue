@@ -18,12 +18,23 @@ onMounted(async () => {
     await store.loadPlaylists();
 });
 
+const searchInput = ref(store.searchQuery);
+let searchDebounce: ReturnType<typeof setTimeout> | null = null;
+
+watch(searchInput, (val) => {
+    if (searchDebounce) clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => {
+        store.searchQuery = val;
+    }, 300);
+});
+
 watch(
     [
         () => store.ownerFilter,
         () => store.visibilityFilter,
         () => store.sortOrder,
         () => store.tagFilter,
+        () => store.searchQuery,
     ],
     () => {
         store.currentPage = 1;
@@ -66,6 +77,29 @@ const handleCreated = () => {
 
         <!-- Filters -->
         <div class="mb-6 flex flex-wrap items-center gap-3">
+            <!-- Search -->
+            <div class="relative">
+                <input
+                    v-model="searchInput"
+                    type="text"
+                    placeholder="Search playlists..."
+                    class="border-border bg-surface text-dim w-48 rounded-md border py-1.5 pr-7
+                        pl-2.5 text-[11px] transition-all placeholder:text-white/30 focus:text-white
+                        focus:outline-none"
+                />
+                <button
+                    v-if="searchInput"
+                    class="text-dim absolute top-1/2 right-2 -translate-y-1/2 transition-colors
+                        hover:text-white"
+                    @click="
+                        searchInput = '';
+                        store.searchQuery = '';
+                    "
+                >
+                    <Icon name="heroicons:x-mark" size="12" />
+                </button>
+            </div>
+
             <!-- Owner filter -->
             <div class="flex gap-1">
                 <button

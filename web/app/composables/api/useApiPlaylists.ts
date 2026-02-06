@@ -89,6 +89,15 @@ export const useApiPlaylists = () => {
         await handleResponseWithNoContent(response);
     };
 
+    const removeScenes = async (uuid: string, sceneIDs: number[]): Promise<void> => {
+        const response = await fetch(`/api/v1/playlists/${uuid}/scenes/remove`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ scene_ids: sceneIDs }),
+        });
+        await handleResponseWithNoContent(response);
+    };
+
     const reorderScenes = async (uuid: string, sceneIDs: number[]): Promise<void> => {
         const response = await fetch(`/api/v1/playlists/${uuid}/scenes/reorder`, {
             method: 'PUT',
@@ -161,6 +170,7 @@ export const useApiPlaylists = () => {
         deletePlaylist,
         addScenes,
         removeScene,
+        removeScenes,
         reorderScenes,
         fetchPlaylistTags,
         setPlaylistTags,

@@ -86,6 +86,11 @@ func (r *PlaylistRepositoryImpl) List(params PlaylistListParams) ([]Playlist, in
 		)
 	}
 
+	// Name search
+	if params.Search != "" {
+		query = query.Where("name ILIKE ?", "%"+params.Search+"%")
+	}
+
 	// Count total before pagination
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
@@ -185,6 +190,20 @@ func IsDuplicateScene(err error) bool {
 
 func (r *PlaylistRepositoryImpl) RemoveScene(playlistID uint, sceneID uint) error {
 	result := r.DB.Where("playlist_id = ? AND scene_id = ?", playlistID, sceneID).Delete(&PlaylistScene{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func (r *PlaylistRepositoryImpl) RemoveScenes(playlistID uint, sceneIDs []uint) error {
+	if len(sceneIDs) == 0 {
+		return nil
+	}
+	result := r.DB.Where("playlist_id = ? AND scene_id IN ?", playlistID, sceneIDs).Delete(&PlaylistScene{})
 	if result.Error != nil {
 		return result.Error
 	}
