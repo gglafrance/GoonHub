@@ -332,20 +332,17 @@ onMounted(() => {
                 </div>
 
                 <!-- Marker Preview CRF (shown only when animated) -->
-                <div
-                    v-if="markerThumbnailType === 'animated'"
-                    class="space-y-1.5"
-                >
+                <div v-if="markerThumbnailType === 'animated'" class="space-y-1.5">
                     <div class="flex items-center justify-between">
                         <div>
                             <label class="text-xs font-medium text-white">Compression (CRF)</label>
-                            <p class="text-dim text-[10px]">
-                                Default: 32 (Medium)
-                            </p>
+                            <p class="text-dim text-[10px]">Default: 32 (Medium)</p>
                         </div>
                         <span class="text-xs">
                             <span class="font-mono text-white/80">CRF {{ markerPreviewCrf }}</span>
-                            <span class="ml-1.5" :class="crfQualityLabel(markerPreviewCrf).color">{{ crfQualityLabel(markerPreviewCrf).label }}</span>
+                            <span class="ml-1.5" :class="crfQualityLabel(markerPreviewCrf).color">{{
+                                crfQualityLabel(markerPreviewCrf).label
+                            }}</span>
                         </span>
                     </div>
                     <input
@@ -440,20 +437,17 @@ onMounted(() => {
                 </div>
 
                 <!-- Scene Preview CRF (shown when enabled) -->
-                <div
-                    v-if="scenePreviewEnabled"
-                    class="space-y-1.5"
-                >
+                <div v-if="scenePreviewEnabled" class="space-y-1.5">
                     <div class="flex items-center justify-between">
                         <div>
                             <label class="text-xs font-medium text-white">Compression (CRF)</label>
-                            <p class="text-dim text-[10px]">
-                                Default: 27 (Good)
-                            </p>
+                            <p class="text-dim text-[10px]">Default: 27 (Good)</p>
                         </div>
                         <span class="text-xs">
                             <span class="font-mono text-white/80">CRF {{ scenePreviewCrf }}</span>
-                            <span class="ml-1.5" :class="crfQualityLabel(scenePreviewCrf).color">{{ crfQualityLabel(scenePreviewCrf).label }}</span>
+                            <span class="ml-1.5" :class="crfQualityLabel(scenePreviewCrf).color">{{
+                                crfQualityLabel(scenePreviewCrf).label
+                            }}</span>
                         </span>
                     </div>
                     <input

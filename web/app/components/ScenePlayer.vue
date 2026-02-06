@@ -12,6 +12,12 @@ interface TheaterModeButtonInstance {
     _onToggle: (() => void) | null;
 }
 
+// Playlist button interface for type safety
+interface PlaylistButtonInstance {
+    setDisabled: (disabled: boolean) => void;
+    _onClick: (() => void) | null;
+}
+
 // Register theater mode button component
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ButtonClass = videojs.getComponent('Button') as any;
@@ -58,6 +64,89 @@ if (ButtonClass) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     videojs.registerComponent('TheaterModeButton', TheaterModeButton as any);
+
+    // Playlist previous button
+    class PlaylistPrevButton extends ButtonClass {
+        public _onClick: (() => void) | null = null;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        constructor(player: Player, options?: any) {
+            super(player, options);
+            this._onClick = options?.onClick ?? null;
+            this.controlText('Previous');
+            this.setIcon();
+        }
+
+        buildCSSClass() {
+            return `vjs-playlist-prev-control ${super.buildCSSClass()}`;
+        }
+
+        handleClick() {
+            if (this._onClick) this._onClick();
+        }
+
+        setDisabled(disabled: boolean) {
+            const el = this.el();
+            if (el) {
+                if (disabled) {
+                    el.classList.add('vjs-playlist-btn-disabled');
+                } else {
+                    el.classList.remove('vjs-playlist-btn-disabled');
+                }
+            }
+        }
+
+        setIcon() {
+            const el = this.el();
+            if (el) {
+                el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="vjs-playlist-icon"><path d="M9.195 18.44c1.25.714 2.805-.189 2.805-1.629v-2.34l6.945 3.968c1.25.715 2.805-.188 2.805-1.628V7.19c0-1.44-1.555-2.343-2.805-1.628L12 9.53v-2.34c0-1.44-1.555-2.343-2.805-1.628l-7.108 4.061c-1.26.72-1.26 2.536 0 3.256l7.108 4.061Z"/></svg>`;
+            }
+        }
+    }
+
+    // Playlist next button
+    class PlaylistNextButton extends ButtonClass {
+        public _onClick: (() => void) | null = null;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        constructor(player: Player, options?: any) {
+            super(player, options);
+            this._onClick = options?.onClick ?? null;
+            this.controlText('Next');
+            this.setIcon();
+        }
+
+        buildCSSClass() {
+            return `vjs-playlist-next-control ${super.buildCSSClass()}`;
+        }
+
+        handleClick() {
+            if (this._onClick) this._onClick();
+        }
+
+        setDisabled(disabled: boolean) {
+            const el = this.el();
+            if (el) {
+                if (disabled) {
+                    el.classList.add('vjs-playlist-btn-disabled');
+                } else {
+                    el.classList.remove('vjs-playlist-btn-disabled');
+                }
+            }
+        }
+
+        setIcon() {
+            const el = this.el();
+            if (el) {
+                el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="vjs-playlist-icon"><path d="M5.055 7.06C3.805 6.347 2.25 7.25 2.25 8.689v6.622c0 1.44 1.555 2.343 2.805 1.628L12 13.471v2.34c0 1.44 1.555 2.343 2.805 1.628l7.108-4.061c1.26-.72 1.26-2.536 0-3.256l-7.108-4.061C13.555 5.346 12 6.249 12 7.689v2.34L5.055 7.06Z"/></svg>`;
+            }
+        }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    videojs.registerComponent('PlaylistPrevButton', PlaylistPrevButton as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    videojs.registerComponent('PlaylistNextButton', PlaylistNextButton as any);
 }
 
 const props = defineProps<{
@@ -69,6 +158,9 @@ const props = defineProps<{
     scene?: Scene;
     startTime?: number;
     markers?: Marker[];
+    playlistMode?: boolean;
+    hasNext?: boolean;
+    hasPrevious?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -77,12 +169,16 @@ const emit = defineEmits<{
     ended: [];
     error: [error: unknown];
     viewRecorded: [];
+    next: [];
+    previous: [];
 }>();
 
 const videoElement = ref<HTMLVideoElement>();
 const player = shallowRef<Player | null>(null);
 const settingsStore = useSettingsStore();
 const theaterModeButton = shallowRef<TheaterModeButtonInstance | null>(null);
+const playlistPrevBtn = shallowRef<PlaylistButtonInstance | null>(null);
+const playlistNextBtn = shallowRef<PlaylistButtonInstance | null>(null);
 const { vttCues, loadVttCues } = useVttParser();
 const { setup: setupThumbnailPreview } = useThumbnailPreview(player, vttCues);
 const {
@@ -174,6 +270,29 @@ onMounted(async () => {
                 settingsStore.toggleTheaterMode();
             };
         }
+
+        // Add playlist prev/next buttons when in playlist mode
+        if (props.playlistMode) {
+            const barEl = controlBar.el() as HTMLElement | null;
+
+            const rawPrev = controlBar.addChild('PlaylistPrevButton', {
+                onClick: () => emit('previous'),
+            });
+            // Move to index 1 (after playToggle)
+            if (barEl) barEl.insertBefore(rawPrev.el(), barEl.children[1] ?? null);
+            const prevBtn = rawPrev as unknown as PlaylistButtonInstance;
+            prevBtn.setDisabled(!props.hasPrevious);
+            playlistPrevBtn.value = prevBtn;
+
+            const rawNext = controlBar.addChild('PlaylistNextButton', {
+                onClick: () => emit('next'),
+            });
+            // Move to index 2 (after prev button)
+            if (barEl) barEl.insertBefore(rawNext.el(), barEl.children[2] ?? null);
+            const nextBtn = rawNext as unknown as PlaylistButtonInstance;
+            nextBtn.setDisabled(!props.hasNext);
+            playlistNextBtn.value = nextBtn;
+        }
     }
 
     // Set initial volume (video.js uses 0-1 range)
@@ -256,6 +375,21 @@ watch(
         if (theaterModeButton.value) {
             theaterModeButton.value.setTheaterMode(isTheaterMode);
         }
+    },
+);
+
+// Sync playlist button disabled states
+watch(
+    () => props.hasPrevious,
+    (val) => {
+        if (playlistPrevBtn.value) playlistPrevBtn.value.setDisabled(!val);
+    },
+);
+
+watch(
+    () => props.hasNext,
+    (val) => {
+        if (playlistNextBtn.value) playlistNextBtn.value.setDisabled(!val);
     },
 );
 
@@ -634,6 +768,37 @@ onBeforeUnmount(() => {
 :deep(.vjs-fullscreen-control:hover) {
     color: #ff4d4d;
     background: rgba(255, 77, 77, 0.12);
+}
+
+/* Playlist Prev/Next Buttons */
+:deep(.vjs-playlist-prev-control),
+:deep(.vjs-playlist-next-control) {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+:deep(.vjs-playlist-prev-control:hover),
+:deep(.vjs-playlist-next-control:hover) {
+    color: #ff4d4d;
+    background: rgba(255, 77, 77, 0.12);
+}
+
+:deep(.vjs-playlist-next-control) {
+    margin-right: 6px;
+}
+
+:deep(.vjs-playlist-icon) {
+    width: 16px;
+    height: 16px;
+}
+
+:deep(.vjs-playlist-btn-disabled) {
+    opacity: 0.25;
+    pointer-events: none;
 }
 
 /* Icon alignment fix */
