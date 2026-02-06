@@ -334,6 +334,67 @@ func TestRemoveScene_Success(t *testing.T) {
 	}
 }
 
+func TestRemoveScenes_Success(t *testing.T) {
+	svc, playlistRepo, _, _ := newTestPlaylistService(t)
+
+	testUUID := uuid.New()
+	playlist := &data.Playlist{
+		ID:     1,
+		UUID:   testUUID,
+		UserID: 1,
+	}
+
+	playlistRepo.EXPECT().GetByUUID(testUUID.String()).Return(playlist, nil)
+	playlistRepo.EXPECT().RemoveScenes(uint(1), []uint{10, 20, 30}).Return(nil)
+
+	err := svc.RemoveScenes(1, testUUID.String(), []uint{10, 20, 30})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+}
+
+func TestRemoveScenes_NonOwnerForbidden(t *testing.T) {
+	svc, playlistRepo, _, _ := newTestPlaylistService(t)
+
+	testUUID := uuid.New()
+	playlist := &data.Playlist{
+		ID:     1,
+		UUID:   testUUID,
+		UserID: 1,
+	}
+
+	playlistRepo.EXPECT().GetByUUID(testUUID.String()).Return(playlist, nil)
+
+	err := svc.RemoveScenes(2, testUUID.String(), []uint{10})
+	if err == nil {
+		t.Fatal("expected error for non-owner bulk remove")
+	}
+	if !apperrors.IsForbidden(err) {
+		t.Fatalf("expected forbidden error, got: %v", err)
+	}
+}
+
+func TestRemoveScenes_EmptyIDs(t *testing.T) {
+	svc, playlistRepo, _, _ := newTestPlaylistService(t)
+
+	testUUID := uuid.New()
+	playlist := &data.Playlist{
+		ID:     1,
+		UUID:   testUUID,
+		UserID: 1,
+	}
+
+	playlistRepo.EXPECT().GetByUUID(testUUID.String()).Return(playlist, nil)
+
+	err := svc.RemoveScenes(1, testUUID.String(), []uint{})
+	if err == nil {
+		t.Fatal("expected error for empty scene IDs")
+	}
+	if !apperrors.IsValidation(err) {
+		t.Fatalf("expected validation error, got: %v", err)
+	}
+}
+
 func TestReorderScenes_Success(t *testing.T) {
 	svc, playlistRepo, _, _ := newTestPlaylistService(t)
 

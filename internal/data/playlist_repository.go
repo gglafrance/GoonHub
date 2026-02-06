@@ -14,6 +14,7 @@ type PlaylistRepository interface {
 	// Scenes
 	AddScenes(playlistID uint, sceneIDs []uint) error
 	RemoveScene(playlistID uint, sceneID uint) error
+	RemoveScenes(playlistID uint, sceneIDs []uint) error
 	ReorderScenes(playlistID uint, sceneIDs []uint) error
 	GetPlaylistScenes(playlistID uint) ([]PlaylistScene, error)
 	GetMaxPosition(playlistID uint) (int, error)

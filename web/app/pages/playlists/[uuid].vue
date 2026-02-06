@@ -7,6 +7,7 @@ const route = useRoute();
 const router = useRouter();
 const store = usePlaylistStore();
 const authStore = useAuthStore();
+const { formatDuration } = useFormatter();
 
 const uuid = computed(() => route.params.uuid as string);
 const isOwner = computed(
@@ -27,6 +28,33 @@ onMounted(() => {
 watch(uuid, (newUuid) => {
     store.loadPlaylist(newUuid);
 });
+
+// Resume button
+const resumeData = computed(() => {
+    const resume = store.currentPlaylist?.resume;
+    if (!resume?.scene_id) return null;
+    const scenes = store.currentPlaylist?.scenes ?? [];
+    const index = scenes.findIndex((s) => s.scene.id === resume.scene_id);
+    if (index === -1) return null;
+    return {
+        sceneId: resume.scene_id,
+        positionS: resume.position_s,
+        index,
+        title: scenes[index]!.scene.title,
+    };
+});
+
+const handleResume = () => {
+    if (!resumeData.value) return;
+    router.push({
+        path: `/watch/${resumeData.value.sceneId}`,
+        query: {
+            playlist: uuid.value,
+            pos: String(resumeData.value.index),
+            t: String(Math.floor(resumeData.value.positionS)),
+        },
+    });
+};
 
 const handleToggleLike = async () => {
     if (!store.currentPlaylist) return;
@@ -55,6 +83,11 @@ const handleRemoveScene = async (sceneId: number) => {
     await store.removeScene(store.currentPlaylist.uuid, sceneId);
 };
 
+const handleRemoveScenes = async (sceneIds: number[]) => {
+    if (!store.currentPlaylist) return;
+    await store.removeScenes(store.currentPlaylist.uuid, sceneIds);
+};
+
 const handleReorder = async (sceneIds: number[]) => {
     if (!store.currentPlaylist) return;
     await store.reorderScenes(store.currentPlaylist.uuid, sceneIds);
@@ -78,7 +111,11 @@ const handleShuffle = () => {
     if (!store.currentPlaylist?.scenes.length) return;
     const seed = Math.floor(Math.random() * 0xffffffff);
     const order = seededShuffle(store.currentPlaylist.scenes.length, seed);
-    const firstSceneId = store.currentPlaylist.scenes[order[0]].scene.id;
+    const firstIndex = order[0];
+    if (firstIndex === undefined) return;
+    const firstScene = store.currentPlaylist.scenes[firstIndex];
+    if (!firstScene) return;
+    const firstSceneId = firstScene.scene.id;
     router.push({
         path: `/watch/${firstSceneId}`,
         query: { playlist: uuid.value, pos: '0', shuffle: String(seed) },
@@ -129,6 +166,22 @@ const handleShuffle = () => {
                     Play All
                 </button>
                 <button
+                    v-if="resumeData"
+                    class="border-border bg-surface text-dim hover:border-border-hover
+                        hover:bg-elevated flex items-center gap-1.5 rounded-lg border px-3 py-2
+                        text-xs font-medium transition-all hover:text-white"
+                    @click="handleResume"
+                >
+                    <Icon name="heroicons:play-pause" size="14" />
+                    Resume
+                    <span class="max-w-32 truncate opacity-60">
+                        {{ resumeData.title }}
+                    </span>
+                    <span class="font-mono opacity-50">
+                        {{ formatDuration(Math.floor(resumeData.positionS)) }}
+                    </span>
+                </button>
+                <button
                     :disabled="store.currentPlaylist.scenes.length === 0"
                     class="border-border bg-surface text-dim hover:border-border-hover
                         hover:bg-elevated flex items-center gap-1.5 rounded-lg border px-3 py-2
@@ -146,6 +199,7 @@ const handleShuffle = () => {
                 :scenes="store.currentPlaylist.scenes"
                 :is-owner="isOwner"
                 @remove="handleRemoveScene"
+                @remove-many="handleRemoveScenes"
                 @reorder="handleReorder"
                 @play="handlePlay"
             />

@@ -21,6 +21,19 @@ const emit = defineEmits<{
 
 const { formatDuration } = useFormatter();
 
+const remainingDuration = computed(() => {
+    let total = 0;
+    for (let i = props.currentIndex + 1; i < props.effectiveOrder.length; i++) {
+        const sceneIndex = props.effectiveOrder[i];
+        if (sceneIndex === undefined) continue;
+        const entry = props.playlist.scenes[sceneIndex];
+        if (entry) {
+            total += entry.scene.duration ?? 0;
+        }
+    }
+    return total;
+});
+
 const expanded = ref(false);
 const scrollContainer = ref<HTMLElement | null>(null);
 
@@ -106,6 +119,9 @@ onUnmounted(() => {
                     </div>
                     <span class="text-dim font-mono text-[10px]">
                         {{ currentIndex + 1 }} of {{ effectiveOrder.length }}
+                        <template v-if="remainingDuration > 0">
+                            &middot; {{ formatDuration(remainingDuration) }} left
+                        </template>
                     </span>
                 </div>
 
@@ -186,6 +202,9 @@ onUnmounted(() => {
                         </NuxtLink>
                         <span class="text-dim font-mono text-[10px]">
                             {{ currentIndex + 1 }} of {{ effectiveOrder.length }}
+                            <template v-if="remainingDuration > 0">
+                                &middot; {{ formatDuration(remainingDuration) }} left
+                            </template>
                         </span>
                     </div>
                     <div class="flex items-center gap-1">

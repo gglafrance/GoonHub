@@ -59,6 +59,7 @@ func (h *PlaylistHandler) List(c *gin.Context) {
 		Owner:      c.DefaultQuery("owner", "all"),
 		Visibility: c.Query("visibility"),
 		TagIDs:     tagIDs,
+		Search:     c.Query("search"),
 		Sort:       c.DefaultQuery("sort", "created_at_desc"),
 		Page:       page,
 		Limit:      limit,
@@ -238,6 +239,33 @@ func (h *PlaylistHandler) RemoveScene(c *gin.Context) {
 	}
 
 	if err := h.Service.RemoveScene(userID, uuidStr, uint(sceneID)); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+func (h *PlaylistHandler) RemoveScenes(c *gin.Context) {
+	userID, ok := h.getUserID(c)
+	if !ok {
+		response.BadRequest(c, "User not authenticated")
+		return
+	}
+
+	uuidStr := c.Param("uuid")
+	if _, err := uuid.Parse(uuidStr); err != nil {
+		response.BadRequest(c, "Invalid playlist UUID")
+		return
+	}
+
+	var req request.RemovePlaylistScenesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "scene_ids is required")
+		return
+	}
+
+	if err := h.Service.RemoveScenes(userID, uuidStr, req.SceneIDs); err != nil {
 		response.Error(c, err)
 		return
 	}
