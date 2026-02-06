@@ -36,6 +36,7 @@ type MarkerRepository interface {
 	// Scene-level methods (not user-scoped)
 	GetBySceneWithoutThumbnail(sceneID uint) ([]UserSceneMarker, error)
 	GetBySceneWithoutAnimatedThumbnail(sceneID uint) ([]UserSceneMarker, error)
+	GetAllByScene(sceneID uint) ([]UserSceneMarker, error)
 
 	// All markers (unwrapped view)
 	GetAllMarkersForUser(userID uint, offset, limit int, sortBy string) ([]MarkerWithScene, int64, error)
@@ -561,6 +562,17 @@ func (r *MarkerRepositoryImpl) GetBySceneWithoutThumbnail(sceneID uint) ([]UserS
 func (r *MarkerRepositoryImpl) GetBySceneWithoutAnimatedThumbnail(sceneID uint) ([]UserSceneMarker, error) {
 	var markers []UserSceneMarker
 	err := r.DB.Where("scene_id = ? AND (animated_thumbnail_path = '' OR animated_thumbnail_path IS NULL)", sceneID).
+		Find(&markers).Error
+	if err != nil {
+		return nil, err
+	}
+	return markers, nil
+}
+
+// GetAllByScene returns all markers for a scene regardless of thumbnail status
+func (r *MarkerRepositoryImpl) GetAllByScene(sceneID uint) ([]UserSceneMarker, error) {
+	var markers []UserSceneMarker
+	err := r.DB.Where("scene_id = ?", sceneID).
 		Find(&markers).Error
 	if err != nil {
 		return nil, err

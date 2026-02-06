@@ -90,8 +90,9 @@ export const useApiJobs = () => {
         return handleResponse(response);
     };
 
-    const triggerScenePhase = async (sceneId: number, phase: string) => {
-        const response = await fetch(`/api/v1/admin/scenes/${sceneId}/process/${phase}`, {
+    const triggerScenePhase = async (sceneId: number, phase: string, forceTarget?: string) => {
+        const params = forceTarget ? `?force_target=${forceTarget}` : '';
+        const response = await fetch(`/api/v1/admin/scenes/${sceneId}/process/${phase}${params}`, {
             method: 'POST',
             headers: getAuthHeaders(),
             ...fetchOptions(),
@@ -99,11 +100,13 @@ export const useApiJobs = () => {
         return handleResponse(response);
     };
 
-    const triggerBulkPhase = async (phase: string, mode: string) => {
+    const triggerBulkPhase = async (phase: string, mode: string, forceTarget?: string) => {
+        const body: Record<string, string> = { phase, mode };
+        if (forceTarget) body.force_target = forceTarget;
         const response = await fetch('/api/v1/admin/jobs/bulk', {
             method: 'POST',
             headers: getAuthHeaders(),
-            body: JSON.stringify({ phase, mode }),
+            body: JSON.stringify(body),
         });
         return handleResponse(response);
     };

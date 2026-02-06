@@ -191,7 +191,9 @@ onMounted(async () => {
 
         if (props.autoplay) {
             player.value!.play()?.catch(() => {
-                // Autoplay prevented by browser policy
+                // Browser blocked unmuted autoplay — retry muted
+                player.value!.muted(true);
+                player.value!.play();
             });
         }
     });
@@ -203,7 +205,10 @@ watch(
         if (player.value) {
             player.value.src({ type: 'video/mp4', src: props.sceneUrl });
             if (props.autoplay) {
-                player.value.play();
+                player.value.play()?.catch(() => {
+                    player.value!.muted(true);
+                    player.value!.play();
+                });
             }
         }
     },
@@ -231,7 +236,8 @@ watch(
         if (player.value && newStartTime && newStartTime > 0) {
             player.value.currentTime(newStartTime);
             player.value.play()?.catch(() => {
-                // Autoplay may be blocked
+                player.value!.muted(true);
+                player.value!.play();
             });
         }
     },

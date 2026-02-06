@@ -20,6 +20,8 @@ type ProcessingConfigRecord struct {
 	ScenePreviewEnabled        bool      `gorm:"column:scene_preview_enabled" json:"scene_preview_enabled"`
 	ScenePreviewSegments       int       `gorm:"column:scene_preview_segments" json:"scene_preview_segments"`
 	ScenePreviewSegmentDuration float64  `gorm:"column:scene_preview_segment_duration" json:"scene_preview_segment_duration"`
+	MarkerPreviewCRF           int       `gorm:"column:marker_preview_crf" json:"marker_preview_crf"`
+	ScenePreviewCRF            int       `gorm:"column:scene_preview_crf" json:"scene_preview_crf"`
 	UpdatedAt                  time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
 
@@ -57,6 +59,6 @@ func (r *ProcessingConfigRepositoryImpl) Upsert(record *ProcessingConfigRecord) 
 	record.UpdatedAt = time.Now()
 	return r.DB.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"max_frame_dimension_sm", "max_frame_dimension_lg", "frame_quality_sm", "frame_quality_lg", "frame_quality_sprites", "sprites_concurrency", "marker_thumbnail_type", "marker_animated_duration", "scene_preview_enabled", "scene_preview_segments", "scene_preview_segment_duration", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"max_frame_dimension_sm", "max_frame_dimension_lg", "frame_quality_sm", "frame_quality_lg", "frame_quality_sprites", "sprites_concurrency", "marker_thumbnail_type", "marker_animated_duration", "scene_preview_enabled", "scene_preview_segments", "scene_preview_segment_duration", "marker_preview_crf", "scene_preview_crf", "updated_at"}),
 	}).Create(record).Error
 }

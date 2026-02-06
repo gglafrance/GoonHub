@@ -13,20 +13,21 @@ import (
 // AnimatedThumbnailGenerator generates animated preview clips for scene markers
 // and scene preview videos. Defined here to avoid circular imports between jobs and core packages.
 type AnimatedThumbnailGenerator interface {
-	GenerateMissingAnimatedForScene(ctx context.Context, sceneID uint) (int, error)
-	GenerateScenePreview(ctx context.Context, sceneID uint) error
+	GenerateMissingAnimatedForScene(ctx context.Context, sceneID uint, forceTarget string) (int, error)
+	GenerateScenePreview(ctx context.Context, sceneID uint, forceTarget string) error
 }
 
 type AnimatedThumbnailJob struct {
-	id        string
-	sceneID   uint
-	generator AnimatedThumbnailGenerator
-	logger    *zap.Logger
-	status    JobStatus
-	error     error
-	cancelled atomic.Bool
-	ctx       context.Context
-	cancelFn  context.CancelFunc
+	id          string
+	sceneID     uint
+	forceTarget string
+	generator   AnimatedThumbnailGenerator
+	logger      *zap.Logger
+	status      JobStatus
+	error       error
+	cancelled   atomic.Bool
+	ctx         context.Context
+	cancelFn    context.CancelFunc
 }
 
 func NewAnimatedThumbnailJob(
@@ -48,15 +49,17 @@ func NewAnimatedThumbnailJob(
 func NewAnimatedThumbnailJobWithID(
 	jobID string,
 	sceneID uint,
+	forceTarget string,
 	generator AnimatedThumbnailGenerator,
 	logger *zap.Logger,
 ) *AnimatedThumbnailJob {
 	return &AnimatedThumbnailJob{
-		id:        jobID,
-		sceneID:   sceneID,
-		generator: generator,
-		logger:    logger,
-		status:    JobStatusPending,
+		id:          jobID,
+		sceneID:     sceneID,
+		forceTarget: forceTarget,
+		generator:   generator,
+		logger:      logger,
+		status:      JobStatusPending,
 	}
 }
 
@@ -94,7 +97,7 @@ func (j *AnimatedThumbnailJob) ExecuteWithContext(ctx context.Context) error {
 		return fmt.Errorf("job cancelled")
 	}
 
-	generated, err := j.generator.GenerateMissingAnimatedForScene(j.ctx, j.sceneID)
+	generated, err := j.generator.GenerateMissingAnimatedForScene(j.ctx, j.sceneID, j.forceTarget)
 	if err != nil {
 		if j.ctx.Err() == context.DeadlineExceeded {
 			j.status = JobStatusTimedOut
@@ -111,7 +114,7 @@ func (j *AnimatedThumbnailJob) ExecuteWithContext(ctx context.Context) error {
 	}
 
 	// Generate scene preview video (best-effort, does not fail the job)
-	if previewErr := j.generator.GenerateScenePreview(j.ctx, j.sceneID); previewErr != nil {
+	if previewErr := j.generator.GenerateScenePreview(j.ctx, j.sceneID, j.forceTarget); previewErr != nil {
 		if j.ctx.Err() != nil {
 			// Propagate cancellation/timeout
 			if j.ctx.Err() == context.DeadlineExceeded {

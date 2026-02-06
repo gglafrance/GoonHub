@@ -349,6 +349,7 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 		job = jobs.NewAnimatedThumbnailJobWithID(
 			jobRecord.JobID,
 			jobRecord.SceneID,
+			jobRecord.ForceTarget,
 			f.animatedThumbGen,
 			f.logger,
 		)

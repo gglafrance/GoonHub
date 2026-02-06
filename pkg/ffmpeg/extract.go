@@ -43,7 +43,7 @@ func ExtractThumbnailWithContext(ctx context.Context, videoPath, outputPath, see
 // ExtractAnimatedThumbnailWithContext extracts a short MP4 clip from a video at the given seek position.
 // The clip is encoded with libx264 at the given width (height auto-calculated to preserve aspect ratio),
 // with fast encoding settings optimized for small preview thumbnails.
-func ExtractAnimatedThumbnailWithContext(ctx context.Context, videoPath, outputPath, seekPosition string, duration, width int) error {
+func ExtractAnimatedThumbnailWithContext(ctx context.Context, videoPath, outputPath, seekPosition string, duration, width, crf int) error {
 	args := GetDefaultArgs()
 	args = append(args,
 		"-ss", seekPosition,
@@ -53,7 +53,7 @@ func ExtractAnimatedThumbnailWithContext(ctx context.Context, videoPath, outputP
 		"-vf", fmt.Sprintf("scale=%d:-2:flags=bilinear", width),
 		"-pix_fmt", "yuv420p",
 		"-preset", "veryfast",
-		"-crf", "32",
+		"-crf", strconv.Itoa(crf),
 		"-movflags", "+faststart",
 		"-map_metadata", "-1",
 		"-threads", "2",
@@ -77,7 +77,7 @@ func ExtractAnimatedThumbnailWithContext(ctx context.Context, videoPath, outputP
 // throughout the video and concatenating them into a single clip. For short videos where the
 // total content is less than segments * segmentDuration, it encodes the entire video at reduced resolution.
 func ExtractScenePreviewWithContext(ctx context.Context, videoPath, outputPath string,
-	duration int, segments int, segmentDuration float64, width int) error {
+	duration int, segments int, segmentDuration float64, width, crf int) error {
 
 	totalNeeded := float64(segments) * segmentDuration
 
@@ -90,7 +90,7 @@ func ExtractScenePreviewWithContext(ctx context.Context, videoPath, outputPath s
 			"-vf", fmt.Sprintf("scale=%d:-2:flags=bilinear", width),
 			"-pix_fmt", "yuv420p",
 			"-preset", "veryfast",
-			"-crf", "27",
+			"-crf", strconv.Itoa(crf),
 			"-movflags", "+faststart",
 			"-map_metadata", "-1",
 			"-threads", "4",
@@ -140,7 +140,7 @@ func ExtractScenePreviewWithContext(ctx context.Context, videoPath, outputPath s
 		"-map", "[out]",
 		"-c:v", "libx264",
 		"-preset", "veryfast",
-		"-crf", "27",
+		"-crf", strconv.Itoa(crf),
 		"-movflags", "+faststart",
 		"-map_metadata", "-1",
 		"-threads", "4",

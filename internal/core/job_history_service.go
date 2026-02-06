@@ -295,13 +295,13 @@ func (s *JobHistoryService) GetByJobID(jobID string) (*data.JobHistory, error) {
 
 // CreatePendingJob creates a job with status='pending' in the database.
 // Used for DB-backed job queue where jobs are created pending and later claimed by the feeder.
-func (s *JobHistoryService) CreatePendingJob(jobID string, sceneID uint, sceneTitle string, phase string) error {
-	return s.CreatePendingJobWithPriority(jobID, sceneID, sceneTitle, phase, 0)
+func (s *JobHistoryService) CreatePendingJob(jobID string, sceneID uint, sceneTitle string, phase string, forceTarget string) error {
+	return s.CreatePendingJobWithPriority(jobID, sceneID, sceneTitle, phase, 0, forceTarget)
 }
 
 // CreatePendingJobWithPriority creates a pending job with a specific priority.
 // Higher priority values are claimed first by the feeder.
-func (s *JobHistoryService) CreatePendingJobWithPriority(jobID string, sceneID uint, sceneTitle string, phase string, priority int) error {
+func (s *JobHistoryService) CreatePendingJobWithPriority(jobID string, sceneID uint, sceneTitle string, phase string, priority int, forceTarget string) error {
 	now := time.Now()
 	record := &data.JobHistory{
 		JobID:       jobID,
@@ -312,6 +312,7 @@ func (s *JobHistoryService) CreatePendingJobWithPriority(jobID string, sceneID u
 		CreatedAt:   now,
 		IsRetryable: true,
 		Priority:    priority,
+		ForceTarget: forceTarget,
 	}
 	if err := s.repo.CreatePending(record); err != nil {
 		s.logger.Error("Failed to create pending job",

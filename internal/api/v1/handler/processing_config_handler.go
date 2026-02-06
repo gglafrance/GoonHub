@@ -62,6 +62,12 @@ func (h *ProcessingConfigHandler) UpdateProcessingConfig(c *gin.Context) {
 	if req.MarkerAnimatedDuration > 0 {
 		h.markerService.SetMarkerAnimatedDuration(req.MarkerAnimatedDuration)
 	}
+	if req.MarkerPreviewCRF > 0 {
+		h.markerService.SetMarkerPreviewCRF(req.MarkerPreviewCRF)
+	}
+	if req.ScenePreviewCRF > 0 {
+		h.markerService.SetScenePreviewCRF(req.ScenePreviewCRF)
+	}
 
 	record := &data.ProcessingConfigRecord{
 		MaxFrameDimensionSm:         req.MaxFrameDimensionSm,
@@ -75,6 +81,8 @@ func (h *ProcessingConfigHandler) UpdateProcessingConfig(c *gin.Context) {
 		ScenePreviewEnabled:         req.ScenePreviewEnabled,
 		ScenePreviewSegments:        req.ScenePreviewSegments,
 		ScenePreviewSegmentDuration: req.ScenePreviewSegmentDuration,
+		MarkerPreviewCRF:            req.MarkerPreviewCRF,
+		ScenePreviewCRF:             req.ScenePreviewCRF,
 	}
 	if err := h.processingConfigRepo.Upsert(record); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Processing config applied but failed to persist: " + err.Error()})

@@ -81,6 +81,15 @@ func NewPoolManager(
 		scenePreviewSegmentDuration = 1.0
 	}
 
+	markerPreviewCRF := cfg.MarkerPreviewCRF
+	if markerPreviewCRF <= 0 {
+		markerPreviewCRF = 32
+	}
+	scenePreviewCRF := cfg.ScenePreviewCRF
+	if scenePreviewCRF <= 0 {
+		scenePreviewCRF = 27
+	}
+
 	qualityConfig := QualityConfig{
 		MaxFrameDimensionSm:         cfg.MaxFrameDimension,
 		MaxFrameDimensionLg:         cfg.MaxFrameDimensionLarge,
@@ -93,6 +102,8 @@ func NewPoolManager(
 		ScenePreviewEnabled:         cfg.ScenePreviewEnabled,
 		ScenePreviewSegments:        scenePreviewSegments,
 		ScenePreviewSegmentDuration: scenePreviewSegmentDuration,
+		MarkerPreviewCRF:            markerPreviewCRF,
+		ScenePreviewCRF:             scenePreviewCRF,
 	}
 
 	// Override with DB-persisted processing config if available
@@ -117,6 +128,12 @@ func NewPoolManager(
 			if dbConfig.ScenePreviewSegmentDuration > 0 {
 				qualityConfig.ScenePreviewSegmentDuration = dbConfig.ScenePreviewSegmentDuration
 			}
+			if dbConfig.MarkerPreviewCRF > 0 {
+				qualityConfig.MarkerPreviewCRF = dbConfig.MarkerPreviewCRF
+			}
+			if dbConfig.ScenePreviewCRF > 0 {
+				qualityConfig.ScenePreviewCRF = dbConfig.ScenePreviewCRF
+			}
 			logger.Info("Loaded processing config from database",
 				zap.Int("max_frame_dimension_sm", qualityConfig.MaxFrameDimensionSm),
 				zap.Int("max_frame_dimension_lg", qualityConfig.MaxFrameDimensionLg),
@@ -129,6 +146,8 @@ func NewPoolManager(
 				zap.Bool("scene_preview_enabled", qualityConfig.ScenePreviewEnabled),
 				zap.Int("scene_preview_segments", qualityConfig.ScenePreviewSegments),
 				zap.Float64("scene_preview_segment_duration", qualityConfig.ScenePreviewSegmentDuration),
+				zap.Int("marker_preview_crf", qualityConfig.MarkerPreviewCRF),
+				zap.Int("scene_preview_crf", qualityConfig.ScenePreviewCRF),
 			)
 		}
 	}
@@ -420,6 +439,12 @@ func (pm *PoolManager) UpdateQualityConfig(cfg QualityConfig) error {
 	if cfg.ScenePreviewSegmentDuration != 0 && (cfg.ScenePreviewSegmentDuration < 0.75 || cfg.ScenePreviewSegmentDuration > 5.0) {
 		return fmt.Errorf("scene_preview_segment_duration must be between 0.75 and 5.0")
 	}
+	if cfg.MarkerPreviewCRF != 0 && (cfg.MarkerPreviewCRF < 18 || cfg.MarkerPreviewCRF > 40) {
+		return fmt.Errorf("marker_preview_crf must be between 18 and 40")
+	}
+	if cfg.ScenePreviewCRF != 0 && (cfg.ScenePreviewCRF < 18 || cfg.ScenePreviewCRF > 40) {
+		return fmt.Errorf("scene_preview_crf must be between 18 and 40")
+	}
 
 	pm.mu.Lock()
 	pm.qualityConfig = cfg
@@ -437,6 +462,8 @@ func (pm *PoolManager) UpdateQualityConfig(cfg QualityConfig) error {
 		zap.Bool("scene_preview_enabled", cfg.ScenePreviewEnabled),
 		zap.Int("scene_preview_segments", cfg.ScenePreviewSegments),
 		zap.Float64("scene_preview_segment_duration", cfg.ScenePreviewSegmentDuration),
+		zap.Int("marker_preview_crf", cfg.MarkerPreviewCRF),
+		zap.Int("scene_preview_crf", cfg.ScenePreviewCRF),
 	)
 
 	return nil

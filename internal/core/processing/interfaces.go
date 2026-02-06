@@ -30,9 +30,9 @@ type JobHistoryRecorder interface {
 type JobQueueRecorder interface {
 	JobHistoryRecorder
 	// CreatePendingJob creates a job with status='pending' in the database
-	CreatePendingJob(jobID string, sceneID uint, sceneTitle string, phase string) error
+	CreatePendingJob(jobID string, sceneID uint, sceneTitle string, phase string, forceTarget string) error
 	// CreatePendingJobWithPriority creates a pending job with a specific priority (higher = processed first)
-	CreatePendingJobWithPriority(jobID string, sceneID uint, sceneTitle string, phase string, priority int) error
+	CreatePendingJobWithPriority(jobID string, sceneID uint, sceneTitle string, phase string, priority int, forceTarget string) error
 	// ExistsPendingOrRunning checks if a pending or running job exists for scene+phase
 	ExistsPendingOrRunning(sceneID uint, phase string) (bool, error)
 }

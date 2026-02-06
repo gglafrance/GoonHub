@@ -111,6 +111,21 @@ func (mr *MockMarkerRepositoryMockRecorder) Delete(id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockMarkerRepository)(nil).Delete), id)
 }
 
+// GetAllByScene mocks base method.
+func (m *MockMarkerRepository) GetAllByScene(sceneID uint) ([]data.UserSceneMarker, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllByScene", sceneID)
+	ret0, _ := ret[0].([]data.UserSceneMarker)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllByScene indicates an expected call of GetAllByScene.
+func (mr *MockMarkerRepositoryMockRecorder) GetAllByScene(sceneID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllByScene", reflect.TypeOf((*MockMarkerRepository)(nil).GetAllByScene), sceneID)
+}
+
 // GetAllLabelTagsForUser mocks base method.
 func (m *MockMarkerRepository) GetAllLabelTagsForUser(userID uint) (map[string][]data.Tag, error) {
 	m.ctrl.T.Helper()

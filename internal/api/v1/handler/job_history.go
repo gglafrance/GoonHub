@@ -113,7 +113,19 @@ func (h *JobHandler) TriggerPhase(c *gin.Context) {
 		return
 	}
 
-	if err := h.processingService.SubmitPhaseWithPriority(uint(sceneID), phase, 1); err != nil {
+	forceTarget := c.Query("force_target")
+	if forceTarget != "" {
+		if phase != "animated_thumbnails" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "force_target is only supported for animated_thumbnails phase"})
+			return
+		}
+		if err := validators.ValidateForceTarget(forceTarget); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	if err := h.processingService.SubmitPhaseWithForce(uint(sceneID), phase, 1, forceTarget); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -124,8 +136,9 @@ func (h *JobHandler) TriggerPhase(c *gin.Context) {
 // TriggerBulkPhase triggers a processing phase for multiple scenes
 func (h *JobHandler) TriggerBulkPhase(c *gin.Context) {
 	var req struct {
-		Phase string `json:"phase"`
-		Mode  string `json:"mode"`
+		Phase       string `json:"phase"`
+		Mode        string `json:"mode"`
+		ForceTarget string `json:"force_target"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
@@ -142,7 +155,18 @@ func (h *JobHandler) TriggerBulkPhase(c *gin.Context) {
 		return
 	}
 
-	result, err := h.processingService.SubmitBulkPhase(req.Phase, req.Mode)
+	if req.ForceTarget != "" {
+		if req.Phase != "animated_thumbnails" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "force_target is only supported for animated_thumbnails phase"})
+			return
+		}
+		if err := validators.ValidateForceTarget(req.ForceTarget); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	result, err := h.processingService.SubmitBulkPhase(req.Phase, req.Mode, req.ForceTarget)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

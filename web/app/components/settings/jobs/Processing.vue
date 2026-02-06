@@ -19,6 +19,18 @@ const markerAnimatedDuration = ref(10);
 const scenePreviewEnabled = ref(false);
 const scenePreviewSegments = ref(12);
 const scenePreviewSegmentDuration = ref(1.0);
+const markerPreviewCrf = ref(32);
+const scenePreviewCrf = ref(27);
+
+const crfQualityLabel = (crf: number) => {
+    if (crf <= 19) return { label: 'Excellent', color: 'text-emerald-400' };
+    if (crf <= 22) return { label: 'Very High', color: 'text-emerald-400' };
+    if (crf <= 25) return { label: 'High', color: 'text-blue-400' };
+    if (crf <= 28) return { label: 'Good', color: 'text-blue-400' };
+    if (crf <= 32) return { label: 'Medium', color: 'text-yellow-400' };
+    if (crf <= 36) return { label: 'Low', color: 'text-orange-400' };
+    return { label: 'Very Low', color: 'text-lava' };
+};
 
 const dimensionOptionsSm = [160, 240, 320, 480];
 const dimensionOptionsLg = [640, 720, 960, 1280, 1920];
@@ -39,6 +51,8 @@ const loadConfig = async () => {
         scenePreviewEnabled.value = config.scene_preview_enabled ?? false;
         scenePreviewSegments.value = config.scene_preview_segments || 12;
         scenePreviewSegmentDuration.value = config.scene_preview_segment_duration || 1.0;
+        markerPreviewCrf.value = config.marker_preview_crf || 32;
+        scenePreviewCrf.value = config.scene_preview_crf || 27;
     } catch (e: unknown) {
         error.value = e instanceof Error ? e.message : 'Failed to load processing config';
     } finally {
@@ -63,6 +77,8 @@ const applyConfig = async () => {
             scene_preview_enabled: scenePreviewEnabled.value,
             scene_preview_segments: scenePreviewSegments.value,
             scene_preview_segment_duration: scenePreviewSegmentDuration.value,
+            marker_preview_crf: markerPreviewCrf.value,
+            scene_preview_crf: scenePreviewCrf.value,
         });
         message.value = 'Processing configuration updated';
         setTimeout(() => {
@@ -314,6 +330,36 @@ onMounted(() => {
                             text-center text-xs text-white focus:border-white/20 focus:outline-none"
                     />
                 </div>
+
+                <!-- Marker Preview CRF (shown only when animated) -->
+                <div
+                    v-if="markerThumbnailType === 'animated'"
+                    class="space-y-1.5"
+                >
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <label class="text-xs font-medium text-white">Compression (CRF)</label>
+                            <p class="text-dim text-[10px]">
+                                Default: 32 (Medium)
+                            </p>
+                        </div>
+                        <span class="text-xs">
+                            <span class="font-mono text-white/80">CRF {{ markerPreviewCrf }}</span>
+                            <span class="ml-1.5" :class="crfQualityLabel(markerPreviewCrf).color">{{ crfQualityLabel(markerPreviewCrf).label }}</span>
+                        </span>
+                    </div>
+                    <input
+                        v-model.number="markerPreviewCrf"
+                        type="range"
+                        min="18"
+                        max="40"
+                        class="slider w-full"
+                    />
+                    <div class="text-dim flex justify-between text-[10px]">
+                        <span>Higher Quality</span>
+                        <span>Smaller Files</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Scene Preview Section -->
@@ -391,6 +437,36 @@ onMounted(() => {
                         class="border-border bg-surface w-16 rounded-lg border px-2 py-1.5
                             text-center text-xs text-white focus:border-white/20 focus:outline-none"
                     />
+                </div>
+
+                <!-- Scene Preview CRF (shown when enabled) -->
+                <div
+                    v-if="scenePreviewEnabled"
+                    class="space-y-1.5"
+                >
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <label class="text-xs font-medium text-white">Compression (CRF)</label>
+                            <p class="text-dim text-[10px]">
+                                Default: 27 (Good)
+                            </p>
+                        </div>
+                        <span class="text-xs">
+                            <span class="font-mono text-white/80">CRF {{ scenePreviewCrf }}</span>
+                            <span class="ml-1.5" :class="crfQualityLabel(scenePreviewCrf).color">{{ crfQualityLabel(scenePreviewCrf).label }}</span>
+                        </span>
+                    </div>
+                    <input
+                        v-model.number="scenePreviewCrf"
+                        type="range"
+                        min="18"
+                        max="40"
+                        class="slider w-full"
+                    />
+                    <div class="text-dim flex justify-between text-[10px]">
+                        <span>Higher Quality</span>
+                        <span>Smaller Files</span>
+                    </div>
                 </div>
             </div>
 

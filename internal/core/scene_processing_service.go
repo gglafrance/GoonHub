@@ -58,12 +58,12 @@ func (a *jobHistoryAdapter) UpdateProgress(jobID string, progress int) {
 	a.service.UpdateProgress(jobID, progress)
 }
 
-func (a *jobHistoryAdapter) CreatePendingJob(jobID string, sceneID uint, sceneTitle string, phase string) error {
-	return a.service.CreatePendingJob(jobID, sceneID, sceneTitle, phase)
+func (a *jobHistoryAdapter) CreatePendingJob(jobID string, sceneID uint, sceneTitle string, phase string, forceTarget string) error {
+	return a.service.CreatePendingJob(jobID, sceneID, sceneTitle, phase, forceTarget)
 }
 
-func (a *jobHistoryAdapter) CreatePendingJobWithPriority(jobID string, sceneID uint, sceneTitle string, phase string, priority int) error {
-	return a.service.CreatePendingJobWithPriority(jobID, sceneID, sceneTitle, phase, priority)
+func (a *jobHistoryAdapter) CreatePendingJobWithPriority(jobID string, sceneID uint, sceneTitle string, phase string, priority int, forceTarget string) error {
+	return a.service.CreatePendingJobWithPriority(jobID, sceneID, sceneTitle, phase, priority, forceTarget)
 }
 
 func (a *jobHistoryAdapter) ExistsPendingOrRunning(sceneID uint, phase string) (bool, error) {
@@ -175,14 +175,20 @@ func (s *SceneProcessingService) SubmitPhaseWithPriority(sceneID uint, phase str
 	return s.jobSubmitter.SubmitPhaseWithPriority(sceneID, phase, priority)
 }
 
+// SubmitPhaseWithForce submits a phase with priority and an optional force target.
+// Used for manual per-scene triggers where force regeneration is requested.
+func (s *SceneProcessingService) SubmitPhaseWithForce(sceneID uint, phase string, priority int, forceTarget string) error {
+	return s.jobSubmitter.SubmitPhaseWithForce(sceneID, phase, priority, forceTarget)
+}
+
 // SubmitPhaseWithRetry submits a phase for processing with retry tracking
 func (s *SceneProcessingService) SubmitPhaseWithRetry(sceneID uint, phase string, retryCount, maxRetries int) error {
 	return s.jobSubmitter.SubmitPhaseWithRetry(sceneID, phase, retryCount, maxRetries)
 }
 
 // SubmitBulkPhase submits a processing phase for multiple scenes
-func (s *SceneProcessingService) SubmitBulkPhase(phase string, mode string) (*BulkPhaseResult, error) {
-	return s.jobSubmitter.SubmitBulkPhase(phase, mode)
+func (s *SceneProcessingService) SubmitBulkPhase(phase string, mode string, forceTarget string) (*BulkPhaseResult, error) {
+	return s.jobSubmitter.SubmitBulkPhase(phase, mode, forceTarget)
 }
 
 // CancelJob cancels a job by its ID.

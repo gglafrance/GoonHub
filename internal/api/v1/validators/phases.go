@@ -18,6 +18,9 @@ var (
 
 	// JobModes includes valid bulk job modes
 	JobModes = map[string]bool{"missing": true, "all": true}
+
+	// ForceTargets includes valid force target values for animated_thumbnails phase
+	ForceTargets = map[string]bool{"markers": true, "previews": true, "both": true}
 )
 
 // ValidatePhase validates a phase is one of the allowed phases
@@ -76,6 +79,14 @@ func ValidateAfterJobTrigger(phase string, afterPhase *string) error {
 func ValidateJobMode(mode string) error {
 	if !JobModes[mode] {
 		return fmt.Errorf("mode must be one of: missing, all")
+	}
+	return nil
+}
+
+// ValidateForceTarget validates a force target value
+func ValidateForceTarget(forceTarget string) error {
+	if !ForceTargets[forceTarget] {
+		return fmt.Errorf("force_target must be one of: markers, previews, both")
 	}
 	return nil
 }

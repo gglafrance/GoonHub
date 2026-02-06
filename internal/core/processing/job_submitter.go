@@ -82,7 +82,29 @@ func (js *JobSubmitter) SubmitPhaseWithPriority(sceneID uint, phase string, prio
 		}
 	}
 
-	return js.createPendingJobWithPriority(sceneID, phase, priority)
+	return js.createPendingJobWithPriority(sceneID, phase, priority, "")
+}
+
+// SubmitPhaseWithForce submits a phase with priority and an optional force target.
+// Used for manual per-scene triggers where force regeneration is requested.
+func (js *JobSubmitter) SubmitPhaseWithForce(sceneID uint, phase string, priority int, forceTarget string) error {
+	switch phase {
+	case "metadata", "thumbnail", "sprites", "animated_thumbnails":
+	default:
+		return fmt.Errorf("unknown phase: %s", phase)
+	}
+
+	if phase == "thumbnail" || phase == "sprites" || phase == "animated_thumbnails" {
+		scene, err := js.repo.GetByID(sceneID)
+		if err != nil {
+			return fmt.Errorf("failed to get scene: %w", err)
+		}
+		if scene.Duration == 0 {
+			return fmt.Errorf("metadata must be extracted before %s generation", phase)
+		}
+	}
+
+	return js.createPendingJobWithPriority(sceneID, phase, priority, forceTarget)
 }
 
 // SubmitPhaseWithRetry submits a phase for processing with retry tracking.
@@ -114,12 +136,12 @@ func (js *JobSubmitter) SubmitPhaseWithRetry(sceneID uint, phase string, retryCo
 
 // createPendingJob creates a pending job in the database with default priority.
 func (js *JobSubmitter) createPendingJob(sceneID uint, phase string) error {
-	return js.createPendingJobWithPriority(sceneID, phase, 0)
+	return js.createPendingJobWithPriority(sceneID, phase, 0, "")
 }
 
 // createPendingJobWithPriority creates a pending job in the database with a specific priority.
 // Higher priority values are claimed first by the feeder.
-func (js *JobSubmitter) createPendingJobWithPriority(sceneID uint, phase string, priority int) error {
+func (js *JobSubmitter) createPendingJobWithPriority(sceneID uint, phase string, priority int, forceTarget string) error {
 	if js.jobQueue == nil {
 		return fmt.Errorf("job queue recorder not configured")
 	}
@@ -154,9 +176,9 @@ func (js *JobSubmitter) createPendingJobWithPriority(sceneID uint, phase string,
 	// Create the pending job in the database
 	var createErr error
 	if priority > 0 {
-		createErr = js.jobQueue.CreatePendingJobWithPriority(jobID, sceneID, sceneTitle, phase, priority)
+		createErr = js.jobQueue.CreatePendingJobWithPriority(jobID, sceneID, sceneTitle, phase, priority, forceTarget)
 	} else {
-		createErr = js.jobQueue.CreatePendingJob(jobID, sceneID, sceneTitle, phase)
+		createErr = js.jobQueue.CreatePendingJob(jobID, sceneID, sceneTitle, phase, forceTarget)
 	}
 	if createErr != nil {
 		js.logger.Error("Failed to create pending job",
@@ -179,7 +201,8 @@ func (js *JobSubmitter) createPendingJobWithPriority(sceneID uint, phase string,
 
 // SubmitBulkPhase submits a processing phase for multiple scenes
 // mode can be "missing" (only scenes needing the phase) or "all" (all scenes)
-func (js *JobSubmitter) SubmitBulkPhase(phase string, mode string) (*BulkPhaseResult, error) {
+// forceTarget is only used for animated_thumbnails phase to control what gets regenerated
+func (js *JobSubmitter) SubmitBulkPhase(phase string, mode string, forceTarget string) (*BulkPhaseResult, error) {
 	var scenes []data.Scene
 	var err error
 
@@ -205,11 +228,17 @@ func (js *JobSubmitter) SubmitBulkPhase(phase string, mode string) (*BulkPhaseRe
 			continue
 		}
 
-		if err := js.SubmitPhase(scene.ID, phase); err != nil {
+		var submitErr error
+		if forceTarget != "" {
+			submitErr = js.createPendingJobWithPriority(scene.ID, phase, 0, forceTarget)
+		} else {
+			submitErr = js.createPendingJob(scene.ID, phase)
+		}
+		if submitErr != nil {
 			js.logger.Warn("Failed to submit bulk phase job",
 				zap.Uint("scene_id", scene.ID),
 				zap.String("phase", phase),
-				zap.Error(err),
+				zap.Error(submitErr),
 			)
 			result.Errors++
 		} else {

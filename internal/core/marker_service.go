@@ -33,6 +33,8 @@ type MarkerService struct {
 	scenePreviewSegmentDuration float64
 	scenePreviewDir             string
 	scenePreviewMaxDim          int
+	markerPreviewCRF            int
+	scenePreviewCRF             int
 	logger                      *zap.Logger
 }
 
@@ -53,6 +55,14 @@ func NewMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepo
 	if scenePreviewSegmentDuration <= 0 {
 		scenePreviewSegmentDuration = 1.0
 	}
+	markerPreviewCRF := cfg.Processing.MarkerPreviewCRF
+	if markerPreviewCRF <= 0 {
+		markerPreviewCRF = 32
+	}
+	scenePreviewCRF := cfg.Processing.ScenePreviewCRF
+	if scenePreviewCRF <= 0 {
+		scenePreviewCRF = 27
+	}
 	return &MarkerService{
 		markerRepo:                  markerRepo,
 		sceneRepo:                   sceneRepo,
@@ -67,6 +77,8 @@ func NewMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepo
 		scenePreviewSegmentDuration: scenePreviewSegmentDuration,
 		scenePreviewDir:             cfg.Processing.ScenePreviewDir,
 		scenePreviewMaxDim:          cfg.Processing.MaxFrameDimension,
+		markerPreviewCRF:            markerPreviewCRF,
+		scenePreviewCRF:             scenePreviewCRF,
 		logger:                      logger,
 	}
 }
@@ -593,7 +605,7 @@ func (s *MarkerService) generateAnimatedThumbnail(marker *data.UserSceneMarker, 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	if err := ffmpeg.ExtractAnimatedThumbnailWithContext(ctx, scene.StoredPath, animatedPath, seekPosition, s.markerAnimatedDuration, s.markerThumbnailMaxDim); err != nil {
+	if err := ffmpeg.ExtractAnimatedThumbnailWithContext(ctx, scene.StoredPath, animatedPath, seekPosition, s.markerAnimatedDuration, s.markerThumbnailMaxDim, s.markerPreviewCRF); err != nil {
 		return fmt.Errorf("failed to extract animated thumbnail: %w", err)
 	}
 
@@ -607,11 +619,19 @@ func (s *MarkerService) generateAnimatedThumbnail(marker *data.UserSceneMarker, 
 }
 
 // GenerateMissingAnimatedForScene finds all markers for a scene that lack animated thumbnails and generates them.
+// When forceTarget is "markers" or "both", all markers are regenerated regardless of existing thumbnails.
 // Implements jobs.AnimatedThumbnailGenerator.
-func (s *MarkerService) GenerateMissingAnimatedForScene(ctx context.Context, sceneID uint) (int, error) {
-	markers, err := s.markerRepo.GetBySceneWithoutAnimatedThumbnail(sceneID)
+func (s *MarkerService) GenerateMissingAnimatedForScene(ctx context.Context, sceneID uint, forceTarget string) (int, error) {
+	var markers []data.UserSceneMarker
+	var err error
+
+	if forceTarget == "markers" || forceTarget == "both" {
+		markers, err = s.markerRepo.GetAllByScene(sceneID)
+	} else {
+		markers, err = s.markerRepo.GetBySceneWithoutAnimatedThumbnail(sceneID)
+	}
 	if err != nil {
-		return 0, fmt.Errorf("failed to query markers without animated thumbnails: %w", err)
+		return 0, fmt.Errorf("failed to query markers for animated thumbnails: %w", err)
 	}
 
 	if len(markers) == 0 {
@@ -779,8 +799,9 @@ func (s *MarkerService) SetMarkerTags(userID, markerID uint, tagIDs []uint) erro
 
 // GenerateScenePreview generates a preview video for a scene by sampling multiple segments.
 // Returns nil immediately if scene preview generation is disabled.
+// When forceTarget is "previews" or "both", the existing preview is regenerated.
 // Implements jobs.AnimatedThumbnailGenerator.
-func (s *MarkerService) GenerateScenePreview(ctx context.Context, sceneID uint) error {
+func (s *MarkerService) GenerateScenePreview(ctx context.Context, sceneID uint, forceTarget string) error {
 	if !s.scenePreviewEnabled {
 		return nil
 	}
@@ -790,8 +811,9 @@ func (s *MarkerService) GenerateScenePreview(ctx context.Context, sceneID uint) 
 		return fmt.Errorf("failed to get scene for preview generation: %w", err)
 	}
 
-	// Skip if already has a preview video
-	if scene.PreviewVideoPath != "" {
+	// Skip if already has a preview video (unless force regeneration is requested)
+	forcePreview := forceTarget == "previews" || forceTarget == "both"
+	if scene.PreviewVideoPath != "" && !forcePreview {
 		return nil
 	}
 
@@ -815,7 +837,7 @@ func (s *MarkerService) GenerateScenePreview(ctx context.Context, sceneID uint) 
 	outputPath := filepath.Join(s.scenePreviewDir, outputFilename)
 
 	if err := ffmpeg.ExtractScenePreviewWithContext(ctx, scene.StoredPath, outputPath,
-		scene.Duration, s.scenePreviewSegments, s.scenePreviewSegmentDuration, s.scenePreviewMaxDim); err != nil {
+		scene.Duration, s.scenePreviewSegments, s.scenePreviewSegmentDuration, s.scenePreviewMaxDim, s.scenePreviewCRF); err != nil {
 		return fmt.Errorf("failed to generate scene preview: %w", err)
 	}
 
@@ -847,6 +869,16 @@ func (s *MarkerService) SetScenePreviewSegments(segments int) {
 // SetScenePreviewSegmentDuration updates the scene preview segment duration setting
 func (s *MarkerService) SetScenePreviewSegmentDuration(duration float64) {
 	s.scenePreviewSegmentDuration = duration
+}
+
+// SetMarkerPreviewCRF updates the marker preview CRF setting
+func (s *MarkerService) SetMarkerPreviewCRF(crf int) {
+	s.markerPreviewCRF = crf
+}
+
+// SetScenePreviewCRF updates the scene preview CRF setting
+func (s *MarkerService) SetScenePreviewCRF(crf int) {
+	s.scenePreviewCRF = crf
 }
 
 // GetScenePreviewEnabled returns whether scene preview generation is enabled

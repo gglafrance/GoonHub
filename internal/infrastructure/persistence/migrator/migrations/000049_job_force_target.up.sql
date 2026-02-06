@@ -1,0 +1,1 @@
+ALTER TABLE job_history ADD COLUMN force_target VARCHAR(20) NOT NULL DEFAULT '';

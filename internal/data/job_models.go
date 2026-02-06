@@ -31,6 +31,7 @@ type JobHistory struct {
 	Progress     int        `gorm:"not null;default:0" json:"progress"`
 	IsRetryable  bool       `gorm:"not null;default:true" json:"is_retryable"`
 	Priority     int        `gorm:"not null;default:0" json:"priority"`
+	ForceTarget  string     `gorm:"not null;size:20;default:''" json:"force_target"`
 }
 
 func (JobHistory) TableName() string {
