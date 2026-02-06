@@ -26,19 +26,6 @@ const bulkResults = ref<Record<string, BulkJobResponse | null>>({
     animated_thumbnails: null,
 });
 
-// Force regeneration for animated_thumbnails phase
-const forceEnabled = ref(false);
-const forceMarkers = ref(true);
-const forcePreviews = ref(true);
-
-const computedForceTarget = computed(() => {
-    if (!forceEnabled.value) return undefined;
-    if (forceMarkers.value && forcePreviews.value) return 'both';
-    if (forceMarkers.value) return 'markers';
-    if (forcePreviews.value) return 'previews';
-    return undefined;
-});
-
 const scanStore = useScanStore();
 
 const loadScanStatus = async () => {
@@ -97,11 +84,7 @@ const handleBulkJob = async (
     bulkResults.value[phase] = null;
     clearMessages();
     try {
-        // Only pass force target for animated_thumbnails in "all" mode
-        const ft = phase === 'animated_thumbnails' && mode === 'all'
-            ? computedForceTarget.value
-            : undefined;
-        const result = await triggerBulkPhase(phase, mode, ft);
+        const result = await triggerBulkPhase(phase, mode);
         bulkResults.value[phase] = result;
         message.value = `${phaseLabel(phase)} jobs queued: ${result.submitted} submitted, ${result.skipped} skipped`;
     } catch (e: unknown) {
@@ -211,7 +194,7 @@ const phaseLabel = (phase: string): string => {
         case 'sprites':
             return 'Sprites';
         case 'animated_thumbnails':
-            return 'Previews & Clips';
+            return 'Animated Thumbnails';
         default:
             return phase;
     }
@@ -226,7 +209,7 @@ const phaseIcon = (phase: string): string => {
         case 'sprites':
             return 'heroicons:squares-2x2';
         case 'animated_thumbnails':
-            return 'heroicons:play-circle';
+            return 'heroicons:film';
         default:
             return 'heroicons:cog-6-tooth';
     }
@@ -493,39 +476,6 @@ const phaseDescription = (phase: string): string => {
                                 {{ bulkLoading[phase] ? 'Queuing...' : 'All' }}
                             </button>
                         </div>
-                    </div>
-
-                    <!-- Force regeneration options for animated_thumbnails -->
-                    <div
-                        v-if="phase === 'animated_thumbnails'"
-                        class="mt-3 flex items-center gap-4 text-[11px]"
-                    >
-                        <label class="flex cursor-pointer items-center gap-1.5">
-                            <input
-                                v-model="forceEnabled"
-                                type="checkbox"
-                                class="accent-lava h-3 w-3 cursor-pointer rounded"
-                            />
-                            <span class="text-dim font-medium">Force regenerate</span>
-                        </label>
-                        <template v-if="forceEnabled">
-                            <label class="flex cursor-pointer items-center gap-1.5">
-                                <input
-                                    v-model="forceMarkers"
-                                    type="checkbox"
-                                    class="accent-lava h-3 w-3 cursor-pointer rounded"
-                                />
-                                <span class="text-white/70">Marker clips</span>
-                            </label>
-                            <label class="flex cursor-pointer items-center gap-1.5">
-                                <input
-                                    v-model="forcePreviews"
-                                    type="checkbox"
-                                    class="accent-lava h-3 w-3 cursor-pointer rounded"
-                                />
-                                <span class="text-white/70">Scene previews</span>
-                            </label>
-                        </template>
                     </div>
 
                     <!-- Result feedback -->
