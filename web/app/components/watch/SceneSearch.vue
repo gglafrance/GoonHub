@@ -28,7 +28,7 @@ const emit = defineEmits<{
 const api = useApi();
 const settingsStore = useSettingsStore();
 const { calculateConfidence } = useConfidenceCalculator();
-const { applyRules, getBuiltInPresets } = useParsingRulesEngine();
+const { applyRules, getAllPresets } = useParsingRulesEngine();
 
 const title = ref('');
 const year = ref('');
@@ -41,26 +41,16 @@ const searchResults = ref<SearchResultWithConfidence[]>([]);
 const searchError = ref('');
 const loadingScene = ref(false);
 
-// Available presets (built-in + user presets)
+// Available presets (stored user presets + hardcoded fallbacks)
 const availablePresets = computed(() => {
-    const builtIn = getBuiltInPresets();
-    const userPresets = settingsStore.parsingRules?.presets.filter((p) => !p.isBuiltIn) || [];
-    return [...builtIn, ...userPresets];
+    return getAllPresets(settingsStore.parsingRules);
 });
 
 // Get rules for selected preset
 const selectedPresetRules = computed(() => {
     if (!selectedPresetId.value) return undefined;
-
-    // Check built-in presets
-    const builtIn = getBuiltInPresets().find((p) => p.id === selectedPresetId.value);
-    if (builtIn) return builtIn.rules;
-
-    // Check user presets
-    const userPreset = settingsStore.parsingRules?.presets.find(
-        (p) => p.id === selectedPresetId.value,
-    );
-    return userPreset?.rules;
+    const preset = availablePresets.value.find((p) => p.id === selectedPresetId.value);
+    return preset?.rules;
 });
 
 // Check if scene has enough data for confidence calculation
