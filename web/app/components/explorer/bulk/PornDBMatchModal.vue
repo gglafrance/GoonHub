@@ -14,7 +14,7 @@ const explorerStore = useExplorerStore();
 const settingsStore = useSettingsStore();
 const { getScenesMatchInfo } = useApiExplorer();
 const { calculateConfidence } = useConfidenceCalculator();
-const { getBuiltInPresets } = useParsingRulesEngine();
+const { getAllPresets } = useParsingRulesEngine();
 
 const {
     results,
@@ -39,26 +39,16 @@ const manualSearchScene = ref<SceneMatchInfo | null>(null);
 const selectedPresetId = ref<string | null>(null);
 const loadedScenes = ref<SceneMatchInfo[]>([]);
 
-// Available presets (built-in + user presets)
+// Available presets (stored user presets + hardcoded fallbacks)
 const availablePresets = computed(() => {
-    const builtIn = getBuiltInPresets();
-    const userPresets = settingsStore.parsingRules?.presets.filter((p) => !p.isBuiltIn) || [];
-    return [...builtIn, ...userPresets];
+    return getAllPresets(settingsStore.parsingRules);
 });
 
 // Get rules for selected preset
 const selectedPresetRules = computed(() => {
     if (!selectedPresetId.value) return undefined;
-
-    // Check built-in presets
-    const builtIn = getBuiltInPresets().find((p) => p.id === selectedPresetId.value);
-    if (builtIn) return builtIn.rules;
-
-    // Check user presets
-    const userPreset = settingsStore.parsingRules?.presets.find(
-        (p) => p.id === selectedPresetId.value,
-    );
-    return userPreset?.rules;
+    const preset = availablePresets.value.find((p) => p.id === selectedPresetId.value);
+    return preset?.rules;
 });
 
 // Load parsing rules and search when modal opens

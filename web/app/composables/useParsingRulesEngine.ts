@@ -310,6 +310,28 @@ export function useParsingRulesEngine() {
         ];
     }
 
+    /**
+     * Get all available presets: stored user presets (which may include modified built-ins)
+     * merged with any hardcoded built-in presets not yet in the store.
+     * This ensures user modifications are respected while still showing unmodified built-ins.
+     */
+    function getAllPresets(settings: ParsingRulesSettings | null): ParsingPreset[] {
+        const builtIn = getBuiltInPresets();
+        const stored = settings?.presets || [];
+
+        // Start with stored presets (includes user-modified built-ins and custom presets)
+        const result = [...stored];
+
+        // Add any hardcoded built-in presets not yet saved to the store
+        for (const preset of builtIn) {
+            if (!result.find((p) => p.id === preset.id)) {
+                result.push(preset);
+            }
+        }
+
+        return result;
+    }
+
     return {
         applyRules,
         applyRule,
@@ -317,5 +339,6 @@ export function useParsingRulesEngine() {
         getRulesFromPreset,
         generateId,
         getBuiltInPresets,
+        getAllPresets,
     };
 }
