@@ -86,7 +86,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	adminHandler := provideAdminHandler(adminService, rbacService, sceneService)
 	jobHandler := provideJobHandler(jobHistoryService, sceneProcessingService)
 	poolConfigHandler := providePoolConfigHandler(sceneProcessingService, poolConfigRepository)
-	processingConfigHandler := provideProcessingConfigHandler(sceneProcessingService, processingConfigRepository)
+	processingConfigHandler := provideProcessingConfigHandler(sceneProcessingService, processingConfigRepository, markerService)
 	triggerScheduler := provideTriggerScheduler(triggerConfigRepository, sceneRepository, sceneProcessingService, logger)
 	triggerConfigHandler := provideTriggerConfigHandler(triggerConfigRepository, sceneProcessingService, triggerScheduler)
 	dlqService := provideDLQService(dlqRepository, jobHistoryRepository, sceneRepository, eventBus, logger)
@@ -487,8 +487,8 @@ func providePoolConfigHandler(processingService *core.SceneProcessingService, po
 	return handler.NewPoolConfigHandler(processingService, poolConfigRepo)
 }
 
-func provideProcessingConfigHandler(processingService *core.SceneProcessingService, processingConfigRepo data.ProcessingConfigRepository) *handler.ProcessingConfigHandler {
-	return handler.NewProcessingConfigHandler(processingService, processingConfigRepo)
+func provideProcessingConfigHandler(processingService *core.SceneProcessingService, processingConfigRepo data.ProcessingConfigRepository, markerService *core.MarkerService) *handler.ProcessingConfigHandler {
+	return handler.NewProcessingConfigHandler(processingService, processingConfigRepo, markerService)
 }
 
 func provideTriggerConfigHandler(triggerConfigRepo data.TriggerConfigRepository, processingService *core.SceneProcessingService, triggerScheduler *core.TriggerScheduler) *handler.TriggerConfigHandler {

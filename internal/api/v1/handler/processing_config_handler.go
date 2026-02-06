@@ -12,16 +12,19 @@ import (
 type ProcessingConfigHandler struct {
 	processingService    *core.SceneProcessingService
 	processingConfigRepo data.ProcessingConfigRepository
+	markerService        *core.MarkerService
 }
 
 // NewProcessingConfigHandler creates a new ProcessingConfigHandler
 func NewProcessingConfigHandler(
 	processingService *core.SceneProcessingService,
 	processingConfigRepo data.ProcessingConfigRepository,
+	markerService *core.MarkerService,
 ) *ProcessingConfigHandler {
 	return &ProcessingConfigHandler{
 		processingService:    processingService,
 		processingConfigRepo: processingConfigRepo,
+		markerService:        markerService,
 	}
 }
 
@@ -44,15 +47,34 @@ func (h *ProcessingConfigHandler) UpdateProcessingConfig(c *gin.Context) {
 		return
 	}
 
+	// Propagate scene preview config to marker service
+	h.markerService.SetScenePreviewEnabled(req.ScenePreviewEnabled)
+	if req.ScenePreviewSegments > 0 {
+		h.markerService.SetScenePreviewSegments(req.ScenePreviewSegments)
+	}
+	if req.ScenePreviewSegmentDuration > 0 {
+		h.markerService.SetScenePreviewSegmentDuration(req.ScenePreviewSegmentDuration)
+	}
+	// Also propagate marker thumbnail settings
+	if req.MarkerThumbnailType != "" {
+		h.markerService.SetMarkerThumbnailType(req.MarkerThumbnailType)
+	}
+	if req.MarkerAnimatedDuration > 0 {
+		h.markerService.SetMarkerAnimatedDuration(req.MarkerAnimatedDuration)
+	}
+
 	record := &data.ProcessingConfigRecord{
-		MaxFrameDimensionSm:    req.MaxFrameDimensionSm,
-		MaxFrameDimensionLg:    req.MaxFrameDimensionLg,
-		FrameQualitySm:         req.FrameQualitySm,
-		FrameQualityLg:         req.FrameQualityLg,
-		FrameQualitySprites:    req.FrameQualitySprites,
-		SpritesConcurrency:     req.SpritesConcurrency,
-		MarkerThumbnailType:    req.MarkerThumbnailType,
-		MarkerAnimatedDuration: req.MarkerAnimatedDuration,
+		MaxFrameDimensionSm:         req.MaxFrameDimensionSm,
+		MaxFrameDimensionLg:         req.MaxFrameDimensionLg,
+		FrameQualitySm:              req.FrameQualitySm,
+		FrameQualityLg:              req.FrameQualityLg,
+		FrameQualitySprites:         req.FrameQualitySprites,
+		SpritesConcurrency:          req.SpritesConcurrency,
+		MarkerThumbnailType:         req.MarkerThumbnailType,
+		MarkerAnimatedDuration:      req.MarkerAnimatedDuration,
+		ScenePreviewEnabled:         req.ScenePreviewEnabled,
+		ScenePreviewSegments:        req.ScenePreviewSegments,
+		ScenePreviewSegmentDuration: req.ScenePreviewSegmentDuration,
 	}
 	if err := h.processingConfigRepo.Upsert(record); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Processing config applied but failed to persist: " + err.Error()})

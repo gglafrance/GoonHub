@@ -72,15 +72,27 @@ func NewPoolManager(
 		markerAnimatedDuration = 10
 	}
 
+	scenePreviewSegments := cfg.ScenePreviewSegments
+	if scenePreviewSegments <= 0 {
+		scenePreviewSegments = 12
+	}
+	scenePreviewSegmentDuration := cfg.ScenePreviewSegmentDuration
+	if scenePreviewSegmentDuration <= 0 {
+		scenePreviewSegmentDuration = 1.0
+	}
+
 	qualityConfig := QualityConfig{
-		MaxFrameDimensionSm:    cfg.MaxFrameDimension,
-		MaxFrameDimensionLg:    cfg.MaxFrameDimensionLarge,
-		FrameQualitySm:         cfg.FrameQuality,
-		FrameQualityLg:         cfg.FrameQualityLg,
-		FrameQualitySprites:    cfg.FrameQualitySprites,
-		SpritesConcurrency:     cfg.SpritesConcurrency,
-		MarkerThumbnailType:    markerThumbnailType,
-		MarkerAnimatedDuration: markerAnimatedDuration,
+		MaxFrameDimensionSm:         cfg.MaxFrameDimension,
+		MaxFrameDimensionLg:         cfg.MaxFrameDimensionLarge,
+		FrameQualitySm:              cfg.FrameQuality,
+		FrameQualityLg:              cfg.FrameQualityLg,
+		FrameQualitySprites:         cfg.FrameQualitySprites,
+		SpritesConcurrency:          cfg.SpritesConcurrency,
+		MarkerThumbnailType:         markerThumbnailType,
+		MarkerAnimatedDuration:      markerAnimatedDuration,
+		ScenePreviewEnabled:         cfg.ScenePreviewEnabled,
+		ScenePreviewSegments:        scenePreviewSegments,
+		ScenePreviewSegmentDuration: scenePreviewSegmentDuration,
 	}
 
 	// Override with DB-persisted processing config if available
@@ -98,6 +110,13 @@ func NewPoolManager(
 			if dbConfig.MarkerAnimatedDuration > 0 {
 				qualityConfig.MarkerAnimatedDuration = dbConfig.MarkerAnimatedDuration
 			}
+			qualityConfig.ScenePreviewEnabled = dbConfig.ScenePreviewEnabled
+			if dbConfig.ScenePreviewSegments > 0 {
+				qualityConfig.ScenePreviewSegments = dbConfig.ScenePreviewSegments
+			}
+			if dbConfig.ScenePreviewSegmentDuration > 0 {
+				qualityConfig.ScenePreviewSegmentDuration = dbConfig.ScenePreviewSegmentDuration
+			}
 			logger.Info("Loaded processing config from database",
 				zap.Int("max_frame_dimension_sm", qualityConfig.MaxFrameDimensionSm),
 				zap.Int("max_frame_dimension_lg", qualityConfig.MaxFrameDimensionLg),
@@ -107,6 +126,9 @@ func NewPoolManager(
 				zap.Int("sprites_concurrency", qualityConfig.SpritesConcurrency),
 				zap.String("marker_thumbnail_type", qualityConfig.MarkerThumbnailType),
 				zap.Int("marker_animated_duration", qualityConfig.MarkerAnimatedDuration),
+				zap.Bool("scene_preview_enabled", qualityConfig.ScenePreviewEnabled),
+				zap.Int("scene_preview_segments", qualityConfig.ScenePreviewSegments),
+				zap.Float64("scene_preview_segment_duration", qualityConfig.ScenePreviewSegmentDuration),
 			)
 		}
 	}
@@ -163,6 +185,7 @@ func NewPoolManager(
 	createDirIfNotExists(cfg.VttDir, logger)
 	createDirIfNotExists(cfg.ThumbnailDir, logger)
 	createDirIfNotExists(cfg.MarkerThumbnailDir, logger)
+	createDirIfNotExists(cfg.ScenePreviewDir, logger)
 
 	return &PoolManager{
 		metadataPool:           metadataPool,
@@ -391,6 +414,12 @@ func (pm *PoolManager) UpdateQualityConfig(cfg QualityConfig) error {
 	if cfg.MarkerAnimatedDuration != 0 && (cfg.MarkerAnimatedDuration < 3 || cfg.MarkerAnimatedDuration > 15) {
 		return fmt.Errorf("marker_animated_duration must be between 3 and 15")
 	}
+	if cfg.ScenePreviewSegments != 0 && (cfg.ScenePreviewSegments < 2 || cfg.ScenePreviewSegments > 24) {
+		return fmt.Errorf("scene_preview_segments must be between 2 and 24")
+	}
+	if cfg.ScenePreviewSegmentDuration != 0 && (cfg.ScenePreviewSegmentDuration < 0.75 || cfg.ScenePreviewSegmentDuration > 5.0) {
+		return fmt.Errorf("scene_preview_segment_duration must be between 0.75 and 5.0")
+	}
 
 	pm.mu.Lock()
 	pm.qualityConfig = cfg
@@ -405,6 +434,9 @@ func (pm *PoolManager) UpdateQualityConfig(cfg QualityConfig) error {
 		zap.Int("sprites_concurrency", cfg.SpritesConcurrency),
 		zap.String("marker_thumbnail_type", cfg.MarkerThumbnailType),
 		zap.Int("marker_animated_duration", cfg.MarkerAnimatedDuration),
+		zap.Bool("scene_preview_enabled", cfg.ScenePreviewEnabled),
+		zap.Int("scene_preview_segments", cfg.ScenePreviewSegments),
+		zap.Float64("scene_preview_segment_duration", cfg.ScenePreviewSegmentDuration),
 	)
 
 	return nil

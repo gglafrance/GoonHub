@@ -20,15 +20,20 @@ import (
 const maxMarkersPerScene = 50
 
 type MarkerService struct {
-	markerRepo              data.MarkerRepository
-	sceneRepo               data.SceneRepository
-	tagRepo                 data.TagRepository
-	markerThumbnailDir      string
-	markerThumbnailMaxDim   int
-	markerThumbnailQuality  int
-	markerAnimatedDuration  int
-	markerThumbnailType     string
-	logger                  *zap.Logger
+	markerRepo                  data.MarkerRepository
+	sceneRepo                   data.SceneRepository
+	tagRepo                     data.TagRepository
+	markerThumbnailDir          string
+	markerThumbnailMaxDim       int
+	markerThumbnailQuality      int
+	markerAnimatedDuration      int
+	markerThumbnailType         string
+	scenePreviewEnabled         bool
+	scenePreviewSegments        int
+	scenePreviewSegmentDuration float64
+	scenePreviewDir             string
+	scenePreviewMaxDim          int
+	logger                      *zap.Logger
 }
 
 func NewMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *zap.Logger) *MarkerService {
@@ -40,16 +45,29 @@ func NewMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepo
 	if markerThumbnailType == "" {
 		markerThumbnailType = "static"
 	}
+	scenePreviewSegments := cfg.Processing.ScenePreviewSegments
+	if scenePreviewSegments <= 0 {
+		scenePreviewSegments = 12
+	}
+	scenePreviewSegmentDuration := cfg.Processing.ScenePreviewSegmentDuration
+	if scenePreviewSegmentDuration <= 0 {
+		scenePreviewSegmentDuration = 1.0
+	}
 	return &MarkerService{
-		markerRepo:             markerRepo,
-		sceneRepo:              sceneRepo,
-		tagRepo:                tagRepo,
-		markerThumbnailDir:     cfg.Processing.MarkerThumbnailDir,
-		markerThumbnailMaxDim:  cfg.Processing.MaxFrameDimension,
-		markerThumbnailQuality: cfg.Processing.FrameQuality,
-		markerAnimatedDuration: markerAnimatedDuration,
-		markerThumbnailType:    markerThumbnailType,
-		logger:                 logger,
+		markerRepo:                  markerRepo,
+		sceneRepo:                   sceneRepo,
+		tagRepo:                     tagRepo,
+		markerThumbnailDir:          cfg.Processing.MarkerThumbnailDir,
+		markerThumbnailMaxDim:       cfg.Processing.MaxFrameDimension,
+		markerThumbnailQuality:      cfg.Processing.FrameQuality,
+		markerAnimatedDuration:      markerAnimatedDuration,
+		markerThumbnailType:         markerThumbnailType,
+		scenePreviewEnabled:         cfg.Processing.ScenePreviewEnabled,
+		scenePreviewSegments:        scenePreviewSegments,
+		scenePreviewSegmentDuration: scenePreviewSegmentDuration,
+		scenePreviewDir:             cfg.Processing.ScenePreviewDir,
+		scenePreviewMaxDim:          cfg.Processing.MaxFrameDimension,
+		logger:                      logger,
 	}
 }
 
@@ -757,6 +775,83 @@ func (s *MarkerService) SetMarkerTags(userID, markerID uint, tagIDs []uint) erro
 		return apperrors.NewInternalError("failed to set marker tags", err)
 	}
 	return nil
+}
+
+// GenerateScenePreview generates a preview video for a scene by sampling multiple segments.
+// Returns nil immediately if scene preview generation is disabled.
+// Implements jobs.AnimatedThumbnailGenerator.
+func (s *MarkerService) GenerateScenePreview(ctx context.Context, sceneID uint) error {
+	if !s.scenePreviewEnabled {
+		return nil
+	}
+
+	scene, err := s.sceneRepo.GetByID(sceneID)
+	if err != nil {
+		return fmt.Errorf("failed to get scene for preview generation: %w", err)
+	}
+
+	// Skip if already has a preview video
+	if scene.PreviewVideoPath != "" {
+		return nil
+	}
+
+	// Validate scene has the required data
+	if scene.StoredPath == "" {
+		return fmt.Errorf("scene has no stored path")
+	}
+	if _, err := os.Stat(scene.StoredPath); os.IsNotExist(err) {
+		return fmt.Errorf("scene file not found: %s", scene.StoredPath)
+	}
+	if scene.Duration <= 0 {
+		return fmt.Errorf("scene has no duration")
+	}
+
+	// Ensure output directory exists
+	if err := os.MkdirAll(s.scenePreviewDir, 0755); err != nil {
+		return fmt.Errorf("failed to create scene preview directory: %w", err)
+	}
+
+	outputFilename := fmt.Sprintf("%d_preview.mp4", scene.ID)
+	outputPath := filepath.Join(s.scenePreviewDir, outputFilename)
+
+	if err := ffmpeg.ExtractScenePreviewWithContext(ctx, scene.StoredPath, outputPath,
+		scene.Duration, s.scenePreviewSegments, s.scenePreviewSegmentDuration, s.scenePreviewMaxDim); err != nil {
+		return fmt.Errorf("failed to generate scene preview: %w", err)
+	}
+
+	// Update scene with preview video path
+	scene.PreviewVideoPath = outputFilename
+	if err := s.sceneRepo.UpdatePreviewVideoPath(scene.ID, outputFilename); err != nil {
+		// Clean up file on DB failure
+		os.Remove(outputPath)
+		return fmt.Errorf("failed to update scene with preview path: %w", err)
+	}
+
+	s.logger.Info("Generated scene preview video",
+		zap.Uint("scene_id", scene.ID),
+		zap.String("output", outputFilename))
+
+	return nil
+}
+
+// SetScenePreviewEnabled updates the scene preview enabled setting
+func (s *MarkerService) SetScenePreviewEnabled(enabled bool) {
+	s.scenePreviewEnabled = enabled
+}
+
+// SetScenePreviewSegments updates the scene preview segments setting
+func (s *MarkerService) SetScenePreviewSegments(segments int) {
+	s.scenePreviewSegments = segments
+}
+
+// SetScenePreviewSegmentDuration updates the scene preview segment duration setting
+func (s *MarkerService) SetScenePreviewSegmentDuration(duration float64) {
+	s.scenePreviewSegmentDuration = duration
+}
+
+// GetScenePreviewEnabled returns whether scene preview generation is enabled
+func (s *MarkerService) GetScenePreviewEnabled() bool {
+	return s.scenePreviewEnabled
 }
 
 // AddMarkerTags adds individual tags to a marker

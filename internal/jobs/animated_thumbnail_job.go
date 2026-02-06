@@ -10,10 +10,11 @@ import (
 	"go.uber.org/zap"
 )
 
-// AnimatedThumbnailGenerator generates animated preview clips for scene markers.
-// Defined here to avoid circular imports between jobs and core packages.
+// AnimatedThumbnailGenerator generates animated preview clips for scene markers
+// and scene preview videos. Defined here to avoid circular imports between jobs and core packages.
 type AnimatedThumbnailGenerator interface {
 	GenerateMissingAnimatedForScene(ctx context.Context, sceneID uint) (int, error)
+	GenerateScenePreview(ctx context.Context, sceneID uint) error
 }
 
 type AnimatedThumbnailJob struct {
@@ -107,6 +108,23 @@ func (j *AnimatedThumbnailJob) ExecuteWithContext(ctx context.Context) error {
 		j.error = err
 		j.status = JobStatusFailed
 		return err
+	}
+
+	// Generate scene preview video (best-effort, does not fail the job)
+	if previewErr := j.generator.GenerateScenePreview(j.ctx, j.sceneID); previewErr != nil {
+		if j.ctx.Err() != nil {
+			// Propagate cancellation/timeout
+			if j.ctx.Err() == context.DeadlineExceeded {
+				j.status = JobStatusTimedOut
+				j.error = fmt.Errorf("scene preview generation timed out")
+				return j.error
+			}
+			j.status = JobStatusCancelled
+			return fmt.Errorf("job cancelled")
+		}
+		j.logger.Warn("Failed to generate scene preview",
+			zap.Uint("scene_id", j.sceneID),
+			zap.Error(previewErr))
 	}
 
 	j.status = JobStatusCompleted

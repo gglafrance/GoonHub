@@ -56,6 +56,9 @@ export const useApiJobs = () => {
         sprites_concurrency: number;
         marker_thumbnail_type: string;
         marker_animated_duration: number;
+        scene_preview_enabled: boolean;
+        scene_preview_segments: number;
+        scene_preview_segment_duration: number;
     }) => {
         const response = await fetch('/api/v1/admin/processing-config', {
             method: 'PUT',

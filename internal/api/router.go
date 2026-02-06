@@ -143,6 +143,19 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, sceneHandler *handler
 		c.File(path)
 	})
 
+	// Serve Scene Preview Videos (MP4 clips for hover preview)
+	r.GET("/scene-previews/:id", func(c *gin.Context) {
+		id := c.Param("id")
+		if _, err := strconv.ParseUint(id, 10, 64); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid scene ID"})
+			return
+		}
+		path := filepath.Join(cfg.Processing.ScenePreviewDir, fmt.Sprintf("%s_preview.mp4", id))
+		c.Header("Content-Type", "video/mp4")
+		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
+		c.File(path)
+	})
+
 	// Register Routes
 	RegisterRoutes(r, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, authService, rbacService, logger, rateLimiter)
 

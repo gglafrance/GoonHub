@@ -16,8 +16,11 @@ type QualityConfig struct {
 	FrameQualityLg         int    `json:"frame_quality_lg"`
 	FrameQualitySprites    int    `json:"frame_quality_sprites"`
 	SpritesConcurrency     int    `json:"sprites_concurrency"`
-	MarkerThumbnailType    string `json:"marker_thumbnail_type"`
-	MarkerAnimatedDuration int    `json:"marker_animated_duration"`
+	MarkerThumbnailType        string  `json:"marker_thumbnail_type"`
+	MarkerAnimatedDuration     int     `json:"marker_animated_duration"`
+	ScenePreviewEnabled        bool    `json:"scene_preview_enabled"`
+	ScenePreviewSegments       int     `json:"scene_preview_segments"`
+	ScenePreviewSegmentDuration float64 `json:"scene_preview_segment_duration"`
 }
 
 // QueueStatus holds the current queue status for all pools

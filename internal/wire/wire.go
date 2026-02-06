@@ -601,8 +601,8 @@ func providePoolConfigHandler(processingService *core.SceneProcessingService, po
 	return handler.NewPoolConfigHandler(processingService, poolConfigRepo)
 }
 
-func provideProcessingConfigHandler(processingService *core.SceneProcessingService, processingConfigRepo data.ProcessingConfigRepository) *handler.ProcessingConfigHandler {
-	return handler.NewProcessingConfigHandler(processingService, processingConfigRepo)
+func provideProcessingConfigHandler(processingService *core.SceneProcessingService, processingConfigRepo data.ProcessingConfigRepository, markerService *core.MarkerService) *handler.ProcessingConfigHandler {
+	return handler.NewProcessingConfigHandler(processingService, processingConfigRepo, markerService)
 }
 
 func provideTriggerConfigHandler(triggerConfigRepo data.TriggerConfigRepository, processingService *core.SceneProcessingService, triggerScheduler *core.TriggerScheduler) *handler.TriggerConfigHandler {

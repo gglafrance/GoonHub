@@ -73,6 +73,93 @@ func ExtractAnimatedThumbnailWithContext(ctx context.Context, videoPath, outputP
 	return nil
 }
 
+// ExtractScenePreviewWithContext generates a scene preview video by sampling multiple segments
+// throughout the video and concatenating them into a single clip. For short videos where the
+// total content is less than segments * segmentDuration, it encodes the entire video at reduced resolution.
+func ExtractScenePreviewWithContext(ctx context.Context, videoPath, outputPath string,
+	duration int, segments int, segmentDuration float64, width int) error {
+
+	totalNeeded := float64(segments) * segmentDuration
+
+	if float64(duration) < totalNeeded {
+		// Short video mode: encode entire video at reduced resolution
+		args := GetDefaultArgs()
+		args = append(args,
+			"-i", videoPath,
+			"-c:v", "libx264",
+			"-vf", fmt.Sprintf("scale=%d:-2:flags=bilinear", width),
+			"-pix_fmt", "yuv420p",
+			"-preset", "veryfast",
+			"-crf", "27",
+			"-movflags", "+faststart",
+			"-map_metadata", "-1",
+			"-threads", "4",
+			"-an",
+			"-y",
+			outputPath,
+		)
+
+		cmd := exec.CommandContext(ctx, FFMpegPath(), args...)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			return fmt.Errorf("ffmpeg scene preview (short mode) failed: %w, output: %s", err, string(output))
+		}
+		return nil
+	}
+
+	// Normal mode: sample N segments throughout the video
+	interval := float64(duration) / float64(segments)
+
+	args := GetDefaultArgs()
+
+	// Build multi-input args: -ss T1 -i <video> -ss T2 -i <video> ...
+	for i := 0; i < segments; i++ {
+		seekPos := interval*float64(i) + interval/2
+		args = append(args, "-ss", fmt.Sprintf("%.2f", seekPos), "-i", videoPath)
+	}
+
+	// Build filter_complex
+	var filterParts []string
+	var concatInputs []string
+	for i := 0; i < segments; i++ {
+		label := fmt.Sprintf("v%d", i)
+		filterParts = append(filterParts,
+			fmt.Sprintf("[%d:v]trim=0:%.2f,setpts=PTS-STARTPTS,scale=%d:-2:flags=bilinear,format=yuv420p[%s]",
+				i, segmentDuration, width, label))
+		concatInputs = append(concatInputs, fmt.Sprintf("[%s]", label))
+	}
+	filterParts = append(filterParts,
+		fmt.Sprintf("%sconcat=n=%d:v=1:a=0[out]", strings.Join(concatInputs, ""), segments))
+
+	filterComplex := strings.Join(filterParts, ";")
+
+	args = append(args,
+		"-filter_complex", filterComplex,
+		"-map", "[out]",
+		"-c:v", "libx264",
+		"-preset", "veryfast",
+		"-crf", "27",
+		"-movflags", "+faststart",
+		"-map_metadata", "-1",
+		"-threads", "4",
+		"-an",
+		"-y",
+		outputPath,
+	)
+
+	cmd := exec.CommandContext(ctx, FFMpegPath(), args...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return fmt.Errorf("ffmpeg scene preview failed: %w, output: %s", err, string(output))
+	}
+
+	return nil
+}
+
 func ExtractFrames(videoPath, outputDir string, interval, width, height, quality int) ([]string, error) {
 	metadata, err := GetMetadata(videoPath)
 	if err != nil {

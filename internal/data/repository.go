@@ -96,6 +96,7 @@ type SceneRepository interface {
 	UpdateBasicMetadata(id uint, duration int, width, height int, frameRate float64, bitRate int64, videoCodec, audioCodec string) error
 	UpdateThumbnail(id uint, thumbnailPath string, thumbnailWidth, thumbnailHeight int) error
 	UpdateSprites(id uint, spriteSheetPath, vttPath string, spriteSheetCount int) error
+	UpdatePreviewVideoPath(id uint, previewVideoPath string) error
 	UpdateProcessingStatus(id uint, status string, errorMsg string) error
 	GetPendingProcessing() ([]Scene, error)
 	GetScenesNeedingPhase(phase string) ([]Scene, error)
@@ -244,6 +245,10 @@ func (r *SceneRepositoryImpl) UpdateSprites(id uint, spriteSheetPath, vttPath st
 	return r.DB.Model(&Scene{}).Where("id = ?", id).Updates(updates).Error
 }
 
+func (r *SceneRepositoryImpl) UpdatePreviewVideoPath(id uint, previewVideoPath string) error {
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Update("preview_video_path", previewVideoPath).Error
+}
+
 func (r *SceneRepositoryImpl) UpdateProcessingStatus(id uint, status string, errorMsg string) error {
 	updates := map[string]interface{}{
 		"processing_status": status,
@@ -279,13 +284,19 @@ func (r *SceneRepositoryImpl) GetScenesNeedingPhase(phase string) ([]Scene, erro
 	case "sprites":
 		baseQuery = baseQuery.Where("sprite_sheet_path = ''").Where("duration > 0")
 	case "animated_thumbnails":
-		// Scenes that have markers without animated thumbnails
+		// Scenes that have markers without animated thumbnails OR missing scene preview video
 		var animScenes []Scene
 		err := r.DB.Raw(`
 			SELECT DISTINCT s.* FROM scenes s
-			JOIN user_scene_markers m ON m.scene_id = s.id
-			WHERE (m.animated_thumbnail_path = '' OR m.animated_thumbnail_path IS NULL)
-			AND s.duration > 0 AND s.deleted_at IS NULL AND s.trashed_at IS NULL
+			WHERE s.duration > 0 AND s.deleted_at IS NULL AND s.trashed_at IS NULL
+			AND (
+				(s.preview_video_path = '' OR s.preview_video_path IS NULL)
+				OR EXISTS (
+					SELECT 1 FROM user_scene_markers m
+					WHERE m.scene_id = s.id
+					AND (m.animated_thumbnail_path = '' OR m.animated_thumbnail_path IS NULL)
+				)
+			)
 		`).Find(&animScenes).Error
 		if err != nil {
 			return nil, err

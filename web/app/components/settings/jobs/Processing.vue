@@ -16,6 +16,9 @@ const frameQualitySprites = ref(75);
 const spritesConcurrency = ref(0);
 const markerThumbnailType = ref('static');
 const markerAnimatedDuration = ref(10);
+const scenePreviewEnabled = ref(false);
+const scenePreviewSegments = ref(12);
+const scenePreviewSegmentDuration = ref(1.0);
 
 const dimensionOptionsSm = [160, 240, 320, 480];
 const dimensionOptionsLg = [640, 720, 960, 1280, 1920];
@@ -33,6 +36,9 @@ const loadConfig = async () => {
         spritesConcurrency.value = config.sprites_concurrency;
         markerThumbnailType.value = config.marker_thumbnail_type || 'static';
         markerAnimatedDuration.value = config.marker_animated_duration || 10;
+        scenePreviewEnabled.value = config.scene_preview_enabled ?? false;
+        scenePreviewSegments.value = config.scene_preview_segments || 12;
+        scenePreviewSegmentDuration.value = config.scene_preview_segment_duration || 1.0;
     } catch (e: unknown) {
         error.value = e instanceof Error ? e.message : 'Failed to load processing config';
     } finally {
@@ -54,6 +60,9 @@ const applyConfig = async () => {
             sprites_concurrency: spritesConcurrency.value,
             marker_thumbnail_type: markerThumbnailType.value,
             marker_animated_duration: markerAnimatedDuration.value,
+            scene_preview_enabled: scenePreviewEnabled.value,
+            scene_preview_segments: scenePreviewSegments.value,
+            scene_preview_segment_duration: scenePreviewSegmentDuration.value,
         });
         message.value = 'Processing configuration updated';
         setTimeout(() => {
@@ -303,6 +312,94 @@ onMounted(() => {
                         type="number"
                         min="3"
                         max="15"
+                        class="border-border bg-surface w-16 rounded-lg border px-2 py-1.5
+                            text-center text-xs text-white focus:border-white/20
+                            focus:outline-none"
+                    />
+                </div>
+            </div>
+
+            <!-- Scene Preview Section -->
+            <div class="border-border space-y-3 border-t pt-5">
+                <h4 class="text-[11px] font-medium tracking-wider text-white/60 uppercase">
+                    Scene Preview on Hover
+                </h4>
+
+                <!-- Enable Toggle -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <label class="text-xs font-medium text-white">Preview Videos</label>
+                        <p class="text-dim text-[10px]">
+                            Generate short preview clips that play on hover in scene grids
+                        </p>
+                    </div>
+                    <div
+                        class="border-border bg-panel flex items-center rounded-lg border p-0.5"
+                    >
+                        <button
+                            class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-all"
+                            :class="
+                                !scenePreviewEnabled
+                                    ? 'bg-lava/15 text-lava'
+                                    : 'text-dim hover:text-white'
+                            "
+                            @click="scenePreviewEnabled = false"
+                        >
+                            Off
+                        </button>
+                        <button
+                            class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-all"
+                            :class="
+                                scenePreviewEnabled
+                                    ? 'bg-emerald-500/15 text-emerald-400'
+                                    : 'text-dim hover:text-white'
+                            "
+                            @click="scenePreviewEnabled = true"
+                        >
+                            On
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Segments (shown when enabled) -->
+                <div
+                    v-if="scenePreviewEnabled"
+                    class="flex items-center justify-between"
+                >
+                    <div>
+                        <label class="text-xs font-medium text-white">Segments</label>
+                        <p class="text-dim text-[10px]">
+                            Number of clips sampled throughout the video (2-24)
+                        </p>
+                    </div>
+                    <input
+                        v-model.number="scenePreviewSegments"
+                        type="number"
+                        min="2"
+                        max="24"
+                        class="border-border bg-surface w-16 rounded-lg border px-2 py-1.5
+                            text-center text-xs text-white focus:border-white/20
+                            focus:outline-none"
+                    />
+                </div>
+
+                <!-- Segment Duration (shown when enabled) -->
+                <div
+                    v-if="scenePreviewEnabled"
+                    class="flex items-center justify-between"
+                >
+                    <div>
+                        <label class="text-xs font-medium text-white">Segment Duration</label>
+                        <p class="text-dim text-[10px]">
+                            Length of each clip segment in seconds (0.75-5.0)
+                        </p>
+                    </div>
+                    <input
+                        v-model.number="scenePreviewSegmentDuration"
+                        type="number"
+                        min="0.75"
+                        max="5"
+                        step="0.25"
                         class="border-border bg-surface w-16 rounded-lg border px-2 py-1.5
                             text-center text-xs text-white focus:border-white/20
                             focus:outline-none"
