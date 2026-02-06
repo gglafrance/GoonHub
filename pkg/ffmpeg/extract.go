@@ -40,6 +40,39 @@ func ExtractThumbnailWithContext(ctx context.Context, videoPath, outputPath, see
 	return nil
 }
 
+// ExtractAnimatedThumbnailWithContext extracts a short MP4 clip from a video at the given seek position.
+// The clip is encoded with libx264 at the given width (height auto-calculated to preserve aspect ratio),
+// with fast encoding settings optimized for small preview thumbnails.
+func ExtractAnimatedThumbnailWithContext(ctx context.Context, videoPath, outputPath, seekPosition string, duration, width int) error {
+	args := GetDefaultArgs()
+	args = append(args,
+		"-ss", seekPosition,
+		"-i", videoPath,
+		"-t", strconv.Itoa(duration),
+		"-c:v", "libx264",
+		"-vf", fmt.Sprintf("scale=%d:-2:flags=bilinear", width),
+		"-pix_fmt", "yuv420p",
+		"-preset", "veryfast",
+		"-crf", "32",
+		"-movflags", "+faststart",
+		"-map_metadata", "-1",
+		"-threads", "2",
+		"-an",
+		"-y",
+		outputPath,
+	)
+
+	cmd := exec.CommandContext(ctx, FFMpegPath(), args...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return fmt.Errorf("ffmpeg animated thumbnail failed: %w, output: %s", err, string(output))
+	}
+
+	return nil
+}
+
 func ExtractFrames(videoPath, outputDir string, interval, width, height, quality int) ([]string, error) {
 	metadata, err := GetMetadata(videoPath)
 	if err != nil {

@@ -45,12 +45,14 @@ func (h *ProcessingConfigHandler) UpdateProcessingConfig(c *gin.Context) {
 	}
 
 	record := &data.ProcessingConfigRecord{
-		MaxFrameDimensionSm: req.MaxFrameDimensionSm,
-		MaxFrameDimensionLg: req.MaxFrameDimensionLg,
-		FrameQualitySm:      req.FrameQualitySm,
-		FrameQualityLg:      req.FrameQualityLg,
-		FrameQualitySprites: req.FrameQualitySprites,
-		SpritesConcurrency:  req.SpritesConcurrency,
+		MaxFrameDimensionSm:    req.MaxFrameDimensionSm,
+		MaxFrameDimensionLg:    req.MaxFrameDimensionLg,
+		FrameQualitySm:         req.FrameQualitySm,
+		FrameQualityLg:         req.FrameQualityLg,
+		FrameQualitySprites:    req.FrameQualitySprites,
+		SpritesConcurrency:     req.SpritesConcurrency,
+		MarkerThumbnailType:    req.MarkerThumbnailType,
+		MarkerAnimatedDuration: req.MarkerAnimatedDuration,
 	}
 	if err := h.processingConfigRepo.Upsert(record); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Processing config applied but failed to persist: " + err.Error()})

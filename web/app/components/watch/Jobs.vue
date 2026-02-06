@@ -76,6 +76,8 @@ const phaseLabel = (phase: string): string => {
             return 'Thumbnail';
         case 'sprites':
             return 'Sprites';
+        case 'animated_thumbnails':
+            return 'Animated';
         default:
             return phase;
     }
@@ -89,6 +91,8 @@ const phaseIcon = (phase: string): string => {
             return 'heroicons:photo';
         case 'sprites':
             return 'heroicons:squares-2x2';
+        case 'animated_thumbnails':
+            return 'heroicons:film';
         default:
             return 'heroicons:cog-6-tooth';
     }
@@ -140,7 +144,7 @@ onMounted(() => {
         <div class="flex flex-wrap items-center gap-2">
             <span class="text-dim text-[11px]">Run phase:</span>
             <button
-                v-for="phase in ['metadata', 'thumbnail', 'sprites'] as const"
+                v-for="phase in ['metadata', 'thumbnail', 'sprites', 'animated_thumbnails'] as const"
                 :key="phase"
                 :disabled="triggeringPhase !== null"
                 :class="[

@@ -123,6 +123,8 @@ const phaseIcon = (phase: string): string => {
             return 'heroicons:photo';
         case 'sprites':
             return 'heroicons:squares-2x2';
+        case 'animated_thumbnails':
+            return 'heroicons:film';
         default:
             return 'heroicons:cog-6-tooth';
     }

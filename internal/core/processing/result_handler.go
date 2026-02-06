@@ -88,6 +88,8 @@ func (rh *ResultHandler) handleCompleted(result jobs.JobResult) {
 		rh.onThumbnailComplete(result)
 	case "sprites":
 		rh.onSpritesComplete(result)
+	case "animated_thumbnails":
+		rh.onAnimatedThumbnailsComplete(result)
 	}
 }
 
@@ -327,6 +329,29 @@ func (rh *ResultHandler) onSpritesComplete(result jobs.JobResult) {
 
 	rh.phaseTracker.MarkPhaseComplete(result.SceneID, "sprites")
 	rh.checkAndMarkComplete(result.SceneID, "sprites")
+}
+
+func (rh *ResultHandler) onAnimatedThumbnailsComplete(result jobs.JobResult) {
+	rh.eventBus.Publish(SceneEvent{
+		Type:    "scene:animated_thumbnails_complete",
+		SceneID: result.SceneID,
+	})
+
+	// Trigger any phases configured to run after animated_thumbnails
+	for _, phase := range rh.phaseTracker.GetPhasesTriggeredAfter("animated_thumbnails") {
+		if rh.onPhaseComplete != nil {
+			if err := rh.onPhaseComplete(result.SceneID, phase); err != nil {
+				rh.logger.Error("Failed to submit phase after animated_thumbnails",
+					zap.Uint("scene_id", result.SceneID),
+					zap.String("phase", phase),
+					zap.Error(err),
+				)
+			}
+		}
+	}
+
+	rh.phaseTracker.MarkPhaseComplete(result.SceneID, "animated_thumbnails")
+	rh.checkAndMarkComplete(result.SceneID, "animated_thumbnails")
 }
 
 func (rh *ResultHandler) checkAndMarkComplete(sceneID uint, completedPhase string) {

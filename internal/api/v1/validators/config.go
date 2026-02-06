@@ -33,9 +33,10 @@ func ValidateWorkerCount(count int, fieldName string) error {
 
 // PoolConfigInput represents the input for pool configuration validation
 type PoolConfigInput struct {
-	MetadataWorkers  int
-	ThumbnailWorkers int
-	SpritesWorkers   int
+	MetadataWorkers           int
+	ThumbnailWorkers          int
+	SpritesWorkers            int
+	AnimatedThumbnailsWorkers int
 }
 
 // ValidatePoolConfig validates all pool configuration fields
@@ -47,6 +48,9 @@ func ValidatePoolConfig(cfg PoolConfigInput) error {
 		return err
 	}
 	if err := ValidateWorkerCount(cfg.SpritesWorkers, "sprites_workers"); err != nil {
+		return err
+	}
+	if err := ValidateWorkerCount(cfg.AnimatedThumbnailsWorkers, "animated_thumbnails_workers"); err != nil {
 		return err
 	}
 	return nil

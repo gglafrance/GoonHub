@@ -3,10 +3,13 @@ import type { MarkerLabelGroup } from '~/types/marker';
 
 const props = defineProps<{
     group: MarkerLabelGroup;
+    markerThumbnailType?: string;
 }>();
 
 const settingsStore = useSettingsStore();
 const cyclingEnabled = computed(() => settingsStore.markerThumbnailCycling);
+const isAnimated = computed(() => props.markerThumbnailType === 'animated');
+const { observe } = useAnimatedMarkerPreview();
 
 const ids = computed(() => {
     const arr = props.group.thumbnail_marker_ids;
@@ -22,6 +25,13 @@ let cycleTimer: ReturnType<typeof setTimeout> | null = null;
 const currentUrl = computed(() => `/marker-thumbnails/${ids.value[currentIndex.value]}`);
 const nextIndex = computed(() => (currentIndex.value + 1) % ids.value.length);
 const nextUrl = computed(() => `/marker-thumbnails/${ids.value[nextIndex.value]}`);
+
+// For animated mode, pick a random marker ID for the video
+const animatedMarkerId = computed(() => {
+    const arr = ids.value;
+    return arr[Math.floor(Math.random() * arr.length)];
+});
+const animatedUrl = computed(() => `/marker-thumbnails/${animatedMarkerId.value}/animated`);
 
 function stopCycling() {
     if (cycleTimer) {
@@ -84,22 +94,37 @@ onBeforeUnmount(() => {
     >
         <!-- Thumbnail -->
         <div class="relative aspect-video w-full overflow-hidden bg-black/40">
-            <img
-                :src="currentUrl"
-                :alt="group.label"
-                class="absolute inset-0 h-full w-full object-cover transition-transform duration-300
-                    group-hover:scale-105"
-                loading="lazy"
+            <!-- Animated video mode -->
+            <video
+                v-if="isAnimated"
+                :ref="(el) => observe(el as HTMLVideoElement)"
+                :src="animatedUrl"
+                muted
+                loop
+                playsinline
+                preload="none"
+                class="absolute inset-0 h-full w-full object-contain transition-transform
+                    duration-300 group-hover:scale-105"
             />
-            <!-- Next image for crossfade -->
-            <img
-                v-if="showNext && nextLoaded"
-                :src="nextUrl"
-                :alt="group.label"
-                class="absolute inset-0 h-full w-full object-cover transition-opacity duration-400
-                    group-hover:scale-105"
-                :class="showNext ? 'opacity-100' : 'opacity-0'"
-            />
+            <!-- Static image mode -->
+            <template v-else>
+                <img
+                    :src="currentUrl"
+                    :alt="group.label"
+                    class="absolute inset-0 h-full w-full object-cover transition-transform
+                        duration-300 group-hover:scale-105"
+                    loading="lazy"
+                />
+                <!-- Next image for crossfade -->
+                <img
+                    v-if="showNext && nextLoaded"
+                    :src="nextUrl"
+                    :alt="group.label"
+                    class="absolute inset-0 h-full w-full object-cover transition-opacity
+                        duration-400 group-hover:scale-105"
+                    :class="showNext ? 'opacity-100' : 'opacity-0'"
+                />
+            </template>
 
             <!-- Gradient overlay -->
             <div

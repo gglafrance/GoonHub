@@ -35,6 +35,7 @@ type MarkerRepository interface {
 
 	// Scene-level methods (not user-scoped)
 	GetBySceneWithoutThumbnail(sceneID uint) ([]UserSceneMarker, error)
+	GetBySceneWithoutAnimatedThumbnail(sceneID uint) ([]UserSceneMarker, error)
 
 	// All markers (unwrapped view)
 	GetAllMarkersForUser(userID uint, offset, limit int, sortBy string) ([]MarkerWithScene, int64, error)
@@ -549,6 +550,17 @@ func (r *MarkerRepositoryImpl) GetRandomThumbnailsForLabels(userID uint, labels 
 func (r *MarkerRepositoryImpl) GetBySceneWithoutThumbnail(sceneID uint) ([]UserSceneMarker, error) {
 	var markers []UserSceneMarker
 	err := r.DB.Where("scene_id = ? AND (thumbnail_path = '' OR thumbnail_path IS NULL)", sceneID).
+		Find(&markers).Error
+	if err != nil {
+		return nil, err
+	}
+	return markers, nil
+}
+
+// GetBySceneWithoutAnimatedThumbnail returns all markers for a scene where animated_thumbnail_path is empty
+func (r *MarkerRepositoryImpl) GetBySceneWithoutAnimatedThumbnail(sceneID uint) ([]UserSceneMarker, error) {
+	var markers []UserSceneMarker
+	err := r.DB.Where("scene_id = ? AND (animated_thumbnail_path = '' OR animated_thumbnail_path IS NULL)", sceneID).
 		Find(&markers).Error
 	if err != nil {
 		return nil, err

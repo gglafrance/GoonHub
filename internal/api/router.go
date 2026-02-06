@@ -130,6 +130,19 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, sceneHandler *handler
 		c.File(path)
 	})
 
+	// Serve Animated Marker Thumbnails (MP4 clips)
+	r.GET("/marker-thumbnails/:id/animated", func(c *gin.Context) {
+		id := c.Param("id")
+		if _, err := strconv.ParseUint(id, 10, 64); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid marker ID"})
+			return
+		}
+		path := filepath.Join(cfg.Processing.MarkerThumbnailDir, fmt.Sprintf("marker_%s.mp4", id))
+		c.Header("Content-Type", "video/mp4")
+		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
+		c.File(path)
+	})
+
 	// Register Routes
 	RegisterRoutes(r, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, authService, rbacService, logger, rateLimiter)
 

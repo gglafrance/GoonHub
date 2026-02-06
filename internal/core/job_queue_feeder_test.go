@@ -39,7 +39,7 @@ func newTestFeeder(t *testing.T) (*JobQueueFeeder, *mocks.MockJobHistoryReposito
 
 	poolManager := processing.NewPoolManager(cfg, zap.NewNop(), nil, nil)
 
-	feeder := NewJobQueueFeeder(jobHistoryRepo, sceneRepo, nil, poolManager, zap.NewNop())
+	feeder := NewJobQueueFeeder(jobHistoryRepo, sceneRepo, nil, nil, poolManager, zap.NewNop())
 	return feeder, jobHistoryRepo, sceneRepo
 }
 
@@ -85,6 +85,30 @@ func TestSubmitJobToPool_SpritesDurationZero(t *testing.T) {
 	err := feeder.submitJobToPool(jobRecord, scene)
 	if err == nil {
 		t.Fatal("expected error when scene duration is 0 for sprites job")
+	}
+	if !strings.Contains(err.Error(), "scene duration is 0") {
+		t.Fatalf("expected error about duration being 0, got: %v", err)
+	}
+}
+
+func TestSubmitJobToPool_AnimatedThumbnailsDurationZero(t *testing.T) {
+	feeder, _, _ := newTestFeeder(t)
+
+	jobRecord := data.JobHistory{
+		JobID:   "test-job-anim-1",
+		SceneID: 10,
+		Phase:   "animated_thumbnails",
+	}
+	scene := &data.Scene{
+		ID:       10,
+		Duration: 0,
+		Width:    1920,
+		Height:   1080,
+	}
+
+	err := feeder.submitJobToPool(jobRecord, scene)
+	if err == nil {
+		t.Fatal("expected error when scene duration is 0 for animated_thumbnails job")
 	}
 	if !strings.Contains(err.Error(), "scene duration is 0") {
 		t.Fatalf("expected error about duration being 0, got: %v", err)

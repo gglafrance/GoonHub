@@ -51,6 +51,8 @@ export const useJobFormatting = () => {
                 return 'Thumbnail';
             case 'sprites':
                 return 'Sprites';
+            case 'animated_thumbnails':
+                return 'Animated';
             default:
                 return phase;
         }
@@ -64,6 +66,8 @@ export const useJobFormatting = () => {
                 return 'heroicons:photo';
             case 'sprites':
                 return 'heroicons:squares-2x2';
+            case 'animated_thumbnails':
+                return 'heroicons:film';
             default:
                 return 'heroicons:cog-6-tooth';
         }

@@ -26,10 +26,20 @@ type MarkerService struct {
 	markerThumbnailDir      string
 	markerThumbnailMaxDim   int
 	markerThumbnailQuality  int
+	markerAnimatedDuration  int
+	markerThumbnailType     string
 	logger                  *zap.Logger
 }
 
 func NewMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *zap.Logger) *MarkerService {
+	markerAnimatedDuration := cfg.Processing.MarkerAnimatedDuration
+	if markerAnimatedDuration <= 0 {
+		markerAnimatedDuration = 10
+	}
+	markerThumbnailType := cfg.Processing.MarkerThumbnailType
+	if markerThumbnailType == "" {
+		markerThumbnailType = "static"
+	}
 	return &MarkerService{
 		markerRepo:             markerRepo,
 		sceneRepo:              sceneRepo,
@@ -37,6 +47,8 @@ func NewMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepo
 		markerThumbnailDir:     cfg.Processing.MarkerThumbnailDir,
 		markerThumbnailMaxDim:  cfg.Processing.MaxFrameDimension,
 		markerThumbnailQuality: cfg.Processing.FrameQuality,
+		markerAnimatedDuration: markerAnimatedDuration,
+		markerThumbnailType:    markerThumbnailType,
 		logger:                 logger,
 	}
 }
@@ -156,12 +168,21 @@ func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, label,
 		}
 	}
 
-	// Generate thumbnail (best effort - marker is still useful without it)
-	if err := s.generateThumbnail(marker, scene); err != nil {
-		s.logger.Warn("failed to generate marker thumbnail",
-			zap.Uint("markerID", marker.ID),
-			zap.Uint("sceneID", sceneID),
-			zap.Error(err))
+	// Generate the appropriate thumbnail type (best effort - marker is still useful without it)
+	if s.markerThumbnailType == "animated" {
+		if err := s.generateAnimatedThumbnail(marker, scene); err != nil {
+			s.logger.Warn("failed to generate animated marker thumbnail",
+				zap.Uint("markerID", marker.ID),
+				zap.Uint("sceneID", sceneID),
+				zap.Error(err))
+		}
+	} else {
+		if err := s.generateThumbnail(marker, scene); err != nil {
+			s.logger.Warn("failed to generate marker thumbnail",
+				zap.Uint("markerID", marker.ID),
+				zap.Uint("sceneID", sceneID),
+				zap.Error(err))
+		}
 	}
 
 	return marker, nil
@@ -239,6 +260,17 @@ func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color
 			}
 		}
 
+		// Delete old animated thumbnail
+		if marker.AnimatedThumbnailPath != "" {
+			oldAnimPath := filepath.Join(s.markerThumbnailDir, marker.AnimatedThumbnailPath)
+			if err := os.Remove(oldAnimPath); err != nil && !os.IsNotExist(err) {
+				s.logger.Warn("failed to delete old animated marker thumbnail",
+					zap.Uint("markerID", marker.ID),
+					zap.String("path", oldAnimPath),
+					zap.Error(err))
+			}
+		}
+
 		// Fetch scene if not already fetched
 		if scene == nil {
 			var err error
@@ -250,12 +282,20 @@ func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color
 			}
 		}
 
-		// Generate new thumbnail
+		// Generate new thumbnail matching the current type
 		if scene != nil {
-			if err := s.generateThumbnail(marker, scene); err != nil {
-				s.logger.Warn("failed to regenerate marker thumbnail",
-					zap.Uint("markerID", marker.ID),
-					zap.Error(err))
+			if s.markerThumbnailType == "animated" {
+				if err := s.generateAnimatedThumbnail(marker, scene); err != nil {
+					s.logger.Warn("failed to regenerate animated marker thumbnail",
+						zap.Uint("markerID", marker.ID),
+						zap.Error(err))
+				}
+			} else {
+				if err := s.generateThumbnail(marker, scene); err != nil {
+					s.logger.Warn("failed to regenerate marker thumbnail",
+						zap.Uint("markerID", marker.ID),
+						zap.Error(err))
+				}
 			}
 		}
 	}
@@ -278,10 +318,14 @@ func (s *MarkerService) DeleteMarker(userID, markerID uint) error {
 		return apperrors.NewForbiddenError("you do not own this marker")
 	}
 
-	// Store thumbnail path before deleting marker
+	// Store thumbnail paths before deleting marker
 	thumbnailPath := ""
 	if marker.ThumbnailPath != "" {
 		thumbnailPath = filepath.Join(s.markerThumbnailDir, marker.ThumbnailPath)
+	}
+	animatedThumbnailPath := ""
+	if marker.AnimatedThumbnailPath != "" {
+		animatedThumbnailPath = filepath.Join(s.markerThumbnailDir, marker.AnimatedThumbnailPath)
 	}
 
 	// Delete DB record first (this is the critical operation)
@@ -290,12 +334,20 @@ func (s *MarkerService) DeleteMarker(userID, markerID uint) error {
 		return apperrors.NewInternalError("failed to delete marker", err)
 	}
 
-	// Clean up thumbnail file after successful DB delete (best effort)
+	// Clean up thumbnail files after successful DB delete (best effort)
 	if thumbnailPath != "" {
 		if err := os.Remove(thumbnailPath); err != nil && !os.IsNotExist(err) {
 			s.logger.Warn("failed to delete marker thumbnail",
 				zap.Uint("markerID", markerID),
 				zap.String("path", thumbnailPath),
+				zap.Error(err))
+		}
+	}
+	if animatedThumbnailPath != "" {
+		if err := os.Remove(animatedThumbnailPath); err != nil && !os.IsNotExist(err) {
+			s.logger.Warn("failed to delete animated marker thumbnail",
+				zap.Uint("markerID", markerID),
+				zap.String("path", animatedThumbnailPath),
 				zap.Error(err))
 		}
 	}
@@ -499,6 +551,100 @@ func (s *MarkerService) generateThumbnail(marker *data.UserSceneMarker, scene *d
 	}
 
 	return nil
+}
+
+// generateAnimatedThumbnail extracts a short MP4 clip at the marker's timestamp.
+// This is a best-effort operation.
+func (s *MarkerService) generateAnimatedThumbnail(marker *data.UserSceneMarker, scene *data.Scene) error {
+	if err := os.MkdirAll(s.markerThumbnailDir, 0755); err != nil {
+		return fmt.Errorf("failed to create marker thumbnail directory: %w", err)
+	}
+
+	if scene.StoredPath == "" {
+		return fmt.Errorf("scene has no stored path")
+	}
+	if _, err := os.Stat(scene.StoredPath); os.IsNotExist(err) {
+		return fmt.Errorf("scene file not found: %s", scene.StoredPath)
+	}
+
+	animatedFilename := fmt.Sprintf("marker_%d.mp4", marker.ID)
+	animatedPath := filepath.Join(s.markerThumbnailDir, animatedFilename)
+
+	seekPosition := strconv.Itoa(marker.Timestamp)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	if err := ffmpeg.ExtractAnimatedThumbnailWithContext(ctx, scene.StoredPath, animatedPath, seekPosition, s.markerAnimatedDuration, s.markerThumbnailMaxDim); err != nil {
+		return fmt.Errorf("failed to extract animated thumbnail: %w", err)
+	}
+
+	marker.AnimatedThumbnailPath = animatedFilename
+	if err := s.markerRepo.Update(marker); err != nil {
+		os.Remove(animatedPath)
+		return fmt.Errorf("failed to update marker with animated thumbnail path: %w", err)
+	}
+
+	return nil
+}
+
+// GenerateMissingAnimatedForScene finds all markers for a scene that lack animated thumbnails and generates them.
+// Implements jobs.AnimatedThumbnailGenerator.
+func (s *MarkerService) GenerateMissingAnimatedForScene(ctx context.Context, sceneID uint) (int, error) {
+	markers, err := s.markerRepo.GetBySceneWithoutAnimatedThumbnail(sceneID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to query markers without animated thumbnails: %w", err)
+	}
+
+	if len(markers) == 0 {
+		return 0, nil
+	}
+
+	scene, err := s.sceneRepo.GetByID(sceneID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get scene for animated thumbnail generation: %w", err)
+	}
+
+	s.logger.Info("Generating missing animated marker thumbnails",
+		zap.Uint("scene_id", sceneID),
+		zap.Int("count", len(markers)))
+
+	generated := 0
+	for i := range markers {
+		if ctx.Err() != nil {
+			s.logger.Info("Animated marker thumbnail generation interrupted",
+				zap.Uint("scene_id", sceneID),
+				zap.Int("generated", generated),
+				zap.Int("remaining", len(markers)-i))
+			break
+		}
+
+		if err := s.generateAnimatedThumbnail(&markers[i], scene); err != nil {
+			s.logger.Warn("Failed to generate animated marker thumbnail",
+				zap.Uint("marker_id", markers[i].ID),
+				zap.Int("timestamp", markers[i].Timestamp),
+				zap.Error(err))
+			continue
+		}
+		generated++
+	}
+
+	return generated, nil
+}
+
+// GetMarkerThumbnailType returns the current marker thumbnail type setting
+func (s *MarkerService) GetMarkerThumbnailType() string {
+	return s.markerThumbnailType
+}
+
+// SetMarkerThumbnailType updates the marker thumbnail type setting
+func (s *MarkerService) SetMarkerThumbnailType(thumbnailType string) {
+	s.markerThumbnailType = thumbnailType
+}
+
+// SetMarkerAnimatedDuration updates the animated duration setting
+func (s *MarkerService) SetMarkerAnimatedDuration(duration int) {
+	s.markerAnimatedDuration = duration
 }
 
 // GetLabelTags returns the default tags for a label

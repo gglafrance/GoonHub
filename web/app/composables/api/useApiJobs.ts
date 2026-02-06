@@ -29,6 +29,7 @@ export const useApiJobs = () => {
         metadata_workers: number;
         thumbnail_workers: number;
         sprites_workers: number;
+        animated_thumbnails_workers: number;
     }) => {
         const response = await fetch('/api/v1/admin/pool-config', {
             method: 'PUT',
@@ -53,6 +54,8 @@ export const useApiJobs = () => {
         frame_quality_lg: number;
         frame_quality_sprites: number;
         sprites_concurrency: number;
+        marker_thumbnail_type: string;
+        marker_animated_duration: number;
     }) => {
         const response = await fetch('/api/v1/admin/processing-config', {
             method: 'PUT',

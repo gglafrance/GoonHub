@@ -8,14 +8,16 @@ import (
 )
 
 type ProcessingConfigRecord struct {
-	ID                  int       `gorm:"primaryKey" json:"id"`
-	MaxFrameDimensionSm int       `gorm:"column:max_frame_dimension_sm" json:"max_frame_dimension_sm"`
-	MaxFrameDimensionLg int       `gorm:"column:max_frame_dimension_lg" json:"max_frame_dimension_lg"`
-	FrameQualitySm      int       `gorm:"column:frame_quality_sm" json:"frame_quality_sm"`
-	FrameQualityLg      int       `gorm:"column:frame_quality_lg" json:"frame_quality_lg"`
-	FrameQualitySprites int       `gorm:"column:frame_quality_sprites" json:"frame_quality_sprites"`
-	SpritesConcurrency  int       `gorm:"column:sprites_concurrency" json:"sprites_concurrency"`
-	UpdatedAt           time.Time `gorm:"column:updated_at" json:"updated_at"`
+	ID                     int       `gorm:"primaryKey" json:"id"`
+	MaxFrameDimensionSm    int       `gorm:"column:max_frame_dimension_sm" json:"max_frame_dimension_sm"`
+	MaxFrameDimensionLg    int       `gorm:"column:max_frame_dimension_lg" json:"max_frame_dimension_lg"`
+	FrameQualitySm         int       `gorm:"column:frame_quality_sm" json:"frame_quality_sm"`
+	FrameQualityLg         int       `gorm:"column:frame_quality_lg" json:"frame_quality_lg"`
+	FrameQualitySprites    int       `gorm:"column:frame_quality_sprites" json:"frame_quality_sprites"`
+	SpritesConcurrency     int       `gorm:"column:sprites_concurrency" json:"sprites_concurrency"`
+	MarkerThumbnailType    string    `gorm:"column:marker_thumbnail_type" json:"marker_thumbnail_type"`
+	MarkerAnimatedDuration int       `gorm:"column:marker_animated_duration" json:"marker_animated_duration"`
+	UpdatedAt              time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
 
 func (ProcessingConfigRecord) TableName() string {
@@ -52,6 +54,6 @@ func (r *ProcessingConfigRepositoryImpl) Upsert(record *ProcessingConfigRecord) 
 	record.UpdatedAt = time.Now()
 	return r.DB.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"max_frame_dimension_sm", "max_frame_dimension_lg", "frame_quality_sm", "frame_quality_lg", "frame_quality_sprites", "sprites_concurrency", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"max_frame_dimension_sm", "max_frame_dimension_lg", "frame_quality_sm", "frame_quality_lg", "frame_quality_sprites", "sprites_concurrency", "marker_thumbnail_type", "marker_animated_duration", "updated_at"}),
 	}).Create(record).Error
 }

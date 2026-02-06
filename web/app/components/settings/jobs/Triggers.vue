@@ -91,6 +91,8 @@ const phaseLabel = (phase: string): string => {
             return 'Thumbnail';
         case 'sprites':
             return 'Sprites';
+        case 'animated_thumbnails':
+            return 'Animated Thumbnails';
         case 'scan':
             return 'Library Scan';
         default:
@@ -106,6 +108,8 @@ const phaseIcon = (phase: string): string => {
             return 'heroicons:photo';
         case 'sprites':
             return 'heroicons:squares-2x2';
+        case 'animated_thumbnails':
+            return 'heroicons:film';
         case 'scan':
             return 'heroicons:folder-open';
         default:
@@ -118,9 +122,11 @@ const phaseDescription = (phase: string): string => {
         case 'metadata':
             return 'Extract duration, resolution, codec info';
         case 'thumbnail':
-            return 'Generate preview thumbnails';
+            return 'Scene previews and static marker thumbnails';
         case 'sprites':
             return 'Build sprite sheets and VTT files';
+        case 'animated_thumbnails':
+            return 'Looping video clips for marker previews';
         case 'scan':
             return 'Discover new videos in storage paths';
         default:
@@ -159,7 +165,9 @@ const triggerLabel = (type: string): string => {
 };
 
 const availableAfterPhases = (currentPhase: string) => {
-    return ['metadata', 'thumbnail', 'sprites'].filter((p) => p !== currentPhase);
+    return ['metadata', 'thumbnail', 'sprites', 'animated_thumbnails'].filter(
+        (p) => p !== currentPhase,
+    );
 };
 
 const triggerTypes = (phase: string) => {

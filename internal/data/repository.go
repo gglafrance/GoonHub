@@ -278,6 +278,19 @@ func (r *SceneRepositoryImpl) GetScenesNeedingPhase(phase string) ([]Scene, erro
 		baseQuery = baseQuery.Where("thumbnail_path = ''").Where("duration > 0")
 	case "sprites":
 		baseQuery = baseQuery.Where("sprite_sheet_path = ''").Where("duration > 0")
+	case "animated_thumbnails":
+		// Scenes that have markers without animated thumbnails
+		var animScenes []Scene
+		err := r.DB.Raw(`
+			SELECT DISTINCT s.* FROM scenes s
+			JOIN user_scene_markers m ON m.scene_id = s.id
+			WHERE (m.animated_thumbnail_path = '' OR m.animated_thumbnail_path IS NULL)
+			AND s.duration > 0 AND s.deleted_at IS NULL AND s.trashed_at IS NULL
+		`).Find(&animScenes).Error
+		if err != nil {
+			return nil, err
+		}
+		return animScenes, nil
 	default:
 		return nil, nil
 	}

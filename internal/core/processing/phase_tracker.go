@@ -98,6 +98,8 @@ func (pt *PhaseTracker) MarkPhaseComplete(sceneID uint, phase string) {
 		state.ThumbnailDone = true
 	case "sprites":
 		state.SpritesDone = true
+	case "animated_thumbnails":
+		state.AnimatedThumbnailsDone = true
 	}
 }
 
@@ -124,6 +126,7 @@ func (pt *PhaseTracker) CheckAllPhasesComplete(sceneID uint, completedPhase stri
 	phasesAfterMeta := pt.GetPhasesTriggeredAfter("metadata")
 	thumbnailInPipeline := false
 	spritesInPipeline := false
+	animatedThumbnailsInPipeline := false
 	for _, p := range phasesAfterMeta {
 		if p == "thumbnail" {
 			thumbnailInPipeline = true
@@ -131,13 +134,17 @@ func (pt *PhaseTracker) CheckAllPhasesComplete(sceneID uint, completedPhase stri
 		if p == "sprites" {
 			spritesInPipeline = true
 		}
+		if p == "animated_thumbnails" {
+			animatedThumbnailsInPipeline = true
+		}
 	}
 
 	// Check completion: only phases in the pipeline matter
 	thumbnailReady := !thumbnailInPipeline || state.ThumbnailDone
 	spritesReady := !spritesInPipeline || state.SpritesDone
+	animatedThumbnailsReady := !animatedThumbnailsInPipeline || state.AnimatedThumbnailsDone
 
-	if thumbnailReady && spritesReady {
+	if thumbnailReady && spritesReady && animatedThumbnailsReady {
 		pt.ClearPhaseState(sceneID)
 		return true
 	}
