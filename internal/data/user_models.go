@@ -64,6 +64,8 @@ type UserSettings struct {
 	SortPreferences            SortPreferences      `gorm:"type:jsonb;not null" json:"sort_preferences"`
 	PlaylistAutoAdvance        string               `gorm:"not null;default:'countdown'" json:"playlist_auto_advance"`
 	PlaylistCountdownSeconds   int                  `gorm:"not null;default:5" json:"playlist_countdown_seconds"`
+	ShowPageSizeSelector       bool                 `gorm:"not null;default:false" json:"show_page_size_selector"`
+	MaxItemsPerPage            int                  `gorm:"-" json:"max_items_per_page"`
 }
 
 // HomepageConfig represents the user's homepage layout configuration

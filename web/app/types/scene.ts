@@ -17,6 +17,7 @@ export interface SceneListItem {
 export interface Scene extends SceneListItem {
     original_filename: string;
     stored_path: string;
+    storage_path_id?: number;
     view_count: number;
     width?: number;
     height?: number;

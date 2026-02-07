@@ -7,7 +7,6 @@ const { fetchMarkersByLabel } = useApiMarkers();
 const { fetchProcessingConfig } = useApiJobs();
 const { formatDuration } = useFormatter();
 const { observe } = useAnimatedMarkerPreview();
-const settingsStore = useSettingsStore();
 
 // Marker thumbnail type (static or animated)
 const markerThumbnailType = ref('static');
@@ -15,7 +14,7 @@ const markerThumbnailType = ref('static');
 const markers = ref<MarkerWithScene[]>([]);
 const total = ref(0);
 const currentPage = useUrlPagination();
-const limit = computed(() => settingsStore.videosPerPage);
+const { limit, showSelector, maxLimit, updatePageSize } = usePageSize();
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 
@@ -210,7 +209,14 @@ definePageMeta({
                     </NuxtLink>
                 </div>
 
-                <Pagination v-model="currentPage" :total="total" :limit="limit" />
+                <Pagination
+                    v-model="currentPage"
+                    :total="total"
+                    :limit="limit"
+                    :show-page-size-selector="showSelector"
+                    :max-limit="maxLimit"
+                    @update:limit="(v: number) => { updatePageSize(v); if (currentPage === 1) loadMarkers(1); else currentPage = 1; }"
+                />
             </div>
         </div>
     </div>

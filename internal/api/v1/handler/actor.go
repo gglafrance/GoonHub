@@ -20,20 +20,23 @@ import (
 )
 
 type ActorHandler struct {
-	Service       *core.ActorService
-	ActorImageDir string
+	Service         *core.ActorService
+	ActorImageDir   string
+	MaxItemsPerPage int
 }
 
-func NewActorHandler(service *core.ActorService, actorImageDir string) *ActorHandler {
+func NewActorHandler(service *core.ActorService, actorImageDir string, maxItemsPerPage int) *ActorHandler {
 	return &ActorHandler{
-		Service:       service,
-		ActorImageDir: actorImageDir,
+		Service:         service,
+		ActorImageDir:   actorImageDir,
+		MaxItemsPerPage: maxItemsPerPage,
 	}
 }
 
 func (h *ActorHandler) ListActors(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	page, limit = clampPagination(page, limit, 20, h.MaxItemsPerPage)
 	query := c.Query("q")
 	sort := c.Query("sort")
 
@@ -100,6 +103,7 @@ func (h *ActorHandler) GetActorScenes(c *gin.Context) {
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	page, limit = clampPagination(page, limit, 20, h.MaxItemsPerPage)
 
 	actor, err := h.Service.GetByUUID(uuidStr)
 	if err != nil {

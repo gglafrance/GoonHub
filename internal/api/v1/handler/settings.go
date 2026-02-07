@@ -13,11 +13,13 @@ import (
 
 type SettingsHandler struct {
 	SettingsService *core.SettingsService
+	MaxItemsPerPage int
 }
 
-func NewSettingsHandler(settingsService *core.SettingsService) *SettingsHandler {
+func NewSettingsHandler(settingsService *core.SettingsService, maxItemsPerPage int) *SettingsHandler {
 	return &SettingsHandler{
 		SettingsService: settingsService,
+		MaxItemsPerPage: maxItemsPerPage,
 	}
 }
 
@@ -34,6 +36,7 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 		return
 	}
 
+	settings.MaxItemsPerPage = h.MaxItemsPerPage
 	c.JSON(http.StatusOK, settings)
 }
 
@@ -153,6 +156,11 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		return
 	}
 
+	// Cap videos per page to admin-configured maximum
+	if req.VideosPerPage > h.MaxItemsPerPage {
+		req.VideosPerPage = h.MaxItemsPerPage
+	}
+
 	homepageConfig := h.convertRequestToConfig(req.HomepageConfig)
 	parsingRules := h.convertRequestToParsingRules(req.ParsingRules)
 	sortPrefs := data.SortPreferences{
@@ -177,12 +185,14 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		sortPrefs,
 		req.PlaylistAutoAdvance,
 		req.PlaylistCountdownSeconds,
+		req.ShowPageSizeSelector,
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	settings.MaxItemsPerPage = h.MaxItemsPerPage
 	c.JSON(http.StatusOK, settings)
 }
 

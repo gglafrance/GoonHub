@@ -1,11 +1,80 @@
 <script setup lang="ts">
 import type { Scene } from '~/types/scene';
+import type { StoragePathWithCount } from '~/types/explorer';
 
-defineProps<{
+const props = defineProps<{
     scene: Scene;
 }>();
 
 const { formatDuration, formatSize, formatBitRate, formatFrameRate } = useFormatter();
+const { getStoragePaths } = useApiExplorer();
+
+const storagePaths = ref<StoragePathWithCount[]>([]);
+
+// Fetch storage paths to resolve explorer links
+const loadStoragePaths = async () => {
+    if (!props.scene.stored_path) return;
+    try {
+        const response = await getStoragePaths();
+        storagePaths.value = response.storage_paths;
+    } catch {
+        // Silently fail - path will display as plain text
+    }
+};
+
+onMounted(loadStoragePaths);
+
+// Normalize a path: strip trailing slashes and clean up ./ prefix
+const normalizePath = (p: string) => p.replace(/^\.\//, '').replace(/\/+$/, '');
+
+// Compute clickable path segments
+const pathSegments = computed(() => {
+    if (!props.scene.stored_path || storagePaths.value.length === 0) return null;
+
+    const storedPath = normalizePath(props.scene.stored_path);
+
+    // Find matching storage path: by ID first, then by prefix
+    let sp: StoragePathWithCount | undefined;
+    if (props.scene.storage_path_id) {
+        sp = storagePaths.value.find((s) => s.id === props.scene.storage_path_id);
+    }
+    if (!sp) {
+        sp = storagePaths.value.find((s) => storedPath.startsWith(normalizePath(s.path)));
+    }
+    if (!sp) return null;
+
+    const basePath = normalizePath(sp.path);
+    if (!storedPath.startsWith(basePath)) return null;
+
+    // Get relative path (strip base path and leading slash)
+    const relativePath = storedPath.slice(basePath.length).replace(/^\//, '');
+    const parts = relativePath.split('/').filter(Boolean);
+
+    if (parts.length === 0) return null;
+
+    // Last part is the filename
+    const filename = parts[parts.length - 1];
+    const folders = parts.slice(0, -1);
+
+    return {
+        storagePathId: sp.id,
+        basePath: sp.path,
+        folders,
+        filename,
+    };
+});
+
+const getExplorerLink = (folderIndex: number) => {
+    if (!pathSegments.value) return '/explorer';
+    const { storagePathId, folders } = pathSegments.value;
+    const path = folders.slice(0, folderIndex + 1).join('/');
+    return `/explorer/${storagePathId}/${path}`;
+};
+
+const getStorageRootLink = () => {
+    if (!pathSegments.value) return '/explorer';
+    return `/explorer/${pathSegments.value.storagePathId}`;
+};
 
 const formatResolution = (w?: number, h?: number): string => {
     if (!w || !h) return '';
@@ -151,7 +220,32 @@ const getResolutionLabel = (h?: number): string => {
 
                 <div v-if="scene.stored_path" class="border-border border-b py-2.5">
                     <span class="text-dim text-[11px]">Path</span>
-                    <p class="text-dim/70 mt-0.5 font-mono text-[10px] break-all">
+                    <p
+                        v-if="pathSegments"
+                        class="text-dim/70 mt-0.5 font-mono text-[10px] break-all leading-relaxed"
+                    >
+                        <NuxtLink
+                            :to="getStorageRootLink()"
+                            class="text-dim/40 hover:text-lava/70 transition-colors"
+                        >{{ pathSegments.basePath }}</NuxtLink>
+                        <span class="text-dim/30">/</span>
+                        <template
+                            v-for="(folder, index) in pathSegments.folders"
+                            :key="index"
+                        >
+                            <NuxtLink
+                                :to="getExplorerLink(index)"
+                                class="text-dim/70 underline decoration-transparent
+                                    hover:text-lava hover:decoration-lava/50 transition-all"
+                            >{{ folder }}</NuxtLink>
+                            <span class="text-dim/30">/</span>
+                        </template>
+                        <span class="text-dim/50">{{ pathSegments.filename }}</span>
+                    </p>
+                    <p
+                        v-else
+                        class="text-dim/70 mt-0.5 font-mono text-[10px] break-all"
+                    >
                         {{ scene.stored_path }}
                     </p>
                 </div>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const searchStore = useSearchStore();
+const { showSelector, maxLimit, updatePageSize } = usePageSize();
 </script>
 
 <template>
@@ -37,6 +38,9 @@ const searchStore = useSearchStore();
                 v-model="searchStore.page"
                 :total="searchStore.total"
                 :limit="searchStore.limit"
+                :show-page-size-selector="showSelector"
+                :max-limit="maxLimit"
+                @update:limit="(v: number) => { updatePageSize(v); if (searchStore.page === 1) searchStore.search(); else searchStore.page = 1; }"
             />
         </template>
 

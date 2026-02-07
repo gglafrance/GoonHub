@@ -10,12 +10,13 @@ import type {
 
 export const usePlaylistStore = defineStore('playlist', () => {
     const api = useApiPlaylists();
+    const settingsStore = useSettingsStore();
 
     // List state
     const playlists = ref<PlaylistListItem[]>([]);
     const total = ref(0);
     const currentPage = ref(1);
-    const limit = ref(20);
+    const limit = computed(() => settingsStore.videosPerPage);
     const isLoading = ref(false);
     const error = ref('');
 

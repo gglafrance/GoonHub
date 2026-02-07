@@ -53,12 +53,12 @@ func TestGetSettings_Defaults(t *testing.T) {
 	}
 }
 
-func validAllSettingsArgs() (bool, int, bool, int, string, string, bool, data.HomepageConfig, data.ParsingRulesSettings, data.SortPreferences, string, int) {
+func validAllSettingsArgs() (bool, int, bool, int, string, string, bool, data.HomepageConfig, data.ParsingRulesSettings, data.SortPreferences, string, int, bool) {
 	return false, 50, false, 20, "created_at_desc", "az", true,
 		data.DefaultHomepageConfig(),
 		data.DefaultParsingRulesSettings(),
 		data.DefaultSortPreferences(),
-		"countdown", 5
+		"countdown", 5, false
 }
 
 func TestUpdateAllSettings_Success(t *testing.T) {
@@ -72,8 +72,8 @@ func TestUpdateAllSettings_Success(t *testing.T) {
 	}, nil)
 	settingsRepo.EXPECT().Upsert(gomock.Any()).Return(nil)
 
-	autoplay, volume, loop, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs := validAllSettingsArgs()
-	settings, err := svc.UpdateAllSettings(1, autoplay, volume, loop, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs)
+	autoplay, volume, loop, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs, spss := validAllSettingsArgs()
+	settings, err := svc.UpdateAllSettings(1, autoplay, volume, loop, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs, spss)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -94,8 +94,7 @@ func TestUpdateAllSettings_InvalidFields(t *testing.T) {
 	}{
 		{"volume -1", -1, 20, "created_at_desc", "az", "name_asc", "volume must be between"},
 		{"volume 101", 101, 20, "created_at_desc", "az", "name_asc", "volume must be between"},
-		{"vpp 0", 50, 0, "created_at_desc", "az", "name_asc", "videos per page must be between"},
-		{"vpp 101", 50, 101, "created_at_desc", "az", "name_asc", "videos per page must be between"},
+		{"vpp 0", 50, 0, "created_at_desc", "az", "name_asc", "videos per page must be at least 1"},
 		{"bad sort order", 50, 20, "nonsense", "az", "name_asc", "invalid sort order"},
 		{"bad tag sort", 50, 20, "created_at_desc", "bad", "name_asc", "invalid tag sort"},
 		{"bad actors sort", 50, 20, "created_at_desc", "az", "bad", "invalid actors sort"},
@@ -109,7 +108,7 @@ func TestUpdateAllSettings_InvalidFields(t *testing.T) {
 			sp.Actors = tt.actorSort
 
 			_, err := svc.UpdateAllSettings(1, false, tt.volume, false, tt.vpp, tt.sort, tt.tagSort, true,
-				data.DefaultHomepageConfig(), data.DefaultParsingRulesSettings(), sp, "countdown", 5)
+				data.DefaultHomepageConfig(), data.DefaultParsingRulesSettings(), sp, "countdown", 5, false)
 			if err == nil {
 				t.Fatal("expected error")
 			}

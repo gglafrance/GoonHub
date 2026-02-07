@@ -21,6 +21,11 @@ type Config struct {
 	PornDB      PornDBConfig      `mapstructure:"porndb"`
 	Shutdown    ShutdownConfig    `mapstructure:"shutdown"`
 	Streaming   StreamingConfig   `mapstructure:"streaming"`
+	Pagination  PaginationConfig  `mapstructure:"pagination"`
+}
+
+type PaginationConfig struct {
+	MaxItemsPerPage int `mapstructure:"max_items_per_page"`
 }
 
 type StreamingConfig struct {
@@ -211,6 +216,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("shutdown.job_completion_wait", 15*time.Second)
 	v.SetDefault("shutdown.orphan_timeout", 30*time.Second)
 	v.SetDefault("shutdown.stuck_pending_time", 10*time.Minute)
+	v.SetDefault("pagination.max_items_per_page", 100)
 	v.SetDefault("streaming.max_global_streams", 100)
 	v.SetDefault("streaming.max_streams_per_ip", 10)
 	v.SetDefault("streaming.buffer_size", 262144)       // 256KB (8x default 32KB)
