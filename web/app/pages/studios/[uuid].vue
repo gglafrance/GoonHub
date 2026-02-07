@@ -21,6 +21,49 @@ const showCreateModal = ref(false);
 const showFetchModal = ref(false);
 const showDeleteModal = ref(false);
 
+// Scene selection
+const selectMode = ref(false);
+const scenesRef = toRef(scenes);
+const {
+    hasSelection,
+    selectionCount,
+    isSelectingAll,
+    allPageScenesSelected,
+    toggleSceneSelection,
+    selectAllOnPage,
+    selectAll,
+    clearSelection,
+    isSceneSelected,
+    getSelectedSceneIDs,
+} = useSceneSelection(scenesRef);
+
+const allScenesSelected = computed(
+    () => scenesTotal.value > 0 && selectionCount.value === scenesTotal.value,
+);
+
+const selectAllScenes = async () => {
+    if (!studio.value) return;
+    isSelectingAll.value = true;
+    try {
+        const ids = await api.fetchAllStudioSceneIDs(studioUuid.value, studio.value.name);
+        selectAll(ids);
+    } finally {
+        isSelectingAll.value = false;
+    }
+};
+
+// Clear selection when page changes or select mode toggled off
+watch(scenesPage, () => clearSelection());
+watch(selectMode, (on) => {
+    if (!on) clearSelection();
+});
+
+const handleBulkComplete = () => {
+    clearSelection();
+    selectMode.value = false;
+    loadScenes(scenesPage.value);
+};
+
 // Scene search/sort state
 const scenesQuery = ref('');
 const defaultSort = settingsStore.sortPreferences?.studio_scenes ?? '';
@@ -247,6 +290,10 @@ watch(
 );
 
 onMounted(() => {
+    if (scenesSort.value === 'random' && scenesSeed.value === 0) {
+        scenesSeed.value = generateSeed();
+        syncSortToUrl();
+    }
     loadStudio();
 });
 
@@ -671,12 +718,14 @@ definePageMeta({
                         <h2 class="text-sm font-semibold tracking-wide text-white uppercase">
                             Scenes
                         </h2>
-                        <span
-                            class="border-border bg-panel text-dim rounded-full border px-2.5 py-0.5
-                                font-mono text-[11px]"
-                        >
-                            {{ scenesTotal }} scenes
-                        </span>
+                        <div class="flex items-center gap-2">
+                            <span
+                                class="border-border bg-panel text-dim rounded-full border px-2.5
+                                    py-0.5 font-mono text-[11px]"
+                            >
+                                {{ scenesTotal }} scenes
+                            </span>
+                        </div>
                     </div>
 
                     <!-- Search and Sort Controls -->
@@ -712,6 +761,50 @@ definePageMeta({
                         >
                             <Icon name="heroicons:arrow-path" size="16" class="text-white" />
                         </button>
+
+                        <!-- Select mode toggle -->
+                        <template v-if="selectMode">
+                            <button
+                                v-if="hasSelection"
+                                class="text-dim hidden text-xs transition-colors hover:text-white
+                                    sm:block"
+                                @click="clearSelection()"
+                            >
+                                Deselect all
+                            </button>
+                            <button
+                                v-if="!allPageScenesSelected"
+                                class="text-dim hidden text-xs transition-colors hover:text-white
+                                    sm:block"
+                                @click="selectAllOnPage()"
+                            >
+                                Select page
+                            </button>
+                            <button
+                                v-if="!allScenesSelected"
+                                :disabled="isSelectingAll"
+                                class="text-lava hover:text-lava/80 hidden text-xs font-medium
+                                    transition-colors disabled:opacity-50 sm:block"
+                                @click="selectAllScenes()"
+                            >
+                                <template v-if="isSelectingAll">Selecting...</template>
+                                <template v-else> Select all {{ scenesTotal }} scenes </template>
+                            </button>
+                        </template>
+                        <button
+                            class="flex h-10 items-center gap-1.5 rounded-lg border px-2.5 text-xs
+                                font-medium transition-all"
+                            :class="
+                                selectMode
+                                    ? 'border-lava/40 bg-lava/10 text-lava'
+                                    : `border-border text-dim hover:border-border-hover
+                                        hover:text-white`
+                            "
+                            @click="selectMode = !selectMode"
+                        >
+                            <Icon name="heroicons:check-circle" size="14" />
+                            Select
+                        </button>
                     </div>
 
                     <div v-if="isLoadingScenes" class="flex h-32 items-center justify-center">
@@ -728,13 +821,28 @@ definePageMeta({
                     </div>
 
                     <div v-else>
-                        <SceneGrid :scenes="scenes" />
+                        <SelectableSceneGrid
+                            v-if="selectMode"
+                            :scenes="scenes"
+                            :is-scene-selected="isSceneSelected"
+                            @toggle-selection="toggleSceneSelection"
+                        />
+                        <SceneGrid v-else :scenes="scenes" />
                         <Pagination
                             v-model="scenesPage"
                             :total="scenesTotal"
                             :limit="scenesLimit"
                         />
                     </div>
+
+                    <!-- Bulk Toolbar -->
+                    <BulkToolbar
+                        v-if="hasSelection"
+                        :scene-ids="getSelectedSceneIDs()"
+                        :selection-count="selectionCount"
+                        @clear-selection="clearSelection()"
+                        @complete="handleBulkComplete"
+                    />
                 </div>
             </div>
 

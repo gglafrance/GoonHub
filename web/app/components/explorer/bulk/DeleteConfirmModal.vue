@@ -1,6 +1,8 @@
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
     visible: boolean;
+    sceneIds?: number[];
+    selectionCount?: number;
 }>();
 
 const emit = defineEmits<{
@@ -21,7 +23,7 @@ const handleConfirm = async () => {
 
     try {
         await bulkDeleteScenes({
-            scene_ids: explorerStore.getSelectedSceneIDs(),
+            scene_ids: props.sceneIds ?? explorerStore.getSelectedSceneIDs(),
             permanent: permanent.value,
         });
         emit('complete');
@@ -74,8 +76,10 @@ const handleClose = () => {
                         <div>
                             <p class="text-sm font-medium text-white">
                                 {{ permanent ? 'Delete' : 'Move to trash' }}
-                                {{ explorerStore.selectionCount }} scene{{
-                                    explorerStore.selectionCount === 1 ? '' : 's'
+                                {{ props.selectionCount ?? explorerStore.selectionCount }} scene{{
+                                    (props.selectionCount ?? explorerStore.selectionCount) === 1
+                                        ? ''
+                                        : 's'
                                 }}?
                             </p>
                             <p class="text-dim mt-1 text-xs">

@@ -1,6 +1,8 @@
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
     visible: boolean;
+    sceneIds?: number[];
+    selectionCount?: number;
 }>();
 
 const emit = defineEmits<{
@@ -46,7 +48,7 @@ const handleSubmit = async () => {
 
     try {
         await bulkUpdateStudio({
-            scene_ids: explorerStore.getSelectedSceneIDs(),
+            scene_ids: props.sceneIds ?? explorerStore.getSelectedSceneIDs(),
             studio: studio.value,
         });
         emit('complete');
@@ -81,7 +83,8 @@ const handleSubmit = async () => {
                 <!-- Content -->
                 <div class="p-4">
                     <p class="text-dim mb-4 text-xs">
-                        Set studio for {{ explorerStore.selectionCount }} scenes
+                        Set studio for
+                        {{ props.selectionCount ?? explorerStore.selectionCount }} scenes
                     </p>
 
                     <!-- Error -->

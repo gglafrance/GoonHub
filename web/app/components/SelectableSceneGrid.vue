@@ -6,6 +6,11 @@ defineProps<{
     ratings?: Record<string, number>;
     likes?: Record<string, boolean>;
     jizzCounts?: Record<string, number>;
+    isSceneSelected: (id: number) => boolean;
+}>();
+
+const emit = defineEmits<{
+    toggleSelection: [sceneId: number];
 }>();
 </script>
 
@@ -19,6 +24,9 @@ defineProps<{
             :liked="likes?.[scene.id]"
             :jizz-count="jizzCounts?.[scene.id]"
             fluid
+            selectable
+            :selected="isSceneSelected(scene.id)"
+            @toggle-selection="emit('toggleSelection', $event)"
         />
     </div>
 </template>

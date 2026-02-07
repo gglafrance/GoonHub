@@ -213,9 +213,7 @@ const handleSaveSearchConfig = async () => {
                 <!-- Page Size Selector -->
                 <div class="flex items-center justify-between">
                     <div>
-                        <label class="text-sm font-medium text-white">
-                            Page Size Selector
-                        </label>
+                        <label class="text-sm font-medium text-white"> Page Size Selector </label>
                         <p class="text-dim mt-0.5 text-xs">
                             Show a page size dropdown on paginated pages
                         </p>
@@ -416,6 +414,15 @@ const handleSaveSearchConfig = async () => {
                     </button>
                 </div>
             </div>
+        </div>
+
+        <!-- Scene Card Template -->
+        <div class="glass-panel p-5">
+            <h3 class="mb-2 text-sm font-semibold text-white">Scene Card Template</h3>
+            <p class="text-dim mb-4 text-xs">
+                Customize which information appears on scene cards and where badges are positioned.
+            </p>
+            <SettingsAppCardTemplateEditor />
         </div>
 
         <!-- Search Index -->

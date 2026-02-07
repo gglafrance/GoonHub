@@ -65,6 +65,7 @@ type UserSettings struct {
 	PlaylistAutoAdvance        string               `gorm:"not null;default:'countdown'" json:"playlist_auto_advance"`
 	PlaylistCountdownSeconds   int                  `gorm:"not null;default:5" json:"playlist_countdown_seconds"`
 	ShowPageSizeSelector       bool                 `gorm:"not null;default:false" json:"show_page_size_selector"`
+	SceneCardConfig            SceneCardConfig      `gorm:"type:jsonb;not null" json:"scene_card_config"`
 	MaxItemsPerPage            int                  `gorm:"-" json:"max_items_per_page"`
 }
 
@@ -232,6 +233,93 @@ func (s *SortPreferences) Scan(value any) error {
 	}
 
 	return json.Unmarshal(bytes, s)
+}
+
+// SceneCardConfig represents the user's scene card template configuration
+type SceneCardConfig struct {
+	Badges      BadgeZones   `json:"badges"`
+	ContentRows []ContentRow `json:"content_rows"`
+}
+
+// BadgeZones represents the 4 corner badge zones on the thumbnail overlay
+type BadgeZones struct {
+	TopLeft     BadgeZone `json:"top_left"`
+	TopRight    BadgeZone `json:"top_right"`
+	BottomLeft  BadgeZone `json:"bottom_left"`
+	BottomRight BadgeZone `json:"bottom_right"`
+}
+
+// BadgeZone represents a single corner badge zone
+type BadgeZone struct {
+	Items     []string `json:"items"`
+	Direction string   `json:"direction"`
+}
+
+// ContentRow represents a single content row below the title
+type ContentRow struct {
+	Type      string `json:"type"`
+	Field     string `json:"field,omitempty"`
+	Mode      string `json:"mode,omitempty"`
+	Left      string `json:"left,omitempty"`
+	Right     string `json:"right,omitempty"`
+	LeftMode  string `json:"left_mode,omitempty"`
+	RightMode string `json:"right_mode,omitempty"`
+}
+
+// Value implements the driver.Valuer interface for JSONB storage
+func (s SceneCardConfig) Value() (driver.Value, error) {
+	return json.Marshal(s)
+}
+
+// Scan implements the sql.Scanner interface for JSONB retrieval
+func (s *SceneCardConfig) Scan(value any) error {
+	if value == nil {
+		*s = DefaultSceneCardConfig()
+		return nil
+	}
+
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("failed to scan SceneCardConfig: expected []byte")
+	}
+
+	if err := json.Unmarshal(bytes, s); err != nil {
+		return err
+	}
+
+	// Ensure slices are never nil so they serialize as [] instead of null
+	if s.ContentRows == nil {
+		s.ContentRows = []ContentRow{}
+	}
+	if s.Badges.TopLeft.Items == nil {
+		s.Badges.TopLeft.Items = []string{}
+	}
+	if s.Badges.TopRight.Items == nil {
+		s.Badges.TopRight.Items = []string{}
+	}
+	if s.Badges.BottomLeft.Items == nil {
+		s.Badges.BottomLeft.Items = []string{}
+	}
+	if s.Badges.BottomRight.Items == nil {
+		s.Badges.BottomRight.Items = []string{}
+	}
+
+	return nil
+}
+
+// DefaultSceneCardConfig returns the default scene card configuration
+func DefaultSceneCardConfig() SceneCardConfig {
+	return SceneCardConfig{
+		Badges: BadgeZones{
+			TopLeft:     BadgeZone{Items: []string{"rating"}, Direction: "vertical"},
+			TopRight:    BadgeZone{Items: []string{"watched"}, Direction: "vertical"},
+			BottomLeft:  BadgeZone{Items: []string{}, Direction: "vertical"},
+			BottomRight: BadgeZone{Items: []string{"duration"}, Direction: "horizontal"},
+		},
+		ContentRows: []ContentRow{
+			{Type: "split", Left: "file_size", Right: "added_at"},
+		},
+	}
 }
 
 // DefaultSortPreferences returns the default sort preferences

@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import type { FolderInfo } from '~/types/explorer';
 
+defineProps<{
+    selectMode?: boolean;
+}>();
+
 const route = useRoute();
 const router = useRouter();
 const explorerStore = useExplorerStore();
@@ -132,7 +136,7 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
             <div v-if="explorerStore.scenes.length > 0">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <h3 class="text-dim text-xs font-medium tracking-wider uppercase">Scenes</h3>
-                    <div class="flex items-center gap-3">
+                    <div v-if="selectMode" class="flex items-center gap-3">
                         <!-- Deselect all -->
                         <button
                             v-if="explorerStore.hasSelection"
@@ -179,7 +183,8 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
                     </div>
                 </div>
 
-                <ExplorerSelectableSceneGrid :scenes="explorerStore.scenes" />
+                <ExplorerSelectableSceneGrid v-if="selectMode" :scenes="explorerStore.scenes" />
+                <SceneGrid v-else :scenes="explorerStore.scenes" />
 
                 <Pagination
                     :model-value="explorerStore.page"
@@ -188,7 +193,12 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
                     :show-page-size-selector="showSelector"
                     :max-limit="maxLimit"
                     @update:model-value="handlePageChange"
-                    @update:limit="(v: number) => { updatePageSize(v); handlePageChange(1); }"
+                    @update:limit="
+                        (v: number) => {
+                            updatePageSize(v);
+                            handlePageChange(1);
+                        }
+                    "
                 />
             </div>
         </div>

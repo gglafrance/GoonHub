@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import type { Tag } from '~/types/tag';
 
-defineProps<{
+const props = defineProps<{
     visible: boolean;
+    sceneIds?: number[];
+    selectionCount?: number;
 }>();
 
 const emit = defineEmits<{
@@ -55,7 +57,7 @@ const handleSubmit = async () => {
 
     try {
         await bulkUpdateTags({
-            scene_ids: explorerStore.getSelectedSceneIDs(),
+            scene_ids: props.sceneIds ?? explorerStore.getSelectedSceneIDs(),
             tag_ids: Array.from(selectedTagIDs.value),
             mode: mode.value,
         });
@@ -91,7 +93,8 @@ const handleSubmit = async () => {
                 <!-- Content -->
                 <div class="p-4">
                     <p class="text-dim mb-4 text-xs">
-                        Editing tags for {{ explorerStore.selectionCount }} scenes
+                        Editing tags for
+                        {{ props.selectionCount ?? explorerStore.selectionCount }} scenes
                     </p>
 
                     <!-- Mode Selection -->

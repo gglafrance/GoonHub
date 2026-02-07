@@ -5,6 +5,13 @@ const route = useRoute();
 const router = useRouter();
 const explorerStore = useExplorerStore();
 
+const selectMode = ref(false);
+
+// Clear selection when select mode toggled off
+watch(selectMode, (on) => {
+    if (!on) explorerStore.clearSelection();
+});
+
 // Reference to bulk toolbar for triggering delete modal
 const bulkToolbarRef = ref<{ showDeleteModal: Ref<boolean> } | null>(null);
 
@@ -13,25 +20,34 @@ useKeyboardShortcuts([
     {
         key: 'a',
         ctrl: true,
-        action: () => explorerStore.selectAllOnPage(),
+        action: () => {
+            if (selectMode.value) explorerStore.selectAllOnPage();
+        },
         description: 'Select all scenes on current page',
     },
     {
         key: 'a',
         ctrl: true,
         shift: true,
-        action: () => explorerStore.selectAllInFolderRecursive(),
+        action: () => {
+            if (selectMode.value) explorerStore.selectAllInFolderRecursive();
+        },
         description: 'Select all scenes including subfolders',
     },
     {
         key: 'Escape',
-        action: () => explorerStore.clearSelection(),
+        action: () => {
+            if (selectMode.value) {
+                explorerStore.clearSelection();
+                selectMode.value = false;
+            }
+        },
         description: 'Clear selection',
     },
     {
         key: 'Delete',
         action: () => {
-            if (explorerStore.hasSelection && bulkToolbarRef.value) {
+            if (selectMode.value && explorerStore.hasSelection && bulkToolbarRef.value) {
                 bulkToolbarRef.value.showDeleteModal = true;
             }
         },
@@ -134,13 +150,30 @@ definePageMeta({
                         <h1 class="shrink-0 text-lg font-semibold text-white">Explorer</h1>
                         <ExplorerBreadcrumbs class="min-w-0 flex-1" />
                     </div>
-                    <span
-                        v-if="explorerStore.currentStoragePathID"
-                        class="border-border bg-panel text-dim shrink-0 rounded-full border px-2.5
-                            py-0.5 font-mono text-[11px]"
-                    >
-                        {{ explorerStore.totalScenes }} scenes
-                    </span>
+                    <div class="flex shrink-0 items-center gap-2">
+                        <span
+                            v-if="explorerStore.currentStoragePathID"
+                            class="border-border bg-panel text-dim rounded-full border px-2.5 py-0.5
+                                font-mono text-[11px]"
+                        >
+                            {{ explorerStore.totalScenes }} scenes
+                        </span>
+                        <button
+                            v-if="explorerStore.scenes.length > 0"
+                            class="flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs
+                                font-medium transition-all"
+                            :class="
+                                selectMode
+                                    ? 'border-lava/40 bg-lava/10 text-lava'
+                                    : `border-border text-dim hover:border-border-hover
+                                        hover:text-white`
+                            "
+                            @click="selectMode = !selectMode"
+                        >
+                            <Icon name="heroicons:check-circle" size="14" />
+                            Select
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -148,10 +181,13 @@ definePageMeta({
             <ErrorAlert v-if="explorerStore.error" :message="explorerStore.error" class="mb-4" />
 
             <!-- Folder View -->
-            <ExplorerFolderView />
+            <ExplorerFolderView :select-mode="selectMode" />
 
             <!-- Bulk Toolbar -->
-            <ExplorerBulkToolbar v-if="explorerStore.hasSelection" ref="bulkToolbarRef" />
+            <ExplorerBulkToolbar
+                v-if="selectMode && explorerStore.hasSelection"
+                ref="bulkToolbarRef"
+            />
         </div>
     </div>
 </template>

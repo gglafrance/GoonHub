@@ -92,10 +92,10 @@ const handleSubmit = async () => {
             emit('updated');
         } else {
             // Create new studio
-            const newStudio = await api.createStudio(form.value);
-            // Upload logo if provided
+            let newStudio = await api.createStudio(form.value);
+            // Upload logo if provided — use the returned studio which has logo set
             if (logoFile.value && newStudio.id) {
-                await api.uploadStudioLogo(newStudio.id, logoFile.value);
+                newStudio = await api.uploadStudioLogo(newStudio.id, logoFile.value);
             }
             emit('created', newStudio);
         }

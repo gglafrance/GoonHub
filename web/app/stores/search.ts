@@ -37,6 +37,11 @@ export const useSearchStore = defineStore('search', () => {
     const isLoading = ref(false);
     const error = ref('');
 
+    // Interaction sidecar maps from card_fields
+    const ratings = ref<Record<string, number>>({});
+    const likes = ref<Record<string, boolean>>({});
+    const jizzCounts = ref<Record<string, number>>({});
+
     // Filter options
     const filterOptions = ref<SceneFilterOptions>({
         studios: [],
@@ -103,6 +108,9 @@ export const useSearchStore = defineStore('search', () => {
             const result = await api.searchScenes(params);
             scenes.value = result.data;
             total.value = result.total;
+            ratings.value = result.ratings || {};
+            likes.value = result.likes || {};
+            jizzCounts.value = result.jizz_counts || {};
         } catch (e: unknown) {
             error.value = e instanceof Error ? e.message : 'Search failed';
         } finally {
@@ -113,7 +121,6 @@ export const useSearchStore = defineStore('search', () => {
     const reshuffle = () => {
         seed.value = generateSeed();
         page.value = 1;
-        search();
     };
 
     const loadFilterOptions = async () => {
@@ -261,6 +268,9 @@ export const useSearchStore = defineStore('search', () => {
         total,
         isLoading,
         error,
+        ratings,
+        likes,
+        jizzCounts,
         filterOptions,
         hasActiveFilters,
         getSearchParams,

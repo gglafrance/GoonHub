@@ -8,6 +8,11 @@ export const useSceneStore = defineStore('scenes', () => {
     const isLoading = ref(false);
     const error = ref<string | null>(null);
 
+    // Interaction sidecar maps from card_fields
+    const ratings = ref<Record<string, number>>({});
+    const likes = ref<Record<string, boolean>>({});
+    const jizzCounts = ref<Record<string, number>>({});
+
     const settingsStore = useSettingsStore();
     const { fetchScenes: apiFetchScenes, uploadScene: apiUploadScene } = useApi();
 
@@ -21,6 +26,9 @@ export const useSceneStore = defineStore('scenes', () => {
             scenes.value = response.data;
             total.value = response.total;
             currentPage.value = response.page;
+            ratings.value = response.ratings || {};
+            likes.value = response.likes || {};
+            jizzCounts.value = response.jizz_counts || {};
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : 'Unknown error';
             if (message !== 'Unauthorized') {
@@ -83,6 +91,9 @@ export const useSceneStore = defineStore('scenes', () => {
         limit,
         isLoading,
         error,
+        ratings,
+        likes,
+        jizzCounts,
         loadScenes,
         uploadScene,
         updateSceneFields,

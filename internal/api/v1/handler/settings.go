@@ -170,6 +170,7 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		ActorScenes:  req.SortPreferences.ActorScenes,
 		StudioScenes: req.SortPreferences.StudioScenes,
 	}
+	sceneCardConfig := h.convertRequestToSceneCardConfig(req.SceneCardConfig)
 
 	settings, err := h.SettingsService.UpdateAllSettings(
 		userPayload.UserID,
@@ -186,6 +187,7 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		req.PlaylistAutoAdvance,
 		req.PlaylistCountdownSeconds,
 		req.ShowPageSizeSelector,
+		sceneCardConfig,
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -227,5 +229,45 @@ func (h *SettingsHandler) convertRequestToParsingRules(req request.UpdateParsing
 	return data.ParsingRulesSettings{
 		Presets:        presets,
 		ActivePresetID: req.ActivePresetID,
+	}
+}
+
+func (h *SettingsHandler) convertRequestToSceneCardConfig(req request.UpdateSceneCardConfigRequest) data.SceneCardConfig {
+	convertZone := func(z request.BadgeZoneRequest) data.BadgeZone {
+		items := z.Items
+		if items == nil {
+			items = []string{}
+		}
+		direction := z.Direction
+		if direction == "" {
+			direction = "vertical"
+		}
+		return data.BadgeZone{Items: items, Direction: direction}
+	}
+
+	rows := make([]data.ContentRow, len(req.ContentRows))
+	for i, r := range req.ContentRows {
+		rows[i] = data.ContentRow{
+			Type:      r.Type,
+			Field:     r.Field,
+			Mode:      r.Mode,
+			Left:      r.Left,
+			Right:     r.Right,
+			LeftMode:  r.LeftMode,
+			RightMode: r.RightMode,
+		}
+	}
+	if rows == nil {
+		rows = []data.ContentRow{}
+	}
+
+	return data.SceneCardConfig{
+		Badges: data.BadgeZones{
+			TopLeft:     convertZone(req.Badges.TopLeft),
+			TopRight:    convertZone(req.Badges.TopRight),
+			BottomLeft:  convertZone(req.Badges.BottomLeft),
+			BottomRight: convertZone(req.Badges.BottomRight),
+		},
+		ContentRows: rows,
 	}
 }

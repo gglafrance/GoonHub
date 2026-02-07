@@ -13,7 +13,10 @@ const handleToggleSelection = (sceneId: number) => {
 </script>
 
 <template>
-    <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+    <div
+        class="c_grid grid grid-cols-2 justify-center gap-3 md:grid-cols-3 lg:grid-cols-4
+            xl:grid-cols-5"
+    >
         <SceneCard
             v-for="scene in scenes"
             :key="scene.id"
@@ -25,3 +28,11 @@ const handleToggleSelection = (sceneId: number) => {
         />
     </div>
 </template>
+
+<style scoped>
+.c_grid {
+    @media (width >= 40rem /* 640px */) {
+        grid-template-columns: repeat(auto-fill, 320px);
+    }
+}
+</style>

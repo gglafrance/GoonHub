@@ -29,10 +29,13 @@ type SceneHandler struct {
 	RelatedScenesService *core.RelatedScenesService
 	MarkerService        *core.MarkerService
 	StreamManager        *streaming.Manager
+	InteractionRepo      data.InteractionRepository
+	TagRepo              data.TagRepository
+	ActorRepo            data.ActorRepository
 	MaxItemsPerPage      int
 }
 
-func NewSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, maxItemsPerPage int) *SceneHandler {
+func NewSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, maxItemsPerPage int) *SceneHandler {
 	return &SceneHandler{
 		Service:              service,
 		ProcessingService:    processingService,
@@ -41,6 +44,9 @@ func NewSceneHandler(service *core.SceneService, processingService *core.ScenePr
 		RelatedScenesService: relatedScenesService,
 		MarkerService:        markerService,
 		StreamManager:        streamManager,
+		InteractionRepo:      interactionRepo,
+		TagRepo:              tagRepo,
+		ActorRepo:            actorRepo,
 		MaxItemsPerPage:      maxItemsPerPage,
 	}
 }
@@ -166,8 +172,50 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		return
 	}
 
+	cardFields := response.ParseCardFields(c.Query("card_fields"))
+
+	var items []response.SceneListItem
+	if cardFields.HasAny() {
+		items = response.ToSceneListItemsWithFields(result.Scenes, cardFields)
+	} else {
+		items = response.ToSceneListItems(result.Scenes)
+	}
+
+	sceneIDs := make([]uint, len(result.Scenes))
+	for i, s := range result.Scenes {
+		sceneIDs[i] = s.ID
+	}
+
+	// Load tags/actors from join tables when requested
+	if cardFields.Tags && len(sceneIDs) > 0 {
+		if tagsByScene, err := h.TagRepo.GetSceneTagsMultiple(sceneIDs); err == nil {
+			for i := range items {
+				if tags, ok := tagsByScene[items[i].ID]; ok {
+					names := make([]string, len(tags))
+					for j, t := range tags {
+						names[j] = t.Name
+					}
+					items[i].Tags = names
+				}
+			}
+		}
+	}
+	if cardFields.Actors && len(sceneIDs) > 0 {
+		if actorsByScene, err := h.ActorRepo.GetSceneActorsMultiple(sceneIDs); err == nil {
+			for i := range items {
+				if actors, ok := actorsByScene[items[i].ID]; ok {
+					names := make([]string, len(actors))
+					for j, a := range actors {
+						names[j] = a.Name
+					}
+					items[i].Actors = names
+				}
+			}
+		}
+	}
+
 	resp := gin.H{
-		"data":  response.ToSceneListItems(result.Scenes),
+		"data":  items,
 		"total": result.Total,
 		"page":  req.Page,
 		"limit": req.Limit,
@@ -175,6 +223,26 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 	if result.Seed != 0 {
 		resp["seed"] = result.Seed
 	}
+
+	// Load interaction sidecar maps if requested
+	if userID > 0 {
+		if cardFields.Rating {
+			if ratings, err := h.InteractionRepo.GetRatingsBySceneIDs(userID, sceneIDs); err == nil {
+				resp["ratings"] = ratings
+			}
+		}
+		if cardFields.Liked {
+			if likes, err := h.InteractionRepo.GetLikesBySceneIDs(userID, sceneIDs); err == nil {
+				resp["likes"] = likes
+			}
+		}
+		if cardFields.JizzCount {
+			if jizzCounts, err := h.InteractionRepo.GetJizzCountsBySceneIDs(userID, sceneIDs); err == nil {
+				resp["jizz_counts"] = jizzCounts
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -639,8 +707,75 @@ func (h *SceneHandler) GetRelatedScenes(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"data":  response.ToSceneListItems(scenes),
+	cardFields := response.ParseCardFields(c.Query("card_fields"))
+
+	var items []response.SceneListItem
+	if cardFields.HasAny() {
+		items = response.ToSceneListItemsWithFields(scenes, cardFields)
+	} else {
+		items = response.ToSceneListItems(scenes)
+	}
+
+	sceneIDs := make([]uint, len(scenes))
+	for i, s := range scenes {
+		sceneIDs[i] = s.ID
+	}
+
+	// Load tags/actors from join tables when requested
+	if cardFields.Tags && len(sceneIDs) > 0 {
+		if tagsByScene, err := h.TagRepo.GetSceneTagsMultiple(sceneIDs); err == nil {
+			for i := range items {
+				if tags, ok := tagsByScene[items[i].ID]; ok {
+					names := make([]string, len(tags))
+					for j, t := range tags {
+						names[j] = t.Name
+					}
+					items[i].Tags = names
+				}
+			}
+		}
+	}
+	if cardFields.Actors && len(sceneIDs) > 0 {
+		if actorsByScene, err := h.ActorRepo.GetSceneActorsMultiple(sceneIDs); err == nil {
+			for i := range items {
+				if actors, ok := actorsByScene[items[i].ID]; ok {
+					names := make([]string, len(actors))
+					for j, a := range actors {
+						names[j] = a.Name
+					}
+					items[i].Actors = names
+				}
+			}
+		}
+	}
+
+	resp := gin.H{
+		"data":  items,
 		"total": len(scenes),
-	})
+	}
+
+	// Load interaction sidecar maps if requested
+	var userID uint
+	if payload, err := middleware.GetUserFromContext(c); err == nil {
+		userID = payload.UserID
+	}
+	if userID > 0 {
+		if cardFields.Rating {
+			if ratings, err := h.InteractionRepo.GetRatingsBySceneIDs(userID, sceneIDs); err == nil {
+				resp["ratings"] = ratings
+			}
+		}
+		if cardFields.Liked {
+			if likes, err := h.InteractionRepo.GetLikesBySceneIDs(userID, sceneIDs); err == nil {
+				resp["likes"] = likes
+			}
+		}
+		if cardFields.JizzCount {
+			if jizzCounts, err := h.InteractionRepo.GetJizzCountsBySceneIDs(userID, sceneIDs); err == nil {
+				resp["jizz_counts"] = jizzCounts
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, resp)
 }

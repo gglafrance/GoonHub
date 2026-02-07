@@ -29,11 +29,9 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
                         query: { redirect: to.fullPath },
                     });
                 }
-                // Load settings if not already loaded
+                // Always fetch fresh settings on initial load (sessionStorage may be stale from another tab)
                 const settingsStore = useSettingsStore();
-                if (!settingsStore.settings) {
-                    await settingsStore.loadSettings();
-                }
+                await settingsStore.loadSettings();
             } catch {
                 authStore.$patch({ user: null });
                 return navigateTo({

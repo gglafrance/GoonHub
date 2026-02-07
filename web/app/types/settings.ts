@@ -25,6 +25,7 @@ export interface UserSettings {
     playlist_auto_advance: PlaylistAutoAdvance;
     playlist_countdown_seconds: number;
     show_page_size_selector: boolean;
+    scene_card_config: SceneCardConfig;
     max_items_per_page: number;
     created_at: string;
     updated_at: string;
@@ -61,6 +62,33 @@ export type PlaylistAutoAdvance = 'instant' | 'countdown' | 'manual';
 
 export interface TagSettings {
     default_tag_sort: TagSort;
+}
+
+export interface BadgeZone {
+    items: string[];
+    direction: 'vertical' | 'horizontal';
+}
+
+export interface BadgeZones {
+    top_left: BadgeZone;
+    top_right: BadgeZone;
+    bottom_left: BadgeZone;
+    bottom_right: BadgeZone;
+}
+
+export interface ContentRow {
+    type: 'full' | 'split';
+    field?: string;
+    mode?: 'short' | 'long';
+    left?: string;
+    right?: string;
+    left_mode?: 'short' | 'long';
+    right_mode?: 'short' | 'long';
+}
+
+export interface SceneCardConfig {
+    badges: BadgeZones;
+    content_rows: ContentRow[];
 }
 
 export interface ChangePasswordRequest {

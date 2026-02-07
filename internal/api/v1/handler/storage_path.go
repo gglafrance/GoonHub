@@ -2,6 +2,7 @@ package handler
 
 import (
 	"goonhub/internal/api/v1/request"
+	"goonhub/internal/api/v1/response"
 	"goonhub/internal/core"
 	"net/http"
 	"strconv"
@@ -20,13 +21,15 @@ func NewStoragePathHandler(service *core.StoragePathService) *StoragePathHandler
 }
 
 func (h *StoragePathHandler) List(c *gin.Context) {
-	paths, err := h.Service.List()
+	paths, usageMap, err := h.Service.ListWithDiskUsage()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list storage paths"})
+		response.InternalError(c, "Failed to list storage paths")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"storage_paths": paths})
+	response.OK(c, gin.H{
+		"storage_paths": response.ToStoragePathsWithUsage(paths, usageMap),
+	})
 }
 
 func (h *StoragePathHandler) Create(c *gin.Context) {

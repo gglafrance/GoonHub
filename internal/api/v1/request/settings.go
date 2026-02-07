@@ -63,18 +63,46 @@ type ParsingRuleConfigRequest struct {
 	CaseType      string `json:"caseType,omitempty"`
 }
 
+type UpdateSceneCardConfigRequest struct {
+	Badges      UpdateBadgeZonesRequest `json:"badges"`
+	ContentRows []ContentRowRequest     `json:"content_rows"`
+}
+
+type UpdateBadgeZonesRequest struct {
+	TopLeft     BadgeZoneRequest `json:"top_left"`
+	TopRight    BadgeZoneRequest `json:"top_right"`
+	BottomLeft  BadgeZoneRequest `json:"bottom_left"`
+	BottomRight BadgeZoneRequest `json:"bottom_right"`
+}
+
+type BadgeZoneRequest struct {
+	Items     []string `json:"items"`
+	Direction string   `json:"direction"`
+}
+
+type ContentRowRequest struct {
+	Type      string `json:"type"`
+	Field     string `json:"field,omitempty"`
+	Mode      string `json:"mode,omitempty"`
+	Left      string `json:"left,omitempty"`
+	Right     string `json:"right,omitempty"`
+	LeftMode  string `json:"left_mode,omitempty"`
+	RightMode string `json:"right_mode,omitempty"`
+}
+
 type UpdateAllSettingsRequest struct {
-	Autoplay                  bool                        `json:"autoplay"`
-	DefaultVolume             int                         `json:"default_volume" binding:"min=0,max=100"`
-	Loop                      bool                        `json:"loop"`
-	VideosPerPage             int                         `json:"videos_per_page" binding:"required,min=1"`
-	DefaultSortOrder          string                      `json:"default_sort_order" binding:"required"`
-	DefaultTagSort            string                      `json:"default_tag_sort" binding:"required"`
-	MarkerThumbnailCycling    bool                        `json:"marker_thumbnail_cycling"`
-	HomepageConfig            UpdateHomepageConfigRequest  `json:"homepage_config" binding:"required"`
-	ParsingRules              UpdateParsingRulesRequest    `json:"parsing_rules"`
-	SortPreferences           UpdateSortPreferencesRequest `json:"sort_preferences" binding:"required"`
-	PlaylistAutoAdvance       string                      `json:"playlist_auto_advance"`
-	PlaylistCountdownSeconds  int                         `json:"playlist_countdown_seconds"`
-	ShowPageSizeSelector      bool                        `json:"show_page_size_selector"`
+	Autoplay                  bool                          `json:"autoplay"`
+	DefaultVolume             int                           `json:"default_volume" binding:"min=0,max=100"`
+	Loop                      bool                          `json:"loop"`
+	VideosPerPage             int                           `json:"videos_per_page" binding:"required,min=1"`
+	DefaultSortOrder          string                        `json:"default_sort_order" binding:"required"`
+	DefaultTagSort            string                        `json:"default_tag_sort" binding:"required"`
+	MarkerThumbnailCycling    bool                          `json:"marker_thumbnail_cycling"`
+	HomepageConfig            UpdateHomepageConfigRequest    `json:"homepage_config" binding:"required"`
+	ParsingRules              UpdateParsingRulesRequest      `json:"parsing_rules"`
+	SortPreferences           UpdateSortPreferencesRequest   `json:"sort_preferences" binding:"required"`
+	PlaylistAutoAdvance       string                        `json:"playlist_auto_advance"`
+	PlaylistCountdownSeconds  int                           `json:"playlist_countdown_seconds"`
+	ShowPageSizeSelector      bool                          `json:"show_page_size_selector"`
+	SceneCardConfig           UpdateSceneCardConfigRequest   `json:"scene_card_config"`
 }
