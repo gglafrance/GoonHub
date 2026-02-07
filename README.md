@@ -8,10 +8,6 @@
 
 A powerful, privacy-first platform to organize, process, and stream your adult video collection - entirely on your own hardware.
 
-**Single binary. No cloud. No tracking. Fully yours.**
-
-
-
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue?logo=docker)](docker/)
 [![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go)](go.mod)
 [![Nuxt](https://img.shields.io/badge/Nuxt-4.2-00DC82?logo=nuxt.js)](web/)
@@ -26,7 +22,6 @@ A powerful, privacy-first platform to organize, process, and stream your adult v
 Most video management tools are either too basic (a folder of files) or too invasive (cloud-hosted services that see everything). GoonHub fills the gap: a **professional-grade video library** that runs entirely on your machine, with features that rival commercial platforms.
 
 - **Zero cloud dependency** - Your content never leaves your network
-- **Single binary deployment** - One file, run it, done
 - **Automatic processing** - Thumbnails, sprite sheets, animated previews generated for you
 - **Smart search** - Full-text search with 12+ filter types across your entire library
 - **Multi-user ready** - Role-based access control for shared setups
@@ -248,7 +243,7 @@ Built for privacy from the ground up, with proper authentication, authorization,
 | Auth | PASETO v2 symmetric |
 | Player | video.js 8, media-chrome 4 |
 | DI | Google Wire |
-| Deployment | Single binary, Docker, multi-arch (amd64/arm64) |
+| Deployment | Docker, multi-arch (amd64/arm64) |
 
 ---
 
