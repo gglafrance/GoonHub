@@ -161,7 +161,11 @@ function updateContentRow(idx: number, row: ContentRow) {
 }
 
 function fieldLabel(value: string): string {
-    return contentFields.find((f) => f.value === value)?.label || badgeFields.find((f) => f.value === value)?.label || value;
+    return (
+        contentFields.find((f) => f.value === value)?.label ||
+        badgeFields.find((f) => f.value === value)?.label ||
+        value
+    );
 }
 </script>
 
@@ -197,7 +201,11 @@ function fieldLabel(value: string): string {
                     v-for="zoneName in zoneNames"
                     :key="zoneName"
                     class="border-border rounded-lg border p-3 transition-all"
-                    :class="selectedZone === zoneName ? 'border-lava/40 bg-lava/5' : 'hover:border-border-hover'"
+                    :class="
+                        selectedZone === zoneName
+                            ? 'border-lava/40 bg-lava/5'
+                            : 'hover:border-border-hover'
+                    "
                 >
                     <div class="mb-2 flex items-center justify-between">
                         <span class="text-[11px] font-medium text-white">
@@ -216,29 +224,41 @@ function fieldLabel(value: string): string {
                         <span
                             v-for="item in getZone(zoneName).items"
                             :key="item"
-                            class="border-border bg-void/50 rounded border px-1.5 py-0.5 text-[9px] text-white/70"
+                            class="border-border bg-void/50 rounded border px-1.5 py-0.5 text-[9px]
+                                text-white/70"
                         >
                             {{ fieldLabel(item) }}
                         </span>
-                        <span v-if="getZone(zoneName).items.length === 0" class="text-dim text-[9px]">
+                        <span
+                            v-if="getZone(zoneName).items.length === 0"
+                            class="text-dim text-[9px]"
+                        >
                             Empty
                         </span>
                     </div>
 
                     <!-- Direction toggle -->
                     <button
-                        class="text-dim hover:text-white mt-2 flex items-center gap-1 text-[10px] transition-colors"
+                        class="text-dim mt-2 flex items-center gap-1 text-[10px] transition-colors
+                            hover:text-white"
                         @click="toggleDirection(zoneName)"
                     >
                         <Icon
-                            :name="getZone(zoneName).direction === 'vertical' ? 'heroicons:arrows-up-down' : 'heroicons:arrows-right-left'"
+                            :name="
+                                getZone(zoneName).direction === 'vertical'
+                                    ? 'heroicons:arrows-up-down'
+                                    : 'heroicons:arrows-right-left'
+                            "
                             size="12"
                         />
                         {{ getZone(zoneName).direction }}
                     </button>
 
                     <!-- Expanded edit panel -->
-                    <div v-if="selectedZone === zoneName" class="border-border mt-3 space-y-2 border-t pt-3">
+                    <div
+                        v-if="selectedZone === zoneName"
+                        class="border-border mt-3 space-y-2 border-t pt-3"
+                    >
                         <!-- Current items with reorder/remove -->
                         <div
                             v-for="(item, idx) in getZone(zoneName).items"
@@ -273,8 +293,14 @@ function fieldLabel(value: string): string {
                         <!-- Add badge dropdown -->
                         <select
                             v-if="availableBadgeFields(zoneName).length > 0"
-                            class="border-border bg-void/80 w-full rounded border px-2 py-1 text-[10px] text-white"
-                            @change="(e) => { addBadgeToZone(zoneName, (e.target as HTMLSelectElement).value); (e.target as HTMLSelectElement).value = ''; }"
+                            class="border-border bg-void/80 w-full rounded border px-2 py-1
+                                text-[10px] text-white"
+                            @change="
+                                (e) => {
+                                    addBadgeToZone(zoneName, (e.target as HTMLSelectElement).value);
+                                    (e.target as HTMLSelectElement).value = '';
+                                }
+                            "
                         >
                             <option value="">Add badge...</option>
                             <option
@@ -306,7 +332,11 @@ function fieldLabel(value: string): string {
                     <!-- Row type indicator -->
                     <span
                         class="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium uppercase"
-                        :class="row.type === 'full' ? 'bg-lava/20 text-lava' : 'bg-blue-500/20 text-blue-400'"
+                        :class="
+                            row.type === 'full'
+                                ? 'bg-lava/20 text-lava'
+                                : 'bg-blue-500/20 text-blue-400'
+                        "
                     >
                         {{ row.type }}
                     </span>
@@ -315,8 +345,15 @@ function fieldLabel(value: string): string {
                     <div v-if="row.type === 'full'" class="flex flex-1 items-center gap-2">
                         <select
                             :value="row.field"
-                            class="border-border bg-void/80 rounded border px-2 py-1 text-[10px] text-white"
-                            @change="(e) => updateContentRow(idx, { ...row, field: (e.target as HTMLSelectElement).value })"
+                            class="border-border bg-void/80 rounded border px-2 py-1 text-[10px]
+                                text-white"
+                            @change="
+                                (e) =>
+                                    updateContentRow(idx, {
+                                        ...row,
+                                        field: (e.target as HTMLSelectElement).value,
+                                    })
+                            "
                         >
                             <option v-for="f in contentFields" :key="f.value" :value="f.value">
                                 {{ f.label }}
@@ -327,8 +364,17 @@ function fieldLabel(value: string): string {
                         <select
                             v-if="row.field === 'tags' || row.field === 'actors'"
                             :value="row.mode || 'long'"
-                            class="border-border bg-void/80 rounded border px-2 py-1 text-[10px] text-white"
-                            @change="(e) => updateContentRow(idx, { ...row, mode: (e.target as HTMLSelectElement).value as 'short' | 'long' })"
+                            class="border-border bg-void/80 rounded border px-2 py-1 text-[10px]
+                                text-white"
+                            @change="
+                                (e) =>
+                                    updateContentRow(idx, {
+                                        ...row,
+                                        mode: (e.target as HTMLSelectElement).value as
+                                            | 'short'
+                                            | 'long',
+                                    })
+                            "
                         >
                             <option value="short">Short (icon + popover)</option>
                             <option value="long">Long (inline)</option>
@@ -338,8 +384,20 @@ function fieldLabel(value: string): string {
                     <div v-else class="flex flex-1 flex-wrap items-center gap-2">
                         <select
                             :value="row.left"
-                            class="border-border bg-void/80 rounded border px-2 py-1 text-[10px] text-white"
-                            @change="(e) => updateContentRow(idx, { ...row, left: (e.target as HTMLSelectElement).value, left_mode: ((e.target as HTMLSelectElement).value === 'tags' || (e.target as HTMLSelectElement).value === 'actors') ? 'short' : undefined })"
+                            class="border-border bg-void/80 rounded border px-2 py-1 text-[10px]
+                                text-white"
+                            @change="
+                                (e) =>
+                                    updateContentRow(idx, {
+                                        ...row,
+                                        left: (e.target as HTMLSelectElement).value,
+                                        left_mode:
+                                            (e.target as HTMLSelectElement).value === 'tags' ||
+                                            (e.target as HTMLSelectElement).value === 'actors'
+                                                ? 'short'
+                                                : undefined,
+                                    })
+                            "
                         >
                             <option v-for="f in splitFields" :key="f.value" :value="f.value">
                                 {{ f.label }}
@@ -348,8 +406,17 @@ function fieldLabel(value: string): string {
                         <select
                             v-if="row.left === 'tags' || row.left === 'actors'"
                             :value="row.left_mode || 'short'"
-                            class="border-border bg-void/80 rounded border px-2 py-1 text-[10px] text-white"
-                            @change="(e) => updateContentRow(idx, { ...row, left_mode: (e.target as HTMLSelectElement).value as 'short' | 'long' })"
+                            class="border-border bg-void/80 rounded border px-2 py-1 text-[10px]
+                                text-white"
+                            @change="
+                                (e) =>
+                                    updateContentRow(idx, {
+                                        ...row,
+                                        left_mode: (e.target as HTMLSelectElement).value as
+                                            | 'short'
+                                            | 'long',
+                                    })
+                            "
                         >
                             <option value="short">Short</option>
                             <option value="long">Long</option>
@@ -357,8 +424,20 @@ function fieldLabel(value: string): string {
                         <span class="text-dim text-[10px]">|</span>
                         <select
                             :value="row.right"
-                            class="border-border bg-void/80 rounded border px-2 py-1 text-[10px] text-white"
-                            @change="(e) => updateContentRow(idx, { ...row, right: (e.target as HTMLSelectElement).value, right_mode: ((e.target as HTMLSelectElement).value === 'tags' || (e.target as HTMLSelectElement).value === 'actors') ? 'short' : undefined })"
+                            class="border-border bg-void/80 rounded border px-2 py-1 text-[10px]
+                                text-white"
+                            @change="
+                                (e) =>
+                                    updateContentRow(idx, {
+                                        ...row,
+                                        right: (e.target as HTMLSelectElement).value,
+                                        right_mode:
+                                            (e.target as HTMLSelectElement).value === 'tags' ||
+                                            (e.target as HTMLSelectElement).value === 'actors'
+                                                ? 'short'
+                                                : undefined,
+                                    })
+                            "
                         >
                             <option v-for="f in splitFields" :key="f.value" :value="f.value">
                                 {{ f.label }}
@@ -367,8 +446,17 @@ function fieldLabel(value: string): string {
                         <select
                             v-if="row.right === 'tags' || row.right === 'actors'"
                             :value="row.right_mode || 'short'"
-                            class="border-border bg-void/80 rounded border px-2 py-1 text-[10px] text-white"
-                            @change="(e) => updateContentRow(idx, { ...row, right_mode: (e.target as HTMLSelectElement).value as 'short' | 'long' })"
+                            class="border-border bg-void/80 rounded border px-2 py-1 text-[10px]
+                                text-white"
+                            @change="
+                                (e) =>
+                                    updateContentRow(idx, {
+                                        ...row,
+                                        right_mode: (e.target as HTMLSelectElement).value as
+                                            | 'short'
+                                            | 'long',
+                                    })
+                            "
                         >
                             <option value="short">Short</option>
                             <option value="long">Long</option>
@@ -391,10 +479,7 @@ function fieldLabel(value: string): string {
                         >
                             <Icon name="heroicons:chevron-down" size="14" />
                         </button>
-                        <button
-                            class="text-dim hover:text-lava"
-                            @click="removeContentRow(idx)"
-                        >
+                        <button class="text-dim hover:text-lava" @click="removeContentRow(idx)">
                             <Icon name="heroicons:x-mark" size="14" />
                         </button>
                     </div>
@@ -404,13 +489,15 @@ function fieldLabel(value: string): string {
             <!-- Add row buttons -->
             <div class="mt-3 flex gap-2">
                 <button
-                    class="border-border hover:border-lava/40 hover:bg-lava/10 rounded-lg border px-3 py-1.5 text-[10px] font-medium text-white transition-all"
+                    class="border-border hover:border-lava/40 hover:bg-lava/10 rounded-lg border
+                        px-3 py-1.5 text-[10px] font-medium text-white transition-all"
                     @click="addContentRow('full')"
                 >
                     + Full-width Row
                 </button>
                 <button
-                    class="border-border hover:border-lava/40 hover:bg-lava/10 rounded-lg border px-3 py-1.5 text-[10px] font-medium text-white transition-all"
+                    class="border-border hover:border-lava/40 hover:bg-lava/10 rounded-lg border
+                        px-3 py-1.5 text-[10px] font-medium text-white transition-all"
                     @click="addContentRow('split')"
                 >
                     + Split Row

@@ -14,7 +14,19 @@ defineProps<{
 
 <template>
     <div class="text-dim flex items-center justify-between font-mono text-[10px]">
-        <SceneCardContentRowFull :field="left" :mode="leftMode" :scene="scene" :rating="rating" :jizz-count="jizzCount" />
-        <SceneCardContentRowFull :field="right" :mode="rightMode" :scene="scene" :rating="rating" :jizz-count="jizzCount" />
+        <SceneCardContentRowFull
+            :field="left"
+            :mode="leftMode"
+            :scene="scene"
+            :rating="rating"
+            :jizz-count="jizzCount"
+        />
+        <SceneCardContentRowFull
+            :field="right"
+            :mode="rightMode"
+            :scene="scene"
+            :rating="rating"
+            :jizz-count="jizzCount"
+        />
     </div>
 </template>

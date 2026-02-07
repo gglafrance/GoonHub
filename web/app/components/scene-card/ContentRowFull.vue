@@ -33,7 +33,9 @@ const metaValue = computed(() => {
 });
 
 const isMetaField = computed(() =>
-    ['file_size', 'added_at', 'views', 'resolution', 'frame_rate', 'jizz_count', 'rating'].includes(props.field),
+    ['file_size', 'added_at', 'views', 'resolution', 'frame_rate', 'jizz_count', 'rating'].includes(
+        props.field,
+    ),
 );
 </script>
 

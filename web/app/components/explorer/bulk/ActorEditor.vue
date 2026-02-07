@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import type { ActorListItem } from '~/types/actor';
 
-defineProps<{
+const props = defineProps<{
     visible: boolean;
+    sceneIds?: number[];
+    selectionCount?: number;
 }>();
 
 const emit = defineEmits<{
@@ -83,7 +85,7 @@ const handleSubmit = async () => {
 
     try {
         await bulkUpdateActors({
-            scene_ids: explorerStore.getSelectedSceneIDs(),
+            scene_ids: props.sceneIds ?? explorerStore.getSelectedSceneIDs(),
             actor_ids: Array.from(selectedActorIDs.value),
             mode: mode.value,
         });
@@ -119,7 +121,8 @@ const handleSubmit = async () => {
                 <!-- Content -->
                 <div class="p-4">
                     <p class="text-dim mb-4 text-xs">
-                        Editing actors for {{ explorerStore.selectionCount }} scenes
+                        Editing actors for
+                        {{ props.selectionCount ?? explorerStore.selectionCount }} scenes
                     </p>
 
                     <!-- Mode Selection -->

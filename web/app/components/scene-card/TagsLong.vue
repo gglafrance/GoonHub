@@ -11,7 +11,8 @@ const props = defineProps<{
             :key="tag"
             :to="{ path: '/', query: { tags: tag } }"
             target="_blank"
-            class="border-border text-dim hover:border-lava/40 hover:text-lava inline-block truncate rounded border px-1 py-px text-[9px] transition-colors"
+            class="border-border text-dim hover:border-lava/40 hover:text-lava inline-block truncate
+                rounded border px-1 py-px text-[9px] transition-colors"
             @click.stop
         >
             {{ tag }}

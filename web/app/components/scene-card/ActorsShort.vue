@@ -19,17 +19,25 @@ function updatePosition() {
 }
 
 function onTriggerEnter() {
-    if (hideTimeout) { clearTimeout(hideTimeout); hideTimeout = null; }
+    if (hideTimeout) {
+        clearTimeout(hideTimeout);
+        hideTimeout = null;
+    }
     updatePosition();
     showPopover.value = true;
 }
 
 function onTriggerLeave() {
-    hideTimeout = setTimeout(() => { showPopover.value = false; }, 100);
+    hideTimeout = setTimeout(() => {
+        showPopover.value = false;
+    }, 100);
 }
 
 function onPopoverEnter() {
-    if (hideTimeout) { clearTimeout(hideTimeout); hideTimeout = null; }
+    if (hideTimeout) {
+        clearTimeout(hideTimeout);
+        hideTimeout = null;
+    }
 }
 
 function onPopoverLeave() {
@@ -46,9 +54,12 @@ function onPopoverLeave() {
     >
         <button
             class="flex items-center gap-0.5 transition-colors"
-            :class="badge
-                ? 'bg-void/90 rounded px-1.5 py-0.5 font-mono text-[10px] font-medium text-white backdrop-blur-sm hover:bg-void'
-                : 'text-dim hover:text-lava text-[10px]'"
+            :class="
+                badge
+                    ? `bg-void/90 hover:bg-void rounded px-1.5 py-0.5 font-mono text-[10px]
+                        font-medium text-white backdrop-blur-sm`
+                    : 'text-dim hover:text-lava text-[10px]'
+            "
             @click.stop.prevent
         >
             <Icon name="heroicons:user" :size="badge ? '14' : '11'" />
@@ -64,7 +75,8 @@ function onPopoverLeave() {
             >
                 <div
                     v-if="showPopover"
-                    class="bg-surface border-border fixed z-50 max-h-40 min-w-28 overflow-y-auto rounded-lg border p-1.5 shadow-lg backdrop-blur-md"
+                    class="bg-surface border-border fixed z-50 max-h-40 min-w-28 overflow-y-auto
+                        rounded-lg border p-1.5 shadow-lg backdrop-blur-md"
                     :style="popoverStyle"
                     @mouseenter="onPopoverEnter"
                     @mouseleave="onPopoverLeave"
@@ -73,7 +85,8 @@ function onPopoverLeave() {
                         v-for="actor in props.actors"
                         :key="actor"
                         :to="`/actors/${encodeURIComponent(actor)}`"
-                        class="text-dim hover:text-lava hover:bg-white/5 block truncate rounded px-1.5 py-0.5 text-[10px] transition-colors"
+                        class="text-dim hover:text-lava block truncate rounded px-1.5 py-0.5
+                            text-[10px] transition-colors hover:bg-white/5"
                         @click.stop
                     >
                         {{ actor }}

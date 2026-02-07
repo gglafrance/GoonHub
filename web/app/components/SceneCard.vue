@@ -35,8 +35,9 @@ const handleCheckboxClick = (event: Event) => {
 };
 
 const handleCardClick = (event: MouseEvent) => {
-    if (props.selectable && (event.shiftKey || event.ctrlKey || event.metaKey)) {
+    if (props.selectable) {
         event.preventDefault();
+        event.stopPropagation();
         emit('toggleSelection', props.scene.id);
     }
 };
@@ -64,11 +65,10 @@ const progressPercent = computed(() => {
 });
 
 const hasProgress = computed(() => props.progress && progressPercent.value > 0);
-
 </script>
 
 <template>
-    <div class="group relative">
+    <div class="group relative" @click.capture="handleCardClick">
         <!-- Selection Checkbox -->
         <button
             v-if="selectable"
@@ -93,7 +93,6 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                 fluid ? 'w-full' : 'w-[280px] sm:w-[320px]',
                 selected ? 'ring-lava/50 ring-2' : '',
             ]"
-            @click="handleCardClick"
         >
             <div
                 class="bg-void relative"
@@ -149,10 +148,7 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                 </div>
 
                 <!-- Badge zones -->
-                <div
-                    class="absolute top-1.5 left-1.5 z-20"
-                    :class="selectable ? 'mt-6' : ''"
-                >
+                <div class="absolute top-1.5 left-1.5 z-20" :class="selectable ? 'mt-6' : ''">
                     <SceneCardBadgeZone
                         :items="cardConfig.badges.top_left.items"
                         :direction="cardConfig.badges.top_left.direction"

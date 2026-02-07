@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { SceneMatchInfo } from '~/types/explorer';
 import type { PornDBScene } from '~/types/porndb';
-defineProps<{
+const props = defineProps<{
     visible: boolean;
+    sceneIds?: number[];
 }>();
 
 const emit = defineEmits<{
@@ -68,7 +69,7 @@ async function loadAndSearch() {
     error.value = null;
 
     try {
-        const sceneIds = explorerStore.getSelectedSceneIDs();
+        const sceneIds = props.sceneIds ?? explorerStore.getSelectedSceneIDs();
         if (sceneIds.length === 0) {
             error.value = 'No scenes selected';
             loading.value = false;

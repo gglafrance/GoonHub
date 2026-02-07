@@ -61,6 +61,37 @@ export const useApiScenes = () => {
         return handleResponse(response);
     };
 
+    const fetchAllSearchSceneIDs = async (
+        searchParams: Record<string, string | number | undefined>,
+    ): Promise<number[]> => {
+        const allIds: number[] = [];
+        let currentPage = 1;
+        const pageLimit = 100;
+        let hasMore = true;
+
+        while (hasMore) {
+            const params = new URLSearchParams();
+            for (const [key, value] of Object.entries(searchParams)) {
+                if (value !== undefined && value !== '' && value !== 0) {
+                    params.set(key, String(value));
+                }
+            }
+            params.set('page', String(currentPage));
+            params.set('limit', String(pageLimit));
+
+            const response = await fetch(`/api/v1/scenes?${params}`, {
+                headers: getAuthHeaders(),
+                ...fetchOptions(),
+            });
+            const result = await handleResponse(response);
+            const sceneIds = result.data.map((scene: { id: number }) => scene.id);
+            allIds.push(...sceneIds);
+            hasMore = result.data.length === pageLimit && allIds.length < result.total;
+            currentPage++;
+        }
+        return allIds;
+    };
+
     const fetchFilterOptions = async () => {
         const response = await fetch('/api/v1/scenes/filters', {
             headers: getAuthHeaders(),
@@ -293,6 +324,7 @@ export const useApiScenes = () => {
         uploadScene,
         fetchScenes,
         searchScenes,
+        fetchAllSearchSceneIDs,
         fetchFilterOptions,
         fetchScene,
         updateSceneDetails,
