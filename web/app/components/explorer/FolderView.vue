@@ -183,7 +183,12 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
                     </div>
                 </div>
 
-                <ExplorerSelectableSceneGrid v-if="selectMode" :scenes="explorerStore.scenes" />
+                <SelectableSceneGrid
+                    v-if="selectMode"
+                    :scenes="explorerStore.scenes"
+                    :is-scene-selected="explorerStore.isSceneSelected"
+                    @toggle-selection="explorerStore.toggleSceneSelection"
+                />
                 <SceneGrid v-else :scenes="explorerStore.scenes" />
 
                 <Pagination
