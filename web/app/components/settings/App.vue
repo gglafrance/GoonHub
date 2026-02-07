@@ -40,13 +40,6 @@ const appShowPageSizeSelector = computed({
     },
 });
 
-const appAbLoopControls = computed({
-    get: () => settingsStore.draft?.ab_loop_controls ?? false,
-    set: (v) => {
-        if (settingsStore.draft) settingsStore.draft.ab_loop_controls = v;
-    },
-});
-
 const sortActors = computed({
     get: () => settingsStore.draft?.sort_preferences?.actors ?? 'name_asc',
     set: (v) => {
@@ -355,17 +348,6 @@ const handleSaveSearchConfig = async () => {
                             AZERTY
                         </button>
                     </div>
-                </div>
-
-                <!-- A/B Loop Controls -->
-                <div class="flex items-center justify-between">
-                    <div>
-                        <label class="text-sm font-medium text-white">A/B Loop Controls</label>
-                        <p class="text-dim mt-0.5 text-xs">
-                            Show A/B loop controls in the video player control bar
-                        </p>
-                    </div>
-                    <UiToggle v-model="appAbLoopControls" />
                 </div>
 
                 <!-- Marker Thumbnail Cycling -->
