@@ -144,6 +144,7 @@ const handleImageChange = (event: Event) => {
     if (input.files && input.files[0]) {
         imageFile.value = input.files[0];
         imagePreview.value = URL.createObjectURL(input.files[0]);
+        form.value.image_url = '';
     }
 };
 
@@ -152,25 +153,27 @@ const handleSubmit = async () => {
     loading.value = true;
 
     try {
-        const payload = {
+        const payload: Record<string, string | number | boolean | null | string[]> = {
             ...form.value,
             birthday: form.value.birthday || null,
             date_of_death: form.value.date_of_death || null,
         };
 
         if (isEditMode.value && props.actor) {
-            // Upload image first if provided
+            // Upload image first if provided — remove image_url from payload
+            // so the updateActor call doesn't overwrite the URL set by the upload
             if (imageFile.value) {
                 await api.uploadActorImage(props.actor.id, imageFile.value);
+                delete payload.image_url;
             }
             await api.updateActor(props.actor.id, payload);
             emit('updated');
         } else {
             // Create new actor
-            const newActor = await api.createActor(payload);
-            // Upload image if provided
+            let newActor = await api.createActor(payload);
+            // Upload image if provided — use the returned actor which has image_url set
             if (imageFile.value && newActor.id) {
-                await api.uploadActorImage(newActor.id, imageFile.value);
+                newActor = await api.uploadActorImage(newActor.id, imageFile.value);
             }
             emit('created', newActor);
         }
