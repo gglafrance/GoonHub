@@ -24,6 +24,8 @@ export interface UserSettings {
     sort_preferences: SortPreferences;
     playlist_auto_advance: PlaylistAutoAdvance;
     playlist_countdown_seconds: number;
+    show_page_size_selector: boolean;
+    max_items_per_page: number;
     created_at: string;
     updated_at: string;
 }

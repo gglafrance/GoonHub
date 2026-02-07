@@ -13,11 +13,12 @@ import (
 )
 
 type MarkerHandler struct {
-	service *core.MarkerService
+	service         *core.MarkerService
+	maxItemsPerPage int
 }
 
-func NewMarkerHandler(service *core.MarkerService) *MarkerHandler {
-	return &MarkerHandler{service: service}
+func NewMarkerHandler(service *core.MarkerService, maxItemsPerPage int) *MarkerHandler {
+	return &MarkerHandler{service: service, maxItemsPerPage: maxItemsPerPage}
 }
 
 // requireAuth extracts the authenticated user from context.
@@ -149,17 +150,8 @@ func (h *MarkerHandler) ListLabelGroups(c *gin.Context) {
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	page, limit = clampPagination(page, limit, 20, h.maxItemsPerPage)
 	sortBy := c.DefaultQuery("sort", "count_desc")
-
-	// Validate pagination bounds
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 {
-		limit = 1
-	} else if limit > 100 {
-		limit = 100
-	}
 
 	groups, total, err := h.service.GetLabelGroups(userID, page, limit, sortBy)
 	if err != nil {
@@ -184,16 +176,7 @@ func (h *MarkerHandler) ListMarkersByLabel(c *gin.Context) {
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-
-	// Validate pagination bounds
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 {
-		limit = 1
-	} else if limit > 100 {
-		limit = 100
-	}
+	page, limit = clampPagination(page, limit, 20, h.maxItemsPerPage)
 
 	markers, total, err := h.service.GetMarkersByLabel(userID, label, page, limit)
 	if err != nil {
@@ -213,17 +196,8 @@ func (h *MarkerHandler) ListAllMarkers(c *gin.Context) {
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	page, limit = clampPagination(page, limit, 20, h.maxItemsPerPage)
 	sortBy := c.DefaultQuery("sort", "label_asc")
-
-	// Validate pagination bounds
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 {
-		limit = 1
-	} else if limit > 100 {
-		limit = 100
-	}
 
 	markers, total, err := h.service.GetAllMarkers(userID, page, limit, sortBy)
 	if err != nil {

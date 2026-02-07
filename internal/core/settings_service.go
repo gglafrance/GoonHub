@@ -289,12 +289,12 @@ func (s *SettingsService) UpdateParsingRules(userID uint, rules data.ParsingRule
 	return settings, nil
 }
 
-func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences, playlistAutoAdvance string, playlistCountdownSeconds int) (*data.UserSettings, error) {
+func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences, playlistAutoAdvance string, playlistCountdownSeconds int, showPageSizeSelector bool) (*data.UserSettings, error) {
 	if volume < 0 || volume > 100 {
 		return nil, fmt.Errorf("volume must be between 0 and 100")
 	}
-	if videosPerPage < 1 || videosPerPage > 100 {
-		return nil, fmt.Errorf("videos per page must be between 1 and 100")
+	if videosPerPage < 1 {
+		return nil, fmt.Errorf("videos per page must be at least 1")
 	}
 	if !allowedSortOrders[sortOrder] {
 		return nil, fmt.Errorf("invalid sort order: %s", sortOrder)
@@ -359,6 +359,7 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 	settings.SortPreferences = sortPrefs
 	settings.PlaylistAutoAdvance = playlistAutoAdvance
 	settings.PlaylistCountdownSeconds = playlistCountdownSeconds
+	settings.ShowPageSizeSelector = showPageSizeSelector
 
 	if err := s.settingsRepo.Upsert(settings); err != nil {
 		return nil, fmt.Errorf("failed to update settings: %w", err)

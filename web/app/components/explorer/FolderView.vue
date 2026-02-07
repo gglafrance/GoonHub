@@ -4,6 +4,7 @@ import type { FolderInfo } from '~/types/explorer';
 const route = useRoute();
 const router = useRouter();
 const explorerStore = useExplorerStore();
+const { showSelector, maxLimit, updatePageSize } = usePageSize();
 
 let isUpdatingUrl = false;
 let isSyncingFromUrl = false;
@@ -184,7 +185,10 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
                     :model-value="explorerStore.page"
                     :total="explorerStore.totalScenes"
                     :limit="explorerStore.limit"
+                    :show-page-size-selector="showSelector"
+                    :max-limit="maxLimit"
                     @update:model-value="handlePageChange"
+                    @update:limit="(v: number) => { updatePageSize(v); handlePageChange(1); }"
                 />
             </div>
         </div>

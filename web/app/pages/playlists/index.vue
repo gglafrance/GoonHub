@@ -11,6 +11,7 @@ definePageMeta({ middleware: 'auth' });
 useHead({ title: 'Playlists' });
 
 const store = usePlaylistStore();
+const { showSelector, maxLimit, updatePageSize } = usePageSize();
 
 const showCreateModal = ref(false);
 
@@ -179,7 +180,14 @@ const handleCreated = () => {
         <template v-else>
             <PlaylistGrid :playlists="store.playlists" />
 
-            <Pagination v-model="store.currentPage" :total="store.total" :limit="store.limit" />
+            <Pagination
+                v-model="store.currentPage"
+                :total="store.total"
+                :limit="store.limit"
+                :show-page-size-selector="showSelector"
+                :max-limit="maxLimit"
+                @update:limit="(v: number) => { updatePageSize(v); if (store.currentPage === 1) store.loadPlaylists(); else store.currentPage = 1; }"
+            />
         </template>
 
         <!-- Create Modal -->

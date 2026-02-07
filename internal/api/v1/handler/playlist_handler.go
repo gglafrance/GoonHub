@@ -15,11 +15,12 @@ import (
 )
 
 type PlaylistHandler struct {
-	Service *core.PlaylistService
+	Service         *core.PlaylistService
+	MaxItemsPerPage int
 }
 
-func NewPlaylistHandler(service *core.PlaylistService) *PlaylistHandler {
-	return &PlaylistHandler{Service: service}
+func NewPlaylistHandler(service *core.PlaylistService, maxItemsPerPage int) *PlaylistHandler {
+	return &PlaylistHandler{Service: service, MaxItemsPerPage: maxItemsPerPage}
 }
 
 func (h *PlaylistHandler) getUserID(c *gin.Context) (uint, bool) {
@@ -43,6 +44,7 @@ func (h *PlaylistHandler) List(c *gin.Context) {
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	page, limit = clampPagination(page, limit, 20, h.MaxItemsPerPage)
 
 	// Parse tag_ids
 	var tagIDs []uint

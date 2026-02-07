@@ -568,14 +568,14 @@ func provideAdminHandler(adminService *core.AdminService, rbacService *core.RBAC
 	return handler.NewAdminHandler(adminService, rbacService, sceneService)
 }
 
-func provideSettingsHandler(settingsService *core.SettingsService) *handler.SettingsHandler {
-	return handler.NewSettingsHandler(settingsService)
+func provideSettingsHandler(settingsService *core.SettingsService, cfg *config.Config) *handler.SettingsHandler {
+	return handler.NewSettingsHandler(settingsService, cfg.Pagination.MaxItemsPerPage)
 }
 
 // --- Scene & Content Handlers ---
 
-func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager) *handler.SceneHandler {
-	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager)
+func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, cfg *config.Config) *handler.SceneHandler {
+	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager, cfg.Pagination.MaxItemsPerPage)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
@@ -583,11 +583,11 @@ func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
 }
 
 func provideActorHandler(actorService *core.ActorService, cfg *config.Config) *handler.ActorHandler {
-	return handler.NewActorHandler(actorService, cfg.Processing.ActorImageDir)
+	return handler.NewActorHandler(actorService, cfg.Processing.ActorImageDir, cfg.Pagination.MaxItemsPerPage)
 }
 
 func provideStudioHandler(studioService *core.StudioService, cfg *config.Config) *handler.StudioHandler {
-	return handler.NewStudioHandler(studioService, cfg.Processing.StudioLogoDir)
+	return handler.NewStudioHandler(studioService, cfg.Processing.StudioLogoDir, cfg.Pagination.MaxItemsPerPage)
 }
 
 func provideInteractionHandler(service *core.InteractionService) *handler.InteractionHandler {
@@ -668,12 +668,12 @@ func provideHomepageHandler(homepageService *core.HomepageService) *handler.Home
 	return handler.NewHomepageHandler(homepageService)
 }
 
-func provideMarkerHandler(markerService *core.MarkerService) *handler.MarkerHandler {
-	return handler.NewMarkerHandler(markerService)
+func provideMarkerHandler(markerService *core.MarkerService, cfg *config.Config) *handler.MarkerHandler {
+	return handler.NewMarkerHandler(markerService, cfg.Pagination.MaxItemsPerPage)
 }
 
-func providePlaylistHandler(service *core.PlaylistService) *handler.PlaylistHandler {
-	return handler.NewPlaylistHandler(service)
+func providePlaylistHandler(service *core.PlaylistService, cfg *config.Config) *handler.PlaylistHandler {
+	return handler.NewPlaylistHandler(service, cfg.Pagination.MaxItemsPerPage)
 }
 
 func provideImportHandler(sceneRepo data.SceneRepository, markerRepo data.MarkerRepository, logger *logging.Logger) *handler.ImportHandler {

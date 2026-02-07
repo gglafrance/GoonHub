@@ -19,20 +19,23 @@ import (
 )
 
 type StudioHandler struct {
-	Service       *core.StudioService
-	StudioLogoDir string
+	Service         *core.StudioService
+	StudioLogoDir   string
+	MaxItemsPerPage int
 }
 
-func NewStudioHandler(service *core.StudioService, studioLogoDir string) *StudioHandler {
+func NewStudioHandler(service *core.StudioService, studioLogoDir string, maxItemsPerPage int) *StudioHandler {
 	return &StudioHandler{
-		Service:       service,
-		StudioLogoDir: studioLogoDir,
+		Service:         service,
+		StudioLogoDir:   studioLogoDir,
+		MaxItemsPerPage: maxItemsPerPage,
 	}
 }
 
 func (h *StudioHandler) ListStudios(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	page, limit = clampPagination(page, limit, 20, h.MaxItemsPerPage)
 	query := c.Query("q")
 	sort := c.Query("sort")
 
@@ -94,6 +97,7 @@ func (h *StudioHandler) GetStudioScenes(c *gin.Context) {
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	page, limit = clampPagination(page, limit, 20, h.MaxItemsPerPage)
 
 	studio, err := h.Service.GetByUUID(uuidStr)
 	if err != nil {

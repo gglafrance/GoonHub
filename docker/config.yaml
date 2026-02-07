@@ -96,6 +96,9 @@ shutdown:
   orphan_timeout: 30s         # orphan detection threshold
   stuck_pending_time: 10m     # pending job stuck threshold
 
+pagination:
+  max_items_per_page: 100     # maximum items per page for all paginated endpoints
+
 streaming:
   max_global_streams: 100     # total concurrent streams allowed
   max_streams_per_ip: 10      # per-IP limit

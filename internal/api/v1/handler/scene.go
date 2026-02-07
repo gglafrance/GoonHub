@@ -29,9 +29,10 @@ type SceneHandler struct {
 	RelatedScenesService *core.RelatedScenesService
 	MarkerService        *core.MarkerService
 	StreamManager        *streaming.Manager
+	MaxItemsPerPage      int
 }
 
-func NewSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager) *SceneHandler {
+func NewSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, maxItemsPerPage int) *SceneHandler {
 	return &SceneHandler{
 		Service:              service,
 		ProcessingService:    processingService,
@@ -40,6 +41,7 @@ func NewSceneHandler(service *core.SceneService, processingService *core.ScenePr
 		RelatedScenesService: relatedScenesService,
 		MarkerService:        markerService,
 		StreamManager:        streamManager,
+		MaxItemsPerPage:      maxItemsPerPage,
 	}
 }
 
@@ -81,12 +83,7 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		return
 	}
 
-	if req.Page < 1 {
-		req.Page = 1
-	}
-	if req.Limit < 1 {
-		req.Limit = 20
-	}
+	req.Page, req.Limit = clampPagination(req.Page, req.Limit, 20, h.MaxItemsPerPage)
 
 	var userID uint
 	if payload, err := middleware.GetUserFromContext(c); err == nil {

@@ -67,7 +67,7 @@ type UpdateAllSettingsRequest struct {
 	Autoplay                  bool                        `json:"autoplay"`
 	DefaultVolume             int                         `json:"default_volume" binding:"min=0,max=100"`
 	Loop                      bool                        `json:"loop"`
-	VideosPerPage             int                         `json:"videos_per_page" binding:"required,min=1,max=100"`
+	VideosPerPage             int                         `json:"videos_per_page" binding:"required,min=1"`
 	DefaultSortOrder          string                      `json:"default_sort_order" binding:"required"`
 	DefaultTagSort            string                      `json:"default_tag_sort" binding:"required"`
 	MarkerThumbnailCycling    bool                        `json:"marker_thumbnail_cycling"`
@@ -76,4 +76,5 @@ type UpdateAllSettingsRequest struct {
 	SortPreferences           UpdateSortPreferencesRequest `json:"sort_preferences" binding:"required"`
 	PlaylistAutoAdvance       string                      `json:"playlist_auto_advance"`
 	PlaylistCountdownSeconds  int                         `json:"playlist_countdown_seconds"`
+	ShowPageSizeSelector      bool                        `json:"show_page_size_selector"`
 }

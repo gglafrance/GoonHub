@@ -31,7 +31,7 @@ const allMarkers = ref<MarkerWithScene[]>([]);
 const allTotal = ref(0);
 
 const currentPage = useUrlPagination();
-const limit = ref(20);
+const { limit, showSelector, maxLimit, updatePageSize } = usePageSize();
 const searchQuery = ref('');
 const sortBy = useUrlSort(settingsStore.sortPreferences?.markers || 'label_asc');
 const isLoading = ref(false);
@@ -274,7 +274,14 @@ definePageMeta({
                         :groups="filteredGroups"
                         :marker-thumbnail-type="markerThumbnailType"
                     />
-                    <Pagination v-model="currentPage" :total="groupTotal" :limit="limit" />
+                    <Pagination
+                        v-model="currentPage"
+                        :total="groupTotal"
+                        :limit="limit"
+                        :show-page-size-selector="showSelector"
+                        :max-limit="maxLimit"
+                        @update:limit="(v: number) => { updatePageSize(v); if (currentPage === 1) loadData(1); else currentPage = 1; }"
+                    />
                 </div>
             </template>
 
@@ -376,7 +383,14 @@ definePageMeta({
                         </NuxtLink>
                     </div>
 
-                    <Pagination v-model="currentPage" :total="allTotal" :limit="limit" />
+                    <Pagination
+                        v-model="currentPage"
+                        :total="allTotal"
+                        :limit="limit"
+                        :show-page-size-selector="showSelector"
+                        :max-limit="maxLimit"
+                        @update:limit="(v: number) => { updatePageSize(v); if (currentPage === 1) loadData(1); else currentPage = 1; }"
+                    />
                 </div>
             </template>
         </div>

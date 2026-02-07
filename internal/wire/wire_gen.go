@@ -67,7 +67,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	studioRepository := provideStudioRepository(db)
 	relatedScenesService := provideRelatedScenesService(sceneRepository, tagRepository, actorRepository, studioRepository, logger)
 	manager := provideStreamManager(configConfig, sceneRepository, logger)
-	sceneHandler := provideSceneHandler(sceneService, sceneProcessingService, tagService, searchService, relatedScenesService, markerService, manager)
+	sceneHandler := provideSceneHandler(sceneService, sceneProcessingService, tagService, searchService, relatedScenesService, markerService, manager, configConfig)
 	userRepository := provideUserRepository(db)
 	revokedTokenRepository := provideRevokedTokenRepository(db)
 	authService, err := provideAuthService(userRepository, revokedTokenRepository, configConfig, logger)
@@ -78,7 +78,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	authHandler := provideAuthHandler(authService, userService, configConfig)
 	userSettingsRepository := provideUserSettingsRepository(db)
 	settingsService := provideSettingsService(userSettingsRepository, userRepository, logger)
-	settingsHandler := provideSettingsHandler(settingsService)
+	settingsHandler := provideSettingsHandler(settingsService, configConfig)
 	roleRepository := provideRoleRepository(db)
 	permissionRepository := providePermissionRepository(db)
 	rbacService := provideRBACService(roleRepository, permissionRepository, logger)
@@ -131,10 +131,10 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	playlistService := providePlaylistService(playlistRepository, sceneRepository, tagRepository, logger)
 	homepageService := provideHomepageService(settingsService, searchService, savedSearchService, playlistService, watchHistoryRepository, interactionRepository, sceneRepository, tagRepository, actorRepository, studioRepository, logger)
 	homepageHandler := provideHomepageHandler(homepageService)
-	markerHandler := provideMarkerHandler(markerService)
+	markerHandler := provideMarkerHandler(markerService, configConfig)
 	importHandler := provideImportHandler(sceneRepository, markerRepository, logger)
 	streamStatsHandler := provideStreamStatsHandler(manager)
-	playlistHandler := providePlaylistHandler(playlistService)
+	playlistHandler := providePlaylistHandler(playlistService, configConfig)
 	ipRateLimiter := provideRateLimiter(configConfig)
 	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, authService, rbacService, ipRateLimiter)
 	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, markerService, sceneProcessingService, logger)
@@ -452,12 +452,12 @@ func provideAdminHandler(adminService *core.AdminService, rbacService *core.RBAC
 	return handler.NewAdminHandler(adminService, rbacService, sceneService)
 }
 
-func provideSettingsHandler(settingsService *core.SettingsService) *handler.SettingsHandler {
-	return handler.NewSettingsHandler(settingsService)
+func provideSettingsHandler(settingsService *core.SettingsService, cfg *config.Config) *handler.SettingsHandler {
+	return handler.NewSettingsHandler(settingsService, cfg.Pagination.MaxItemsPerPage)
 }
 
-func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager) *handler.SceneHandler {
-	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager)
+func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, cfg *config.Config) *handler.SceneHandler {
+	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager, cfg.Pagination.MaxItemsPerPage)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
@@ -465,11 +465,11 @@ func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
 }
 
 func provideActorHandler(actorService *core.ActorService, cfg *config.Config) *handler.ActorHandler {
-	return handler.NewActorHandler(actorService, cfg.Processing.ActorImageDir)
+	return handler.NewActorHandler(actorService, cfg.Processing.ActorImageDir, cfg.Pagination.MaxItemsPerPage)
 }
 
 func provideStudioHandler(studioService *core.StudioService, cfg *config.Config) *handler.StudioHandler {
-	return handler.NewStudioHandler(studioService, cfg.Processing.StudioLogoDir)
+	return handler.NewStudioHandler(studioService, cfg.Processing.StudioLogoDir, cfg.Pagination.MaxItemsPerPage)
 }
 
 func provideInteractionHandler(service *core.InteractionService) *handler.InteractionHandler {
@@ -544,12 +544,12 @@ func provideHomepageHandler(homepageService *core.HomepageService) *handler.Home
 	return handler.NewHomepageHandler(homepageService)
 }
 
-func provideMarkerHandler(markerService *core.MarkerService) *handler.MarkerHandler {
-	return handler.NewMarkerHandler(markerService)
+func provideMarkerHandler(markerService *core.MarkerService, cfg *config.Config) *handler.MarkerHandler {
+	return handler.NewMarkerHandler(markerService, cfg.Pagination.MaxItemsPerPage)
 }
 
-func providePlaylistHandler(service *core.PlaylistService) *handler.PlaylistHandler {
-	return handler.NewPlaylistHandler(service)
+func providePlaylistHandler(service *core.PlaylistService, cfg *config.Config) *handler.PlaylistHandler {
+	return handler.NewPlaylistHandler(service, cfg.Pagination.MaxItemsPerPage)
 }
 
 func provideImportHandler(sceneRepo data.SceneRepository, markerRepo data.MarkerRepository, logger *logging.Logger) *handler.ImportHandler {

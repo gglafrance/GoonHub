@@ -41,6 +41,10 @@ export const useSettingsStore = defineStore(
         const sortPreferences = computed<SortPreferences | null>(
             () => settings.value?.sort_preferences ?? null,
         );
+        const showPageSizeSelector = computed(
+            () => settings.value?.show_page_size_selector ?? false,
+        );
+        const maxItemsPerPage = computed(() => settings.value?.max_items_per_page ?? 100);
 
         const hasUnsavedChanges = computed(() => {
             if (!draft.value || !settings.value) return false;
@@ -151,6 +155,8 @@ export const useSettingsStore = defineStore(
             defaultTagSort,
             markerThumbnailCycling,
             sortPreferences,
+            showPageSizeSelector,
+            maxItemsPerPage,
             hasUnsavedChanges,
             theaterMode,
             keyboardLayout,

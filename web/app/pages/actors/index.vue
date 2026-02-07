@@ -18,7 +18,7 @@ const settingsStore = useSettingsStore();
 const actors = ref<ActorListItem[]>([]);
 const total = ref(0);
 const currentPage = useUrlPagination();
-const limit = ref(20);
+const { limit, showSelector, maxLimit, updatePageSize } = usePageSize();
 const searchQuery = ref('');
 const sortOrder = useUrlSort(settingsStore.sortPreferences?.actors || 'name_asc');
 const isLoading = ref(false);
@@ -179,7 +179,14 @@ definePageMeta({
             <div v-else>
                 <ActorGrid :actors="actors" />
 
-                <Pagination v-model="currentPage" :total="total" :limit="limit" />
+                <Pagination
+                    v-model="currentPage"
+                    :total="total"
+                    :limit="limit"
+                    :show-page-size-selector="showSelector"
+                    :max-limit="maxLimit"
+                    @update:limit="(v: number) => { updatePageSize(v); if (currentPage === 1) loadActors(1); else currentPage = 1; }"
+                />
             </div>
 
             <!-- Create Modal -->
