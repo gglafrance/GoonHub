@@ -6,6 +6,7 @@ const props = defineProps<{
 const showPopover = ref(false);
 const trigger = ref<HTMLElement | null>(null);
 const popoverStyle = ref<Record<string, string>>({});
+let hideTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function updatePosition() {
     if (!trigger.value) return;
@@ -16,9 +17,22 @@ function updatePosition() {
     };
 }
 
-function onEnter() {
+function onTriggerEnter() {
+    if (hideTimeout) { clearTimeout(hideTimeout); hideTimeout = null; }
     updatePosition();
     showPopover.value = true;
+}
+
+function onTriggerLeave() {
+    hideTimeout = setTimeout(() => { showPopover.value = false; }, 100);
+}
+
+function onPopoverEnter() {
+    if (hideTimeout) { clearTimeout(hideTimeout); hideTimeout = null; }
+}
+
+function onPopoverLeave() {
+    showPopover.value = false;
 }
 </script>
 
@@ -26,8 +40,8 @@ function onEnter() {
     <div
         ref="trigger"
         class="relative inline-flex items-center"
-        @mouseenter="onEnter"
-        @mouseleave="showPopover = false"
+        @mouseenter="onTriggerEnter"
+        @mouseleave="onTriggerLeave"
     >
         <button class="text-dim hover:text-lava flex items-center gap-0.5 text-[10px] transition-colors" @click.stop.prevent>
             <Icon name="heroicons:user" size="11" />
@@ -45,6 +59,8 @@ function onEnter() {
                     v-if="showPopover"
                     class="bg-surface border-border fixed z-50 max-h-40 min-w-28 overflow-y-auto rounded-lg border p-1.5 shadow-lg backdrop-blur-md"
                     :style="popoverStyle"
+                    @mouseenter="onPopoverEnter"
+                    @mouseleave="onPopoverLeave"
                 >
                     <NuxtLink
                         v-for="actor in props.actors"

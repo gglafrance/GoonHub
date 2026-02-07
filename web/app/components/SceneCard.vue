@@ -24,7 +24,7 @@ defineSlots<{
     footer?: () => unknown;
 }>();
 
-const { formatDuration, formatSize } = useFormatter();
+const { formatSize } = useFormatter();
 const settingsStore = useSettingsStore();
 const cardConfig = computed(() => props.configOverride ?? settingsStore.sceneCardConfig);
 
@@ -65,12 +65,6 @@ const progressPercent = computed(() => {
 
 const hasProgress = computed(() => props.progress && progressPercent.value > 0);
 
-// Check if any zone has items for positioning adjustments
-const hasBottomBadges = computed(
-    () =>
-        cardConfig.value.badges.bottom_left.items.length > 0 ||
-        cardConfig.value.badges.bottom_right.items.length > 0,
-);
 </script>
 
 <template>
@@ -251,8 +245,8 @@ const hasBottomBadges = computed(
                             v-if="row.type === 'split' && row.left && row.right"
                             :left="row.left"
                             :right="row.right"
-                            :left-mode="(row.left_mode as 'short' | 'long' | undefined)"
-                            :right-mode="(row.right_mode as 'short' | 'long' | undefined)"
+                            :left-mode="row.left_mode"
+                            :right-mode="row.right_mode"
                             :scene="scene"
                             :rating="rating"
                             :jizz-count="jizzCount"
@@ -260,7 +254,7 @@ const hasBottomBadges = computed(
                         <SceneCardContentRowFull
                             v-else-if="row.type === 'full' && row.field"
                             :field="row.field"
-                            :mode="row.mode as 'short' | 'long' | undefined"
+                            :mode="row.mode"
                             :scene="scene"
                             :rating="rating"
                             :jizz-count="jizzCount"

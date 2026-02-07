@@ -16,8 +16,8 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-    (e: 'update:modelValue', page: number): void;
-    (e: 'update:limit', limit: number): void;
+    'update:modelValue': [page: number];
+    'update:limit': [limit: number];
 }>();
 
 const { keys } = useKeyboardLayout();

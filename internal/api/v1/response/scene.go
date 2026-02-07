@@ -136,16 +136,9 @@ func ToSceneListItemWithFields(v data.Scene, fields CardFields) SceneListItem {
 		s := v.Studio
 		item.Studio = &s
 	}
-	if fields.Tags && len(v.Tags) > 0 {
-		tags := make([]string, len(v.Tags))
-		copy(tags, v.Tags)
-		item.Tags = tags
-	}
-	if fields.Actors && len(v.Actors) > 0 {
-		actors := make([]string, len(v.Actors))
-		copy(actors, v.Actors)
-		item.Actors = actors
-	}
+	// Tags and Actors are loaded from join tables by the handler,
+	// not from the scene model columns (which may be empty).
+	// The handler populates item.Tags and item.Actors after this call.
 
 	return item
 }

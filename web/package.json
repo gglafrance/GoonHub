@@ -36,6 +36,7 @@
     },
     "devDependencies": {
         "@pinia-plugin-persistedstate/nuxt": "^1.2.1",
-        "@vite-pwa/nuxt": "^1.1.0"
+        "@vite-pwa/nuxt": "^1.1.0",
+        "typescript": "^5.9.3"
     }
 }

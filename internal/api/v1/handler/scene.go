@@ -30,10 +30,12 @@ type SceneHandler struct {
 	MarkerService        *core.MarkerService
 	StreamManager        *streaming.Manager
 	InteractionRepo      data.InteractionRepository
+	TagRepo              data.TagRepository
+	ActorRepo            data.ActorRepository
 	MaxItemsPerPage      int
 }
 
-func NewSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, interactionRepo data.InteractionRepository, maxItemsPerPage int) *SceneHandler {
+func NewSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, maxItemsPerPage int) *SceneHandler {
 	return &SceneHandler{
 		Service:              service,
 		ProcessingService:    processingService,
@@ -43,6 +45,8 @@ func NewSceneHandler(service *core.SceneService, processingService *core.ScenePr
 		MarkerService:        markerService,
 		StreamManager:        streamManager,
 		InteractionRepo:      interactionRepo,
+		TagRepo:              tagRepo,
+		ActorRepo:            actorRepo,
 		MaxItemsPerPage:      maxItemsPerPage,
 	}
 }
@@ -177,6 +181,39 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		items = response.ToSceneListItems(result.Scenes)
 	}
 
+	sceneIDs := make([]uint, len(result.Scenes))
+	for i, s := range result.Scenes {
+		sceneIDs[i] = s.ID
+	}
+
+	// Load tags/actors from join tables when requested
+	if cardFields.Tags && len(sceneIDs) > 0 {
+		if tagsByScene, err := h.TagRepo.GetSceneTagsMultiple(sceneIDs); err == nil {
+			for i := range items {
+				if tags, ok := tagsByScene[items[i].ID]; ok {
+					names := make([]string, len(tags))
+					for j, t := range tags {
+						names[j] = t.Name
+					}
+					items[i].Tags = names
+				}
+			}
+		}
+	}
+	if cardFields.Actors && len(sceneIDs) > 0 {
+		if actorsByScene, err := h.ActorRepo.GetSceneActorsMultiple(sceneIDs); err == nil {
+			for i := range items {
+				if actors, ok := actorsByScene[items[i].ID]; ok {
+					names := make([]string, len(actors))
+					for j, a := range actors {
+						names[j] = a.Name
+					}
+					items[i].Actors = names
+				}
+			}
+		}
+	}
+
 	resp := gin.H{
 		"data":  items,
 		"total": result.Total,
@@ -189,11 +226,6 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 
 	// Load interaction sidecar maps if requested
 	if userID > 0 {
-		sceneIDs := make([]uint, len(result.Scenes))
-		for i, s := range result.Scenes {
-			sceneIDs[i] = s.ID
-		}
-
 		if cardFields.Rating {
 			if ratings, err := h.InteractionRepo.GetRatingsBySceneIDs(userID, sceneIDs); err == nil {
 				resp["ratings"] = ratings
@@ -684,6 +716,39 @@ func (h *SceneHandler) GetRelatedScenes(c *gin.Context) {
 		items = response.ToSceneListItems(scenes)
 	}
 
+	sceneIDs := make([]uint, len(scenes))
+	for i, s := range scenes {
+		sceneIDs[i] = s.ID
+	}
+
+	// Load tags/actors from join tables when requested
+	if cardFields.Tags && len(sceneIDs) > 0 {
+		if tagsByScene, err := h.TagRepo.GetSceneTagsMultiple(sceneIDs); err == nil {
+			for i := range items {
+				if tags, ok := tagsByScene[items[i].ID]; ok {
+					names := make([]string, len(tags))
+					for j, t := range tags {
+						names[j] = t.Name
+					}
+					items[i].Tags = names
+				}
+			}
+		}
+	}
+	if cardFields.Actors && len(sceneIDs) > 0 {
+		if actorsByScene, err := h.ActorRepo.GetSceneActorsMultiple(sceneIDs); err == nil {
+			for i := range items {
+				if actors, ok := actorsByScene[items[i].ID]; ok {
+					names := make([]string, len(actors))
+					for j, a := range actors {
+						names[j] = a.Name
+					}
+					items[i].Actors = names
+				}
+			}
+		}
+	}
+
 	resp := gin.H{
 		"data":  items,
 		"total": len(scenes),
@@ -695,11 +760,6 @@ func (h *SceneHandler) GetRelatedScenes(c *gin.Context) {
 		userID = payload.UserID
 	}
 	if userID > 0 {
-		sceneIDs := make([]uint, len(scenes))
-		for i, s := range scenes {
-			sceneIDs[i] = s.ID
-		}
-
 		if cardFields.Rating {
 			if ratings, err := h.InteractionRepo.GetRatingsBySceneIDs(userID, sceneIDs); err == nil {
 				resp["ratings"] = ratings
