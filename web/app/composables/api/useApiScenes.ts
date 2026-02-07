@@ -27,6 +27,11 @@ export const useApiScenes = () => {
             limit: limit.toString(),
         });
 
+        const settingsStore = useSettingsStore();
+        if (settingsStore.cardFieldsParam) {
+            params.set('card_fields', settingsStore.cardFieldsParam);
+        }
+
         const response = await fetch(`/api/v1/scenes?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
@@ -41,6 +46,11 @@ export const useApiScenes = () => {
             if (value !== undefined && value !== '' && value !== 0) {
                 params.set(key, String(value));
             }
+        }
+
+        const settingsStore = useSettingsStore();
+        if (settingsStore.cardFieldsParam) {
+            params.set('card_fields', settingsStore.cardFieldsParam);
         }
 
         const response = await fetch(`/api/v1/scenes?${params}`, {

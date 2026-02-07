@@ -10,6 +10,15 @@ export interface SceneListItem {
     processing_status: string;
     created_at: string;
     updated_at: string;
+    // Optional fields included via card_fields
+    view_count?: number;
+    width?: number;
+    height?: number;
+    frame_rate?: number;
+    description?: string;
+    studio?: string;
+    tags?: string[];
+    actors?: string[];
 }
 
 // Scene is the full scene representation with all metadata.
@@ -49,6 +58,10 @@ export interface SceneListResponse {
     total: number;
     page: number;
     limit: number;
+    ratings?: Record<string, number>;
+    likes?: Record<string, boolean>;
+    jizz_counts?: Record<string, number>;
+    seed?: number;
 }
 
 export interface SceneSearchParams {

@@ -67,7 +67,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	studioRepository := provideStudioRepository(db)
 	relatedScenesService := provideRelatedScenesService(sceneRepository, tagRepository, actorRepository, studioRepository, logger)
 	manager := provideStreamManager(configConfig, sceneRepository, logger)
-	sceneHandler := provideSceneHandler(sceneService, sceneProcessingService, tagService, searchService, relatedScenesService, markerService, manager, configConfig)
+	sceneHandler := provideSceneHandler(sceneService, sceneProcessingService, tagService, searchService, relatedScenesService, markerService, manager, interactionRepository, configConfig)
 	userRepository := provideUserRepository(db)
 	revokedTokenRepository := provideRevokedTokenRepository(db)
 	authService, err := provideAuthService(userRepository, revokedTokenRepository, configConfig, logger)
@@ -456,8 +456,8 @@ func provideSettingsHandler(settingsService *core.SettingsService, cfg *config.C
 	return handler.NewSettingsHandler(settingsService, cfg.Pagination.MaxItemsPerPage)
 }
 
-func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, cfg *config.Config) *handler.SceneHandler {
-	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager, cfg.Pagination.MaxItemsPerPage)
+func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, interactionRepo data.InteractionRepository, cfg *config.Config) *handler.SceneHandler {
+	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager, interactionRepo, cfg.Pagination.MaxItemsPerPage)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {

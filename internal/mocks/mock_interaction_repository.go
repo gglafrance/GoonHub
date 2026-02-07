@@ -83,6 +83,21 @@ func (mr *MockInteractionRepositoryMockRecorder) GetAllInteractions(userID, scen
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllInteractions", reflect.TypeOf((*MockInteractionRepository)(nil).GetAllInteractions), userID, sceneID)
 }
 
+// GetJizzCountsBySceneIDs mocks base method.
+func (m *MockInteractionRepository) GetJizzCountsBySceneIDs(userID uint, sceneIDs []uint) (map[uint]int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetJizzCountsBySceneIDs", userID, sceneIDs)
+	ret0, _ := ret[0].(map[uint]int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetJizzCountsBySceneIDs indicates an expected call of GetJizzCountsBySceneIDs.
+func (mr *MockInteractionRepositoryMockRecorder) GetJizzCountsBySceneIDs(userID, sceneIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJizzCountsBySceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetJizzCountsBySceneIDs), userID, sceneIDs)
+}
+
 // GetJizzedCount mocks base method.
 func (m *MockInteractionRepository) GetJizzedCount(userID, sceneID uint) (int, error) {
 	m.ctrl.T.Helper()
@@ -126,6 +141,21 @@ func (m *MockInteractionRepository) GetLikedSceneIDs(userID uint) ([]uint, error
 func (mr *MockInteractionRepositoryMockRecorder) GetLikedSceneIDs(userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLikedSceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetLikedSceneIDs), userID)
+}
+
+// GetLikesBySceneIDs mocks base method.
+func (m *MockInteractionRepository) GetLikesBySceneIDs(userID uint, sceneIDs []uint) (map[uint]bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLikesBySceneIDs", userID, sceneIDs)
+	ret0, _ := ret[0].(map[uint]bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLikesBySceneIDs indicates an expected call of GetLikesBySceneIDs.
+func (mr *MockInteractionRepositoryMockRecorder) GetLikesBySceneIDs(userID, sceneIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLikesBySceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetLikesBySceneIDs), userID, sceneIDs)
 }
 
 // GetRatedSceneIDs mocks base method.

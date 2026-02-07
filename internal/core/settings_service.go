@@ -115,6 +115,7 @@ func (s *SettingsService) GetSettings(userID uint) (*data.UserSettings, error) {
 			MarkerThumbnailCycling: true,
 			HomepageConfig:         data.DefaultHomepageConfig(),
 			SortPreferences:        data.DefaultSortPreferences(),
+			SceneCardConfig:        data.DefaultSceneCardConfig(),
 		}, nil
 	}
 	return settings, nil
@@ -289,7 +290,7 @@ func (s *SettingsService) UpdateParsingRules(userID uint, rules data.ParsingRule
 	return settings, nil
 }
 
-func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences, playlistAutoAdvance string, playlistCountdownSeconds int, showPageSizeSelector bool) (*data.UserSettings, error) {
+func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences, playlistAutoAdvance string, playlistCountdownSeconds int, showPageSizeSelector bool, sceneCardConfig data.SceneCardConfig) (*data.UserSettings, error) {
 	if volume < 0 || volume > 100 {
 		return nil, fmt.Errorf("volume must be between 0 and 100")
 	}
@@ -323,6 +324,9 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 	if err := s.validateParsingRules(&parsingRules); err != nil {
 		return nil, err
 	}
+	if err := s.validateSceneCardConfig(&sceneCardConfig); err != nil {
+		return nil, err
+	}
 	if playlistAutoAdvance == "" {
 		playlistAutoAdvance = "countdown"
 	}
@@ -344,6 +348,7 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 			HomepageConfig:  data.DefaultHomepageConfig(),
 			ParsingRules:    data.DefaultParsingRulesSettings(),
 			SortPreferences: data.DefaultSortPreferences(),
+			SceneCardConfig: data.DefaultSceneCardConfig(),
 		}
 	}
 
@@ -360,6 +365,7 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 	settings.PlaylistAutoAdvance = playlistAutoAdvance
 	settings.PlaylistCountdownSeconds = playlistCountdownSeconds
 	settings.ShowPageSizeSelector = showPageSizeSelector
+	settings.SceneCardConfig = sceneCardConfig
 
 	if err := s.settingsRepo.Upsert(settings); err != nil {
 		return nil, fmt.Errorf("failed to update settings: %w", err)
@@ -445,6 +451,123 @@ func (s *SettingsService) validateParsingRules(rules *data.ParsingRulesSettings)
 		}
 		if !found {
 			return fmt.Errorf("activePresetId references non-existent preset")
+		}
+	}
+
+	return nil
+}
+
+var allowedBadgeFields = map[string]bool{
+	"liked":      true,
+	"rating":     true,
+	"duration":   true,
+	"resolution": true,
+	"views":      true,
+	"jizz_count": true,
+	"watched":    true,
+	"file_size":   true,
+	"added_at":    true,
+	"frame_rate":  true,
+	"tags":        true,
+	"actors":     true,
+}
+
+var allowedBadgeDirections = map[string]bool{
+	"vertical":   true,
+	"horizontal": true,
+}
+
+var allowedContentFields = map[string]bool{
+	"description": true,
+	"tags":        true,
+	"actors":      true,
+	"studio":      true,
+	"file_size":   true,
+	"added_at":    true,
+	"views":       true,
+	"resolution":  true,
+	"frame_rate":  true,
+	"jizz_count":  true,
+	"rating":      true,
+}
+
+var allowedContentRowTypes = map[string]bool{
+	"full":  true,
+	"split": true,
+}
+
+var allowedContentModes = map[string]bool{
+	"short": true,
+	"long":  true,
+}
+
+func (s *SettingsService) validateSceneCardConfig(config *data.SceneCardConfig) error {
+	// Validate badge zones
+	zones := []*data.BadgeZone{
+		&config.Badges.TopLeft,
+		&config.Badges.TopRight,
+		&config.Badges.BottomLeft,
+		&config.Badges.BottomRight,
+	}
+	zoneNames := []string{"top_left", "top_right", "bottom_left", "bottom_right"}
+
+	for i, zone := range zones {
+		if !allowedBadgeDirections[zone.Direction] {
+			return fmt.Errorf("badge zone %s: invalid direction '%s'", zoneNames[i], zone.Direction)
+		}
+		if len(zone.Items) > 5 {
+			return fmt.Errorf("badge zone %s: maximum of 5 items allowed", zoneNames[i])
+		}
+		for _, item := range zone.Items {
+			if !allowedBadgeFields[item] {
+				return fmt.Errorf("badge zone %s: invalid badge field '%s'", zoneNames[i], item)
+			}
+		}
+	}
+
+	// Validate content rows
+	if len(config.ContentRows) > 10 {
+		return fmt.Errorf("maximum of 10 content rows allowed")
+	}
+
+	for i, row := range config.ContentRows {
+		if !allowedContentRowTypes[row.Type] {
+			return fmt.Errorf("content row %d: invalid type '%s'", i, row.Type)
+		}
+
+		switch row.Type {
+		case "full":
+			if row.Field == "" {
+				return fmt.Errorf("content row %d: field is required for full-width rows", i)
+			}
+			if !allowedContentFields[row.Field] {
+				return fmt.Errorf("content row %d: invalid field '%s'", i, row.Field)
+			}
+			if (row.Field == "tags" || row.Field == "actors") && row.Mode != "" {
+				if !allowedContentModes[row.Mode] {
+					return fmt.Errorf("content row %d: invalid mode '%s'", i, row.Mode)
+				}
+			}
+		case "split":
+			if row.Left == "" || row.Right == "" {
+				return fmt.Errorf("content row %d: left and right fields are required for split rows", i)
+			}
+			if !allowedContentFields[row.Left] {
+				return fmt.Errorf("content row %d: invalid left field '%s'", i, row.Left)
+			}
+			if !allowedContentFields[row.Right] {
+				return fmt.Errorf("content row %d: invalid right field '%s'", i, row.Right)
+			}
+			if (row.Left == "tags" || row.Left == "actors") && row.LeftMode != "" {
+				if !allowedContentModes[row.LeftMode] {
+					return fmt.Errorf("content row %d: invalid left_mode '%s'", i, row.LeftMode)
+				}
+			}
+			if (row.Right == "tags" || row.Right == "actors") && row.RightMode != "" {
+				if !allowedContentModes[row.RightMode] {
+					return fmt.Errorf("content row %d: invalid right_mode '%s'", i, row.RightMode)
+				}
+			}
 		}
 	}
 

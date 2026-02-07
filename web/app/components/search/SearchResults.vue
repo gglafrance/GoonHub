@@ -32,7 +32,12 @@ const { showSelector, maxLimit, updatePageSize } = usePageSize();
 
         <!-- Results Grid -->
         <template v-else-if="searchStore.scenes.length > 0">
-            <SceneGrid :scenes="searchStore.scenes" />
+            <SceneGrid
+                :scenes="searchStore.scenes"
+                :ratings="searchStore.ratings"
+                :likes="searchStore.likes"
+                :jizz-counts="searchStore.jizzCounts"
+            />
 
             <Pagination
                 v-model="searchStore.page"

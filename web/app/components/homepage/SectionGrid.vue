@@ -6,6 +6,8 @@ defineProps<{
     scenes: SceneListItem[];
     watchProgress?: Record<number, WatchProgress>;
     ratings?: Record<number, number>;
+    likes?: Record<number, boolean>;
+    jizzCounts?: Record<number, number>;
 }>();
 
 const scrollContainer = ref<HTMLElement | null>(null);
@@ -64,6 +66,8 @@ onMounted(() => {
                     :scene="scene"
                     :progress="watchProgress?.[scene.id]"
                     :rating="ratings?.[scene.id]"
+                    :liked="likes?.[scene.id]"
+                    :jizz-count="jizzCounts?.[scene.id]"
                 />
             </div>
         </div>

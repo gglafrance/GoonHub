@@ -29,10 +29,11 @@ type SceneHandler struct {
 	RelatedScenesService *core.RelatedScenesService
 	MarkerService        *core.MarkerService
 	StreamManager        *streaming.Manager
+	InteractionRepo      data.InteractionRepository
 	MaxItemsPerPage      int
 }
 
-func NewSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, maxItemsPerPage int) *SceneHandler {
+func NewSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, interactionRepo data.InteractionRepository, maxItemsPerPage int) *SceneHandler {
 	return &SceneHandler{
 		Service:              service,
 		ProcessingService:    processingService,
@@ -41,6 +42,7 @@ func NewSceneHandler(service *core.SceneService, processingService *core.ScenePr
 		RelatedScenesService: relatedScenesService,
 		MarkerService:        markerService,
 		StreamManager:        streamManager,
+		InteractionRepo:      interactionRepo,
 		MaxItemsPerPage:      maxItemsPerPage,
 	}
 }
@@ -166,8 +168,17 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		return
 	}
 
+	cardFields := response.ParseCardFields(c.Query("card_fields"))
+
+	var items []response.SceneListItem
+	if cardFields.HasAny() {
+		items = response.ToSceneListItemsWithFields(result.Scenes, cardFields)
+	} else {
+		items = response.ToSceneListItems(result.Scenes)
+	}
+
 	resp := gin.H{
-		"data":  response.ToSceneListItems(result.Scenes),
+		"data":  items,
 		"total": result.Total,
 		"page":  req.Page,
 		"limit": req.Limit,
@@ -175,6 +186,31 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 	if result.Seed != 0 {
 		resp["seed"] = result.Seed
 	}
+
+	// Load interaction sidecar maps if requested
+	if userID > 0 {
+		sceneIDs := make([]uint, len(result.Scenes))
+		for i, s := range result.Scenes {
+			sceneIDs[i] = s.ID
+		}
+
+		if cardFields.Rating {
+			if ratings, err := h.InteractionRepo.GetRatingsBySceneIDs(userID, sceneIDs); err == nil {
+				resp["ratings"] = ratings
+			}
+		}
+		if cardFields.Liked {
+			if likes, err := h.InteractionRepo.GetLikesBySceneIDs(userID, sceneIDs); err == nil {
+				resp["likes"] = likes
+			}
+		}
+		if cardFields.JizzCount {
+			if jizzCounts, err := h.InteractionRepo.GetJizzCountsBySceneIDs(userID, sceneIDs); err == nil {
+				resp["jizz_counts"] = jizzCounts
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -639,8 +675,47 @@ func (h *SceneHandler) GetRelatedScenes(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"data":  response.ToSceneListItems(scenes),
+	cardFields := response.ParseCardFields(c.Query("card_fields"))
+
+	var items []response.SceneListItem
+	if cardFields.HasAny() {
+		items = response.ToSceneListItemsWithFields(scenes, cardFields)
+	} else {
+		items = response.ToSceneListItems(scenes)
+	}
+
+	resp := gin.H{
+		"data":  items,
 		"total": len(scenes),
-	})
+	}
+
+	// Load interaction sidecar maps if requested
+	var userID uint
+	if payload, err := middleware.GetUserFromContext(c); err == nil {
+		userID = payload.UserID
+	}
+	if userID > 0 {
+		sceneIDs := make([]uint, len(scenes))
+		for i, s := range scenes {
+			sceneIDs[i] = s.ID
+		}
+
+		if cardFields.Rating {
+			if ratings, err := h.InteractionRepo.GetRatingsBySceneIDs(userID, sceneIDs); err == nil {
+				resp["ratings"] = ratings
+			}
+		}
+		if cardFields.Liked {
+			if likes, err := h.InteractionRepo.GetLikesBySceneIDs(userID, sceneIDs); err == nil {
+				resp["likes"] = likes
+			}
+		}
+		if cardFields.JizzCount {
+			if jizzCounts, err := h.InteractionRepo.GetJizzCountsBySceneIDs(userID, sceneIDs); err == nil {
+				resp["jizz_counts"] = jizzCounts
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, resp)
 }

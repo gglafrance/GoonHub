@@ -28,6 +28,8 @@ type InteractionRepository interface {
 	GetLikedSceneIDs(userID uint) ([]uint, error)
 	GetRatedSceneIDs(userID uint, minRating, maxRating float64) ([]uint, error)
 	GetJizzedSceneIDs(userID uint, minCount, maxCount int) ([]uint, error)
+	GetLikesBySceneIDs(userID uint, sceneIDs []uint) (map[uint]bool, error)
+	GetJizzCountsBySceneIDs(userID uint, sceneIDs []uint) (map[uint]int, error)
 }
 
 type InteractionRepositoryImpl struct {
@@ -225,6 +227,42 @@ func (r *InteractionRepositoryImpl) GetJizzedSceneIDs(userID uint, minCount, max
 		return nil, err
 	}
 	return ids, nil
+}
+
+func (r *InteractionRepositoryImpl) GetLikesBySceneIDs(userID uint, sceneIDs []uint) (map[uint]bool, error) {
+	if len(sceneIDs) == 0 {
+		return make(map[uint]bool), nil
+	}
+
+	var likes []UserSceneLike
+	err := r.DB.Where("user_id = ? AND scene_id IN ?", userID, sceneIDs).Find(&likes).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[uint]bool)
+	for _, l := range likes {
+		result[l.SceneID] = true
+	}
+	return result, nil
+}
+
+func (r *InteractionRepositoryImpl) GetJizzCountsBySceneIDs(userID uint, sceneIDs []uint) (map[uint]int, error) {
+	if len(sceneIDs) == 0 {
+		return make(map[uint]int), nil
+	}
+
+	var records []UserSceneJizzed
+	err := r.DB.Where("user_id = ? AND scene_id IN ?", userID, sceneIDs).Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[uint]int)
+	for _, j := range records {
+		result[j.SceneID] = j.Count
+	}
+	return result, nil
 }
 
 // Ensure InteractionRepositoryImpl implements InteractionRepository

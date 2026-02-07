@@ -5,6 +5,7 @@ import type {
     TagSort,
     KeyboardLayout,
     SortPreferences,
+    SceneCardConfig,
 } from '~/types/settings';
 import type { ParsingRulesSettings, ParsingPreset } from '~/types/parsing-rules';
 
@@ -45,6 +46,78 @@ export const useSettingsStore = defineStore(
             () => settings.value?.show_page_size_selector ?? false,
         );
         const maxItemsPerPage = computed(() => settings.value?.max_items_per_page ?? 100);
+
+        const defaultSceneCardConfig: SceneCardConfig = {
+            badges: {
+                top_left: { items: ['rating'], direction: 'vertical' },
+                top_right: { items: ['watched'], direction: 'vertical' },
+                bottom_left: { items: [], direction: 'vertical' },
+                bottom_right: { items: ['duration'], direction: 'horizontal' },
+            },
+            content_rows: [{ type: 'split', left: 'file_size', right: 'added_at' }],
+        };
+
+        const sceneCardConfig = computed<SceneCardConfig>(
+            () => settings.value?.scene_card_config ?? defaultSceneCardConfig,
+        );
+
+        // Build comma-separated card_fields param from the card config
+        const cardFieldsParam = computed(() => {
+            const config = sceneCardConfig.value;
+            const fieldsSet = new Set<string>();
+
+            // Badge field name -> API card_fields name mapping
+            const badgeFieldMap: Record<string, string> = {
+                views: 'views',
+                resolution: 'resolution',
+                rating: 'rating',
+                liked: 'liked',
+                jizz_count: 'jizz_count',
+                frame_rate: 'frame_rate',
+                tags: 'tags',
+                actors: 'actors',
+            };
+
+            // Content field name -> API card_fields name mapping
+            const contentFieldMap: Record<string, string> = {
+                views: 'views',
+                resolution: 'resolution',
+                frame_rate: 'frame_rate',
+                description: 'description',
+                studio: 'studio',
+                tags: 'tags',
+                actors: 'actors',
+                rating: 'rating',
+                jizz_count: 'jizz_count',
+            };
+
+            // Scan badge zones
+            const zones = [
+                config.badges.top_left,
+                config.badges.top_right,
+                config.badges.bottom_left,
+                config.badges.bottom_right,
+            ];
+            for (const zone of zones) {
+                for (const item of zone.items) {
+                    if (badgeFieldMap[item]) fieldsSet.add(badgeFieldMap[item]);
+                }
+            }
+
+            // Scan content rows
+            for (const row of config.content_rows) {
+                if (row.type === 'full' && row.field) {
+                    if (contentFieldMap[row.field]) fieldsSet.add(contentFieldMap[row.field]);
+                } else if (row.type === 'split') {
+                    if (row.left && contentFieldMap[row.left])
+                        fieldsSet.add(contentFieldMap[row.left]);
+                    if (row.right && contentFieldMap[row.right])
+                        fieldsSet.add(contentFieldMap[row.right]);
+                }
+            }
+
+            return fieldsSet.size > 0 ? [...fieldsSet].join(',') : '';
+        });
 
         const hasUnsavedChanges = computed(() => {
             if (!draft.value || !settings.value) return false;
@@ -157,6 +230,8 @@ export const useSettingsStore = defineStore(
             sortPreferences,
             showPageSizeSelector,
             maxItemsPerPage,
+            sceneCardConfig,
+            cardFieldsParam,
             hasUnsavedChanges,
             theaterMode,
             keyboardLayout,

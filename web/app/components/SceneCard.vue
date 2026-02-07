@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SceneListItem } from '~/types/scene';
 import type { WatchProgress } from '~/types/homepage';
+import type { SceneCardConfig } from '~/types/settings';
 
 const props = defineProps<{
     scene: SceneListItem;
@@ -8,21 +9,24 @@ const props = defineProps<{
     fluid?: boolean;
     completed?: boolean;
     rating?: number;
+    liked?: boolean;
+    jizzCount?: number;
     selectable?: boolean;
     selected?: boolean;
+    configOverride?: SceneCardConfig;
 }>();
 
 const emit = defineEmits<{
     toggleSelection: [sceneId: number];
 }>();
 
-const isPerfectRating = computed(() => props.rating === 5);
-
 defineSlots<{
     footer?: () => unknown;
 }>();
 
 const { formatDuration, formatSize } = useFormatter();
+const settingsStore = useSettingsStore();
+const cardConfig = computed(() => props.configOverride ?? settingsStore.sceneCardConfig);
 
 const handleCheckboxClick = (event: Event) => {
     event.preventDefault();
@@ -60,6 +64,13 @@ const progressPercent = computed(() => {
 });
 
 const hasProgress = computed(() => props.progress && progressPercent.value > 0);
+
+// Check if any zone has items for positioning adjustments
+const hasBottomBadges = computed(
+    () =>
+        cardConfig.value.badges.bottom_left.items.length > 0 ||
+        cardConfig.value.badges.bottom_right.items.length > 0,
+);
 </script>
 
 <template>
@@ -143,33 +154,62 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                     <Icon name="heroicons:play" size="32" />
                 </div>
 
-                <!-- Duration badge -->
+                <!-- Badge zones -->
                 <div
-                    v-if="scene.duration > 0"
-                    class="bg-void/90 absolute right-1.5 z-20 rounded px-1.5 py-0.5 font-mono
-                        text-[10px] font-medium text-white backdrop-blur-sm"
+                    class="absolute top-1.5 left-1.5 z-20"
+                    :class="selectable ? 'mt-6' : ''"
+                >
+                    <SceneCardBadgeZone
+                        :items="cardConfig.badges.top_left.items"
+                        :direction="cardConfig.badges.top_left.direction"
+                        :scene="scene"
+                        :liked="liked"
+                        :rating="rating"
+                        :jizz-count="jizzCount"
+                        :completed="completed"
+                    />
+                </div>
+
+                <div class="absolute top-1.5 right-1.5 z-20">
+                    <SceneCardBadgeZone
+                        :items="cardConfig.badges.top_right.items"
+                        :direction="cardConfig.badges.top_right.direction"
+                        :scene="scene"
+                        :liked="liked"
+                        :rating="rating"
+                        :jizz-count="jizzCount"
+                        :completed="completed"
+                    />
+                </div>
+
+                <div
+                    class="absolute left-1.5 z-20"
                     :class="hasProgress ? 'bottom-3' : 'bottom-1.5'"
                 >
-                    {{ formatDuration(scene.duration) }}
+                    <SceneCardBadgeZone
+                        :items="cardConfig.badges.bottom_left.items"
+                        :direction="cardConfig.badges.bottom_left.direction"
+                        :scene="scene"
+                        :liked="liked"
+                        :rating="rating"
+                        :jizz-count="jizzCount"
+                        :completed="completed"
+                    />
                 </div>
 
-                <!-- Completed/Watched badge -->
                 <div
-                    v-if="completed"
-                    class="absolute top-1.5 right-1.5 z-20 rounded bg-emerald-500/90 px-1.5 py-0.5
-                        text-[9px] font-semibold text-white backdrop-blur-sm"
+                    class="absolute right-1.5 z-20"
+                    :class="hasProgress ? 'bottom-3' : 'bottom-1.5'"
                 >
-                    Watched
-                </div>
-
-                <!-- 5-star rating badge -->
-                <div
-                    v-if="isPerfectRating"
-                    class="absolute z-20 flex h-6 w-6 items-center justify-center rounded-full
-                        bg-amber-400/90 backdrop-blur-sm"
-                    :class="selectable ? 'top-8 left-1.5' : 'top-1.5 left-1.5'"
-                >
-                    <Icon name="heroicons:star-solid" size="14" class="text-amber-900" />
+                    <SceneCardBadgeZone
+                        :items="cardConfig.badges.bottom_right.items"
+                        :direction="cardConfig.badges.bottom_right.direction"
+                        :scene="scene"
+                        :liked="liked"
+                        :rating="rating"
+                        :jizz-count="jizzCount"
+                        :completed="completed"
+                    />
                 </div>
 
                 <!-- Watch progress bar -->
@@ -203,7 +243,34 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                 >
                     {{ scene.title }}
                 </h3>
+
+                <!-- Content rows from config -->
+                <div v-if="cardConfig.content_rows.length > 0" class="mt-1.5 space-y-1">
+                    <template v-for="(row, idx) in cardConfig.content_rows" :key="idx">
+                        <SceneCardContentRowSplit
+                            v-if="row.type === 'split' && row.left && row.right"
+                            :left="row.left"
+                            :right="row.right"
+                            :left-mode="(row.left_mode as 'short' | 'long' | undefined)"
+                            :right-mode="(row.right_mode as 'short' | 'long' | undefined)"
+                            :scene="scene"
+                            :rating="rating"
+                            :jizz-count="jizzCount"
+                        />
+                        <SceneCardContentRowFull
+                            v-else-if="row.type === 'full' && row.field"
+                            :field="row.field"
+                            :mode="row.mode as 'short' | 'long' | undefined"
+                            :scene="scene"
+                            :rating="rating"
+                            :jizz-count="jizzCount"
+                        />
+                    </template>
+                </div>
+
+                <!-- Fallback: default footer when no content rows configured -->
                 <div
+                    v-else
                     class="text-dim mt-1.5 flex items-center justify-between font-mono text-[10px]"
                 >
                     <slot name="footer">
