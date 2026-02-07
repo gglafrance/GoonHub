@@ -94,6 +94,7 @@ type UpdateAllSettingsRequest struct {
 	Autoplay                  bool                          `json:"autoplay"`
 	DefaultVolume             int                           `json:"default_volume" binding:"min=0,max=100"`
 	Loop                      bool                          `json:"loop"`
+	AbLoopControls            bool                          `json:"ab_loop_controls"`
 	VideosPerPage             int                           `json:"videos_per_page" binding:"required,min=1"`
 	DefaultSortOrder          string                        `json:"default_sort_order" binding:"required"`
 	DefaultTagSort            string                        `json:"default_tag_sort" binding:"required"`

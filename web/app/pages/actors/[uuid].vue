@@ -32,6 +32,7 @@ const {
     toggleSceneSelection,
     selectAllOnPage,
     selectAll,
+    dragSelect,
     clearSelection,
     isSceneSelected,
     getSelectedSceneIDs,
@@ -1068,6 +1069,7 @@ definePageMeta({
                             :scenes="scenes"
                             :is-scene-selected="isSceneSelected"
                             @toggle-selection="toggleSceneSelection"
+                            @drag-select="(ids, additive) => dragSelect(ids, additive)"
                         />
                         <SceneGrid v-else :scenes="scenes" />
                         <Pagination

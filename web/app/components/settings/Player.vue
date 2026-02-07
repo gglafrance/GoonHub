@@ -24,6 +24,13 @@ const playerLoop = computed({
     },
 });
 
+const playerAbLoopControls = computed({
+    get: () => settingsStore.draft?.ab_loop_controls ?? false,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.ab_loop_controls = v;
+    },
+});
+
 const playlistAutoAdvance = computed({
     get: () => settingsStore.draft?.playlist_auto_advance ?? 'countdown',
     set: (v: PlaylistAutoAdvance) => {
@@ -67,6 +74,17 @@ const autoAdvanceOptions: { value: PlaylistAutoAdvance; label: string; desc: str
                         <div class="text-dim text-xs">Loop videos when they finish</div>
                     </div>
                     <UiToggle v-model="playerLoop" />
+                </div>
+
+                <!-- A/B Loop Controls -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-sm text-white">A/B Loop Controls</div>
+                        <div class="text-dim text-xs">
+                            Show A/B loop controls in the video player control bar
+                        </div>
+                    </div>
+                    <UiToggle v-model="playerAbLoopControls" />
                 </div>
 
                 <!-- Volume Slider -->

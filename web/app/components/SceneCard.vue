@@ -225,7 +225,7 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                 ></div>
             </div>
 
-            <div class="p-3">
+            <div class="scene-card-content p-3">
                 <h3
                     class="truncate text-xs font-medium text-white/90 transition-colors
                         group-hover:text-white"

@@ -15,8 +15,11 @@ watch(
     { immediate: true },
 );
 
+const { init: initSafeMode } = useSafeMode();
+
 onMounted(() => {
     startAuthValidation();
+    initSafeMode();
 });
 
 onBeforeUnmount(() => {

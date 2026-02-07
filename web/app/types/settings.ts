@@ -15,6 +15,7 @@ export interface UserSettings {
     autoplay: boolean;
     default_volume: number;
     loop: boolean;
+    ab_loop_controls: boolean;
     videos_per_page: number;
     default_sort_order: SortOrder;
     default_tag_sort: TagSort;
