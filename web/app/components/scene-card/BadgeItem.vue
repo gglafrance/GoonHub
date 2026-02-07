@@ -66,14 +66,6 @@ const badge = computed(() => {
             return props.completed
                 ? { icon: null, text: 'Watched', class: 'bg-emerald-500/90 text-white !text-[9px] font-semibold' }
                 : null;
-        case 'tags':
-            return props.scene.tags?.length
-                ? { icon: 'heroicons:tag', text: String(props.scene.tags.length), class: 'bg-void/90' }
-                : null;
-        case 'actors':
-            return props.scene.actors?.length
-                ? { icon: 'heroicons:user', text: String(props.scene.actors.length), class: 'bg-void/90' }
-                : null;
         default:
             return null;
     }
@@ -81,8 +73,23 @@ const badge = computed(() => {
 </script>
 
 <template>
+    <!-- Tags badge with popover -->
+    <SceneCardTagsShort
+        v-if="field === 'tags' && scene.tags?.length"
+        :tags="scene.tags"
+        badge
+    />
+
+    <!-- Actors badge with popover -->
+    <SceneCardActorsShort
+        v-else-if="field === 'actors' && scene.actors?.length"
+        :actors="scene.actors"
+        badge
+    />
+
+    <!-- Standard badges -->
     <div
-        v-if="badge"
+        v-else-if="badge"
         class="z-20 flex items-center gap-0.5 rounded px-1.5 py-0.5 font-mono text-[10px] font-medium text-white backdrop-blur-sm"
         :class="[badge.class, badge.round ? 'h-6 w-6 justify-center rounded-full !p-0' : '']"
     >

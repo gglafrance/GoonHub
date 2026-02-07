@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const props = defineProps<{
     tags: string[];
+    badge?: boolean;
 }>();
 
 const showPopover = ref(false);
@@ -43,8 +44,14 @@ function onPopoverLeave() {
         @mouseenter="onTriggerEnter"
         @mouseleave="onTriggerLeave"
     >
-        <button class="text-dim hover:text-lava flex items-center gap-0.5 text-[10px] transition-colors" @click.stop.prevent>
-            <Icon name="heroicons:tag" size="11" />
+        <button
+            class="flex items-center gap-0.5 transition-colors"
+            :class="badge
+                ? 'bg-void/90 rounded px-1.5 py-0.5 font-mono text-[10px] font-medium text-white backdrop-blur-sm hover:bg-void'
+                : 'text-dim hover:text-lava text-[10px]'"
+            @click.stop.prevent
+        >
+            <Icon name="heroicons:tag" :size="badge ? '14' : '11'" />
             <span>{{ props.tags.length }}</span>
         </button>
 
