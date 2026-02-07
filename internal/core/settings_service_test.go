@@ -53,8 +53,8 @@ func TestGetSettings_Defaults(t *testing.T) {
 	}
 }
 
-func validAllSettingsArgs() (bool, int, bool, int, string, string, bool, data.HomepageConfig, data.ParsingRulesSettings, data.SortPreferences, string, int, bool, data.SceneCardConfig) {
-	return false, 50, false, 20, "created_at_desc", "az", true,
+func validAllSettingsArgs() (bool, int, bool, bool, int, string, string, bool, data.HomepageConfig, data.ParsingRulesSettings, data.SortPreferences, string, int, bool, data.SceneCardConfig) {
+	return false, 50, false, false, 20, "created_at_desc", "az", true,
 		data.DefaultHomepageConfig(),
 		data.DefaultParsingRulesSettings(),
 		data.DefaultSortPreferences(),
@@ -73,8 +73,8 @@ func TestUpdateAllSettings_Success(t *testing.T) {
 	}, nil)
 	settingsRepo.EXPECT().Upsert(gomock.Any()).Return(nil)
 
-	autoplay, volume, loop, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs, spss, scc := validAllSettingsArgs()
-	settings, err := svc.UpdateAllSettings(1, autoplay, volume, loop, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs, spss, scc)
+	autoplay, volume, loop, alc, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs, spss, scc := validAllSettingsArgs()
+	settings, err := svc.UpdateAllSettings(1, autoplay, volume, loop, alc, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs, spss, scc)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestUpdateAllSettings_InvalidFields(t *testing.T) {
 			sp := data.DefaultSortPreferences()
 			sp.Actors = tt.actorSort
 
-			_, err := svc.UpdateAllSettings(1, false, tt.volume, false, tt.vpp, tt.sort, tt.tagSort, true,
+			_, err := svc.UpdateAllSettings(1, false, tt.volume, false, false, tt.vpp, tt.sort, tt.tagSort, true,
 				data.DefaultHomepageConfig(), data.DefaultParsingRulesSettings(), sp, "countdown", 5, false, data.DefaultSceneCardConfig())
 			if err == nil {
 				t.Fatal("expected error")

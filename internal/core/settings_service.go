@@ -109,6 +109,7 @@ func (s *SettingsService) GetSettings(userID uint) (*data.UserSettings, error) {
 			Autoplay:               false,
 			DefaultVolume:          100,
 			Loop:                   false,
+			AbLoopControls:         false,
 			VideosPerPage:          20,
 			DefaultSortOrder:       "created_at_desc",
 			DefaultTagSort:         "az",
@@ -290,7 +291,7 @@ func (s *SettingsService) UpdateParsingRules(userID uint, rules data.ParsingRule
 	return settings, nil
 }
 
-func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences, playlistAutoAdvance string, playlistCountdownSeconds int, showPageSizeSelector bool, sceneCardConfig data.SceneCardConfig) (*data.UserSettings, error) {
+func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, abLoopControls bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences, playlistAutoAdvance string, playlistCountdownSeconds int, showPageSizeSelector bool, sceneCardConfig data.SceneCardConfig) (*data.UserSettings, error) {
 	if volume < 0 || volume > 100 {
 		return nil, fmt.Errorf("volume must be between 0 and 100")
 	}
@@ -355,6 +356,7 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 	settings.Autoplay = autoplay
 	settings.DefaultVolume = volume
 	settings.Loop = loop
+	settings.AbLoopControls = abLoopControls
 	settings.VideosPerPage = videosPerPage
 	settings.DefaultSortOrder = sortOrder
 	settings.DefaultTagSort = tagSort

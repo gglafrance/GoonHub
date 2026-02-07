@@ -177,6 +177,7 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		req.Autoplay,
 		req.DefaultVolume,
 		req.Loop,
+		req.AbLoopControls,
 		req.VideosPerPage,
 		req.DefaultSortOrder,
 		req.DefaultTagSort,

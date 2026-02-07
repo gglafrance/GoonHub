@@ -72,6 +72,7 @@ useScenePlayerShortcuts({
     player: computed(() => playerRef.value?.player ?? null),
     scene: scene,
     onTheaterModeToggle: () => settingsStore.toggleTheaterMode(),
+    onABLoopToggle: () => playerRef.value?.abLoop?.toggle(),
 });
 
 const isProcessing = computed(() => scene.value?.processing_status === 'pending');

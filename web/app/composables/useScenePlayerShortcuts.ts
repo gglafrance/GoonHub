@@ -7,10 +7,11 @@ interface Options {
     player: ComputedRef<Player | null>;
     scene: Ref<Scene | null | undefined>;
     onTheaterModeToggle: () => void;
+    onABLoopToggle?: () => void;
 }
 
 export const useScenePlayerShortcuts = (options: Options) => {
-    const { player, scene, onTheaterModeToggle } = options;
+    const { player, scene, onTheaterModeToggle, onABLoopToggle } = options;
     const { keys } = useKeyboardLayout();
 
     const SEEK_SHORT = 5;
@@ -143,6 +144,12 @@ export const useScenePlayerShortcuts = (options: Options) => {
         else if (key === 't') {
             e.preventDefault();
             onTheaterModeToggle();
+        }
+
+        // AB loop toggle
+        else if (key === 'o') {
+            e.preventDefault();
+            if (onABLoopToggle) onABLoopToggle();
         }
 
         // Picture-in-Picture toggle

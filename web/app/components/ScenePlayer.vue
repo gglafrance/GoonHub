@@ -18,6 +18,19 @@ interface PlaylistButtonInstance {
     _onClick: (() => void) | null;
 }
 
+// AB loop button interfaces for type safety
+interface ABLoopTimeButtonInstance {
+    updateTime: (formatted: string) => void;
+    setActive: (active: boolean) => void;
+    _onLeftClick: (() => void) | null;
+    _onRightClick: (() => void) | null;
+}
+
+interface ABLoopToggleButtonInstance {
+    setEnabled: (enabled: boolean) => void;
+    _onToggle: (() => void) | null;
+}
+
 // Register theater mode button component
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ButtonClass = videojs.getComponent('Button') as any;
@@ -143,10 +156,143 @@ if (ButtonClass) {
         }
     }
 
+    // AB Loop start time button: left-click sets start, right-click seeks to start
+    class ABLoopStartButton extends ButtonClass {
+        public _onLeftClick: (() => void) | null = null;
+        public _onRightClick: (() => void) | null = null;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        constructor(player: Player, options?: any) {
+            super(player, options);
+            this._onLeftClick = options?.onLeftClick ?? null;
+            this._onRightClick = options?.onRightClick ?? null;
+            this.controlText('Loop Start: click to set, right-click to seek');
+            this.render();
+            // Prevent context menu on right-click
+            this.el().addEventListener('contextmenu', (e: Event) => {
+                e.preventDefault();
+                if (this._onRightClick) this._onRightClick();
+            });
+        }
+
+        buildCSSClass() {
+            return `vjs-ab-loop-time vjs-ab-loop-start ${super.buildCSSClass()}`;
+        }
+
+        handleClick() {
+            if (this._onLeftClick) this._onLeftClick();
+        }
+
+        render() {
+            const el = this.el();
+            if (el)
+                el.innerHTML = `<span class="vjs-ab-loop-label">A</span><span class="vjs-ab-loop-value">--:--</span>`;
+        }
+
+        updateTime(formatted: string) {
+            const el = this.el();
+            if (!el) return;
+            const valueEl = el.querySelector('.vjs-ab-loop-value');
+            if (valueEl) valueEl.textContent = formatted;
+        }
+
+        setActive(active: boolean) {
+            const el = this.el();
+            if (el) el.classList.toggle('vjs-ab-loop-time-active', active);
+        }
+    }
+
+    // AB Loop end time button: left-click sets end, right-click seeks to end
+    class ABLoopEndButton extends ButtonClass {
+        public _onLeftClick: (() => void) | null = null;
+        public _onRightClick: (() => void) | null = null;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        constructor(player: Player, options?: any) {
+            super(player, options);
+            this._onLeftClick = options?.onLeftClick ?? null;
+            this._onRightClick = options?.onRightClick ?? null;
+            this.controlText('Loop End: click to set, right-click to seek');
+            this.render();
+            this.el().addEventListener('contextmenu', (e: Event) => {
+                e.preventDefault();
+                if (this._onRightClick) this._onRightClick();
+            });
+        }
+
+        buildCSSClass() {
+            return `vjs-ab-loop-time vjs-ab-loop-end ${super.buildCSSClass()}`;
+        }
+
+        handleClick() {
+            if (this._onLeftClick) this._onLeftClick();
+        }
+
+        render() {
+            const el = this.el();
+            if (el)
+                el.innerHTML = `<span class="vjs-ab-loop-label">B</span><span class="vjs-ab-loop-value">--:--</span>`;
+        }
+
+        updateTime(formatted: string) {
+            const el = this.el();
+            if (!el) return;
+            const valueEl = el.querySelector('.vjs-ab-loop-value');
+            if (valueEl) valueEl.textContent = formatted;
+        }
+
+        setActive(active: boolean) {
+            const el = this.el();
+            if (el) el.classList.toggle('vjs-ab-loop-time-active', active);
+        }
+    }
+
+    // AB Loop toggle button: enables/disables looping
+    class ABLoopToggleButton extends ButtonClass {
+        private _enabled: boolean = false;
+        public _onToggle: (() => void) | null = null;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        constructor(player: Player, options?: any) {
+            super(player, options);
+            this._onToggle = options?.onToggle ?? null;
+            this.controlText('Toggle A/B Loop');
+            this.updateIcon();
+        }
+
+        buildCSSClass() {
+            return `vjs-ab-loop-toggle ${super.buildCSSClass()}`;
+        }
+
+        handleClick() {
+            if (this._onToggle) this._onToggle();
+        }
+
+        setEnabled(enabled: boolean) {
+            this._enabled = enabled;
+            const el = this.el();
+            if (el) el.classList.toggle('vjs-ab-loop-enabled', enabled);
+            this.updateIcon();
+        }
+
+        updateIcon() {
+            const el = this.el();
+            if (!el) return;
+            // Repeat/loop icon
+            el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="vjs-ab-loop-icon"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>`;
+        }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     videojs.registerComponent('PlaylistPrevButton', PlaylistPrevButton as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     videojs.registerComponent('PlaylistNextButton', PlaylistNextButton as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    videojs.registerComponent('ABLoopStartButton', ABLoopStartButton as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    videojs.registerComponent('ABLoopEndButton', ABLoopEndButton as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    videojs.registerComponent('ABLoopToggleButton', ABLoopToggleButton as any);
 }
 
 const props = defineProps<{
@@ -179,6 +325,10 @@ const settingsStore = useSettingsStore();
 const theaterModeButton = shallowRef<TheaterModeButtonInstance | null>(null);
 const playlistPrevBtn = shallowRef<PlaylistButtonInstance | null>(null);
 const playlistNextBtn = shallowRef<PlaylistButtonInstance | null>(null);
+const abLoopStartBtn = shallowRef<ABLoopTimeButtonInstance | null>(null);
+const abLoopEndBtn = shallowRef<ABLoopTimeButtonInstance | null>(null);
+const abLoopToggleBtn = shallowRef<ABLoopToggleButtonInstance | null>(null);
+const abLoop = useABLoop(player);
 const { vttCues, loadVttCues } = useVttParser();
 const { setup: setupThumbnailPreview } = useThumbnailPreview(player, vttCues);
 const {
@@ -250,6 +400,9 @@ onMounted(async () => {
                 'progressControl',
                 'remainingTimeDisplay',
                 'playbackRateMenuButton',
+                ...(settingsStore.abLoopControls
+                    ? ['ABLoopStartButton', 'ABLoopEndButton', 'ABLoopToggleButton']
+                    : []),
                 'pipToggle',
                 'TheaterModeButton',
                 'fullscreenToggle',
@@ -269,6 +422,33 @@ onMounted(async () => {
             btn._onToggle = () => {
                 settingsStore.toggleTheaterMode();
             };
+        }
+
+        // Wire up AB loop buttons
+        const startBtn = controlBar.getChild('ABLoopStartButton') as unknown as
+            | ABLoopTimeButtonInstance
+            | undefined;
+        if (startBtn) {
+            abLoopStartBtn.value = startBtn;
+            startBtn._onLeftClick = () => abLoop.setStart();
+            startBtn._onRightClick = () => abLoop.seekToStart();
+        }
+
+        const endBtn = controlBar.getChild('ABLoopEndButton') as unknown as
+            | ABLoopTimeButtonInstance
+            | undefined;
+        if (endBtn) {
+            abLoopEndBtn.value = endBtn;
+            endBtn._onLeftClick = () => abLoop.setEnd();
+            endBtn._onRightClick = () => abLoop.seekToEnd();
+        }
+
+        const toggleBtn = controlBar.getChild('ABLoopToggleButton') as unknown as
+            | ABLoopToggleButtonInstance
+            | undefined;
+        if (toggleBtn) {
+            abLoopToggleBtn.value = toggleBtn;
+            toggleBtn._onToggle = () => abLoop.toggleEnabled();
         }
 
         // Add playlist prev/next buttons when in playlist mode
@@ -312,11 +492,27 @@ onMounted(async () => {
         if (recorded) emit('viewRecorded');
     });
 
+    // Create AB loop overlay element for the progress bar
+    const abLoopOverlay = document.createElement('div');
+    abLoopOverlay.className = 'vjs-ab-loop-overlay';
+    abLoopOverlay.style.display = 'none';
+
+    const abLoopMarkerA = document.createElement('div');
+    abLoopMarkerA.className = 'vjs-ab-loop-marker vjs-ab-loop-marker-a';
+    abLoopMarkerA.style.display = 'none';
+
     player.value.ready(() => {
         setupThumbnailPreview();
         setupMarkerIndicators();
         if (vttUrl.value) {
             loadVttCues(vttUrl.value);
+        }
+
+        // Inject AB loop overlay into progress bar
+        const progressHolder = player.value!.el().querySelector('.vjs-progress-holder');
+        if (progressHolder) {
+            progressHolder.appendChild(abLoopOverlay);
+            progressHolder.appendChild(abLoopMarkerA);
         }
 
         // Seek to start time if provided
@@ -328,6 +524,32 @@ onMounted(async () => {
             tryAutoplay(player.value!);
         }
     });
+
+    // Watch AB loop state to update progress bar overlay
+    watch(
+        [() => abLoop.progressA.value, () => abLoop.progressB.value, abLoop.enabled],
+        ([pA, pB, isEnabled]) => {
+            // Show single marker for point A when only A is set
+            if (pA !== null && pB === null) {
+                abLoopMarkerA.style.display = 'block';
+                abLoopMarkerA.style.left = `${pA}%`;
+                abLoopOverlay.style.display = 'none';
+            }
+            // Show range overlay when both points are set
+            else if (pA !== null && pB !== null) {
+                abLoopMarkerA.style.display = 'none';
+                abLoopOverlay.style.display = 'block';
+                abLoopOverlay.style.left = `${pA}%`;
+                abLoopOverlay.style.width = `${pB - pA}%`;
+                // Dim overlay when loop is disabled
+                abLoopOverlay.style.opacity = isEnabled ? '1' : '0.4';
+            } else {
+                abLoopOverlay.style.display = 'none';
+                abLoopMarkerA.style.display = 'none';
+            }
+        },
+        { immediate: true },
+    );
 });
 
 watch(
@@ -336,7 +558,8 @@ watch(
         if (!player.value) return;
         const p = player.value;
 
-        // Pause and reset before loading new source to flush old buffered data
+        // Clear AB loop and reset before loading new source
+        abLoop.clear();
         p.pause();
         p.currentTime(0);
         p.src({ type: 'video/mp4', src: newUrl });
@@ -383,6 +606,27 @@ watch(
     },
 );
 
+// Sync AB loop button states
+watch([abLoop.formattedA, abLoop.pointA], ([formatted]) => {
+    if (abLoopStartBtn.value) {
+        abLoopStartBtn.value.updateTime(formatted);
+        abLoopStartBtn.value.setActive(abLoop.pointA.value !== null);
+    }
+});
+
+watch([abLoop.formattedB, abLoop.pointB], ([formatted]) => {
+    if (abLoopEndBtn.value) {
+        abLoopEndBtn.value.updateTime(formatted);
+        abLoopEndBtn.value.setActive(abLoop.pointB.value !== null);
+    }
+});
+
+watch(abLoop.enabled, (isEnabled) => {
+    if (abLoopToggleBtn.value) {
+        abLoopToggleBtn.value.setEnabled(isEnabled);
+    }
+});
+
 // Sync playlist button disabled states
 watch(
     () => props.hasPrevious,
@@ -402,6 +646,7 @@ defineExpose({
     getCurrentTime: () => player.value?.currentTime() ?? 0,
     player,
     vttCues,
+    abLoop,
 });
 
 onBeforeUnmount(() => {
@@ -977,6 +1222,127 @@ onBeforeUnmount(() => {
 
 :deep(.vjs-loading-spinner::after) {
     border-top-color: #ff4d4d;
+}
+
+/* ========================================
+   AB LOOP - Progress Bar Overlay
+   ======================================== */
+:deep(.vjs-ab-loop-overlay) {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: rgba(255, 77, 77, 0.2);
+    border-left: 2px solid rgba(255, 77, 77, 0.8);
+    border-right: 2px solid rgba(255, 77, 77, 0.8);
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 4;
+    box-shadow: 0 0 8px rgba(255, 77, 77, 0.15);
+}
+
+:deep(.vjs-ab-loop-marker) {
+    position: absolute;
+    top: 50%;
+    width: 2px;
+    height: 100%;
+    transform: translateY(-50%);
+    background: rgba(255, 184, 77, 0.9);
+    pointer-events: none;
+    z-index: 4;
+    box-shadow: 0 0 6px rgba(255, 184, 77, 0.4);
+}
+
+/* ========================================
+   AB LOOP - Control Bar Buttons
+   ======================================== */
+
+/* Time buttons (A / B) */
+:deep(.vjs-ab-loop-time) {
+    width: auto !important;
+    min-width: 52px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px;
+    cursor: pointer;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.03);
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+:deep(.vjs-ab-loop-time:hover) {
+    border-color: rgba(255, 77, 77, 0.3);
+    background: rgba(255, 77, 77, 0.08);
+}
+
+:deep(.vjs-ab-loop-time.vjs-ab-loop-time-active) {
+    border-color: rgba(255, 77, 77, 0.3);
+    background: rgba(255, 77, 77, 0.08);
+}
+
+:deep(.vjs-ab-loop-time.vjs-ab-loop-time-active:hover) {
+    border-color: rgba(255, 77, 77, 0.5);
+    background: rgba(255, 77, 77, 0.12);
+}
+
+:deep(.vjs-ab-loop-label) {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(255, 77, 77, 0.7);
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+:deep(.vjs-ab-loop-time-active .vjs-ab-loop-label) {
+    color: #ff4d4d;
+}
+
+:deep(.vjs-ab-loop-value) {
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1;
+    white-space: nowrap;
+}
+
+:deep(.vjs-ab-loop-time-active .vjs-ab-loop-value) {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Loop toggle button */
+:deep(.vjs-ab-loop-toggle) {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.15s ease;
+}
+
+:deep(.vjs-ab-loop-icon) {
+    width: 14px;
+    height: 14px;
+}
+
+:deep(.vjs-ab-loop-toggle:hover) {
+    color: #ff4d4d;
+    background: rgba(255, 77, 77, 0.12);
+}
+
+:deep(.vjs-ab-loop-toggle.vjs-ab-loop-enabled) {
+    color: #ff4d4d;
+    background: rgba(255, 77, 77, 0.15);
+}
+
+:deep(.vjs-ab-loop-toggle.vjs-ab-loop-enabled:hover) {
+    background: rgba(255, 77, 77, 0.25);
 }
 
 /* Hide text track display from control bar area */
