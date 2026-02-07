@@ -250,6 +250,15 @@ export const useExplorerStore = defineStore('explorer', () => {
         }
     };
 
+    const dragSelect = (ids: number[], additive: boolean) => {
+        if (additive) {
+            for (const id of ids) selectedSceneIDs.value.add(id);
+            selectedSceneIDs.value = new Set(selectedSceneIDs.value);
+        } else {
+            selectedSceneIDs.value = new Set(ids);
+        }
+    };
+
     const clearSelection = () => {
         selectedSceneIDs.value = new Set();
         allFolderSceneIDs.value = [];
@@ -363,6 +372,7 @@ export const useExplorerStore = defineStore('explorer', () => {
         selectAllOnPage,
         selectAllInFolder,
         selectAllInFolderRecursive,
+        dragSelect,
         clearSelection,
         isSceneSelected,
         getSelectedSceneIDs,

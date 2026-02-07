@@ -188,6 +188,7 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
                     :scenes="explorerStore.scenes"
                     :is-scene-selected="explorerStore.isSceneSelected"
                     @toggle-selection="explorerStore.toggleSceneSelection"
+                    @drag-select="(ids, additive) => explorerStore.dragSelect(ids, additive)"
                 />
                 <SceneGrid v-else :scenes="explorerStore.scenes" />
 

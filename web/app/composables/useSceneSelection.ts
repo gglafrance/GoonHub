@@ -39,6 +39,16 @@ export function useSceneSelection(pageScenes: Ref<SceneListItem[]> | ComputedRef
         selectedSceneIDs.value = new Set();
     };
 
+    const dragSelect = (ids: number[], additive: boolean) => {
+        if (additive) {
+            const next = new Set(selectedSceneIDs.value);
+            for (const id of ids) next.add(id);
+            selectedSceneIDs.value = next;
+        } else {
+            selectedSceneIDs.value = new Set(ids);
+        }
+    };
+
     const isSceneSelected = (id: number) => selectedSceneIDs.value.has(id);
 
     const getSelectedSceneIDs = () => [...selectedSceneIDs.value];
@@ -52,6 +62,7 @@ export function useSceneSelection(pageScenes: Ref<SceneListItem[]> | ComputedRef
         toggleSceneSelection,
         selectAllOnPage,
         selectAll,
+        dragSelect,
         clearSelection,
         isSceneSelected,
         getSelectedSceneIDs,
