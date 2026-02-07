@@ -160,6 +160,14 @@ input[type='password'] {
 }
 
 /* Hide scrollbar utility for horizontal scroll areas */
+/* Safe mode - blurs all images and videos */
+.safe-mode img,
+.safe-mode video {
+    filter: blur(30px) !important;
+    clip-path: inset(0) !important;
+    transition: filter 0.3s ease;
+}
+
 .scrollbar-none {
     -ms-overflow-style: none;
     scrollbar-width: none;
