@@ -247,6 +247,10 @@ watch(
 );
 
 onMounted(() => {
+    if (scenesSort.value === 'random' && scenesSeed.value === 0) {
+        scenesSeed.value = generateSeed();
+        syncSortToUrl();
+    }
     loadStudio();
 });
 
