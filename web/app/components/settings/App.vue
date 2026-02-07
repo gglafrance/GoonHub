@@ -213,9 +213,7 @@ const handleSaveSearchConfig = async () => {
                 <!-- Page Size Selector -->
                 <div class="flex items-center justify-between">
                     <div>
-                        <label class="text-sm font-medium text-white">
-                            Page Size Selector
-                        </label>
+                        <label class="text-sm font-medium text-white"> Page Size Selector </label>
                         <p class="text-dim mt-0.5 text-xs">
                             Show a page size dropdown on paginated pages
                         </p>

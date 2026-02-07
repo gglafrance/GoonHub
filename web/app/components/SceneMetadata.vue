@@ -222,30 +222,26 @@ const getResolutionLabel = (h?: number): string => {
                     <span class="text-dim text-[11px]">Path</span>
                     <p
                         v-if="pathSegments"
-                        class="text-dim/70 mt-0.5 font-mono text-[10px] break-all leading-relaxed"
+                        class="text-dim/70 mt-0.5 font-mono text-[10px] leading-relaxed break-all"
                     >
                         <NuxtLink
                             :to="getStorageRootLink()"
                             class="text-dim/40 hover:text-lava/70 transition-colors"
-                        >{{ pathSegments.basePath }}</NuxtLink>
-                        <span class="text-dim/30">/</span>
-                        <template
-                            v-for="(folder, index) in pathSegments.folders"
-                            :key="index"
+                            >{{ pathSegments.basePath }}</NuxtLink
                         >
+                        <span class="text-dim/30">/</span>
+                        <template v-for="(folder, index) in pathSegments.folders" :key="index">
                             <NuxtLink
                                 :to="getExplorerLink(index)"
-                                class="text-dim/70 underline decoration-transparent
-                                    hover:text-lava hover:decoration-lava/50 transition-all"
-                            >{{ folder }}</NuxtLink>
+                                class="text-dim/70 hover:text-lava hover:decoration-lava/50
+                                    underline decoration-transparent transition-all"
+                                >{{ folder }}</NuxtLink
+                            >
                             <span class="text-dim/30">/</span>
                         </template>
                         <span class="text-dim/50">{{ pathSegments.filename }}</span>
                     </p>
-                    <p
-                        v-else
-                        class="text-dim/70 mt-0.5 font-mono text-[10px] break-all"
-                    >
+                    <p v-else class="text-dim/70 mt-0.5 font-mono text-[10px] break-all">
                         {{ scene.stored_path }}
                     </p>
                 </div>

@@ -186,7 +186,13 @@ const handleCreated = () => {
                 :limit="store.limit"
                 :show-page-size-selector="showSelector"
                 :max-limit="maxLimit"
-                @update:limit="(v: number) => { updatePageSize(v); if (store.currentPage === 1) store.loadPlaylists(); else store.currentPage = 1; }"
+                @update:limit="
+                    (v: number) => {
+                        updatePageSize(v);
+                        if (store.currentPage === 1) store.loadPlaylists();
+                        else store.currentPage = 1;
+                    }
+                "
             />
         </template>
 

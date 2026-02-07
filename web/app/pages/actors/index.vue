@@ -185,7 +185,13 @@ definePageMeta({
                     :limit="limit"
                     :show-page-size-selector="showSelector"
                     :max-limit="maxLimit"
-                    @update:limit="(v: number) => { updatePageSize(v); if (currentPage === 1) loadActors(1); else currentPage = 1; }"
+                    @update:limit="
+                        (v: number) => {
+                            updatePageSize(v);
+                            if (currentPage === 1) loadActors(1);
+                            else currentPage = 1;
+                        }
+                    "
                 />
             </div>
 

@@ -4,9 +4,18 @@ import (
 	"fmt"
 	"goonhub/internal/data"
 	"os"
+	"syscall"
 
 	"go.uber.org/zap"
 )
+
+// DiskUsage holds filesystem usage stats for a storage path.
+type DiskUsage struct {
+	TotalBytes uint64  `json:"total_bytes"`
+	UsedBytes  uint64  `json:"used_bytes"`
+	FreeBytes  uint64  `json:"free_bytes"`
+	UsedPct    float64 `json:"used_pct"`
+}
 
 type StoragePathService struct {
 	repo   data.StoragePathRepository
@@ -146,6 +155,50 @@ func (s *StoragePathService) Update(id uint, name, path string, isDefault bool) 
 	)
 
 	return existing, nil
+}
+
+// GetDiskUsage returns filesystem usage stats for the given path.
+// Returns nil on error (logged as warning, never fails the request).
+func (s *StoragePathService) GetDiskUsage(path string) *DiskUsage {
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(path, &stat); err != nil {
+		s.logger.Warn("failed to get disk usage",
+			zap.String("path", path),
+			zap.Error(err),
+		)
+		return nil
+	}
+
+	totalBytes := stat.Blocks * uint64(stat.Bsize)
+	freeBytes := stat.Bavail * uint64(stat.Bsize)
+	usedBytes := totalBytes - freeBytes
+
+	var usedPct float64
+	if totalBytes > 0 {
+		usedPct = float64(usedBytes) / float64(totalBytes) * 100
+	}
+
+	return &DiskUsage{
+		TotalBytes: totalBytes,
+		UsedBytes:  usedBytes,
+		FreeBytes:  freeBytes,
+		UsedPct:    usedPct,
+	}
+}
+
+// ListWithDiskUsage returns all storage paths enriched with disk usage info.
+func (s *StoragePathService) ListWithDiskUsage() ([]data.StoragePath, map[uint]*DiskUsage, error) {
+	paths, err := s.repo.List()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list storage paths: %w", err)
+	}
+
+	usageMap := make(map[uint]*DiskUsage, len(paths))
+	for _, p := range paths {
+		usageMap[p.ID] = s.GetDiskUsage(p.Path)
+	}
+
+	return paths, usageMap, nil
 }
 
 func (s *StoragePathService) Delete(id uint) error {

@@ -40,7 +40,13 @@ const { showSelector, maxLimit, updatePageSize } = usePageSize();
                 :limit="searchStore.limit"
                 :show-page-size-selector="showSelector"
                 :max-limit="maxLimit"
-                @update:limit="(v: number) => { updatePageSize(v); if (searchStore.page === 1) searchStore.search(); else searchStore.page = 1; }"
+                @update:limit="
+                    (v: number) => {
+                        updatePageSize(v);
+                        if (searchStore.page === 1) searchStore.search();
+                        else searchStore.page = 1;
+                    }
+                "
             />
         </template>
 

@@ -3,6 +3,7 @@ import type { StoragePath } from '~/types/storage';
 
 const { fetchStoragePaths, deleteStoragePath } = useApi();
 const { message, error, clearMessages } = useSettingsMessage();
+const { formatSize } = useFormatter();
 
 const loading = ref(false);
 const storagePaths = ref<StoragePath[]>([]);
@@ -124,47 +125,85 @@ const formatDate = (dateStr: string): string => {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr
-                            v-for="path in storagePaths"
-                            :key="path.id"
-                            class="border-border/50 border-b last:border-0"
-                        >
-                            <td class="py-2.5 pr-4 text-white">{{ path.name }}</td>
-                            <td class="py-2.5 pr-4">
-                                <code class="text-dim bg-void/50 rounded px-1.5 py-0.5 text-[11px]">
-                                    {{ path.path }}
-                                </code>
-                            </td>
-                            <td class="py-2.5 pr-4">
-                                <span
-                                    v-if="path.is_default"
-                                    class="bg-emerald/15 text-emerald border-emerald/30 inline-block
-                                        rounded-full border px-2 py-0.5 text-[10px] font-medium"
-                                >
-                                    Default
-                                </span>
-                            </td>
-                            <td class="text-dim py-2.5 pr-4">{{ formatDate(path.created_at) }}</td>
-                            <td class="py-2.5">
-                                <div class="flex gap-2">
-                                    <button
-                                        class="text-dim text-[11px] transition-colors
-                                            hover:text-white"
-                                        @click="openEdit(path)"
+                        <template v-for="path in storagePaths" :key="path.id">
+                            <tr
+                                class="border-border/50 border-b"
+                                :class="{ 'border-b-0': path.disk_usage }"
+                            >
+                                <td class="py-2.5 pr-4 text-white">{{ path.name }}</td>
+                                <td class="py-2.5 pr-4">
+                                    <code
+                                        class="text-dim bg-void/50 rounded px-1.5 py-0.5
+                                            text-[11px]"
                                     >
-                                        Edit
-                                    </button>
-                                    <button
-                                        v-if="storagePaths.length > 1"
-                                        class="text-lava/70 hover:text-lava text-[11px]
-                                            transition-colors"
-                                        @click="handleDelete(path)"
+                                        {{ path.path }}
+                                    </code>
+                                </td>
+                                <td class="py-2.5 pr-4">
+                                    <span
+                                        v-if="path.is_default"
+                                        class="bg-emerald/15 text-emerald border-emerald/30
+                                            inline-block rounded-full border px-2 py-0.5 text-[10px]
+                                            font-medium"
                                     >
-                                        Delete
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
+                                        Default
+                                    </span>
+                                </td>
+                                <td class="text-dim py-2.5 pr-4">
+                                    {{ formatDate(path.created_at) }}
+                                </td>
+                                <td class="py-2.5">
+                                    <div class="flex gap-2">
+                                        <button
+                                            class="text-dim text-[11px] transition-colors
+                                                hover:text-white"
+                                            @click="openEdit(path)"
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            v-if="storagePaths.length > 1"
+                                            class="text-lava/70 hover:text-lava text-[11px]
+                                                transition-colors"
+                                            @click="handleDelete(path)"
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr
+                                v-if="path.disk_usage"
+                                class="border-border/50 border-b last:border-0"
+                            >
+                                <td colspan="5" class="px-0 pt-0 pb-2.5">
+                                    <div class="flex items-center gap-3">
+                                        <div
+                                            class="bg-void h-1.5 flex-1 overflow-hidden
+                                                rounded-full"
+                                        >
+                                            <div
+                                                class="h-full rounded-full transition-all"
+                                                :class="
+                                                    path.disk_usage.used_pct > 90
+                                                        ? 'bg-lava'
+                                                        : 'bg-emerald'
+                                                "
+                                                :style="{
+                                                    width: `${Math.min(path.disk_usage.used_pct, 100)}%`,
+                                                }"
+                                            />
+                                        </div>
+                                        <span class="text-dim text-[10px] whitespace-nowrap">
+                                            {{ formatSize(path.disk_usage.used_bytes) }} /
+                                            {{ formatSize(path.disk_usage.total_bytes) }} ({{
+                                                path.disk_usage.used_pct.toFixed(1)
+                                            }}%)
+                                        </span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </template>
                     </tbody>
                 </table>
             </div>
