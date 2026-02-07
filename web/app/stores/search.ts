@@ -113,7 +113,6 @@ export const useSearchStore = defineStore('search', () => {
     const reshuffle = () => {
         seed.value = generateSeed();
         page.value = 1;
-        search();
     };
 
     const loadFilterOptions = async () => {

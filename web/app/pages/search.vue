@@ -145,6 +145,7 @@ watch(
         searchStore.maxJizzCount,
         searchStore.selectedMarkerLabels,
         searchStore.matchType,
+        searchStore.seed,
     ],
     () => {
         if (isSyncingFromUrl) return;
