@@ -83,7 +83,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	permissionRepository := providePermissionRepository(db)
 	rbacService := provideRBACService(roleRepository, permissionRepository, logger)
 	adminService := provideAdminService(userRepository, roleRepository, rbacService, logger)
-	adminHandler := provideAdminHandler(adminService, rbacService, sceneService)
+	adminHandler := provideAdminHandler(adminService, rbacService, sceneService, appSettingsRepository)
 	jobHandler := provideJobHandler(jobHistoryService, sceneProcessingService)
 	poolConfigHandler := providePoolConfigHandler(sceneProcessingService, poolConfigRepository)
 	processingConfigHandler := provideProcessingConfigHandler(sceneProcessingService, processingConfigRepository, markerService)
@@ -135,11 +135,15 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	importHandler := provideImportHandler(sceneRepository, markerRepository, logger)
 	streamStatsHandler := provideStreamStatsHandler(manager)
 	playlistHandler := providePlaylistHandler(playlistService, configConfig)
+	shareLinkRepository := provideShareLinkRepository(db)
+	shareService := provideShareService(shareLinkRepository, sceneRepository, logger)
+	shareHandler := provideShareHandler(shareService, authService, manager, configConfig)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	ogMiddleware := provideOGMiddleware(sceneRepository, actorRepository, studioRepository, playlistRepository, logger)
-	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, authService, rbacService, ipRateLimiter, ogMiddleware)
+	ogMiddleware := provideOGMiddleware(sceneRepository, actorRepository, studioRepository, playlistRepository, shareLinkRepository, appSettingsRepository, logger)
+	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, shareHandler, authService, rbacService, ipRateLimiter, ogMiddleware)
 	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, markerService, sceneProcessingService, logger)
-	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService)
+	shareServer := provideShareServer(configConfig, shareHandler, ogMiddleware, logger)
+	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService, shareServer)
 	return serverServer, nil
 }
 
@@ -251,6 +255,10 @@ func provideMarkerRepository(db *gorm.DB) data.MarkerRepository {
 
 func providePlaylistRepository(db *gorm.DB) data.PlaylistRepository {
 	return data.NewPlaylistRepository(db)
+}
+
+func provideShareLinkRepository(db *gorm.DB) data.ShareLinkRepository {
+	return data.NewShareLinkRepository(db)
 }
 
 func provideMeilisearchClient(cfg *config.Config, searchConfigRepo data.SearchConfigRepository, logger *logging.Logger) (*meilisearch.Client, error) {
@@ -432,6 +440,10 @@ func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRe
 	return core.NewPlaylistService(repo, sceneRepo, tagRepo, logger.Logger)
 }
 
+func provideShareService(shareLinkRepo data.ShareLinkRepository, sceneRepo data.SceneRepository, logger *logging.Logger) *core.ShareService {
+	return core.NewShareService(shareLinkRepo, sceneRepo, logger.Logger)
+}
+
 func provideStreamManager(cfg *config.Config, sceneRepo data.SceneRepository, logger *logging.Logger) *streaming.Manager {
 	return streaming.NewManager(&cfg.Streaming, sceneRepo, logger.Logger)
 }
@@ -441,8 +453,8 @@ func provideRateLimiter(cfg *config.Config) *middleware.IPRateLimiter {
 	return middleware.NewIPRateLimiter(rl, cfg.Auth.LoginRateBurst)
 }
 
-func provideOGMiddleware(sceneRepo data.SceneRepository, actorRepo data.ActorRepository, studioRepo data.StudioRepository, playlistRepo data.PlaylistRepository, logger *logging.Logger) *middleware.OGMiddleware {
-	return middleware.NewOGMiddleware(sceneRepo, actorRepo, studioRepo, playlistRepo, logger)
+func provideOGMiddleware(sceneRepo data.SceneRepository, actorRepo data.ActorRepository, studioRepo data.StudioRepository, playlistRepo data.PlaylistRepository, shareLinkRepo data.ShareLinkRepository, appSettingsRepo data.AppSettingsRepository, logger *logging.Logger) *middleware.OGMiddleware {
+	return middleware.NewOGMiddleware(sceneRepo, actorRepo, studioRepo, playlistRepo, shareLinkRepo, appSettingsRepo, logger)
 }
 
 func provideAuthHandler(authService *core.AuthService, userService *core.UserService, cfg *config.Config) *handler.AuthHandler {
@@ -453,8 +465,8 @@ func provideAuthHandler(authService *core.AuthService, userService *core.UserSer
 	return handler.NewAuthHandlerWithConfig(authService, userService, cfg.Auth.TokenDuration, secureCookies)
 }
 
-func provideAdminHandler(adminService *core.AdminService, rbacService *core.RBACService, sceneService *core.SceneService) *handler.AdminHandler {
-	return handler.NewAdminHandler(adminService, rbacService, sceneService)
+func provideAdminHandler(adminService *core.AdminService, rbacService *core.RBACService, sceneService *core.SceneService, appSettingsRepo data.AppSettingsRepository) *handler.AdminHandler {
+	return handler.NewAdminHandler(adminService, rbacService, sceneService, appSettingsRepo)
 }
 
 func provideSettingsHandler(settingsService *core.SettingsService, cfg *config.Config) *handler.SettingsHandler {
@@ -565,6 +577,10 @@ func provideStreamStatsHandler(streamManager *streaming.Manager) *handler.Stream
 	return handler.NewStreamStatsHandler(streamManager)
 }
 
+func provideShareHandler(shareService *core.ShareService, authService *core.AuthService, streamManager *streaming.Manager, cfg *config.Config) *handler.ShareHandler {
+	return handler.NewShareHandler(shareService, authService, streamManager, cfg.Sharing.BaseURL)
+}
+
 func provideRouter(
 	logger *logging.Logger,
 	cfg *config.Config,
@@ -597,6 +613,7 @@ func provideRouter(
 	importHandler *handler.ImportHandler,
 	streamStatsHandler *handler.StreamStatsHandler,
 	playlistHandler *handler.PlaylistHandler,
+	shareHandler *handler.ShareHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -609,8 +626,21 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
+}
+
+func provideShareServer(
+	cfg *config.Config,
+	shareHandler *handler.ShareHandler,
+	ogMiddleware *middleware.OGMiddleware,
+	logger *logging.Logger,
+) *server.ShareServer {
+	if cfg.Sharing.Port == "" {
+		return nil
+	}
+	router := api.NewShareRouter(cfg, shareHandler, ogMiddleware, logger)
+	return server.NewShareServer(router, cfg.Sharing.Port, cfg, logger)
 }
 
 func provideServer(
@@ -632,11 +662,12 @@ func provideServer(
 	dlqService *core.DLQService,
 	actorService *core.ActorService,
 	studioService *core.StudioService,
+	shareServer *server.ShareServer,
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
-		actorService, studioService,
+		actorService, studioService, shareServer,
 	)
 }

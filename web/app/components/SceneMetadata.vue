@@ -24,6 +24,8 @@ const loadStoragePaths = async () => {
 
 onMounted(loadStoragePaths);
 
+const showShareModal = ref(false);
+
 // Normalize a path: strip trailing slashes and clean up ./ prefix
 const normalizePath = (p: string) => p.replace(/^\.\//, '').replace(/\/+$/, '');
 
@@ -267,11 +269,18 @@ const getResolutionLabel = (h?: number): string => {
                     class="border-border bg-panel text-dim hover:border-border-hover flex-1
                         rounded-lg border py-2 text-[11px] font-medium transition-all
                         hover:text-white"
+                    @click="showShareModal = true"
                 >
                     <Icon name="heroicons:share" size="12" class="mr-1" />
                     Share
                 </button>
             </div>
         </div>
+
+        <ShareModal
+            :visible="showShareModal"
+            :scene-id="scene.id"
+            @close="showShareModal = false"
+        />
     </div>
 </template>

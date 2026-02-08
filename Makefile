@@ -28,6 +28,8 @@ mocks: setup-test
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_marker_repository.go -package=mocks goonhub/internal/data MarkerRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_search_config_repository.go -package=mocks goonhub/internal/data SearchConfigRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_playlist_repository.go -package=mocks goonhub/internal/data PlaylistRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_app_settings_repository.go -package=mocks goonhub/internal/data AppSettingsRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_share_link_repository.go -package=mocks goonhub/internal/data ShareLinkRepository
 
 test: mocks
 	go test ./...

@@ -152,6 +152,27 @@ export const useApiAdmin = () => {
         return handleResponse(response);
     };
 
+    // App settings
+    const getAppSettings = async () => {
+        const response = await fetch('/api/v1/admin/app-settings', {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const updateAppSettings = async (settings: {
+        serve_og_metadata: boolean;
+        trash_retention_days: number;
+    }) => {
+        const response = await fetch('/api/v1/admin/app-settings', {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(settings),
+        });
+        return handleResponse(response);
+    };
+
     return {
         fetchAdminUsers,
         createUser,
@@ -169,5 +190,7 @@ export const useApiAdmin = () => {
         restoreScene,
         permanentDeleteScene,
         emptyTrash,
+        getAppSettings,
+        updateAppSettings,
     };
 };

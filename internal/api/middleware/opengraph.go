@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,11 +21,13 @@ const maxDescriptionLen = 200
 // OGMiddleware serves minimal HTML with OpenGraph meta tags for social media crawlers.
 // Normal browser requests pass through unchanged (zero overhead).
 type OGMiddleware struct {
-	sceneRepo    data.SceneRepository
-	actorRepo    data.ActorRepository
-	studioRepo   data.StudioRepository
-	playlistRepo data.PlaylistRepository
-	logger       *logging.Logger
+	sceneRepo       data.SceneRepository
+	actorRepo       data.ActorRepository
+	studioRepo      data.StudioRepository
+	playlistRepo    data.PlaylistRepository
+	shareLinkRepo   data.ShareLinkRepository
+	appSettingsRepo data.AppSettingsRepository
+	logger          *logging.Logger
 }
 
 func NewOGMiddleware(
@@ -32,14 +35,18 @@ func NewOGMiddleware(
 	actorRepo data.ActorRepository,
 	studioRepo data.StudioRepository,
 	playlistRepo data.PlaylistRepository,
+	shareLinkRepo data.ShareLinkRepository,
+	appSettingsRepo data.AppSettingsRepository,
 	logger *logging.Logger,
 ) *OGMiddleware {
 	return &OGMiddleware{
-		sceneRepo:    sceneRepo,
-		actorRepo:    actorRepo,
-		studioRepo:   studioRepo,
-		playlistRepo: playlistRepo,
-		logger:       logger,
+		sceneRepo:       sceneRepo,
+		actorRepo:       actorRepo,
+		studioRepo:      studioRepo,
+		playlistRepo:    playlistRepo,
+		shareLinkRepo:   shareLinkRepo,
+		appSettingsRepo: appSettingsRepo,
+		logger:          logger,
 	}
 }
 
@@ -47,6 +54,11 @@ func NewOGMiddleware(
 // serves a minimal HTML page with correct OG meta tags. Returns true if the response
 // was handled, false if the caller should continue with normal processing.
 func (m *OGMiddleware) ServeIfCrawler(c *gin.Context) bool {
+	settings, err := m.appSettingsRepo.Get()
+	if err != nil || !settings.ServeOGMetadata {
+		return false
+	}
+
 	ua := c.Request.UserAgent()
 	if !crawlerUA.MatchString(ua) {
 		return false
@@ -90,6 +102,12 @@ func (m *OGMiddleware) ServeIfCrawler(c *gin.Context) bool {
 			return false
 		}
 		return m.serveMarker(c, segments[1], baseURL)
+
+	case "share":
+		if len(segments) < 2 {
+			return false
+		}
+		return m.serveShare(c, segments[1], baseURL)
 	}
 
 	return false
@@ -172,6 +190,40 @@ func (m *OGMiddleware) servePlaylist(c *gin.Context, uuid string, baseURL string
 	url := fmt.Sprintf("%s/playlists/%s", baseURL, playlist.UUID.String())
 
 	renderOGPage(c, playlist.Name, desc, "", url, "website")
+	return true
+}
+
+func (m *OGMiddleware) serveShare(c *gin.Context, token string, baseURL string) bool {
+	link, err := m.shareLinkRepo.GetByToken(token)
+	if err != nil {
+		return false
+	}
+
+	// Only serve OG for public share links
+	if link.ShareType != "public" {
+		return false
+	}
+
+	// Check expiry
+	if link.ExpiresAt != nil && link.ExpiresAt.Before(time.Now()) {
+		return false
+	}
+
+	scene, err := m.sceneRepo.GetByID(link.SceneID)
+	if err != nil {
+		return false
+	}
+
+	title := scene.Title
+	if title == "" {
+		title = scene.OriginalFilename
+	}
+
+	desc := truncateDescription(scene.Description)
+	image := fmt.Sprintf("%s/thumbnails/%d?size=lg", baseURL, scene.ID)
+	url := fmt.Sprintf("%s/share/%s", baseURL, token)
+
+	renderOGPage(c, title, desc, image, url, "video.other")
 	return true
 }
 

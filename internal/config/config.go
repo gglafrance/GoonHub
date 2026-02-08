@@ -22,6 +22,12 @@ type Config struct {
 	Shutdown    ShutdownConfig    `mapstructure:"shutdown"`
 	Streaming   StreamingConfig   `mapstructure:"streaming"`
 	Pagination  PaginationConfig  `mapstructure:"pagination"`
+	Sharing     SharingConfig     `mapstructure:"sharing"`
+}
+
+type SharingConfig struct {
+	BaseURL string `mapstructure:"base_url"` // Public base URL for share links (e.g., "https://share.goonhub.example.com")
+	Port    string `mapstructure:"port"`     // Port for the dedicated share server (empty = disabled)
 }
 
 type PaginationConfig struct {
@@ -217,6 +223,8 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("shutdown.orphan_timeout", 30*time.Second)
 	v.SetDefault("shutdown.stuck_pending_time", 10*time.Minute)
 	v.SetDefault("pagination.max_items_per_page", 100)
+	v.SetDefault("sharing.base_url", "")
+	v.SetDefault("sharing.port", "")
 	v.SetDefault("streaming.max_global_streams", 100)
 	v.SetDefault("streaming.max_streams_per_ip", 10)
 	v.SetDefault("streaming.buffer_size", 262144)       // 256KB (8x default 32KB)

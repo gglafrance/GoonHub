@@ -105,3 +105,12 @@ streaming:
   buffer_size: 262144         # 256KB buffer for streaming
   path_cache_ttl: 5m          # cache scene paths for 5 minutes
   path_cache_max_size: 10000  # max cached entries
+
+# Dedicated share server (optional)
+# Runs a second HTTP listener serving only share-related routes.
+# Expose on a separate public domain (e.g., share.your-domain.com) while
+# keeping the main app behind a VPN.
+# Env vars: GOONHUB_SHARING_BASE_URL, GOONHUB_SHARING_PORT
+# sharing:
+#   base_url: "https://share.your-domain.com"
+#   port: "8081"

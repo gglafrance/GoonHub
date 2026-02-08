@@ -17,6 +17,7 @@
  * - useApiSavedSearches() for saved search templates
  * - useApiMarkers() for scene marker operations
  * - useApiPlaylists() for playlist operations
+ * - useApiShares() for share link operations
  */
 export const useApi = () => {
     const scenes = useApiScenes();
@@ -33,6 +34,7 @@ export const useApi = () => {
     const savedSearches = useApiSavedSearches();
     const markers = useApiMarkers();
     const playlists = useApiPlaylists();
+    const shares = useApiShares();
 
     return {
         // Scene operations
@@ -204,5 +206,11 @@ export const useApi = () => {
         getPlaylistLikeStatus: playlists.getLikeStatus,
         getPlaylistProgress: playlists.getProgress,
         updatePlaylistProgress: playlists.updateProgress,
+
+        // Share operations
+        createShareLink: shares.createShareLink,
+        listShareLinks: shares.listShareLinks,
+        deleteShareLink: shares.deleteShareLink,
+        resolveShareLink: shares.resolveShareLink,
     };
 };

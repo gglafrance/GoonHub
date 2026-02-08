@@ -9,13 +9,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, shareHandler *handler.ShareHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
 		{
 			// SSE endpoint (auth via query param, not middleware)
 			v1.GET("/events", sseHandler.Stream)
+
+			// Public share endpoints (no auth required)
+			shares := v1.Group("/shares")
+			{
+				shares.GET("/:token", shareHandler.ResolveShareLink)
+				shares.GET("/:token/stream", shareHandler.StreamShareLink)
+			}
 
 			auth := v1.Group("/auth")
 			{
@@ -64,7 +71,12 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					scenes.POST("/:id/markers", middleware.RequirePermission(rbacService, "scenes:view"), markerHandler.CreateMarker)
 					scenes.PUT("/:id/markers/:markerID", middleware.RequirePermission(rbacService, "scenes:view"), markerHandler.UpdateMarker)
 					scenes.DELETE("/:id/markers/:markerID", middleware.RequirePermission(rbacService, "scenes:view"), markerHandler.DeleteMarker)
+					scenes.POST("/:id/shares", middleware.RequirePermission(rbacService, "scenes:view"), shareHandler.CreateShareLink)
+					scenes.GET("/:id/shares", middleware.RequirePermission(rbacService, "scenes:view"), shareHandler.ListShareLinks)
 				}
+
+				// Share link deletion (protected, not under /scenes/:id)
+				protected.DELETE("/shares/:id", shareHandler.DeleteShareLink)
 
 				history := protected.Group("/history")
 				{
@@ -250,6 +262,10 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					admin.POST("/trash/:id/restore", adminHandler.RestoreScene)
 					admin.DELETE("/trash/:id", adminHandler.PermanentDeleteScene)
 					admin.DELETE("/trash", adminHandler.EmptyTrash)
+
+					// App settings
+					admin.GET("/app-settings", adminHandler.GetAppSettings)
+					admin.PUT("/app-settings", adminHandler.UpdateAppSettings)
 				}
 			}
 		}

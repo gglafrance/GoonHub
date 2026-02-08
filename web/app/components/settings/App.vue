@@ -3,7 +3,8 @@ import type { SortOrder } from '~/types/settings';
 
 const settingsStore = useSettingsStore();
 const authStore = useAuthStore();
-const { triggerReindex, getSearchConfig, updateSearchConfig } = useApiAdmin();
+const { triggerReindex, getSearchConfig, updateSearchConfig, getAppSettings, updateAppSettings } =
+    useApiAdmin();
 const { layout: keyboardLayout, setLayout: setKeyboardLayout } = useKeyboardLayout();
 
 // Writable computeds on draft
@@ -89,6 +90,11 @@ const isSavingSearchConfig = ref(false);
 const searchConfigMessage = ref('');
 const searchConfigError = ref('');
 
+// App settings state (admin only)
+const serveOGMetadata = ref(true);
+const originalServeOGMetadata = ref(true);
+const trashRetentionDays = ref(7);
+
 const sortOptions: { value: SortOrder; label: string }[] = [
     { value: 'created_at_desc', label: 'Newest First' },
     { value: 'created_at_asc', label: 'Oldest First' },
@@ -150,8 +156,36 @@ const loadSearchConfig = async () => {
     }
 };
 
+const loadAppSettings = async () => {
+    if (!isAdmin.value) return;
+    try {
+        const data = await getAppSettings();
+        serveOGMetadata.value = data.serve_og_metadata;
+        originalServeOGMetadata.value = data.serve_og_metadata;
+        trashRetentionDays.value = data.trash_retention_days;
+    } catch {
+        // Silently fail - default values are already set
+    }
+};
+
+const hasUnsavedAppSettings = computed(() => {
+    if (!isAdmin.value) return false;
+    return serveOGMetadata.value !== originalServeOGMetadata.value;
+});
+
+const saveAppSettings = async () => {
+    await updateAppSettings({
+        serve_og_metadata: serveOGMetadata.value,
+        trash_retention_days: trashRetentionDays.value,
+    });
+    originalServeOGMetadata.value = serveOGMetadata.value;
+};
+
+defineExpose({ hasUnsavedAppSettings, saveAppSettings });
+
 onMounted(() => {
     loadSearchConfig();
+    loadAppSettings();
 });
 
 const handleReindex = async () => {
@@ -413,6 +447,23 @@ const handleSaveSearchConfig = async () => {
                         {{ isSavingSearchConfig ? 'Saving...' : 'Save' }}
                     </button>
                 </div>
+            </div>
+        </div>
+
+        <!-- App Settings (admin only) -->
+        <div v-if="isAdmin" class="glass-panel p-5">
+            <h3 class="mb-2 text-sm font-semibold text-white">App Settings</h3>
+            <p class="text-dim mb-4 text-xs">Global application settings.</p>
+
+            <div class="flex items-center justify-between">
+                <div>
+                    <label class="text-sm font-medium text-white"> Link Preview Metadata </label>
+                    <p class="text-dim mt-0.5 text-xs">
+                        Serve OpenGraph meta tags to social media crawlers for rich link previews
+                        (Discord, Twitter, etc.)
+                    </p>
+                </div>
+                <UiToggle v-model="serveOGMetadata" />
             </div>
         </div>
 
