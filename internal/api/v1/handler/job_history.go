@@ -139,6 +139,7 @@ func (h *JobHandler) TriggerBulkPhase(c *gin.Context) {
 		Phase       string `json:"phase"`
 		Mode        string `json:"mode"`
 		ForceTarget string `json:"force_target"`
+		SceneIDs    []uint `json:"scene_ids"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
@@ -166,7 +167,12 @@ func (h *JobHandler) TriggerBulkPhase(c *gin.Context) {
 		}
 	}
 
-	result, err := h.processingService.SubmitBulkPhase(req.Phase, req.Mode, req.ForceTarget)
+	if len(req.SceneIDs) > 1000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "scene_ids must not exceed 1000 items"})
+		return
+	}
+
+	result, err := h.processingService.SubmitBulkPhase(req.Phase, req.Mode, req.ForceTarget, req.SceneIDs)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

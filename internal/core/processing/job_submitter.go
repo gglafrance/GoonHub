@@ -263,11 +263,17 @@ func (js *JobSubmitter) createPendingJobWithPriority(sceneID uint, phase string,
 // SubmitBulkPhase submits a processing phase for multiple scenes
 // mode can be "missing" (only scenes needing the phase) or "all" (all scenes)
 // forceTarget is only used for animated_thumbnails phase to control what gets regenerated
-func (js *JobSubmitter) SubmitBulkPhase(phase string, mode string, forceTarget string) (*BulkPhaseResult, error) {
+// sceneIDs optionally scopes the operation to specific scenes (nil = all scenes)
+func (js *JobSubmitter) SubmitBulkPhase(phase string, mode string, forceTarget string, sceneIDs []uint) (*BulkPhaseResult, error) {
 	var scenes []data.Scene
 	var err error
 
-	if mode == "all" {
+	if len(sceneIDs) > 0 {
+		scenes, err = js.repo.GetByIDs(sceneIDs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get scenes by IDs: %w", err)
+		}
+	} else if mode == "all" {
 		scenes, err = js.repo.GetAll()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get scenes: %w", err)

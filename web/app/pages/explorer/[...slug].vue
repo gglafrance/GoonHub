@@ -133,6 +133,11 @@ watch(
     },
 );
 
+const handleBulkComplete = () => {
+    explorerStore.loadFolderContents();
+    explorerStore.clearSelection();
+};
+
 // Don't reset on unmount - let the destination page handle state
 
 definePageMeta({
@@ -184,9 +189,13 @@ definePageMeta({
             <ExplorerFolderView :select-mode="selectMode" />
 
             <!-- Bulk Toolbar -->
-            <ExplorerBulkToolbar
+            <BulkToolbar
                 v-if="selectMode && explorerStore.hasSelection"
                 ref="bulkToolbarRef"
+                :scene-ids="explorerStore.getSelectedSceneIDs()"
+                :selection-count="explorerStore.selectionCount"
+                @clear-selection="explorerStore.clearSelection()"
+                @complete="handleBulkComplete"
             />
         </div>
     </div>
