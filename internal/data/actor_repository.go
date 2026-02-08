@@ -20,6 +20,7 @@ type ActorRepository interface {
 	GetSceneActorsMultiple(sceneIDs []uint) (map[uint][]Actor, error)
 	SetSceneActors(sceneID uint, actorIDs []uint) error
 	GetActorScenes(actorID uint, page, limit int) ([]Scene, int64, error)
+	GetActorSceneIDs(actorID uint) ([]uint, error)
 	GetSceneCount(actorID uint) (int64, error)
 
 	// Bulk operations
@@ -264,6 +265,20 @@ func (r *ActorRepositoryImpl) GetActorScenes(actorID uint, page, limit int) ([]S
 	}
 
 	return scenes, total, nil
+}
+
+func (r *ActorRepositoryImpl) GetActorSceneIDs(actorID uint) ([]uint, error) {
+	var ids []uint
+	err := r.DB.
+		Model(&SceneActor{}).
+		Joins("JOIN scenes ON scenes.id = scene_actors.scene_id").
+		Where("scene_actors.actor_id = ?", actorID).
+		Where("scenes.deleted_at IS NULL").
+		Pluck("scene_actors.scene_id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 func (r *ActorRepositoryImpl) GetSceneCount(actorID uint) (int64, error) {
