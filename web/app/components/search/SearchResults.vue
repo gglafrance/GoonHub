@@ -62,52 +62,19 @@ const handleBulkComplete = () => {
                 <span v-else>No scenes found</span>
             </div>
 
-            <div
+            <SceneSelectionControls
                 v-if="!searchStore.isLoading && searchStore.scenes.length > 0"
-                class="flex items-center gap-2"
-            >
-                <!-- Select All / Deselect controls -->
-                <template v-if="selectMode">
-                    <button
-                        v-if="hasSelection"
-                        class="text-dim text-xs transition-colors hover:text-white"
-                        @click="clearSelection()"
-                    >
-                        Deselect all
-                    </button>
-                    <button
-                        v-if="!allPageScenesSelected"
-                        class="text-dim text-xs transition-colors hover:text-white"
-                        @click="selectAllOnPage()"
-                    >
-                        Select page
-                    </button>
-                    <button
-                        v-if="!allScenesSelected"
-                        :disabled="isSelectingAll"
-                        class="text-lava hover:text-lava/80 text-xs font-medium transition-colors
-                            disabled:opacity-50"
-                        @click="selectAllScenes()"
-                    >
-                        <template v-if="isSelectingAll">Selecting...</template>
-                        <template v-else> Select all {{ searchStore.total }} scenes </template>
-                    </button>
-                </template>
-
-                <button
-                    class="flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs
-                        font-medium transition-all"
-                    :class="
-                        selectMode
-                            ? 'border-lava/40 bg-lava/10 text-lava'
-                            : 'border-border text-dim hover:border-border-hover hover:text-white'
-                    "
-                    @click="selectMode = !selectMode"
-                >
-                    <Icon name="heroicons:check-circle" size="14" />
-                    Select
-                </button>
-            </div>
+                :select-mode="selectMode"
+                :has-selection="hasSelection"
+                :is-selecting-all="isSelectingAll"
+                :all-page-scenes-selected="allPageScenesSelected"
+                :all-scenes-selected="allScenesSelected"
+                :total-scenes="searchStore.total"
+                @update:select-mode="selectMode = $event"
+                @deselect-all="clearSelection()"
+                @select-page="selectAllOnPage()"
+                @select-all="selectAllScenes()"
+            />
         </div>
 
         <!-- Error -->
