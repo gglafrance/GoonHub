@@ -66,6 +66,10 @@ func (a *jobHistoryAdapter) CreatePendingJobWithPriority(jobID string, sceneID u
 	return a.service.CreatePendingJobWithPriority(jobID, sceneID, sceneTitle, phase, priority, forceTarget)
 }
 
+func (a *jobHistoryAdapter) CreatePendingJobWithRetry(jobID string, sceneID uint, sceneTitle string, phase string, retryCount, maxRetries int, forceTarget string) error {
+	return a.service.CreatePendingJobWithRetry(jobID, sceneID, sceneTitle, phase, retryCount, maxRetries, forceTarget)
+}
+
 func (a *jobHistoryAdapter) ExistsPendingOrRunning(sceneID uint, phase string) (bool, error) {
 	return a.service.ExistsPendingOrRunning(sceneID, phase)
 }

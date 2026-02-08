@@ -131,12 +131,73 @@ func (js *JobSubmitter) SubmitPhaseWithRetry(sceneID uint, phase string, retryCo
 		}
 	}
 
-	return js.createPendingJob(sceneID, phase)
+	// For first attempts (no retry info), use the standard path
+	if retryCount == 0 && maxRetries == 0 {
+		return js.createPendingJob(sceneID, phase)
+	}
+
+	return js.createPendingJobWithRetry(sceneID, phase, retryCount, maxRetries)
 }
 
 // createPendingJob creates a pending job in the database with default priority.
 func (js *JobSubmitter) createPendingJob(sceneID uint, phase string) error {
 	return js.createPendingJobWithPriority(sceneID, phase, 0, "")
+}
+
+// createPendingJobWithRetry creates a pending job with retry tracking information.
+// Used when resubmitting a failed job so the new job inherits the retry state.
+func (js *JobSubmitter) createPendingJobWithRetry(sceneID uint, phase string, retryCount, maxRetries int) error {
+	if js.jobQueue == nil {
+		return fmt.Errorf("job queue recorder not configured")
+	}
+
+	// Check for deduplication: skip if there's already a pending or running job
+	exists, err := js.jobQueue.ExistsPendingOrRunning(sceneID, phase)
+	if err != nil {
+		js.logger.Error("Failed to check for existing job",
+			zap.Uint("scene_id", sceneID),
+			zap.String("phase", phase),
+			zap.Error(err),
+		)
+		return fmt.Errorf("failed to check for existing job: %w", err)
+	}
+	if exists {
+		js.logger.Debug("Job already pending or running, skipping",
+			zap.Uint("scene_id", sceneID),
+			zap.String("phase", phase),
+		)
+		return nil
+	}
+
+	// Get scene title for the job record
+	sceneTitle := ""
+	if s, err := js.repo.GetByID(sceneID); err == nil {
+		sceneTitle = s.Title
+	}
+
+	// Generate a new job ID
+	jobID := uuid.New().String()
+
+	if createErr := js.jobQueue.CreatePendingJobWithRetry(jobID, sceneID, sceneTitle, phase, retryCount, maxRetries, ""); createErr != nil {
+		js.logger.Error("Failed to create pending job with retry info",
+			zap.String("job_id", jobID),
+			zap.Uint("scene_id", sceneID),
+			zap.String("phase", phase),
+			zap.Int("retry_count", retryCount),
+			zap.Int("max_retries", maxRetries),
+			zap.Error(createErr),
+		)
+		return fmt.Errorf("failed to create pending job: %w", createErr)
+	}
+
+	js.logger.Info("Pending job created with retry info",
+		zap.String("job_id", jobID),
+		zap.Uint("scene_id", sceneID),
+		zap.String("phase", phase),
+		zap.Int("retry_count", retryCount),
+		zap.Int("max_retries", maxRetries),
+	)
+	return nil
 }
 
 // createPendingJobWithPriority creates a pending job in the database with a specific priority.
