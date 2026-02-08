@@ -17,6 +17,7 @@ type SceneListItem struct {
 	ThumbnailPath    string    `json:"thumbnail_path"`
 	PreviewVideoPath string    `json:"preview_video_path"`
 	ProcessingStatus string    `json:"processing_status"`
+	IsCorrupted      bool      `json:"is_corrupted"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 	StoredPath       string    `json:"stored_path"`
@@ -95,6 +96,7 @@ func ToSceneListItem(v data.Scene) SceneListItem {
 		ThumbnailPath:    v.ThumbnailPath,
 		PreviewVideoPath: v.PreviewVideoPath,
 		ProcessingStatus: v.ProcessingStatus,
+		IsCorrupted:      v.IsCorrupted,
 		CreatedAt:        v.CreatedAt,
 		UpdatedAt:        v.UpdatedAt,
 		StoredPath:       v.StoredPath,

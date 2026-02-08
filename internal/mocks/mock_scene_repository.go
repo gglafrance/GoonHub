@@ -528,6 +528,20 @@ func (mr *MockSceneRepositoryMockRecorder) UpdateDetails(id, title, description,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDetails", reflect.TypeOf((*MockSceneRepository)(nil).UpdateDetails), id, title, description, releaseDate)
 }
 
+// UpdateIsCorrupted mocks base method.
+func (m *MockSceneRepository) UpdateIsCorrupted(id uint, isCorrupted bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateIsCorrupted", id, isCorrupted)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateIsCorrupted indicates an expected call of UpdateIsCorrupted.
+func (mr *MockSceneRepositoryMockRecorder) UpdateIsCorrupted(id, isCorrupted any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateIsCorrupted", reflect.TypeOf((*MockSceneRepository)(nil).UpdateIsCorrupted), id, isCorrupted)
+}
+
 // UpdateMetadata mocks base method.
 func (m *MockSceneRepository) UpdateMetadata(id uint, duration, width, height int, thumbnailPath, spriteSheetPath, vttPath string, spriteSheetCount, thumbnailWidth, thumbnailHeight int) error {
 	m.ctrl.T.Helper()

@@ -68,6 +68,7 @@ Main content table storing video/scene metadata and processing state. Originally
 | `porndb_scene_id` | TEXT | NO | '' | PornDB external scene ID |
 | `processing_status` | VARCHAR(50) | YES | 'pending' | Processing pipeline status |
 | `processing_error` | TEXT | YES | NULL | Last processing error message |
+| `is_corrupted` | BOOLEAN | NO | FALSE | Video file failed integrity check |
 
 **Indexes:**
 - `idx_scenes_deleted_at` on `deleted_at`

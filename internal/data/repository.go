@@ -98,6 +98,7 @@ type SceneRepository interface {
 	UpdateSprites(id uint, spriteSheetPath, vttPath string, spriteSheetCount int) error
 	UpdatePreviewVideoPath(id uint, previewVideoPath string) error
 	UpdateProcessingStatus(id uint, status string, errorMsg string) error
+	UpdateIsCorrupted(id uint, isCorrupted bool) error
 	GetPendingProcessing() ([]Scene, error)
 	GetScenesNeedingPhase(phase string) ([]Scene, error)
 	Delete(id uint) error
@@ -257,6 +258,10 @@ func (r *SceneRepositoryImpl) UpdateProcessingStatus(id uint, status string, err
 		updates["processing_error"] = errorMsg
 	}
 	return r.DB.Model(&Scene{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (r *SceneRepositoryImpl) UpdateIsCorrupted(id uint, isCorrupted bool) error {
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Update("is_corrupted", isCorrupted).Error
 }
 
 func (r *SceneRepositoryImpl) GetPendingProcessing() ([]Scene, error) {

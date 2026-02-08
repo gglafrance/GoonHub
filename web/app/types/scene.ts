@@ -8,6 +8,7 @@ export interface SceneListItem {
     thumbnail_path: string;
     preview_video_path: string;
     processing_status: string;
+    is_corrupted: boolean;
     created_at: string;
     updated_at: string;
     // Optional fields included via card_fields

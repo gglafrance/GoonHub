@@ -45,6 +45,7 @@ const handleCardClick = (event: MouseEvent) => {
 const hovering = ref(false);
 
 const isProcessing = computed(() => isSceneProcessing(props.scene));
+const isCorrupted = computed(() => isSceneCorrupted(props.scene));
 
 const thumbnailUrl = computed(() => {
     if (!props.scene.thumbnail_path) return null;
@@ -137,6 +138,14 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                     class="absolute inset-0 flex items-center justify-center"
                 >
                     <LoadingSpinner size="sm" />
+                </div>
+
+                <div
+                    v-else-if="isCorrupted"
+                    class="absolute inset-0 flex flex-col items-center justify-center gap-1"
+                >
+                    <Icon name="heroicons:shield-exclamation" size="24" class="text-amber-400" />
+                    <span class="text-[9px] font-medium text-amber-400/80">Corrupted</span>
                 </div>
 
                 <div
