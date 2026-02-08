@@ -93,7 +93,7 @@ export function useParsingRulesEngine() {
                 const minLen = rule.config.minLength || 2;
                 // Match sequences of letters only, remove those shorter than minLen
                 // This preserves punctuation, numbers, and spaces while filtering short words
-                return input.replace(/[a-zA-Z]+/g, (match) =>
+                return input.replace(/[a-zA-Z]+|\d+/g, (match) =>
                     match.length >= minLen ? match : '',
                 );
             }
