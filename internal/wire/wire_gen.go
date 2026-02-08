@@ -136,7 +136,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	streamStatsHandler := provideStreamStatsHandler(manager)
 	playlistHandler := providePlaylistHandler(playlistService, configConfig)
 	ipRateLimiter := provideRateLimiter(configConfig)
-	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, authService, rbacService, ipRateLimiter)
+	ogMiddleware := provideOGMiddleware(sceneRepository, actorRepository, studioRepository, playlistRepository, logger)
+	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, authService, rbacService, ipRateLimiter, ogMiddleware)
 	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, markerService, sceneProcessingService, logger)
 	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService)
 	return serverServer, nil
@@ -440,6 +441,10 @@ func provideRateLimiter(cfg *config.Config) *middleware.IPRateLimiter {
 	return middleware.NewIPRateLimiter(rl, cfg.Auth.LoginRateBurst)
 }
 
+func provideOGMiddleware(sceneRepo data.SceneRepository, actorRepo data.ActorRepository, studioRepo data.StudioRepository, playlistRepo data.PlaylistRepository, logger *logging.Logger) *middleware.OGMiddleware {
+	return middleware.NewOGMiddleware(sceneRepo, actorRepo, studioRepo, playlistRepo, logger)
+}
+
 func provideAuthHandler(authService *core.AuthService, userService *core.UserService, cfg *config.Config) *handler.AuthHandler {
 	secureCookies := cfg.Environment == "production"
 	if cfg.Server.SecureCookies != nil {
@@ -595,6 +600,7 @@ func provideRouter(
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
+	ogMiddleware *middleware.OGMiddleware,
 ) *gin.Engine {
 	return api.NewRouter(
 		logger, cfg,
@@ -603,7 +609,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, authService, rbacService, rateLimiter,
+		playlistHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 

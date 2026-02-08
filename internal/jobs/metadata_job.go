@@ -135,6 +135,46 @@ func (j *MetadataJob) ExecuteWithContext(ctx context.Context) error {
 		return fmt.Errorf("job cancelled")
 	}
 
+	// Integrity check: decode first/last 5 seconds to detect corruption
+	isValid, integrityErr := ffmpeg.CheckVideoIntegrityWithContext(j.ctx, j.scenePath)
+	if integrityErr != nil {
+		if j.ctx.Err() == context.DeadlineExceeded {
+			j.status = JobStatusTimedOut
+			j.error = fmt.Errorf("integrity check timed out")
+			j.repo.UpdateProcessingStatus(j.sceneID, string(JobStatusTimedOut), "integrity check timed out")
+			return j.error
+		}
+		if j.ctx.Err() == context.Canceled || j.cancelled.Load() {
+			j.status = JobStatusCancelled
+			j.repo.UpdateProcessingStatus(j.sceneID, string(JobStatusCancelled), "job was cancelled")
+			return fmt.Errorf("job cancelled")
+		}
+		j.logger.Error("Integrity check failed with system error",
+			zap.Uint("scene_id", j.sceneID),
+			zap.Error(integrityErr),
+		)
+		j.handleError(fmt.Errorf("integrity check failed: %w", integrityErr))
+		return integrityErr
+	}
+
+	if !isValid {
+		j.logger.Warn("Video file is corrupted",
+			zap.Uint("scene_id", j.sceneID),
+			zap.String("scene_path", j.scenePath),
+		)
+		j.repo.UpdateIsCorrupted(j.sceneID, true)
+		j.handleError(fmt.Errorf("video file is corrupted"))
+		return fmt.Errorf("video file is corrupted")
+	}
+
+	// Clear any previous corruption flag (supports re-processing)
+	if err := j.repo.UpdateIsCorrupted(j.sceneID, false); err != nil {
+		j.logger.Error("Failed to clear corruption flag",
+			zap.Uint("scene_id", j.sceneID),
+			zap.Error(err),
+		)
+	}
+
 	metadata, err := ffmpeg.GetMetadataWithContext(j.ctx, j.scenePath)
 	if err != nil {
 		// Check if this was a timeout or cancellation

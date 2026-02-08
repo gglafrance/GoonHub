@@ -15,8 +15,13 @@ const showTagEditor = ref(false);
 const showActorEditor = ref(false);
 const showStudioEditor = ref(false);
 const showPlaylistModal = ref(false);
+const showProcessModal = ref(false);
 const showDeleteModal = ref(false);
 const showPornDBMatchModal = ref(false);
+
+defineExpose({
+    showDeleteModal,
+});
 
 const allScenesMatched = ref(false);
 const checkingMatchStatus = ref(false);
@@ -113,6 +118,16 @@ const handlePornDBMatchComplete = () => {
                     >
                         <Icon name="heroicons:queue-list" size="14" />
                         Playlist
+                    </button>
+
+                    <button
+                        class="border-border bg-panel hover:border-lava/30 hover:text-lava flex
+                            items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium
+                            text-white transition-all"
+                        @click="showProcessModal = true"
+                    >
+                        <Icon name="heroicons:cpu-chip" size="14" />
+                        Process
                     </button>
 
                     <div class="border-border mx-1 h-4 border-l" />
@@ -212,6 +227,15 @@ const handlePornDBMatchComplete = () => {
             :scene-ids="sceneIds"
             @close="showPornDBMatchModal = false"
             @complete="handlePornDBMatchComplete"
+        />
+
+        <ExplorerBulkProcessModal
+            v-if="showProcessModal"
+            :visible="showProcessModal"
+            :scene-ids="sceneIds"
+            :selection-count="selectionCount"
+            @close="showProcessModal = false"
+            @complete="handleBulkComplete"
         />
     </Teleport>
 </template>

@@ -102,9 +102,15 @@ export const useApiJobs = () => {
         return handleResponse(response);
     };
 
-    const triggerBulkPhase = async (phase: string, mode: string, forceTarget?: string) => {
-        const body: Record<string, string> = { phase, mode };
+    const triggerBulkPhase = async (
+        phase: string,
+        mode: string,
+        forceTarget?: string,
+        sceneIds?: number[],
+    ) => {
+        const body: Record<string, unknown> = { phase, mode };
         if (forceTarget) body.force_target = forceTarget;
+        if (sceneIds?.length) body.scene_ids = sceneIds;
         const response = await fetch('/api/v1/admin/jobs/bulk', {
             method: 'POST',
             headers: getAuthHeaders(),

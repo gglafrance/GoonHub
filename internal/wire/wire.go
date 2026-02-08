@@ -151,6 +151,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// API LAYER - MIDDLEWARE
 		// ============================================================
 		provideRateLimiter,
+		provideOGMiddleware,
 
 		// ============================================================
 		// API LAYER - HANDLERS
@@ -550,6 +551,10 @@ func provideRateLimiter(cfg *config.Config) *middleware.IPRateLimiter {
 	return middleware.NewIPRateLimiter(rl, cfg.Auth.LoginRateBurst)
 }
 
+func provideOGMiddleware(sceneRepo data.SceneRepository, actorRepo data.ActorRepository, studioRepo data.StudioRepository, playlistRepo data.PlaylistRepository, logger *logging.Logger) *middleware.OGMiddleware {
+	return middleware.NewOGMiddleware(sceneRepo, actorRepo, studioRepo, playlistRepo, logger)
+}
+
 // ============================================================================
 // API HANDLER PROVIDERS
 // ============================================================================
@@ -723,6 +728,7 @@ func provideRouter(
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
+	ogMiddleware *middleware.OGMiddleware,
 ) *gin.Engine {
 	return api.NewRouter(
 		logger, cfg,
@@ -731,7 +737,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, authService, rbacService, rateLimiter,
+		playlistHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 

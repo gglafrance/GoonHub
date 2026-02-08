@@ -1,9 +1,21 @@
 <script setup lang="ts">
-useHead({ title: 'Explorer' });
-
 const route = useRoute();
 const router = useRouter();
 const explorerStore = useExplorerStore();
+
+const pageTitle = computed(() => {
+    const folder = explorerStore.currentPath.split('/').filter(Boolean).pop();
+    return folder || 'Explorer';
+});
+
+useHead({ title: pageTitle });
+
+useSeoMeta({
+    title: pageTitle,
+    ogTitle: computed(() => `${pageTitle.value} - GoonHub`),
+    description: 'Browse your scene storage paths',
+    ogDescription: 'Browse your scene storage paths',
+});
 
 const selectMode = ref(false);
 
@@ -133,6 +145,11 @@ watch(
     },
 );
 
+const handleBulkComplete = () => {
+    explorerStore.loadFolderContents();
+    explorerStore.clearSelection();
+};
+
 // Don't reset on unmount - let the destination page handle state
 
 definePageMeta({
@@ -184,9 +201,13 @@ definePageMeta({
             <ExplorerFolderView :select-mode="selectMode" />
 
             <!-- Bulk Toolbar -->
-            <ExplorerBulkToolbar
+            <BulkToolbar
                 v-if="selectMode && explorerStore.hasSelection"
                 ref="bulkToolbarRef"
+                :scene-ids="explorerStore.getSelectedSceneIDs()"
+                :selection-count="explorerStore.selectionCount"
+                @clear-selection="explorerStore.clearSelection()"
+                @complete="handleBulkComplete"
             />
         </div>
     </div>

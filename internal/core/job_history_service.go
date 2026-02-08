@@ -333,6 +333,43 @@ func (s *JobHistoryService) CreatePendingJobWithPriority(jobID string, sceneID u
 	return nil
 }
 
+// CreatePendingJobWithRetry creates a pending job with retry tracking information.
+// Used when resubmitting a failed job so the new job inherits the retry state.
+func (s *JobHistoryService) CreatePendingJobWithRetry(jobID string, sceneID uint, sceneTitle string, phase string, retryCount, maxRetries int, forceTarget string) error {
+	now := time.Now()
+	record := &data.JobHistory{
+		JobID:       jobID,
+		SceneID:     sceneID,
+		SceneTitle:  sceneTitle,
+		Phase:       phase,
+		Status:      data.JobStatusPending,
+		CreatedAt:   now,
+		IsRetryable: true,
+		RetryCount:  retryCount,
+		MaxRetries:  maxRetries,
+		ForceTarget: forceTarget,
+	}
+	if err := s.repo.CreatePending(record); err != nil {
+		s.logger.Error("Failed to create pending job with retry info",
+			zap.String("job_id", jobID),
+			zap.Uint("scene_id", sceneID),
+			zap.String("phase", phase),
+			zap.Int("retry_count", retryCount),
+			zap.Int("max_retries", maxRetries),
+			zap.Error(err),
+		)
+		return err
+	}
+	s.logger.Debug("Created pending job with retry info",
+		zap.String("job_id", jobID),
+		zap.Uint("scene_id", sceneID),
+		zap.String("phase", phase),
+		zap.Int("retry_count", retryCount),
+		zap.Int("max_retries", maxRetries),
+	)
+	return nil
+}
+
 // ExistsPendingOrRunning checks if a pending or running job exists for scene+phase.
 // Used for deduplication before creating new pending jobs.
 func (s *JobHistoryService) ExistsPendingOrRunning(sceneID uint, phase string) (bool, error) {

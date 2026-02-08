@@ -5,11 +5,13 @@ const searchStore = useSearchStore();
 const route = useRoute();
 const router = useRouter();
 
-useHead({ title: 'Search' });
+const pageTitle = computed(() => (searchStore.query ? `${searchStore.query} - Search` : 'Search'));
+
+useHead({ title: pageTitle });
 
 useSeoMeta({
-    title: 'Search',
-    ogTitle: 'Search - GoonHub',
+    title: pageTitle,
+    ogTitle: computed(() => `${pageTitle.value} - GoonHub`),
     description: 'Search your scene library',
     ogDescription: 'Search your scene library',
 });

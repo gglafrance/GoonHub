@@ -77,6 +77,7 @@ useScenePlayerShortcuts({
 
 const isProcessing = computed(() => scene.value?.processing_status === 'pending');
 const hasProcessingError = computed(() => (scene.value ? hasSceneError(scene.value) : false));
+const isCorrupted = computed(() => (scene.value ? isSceneCorrupted(scene.value) : false));
 const isPortrait = computed(() => {
     return scene.value?.width && scene.value?.height && scene.value.height > scene.value.width;
 });
@@ -334,6 +335,32 @@ definePageMeta({
             <!-- Loading State -->
             <div v-if="loading.scene" class="flex h-[70vh] items-center justify-center">
                 <LoadingSpinner label="Loading..." />
+            </div>
+
+            <!-- Corrupted State -->
+            <div
+                v-else-if="isCorrupted"
+                class="flex h-[70vh] flex-col items-center justify-center text-center"
+            >
+                <div
+                    class="flex h-12 w-12 items-center justify-center rounded-xl border
+                        border-amber-500/20 bg-amber-500/5"
+                >
+                    <Icon name="heroicons:shield-exclamation" size="24" class="text-amber-400" />
+                </div>
+                <h2 class="mt-4 text-lg font-semibold text-white">Corrupted Video</h2>
+                <p class="text-dim mt-1 text-xs">
+                    This video file failed integrity checks and cannot be played. Try replacing the
+                    file and reprocessing.
+                </p>
+                <button
+                    class="border-border bg-surface text-muted hover:border-border-hover mt-6
+                        rounded-lg border px-4 py-2 text-xs font-medium transition-all
+                        hover:text-white"
+                    @click="goBack"
+                >
+                    Return to Library
+                </button>
             </div>
 
             <!-- Error State -->

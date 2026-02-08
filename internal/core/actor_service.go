@@ -165,12 +165,16 @@ func (s *ActorService) Update(id uint, input UpdateActorInput) (*data.Actor, err
 		return nil, apperrors.NewInternalError("failed to find actor", err)
 	}
 
+	nameChanged := false
 	if input.Name != nil {
 		if *input.Name == "" {
 			return nil, apperrors.NewValidationErrorWithField("name", "actor name is required")
 		}
 		if len(*input.Name) > 255 {
 			return nil, apperrors.NewValidationErrorWithField("name", "actor name must be 255 characters or less")
+		}
+		if actor.Name != *input.Name {
+			nameChanged = true
 		}
 		actor.Name = *input.Name
 	}
@@ -242,8 +246,62 @@ func (s *ActorService) Update(id uint, input UpdateActorInput) (*data.Actor, err
 		return nil, apperrors.NewInternalError("failed to update actor", err)
 	}
 
+	// When the actor name changes, update denormalized actors field and re-index all associated scenes
+	if nameChanged {
+		s.reindexActorScenes(id)
+	}
+
 	s.logger.Info("Actor updated", zap.Uint("id", id), zap.String("name", actor.Name))
 	return actor, nil
+}
+
+// reindexActorScenes updates the denormalized actors field and Meilisearch index
+// for all scenes associated with the given actor.
+func (s *ActorService) reindexActorScenes(actorID uint) {
+	sceneIDs, err := s.actorRepo.GetActorSceneIDs(actorID)
+	if err != nil {
+		s.logger.Warn("Failed to get scene IDs for actor re-indexing",
+			zap.Uint("actor_id", actorID),
+			zap.Error(err),
+		)
+		return
+	}
+
+	for _, sceneID := range sceneIDs {
+		actors, err := s.actorRepo.GetSceneActors(sceneID)
+		if err != nil {
+			s.logger.Warn("Failed to get actors for scene during re-index",
+				zap.Uint("scene_id", sceneID),
+				zap.Error(err),
+			)
+			continue
+		}
+
+		// Update denormalized actors field on scene
+		actorNames := make([]string, len(actors))
+		for i, a := range actors {
+			actorNames[i] = a.Name
+		}
+		if err := s.sceneRepo.UpdateActors(sceneID, actorNames); err != nil {
+			s.logger.Warn("Failed to update denormalized actors field",
+				zap.Uint("scene_id", sceneID),
+				zap.Error(err),
+			)
+		}
+
+		// Re-index scene in Meilisearch
+		if s.indexer != nil {
+			scene, err := s.sceneRepo.GetByID(sceneID)
+			if err == nil {
+				if err := s.indexer.UpdateSceneIndex(scene); err != nil {
+					s.logger.Warn("Failed to re-index scene after actor rename",
+						zap.Uint("scene_id", sceneID),
+						zap.Error(err),
+					)
+				}
+			}
+		}
+	}
 }
 
 func (s *ActorService) Delete(id uint) error {

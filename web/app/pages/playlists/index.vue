@@ -10,6 +10,13 @@ definePageMeta({ middleware: 'auth' });
 
 useHead({ title: 'Playlists' });
 
+useSeoMeta({
+    title: 'Playlists',
+    ogTitle: 'Playlists - GoonHub',
+    description: 'Browse and manage your playlists',
+    ogDescription: 'Browse and manage your playlists',
+});
+
 const store = usePlaylistStore();
 const { showSelector, maxLimit, updatePageSize } = usePageSize();
 

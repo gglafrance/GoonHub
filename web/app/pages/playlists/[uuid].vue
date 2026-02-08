@@ -17,8 +17,23 @@ const isOwner = computed(
 const showEditModal = ref(false);
 const showDeleteConfirm = ref(false);
 
-useHead({
-    title: computed(() => store.currentPlaylist?.name || 'Playlist'),
+const pageTitle = computed(() => store.currentPlaylist?.name || 'Playlist');
+
+useHead({ title: pageTitle });
+
+useSeoMeta({
+    title: pageTitle,
+    ogTitle: computed(() => `${pageTitle.value} - GoonHub`),
+    description: computed(() =>
+        store.currentPlaylist
+            ? `${store.currentPlaylist.scenes.length} scenes in ${store.currentPlaylist.name}`
+            : 'View playlist',
+    ),
+    ogDescription: computed(() =>
+        store.currentPlaylist
+            ? `${store.currentPlaylist.scenes.length} scenes in ${store.currentPlaylist.name}`
+            : 'View playlist',
+    ),
 });
 
 onMounted(() => {

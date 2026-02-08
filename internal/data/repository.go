@@ -98,6 +98,7 @@ type SceneRepository interface {
 	UpdateSprites(id uint, spriteSheetPath, vttPath string, spriteSheetCount int) error
 	UpdatePreviewVideoPath(id uint, previewVideoPath string) error
 	UpdateProcessingStatus(id uint, status string, errorMsg string) error
+	UpdateIsCorrupted(id uint, isCorrupted bool) error
 	GetPendingProcessing() ([]Scene, error)
 	GetScenesNeedingPhase(phase string) ([]Scene, error)
 	Delete(id uint) error
@@ -259,6 +260,10 @@ func (r *SceneRepositoryImpl) UpdateProcessingStatus(id uint, status string, err
 	return r.DB.Model(&Scene{}).Where("id = ?", id).Updates(updates).Error
 }
 
+func (r *SceneRepositoryImpl) UpdateIsCorrupted(id uint, isCorrupted bool) error {
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Update("is_corrupted", isCorrupted).Error
+}
+
 func (r *SceneRepositoryImpl) GetPendingProcessing() ([]Scene, error) {
 	var scenes []Scene
 	if err := r.DB.Where("processing_status = ? AND trashed_at IS NULL", "pending").Find(&scenes).Error; err != nil {
@@ -271,10 +276,9 @@ func (r *SceneRepositoryImpl) GetScenesNeedingPhase(phase string) ([]Scene, erro
 	var scenes []Scene
 
 	baseQuery := r.DB.Model(&Scene{}).
-		Where("processing_status != ?", "failed").
 		Where("deleted_at IS NULL").
 		Where("trashed_at IS NULL").
-		Where("NOT EXISTS (SELECT 1 FROM job_history jh WHERE jh.scene_id = scenes.id AND jh.phase = ? AND jh.status = 'running')", phase)
+		Where("NOT EXISTS (SELECT 1 FROM job_history jh WHERE jh.scene_id = scenes.id AND jh.phase = ? AND jh.status IN ('pending', 'running'))", phase)
 
 	switch phase {
 	case "metadata":

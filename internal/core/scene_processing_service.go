@@ -66,6 +66,10 @@ func (a *jobHistoryAdapter) CreatePendingJobWithPriority(jobID string, sceneID u
 	return a.service.CreatePendingJobWithPriority(jobID, sceneID, sceneTitle, phase, priority, forceTarget)
 }
 
+func (a *jobHistoryAdapter) CreatePendingJobWithRetry(jobID string, sceneID uint, sceneTitle string, phase string, retryCount, maxRetries int, forceTarget string) error {
+	return a.service.CreatePendingJobWithRetry(jobID, sceneID, sceneTitle, phase, retryCount, maxRetries, forceTarget)
+}
+
 func (a *jobHistoryAdapter) ExistsPendingOrRunning(sceneID uint, phase string) (bool, error) {
 	return a.service.ExistsPendingOrRunning(sceneID, phase)
 }
@@ -186,9 +190,10 @@ func (s *SceneProcessingService) SubmitPhaseWithRetry(sceneID uint, phase string
 	return s.jobSubmitter.SubmitPhaseWithRetry(sceneID, phase, retryCount, maxRetries)
 }
 
-// SubmitBulkPhase submits a processing phase for multiple scenes
-func (s *SceneProcessingService) SubmitBulkPhase(phase string, mode string, forceTarget string) (*BulkPhaseResult, error) {
-	return s.jobSubmitter.SubmitBulkPhase(phase, mode, forceTarget)
+// SubmitBulkPhase submits a processing phase for multiple scenes.
+// sceneIDs optionally scopes the operation to specific scenes (nil = all scenes).
+func (s *SceneProcessingService) SubmitBulkPhase(phase string, mode string, forceTarget string, sceneIDs []uint) (*BulkPhaseResult, error) {
+	return s.jobSubmitter.SubmitBulkPhase(phase, mode, forceTarget, sceneIDs)
 }
 
 // CancelJob cancels a job by its ID.

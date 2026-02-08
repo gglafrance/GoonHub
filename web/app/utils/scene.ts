@@ -7,3 +7,7 @@ export function isSceneProcessing(scene: SceneListItem): boolean {
 export function hasSceneError(scene: Scene): boolean {
     return scene.processing_status === 'failed';
 }
+
+export function isSceneCorrupted(scene: SceneListItem): boolean {
+    return scene.is_corrupted === true;
+}

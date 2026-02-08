@@ -110,6 +110,21 @@ func (mr *MockActorRepositoryMockRecorder) Delete(id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockActorRepository)(nil).Delete), id)
 }
 
+// GetActorSceneIDs mocks base method.
+func (m *MockActorRepository) GetActorSceneIDs(actorID uint) ([]uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActorSceneIDs", actorID)
+	ret0, _ := ret[0].([]uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActorSceneIDs indicates an expected call of GetActorSceneIDs.
+func (mr *MockActorRepositoryMockRecorder) GetActorSceneIDs(actorID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActorSceneIDs", reflect.TypeOf((*MockActorRepository)(nil).GetActorSceneIDs), actorID)
+}
+
 // GetActorScenes mocks base method.
 func (m *MockActorRepository) GetActorScenes(actorID uint, page, limit int) ([]data.Scene, int64, error) {
 	m.ctrl.T.Helper()
