@@ -271,10 +271,9 @@ func (r *SceneRepositoryImpl) GetScenesNeedingPhase(phase string) ([]Scene, erro
 	var scenes []Scene
 
 	baseQuery := r.DB.Model(&Scene{}).
-		Where("processing_status != ?", "failed").
 		Where("deleted_at IS NULL").
 		Where("trashed_at IS NULL").
-		Where("NOT EXISTS (SELECT 1 FROM job_history jh WHERE jh.scene_id = scenes.id AND jh.phase = ? AND jh.status = 'running')", phase)
+		Where("NOT EXISTS (SELECT 1 FROM job_history jh WHERE jh.scene_id = scenes.id AND jh.phase = ? AND jh.status IN ('pending', 'running'))", phase)
 
 	switch phase {
 	case "metadata":
