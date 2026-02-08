@@ -43,6 +43,16 @@ const initialJizzedCount = computed(() => watchPageData?.interactions.value?.jiz
 // PornDB status from centralized data
 const pornDBConfigured = computed(() => watchPageData?.pornDBConfigured.value ?? false);
 
+// Enriched scene with actors/studio for metadata search
+const sceneForSearch = computed(() => {
+    if (!scene?.value) return null;
+    return {
+        ...scene.value,
+        actors: watchPageData?.actors.value.map((a) => a.name) || [],
+        studio: watchPageData?.studio.value?.name || null,
+    };
+});
+
 async function handleMetadataApplied() {
     // Refresh scene data after metadata is applied
     if (scene?.value) {
@@ -319,7 +329,7 @@ function handleSceneDeleted() {
     <WatchFetchSceneMetadataModal
         v-if="scene"
         :visible="showFetchMetadataModal"
-        :scene="scene"
+        :scene="sceneForSearch"
         @close="showFetchMetadataModal = false"
         @applied="handleMetadataApplied"
     />

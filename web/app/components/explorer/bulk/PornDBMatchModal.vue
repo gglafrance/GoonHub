@@ -120,11 +120,23 @@ watch(selectedPresetId, (_newVal, oldVal) => {
     handlePresetChange();
 });
 
+const showProgressOverlay = ref(false);
+
 async function handleApplyAll() {
+    showProgressOverlay.value = true;
     await applyAllMatched();
 }
 
+function handleProgressContinue() {
+    showProgressOverlay.value = false;
+    // If no failures, close the modal entirely
+    if (failedScenes.value.length === 0) {
+        handleClose();
+    }
+}
+
 async function handleRetryFailed() {
+    showProgressOverlay.value = true;
     await retryFailed();
 }
 
@@ -179,6 +191,13 @@ const noMatchCount = computed(() => {
 const appliedCount = computed(() => {
     return resultsArray.value.filter((r) => r.status === 'applied').length;
 });
+
+const hideSkipped = ref(true);
+
+const filteredResults = computed(() => {
+    if (!hideSkipped.value) return resultsArray.value;
+    return resultsArray.value.filter((r) => r.status !== 'skipped');
+});
 </script>
 
 <template>
@@ -189,8 +208,8 @@ const appliedCount = computed(() => {
             @click.self="handleClose"
         >
             <div
-                class="border-border bg-panel flex h-[85vh] w-full max-w-6xl flex-col rounded-xl
-                    border shadow-2xl"
+                class="border-border bg-panel relative flex h-[85vh] w-full max-w-6xl flex-col
+                    overflow-hidden rounded-xl border shadow-2xl"
             >
                 <!-- Header -->
                 <div
@@ -259,7 +278,7 @@ const appliedCount = computed(() => {
                         </div>
                     </div>
                     <button
-                        class="text-dim transition-colors hover:text-white"
+                        class="text-dim flex items-center transition-colors hover:text-white"
                         @click="handleClose"
                     >
                         <Icon name="heroicons:x-mark" size="20" />
@@ -296,36 +315,38 @@ const appliedCount = computed(() => {
                     </div>
 
                     <!-- Results list -->
-                    <div v-else class="h-full overflow-y-auto p-4">
-                        <div class="space-y-2">
-                            <ExplorerBulkPornDBMatchRow
-                                v-for="result in resultsArray"
-                                :key="result.sceneId"
-                                :result="result"
-                                @manual-search="openManualSearch"
-                                @remove-match="removeMatch"
-                            />
+                    <div v-else class="flex h-full flex-col">
+                        <!-- Filter bar -->
+                        <div
+                            v-if="skippedCount > 0"
+                            class="border-border shrink-0 border-b px-4 py-2"
+                        >
+                            <label class="text-dim flex items-center gap-2 text-xs">
+                                <input
+                                    v-model="hideSkipped"
+                                    type="checkbox"
+                                    class="accent-lava h-3 w-3 rounded"
+                                />
+                                Hide already matched ({{ skippedCount }})
+                            </label>
+                        </div>
+                        <div class="min-h-0 flex-1 overflow-y-auto p-4">
+                            <div class="space-y-2">
+                                <ExplorerBulkPornDBMatchRow
+                                    v-for="result in filteredResults"
+                                    :key="result.sceneId"
+                                    :result="result"
+                                    @manual-search="openManualSearch"
+                                    @remove-match="removeMatch"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Apply Progress -->
-                <ExplorerBulkPornDBMatchProgress
-                    v-if="applyPhase !== 'idle'"
-                    :phase="applyPhase"
-                    :progress="applyProgress"
-                />
-
-                <!-- Retry Queue -->
-                <ExplorerBulkPornDBMatchRetryQueue
-                    v-if="failedScenes.length > 0 && applyPhase === 'done'"
-                    :failed-scenes="failedScenes"
-                    @retry="handleRetryFailed"
-                    @dismiss="handleClearFailed"
-                />
-
                 <!-- Footer -->
                 <div
+                    v-if="!showProgressOverlay"
                     class="border-border flex shrink-0 items-center justify-end gap-3 border-t px-4
                         py-3"
                 >
@@ -347,6 +368,21 @@ const appliedCount = computed(() => {
                         Apply {{ matchedCount }} Matches
                     </button>
                 </div>
+
+                <!-- Apply Progress Overlay -->
+                <ExplorerBulkPornDBMatchProgress
+                    :phase="showProgressOverlay ? applyPhase : 'idle'"
+                    :progress="applyProgress"
+                    @close="handleProgressContinue"
+                />
+
+                <!-- Retry Queue (shown after overlay dismisses when there are failures) -->
+                <ExplorerBulkPornDBMatchRetryQueue
+                    v-if="failedScenes.length > 0 && applyPhase === 'done' && !showProgressOverlay"
+                    :failed-scenes="failedScenes"
+                    @retry="handleRetryFailed"
+                    @dismiss="handleClearFailed"
+                />
             </div>
 
             <!-- Manual search modal -->
