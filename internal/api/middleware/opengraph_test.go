@@ -21,16 +21,18 @@ func init() {
 	gin.SetMode(gin.TestMode)
 }
 
-func setupOGTest(t *testing.T) (*OGMiddleware, *mocks.MockSceneRepository, *mocks.MockActorRepository, *mocks.MockStudioRepository, *mocks.MockPlaylistRepository) {
+func setupOGTest(t *testing.T) (*OGMiddleware, *mocks.MockSceneRepository, *mocks.MockActorRepository, *mocks.MockStudioRepository, *mocks.MockPlaylistRepository, *mocks.MockAppSettingsRepository) {
 	ctrl := gomock.NewController(t)
 	sceneRepo := mocks.NewMockSceneRepository(ctrl)
 	actorRepo := mocks.NewMockActorRepository(ctrl)
 	studioRepo := mocks.NewMockStudioRepository(ctrl)
 	playlistRepo := mocks.NewMockPlaylistRepository(ctrl)
+	shareLinkRepo := mocks.NewMockShareLinkRepository(ctrl)
+	appSettingsRepo := mocks.NewMockAppSettingsRepository(ctrl)
 	logger := &logging.Logger{Logger: zap.NewNop()}
 
-	mw := NewOGMiddleware(sceneRepo, actorRepo, studioRepo, playlistRepo, logger)
-	return mw, sceneRepo, actorRepo, studioRepo, playlistRepo
+	mw := NewOGMiddleware(sceneRepo, actorRepo, studioRepo, playlistRepo, shareLinkRepo, appSettingsRepo, logger)
+	return mw, sceneRepo, actorRepo, studioRepo, playlistRepo, appSettingsRepo
 }
 
 func makeRequest(path string, userAgent string) (*gin.Context, *httptest.ResponseRecorder) {
@@ -44,8 +46,17 @@ func makeRequest(path string, userAgent string) (*gin.Context, *httptest.Respons
 const discordUA = "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)"
 const browserUA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
 
+func defaultAppSettings() *data.AppSettingsRecord {
+	return &data.AppSettingsRecord{
+		ID:                 1,
+		TrashRetentionDays: 7,
+		ServeOGMetadata:    true,
+	}
+}
+
 func TestNonCrawlerPassesThrough(t *testing.T) {
-	mw, _, _, _, _ := setupOGTest(t)
+	mw, _, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 	c, _ := makeRequest("/watch/42", browserUA)
 
 	handled := mw.ServeIfCrawler(c)
@@ -55,7 +66,8 @@ func TestNonCrawlerPassesThrough(t *testing.T) {
 }
 
 func TestCrawlerNonEntityPathPassesThrough(t *testing.T) {
-	mw, _, _, _, _ := setupOGTest(t)
+	mw, _, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 	c, _ := makeRequest("/settings", discordUA)
 
 	handled := mw.ServeIfCrawler(c)
@@ -65,7 +77,8 @@ func TestCrawlerNonEntityPathPassesThrough(t *testing.T) {
 }
 
 func TestCrawlerSceneServesOG(t *testing.T) {
-	mw, sceneRepo, _, _, _ := setupOGTest(t)
+	mw, sceneRepo, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 
 	sceneRepo.EXPECT().GetByID(uint(42)).Return(&data.Scene{
 		ID:          42,
@@ -98,7 +111,8 @@ func TestCrawlerSceneServesOG(t *testing.T) {
 }
 
 func TestCrawlerSceneFallbackToFilename(t *testing.T) {
-	mw, sceneRepo, _, _, _ := setupOGTest(t)
+	mw, sceneRepo, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 
 	sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{
 		ID:               1,
@@ -119,7 +133,8 @@ func TestCrawlerSceneFallbackToFilename(t *testing.T) {
 }
 
 func TestCrawlerSceneNotFound(t *testing.T) {
-	mw, sceneRepo, _, _, _ := setupOGTest(t)
+	mw, sceneRepo, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 
 	sceneRepo.EXPECT().GetByID(uint(999)).Return(nil, gorm.ErrRecordNotFound)
 
@@ -131,7 +146,8 @@ func TestCrawlerSceneNotFound(t *testing.T) {
 }
 
 func TestCrawlerInvalidSceneID(t *testing.T) {
-	mw, _, _, _, _ := setupOGTest(t)
+	mw, _, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 	c, _ := makeRequest("/watch/abc", discordUA)
 
 	handled := mw.ServeIfCrawler(c)
@@ -141,7 +157,8 @@ func TestCrawlerInvalidSceneID(t *testing.T) {
 }
 
 func TestCrawlerActorServesOG(t *testing.T) {
-	mw, _, actorRepo, _, _ := setupOGTest(t)
+	mw, _, actorRepo, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 	actorUUID := uuid.New()
 
 	actorRepo.EXPECT().GetByUUID(actorUUID.String()).Return(&data.Actor{
@@ -169,7 +186,8 @@ func TestCrawlerActorServesOG(t *testing.T) {
 }
 
 func TestCrawlerActorNoImage(t *testing.T) {
-	mw, _, actorRepo, _, _ := setupOGTest(t)
+	mw, _, actorRepo, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 	actorUUID := uuid.New()
 
 	actorRepo.EXPECT().GetByUUID(actorUUID.String()).Return(&data.Actor{
@@ -191,7 +209,8 @@ func TestCrawlerActorNoImage(t *testing.T) {
 }
 
 func TestCrawlerStudioServesOG(t *testing.T) {
-	mw, _, _, studioRepo, _ := setupOGTest(t)
+	mw, _, _, studioRepo, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 	studioUUID := uuid.New()
 
 	studioRepo.EXPECT().GetByUUID(studioUUID.String()).Return(&data.Studio{
@@ -220,7 +239,8 @@ func TestCrawlerStudioServesOG(t *testing.T) {
 }
 
 func TestCrawlerPublicPlaylistServesOG(t *testing.T) {
-	mw, _, _, _, playlistRepo := setupOGTest(t)
+	mw, _, _, _, playlistRepo, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 	playlistUUID := uuid.New()
 	desc := "My playlist description"
 
@@ -247,7 +267,8 @@ func TestCrawlerPublicPlaylistServesOG(t *testing.T) {
 }
 
 func TestCrawlerPrivatePlaylistPassesThrough(t *testing.T) {
-	mw, _, _, _, playlistRepo := setupOGTest(t)
+	mw, _, _, _, playlistRepo, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 	playlistUUID := uuid.New()
 
 	playlistRepo.EXPECT().GetByUUID(playlistUUID.String()).Return(&data.Playlist{
@@ -264,7 +285,8 @@ func TestCrawlerPrivatePlaylistPassesThrough(t *testing.T) {
 }
 
 func TestCrawlerMarkerServesOG(t *testing.T) {
-	mw, _, _, _, _ := setupOGTest(t)
+	mw, _, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 	c, w := makeRequest("/markers/blowjob", discordUA)
 
 	handled := mw.ServeIfCrawler(c)
@@ -279,7 +301,8 @@ func TestCrawlerMarkerServesOG(t *testing.T) {
 }
 
 func TestHTMLEscaping(t *testing.T) {
-	mw, sceneRepo, _, _, _ := setupOGTest(t)
+	mw, sceneRepo, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 
 	sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{
 		ID:          1,
@@ -306,7 +329,8 @@ func TestHTMLEscaping(t *testing.T) {
 }
 
 func TestDescriptionTruncation(t *testing.T) {
-	mw, sceneRepo, _, _, _ := setupOGTest(t)
+	mw, sceneRepo, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 
 	longDesc := strings.Repeat("a", 250)
 	sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{
@@ -330,7 +354,8 @@ func TestDescriptionTruncation(t *testing.T) {
 }
 
 func TestBaseURLWithXForwardedProto(t *testing.T) {
-	mw, sceneRepo, _, _, _ := setupOGTest(t)
+	mw, sceneRepo, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 
 	sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{
 		ID:    1,
@@ -356,7 +381,8 @@ func TestBaseURLWithXForwardedProto(t *testing.T) {
 }
 
 func TestBaseURLDefaultsToHTTPS(t *testing.T) {
-	mw, sceneRepo, _, _, _ := setupOGTest(t)
+	mw, sceneRepo, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 
 	sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{
 		ID:    1,
@@ -393,7 +419,8 @@ func TestVariousCrawlerUserAgents(t *testing.T) {
 
 	for _, ua := range crawlers {
 		t.Run(ua, func(t *testing.T) {
-			mw, sceneRepo, _, _, _ := setupOGTest(t)
+			mw, sceneRepo, _, _, _, appSettingsRepo := setupOGTest(t)
+			appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 
 			sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{
 				ID:    1,
@@ -413,7 +440,8 @@ func TestVariousCrawlerUserAgents(t *testing.T) {
 }
 
 func TestCrawlerRootPathPassesThrough(t *testing.T) {
-	mw, _, _, _, _ := setupOGTest(t)
+	mw, _, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 	c, _ := makeRequest("/", discordUA)
 
 	handled := mw.ServeIfCrawler(c)
@@ -423,7 +451,8 @@ func TestCrawlerRootPathPassesThrough(t *testing.T) {
 }
 
 func TestCrawlerWatchWithoutIDPassesThrough(t *testing.T) {
-	mw, _, _, _, _ := setupOGTest(t)
+	mw, _, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 	c, _ := makeRequest("/watch", discordUA)
 
 	handled := mw.ServeIfCrawler(c)
@@ -433,7 +462,8 @@ func TestCrawlerWatchWithoutIDPassesThrough(t *testing.T) {
 }
 
 func TestResponseContentType(t *testing.T) {
-	mw, sceneRepo, _, _, _ := setupOGTest(t)
+	mw, sceneRepo, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 
 	sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{
 		ID:    1,
@@ -450,7 +480,8 @@ func TestResponseContentType(t *testing.T) {
 }
 
 func TestMetaRefreshTag(t *testing.T) {
-	mw, sceneRepo, _, _, _ := setupOGTest(t)
+	mw, sceneRepo, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 
 	sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{
 		ID:    1,
@@ -467,7 +498,8 @@ func TestMetaRefreshTag(t *testing.T) {
 }
 
 func TestThemeColorTag(t *testing.T) {
-	mw, sceneRepo, _, _, _ := setupOGTest(t)
+	mw, sceneRepo, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 
 	sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{
 		ID:    1,
@@ -484,7 +516,8 @@ func TestThemeColorTag(t *testing.T) {
 }
 
 func TestTwitterCardTag(t *testing.T) {
-	mw, sceneRepo, _, _, _ := setupOGTest(t)
+	mw, sceneRepo, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 
 	sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{
 		ID:    1,
@@ -512,7 +545,8 @@ func TestDescriptionExact200CharsNotTruncated(t *testing.T) {
 }
 
 func TestDescriptionEmpty(t *testing.T) {
-	mw, sceneRepo, _, _, _ := setupOGTest(t)
+	mw, sceneRepo, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 
 	sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{
 		ID:    1,
@@ -529,7 +563,8 @@ func TestDescriptionEmpty(t *testing.T) {
 }
 
 func TestSceneURLFormat(t *testing.T) {
-	mw, sceneRepo, _, _, _ := setupOGTest(t)
+	mw, sceneRepo, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 
 	sceneRepo.EXPECT().GetByID(uint(42)).Return(&data.Scene{
 		ID:    42,
@@ -552,7 +587,8 @@ func TestSceneURLFormat(t *testing.T) {
 }
 
 func TestSiteNameTag(t *testing.T) {
-	mw, sceneRepo, _, _, _ := setupOGTest(t)
+	mw, sceneRepo, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(defaultAppSettings(), nil)
 
 	sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{
 		ID:    1,
@@ -568,5 +604,32 @@ func TestSiteNameTag(t *testing.T) {
 	}
 	if !strings.Contains(body, "GoonHub") {
 		t.Fatal("expected GoonHub as site name")
+	}
+}
+
+func TestOGDisabledViaAppSettings(t *testing.T) {
+	mw, _, _, _, _, appSettingsRepo := setupOGTest(t)
+	disabledSettings := &data.AppSettingsRecord{
+		ID:                 1,
+		TrashRetentionDays: 7,
+		ServeOGMetadata:    false,
+	}
+	appSettingsRepo.EXPECT().Get().Return(disabledSettings, nil)
+
+	c, _ := makeRequest("/watch/42", discordUA)
+	handled := mw.ServeIfCrawler(c)
+	if handled {
+		t.Fatal("expected crawler request to pass through when OG metadata is disabled")
+	}
+}
+
+func TestOGSettingsErrorFallsBackToDisabled(t *testing.T) {
+	mw, _, _, _, _, appSettingsRepo := setupOGTest(t)
+	appSettingsRepo.EXPECT().Get().Return(nil, fmt.Errorf("database connection error"))
+
+	c, _ := makeRequest("/watch/42", discordUA)
+	handled := mw.ServeIfCrawler(c)
+	if handled {
+		t.Fatal("expected crawler request to pass through when settings fetch fails")
 	}
 }

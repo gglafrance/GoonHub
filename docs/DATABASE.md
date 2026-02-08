@@ -13,12 +13,13 @@ This document provides a comprehensive reference of the GoonHub database schema.
 1. [Core Tables](#core-tables)
 2. [RBAC (Role-Based Access Control)](#rbac-role-based-access-control)
 3. [Content Organization](#content-organization)
-4. [User Interactions](#user-interactions)
-5. [Job System](#job-system)
-6. [Storage & Scanning](#storage--scanning)
-7. [Application Settings](#application-settings)
-8. [Entity Relationship Diagram](#entity-relationship-diagram)
-9. [Key Patterns & Conventions](#key-patterns--conventions)
+4. [Sharing](#sharing)
+5. [User Interactions](#user-interactions)
+6. [Job System](#job-system)
+7. [Storage & Scanning](#storage--scanning)
+8. [Application Settings](#application-settings)
+9. [Entity Relationship Diagram](#entity-relationship-diagram)
+10. [Key Patterns & Conventions](#key-patterns--conventions)
 
 ---
 
@@ -362,6 +363,37 @@ Studio/network entities for content organization.
 
 **Constraints:**
 - UNIQUE on `uuid`
+
+---
+
+## Sharing
+
+### `share_links`
+
+Shareable links for scenes with configurable visibility and expiration.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `token` | VARCHAR(32) | NO | - | URL-safe random token (22 chars, base64url) |
+| `scene_id` | BIGINT | NO | - | FK to `scenes.id` (CASCADE) |
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `share_type` | VARCHAR(20) | NO | 'public' | Link visibility type |
+| `expires_at` | TIMESTAMPTZ | YES | NULL | Expiration timestamp (NULL = never) |
+| `view_count` | BIGINT | NO | 0 | Number of times link was accessed |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Link creation timestamp |
+
+**Valid `share_type` values:** `public`, `auth_required`
+
+**Indexes:**
+- `idx_share_links_token` UNIQUE on `token`
+- `idx_share_links_scene_user` on `(scene_id, user_id)`
+- `idx_share_links_user_id` on `user_id`
+
+**Constraints:**
+- CHECK `share_type IN ('public', 'auth_required')`
+- FK to `scenes(id)` ON DELETE CASCADE
+- FK to `users(id)` ON DELETE CASCADE
 
 ---
 
@@ -950,6 +982,18 @@ Meilisearch configuration (singleton table).
 | color            |   | name             |
 +------------------+   +------------------+
 
+Sharing:
++------------------+
+|   share_links    |
++------------------+
+| token (unique)   |
+| scene_id (FK)    |
+| user_id (FK)     |
+| share_type       |
+| expires_at       |
+| view_count       |
++------------------+
+
 User Interactions (scenes):
 +------------------------+   +------------------------+   +------------------------+
 | user_scene_ratings     |   | user_scene_likes       |   | user_scene_jizzed      |
@@ -1044,8 +1088,8 @@ Internal references still use BIGSERIAL `id` for performance.
 
 ### Foreign Key Cascade Rules
 
-- User-owned data: `ON DELETE CASCADE` (settings, interactions, markers)
-- Content associations: `ON DELETE CASCADE` (scene_tags, scene_actors)
+- User-owned data: `ON DELETE CASCADE` (settings, interactions, markers, share_links)
+- Content associations: `ON DELETE CASCADE` (scene_tags, scene_actors, share_links)
 - Optional references: `ON DELETE SET NULL` (scenes.studio_id)
 
 ### JSONB Columns

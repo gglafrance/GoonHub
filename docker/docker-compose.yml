@@ -17,6 +17,7 @@ services:
     restart: unless-stopped
     ports:
       - "8080:8080"
+      # - "8081:8081"  # Share server (optional, requires sharing.port config)
     environment:
       GOONHUB_CONFIG: /app/config.yaml
     volumes:

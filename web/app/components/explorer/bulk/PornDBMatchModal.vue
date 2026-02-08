@@ -144,7 +144,18 @@ function handleClearFailed() {
     clearFailed();
 }
 
+// Whether there's active work that would be lost on close
+const hasUnsavedWork = computed(() => {
+    if (isSearching.value) return true;
+    if (applyPhase.value === 'applying') return true;
+    if (matchedCount.value > 0 && applyPhase.value === 'idle') return true;
+    return false;
+});
+
 function handleClose() {
+    if (hasUnsavedWork.value) {
+        if (!window.confirm('You have unapplied matches. Are you sure you want to close?')) return;
+    }
     if (applyPhase.value === 'done' && applyProgress.value.current > 0) {
         emit('complete');
     }
@@ -205,7 +216,7 @@ const filteredResults = computed(() => {
         <div
             v-if="visible"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-            @click.self="handleClose"
+            @click.self="!hasUnsavedWork && handleClose()"
         >
             <div
                 class="border-border bg-panel relative flex h-[85vh] w-full max-w-6xl flex-col

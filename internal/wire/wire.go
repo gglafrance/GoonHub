@@ -84,6 +84,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Playlist Repository
 		providePlaylistRepository,
 
+		// Share Link Repository
+		provideShareLinkRepository,
+
 		// ============================================================
 		// EXTERNAL SERVICES
 		// ============================================================
@@ -143,6 +146,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Playlist Service
 		providePlaylistService,
+
+		// Share Service
+		provideShareService,
 
 		// Streaming Manager
 		provideStreamManager,
@@ -208,10 +214,14 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Stream Stats Handler
 		provideStreamStatsHandler,
 
+		// Share Handler
+		provideShareHandler,
+
 		// ============================================================
 		// ROUTER & SERVER
 		// ============================================================
 		provideRouter,
+		provideShareServer,
 		provideServer,
 	)
 	return &server.Server{}, nil
@@ -335,6 +345,10 @@ func provideMarkerRepository(db *gorm.DB) data.MarkerRepository {
 
 func providePlaylistRepository(db *gorm.DB) data.PlaylistRepository {
 	return data.NewPlaylistRepository(db)
+}
+
+func provideShareLinkRepository(db *gorm.DB) data.ShareLinkRepository {
+	return data.NewShareLinkRepository(db)
 }
 
 // ============================================================================
@@ -536,6 +550,12 @@ func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRe
 	return core.NewPlaylistService(repo, sceneRepo, tagRepo, logger.Logger)
 }
 
+// --- Share Service ---
+
+func provideShareService(shareLinkRepo data.ShareLinkRepository, sceneRepo data.SceneRepository, logger *logging.Logger) *core.ShareService {
+	return core.NewShareService(shareLinkRepo, sceneRepo, logger.Logger)
+}
+
 // --- Streaming Manager ---
 
 func provideStreamManager(cfg *config.Config, sceneRepo data.SceneRepository, logger *logging.Logger) *streaming.Manager {
@@ -551,8 +571,8 @@ func provideRateLimiter(cfg *config.Config) *middleware.IPRateLimiter {
 	return middleware.NewIPRateLimiter(rl, cfg.Auth.LoginRateBurst)
 }
 
-func provideOGMiddleware(sceneRepo data.SceneRepository, actorRepo data.ActorRepository, studioRepo data.StudioRepository, playlistRepo data.PlaylistRepository, logger *logging.Logger) *middleware.OGMiddleware {
-	return middleware.NewOGMiddleware(sceneRepo, actorRepo, studioRepo, playlistRepo, logger)
+func provideOGMiddleware(sceneRepo data.SceneRepository, actorRepo data.ActorRepository, studioRepo data.StudioRepository, playlistRepo data.PlaylistRepository, shareLinkRepo data.ShareLinkRepository, appSettingsRepo data.AppSettingsRepository, logger *logging.Logger) *middleware.OGMiddleware {
+	return middleware.NewOGMiddleware(sceneRepo, actorRepo, studioRepo, playlistRepo, shareLinkRepo, appSettingsRepo, logger)
 }
 
 // ============================================================================
@@ -569,8 +589,8 @@ func provideAuthHandler(authService *core.AuthService, userService *core.UserSer
 	return handler.NewAuthHandlerWithConfig(authService, userService, cfg.Auth.TokenDuration, secureCookies)
 }
 
-func provideAdminHandler(adminService *core.AdminService, rbacService *core.RBACService, sceneService *core.SceneService) *handler.AdminHandler {
-	return handler.NewAdminHandler(adminService, rbacService, sceneService)
+func provideAdminHandler(adminService *core.AdminService, rbacService *core.RBACService, sceneService *core.SceneService, appSettingsRepo data.AppSettingsRepository) *handler.AdminHandler {
+	return handler.NewAdminHandler(adminService, rbacService, sceneService, appSettingsRepo)
 }
 
 func provideSettingsHandler(settingsService *core.SettingsService, cfg *config.Config) *handler.SettingsHandler {
@@ -689,6 +709,10 @@ func provideStreamStatsHandler(streamManager *streaming.Manager) *handler.Stream
 	return handler.NewStreamStatsHandler(streamManager)
 }
 
+func provideShareHandler(shareService *core.ShareService, authService *core.AuthService, streamManager *streaming.Manager, cfg *config.Config) *handler.ShareHandler {
+	return handler.NewShareHandler(shareService, authService, streamManager, cfg.Sharing.BaseURL)
+}
+
 // ============================================================================
 // ROUTER & SERVER PROVIDERS
 // ============================================================================
@@ -725,6 +749,7 @@ func provideRouter(
 	importHandler *handler.ImportHandler,
 	streamStatsHandler *handler.StreamStatsHandler,
 	playlistHandler *handler.PlaylistHandler,
+	shareHandler *handler.ShareHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -737,8 +762,21 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
+}
+
+func provideShareServer(
+	cfg *config.Config,
+	shareHandler *handler.ShareHandler,
+	ogMiddleware *middleware.OGMiddleware,
+	logger *logging.Logger,
+) *server.ShareServer {
+	if cfg.Sharing.Port == "" {
+		return nil
+	}
+	router := api.NewShareRouter(cfg, shareHandler, ogMiddleware, logger)
+	return server.NewShareServer(router, cfg.Sharing.Port, cfg, logger)
 }
 
 func provideServer(
@@ -760,11 +798,12 @@ func provideServer(
 	dlqService *core.DLQService,
 	actorService *core.ActorService,
 	studioService *core.StudioService,
+	shareServer *server.ShareServer,
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
-		actorService, studioService,
+		actorService, studioService, shareServer,
 	)
 }

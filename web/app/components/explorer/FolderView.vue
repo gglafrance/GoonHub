@@ -98,9 +98,9 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
             <LoadingSpinner label="Loading folder..." />
         </div>
 
-        <!-- Empty State -->
+        <!-- Empty State (only when no search is active) -->
         <div
-            v-else-if="!hasContent"
+            v-else-if="!hasContent && !explorerStore.isSearchActive"
             class="border-border flex h-64 flex-col items-center justify-center rounded-xl border
                 border-dashed text-center"
         >
@@ -130,6 +130,21 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
                         @delete="handleFolderDelete"
                     />
                 </div>
+            </div>
+
+            <!-- No Search Results -->
+            <div
+                v-if="explorerStore.isSearchActive && !hasContent"
+                class="border-border flex h-48 flex-col items-center justify-center rounded-xl
+                    border border-dashed text-center"
+            >
+                <div
+                    class="bg-panel border-border flex h-10 w-10 items-center justify-center
+                        rounded-lg border"
+                >
+                    <Icon name="heroicons:magnifying-glass" size="20" class="text-dim" />
+                </div>
+                <p class="text-muted mt-3 text-sm">No results found</p>
             </div>
 
             <!-- Scenes -->

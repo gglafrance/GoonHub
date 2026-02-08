@@ -4,6 +4,7 @@ import (
 	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/request"
 	"goonhub/internal/core"
+	"goonhub/internal/data"
 	"net/http"
 	"strconv"
 
@@ -11,16 +12,18 @@ import (
 )
 
 type AdminHandler struct {
-	AdminService *core.AdminService
-	RBACService  *core.RBACService
-	SceneService *core.SceneService
+	AdminService    *core.AdminService
+	RBACService     *core.RBACService
+	SceneService    *core.SceneService
+	AppSettingsRepo data.AppSettingsRepository
 }
 
-func NewAdminHandler(adminService *core.AdminService, rbacService *core.RBACService, sceneService *core.SceneService) *AdminHandler {
+func NewAdminHandler(adminService *core.AdminService, rbacService *core.RBACService, sceneService *core.SceneService, appSettingsRepo data.AppSettingsRepository) *AdminHandler {
 	return &AdminHandler{
-		AdminService: adminService,
-		RBACService:  rbacService,
-		SceneService: sceneService,
+		AdminService:    adminService,
+		RBACService:     rbacService,
+		SceneService:    sceneService,
+		AppSettingsRepo: appSettingsRepo,
 	}
 }
 
@@ -285,4 +288,37 @@ func (h *AdminHandler) EmptyTrash(c *gin.Context) {
 		"message": "Trash emptied",
 		"deleted": deleted,
 	})
+}
+
+// App settings endpoints
+
+func (h *AdminHandler) GetAppSettings(c *gin.Context) {
+	settings, err := h.AppSettingsRepo.Get()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get app settings"})
+		return
+	}
+
+	c.JSON(http.StatusOK, settings)
+}
+
+func (h *AdminHandler) UpdateAppSettings(c *gin.Context) {
+	var req data.AppSettingsRecord
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	if err := h.AppSettingsRepo.Upsert(&req); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update app settings"})
+		return
+	}
+
+	updated, err := h.AppSettingsRepo.Get()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read updated settings"})
+		return
+	}
+
+	c.JSON(http.StatusOK, updated)
 }

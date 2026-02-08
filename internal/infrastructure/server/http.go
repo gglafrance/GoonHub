@@ -36,6 +36,7 @@ type Server struct {
 	dlqService        *core.DLQService
 	actorService      *core.ActorService
 	studioService     *core.StudioService
+	shareServer       *ShareServer
 	srv               *http.Server
 }
 
@@ -58,6 +59,7 @@ func NewHTTPServer(
 	dlqService *core.DLQService,
 	actorService *core.ActorService,
 	studioService *core.StudioService,
+	shareServer *ShareServer,
 ) *Server {
 	return &Server{
 		router:            router,
@@ -78,6 +80,7 @@ func NewHTTPServer(
 		dlqService:        dlqService,
 		actorService:      actorService,
 		studioService:     studioService,
+		shareServer:       shareServer,
 	}
 }
 
@@ -203,6 +206,9 @@ func (s *Server) Start() error {
 		}
 	}()
 
+	// Start dedicated share server (no-op if nil / not configured)
+	s.shareServer.Start()
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -301,9 +307,13 @@ func (s *Server) Start() error {
 		s.jobHistoryService.StopCleanupTicker()
 	}
 
-	// Shutdown HTTP server with remaining graceful timeout
+	// Shutdown HTTP servers with remaining graceful timeout
 	ctx, cancel := context.WithTimeout(context.Background(), s.cfg.Shutdown.GracefulTimeout)
 	defer cancel()
+
+	if err := s.shareServer.Shutdown(ctx); err != nil {
+		s.logger.Error("Share server shutdown error", zap.Error(err))
+	}
 
 	if err := s.srv.Shutdown(ctx); err != nil {
 		return fmt.Errorf("server forced to shutdown: %w", err)

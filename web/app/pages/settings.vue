@@ -78,8 +78,16 @@ const isSaving = ref(false);
 const saveMessage = ref('');
 const saveError = ref('');
 
+const settingsAppRef = ref<{
+    hasUnsavedAppSettings: boolean;
+    saveAppSettings: () => Promise<void>;
+} | null>(null);
+
 const settingsTabs: TabType[] = ['player', 'app', 'tags', 'homepage', 'parsing-rules'];
 const isSettingsTab = computed(() => settingsTabs.includes(activeTab.value));
+const hasAnyUnsavedChanges = computed(
+    () => settingsStore.hasUnsavedChanges || (settingsAppRef.value?.hasUnsavedAppSettings ?? false),
+);
 
 async function handleGlobalSave() {
     saveMessage.value = '';
@@ -87,6 +95,9 @@ async function handleGlobalSave() {
     isSaving.value = true;
     try {
         await settingsStore.saveAllSettings();
+        if (settingsAppRef.value?.hasUnsavedAppSettings) {
+            await settingsAppRef.value.saveAppSettings();
+        }
         saveMessage.value = 'Settings saved successfully';
         setTimeout(() => {
             saveMessage.value = '';
@@ -387,7 +398,7 @@ definePageMeta({
                 leave-to-class=" opacity-0"
             >
                 <div
-                    v-if="settingsStore.hasUnsavedChanges && isSettingsTab"
+                    v-if="hasAnyUnsavedChanges && isSettingsTab"
                     class="shrink-0 border-t border-white/8 bg-[rgba(10,10,10,0.95)] p-4
                         backdrop-blur-xl"
                 >
@@ -445,7 +456,7 @@ definePageMeta({
 
                 <SettingsAccount v-if="activeTab === 'account'" />
                 <SettingsPlayer v-if="activeTab === 'player'" />
-                <SettingsApp v-if="activeTab === 'app'" />
+                <SettingsApp v-if="activeTab === 'app'" ref="settingsAppRef" />
                 <SettingsHomepage v-if="activeTab === 'homepage'" />
                 <SettingsTags v-if="activeTab === 'tags'" />
                 <SettingsParsingRules v-if="activeTab === 'parsing-rules'" />
@@ -466,7 +477,7 @@ definePageMeta({
             leave-to-class="translate-y-full"
         >
             <div
-                v-if="settingsStore.hasUnsavedChanges && isSettingsTab"
+                v-if="hasAnyUnsavedChanges && isSettingsTab"
                 class="bg-surface/95 fixed inset-x-0 bottom-0 z-50 border-t border-white/8 p-3
                     backdrop-blur-xl lg:hidden"
             >
