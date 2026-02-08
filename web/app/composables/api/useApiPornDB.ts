@@ -54,17 +54,9 @@ export const useApiPornDB = () => {
         }
     };
 
-    const searchPornDBScenes = async (params: {
-        q?: string;
-        title?: string;
-        year?: number;
-        site?: string;
-    }) => {
+    const searchPornDBScenes = async (params: { title?: string }) => {
         const searchParams = new URLSearchParams();
-        if (params.q) searchParams.set('q', params.q);
         if (params.title) searchParams.set('title', params.title);
-        if (params.year) searchParams.set('year', params.year.toString());
-        if (params.site) searchParams.set('site', params.site);
 
         const response = await fetch(`/api/v1/admin/porndb/scenes?${searchParams}`, {
             headers: getAuthHeaders(),

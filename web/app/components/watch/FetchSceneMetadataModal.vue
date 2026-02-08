@@ -25,13 +25,6 @@ const performersToMatch = ref<PornDBScene['performers']>([]);
 const siteToMatch = ref<string | null>(null);
 const shouldMatchStudio = ref(false);
 
-// Phase title
-const phaseTitle = computed(() => {
-    if (phase.value === 'search') return 'Search Scene Metadata';
-    if (phase.value === 'preview') return 'Preview Metadata';
-    return 'Applying Metadata';
-});
-
 // Reset when modal opens
 watch(
     () => props.visible,
@@ -192,16 +185,58 @@ function handleClose() {
                 class="glass-panel border-border my-4 flex w-full max-w-5xl flex-col border p-6"
                 style="max-height: calc(100vh - 2rem)"
             >
-                <!-- Header -->
-                <div class="mb-4 flex shrink-0 items-center justify-between">
-                    <h3 class="text-sm font-semibold text-white">
-                        {{ phaseTitle }}
-                    </h3>
+                <!-- Header with phase steps -->
+                <div
+                    class="mb-4 flex shrink-0 items-center justify-between border-b border-white/5
+                        pb-4"
+                >
+                    <!-- Step indicators -->
+                    <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-1.5">
+                            <div
+                                class="h-1.5 w-1.5 rounded-full transition-colors"
+                                :class="phase === 'search' ? 'bg-lava' : 'bg-white/15'"
+                            />
+                            <span
+                                class="text-[11px] transition-colors"
+                                :class="phase === 'search' ? 'text-white' : 'text-dim'"
+                            >
+                                Search
+                            </span>
+                        </div>
+                        <span class="text-dim/20 text-[10px]">&mdash;</span>
+                        <div class="flex items-center gap-1.5">
+                            <div
+                                class="h-1.5 w-1.5 rounded-full transition-colors"
+                                :class="phase === 'preview' ? 'bg-lava' : 'bg-white/15'"
+                            />
+                            <span
+                                class="text-[11px] transition-colors"
+                                :class="phase === 'preview' ? 'text-white' : 'text-dim'"
+                            >
+                                Preview
+                            </span>
+                        </div>
+                        <span class="text-dim/20 text-[10px]">&mdash;</span>
+                        <div class="flex items-center gap-1.5">
+                            <div
+                                class="h-1.5 w-1.5 rounded-full transition-colors"
+                                :class="phase === 'applying' ? 'bg-lava' : 'bg-white/15'"
+                            />
+                            <span
+                                class="text-[11px] transition-colors"
+                                :class="phase === 'applying' ? 'text-white' : 'text-dim'"
+                            >
+                                Apply
+                            </span>
+                        </div>
+                    </div>
+
                     <button
                         class="text-dim transition-colors hover:text-white"
                         @click="handleClose"
                     >
-                        <Icon name="heroicons:x-mark" size="20" />
+                        <Icon name="heroicons:x-mark" size="18" />
                     </button>
                 </div>
 

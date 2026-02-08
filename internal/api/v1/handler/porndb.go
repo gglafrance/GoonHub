@@ -3,7 +3,6 @@ package handler
 import (
 	"goonhub/internal/core"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -101,17 +100,9 @@ func (h *PornDBHandler) GetPerformerSite(c *gin.Context) {
 // SearchScenes searches for scenes with optional filters
 func (h *PornDBHandler) SearchScenes(c *gin.Context) {
 	opts := core.SceneSearchOptions{
-		Query: c.Query("q"),
 		Title: c.Query("title"),
-		Site:  c.Query("site"),
 	}
 
-	// Parse numeric params
-	if yearStr := c.Query("year"); yearStr != "" {
-		if year, err := strconv.Atoi(yearStr); err == nil && year > 0 {
-			opts.Year = year
-		}
-	}
 	// Require at least one search parameter
 	if opts.IsEmpty() {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "At least one search parameter is required"})

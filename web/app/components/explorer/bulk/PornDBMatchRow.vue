@@ -28,6 +28,14 @@ const confidenceBgColor = computed(() => {
     return 'bg-red-500/20';
 });
 
+function getSegmentColor(score: number, max: number): string {
+    const ratio = score / max;
+    if (ratio >= 0.7) return 'bg-emerald-500/70';
+    if (ratio >= 0.4) return 'bg-amber-500/50';
+    if (ratio > 0) return 'bg-red-500/40';
+    return 'bg-white/[0.06]';
+}
+
 const statusIcon = computed(() => {
     switch (props.result.status) {
         case 'searching':
@@ -143,22 +151,40 @@ const statusColor = computed(() => {
 
                 <!-- PornDB Info -->
                 <div class="flex min-w-0 flex-1 flex-col justify-center">
-                    <div class="flex items-start gap-2">
-                        <p
-                            class="flex-1 truncate text-sm font-medium text-white"
-                            :title="result.match.title"
-                        >
-                            {{ result.match.title }}
-                        </p>
-                        <!-- Confidence Badge -->
-                        <div
-                            v-if="result.confidence"
+                    <p class="truncate text-sm font-medium text-white" :title="result.match.title">
+                        {{ result.match.title }}
+                    </p>
+                    <!-- Confidence breakdown bar + badge -->
+                    <div
+                        v-if="result.confidence"
+                        :title="`Title: ${result.confidence.titleScore}/30 | Actors: ${result.confidence.actorScore}/30 | Studio: ${result.confidence.studioScore}/20 | Duration: ${result.confidence.durationScore ?? 0}/20`"
+                        class="mt-1 flex items-center gap-2"
+                    >
+                        <div class="flex h-1 min-w-0 flex-1 gap-px overflow-hidden rounded-full">
+                            <div
+                                class="flex-[30] rounded-full transition-colors"
+                                :class="getSegmentColor(result.confidence.titleScore, 30)"
+                            />
+                            <div
+                                class="flex-[30] rounded-full transition-colors"
+                                :class="getSegmentColor(result.confidence.actorScore, 30)"
+                            />
+                            <div
+                                class="flex-[20] rounded-full transition-colors"
+                                :class="getSegmentColor(result.confidence.studioScore, 20)"
+                            />
+                            <div
+                                class="flex-[20] rounded-full transition-colors"
+                                :class="getSegmentColor(result.confidence.durationScore, 20)"
+                            />
+                        </div>
+                        <span
                             :class="[confidenceBgColor, confidenceColor]"
-                            class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
-                            :title="`Title: ${result.confidence.titleScore}/30 | Actors: ${result.confidence.actorScore}/30 | Studio: ${result.confidence.studioScore}/20 | Duration: ${result.confidence.durationScore ?? 0}/20`"
+                            class="shrink-0 rounded px-1.5 py-0.5 text-[10px] leading-none
+                                font-semibold"
                         >
                             {{ result.confidence.total }}%
-                        </div>
+                        </span>
                     </div>
                     <div
                         class="text-dim mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5

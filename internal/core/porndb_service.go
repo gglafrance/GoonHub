@@ -638,15 +638,12 @@ func convertRawSceneToScene(raw pornDBSceneRaw) PornDBScene {
 
 // SceneSearchOptions contains optional search parameters for scene search
 type SceneSearchOptions struct {
-	Query string // General text search (q)
-	Title string // Scene title
-	Year  int    // Release year
-	Site  string // Studio/site name
+	Title string // Scene title (sent as "parse" to PornDB API)
 }
 
 // IsEmpty returns true if no search parameters are set
 func (o SceneSearchOptions) IsEmpty() bool {
-	return o.Query == "" && o.Title == "" && o.Year == 0 && o.Site == ""
+	return o.Title == ""
 }
 
 // SearchScenes searches for scenes with optional filters
@@ -656,17 +653,8 @@ func (s *PornDBService) SearchScenes(opts SceneSearchOptions) ([]PornDBScene, er
 	}
 
 	params := url.Values{}
-	if opts.Query != "" {
-		params.Set("q", opts.Query)
-	}
 	if opts.Title != "" {
 		params.Set("parse", opts.Title)
-	}
-	if opts.Year > 0 {
-		params.Set("year", strconv.Itoa(opts.Year))
-	}
-	if opts.Site != "" {
-		params.Set("site", opts.Site)
 	}
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/scenes?%s", pornDBBaseURL, params.Encode()), nil)
 	if err != nil {
