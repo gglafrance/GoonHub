@@ -1,9 +1,21 @@
 <script setup lang="ts">
-useHead({ title: 'Explorer' });
-
 const route = useRoute();
 const router = useRouter();
 const explorerStore = useExplorerStore();
+
+const pageTitle = computed(() => {
+    const folder = explorerStore.currentPath.split('/').filter(Boolean).pop();
+    return folder || 'Explorer';
+});
+
+useHead({ title: pageTitle });
+
+useSeoMeta({
+    title: pageTitle,
+    ogTitle: computed(() => `${pageTitle.value} - GoonHub`),
+    description: 'Browse your scene storage paths',
+    ogDescription: 'Browse your scene storage paths',
+});
 
 const selectMode = ref(false);
 
