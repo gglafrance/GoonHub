@@ -155,6 +155,7 @@ export function useDragSelect(options: DragSelectOptions) {
         if (e.pointerType === 'touch') return;
 
         const target = e.target as HTMLElement;
+        if (!containerRef.value?.contains(target)) return;
         if (!target.closest('[data-scene-id]') && target.closest(INTERACTIVE_SELECTOR)) return;
 
         startPageX = e.clientX + window.scrollX;
