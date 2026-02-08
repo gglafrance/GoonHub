@@ -23,6 +23,7 @@ func ExtractThumbnailWithContext(ctx context.Context, videoPath, outputPath, see
 		"-ss", seekPosition,
 		"-i", videoPath,
 		"-vframes", "1",
+		"-c:v", "libwebp",
 		"-vf", fmt.Sprintf("scale=%d:%d", width, height),
 		"-q:v", strconv.Itoa(quality),
 		"-y",
