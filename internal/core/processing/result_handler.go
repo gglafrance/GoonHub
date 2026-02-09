@@ -90,6 +90,8 @@ func (rh *ResultHandler) handleCompleted(result jobs.JobResult) {
 		rh.onSpritesComplete(result)
 	case "animated_thumbnails":
 		rh.onAnimatedThumbnailsComplete(result)
+	case "fingerprint":
+		rh.onFingerprintComplete(result)
 	}
 }
 
@@ -352,6 +354,43 @@ func (rh *ResultHandler) onAnimatedThumbnailsComplete(result jobs.JobResult) {
 
 	rh.phaseTracker.MarkPhaseComplete(result.SceneID, "animated_thumbnails")
 	rh.checkAndMarkComplete(result.SceneID, "animated_thumbnails")
+}
+
+func (rh *ResultHandler) onFingerprintComplete(result jobs.JobResult) {
+	fingerprintJob, ok := result.Data.(*jobs.FingerprintJob)
+	if !ok {
+		rh.logger.Error("Invalid fingerprint job result data", zap.Uint("scene_id", result.SceneID))
+		return
+	}
+
+	data := map[string]any{
+		"fingerprint_status": "completed",
+	}
+	if fingerprintJob != nil {
+		// Scene fingerprint count is already updated in the job itself
+	}
+
+	rh.eventBus.Publish(SceneEvent{
+		Type:    "scene:fingerprint_complete",
+		SceneID: result.SceneID,
+		Data:    data,
+	})
+
+	// Trigger any phases configured to run after fingerprint
+	for _, phase := range rh.phaseTracker.GetPhasesTriggeredAfter("fingerprint") {
+		if rh.onPhaseComplete != nil {
+			if err := rh.onPhaseComplete(result.SceneID, phase); err != nil {
+				rh.logger.Error("Failed to submit phase after fingerprint",
+					zap.Uint("scene_id", result.SceneID),
+					zap.String("phase", phase),
+					zap.Error(err),
+				)
+			}
+		}
+	}
+
+	rh.phaseTracker.MarkPhaseComplete(result.SceneID, "fingerprint")
+	rh.checkAndMarkComplete(result.SceneID, "fingerprint")
 }
 
 func (rh *ResultHandler) checkAndMarkComplete(sceneID uint, completedPhase string) {

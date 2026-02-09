@@ -67,12 +67,12 @@ func (js *JobSubmitter) SubmitPhase(sceneID uint, phase string) error {
 // Used for manual triggers and DLQ retries.
 func (js *JobSubmitter) SubmitPhaseWithPriority(sceneID uint, phase string, priority int) error {
 	switch phase {
-	case "metadata", "thumbnail", "sprites", "animated_thumbnails":
+	case "metadata", "thumbnail", "sprites", "animated_thumbnails", "fingerprint":
 	default:
 		return fmt.Errorf("unknown phase: %s", phase)
 	}
 
-	if phase == "thumbnail" || phase == "sprites" || phase == "animated_thumbnails" {
+	if phase == "thumbnail" || phase == "sprites" || phase == "animated_thumbnails" || phase == "fingerprint" {
 		scene, err := js.repo.GetByID(sceneID)
 		if err != nil {
 			return fmt.Errorf("failed to get scene: %w", err)
@@ -89,12 +89,12 @@ func (js *JobSubmitter) SubmitPhaseWithPriority(sceneID uint, phase string, prio
 // Used for manual per-scene triggers where force regeneration is requested.
 func (js *JobSubmitter) SubmitPhaseWithForce(sceneID uint, phase string, priority int, forceTarget string) error {
 	switch phase {
-	case "metadata", "thumbnail", "sprites", "animated_thumbnails":
+	case "metadata", "thumbnail", "sprites", "animated_thumbnails", "fingerprint":
 	default:
 		return fmt.Errorf("unknown phase: %s", phase)
 	}
 
-	if phase == "thumbnail" || phase == "sprites" || phase == "animated_thumbnails" {
+	if phase == "thumbnail" || phase == "sprites" || phase == "animated_thumbnails" || phase == "fingerprint" {
 		scene, err := js.repo.GetByID(sceneID)
 		if err != nil {
 			return fmt.Errorf("failed to get scene: %w", err)
@@ -114,14 +114,14 @@ func (js *JobSubmitter) SubmitPhaseWithForce(sceneID uint, phase string, priorit
 func (js *JobSubmitter) SubmitPhaseWithRetry(sceneID uint, phase string, retryCount, maxRetries int) error {
 	// Validate the phase
 	switch phase {
-	case "metadata", "thumbnail", "sprites", "animated_thumbnails":
+	case "metadata", "thumbnail", "sprites", "animated_thumbnails", "fingerprint":
 		// Valid phases
 	default:
 		return fmt.Errorf("unknown phase: %s", phase)
 	}
 
-	// For thumbnail/sprites/animated_thumbnails, check if metadata is available
-	if phase == "thumbnail" || phase == "sprites" || phase == "animated_thumbnails" {
+	// For thumbnail/sprites/animated_thumbnails/fingerprint, check if metadata is available
+	if phase == "thumbnail" || phase == "sprites" || phase == "animated_thumbnails" || phase == "fingerprint" {
 		scene, err := js.repo.GetByID(sceneID)
 		if err != nil {
 			return fmt.Errorf("failed to get scene: %w", err)
@@ -289,8 +289,8 @@ func (js *JobSubmitter) SubmitBulkPhase(phase string, mode string, forceTarget s
 	result := &BulkPhaseResult{}
 
 	for _, scene := range scenes {
-		// For thumbnail/sprites/animated_thumbnails in "all" mode, skip scenes without metadata
-		if mode == "all" && (phase == "thumbnail" || phase == "sprites" || phase == "animated_thumbnails") && scene.Duration == 0 {
+		// For thumbnail/sprites/animated_thumbnails/fingerprint in "all" mode, skip scenes without metadata
+		if mode == "all" && (phase == "thumbnail" || phase == "sprites" || phase == "animated_thumbnails" || phase == "fingerprint") && scene.Duration == 0 {
 			result.Skipped++
 			continue
 		}

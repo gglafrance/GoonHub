@@ -528,6 +528,34 @@ func (mr *MockSceneRepositoryMockRecorder) UpdateDetails(id, title, description,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDetails", reflect.TypeOf((*MockSceneRepository)(nil).UpdateDetails), id, title, description, releaseDate)
 }
 
+// UpdateDuplicateGroupID mocks base method.
+func (m *MockSceneRepository) UpdateDuplicateGroupID(id uint, groupID *uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateDuplicateGroupID", id, groupID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateDuplicateGroupID indicates an expected call of UpdateDuplicateGroupID.
+func (mr *MockSceneRepositoryMockRecorder) UpdateDuplicateGroupID(id, groupID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDuplicateGroupID", reflect.TypeOf((*MockSceneRepository)(nil).UpdateDuplicateGroupID), id, groupID)
+}
+
+// UpdateFingerprintStatus mocks base method.
+func (m *MockSceneRepository) UpdateFingerprintStatus(id uint, status string, count int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateFingerprintStatus", id, status, count)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateFingerprintStatus indicates an expected call of UpdateFingerprintStatus.
+func (mr *MockSceneRepositoryMockRecorder) UpdateFingerprintStatus(id, status, count any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateFingerprintStatus", reflect.TypeOf((*MockSceneRepository)(nil).UpdateFingerprintStatus), id, status, count)
+}
+
 // UpdateIsCorrupted mocks base method.
 func (m *MockSceneRepository) UpdateIsCorrupted(id uint, isCorrupted bool) error {
 	m.ctrl.T.Helper()

@@ -138,10 +138,16 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	shareLinkRepository := provideShareLinkRepository(db)
 	shareService := provideShareService(shareLinkRepository, sceneRepository, logger)
 	shareHandler := provideShareHandler(shareService, authService, manager, configConfig)
+	fingerprintRepository := provideFingerprintRepository(db)
+	duplicateRepository := provideDuplicateRepository(db)
+	duplicateConfigRepository := provideDuplicateConfigRepository(db)
+	bloomFilterManager := provideBloomFilterManager(fingerprintRepository, configConfig, logger)
+	duplicateDetectionService := provideDuplicateDetectionService(fingerprintRepository, duplicateRepository, duplicateConfigRepository, sceneRepository, bloomFilterManager, eventBus, logger)
+	duplicateHandler := provideDuplicateHandler(duplicateDetectionService, sceneRepository)
 	ipRateLimiter := provideRateLimiter(configConfig)
 	ogMiddleware := provideOGMiddleware(sceneRepository, actorRepository, studioRepository, playlistRepository, shareLinkRepository, appSettingsRepository, logger)
-	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, shareHandler, authService, rbacService, ipRateLimiter, ogMiddleware)
-	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, markerService, sceneProcessingService, logger)
+	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, shareHandler, duplicateHandler, authService, rbacService, ipRateLimiter, ogMiddleware)
+	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, fingerprintRepository, duplicateConfigRepository, markerService, sceneProcessingService, logger)
 	shareServer := provideShareServer(configConfig, shareHandler, ogMiddleware, logger)
 	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService, shareServer)
 	return serverServer, nil
@@ -261,6 +267,18 @@ func provideShareLinkRepository(db *gorm.DB) data.ShareLinkRepository {
 	return data.NewShareLinkRepository(db)
 }
 
+func provideFingerprintRepository(db *gorm.DB) data.FingerprintRepository {
+	return data.NewFingerprintRepository(db)
+}
+
+func provideDuplicateRepository(db *gorm.DB) data.DuplicateRepository {
+	return data.NewDuplicateRepository(db)
+}
+
+func provideDuplicateConfigRepository(db *gorm.DB) data.DuplicateConfigRepository {
+	return data.NewDuplicateConfigRepository(db)
+}
+
 func provideMeilisearchClient(cfg *config.Config, searchConfigRepo data.SearchConfigRepository, logger *logging.Logger) (*meilisearch.Client, error) {
 	var maxTotalHits int64 = 100000
 	record, err := searchConfigRepo.Get()
@@ -368,8 +386,8 @@ func provideJobStatusService(jobHistoryService *core.JobHistoryService, processi
 	return core.NewJobStatusService(jobHistoryService, processingService, logger.Logger)
 }
 
-func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, markerService *core.MarkerService, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobQueueFeeder {
-	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerService, markerService, processingService.GetPoolManager(), logger.Logger)
+func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, fingerprintRepo data.FingerprintRepository, duplicateConfigRepo data.DuplicateConfigRepository, markerService *core.MarkerService, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobQueueFeeder {
+	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, fingerprintRepo, duplicateConfigRepo, markerService, markerService, processingService.GetPoolManager(), logger.Logger)
 }
 
 func provideTriggerScheduler(triggerConfigRepo data.TriggerConfigRepository, sceneRepo data.SceneRepository, processingService *core.SceneProcessingService, logger *logging.Logger) *core.TriggerScheduler {
@@ -442,6 +460,26 @@ func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRe
 
 func provideShareService(shareLinkRepo data.ShareLinkRepository, sceneRepo data.SceneRepository, logger *logging.Logger) *core.ShareService {
 	return core.NewShareService(shareLinkRepo, sceneRepo, logger.Logger)
+}
+
+func provideBloomFilterManager(fingerprintRepo data.FingerprintRepository, cfg *config.Config, logger *logging.Logger) *core.BloomFilterManager {
+	mgr := core.NewBloomFilterManager(fingerprintRepo, cfg.Processing.MetadataDir, logger.Logger)
+	if err := mgr.Initialize(); err != nil {
+		logger.Warn(fmt.Sprintf("Failed to initialize bloom filter (non-fatal): %v", err))
+	}
+	return mgr
+}
+
+func provideDuplicateDetectionService(
+	fingerprintRepo data.FingerprintRepository,
+	duplicateRepo data.DuplicateRepository,
+	duplicateConfigRepo data.DuplicateConfigRepository,
+	sceneRepo data.SceneRepository,
+	bloomManager *core.BloomFilterManager,
+	eventBus *core.EventBus,
+	logger *logging.Logger,
+) *core.DuplicateDetectionService {
+	return core.NewDuplicateDetectionService(fingerprintRepo, duplicateRepo, duplicateConfigRepo, sceneRepo, bloomManager, eventBus, logger.Logger)
 }
 
 func provideStreamManager(cfg *config.Config, sceneRepo data.SceneRepository, logger *logging.Logger) *streaming.Manager {
@@ -581,6 +619,10 @@ func provideShareHandler(shareService *core.ShareService, authService *core.Auth
 	return handler.NewShareHandler(shareService, authService, streamManager, cfg.Sharing.BaseURL)
 }
 
+func provideDuplicateHandler(duplicateService *core.DuplicateDetectionService, sceneRepo data.SceneRepository) *handler.DuplicateHandler {
+	return handler.NewDuplicateHandler(duplicateService, sceneRepo)
+}
+
 func provideRouter(
 	logger *logging.Logger,
 	cfg *config.Config,
@@ -614,6 +656,7 @@ func provideRouter(
 	streamStatsHandler *handler.StreamStatsHandler,
 	playlistHandler *handler.PlaylistHandler,
 	shareHandler *handler.ShareHandler,
+	duplicateHandler *handler.DuplicateHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -626,7 +669,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, shareHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, duplicateHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 

@@ -39,7 +39,7 @@ func newTestFeeder(t *testing.T) (*JobQueueFeeder, *mocks.MockJobHistoryReposito
 
 	poolManager := processing.NewPoolManager(cfg, zap.NewNop(), nil, nil)
 
-	feeder := NewJobQueueFeeder(jobHistoryRepo, sceneRepo, nil, nil, poolManager, zap.NewNop())
+	feeder := NewJobQueueFeeder(jobHistoryRepo, sceneRepo, nil, nil, nil, nil, poolManager, zap.NewNop())
 	return feeder, jobHistoryRepo, sceneRepo
 }
 

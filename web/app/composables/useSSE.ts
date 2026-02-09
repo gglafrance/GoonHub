@@ -36,6 +36,16 @@ const SCENE_UPDATE_HANDLERS: Record<string, FieldExtractor> = {
     'scene:timed_out': () => ({
         processing_status: 'timed_out',
     }),
+    'scene:fingerprint_complete': (e) => ({
+        fingerprint_status: 'completed',
+        fingerprint_count: e.data?.fingerprint_count,
+    }),
+    'scene:duplicate_detected': (e) => ({
+        duplicate_group_id: e.data?.group_id,
+    }),
+    'scene:duplicate_resolved': (e) => ({
+        duplicate_group_id: e.data?.group_id,
+    }),
 };
 
 // Scan events routed through SSE

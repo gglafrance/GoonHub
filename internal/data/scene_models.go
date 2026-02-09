@@ -111,9 +111,12 @@ type Scene struct {
 	PornDBSceneID    string         `json:"porndb_scene_id" gorm:"column:porndb_scene_id"`
 	Origin           string         `json:"origin" gorm:"size:100"`
 	Type             string         `json:"type" gorm:"size:50"`
-	PreviewVideoPath string         `json:"preview_video_path"`
-	IsCorrupted      bool           `json:"is_corrupted" gorm:"default:false"`
-	TrashedAt        *time.Time     `json:"trashed_at,omitempty" gorm:"index"`
+	PreviewVideoPath  string         `json:"preview_video_path"`
+	IsCorrupted       bool           `json:"is_corrupted" gorm:"default:false"`
+	TrashedAt         *time.Time     `json:"trashed_at,omitempty" gorm:"index"`
+	FingerprintStatus string         `json:"fingerprint_status" gorm:"default:'pending'"`
+	FingerprintCount  int            `json:"fingerprint_count" gorm:"default:0"`
+	DuplicateGroupID  *uint          `json:"duplicate_group_id,omitempty"`
 }
 
 func (Scene) TableName() string {

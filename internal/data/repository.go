@@ -126,6 +126,10 @@ type SceneRepository interface {
 	// PornDB filtering
 	GetSceneIDsWithPornDBID() ([]uint, error)
 	GetSceneIDsWithoutPornDBID() ([]uint, error)
+
+	// Fingerprint / Duplicate detection
+	UpdateFingerprintStatus(id uint, status string, count int) error
+	UpdateDuplicateGroupID(id uint, groupID *uint) error
 }
 
 type SceneRepositoryImpl struct {
@@ -306,6 +310,8 @@ func (r *SceneRepositoryImpl) GetScenesNeedingPhase(phase string) ([]Scene, erro
 			return nil, err
 		}
 		return animScenes, nil
+	case "fingerprint":
+		baseQuery = baseQuery.Where("(fingerprint_status = '' OR fingerprint_status = 'pending' OR fingerprint_status = 'failed' OR fingerprint_status IS NULL)").Where("duration > 0")
 	default:
 		return nil, nil
 	}
@@ -578,6 +584,17 @@ func (r *SceneRepositoryImpl) GetSceneIDsWithoutPornDBID() ([]uint, error) {
 		Where("(porndb_scene_id IS NULL OR porndb_scene_id = '') AND trashed_at IS NULL").
 		Pluck("id", &ids).Error
 	return ids, err
+}
+
+func (r *SceneRepositoryImpl) UpdateFingerprintStatus(id uint, status string, count int) error {
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Updates(map[string]any{
+		"fingerprint_status": status,
+		"fingerprint_count":  count,
+	}).Error
+}
+
+func (r *SceneRepositoryImpl) UpdateDuplicateGroupID(id uint, groupID *uint) error {
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Update("duplicate_group_id", groupID).Error
 }
 
 type UserRepositoryImpl struct {
