@@ -25,6 +25,18 @@ function onSceneSelected(scene: PornDBScene) {
     emit('select', scene);
     emit('close');
 }
+
+// Track mousedown origin to prevent text selection from closing modal
+const backdropMouseDown = ref(false);
+function onBackdropMouseDown(e: MouseEvent) {
+    backdropMouseDown.value = e.target === e.currentTarget;
+}
+function onBackdropMouseUp(e: MouseEvent) {
+    if (backdropMouseDown.value && e.target === e.currentTarget) {
+        emit('close');
+    }
+    backdropMouseDown.value = false;
+}
 </script>
 
 <template>
@@ -32,7 +44,8 @@ function onSceneSelected(scene: PornDBScene) {
         <div
             v-if="visible"
             class="fixed inset-0 z-60 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-            @click.self="emit('close')"
+            @mousedown="onBackdropMouseDown"
+            @mouseup="onBackdropMouseUp"
         >
             <div
                 class="border-border bg-panel flex h-[80vh] w-full max-w-3xl flex-col rounded-xl

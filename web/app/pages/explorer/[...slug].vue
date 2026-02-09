@@ -175,21 +175,6 @@ definePageMeta({
                         >
                             {{ explorerStore.totalScenes }} scenes
                         </span>
-                        <button
-                            v-if="explorerStore.scenes.length > 0"
-                            class="flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs
-                                font-medium transition-all"
-                            :class="
-                                selectMode
-                                    ? 'border-lava/40 bg-lava/10 text-lava'
-                                    : `border-border text-dim hover:border-border-hover
-                                        hover:text-white`
-                            "
-                            @click="selectMode = !selectMode"
-                        >
-                            <Icon name="heroicons:check-circle" size="14" />
-                            Select
-                        </button>
                     </div>
                 </div>
             </div>
@@ -198,7 +183,10 @@ definePageMeta({
             <ErrorAlert v-if="explorerStore.error" :message="explorerStore.error" class="mb-4" />
 
             <!-- Folder View -->
-            <ExplorerFolderView :select-mode="selectMode" />
+            <ExplorerFolderView
+                :select-mode="selectMode"
+                @update:select-mode="selectMode = $event"
+            />
 
             <!-- Bulk Toolbar -->
             <BulkToolbar

@@ -186,9 +186,11 @@ const handlePornDBMatchComplete = () => {
             @complete="handleBulkComplete"
         />
 
-        <ExplorerBulkActorEditor
+        <ActorPickerModal
             v-if="showActorEditor"
             :visible="showActorEditor"
+            multi-select
+            show-mode-selector
             :scene-ids="sceneIds"
             :selection-count="selectionCount"
             @close="showActorEditor = false"

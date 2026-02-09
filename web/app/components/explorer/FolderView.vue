@@ -5,6 +5,10 @@ defineProps<{
     selectMode?: boolean;
 }>();
 
+defineEmits<{
+    'update:selectMode': [value: boolean];
+}>();
+
 const route = useRoute();
 const router = useRouter();
 const explorerStore = useExplorerStore();
@@ -151,51 +155,21 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
             <div v-if="explorerStore.scenes.length > 0">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <h3 class="text-dim text-xs font-medium tracking-wider uppercase">Scenes</h3>
-                    <div v-if="selectMode" class="flex items-center gap-3">
-                        <!-- Deselect all -->
-                        <button
-                            v-if="explorerStore.hasSelection"
-                            class="text-dim hover:text-lava text-xs transition-colors"
-                            @click="explorerStore.clearSelection()"
-                        >
-                            Deselect all
-                        </button>
-
-                        <!-- Select all on page -->
-                        <button
-                            v-if="!explorerStore.allPageScenesSelected"
-                            class="text-dim hover:text-lava text-xs transition-colors"
-                            @click="explorerStore.selectAllOnPage()"
-                        >
-                            Select page
-                        </button>
-
-                        <!-- Select all in folder -->
-                        <button
-                            v-if="!explorerStore.allFolderScenesSelected"
-                            :disabled="explorerStore.isSelectingAll"
-                            class="text-lava hover:text-lava/80 text-xs font-medium
-                                transition-colors disabled:opacity-50"
-                            @click="explorerStore.selectAllInFolder()"
-                        >
-                            <template v-if="explorerStore.isSelectingAll">Selecting...</template>
-                            <template v-else>
-                                Select all {{ explorerStore.totalScenes }} scenes
-                            </template>
-                        </button>
-
-                        <!-- Select all recursive (when subfolders exist) -->
-                        <button
-                            v-if="explorerStore.subfolders.length > 0"
-                            :disabled="explorerStore.isSelectingAll"
-                            class="text-dim hover:text-lava text-xs transition-colors
-                                disabled:opacity-50"
-                            @click="explorerStore.selectAllInFolderRecursive()"
-                        >
-                            <template v-if="explorerStore.isSelectingAll">Selecting...</template>
-                            <template v-else>+ subfolders</template>
-                        </button>
-                    </div>
+                    <SceneSelectionControls
+                        :select-mode="selectMode"
+                        :has-selection="explorerStore.hasSelection"
+                        :is-selecting-all="explorerStore.isSelectingAll"
+                        :all-page-scenes-selected="explorerStore.allPageScenesSelected"
+                        :all-scenes-selected="explorerStore.allFolderScenesSelected"
+                        :total-scenes="explorerStore.totalScenes"
+                        :show-recursive="explorerStore.subfolders.length > 0"
+                        :is-recursive-disabled="explorerStore.isSelectingAll"
+                        @update:select-mode="$emit('update:selectMode', $event)"
+                        @deselect-all="explorerStore.clearSelection()"
+                        @select-page="explorerStore.selectAllOnPage()"
+                        @select-all="explorerStore.selectAllInFolder()"
+                        @select-recursive="explorerStore.selectAllInFolderRecursive()"
+                    />
                 </div>
 
                 <SelectableSceneGrid

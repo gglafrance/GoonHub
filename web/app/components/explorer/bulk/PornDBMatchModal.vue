@@ -209,6 +209,18 @@ const filteredResults = computed(() => {
     if (!hideSkipped.value) return resultsArray.value;
     return resultsArray.value.filter((r) => r.status !== 'skipped');
 });
+
+// Track mousedown origin to prevent text selection from closing modal
+const backdropMouseDown = ref(false);
+function onBackdropMouseDown(e: MouseEvent) {
+    backdropMouseDown.value = e.target === e.currentTarget;
+}
+function onBackdropMouseUp(e: MouseEvent) {
+    if (backdropMouseDown.value && e.target === e.currentTarget && !hasUnsavedWork.value) {
+        handleClose();
+    }
+    backdropMouseDown.value = false;
+}
 </script>
 
 <template>
@@ -216,7 +228,8 @@ const filteredResults = computed(() => {
         <div
             v-if="visible"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-            @click.self="!hasUnsavedWork && handleClose()"
+            @mousedown="onBackdropMouseDown"
+            @mouseup="onBackdropMouseUp"
         >
             <div
                 class="border-border bg-panel relative flex h-[85vh] w-full max-w-6xl flex-col

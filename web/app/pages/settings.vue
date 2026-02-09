@@ -25,27 +25,35 @@ type TabType =
     | 'storage'
     | 'trash';
 
-type JobsSubTabType =
-    | 'manual'
-    | 'history'
-    | 'workers'
-    | 'processing'
-    | 'triggers'
-    | 'retry'
-    | 'dlq';
+interface SubTabConfig {
+    id: string;
+    label: string;
+    admin?: boolean;
+}
 
 interface TabConfig {
     id: TabType;
     label: string;
     icon: string;
     admin?: boolean;
-    subTabs?: { id: JobsSubTabType; label: string }[];
+    subTabs?: SubTabConfig[];
 }
 
 const tabConfig: TabConfig[] = [
     { id: 'account', label: 'Account', icon: 'heroicons:user-circle' },
     { id: 'player', label: 'Player', icon: 'heroicons:play-circle' },
-    { id: 'app', label: 'App', icon: 'heroicons:cog-6-tooth' },
+    {
+        id: 'app',
+        label: 'App',
+        icon: 'heroicons:cog-6-tooth',
+        subTabs: [
+            { id: 'general', label: 'General' },
+            { id: 'sort-defaults', label: 'Sort Defaults' },
+            { id: 'card-template', label: 'Card Template' },
+            { id: 'search', label: 'Search', admin: true },
+            { id: 'advanced', label: 'Advanced', admin: true },
+        ],
+    },
     { id: 'homepage', label: 'Homepage', icon: 'heroicons:home' },
     { id: 'tags', label: 'Tags', icon: 'heroicons:tag' },
     { id: 'parsing-rules', label: 'Parsing Rules', icon: 'heroicons:funnel' },
@@ -70,8 +78,17 @@ const tabConfig: TabConfig[] = [
 ];
 
 const activeTab = ref<TabType>('account');
-const activeSubTab = ref<JobsSubTabType>('manual');
+const activeSubTab = ref<string>('general');
 const expandedTabs = ref<Set<TabType>>(new Set());
+
+const isAdmin = computed(() => authStore.user?.role === 'admin');
+
+function getVisibleSubTabs(tab: TabConfig): SubTabConfig[] {
+    if (!tab.subTabs) return [];
+    return tab.subTabs.filter((st) => !st.admin || isAdmin.value);
+}
+
+const currentTabConfig = computed(() => tabConfig.find((t) => t.id === activeTab.value));
 
 // Global save
 const isSaving = ref(false);
@@ -116,16 +133,22 @@ const availableTabs = computed(() => {
 const regularTabs = computed(() => availableTabs.value.filter((t) => !t.admin));
 const adminTabs = computed(() => availableTabs.value.filter((t) => t.admin));
 
-function setTab(tab: TabConfig, subTab?: JobsSubTabType) {
+function setTab(tab: TabConfig, subTab?: string) {
     activeTab.value = tab.id;
 
     if (tab.subTabs) {
+        const visible = getVisibleSubTabs(tab);
         // If clicking a tab with sub-tabs, toggle expansion
         if (!subTab) {
             if (expandedTabs.value.has(tab.id)) {
                 expandedTabs.value.delete(tab.id);
             } else {
                 expandedTabs.value.add(tab.id);
+            }
+            // Reset sub-tab to first visible if current isn't valid for this tab
+            const validIds = visible.map((st) => st.id);
+            if (!validIds.includes(activeSubTab.value)) {
+                activeSubTab.value = visible[0]?.id ?? '';
             }
         } else {
             // If clicking a sub-tab, ensure parent is expanded
@@ -137,7 +160,7 @@ function setTab(tab: TabConfig, subTab?: JobsSubTabType) {
     updateUrl();
 }
 
-function setSubTab(tab: TabConfig, subTab: JobsSubTabType) {
+function setSubTab(tab: TabConfig, subTab: string) {
     activeTab.value = tab.id;
     activeSubTab.value = subTab;
     expandedTabs.value.add(tab.id);
@@ -166,7 +189,7 @@ function isTabActive(tab: TabConfig) {
     return activeTab.value === tab.id;
 }
 
-function isSubTabActive(subTabId: JobsSubTabType) {
+function isSubTabActive(subTabId: string) {
     return activeSubTab.value === subTabId;
 }
 
@@ -181,12 +204,19 @@ onMounted(() => {
         if (tab) {
             activeTab.value = tab.id;
 
-            if (tab.subTabs && subTabFromUrl) {
-                const validSubTab = tab.subTabs.find((st) => st.id === subTabFromUrl);
-                if (validSubTab) {
-                    activeSubTab.value = validSubTab.id;
-                    expandedTabs.value.add(tab.id);
+            if (tab.subTabs) {
+                const visible = getVisibleSubTabs(tab);
+                if (subTabFromUrl) {
+                    const validSubTab = visible.find((st) => st.id === subTabFromUrl);
+                    if (validSubTab) {
+                        activeSubTab.value = validSubTab.id;
+                    } else {
+                        activeSubTab.value = visible[0]?.id ?? '';
+                    }
+                } else {
+                    activeSubTab.value = visible[0]?.id ?? '';
                 }
+                expandedTabs.value.add(tab.id);
             }
         }
     }
@@ -247,13 +277,13 @@ definePageMeta({
                 <div class="w-4 shrink-0" />
             </div>
 
-            <!-- Sub-tabs row (for Jobs) -->
+            <!-- Sub-tabs row (for tabs with sub-tabs) -->
             <div
-                v-if="activeTab === 'jobs' && tabConfig.find((t) => t.id === 'jobs')?.subTabs"
+                v-if="currentTabConfig?.subTabs"
                 class="border-border scrollbar-none flex gap-1 overflow-x-auto border-t px-4 py-2"
             >
                 <button
-                    v-for="subTab in tabConfig.find((t) => t.id === 'jobs')?.subTabs"
+                    v-for="subTab in getVisibleSubTabs(currentTabConfig)"
                     :key="subTab.id"
                     class="shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-all"
                     :class="
@@ -261,7 +291,7 @@ definePageMeta({
                             ? 'bg-lava text-white'
                             : 'text-dim bg-white/5 hover:bg-white/10 hover:text-white'
                     "
-                    @click="setSubTab(tabConfig.find((t) => t.id === 'jobs')!, subTab.id)"
+                    @click="setSubTab(currentTabConfig!, subTab.id)"
                 >
                     {{ subTab.label }}
                 </button>
@@ -279,7 +309,69 @@ definePageMeta({
                 <!-- Regular tabs -->
                 <nav class="space-y-0.5">
                     <template v-for="tab in regularTabs" :key="tab.id">
+                        <!-- Tab with sub-tabs -->
+                        <div v-if="tab.subTabs && getVisibleSubTabs(tab).length > 0">
+                            <button
+                                class="group flex w-full items-center gap-2.5 rounded-lg px-3 py-2
+                                    text-[13px] font-medium transition-all duration-150"
+                                :class="
+                                    isTabActive(tab)
+                                        ? 'bg-lava/10 text-lava shadow-[inset_3px_0_0_#ff4d4d]'
+                                        : 'text-white/50 hover:bg-white/3 hover:text-white/80'
+                                "
+                                @click="setTab(tab)"
+                            >
+                                <Icon :name="tab.icon" class="h-4.5 w-4.5 shrink-0" />
+                                <span>{{ tab.label }}</span>
+                                <span
+                                    class="ml-auto cursor-pointer rounded p-0.5 transition-colors
+                                        hover:bg-white/10"
+                                    @click="toggleExpand(tab, $event)"
+                                >
+                                    <Icon
+                                        name="heroicons:chevron-down"
+                                        class="h-4 w-4 transition-transform duration-200"
+                                        :class="expandedTabs.has(tab.id) ? 'rotate-180' : ''"
+                                    />
+                                </span>
+                            </button>
+
+                            <!-- Sub-tabs with collapse animation -->
+                            <div
+                                class="overflow-hidden transition-all duration-200 ease-out"
+                                :class="expandedTabs.has(tab.id) ? 'max-h-75' : 'max-h-0'"
+                            >
+                                <div class="mt-0.5 space-y-0.5 py-1">
+                                    <button
+                                        v-for="subTab in getVisibleSubTabs(tab)"
+                                        :key="subTab.id"
+                                        class="flex w-full items-center gap-2 rounded-md py-1.5 pr-3
+                                            pl-11 text-xs font-medium transition-all duration-150"
+                                        :class="
+                                            isTabActive(tab) && isSubTabActive(subTab.id)
+                                                ? 'text-lava'
+                                                : `text-white/40 hover:bg-white/2
+                                                    hover:text-white/70`
+                                        "
+                                        @click="setSubTab(tab, subTab.id)"
+                                    >
+                                        <span
+                                            class="h-1 w-1 rounded-full"
+                                            :class="
+                                                isTabActive(tab) && isSubTabActive(subTab.id)
+                                                    ? 'bg-lava'
+                                                    : 'bg-white/20'
+                                            "
+                                        ></span>
+                                        {{ subTab.label }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Regular tab -->
                         <button
+                            v-else
                             class="group flex w-full items-center gap-2.5 rounded-lg px-3 py-2
                                 text-[13px] font-medium transition-all duration-150"
                             :class="
@@ -341,7 +433,7 @@ definePageMeta({
                                 >
                                     <div class="mt-0.5 space-y-0.5 py-1">
                                         <button
-                                            v-for="subTab in tab.subTabs"
+                                            v-for="subTab in getVisibleSubTabs(tab)"
                                             :key="subTab.id"
                                             class="flex w-full items-center gap-2 rounded-md py-1.5
                                                 pr-3 pl-11 text-xs font-medium transition-all
@@ -456,7 +548,11 @@ definePageMeta({
 
                 <SettingsAccount v-if="activeTab === 'account'" />
                 <SettingsPlayer v-if="activeTab === 'player'" />
-                <SettingsApp v-if="activeTab === 'app'" ref="settingsAppRef" />
+                <SettingsApp
+                    v-if="activeTab === 'app'"
+                    ref="settingsAppRef"
+                    :active-sub-tab="activeSubTab"
+                />
                 <SettingsHomepage v-if="activeTab === 'homepage'" />
                 <SettingsTags v-if="activeTab === 'tags'" />
                 <SettingsParsingRules v-if="activeTab === 'parsing-rules'" />
