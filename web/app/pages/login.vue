@@ -46,7 +46,7 @@ const handleLogin = async () => {
             aria-hidden="true"
         />
 
-        <div class="relative z-10 w-full max-w-sm sm:mx-auto">
+        <div class="relative z-10 mx-auto w-full max-w-sm">
             <!-- Logo Section - More prominent on mobile -->
             <div class="mb-10 pt-12 text-center sm:mb-8 sm:pt-0">
                 <div
