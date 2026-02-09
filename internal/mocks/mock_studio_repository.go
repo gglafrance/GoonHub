@@ -157,6 +157,21 @@ func (mr *MockStudioRepositoryMockRecorder) GetSceneStudio(sceneID any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSceneStudio", reflect.TypeOf((*MockStudioRepository)(nil).GetSceneStudio), sceneID)
 }
 
+// GetStudioSceneIDs mocks base method.
+func (m *MockStudioRepository) GetStudioSceneIDs(studioID uint, limit int) ([]uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStudioSceneIDs", studioID, limit)
+	ret0, _ := ret[0].([]uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetStudioSceneIDs indicates an expected call of GetStudioSceneIDs.
+func (mr *MockStudioRepositoryMockRecorder) GetStudioSceneIDs(studioID, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStudioSceneIDs", reflect.TypeOf((*MockStudioRepository)(nil).GetStudioSceneIDs), studioID, limit)
+}
+
 // GetStudioScenes mocks base method.
 func (m *MockStudioRepository) GetStudioScenes(studioID uint, page, limit int) ([]data.Scene, int64, error) {
 	m.ctrl.T.Helper()

@@ -701,7 +701,12 @@ func (h *SceneHandler) GetRelatedScenes(c *gin.Context) {
 		return
 	}
 
-	scenes, err := h.RelatedScenesService.GetRelatedScenes(uint(id), limit)
+	var userID uint
+	if payload, pErr := middleware.GetUserFromContext(c); pErr == nil {
+		userID = payload.UserID
+	}
+
+	scenes, err := h.RelatedScenesService.GetRelatedScenes(uint(id), userID, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get related scenes"})
 		return
@@ -755,10 +760,6 @@ func (h *SceneHandler) GetRelatedScenes(c *gin.Context) {
 	}
 
 	// Load interaction sidecar maps if requested
-	var userID uint
-	if payload, err := middleware.GetUserFromContext(c); err == nil {
-		userID = payload.UserID
-	}
 	if userID > 0 {
 		if cardFields.Rating {
 			if ratings, err := h.InteractionRepo.GetRatingsBySceneIDs(userID, sceneIDs); err == nil {

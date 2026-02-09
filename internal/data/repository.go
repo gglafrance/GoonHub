@@ -126,6 +126,9 @@ type SceneRepository interface {
 	// PornDB filtering
 	GetSceneIDsWithPornDBID() ([]uint, error)
 	GetSceneIDsWithoutPornDBID() ([]uint, error)
+
+	// Popular scenes (ordered by view count)
+	ListPopular(limit int) ([]Scene, error)
 }
 
 type SceneRepositoryImpl struct {
@@ -578,6 +581,18 @@ func (r *SceneRepositoryImpl) GetSceneIDsWithoutPornDBID() ([]uint, error) {
 		Where("(porndb_scene_id IS NULL OR porndb_scene_id = '') AND trashed_at IS NULL").
 		Pluck("id", &ids).Error
 	return ids, err
+}
+
+func (r *SceneRepositoryImpl) ListPopular(limit int) ([]Scene, error) {
+	var scenes []Scene
+	err := r.DB.Where("trashed_at IS NULL").
+		Order("view_count DESC").
+		Limit(limit).
+		Find(&scenes).Error
+	if err != nil {
+		return nil, err
+	}
+	return scenes, nil
 }
 
 type UserRepositoryImpl struct {

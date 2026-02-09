@@ -83,6 +83,21 @@ func (mr *MockActorInteractionRepositoryMockRecorder) GetAllInteractions(userID,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllInteractions", reflect.TypeOf((*MockActorInteractionRepository)(nil).GetAllInteractions), userID, actorID)
 }
 
+// GetLikedActorIDs mocks base method.
+func (m *MockActorInteractionRepository) GetLikedActorIDs(userID uint) ([]uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLikedActorIDs", userID)
+	ret0, _ := ret[0].([]uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLikedActorIDs indicates an expected call of GetLikedActorIDs.
+func (mr *MockActorInteractionRepositoryMockRecorder) GetLikedActorIDs(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLikedActorIDs", reflect.TypeOf((*MockActorInteractionRepository)(nil).GetLikedActorIDs), userID)
+}
+
 // GetRating mocks base method.
 func (m *MockActorInteractionRepository) GetRating(userID, actorID uint) (*data.UserActorRating, error) {
 	m.ctrl.T.Helper()

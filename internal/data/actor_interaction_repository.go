@@ -15,6 +15,7 @@ type ActorInteractionRepository interface {
 	DeleteLike(userID, actorID uint) error
 	IsLiked(userID, actorID uint) (bool, error)
 	GetAllInteractions(userID, actorID uint) (*ActorInteractions, error)
+	GetLikedActorIDs(userID uint) ([]uint, error)
 }
 
 type ActorInteractionRepositoryImpl struct {
@@ -95,6 +96,15 @@ func (r *ActorInteractionRepositoryImpl) GetAllInteractions(userID, actorID uint
 	result.Liked = likeCount > 0
 
 	return result, nil
+}
+
+func (r *ActorInteractionRepositoryImpl) GetLikedActorIDs(userID uint) ([]uint, error) {
+	var ids []uint
+	err := r.DB.Model(&UserActorLike{}).Where("user_id = ?", userID).Pluck("actor_id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 // Ensure ActorInteractionRepositoryImpl implements ActorInteractionRepository

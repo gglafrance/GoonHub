@@ -65,7 +65,10 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	actorRepository := provideActorRepository(db)
 	searchService := provideSearchService(client, sceneRepository, interactionRepository, tagRepository, actorRepository, markerRepository, logger)
 	studioRepository := provideStudioRepository(db)
-	relatedScenesService := provideRelatedScenesService(sceneRepository, tagRepository, actorRepository, studioRepository, logger)
+	actorInteractionRepository := provideActorInteractionRepository(db)
+	studioInteractionRepository := provideStudioInteractionRepository(db)
+	watchHistoryRepository := provideWatchHistoryRepository(db)
+	relatedScenesService := provideRelatedScenesService(sceneRepository, tagRepository, actorRepository, studioRepository, actorInteractionRepository, studioInteractionRepository, watchHistoryRepository, logger)
 	manager := provideStreamManager(configConfig, sceneRepository, logger)
 	sceneHandler := provideSceneHandler(sceneService, sceneProcessingService, tagService, searchService, relatedScenesService, markerService, manager, interactionRepository, tagRepository, actorRepository, configConfig)
 	userRepository := provideUserRepository(db)
@@ -103,14 +106,11 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	studioHandler := provideStudioHandler(studioService, configConfig)
 	interactionService := provideInteractionService(interactionRepository, logger)
 	interactionHandler := provideInteractionHandler(interactionService)
-	actorInteractionRepository := provideActorInteractionRepository(db)
 	actorInteractionService := provideActorInteractionService(actorInteractionRepository, logger)
 	actorInteractionHandler := provideActorInteractionHandler(actorInteractionService, actorRepository)
-	studioInteractionRepository := provideStudioInteractionRepository(db)
 	studioInteractionService := provideStudioInteractionService(studioInteractionRepository, logger)
 	studioInteractionHandler := provideStudioInteractionHandler(studioInteractionService, studioRepository)
 	searchHandler := provideSearchHandler(searchService, searchConfigRepository)
-	watchHistoryRepository := provideWatchHistoryRepository(db)
 	watchHistoryService := provideWatchHistoryService(watchHistoryRepository, sceneRepository, searchService, logger)
 	watchHistoryHandler := provideWatchHistoryHandler(watchHistoryService)
 	storagePathRepository := provideStoragePathRepository(db)
@@ -352,8 +352,17 @@ func provideWatchHistoryService(repo data.WatchHistoryRepository, sceneRepo data
 	return core.NewWatchHistoryService(repo, sceneRepo, searchService, logger.Logger)
 }
 
-func provideRelatedScenesService(sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, studioRepo data.StudioRepository, logger *logging.Logger) *core.RelatedScenesService {
-	return core.NewRelatedScenesService(sceneRepo, tagRepo, actorRepo, studioRepo, logger.Logger)
+func provideRelatedScenesService(
+	sceneRepo data.SceneRepository,
+	tagRepo data.TagRepository,
+	actorRepo data.ActorRepository,
+	studioRepo data.StudioRepository,
+	actorInteractionRepo data.ActorInteractionRepository,
+	studioInteractionRepo data.StudioInteractionRepository,
+	watchHistoryRepo data.WatchHistoryRepository,
+	logger *logging.Logger,
+) *core.RelatedScenesService {
+	return core.NewRelatedScenesService(sceneRepo, tagRepo, actorRepo, studioRepo, actorInteractionRepo, studioInteractionRepo, watchHistoryRepo, logger.Logger)
 }
 
 func provideSceneProcessingService(repo data.SceneRepository, markerService *core.MarkerService, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository) *core.SceneProcessingService {
