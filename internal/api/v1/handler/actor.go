@@ -39,8 +39,12 @@ func (h *ActorHandler) ListActors(c *gin.Context) {
 	page, limit = clampPagination(page, limit, 20, h.MaxItemsPerPage)
 	query := c.Query("q")
 	sort := c.Query("sort")
+	var genders []string
+	if g := c.Query("gender"); g != "" {
+		genders = strings.Split(g, ",")
+	}
 
-	actors, total, err := h.Service.List(page, limit, query, sort)
+	actors, total, err := h.Service.List(page, limit, query, sort, genders)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list actors"})
 		return

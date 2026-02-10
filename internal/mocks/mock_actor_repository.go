@@ -232,9 +232,9 @@ func (mr *MockActorRepositoryMockRecorder) GetSceneCount(actorID any) *gomock.Ca
 }
 
 // List mocks base method.
-func (m *MockActorRepository) List(page, limit int, sort string) ([]data.ActorWithCount, int64, error) {
+func (m *MockActorRepository) List(page, limit int, sort string, genders []string) ([]data.ActorWithCount, int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "List", page, limit, sort)
+	ret := m.ctrl.Call(m, "List", page, limit, sort, genders)
 	ret0, _ := ret[0].([]data.ActorWithCount)
 	ret1, _ := ret[1].(int64)
 	ret2, _ := ret[2].(error)
@@ -242,15 +242,15 @@ func (m *MockActorRepository) List(page, limit int, sort string) ([]data.ActorWi
 }
 
 // List indicates an expected call of List.
-func (mr *MockActorRepositoryMockRecorder) List(page, limit, sort any) *gomock.Call {
+func (mr *MockActorRepositoryMockRecorder) List(page, limit, sort, genders any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockActorRepository)(nil).List), page, limit, sort)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockActorRepository)(nil).List), page, limit, sort, genders)
 }
 
 // Search mocks base method.
-func (m *MockActorRepository) Search(query string, page, limit int, sort string) ([]data.ActorWithCount, int64, error) {
+func (m *MockActorRepository) Search(query string, page, limit int, sort string, genders []string) ([]data.ActorWithCount, int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Search", query, page, limit, sort)
+	ret := m.ctrl.Call(m, "Search", query, page, limit, sort, genders)
 	ret0, _ := ret[0].([]data.ActorWithCount)
 	ret1, _ := ret[1].(int64)
 	ret2, _ := ret[2].(error)
@@ -258,9 +258,9 @@ func (m *MockActorRepository) Search(query string, page, limit int, sort string)
 }
 
 // Search indicates an expected call of Search.
-func (mr *MockActorRepositoryMockRecorder) Search(query, page, limit, sort any) *gomock.Call {
+func (mr *MockActorRepositoryMockRecorder) Search(query, page, limit, sort, genders any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Search", reflect.TypeOf((*MockActorRepository)(nil).Search), query, page, limit, sort)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Search", reflect.TypeOf((*MockActorRepository)(nil).Search), query, page, limit, sort, genders)
 }
 
 // SetSceneActors mocks base method.

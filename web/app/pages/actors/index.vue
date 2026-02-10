@@ -21,6 +21,7 @@ const currentPage = useUrlPagination();
 const { limit, showSelector, maxLimit, updatePageSize } = usePageSize();
 const searchQuery = ref('');
 const sortOrder = useUrlSort(settingsStore.sortPreferences?.actors || 'name_asc');
+const genderFilter = ref<string[]>(JSON.parse(localStorage.getItem('actorGenderFilter') || '[]'));
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 const showCreateModal = ref(false);
@@ -32,6 +33,13 @@ const sortOptions = [
     { value: 'scene_count_asc', label: 'Least Scenes' },
     { value: 'created_at_desc', label: 'Newest' },
     { value: 'created_at_asc', label: 'Oldest' },
+];
+
+const genderOptions = [
+    { value: 'Female', label: 'Female' },
+    { value: 'Male', label: 'Male' },
+    { value: 'Trans', label: 'Trans' },
+    { value: 'Non-binary', label: 'Non-binary' },
 ];
 
 const isAdmin = computed(() => authStore.user?.role === 'admin');
@@ -47,6 +55,7 @@ const loadActors = async (page = 1) => {
             limit.value,
             searchQuery.value,
             sortOrder.value,
+            genderFilter.value,
         );
         actors.value = response.data;
         total.value = response.total;
@@ -89,6 +98,19 @@ watch(sortOrder, () => {
         currentPage.value = 1;
     }
 });
+
+watch(
+    genderFilter,
+    (val) => {
+        localStorage.setItem('actorGenderFilter', JSON.stringify(val));
+        if (currentPage.value === 1) {
+            loadActors(1);
+        } else {
+            currentPage.value = 1;
+        }
+    },
+    { deep: true },
+);
 
 const handleActorCreated = (newActor: Actor) => {
     showCreateModal.value = false;
@@ -144,6 +166,11 @@ definePageMeta({
                         />
                     </div>
 
+                    <UiMultiSelect
+                        v-model="genderFilter"
+                        :options="genderOptions"
+                        placeholder="Gender"
+                    />
                     <UiSortSelect v-model="sortOrder" :options="sortOptions" />
                 </div>
             </div>

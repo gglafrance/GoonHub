@@ -12,8 +12,8 @@ type ActorRepository interface {
 	GetByUUID(uuid string) (*Actor, error)
 	Update(actor *Actor) error
 	Delete(id uint) error
-	List(page, limit int, sort string) ([]ActorWithCount, int64, error)
-	Search(query string, page, limit int, sort string) ([]ActorWithCount, int64, error)
+	List(page, limit int, sort string, genders []string) ([]ActorWithCount, int64, error)
+	Search(query string, page, limit int, sort string, genders []string) ([]ActorWithCount, int64, error)
 
 	// Scene associations
 	GetSceneActors(sceneID uint) ([]Actor, error)
@@ -101,24 +101,32 @@ func getActorOrderClause(sort string) string {
 	return "actors.name ASC" // default sort
 }
 
-func (r *ActorRepositoryImpl) List(page, limit int, sort string) ([]ActorWithCount, int64, error) {
+func (r *ActorRepositoryImpl) List(page, limit int, sort string, genders []string) ([]ActorWithCount, int64, error) {
 	var actors []ActorWithCount
 	var total int64
 
 	offset := (page - 1) * limit
 
-	if err := r.DB.Model(&Actor{}).Count(&total).Error; err != nil {
+	countQuery := r.DB.Model(&Actor{})
+	if len(genders) > 0 {
+		countQuery = countQuery.Where("gender IN ?", genders)
+	}
+	if err := countQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	orderClause := getActorOrderClause(sort)
 
-	err := r.DB.
+	q := r.DB.
 		Table("actors").
 		Select("actors.*, COALESCE(COUNT(scenes.id), 0) as scene_count").
 		Joins("LEFT JOIN scene_actors ON scene_actors.actor_id = actors.id").
 		Joins("LEFT JOIN scenes ON scenes.id = scene_actors.scene_id AND scenes.deleted_at IS NULL").
-		Where("actors.deleted_at IS NULL").
+		Where("actors.deleted_at IS NULL")
+	if len(genders) > 0 {
+		q = q.Where("actors.gender IN ?", genders)
+	}
+	err := q.
 		Group("actors.id").
 		Order(orderClause).
 		Limit(limit).
@@ -131,7 +139,7 @@ func (r *ActorRepositoryImpl) List(page, limit int, sort string) ([]ActorWithCou
 	return actors, total, nil
 }
 
-func (r *ActorRepositoryImpl) Search(query string, page, limit int, sort string) ([]ActorWithCount, int64, error) {
+func (r *ActorRepositoryImpl) Search(query string, page, limit int, sort string, genders []string) ([]ActorWithCount, int64, error) {
 	var actors []ActorWithCount
 	var total int64
 
@@ -139,19 +147,26 @@ func (r *ActorRepositoryImpl) Search(query string, page, limit int, sort string)
 	searchPattern := "%" + query + "%"
 
 	countQuery := r.DB.Model(&Actor{}).Where("(name ILIKE ? OR array_to_string(aliases, ',') ILIKE ?)", searchPattern, searchPattern)
+	if len(genders) > 0 {
+		countQuery = countQuery.Where("gender IN ?", genders)
+	}
 	if err := countQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	orderClause := getActorOrderClause(sort)
 
-	err := r.DB.
+	q := r.DB.
 		Table("actors").
 		Select("actors.*, COALESCE(COUNT(scene_actors.id), 0) as scene_count").
 		Joins("LEFT JOIN scene_actors ON scene_actors.actor_id = actors.id").
 		Joins("LEFT JOIN scenes ON scenes.id = scene_actors.scene_id AND scenes.deleted_at IS NULL").
 		Where("actors.deleted_at IS NULL").
-		Where("(actors.name ILIKE ? OR array_to_string(actors.aliases, ',') ILIKE ?)", searchPattern, searchPattern).
+		Where("(actors.name ILIKE ? OR array_to_string(actors.aliases, ',') ILIKE ?)", searchPattern, searchPattern)
+	if len(genders) > 0 {
+		q = q.Where("actors.gender IN ?", genders)
+	}
+	err := q.
 		Group("actors.id").
 		Order(orderClause).
 		Limit(limit).
