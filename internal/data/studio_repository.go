@@ -18,6 +18,7 @@ type StudioRepository interface {
 	GetSceneStudio(sceneID uint) (*Studio, error)
 	SetSceneStudio(sceneID uint, studioID *uint) error
 	GetStudioScenes(studioID uint, page, limit int) ([]Scene, int64, error)
+	GetStudioSceneIDs(studioID uint, limit int) ([]uint, error)
 	GetSceneCount(studioID uint) (int64, error)
 
 	// Bulk operations
@@ -201,6 +202,19 @@ func (r *StudioRepositoryImpl) GetStudioScenes(studioID uint, page, limit int) (
 	}
 
 	return scenes, total, nil
+}
+
+func (r *StudioRepositoryImpl) GetStudioSceneIDs(studioID uint, limit int) ([]uint, error) {
+	var ids []uint
+	err := r.DB.Model(&Scene{}).
+		Where("studio_id = ? AND deleted_at IS NULL AND trashed_at IS NULL", studioID).
+		Order("created_at DESC").
+		Limit(limit).
+		Pluck("id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 func (r *StudioRepositoryImpl) GetSceneCount(studioID uint) (int64, error) {

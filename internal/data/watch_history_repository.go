@@ -20,6 +20,7 @@ type WatchHistoryRepository interface {
 	// and increments the scene view count if so. Returns true if the count was incremented.
 	// This prevents race conditions from concurrent requests.
 	TryIncrementViewCount(userID, sceneID uint) (bool, error)
+	GetWatchedSceneIDs(userID uint, limit int) ([]uint, error)
 }
 
 type WatchHistoryRepositoryImpl struct {
@@ -238,6 +239,21 @@ func (r *WatchHistoryRepositoryImpl) GetDailyActivityCounts(userID uint, since t
 		return nil, err
 	}
 	return counts, nil
+}
+
+func (r *WatchHistoryRepositoryImpl) GetWatchedSceneIDs(userID uint, limit int) ([]uint, error) {
+	var ids []uint
+	err := r.DB.Raw(`
+		SELECT scene_id FROM user_scene_watches
+		WHERE user_id = ?
+		GROUP BY scene_id
+		ORDER BY MAX(watched_at) DESC
+		LIMIT ?
+	`, userID, limit).Scan(&ids).Error
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 var _ WatchHistoryRepository = (*WatchHistoryRepositoryImpl)(nil)

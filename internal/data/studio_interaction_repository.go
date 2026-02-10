@@ -15,6 +15,7 @@ type StudioInteractionRepository interface {
 	DeleteLike(userID, studioID uint) error
 	IsLiked(userID, studioID uint) (bool, error)
 	GetAllInteractions(userID, studioID uint) (*StudioInteractions, error)
+	GetLikedStudioIDs(userID uint) ([]uint, error)
 }
 
 type StudioInteractionRepositoryImpl struct {
@@ -95,6 +96,15 @@ func (r *StudioInteractionRepositoryImpl) GetAllInteractions(userID, studioID ui
 	result.Liked = likeCount > 0
 
 	return result, nil
+}
+
+func (r *StudioInteractionRepositoryImpl) GetLikedStudioIDs(userID uint) ([]uint, error) {
+	var ids []uint
+	err := r.DB.Model(&UserStudioLike{}).Where("user_id = ?", userID).Pluck("studio_id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 // Ensure StudioInteractionRepositoryImpl implements StudioInteractionRepository

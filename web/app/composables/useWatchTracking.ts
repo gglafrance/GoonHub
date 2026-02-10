@@ -114,21 +114,28 @@ export const useWatchTracking = (options: WatchTrackingOptions) => {
         });
     };
 
+    const onEnded = () => {
+        if (scene.value) {
+            saveProgress(true);
+        }
+    };
+
     const setupTracking = () => {
         if (!player.value) return;
 
         player.value.on('play', onPlay);
         player.value.on('timeupdate', onTimeUpdate);
-        player.value.on('ended', () => {
-            if (scene.value) {
-                saveProgress(true);
-            }
-        });
+        player.value.on('ended', onEnded);
 
         window.addEventListener('beforeunload', handleBeforeUnload);
     };
 
     const cleanup = () => {
+        if (player.value) {
+            player.value.off('play', onPlay);
+            player.value.off('timeupdate', onTimeUpdate);
+            player.value.off('ended', onEnded);
+        }
         window.removeEventListener('beforeunload', handleBeforeUnload);
         saveProgress(false, true);
     };

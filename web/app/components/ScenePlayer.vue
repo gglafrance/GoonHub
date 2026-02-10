@@ -330,7 +330,10 @@ const abLoopEndBtn = shallowRef<ABLoopTimeButtonInstance | null>(null);
 const abLoopToggleBtn = shallowRef<ABLoopToggleButtonInstance | null>(null);
 const abLoop = useABLoop(player);
 const { vttCues, loadVttCues } = useVttParser();
-const { setup: setupThumbnailPreview } = useThumbnailPreview(player, vttCues);
+const { setup: setupThumbnailPreview, cleanup: cleanupThumbnailPreview } = useThumbnailPreview(
+    player,
+    vttCues,
+);
 const {
     setup: setupMarkerIndicators,
     cleanup: cleanupMarkerIndicators,
@@ -651,6 +654,7 @@ defineExpose({
 
 onBeforeUnmount(() => {
     cleanup();
+    cleanupThumbnailPreview();
     cleanupMarkerIndicators();
     if (player.value) {
         player.value.dispose();

@@ -71,6 +71,21 @@ func (mr *MockWatchHistoryRepositoryMockRecorder) GetLastWatch(userID, sceneID a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastWatch", reflect.TypeOf((*MockWatchHistoryRepository)(nil).GetLastWatch), userID, sceneID)
 }
 
+// GetWatchedSceneIDs mocks base method.
+func (m *MockWatchHistoryRepository) GetWatchedSceneIDs(userID uint, limit int) ([]uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWatchedSceneIDs", userID, limit)
+	ret0, _ := ret[0].([]uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWatchedSceneIDs indicates an expected call of GetWatchedSceneIDs.
+func (mr *MockWatchHistoryRepositoryMockRecorder) GetWatchedSceneIDs(userID, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWatchedSceneIDs", reflect.TypeOf((*MockWatchHistoryRepository)(nil).GetWatchedSceneIDs), userID, limit)
+}
+
 // ListSceneWatches mocks base method.
 func (m *MockWatchHistoryRepository) ListSceneWatches(userID, sceneID uint, limit int) ([]data.UserSceneWatch, error) {
 	m.ctrl.T.Helper()

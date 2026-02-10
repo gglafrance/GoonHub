@@ -456,8 +456,17 @@ func provideWatchHistoryService(repo data.WatchHistoryRepository, sceneRepo data
 	return core.NewWatchHistoryService(repo, sceneRepo, searchService, logger.Logger)
 }
 
-func provideRelatedScenesService(sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, studioRepo data.StudioRepository, logger *logging.Logger) *core.RelatedScenesService {
-	return core.NewRelatedScenesService(sceneRepo, tagRepo, actorRepo, studioRepo, logger.Logger)
+func provideRelatedScenesService(
+	sceneRepo data.SceneRepository,
+	tagRepo data.TagRepository,
+	actorRepo data.ActorRepository,
+	studioRepo data.StudioRepository,
+	actorInteractionRepo data.ActorInteractionRepository,
+	studioInteractionRepo data.StudioInteractionRepository,
+	watchHistoryRepo data.WatchHistoryRepository,
+	logger *logging.Logger,
+) *core.RelatedScenesService {
+	return core.NewRelatedScenesService(sceneRepo, tagRepo, actorRepo, studioRepo, actorInteractionRepo, studioInteractionRepo, watchHistoryRepo, logger.Logger)
 }
 
 // --- Processing & Job Services ---

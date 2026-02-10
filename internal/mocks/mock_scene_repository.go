@@ -413,6 +413,21 @@ func (mr *MockSceneRepositoryMockRecorder) List(page, limit any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockSceneRepository)(nil).List), page, limit)
 }
 
+// ListPopular mocks base method.
+func (m *MockSceneRepository) ListPopular(limit int) ([]data.Scene, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListPopular", limit)
+	ret0, _ := ret[0].([]data.Scene)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListPopular indicates an expected call of ListPopular.
+func (mr *MockSceneRepositoryMockRecorder) ListPopular(limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPopular", reflect.TypeOf((*MockSceneRepository)(nil).ListPopular), limit)
+}
+
 // ListTrashed mocks base method.
 func (m *MockSceneRepository) ListTrashed(page, limit int) ([]data.Scene, int64, error) {
 	m.ctrl.T.Helper()

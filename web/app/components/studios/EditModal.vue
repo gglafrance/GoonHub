@@ -29,6 +29,12 @@ const error = ref('');
 const logoFile = ref<File | null>(null);
 const logoPreview = ref<string | null>(null);
 
+const revokeBlobPreview = () => {
+    if (logoPreview.value && logoPreview.value.startsWith('blob:')) {
+        URL.revokeObjectURL(logoPreview.value);
+    }
+};
+
 const resetForm = () => {
     form.value = {
         name: props.initialName || '',
@@ -36,6 +42,7 @@ const resetForm = () => {
         url: '',
         description: '',
     };
+    revokeBlobPreview();
     logoPreview.value = null;
 };
 
@@ -73,6 +80,7 @@ watch(
 const handleLogoChange = (event: Event) => {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {
+        revokeBlobPreview();
         logoFile.value = input.files[0];
         logoPreview.value = URL.createObjectURL(input.files[0]);
     }
@@ -111,6 +119,7 @@ const handleSubmit = async () => {
 
 const handleClose = () => {
     error.value = '';
+    revokeBlobPreview();
     logoFile.value = null;
     emit('close');
 };
