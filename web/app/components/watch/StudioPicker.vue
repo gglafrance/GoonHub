@@ -70,6 +70,7 @@ const filteredStudios = computed(() => {
 
 const dropdownStyle = ref<{ top: string; left: string }>({ top: '0px', left: '0px' });
 const dropdownRef = ref<HTMLElement | null>(null);
+let clickTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function updatePosition() {
     if (!props.anchorEl) return;
@@ -97,9 +98,13 @@ watch(
     (open) => {
         if (open) {
             updatePosition();
-            setTimeout(() => document.addEventListener('click', onClickOutside), 0);
+            clickTimeout = setTimeout(() => document.addEventListener('click', onClickOutside), 0);
             window.addEventListener('scroll', updatePosition, true);
         } else {
+            if (clickTimeout) {
+                clearTimeout(clickTimeout);
+                clickTimeout = null;
+            }
             document.removeEventListener('click', onClickOutside);
             window.removeEventListener('scroll', updatePosition, true);
             searchQuery.value = '';
@@ -108,6 +113,10 @@ watch(
 );
 
 onBeforeUnmount(() => {
+    if (clickTimeout) {
+        clearTimeout(clickTimeout);
+        clickTimeout = null;
+    }
     document.removeEventListener('click', onClickOutside);
     window.removeEventListener('scroll', updatePosition, true);
 });

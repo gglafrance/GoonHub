@@ -4,6 +4,12 @@ import type { VttCue } from './useVttParser';
 type Player = ReturnType<typeof videojs>;
 
 export function useThumbnailPreview(player: Ref<Player | null>, vttCues: Ref<VttCue[]>) {
+    let thumbEl: HTMLDivElement | null = null;
+    let imgEl: HTMLImageElement | null = null;
+    let progressControlEl: Element | null = null;
+    let onMouseMove: ((e: Event) => void) | null = null;
+    let onMouseOut: (() => void) | null = null;
+
     function setup() {
         if (!player.value) return;
 
@@ -15,18 +21,18 @@ export function useThumbnailPreview(player: Ref<Player | null>, vttCues: Ref<Vtt
         const seekBar = progressControl.seekBar;
         if (!seekBar) return;
 
-        const thumbEl = document.createElement('div');
+        thumbEl = document.createElement('div');
         thumbEl.className = 'vjs-thumb-preview';
         thumbEl.style.display = 'none';
         seekBar.el().appendChild(thumbEl);
 
-        const imgEl = document.createElement('img');
+        imgEl = document.createElement('img');
         imgEl.style.display = 'block';
         thumbEl.appendChild(imgEl);
 
         let currentSpriteUrl = '';
 
-        const onMouseMove = (e: Event) => {
+        onMouseMove = (e: Event) => {
             if (vttCues.value.length === 0) return;
 
             const mouseEvent = e as MouseEvent;
@@ -34,7 +40,7 @@ export function useThumbnailPreview(player: Ref<Player | null>, vttCues: Ref<Vtt
             // Don't show sprite preview when hovering a marker tick
             const target = mouseEvent.target as HTMLElement;
             if (target.closest('.vjs-marker-tick')) {
-                thumbEl.style.display = 'none';
+                thumbEl!.style.display = 'none';
                 return;
             }
 
@@ -46,39 +52,56 @@ export function useThumbnailPreview(player: Ref<Player | null>, vttCues: Ref<Vtt
             const time = percent * duration;
             const cue = vttCues.value.find((c) => time >= c.start && time < c.end);
             if (!cue) {
-                thumbEl.style.display = 'none';
+                thumbEl!.style.display = 'none';
                 return;
             }
 
-            thumbEl.style.display = 'block';
+            thumbEl!.style.display = 'block';
 
             if (currentSpriteUrl !== cue.url) {
-                imgEl.src = cue.url;
+                imgEl!.src = cue.url;
                 currentSpriteUrl = cue.url;
             }
 
-            imgEl.style.objectFit = 'none';
-            imgEl.style.objectPosition = `-${cue.x}px -${cue.y}px`;
-            imgEl.style.width = `${cue.w}px`;
-            imgEl.style.height = `${cue.h}px`;
+            imgEl!.style.objectFit = 'none';
+            imgEl!.style.objectPosition = `-${cue.x}px -${cue.y}px`;
+            imgEl!.style.width = `${cue.w}px`;
+            imgEl!.style.height = `${cue.h}px`;
 
-            thumbEl.style.width = `${cue.w}px`;
-            thumbEl.style.height = `${cue.h}px`;
+            thumbEl!.style.width = `${cue.w}px`;
+            thumbEl!.style.height = `${cue.h}px`;
 
             const thumbLeft = mouseEvent.clientX - seekBarRect.left - cue.w / 2;
             const clampedLeft = Math.max(0, Math.min(thumbLeft, seekBarRect.width - cue.w));
-            thumbEl.style.left = `${clampedLeft}px`;
+            thumbEl!.style.left = `${clampedLeft}px`;
         };
 
-        const onMouseOut = () => {
-            thumbEl.style.display = 'none';
+        onMouseOut = () => {
+            thumbEl!.style.display = 'none';
         };
 
-        const progressControlEl = document.querySelector('.vjs-progress-control');
+        progressControlEl = document.querySelector('.vjs-progress-control');
         if (!progressControlEl) return;
         progressControlEl.addEventListener('mousemove', onMouseMove);
         progressControlEl.addEventListener('mouseout', onMouseOut);
     }
 
-    return { setup };
+    function cleanup() {
+        if (progressControlEl) {
+            if (onMouseMove) progressControlEl.removeEventListener('mousemove', onMouseMove);
+            if (onMouseOut) progressControlEl.removeEventListener('mouseout', onMouseOut);
+            progressControlEl = null;
+        }
+
+        if (thumbEl && thumbEl.parentNode) {
+            thumbEl.parentNode.removeChild(thumbEl);
+        }
+
+        thumbEl = null;
+        imgEl = null;
+        onMouseMove = null;
+        onMouseOut = null;
+    }
+
+    return { setup, cleanup };
 }

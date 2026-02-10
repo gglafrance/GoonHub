@@ -30,6 +30,7 @@ const draggedIndex = ref<number | null>(null);
 const addButtonRef = ref<HTMLElement | null>(null);
 const addMenuRef = ref<HTMLElement | null>(null);
 const dropdownStyle = ref<{ top: string; left: string }>({ top: '0px', left: '0px' });
+let clickTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // Rule type options for add menu - categorized
 const ruleCategories = [
@@ -114,10 +115,17 @@ watch(
     (open) => {
         if (open) {
             updateDropdownPosition();
-            setTimeout(() => document.addEventListener('click', handleClickOutside), 0);
+            clickTimeout = setTimeout(
+                () => document.addEventListener('click', handleClickOutside),
+                0,
+            );
             window.addEventListener('scroll', updateDropdownPosition, true);
             window.addEventListener('resize', updateDropdownPosition);
         } else {
+            if (clickTimeout) {
+                clearTimeout(clickTimeout);
+                clickTimeout = null;
+            }
             document.removeEventListener('click', handleClickOutside);
             window.removeEventListener('scroll', updateDropdownPosition, true);
             window.removeEventListener('resize', updateDropdownPosition);
@@ -126,6 +134,10 @@ watch(
 );
 
 onBeforeUnmount(() => {
+    if (clickTimeout) {
+        clearTimeout(clickTimeout);
+        clickTimeout = null;
+    }
     document.removeEventListener('click', handleClickOutside);
     window.removeEventListener('scroll', updateDropdownPosition, true);
     window.removeEventListener('resize', updateDropdownPosition);

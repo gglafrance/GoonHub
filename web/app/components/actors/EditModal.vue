@@ -66,6 +66,12 @@ const removeAlias = (index: number) => {
     form.value.aliases.splice(index, 1);
 };
 
+const revokeBlobPreview = () => {
+    if (imagePreview.value && imagePreview.value.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreview.value);
+    }
+};
+
 const resetForm = () => {
     form.value = {
         name: props.initialName || '',
@@ -92,6 +98,7 @@ const resetForm = () => {
         same_sex_only: false,
     };
     newAlias.value = '';
+    revokeBlobPreview();
     imagePreview.value = null;
 };
 
@@ -150,6 +157,7 @@ watch(
 const handleImageChange = (event: Event) => {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {
+        revokeBlobPreview();
         imageFile.value = input.files[0];
         imagePreview.value = URL.createObjectURL(input.files[0]);
         form.value.image_url = '';
@@ -193,6 +201,7 @@ const handleSubmit = async () => {
 
 const handleClose = () => {
     error.value = '';
+    revokeBlobPreview();
     imageFile.value = null;
     emit('close');
 };
