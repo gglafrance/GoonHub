@@ -6,7 +6,13 @@ export const useApiActors = () => {
         useApiCore();
 
     // Actor CRUD
-    const fetchActors = async (page = 1, limit = 20, query?: string, sort?: string) => {
+    const fetchActors = async (
+        page = 1,
+        limit = 20,
+        query?: string,
+        sort?: string,
+        genders?: string[],
+    ) => {
         const params = new URLSearchParams({
             page: page.toString(),
             limit: limit.toString(),
@@ -16,6 +22,9 @@ export const useApiActors = () => {
         }
         if (sort) {
             params.set('sort', sort);
+        }
+        if (genders && genders.length > 0) {
+            params.set('gender', genders.join(','));
         }
         const response = await fetch(`/api/v1/actors?${params}`, {
             headers: getAuthHeaders(),

@@ -320,7 +320,7 @@ func (s *ActorService) Delete(id uint) error {
 	return nil
 }
 
-func (s *ActorService) List(page, limit int, query, sort string) ([]data.ActorWithCount, int64, error) {
+func (s *ActorService) List(page, limit int, query, sort string, genders []string) ([]data.ActorWithCount, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -329,9 +329,9 @@ func (s *ActorService) List(page, limit int, query, sort string) ([]data.ActorWi
 	}
 
 	if query != "" {
-		return s.actorRepo.Search(query, page, limit, sort)
+		return s.actorRepo.Search(query, page, limit, sort, genders)
 	}
-	return s.actorRepo.List(page, limit, sort)
+	return s.actorRepo.List(page, limit, sort, genders)
 }
 
 func (s *ActorService) GetSceneActors(sceneID uint) ([]data.Actor, error) {
