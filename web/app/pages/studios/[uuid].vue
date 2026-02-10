@@ -53,8 +53,7 @@ const selectAllScenes = async () => {
     }
 };
 
-// Clear selection when page changes or select mode toggled off
-watch(scenesPage, () => clearSelection());
+// Clear selection when select mode toggled off
 watch(selectMode, (on) => {
     if (!on) clearSelection();
 });
@@ -260,6 +259,7 @@ const loadScenes = async (page: number) => {
 const onSearchInput = () => {
     if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
     searchDebounceTimer = setTimeout(() => {
+        clearSelection();
         scenesPage.value = 1;
         loadScenes(1);
     }, 300);
@@ -271,6 +271,7 @@ watch(scenesSort, (newSort) => {
     } else if (newSort !== 'random') {
         scenesSeed.value = 0;
     }
+    clearSelection();
     syncSortToUrl();
     scenesPage.value = 1;
     loadScenes(1);
