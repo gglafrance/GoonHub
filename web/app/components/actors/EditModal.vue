@@ -17,6 +17,9 @@ const api = useApi();
 
 const isEditMode = computed(() => !!props.actor);
 
+type ModalView = 'form' | 'porndb-search';
+const currentView = ref<ModalView>('form');
+
 const form = ref({
     name: '',
     aliases: [] as string[],
@@ -48,6 +51,8 @@ const loading = ref(false);
 const error = ref('');
 const imageFile = ref<File | null>(null);
 const imagePreview = ref<string | null>(null);
+
+const searchName = computed(() => form.value.name || props.actor?.name || props.initialName || '');
 
 const addAlias = () => {
     const alias = newAlias.value.trim();
@@ -133,8 +138,11 @@ watch(
 watch(
     () => props.visible,
     (visible) => {
-        if (visible && !props.actor) {
-            resetForm();
+        if (visible) {
+            currentView.value = 'form';
+            if (!props.actor) {
+                resetForm();
+            }
         }
     },
 );
@@ -160,8 +168,6 @@ const handleSubmit = async () => {
         };
 
         if (isEditMode.value && props.actor) {
-            // Upload image first if provided — remove image_url from payload
-            // so the updateActor call doesn't overwrite the URL set by the upload
             if (imageFile.value) {
                 await api.uploadActorImage(props.actor.id, imageFile.value);
                 delete payload.image_url;
@@ -169,9 +175,7 @@ const handleSubmit = async () => {
             await api.updateActor(props.actor.id, payload);
             emit('updated');
         } else {
-            // Create new actor
             let newActor = await api.createActor(payload);
-            // Upload image if provided — use the returned actor which has image_url set
             if (imageFile.value && newActor.id) {
                 newActor = await api.uploadActorImage(newActor.id, imageFile.value);
             }
@@ -193,6 +197,18 @@ const handleClose = () => {
     emit('close');
 };
 
+const handlePornDBApply = (data: Record<string, unknown>) => {
+    for (const [key, value] of Object.entries(data)) {
+        if (key in form.value) {
+            (form.value as Record<string, unknown>)[key] = value;
+        }
+    }
+    if (data.image_url) {
+        imagePreview.value = data.image_url as string;
+    }
+    currentView.value = 'form';
+};
+
 const genderOptions = [
     { value: '', label: 'Not specified' },
     { value: 'Female', label: 'Female' },
@@ -211,456 +227,31 @@ const genderOptions = [
             @click.self="handleClose"
         >
             <div class="glass-panel border-border my-8 w-full max-w-2xl border p-6">
-                <h3 class="mb-4 text-sm font-semibold text-white">
-                    {{ isEditMode ? 'Edit Actor' : 'Create Actor' }}
-                </h3>
+                <ActorsEditmodalFormView
+                    v-if="currentView === 'form'"
+                    :form="form"
+                    :is-edit-mode="isEditMode"
+                    :loading="loading"
+                    :error="error"
+                    :image-preview="imagePreview"
+                    :new-alias="newAlias"
+                    :gender-options="genderOptions"
+                    @submit="handleSubmit"
+                    @close="handleClose"
+                    @fetch-porndb="currentView = 'porndb-search'"
+                    @image-change="handleImageChange"
+                    @add-alias="addAlias"
+                    @remove-alias="removeAlias"
+                    @update:new-alias="newAlias = $event"
+                />
 
-                <div
-                    v-if="error"
-                    class="border-lava/20 bg-lava/5 text-lava mb-3 rounded-lg border px-3 py-2
-                        text-xs"
-                >
-                    {{ error }}
-                </div>
-
-                <form class="space-y-4" @submit.prevent="handleSubmit">
-                    <!-- Image upload -->
-                    <div class="flex items-start gap-4">
-                        <div
-                            class="bg-surface border-border relative h-32 w-24 shrink-0
-                                overflow-hidden rounded-lg border"
-                        >
-                            <img
-                                v-if="imagePreview"
-                                :src="imagePreview"
-                                class="h-full w-full object-cover"
-                                alt="Actor preview"
-                            />
-                            <div
-                                v-else
-                                class="text-dim flex h-full w-full items-center justify-center"
-                            >
-                                <Icon name="heroicons:user" size="32" />
-                            </div>
-                        </div>
-                        <div class="flex-1">
-                            <label
-                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                    uppercase"
-                            >
-                                Image
-                            </label>
-                            <input
-                                type="file"
-                                accept="image/*"
-                                class="border-border bg-void/80 file:bg-panel file:text-dim w-full
-                                    rounded-lg border px-3 py-2 text-sm text-white file:mr-3
-                                    file:rounded-lg file:border-0 file:px-3 file:py-1 file:text-xs"
-                                @change="handleImageChange"
-                            />
-                            <div class="mt-2">
-                                <label
-                                    class="text-dim mb-1 block text-[11px] font-medium
-                                        tracking-wider uppercase"
-                                >
-                                    Or Image URL
-                                </label>
-                                <input
-                                    v-model="form.image_url"
-                                    type="url"
-                                    class="border-border bg-void/80 placeholder-dim/50
-                                        focus:border-lava/40 focus:ring-lava/20 w-full rounded-lg
-                                        border px-3 py-2 text-sm text-white transition-all
-                                        focus:ring-1 focus:outline-none"
-                                    placeholder="https://..."
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Basic Info -->
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label
-                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                    uppercase"
-                            >
-                                Name *
-                            </label>
-                            <input
-                                v-model="form.name"
-                                type="text"
-                                required
-                                class="border-border bg-void/80 placeholder-dim/50
-                                    focus:border-lava/40 focus:ring-lava/20 w-full rounded-lg border
-                                    px-3 py-2 text-sm text-white transition-all focus:ring-1
-                                    focus:outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                    uppercase"
-                            >
-                                Gender
-                            </label>
-                            <select
-                                v-model="form.gender"
-                                class="border-border bg-void/80 focus:border-lava/40
-                                    focus:ring-lava/20 w-full rounded-lg border px-3 py-2 text-sm
-                                    text-white transition-all focus:ring-1 focus:outline-none"
-                            >
-                                <option
-                                    v-for="opt in genderOptions"
-                                    :key="opt.value"
-                                    :value="opt.value"
-                                >
-                                    {{ opt.label }}
-                                </option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Aliases -->
-                    <div>
-                        <label
-                            class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                uppercase"
-                        >
-                            Aliases
-                        </label>
-                        <div class="flex gap-2">
-                            <input
-                                v-model="newAlias"
-                                type="text"
-                                placeholder="Add alias..."
-                                class="border-border bg-void/80 placeholder-dim/50
-                                    focus:border-lava/40 focus:ring-lava/20 flex-1 rounded-lg border
-                                    px-3 py-2 text-sm text-white transition-all focus:ring-1
-                                    focus:outline-none"
-                                @keyup.enter="addAlias"
-                            />
-                            <button
-                                type="button"
-                                :disabled="!newAlias.trim()"
-                                class="border-border bg-panel hover:border-lava/50 hover:text-lava
-                                    text-dim shrink-0 rounded-lg border px-3 py-2 text-sm
-                                    transition-colors disabled:cursor-not-allowed
-                                    disabled:opacity-40"
-                                @click="addAlias"
-                            >
-                                Add
-                            </button>
-                        </div>
-                        <div v-if="form.aliases.length > 0" class="mt-2 flex flex-wrap gap-1.5">
-                            <span
-                                v-for="(alias, index) in form.aliases"
-                                :key="index"
-                                class="border-border bg-surface inline-flex items-center gap-1
-                                    rounded-full border px-2.5 py-1 text-xs text-white"
-                            >
-                                {{ alias }}
-                                <button
-                                    type="button"
-                                    class="text-dim hover:text-lava transition-colors"
-                                    @click="removeAlias(index)"
-                                >
-                                    <Icon name="heroicons:x-mark" size="12" />
-                                </button>
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- Demographics -->
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label
-                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                    uppercase"
-                            >
-                                Birthday
-                            </label>
-                            <input
-                                v-model="form.birthday"
-                                type="date"
-                                class="border-border bg-void/80 focus:border-lava/40
-                                    focus:ring-lava/20 w-full rounded-lg border px-3 py-2 text-sm
-                                    text-white transition-all focus:ring-1 focus:outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                    uppercase"
-                            >
-                                Nationality
-                            </label>
-                            <input
-                                v-model="form.nationality"
-                                type="text"
-                                class="border-border bg-void/80 placeholder-dim/50
-                                    focus:border-lava/40 focus:ring-lava/20 w-full rounded-lg border
-                                    px-3 py-2 text-sm text-white transition-all focus:ring-1
-                                    focus:outline-none"
-                            />
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label
-                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                    uppercase"
-                            >
-                                Birthplace
-                            </label>
-                            <input
-                                v-model="form.birthplace"
-                                type="text"
-                                class="border-border bg-void/80 placeholder-dim/50
-                                    focus:border-lava/40 focus:ring-lava/20 w-full rounded-lg border
-                                    px-3 py-2 text-sm text-white transition-all focus:ring-1
-                                    focus:outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                    uppercase"
-                            >
-                                Ethnicity
-                            </label>
-                            <input
-                                v-model="form.ethnicity"
-                                type="text"
-                                class="border-border bg-void/80 placeholder-dim/50
-                                    focus:border-lava/40 focus:ring-lava/20 w-full rounded-lg border
-                                    px-3 py-2 text-sm text-white transition-all focus:ring-1
-                                    focus:outline-none"
-                            />
-                        </div>
-                    </div>
-
-                    <!-- Physical -->
-                    <div class="grid grid-cols-4 gap-3">
-                        <div>
-                            <label
-                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                    uppercase"
-                            >
-                                Height (cm)
-                            </label>
-                            <input
-                                v-model.number="form.height_cm"
-                                type="number"
-                                min="0"
-                                max="300"
-                                class="border-border bg-void/80 focus:border-lava/40
-                                    focus:ring-lava/20 w-full rounded-lg border px-3 py-2 text-sm
-                                    text-white transition-all focus:ring-1 focus:outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                    uppercase"
-                            >
-                                Weight (kg)
-                            </label>
-                            <input
-                                v-model.number="form.weight_kg"
-                                type="number"
-                                min="0"
-                                max="300"
-                                class="border-border bg-void/80 focus:border-lava/40
-                                    focus:ring-lava/20 w-full rounded-lg border px-3 py-2 text-sm
-                                    text-white transition-all focus:ring-1 focus:outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                    uppercase"
-                            >
-                                Measurements
-                            </label>
-                            <input
-                                v-model="form.measurements"
-                                type="text"
-                                placeholder="34-24-34"
-                                class="border-border bg-void/80 placeholder-dim/50
-                                    focus:border-lava/40 focus:ring-lava/20 w-full rounded-lg border
-                                    px-3 py-2 text-sm text-white transition-all focus:ring-1
-                                    focus:outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                    uppercase"
-                            >
-                                Cup Size
-                            </label>
-                            <input
-                                v-model="form.cupsize"
-                                type="text"
-                                class="border-border bg-void/80 placeholder-dim/50
-                                    focus:border-lava/40 focus:ring-lava/20 w-full rounded-lg border
-                                    px-3 py-2 text-sm text-white transition-all focus:ring-1
-                                    focus:outline-none"
-                            />
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label
-                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                    uppercase"
-                            >
-                                Hair Color
-                            </label>
-                            <input
-                                v-model="form.hair_color"
-                                type="text"
-                                class="border-border bg-void/80 placeholder-dim/50
-                                    focus:border-lava/40 focus:ring-lava/20 w-full rounded-lg border
-                                    px-3 py-2 text-sm text-white transition-all focus:ring-1
-                                    focus:outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                    uppercase"
-                            >
-                                Eye Color
-                            </label>
-                            <input
-                                v-model="form.eye_color"
-                                type="text"
-                                class="border-border bg-void/80 placeholder-dim/50
-                                    focus:border-lava/40 focus:ring-lava/20 w-full rounded-lg border
-                                    px-3 py-2 text-sm text-white transition-all focus:ring-1
-                                    focus:outline-none"
-                            />
-                        </div>
-                    </div>
-
-                    <!-- Career -->
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label
-                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                    uppercase"
-                            >
-                                Career Start Year
-                            </label>
-                            <input
-                                v-model.number="form.career_start_year"
-                                type="number"
-                                min="1900"
-                                :max="new Date().getFullYear()"
-                                class="border-border bg-void/80 focus:border-lava/40
-                                    focus:ring-lava/20 w-full rounded-lg border px-3 py-2 text-sm
-                                    text-white transition-all focus:ring-1 focus:outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label
-                                class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                    uppercase"
-                            >
-                                Career End Year
-                            </label>
-                            <input
-                                v-model.number="form.career_end_year"
-                                type="number"
-                                min="1900"
-                                :max="new Date().getFullYear()"
-                                class="border-border bg-void/80 focus:border-lava/40
-                                    focus:ring-lava/20 w-full rounded-lg border px-3 py-2 text-sm
-                                    text-white transition-all focus:ring-1 focus:outline-none"
-                            />
-                        </div>
-                    </div>
-
-                    <!-- Body Modifications -->
-                    <div>
-                        <label
-                            class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                uppercase"
-                        >
-                            Tattoos
-                        </label>
-                        <textarea
-                            v-model="form.tattoos"
-                            rows="2"
-                            class="border-border bg-void/80 placeholder-dim/50 focus:border-lava/40
-                                focus:ring-lava/20 w-full rounded-lg border px-3 py-2 text-sm
-                                text-white transition-all focus:ring-1 focus:outline-none"
-                        ></textarea>
-                    </div>
-
-                    <div>
-                        <label
-                            class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                uppercase"
-                        >
-                            Piercings
-                        </label>
-                        <textarea
-                            v-model="form.piercings"
-                            rows="2"
-                            class="border-border bg-void/80 placeholder-dim/50 focus:border-lava/40
-                                focus:ring-lava/20 w-full rounded-lg border px-3 py-2 text-sm
-                                text-white transition-all focus:ring-1 focus:outline-none"
-                        ></textarea>
-                    </div>
-
-                    <!-- Toggles -->
-                    <div class="flex gap-6">
-                        <label class="flex items-center gap-2 text-sm text-white">
-                            <input
-                                v-model="form.fake_boobs"
-                                type="checkbox"
-                                class="accent-lava h-4 w-4 rounded"
-                            />
-                            Enhanced
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-white">
-                            <input
-                                v-model="form.same_sex_only"
-                                type="checkbox"
-                                class="accent-lava h-4 w-4 rounded"
-                            />
-                            Same-sex Only
-                        </label>
-                    </div>
-
-                    <!-- Actions -->
-                    <div class="flex justify-end gap-2 pt-2">
-                        <button
-                            type="button"
-                            class="text-dim rounded-lg px-3 py-1.5 text-xs transition-colors
-                                hover:text-white"
-                            @click="handleClose"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            :disabled="loading || !form.name"
-                            class="bg-lava hover:bg-lava-glow rounded-lg px-4 py-1.5 text-xs
-                                font-semibold text-white transition-all disabled:cursor-not-allowed
-                                disabled:opacity-40"
-                        >
-                            {{
-                                loading ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create Actor'
-                            }}
-                        </button>
-                    </div>
-                </form>
+                <ActorsEditmodalPornDBSearch
+                    v-else
+                    :actor-name="searchName"
+                    :form="form"
+                    @apply="handlePornDBApply"
+                    @back="currentView = 'form'"
+                />
             </div>
         </div>
     </Teleport>
