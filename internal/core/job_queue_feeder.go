@@ -16,12 +16,14 @@ import (
 // JobQueueFeeder polls the database for pending jobs and feeds them to worker pools.
 // It acts as a bridge between the infinite-capacity DB queue and the bounded worker pool channels.
 type JobQueueFeeder struct {
-	repo              data.JobHistoryRepository
-	sceneRepo         data.SceneRepository
-	markerThumbGen    jobs.MarkerThumbnailGenerator
-	animatedThumbGen  jobs.AnimatedThumbnailGenerator
-	poolManager       *processing.PoolManager
-	logger            *zap.Logger
+	repo                data.JobHistoryRepository
+	sceneRepo           data.SceneRepository
+	fingerprintRepo     data.FingerprintRepository
+	duplicateConfigRepo data.DuplicateConfigRepository
+	markerThumbGen      jobs.MarkerThumbnailGenerator
+	animatedThumbGen    jobs.AnimatedThumbnailGenerator
+	poolManager         *processing.PoolManager
+	logger              *zap.Logger
 
 	pollInterval     time.Duration
 	batchSize        int
@@ -40,23 +42,27 @@ type JobQueueFeeder struct {
 func NewJobQueueFeeder(
 	repo data.JobHistoryRepository,
 	sceneRepo data.SceneRepository,
+	fingerprintRepo data.FingerprintRepository,
+	duplicateConfigRepo data.DuplicateConfigRepository,
 	markerThumbGen jobs.MarkerThumbnailGenerator,
 	animatedThumbGen jobs.AnimatedThumbnailGenerator,
 	poolManager *processing.PoolManager,
 	logger *zap.Logger,
 ) *JobQueueFeeder {
 	return &JobQueueFeeder{
-		repo:             repo,
-		sceneRepo:        sceneRepo,
-		markerThumbGen:   markerThumbGen,
-		animatedThumbGen: animatedThumbGen,
-		poolManager:      poolManager,
-		logger:           logger.With(zap.String("component", "job_queue_feeder")),
-		pollInterval:     2 * time.Second,
-		batchSize:        50,
-		bufferMultiplier: 10, // Keep up to workerCount*10 jobs buffered per phase
-		orphanTimeout:    30 * time.Second,
-		stuckPendingTime: 10 * time.Minute,
+		repo:                repo,
+		sceneRepo:           sceneRepo,
+		fingerprintRepo:     fingerprintRepo,
+		duplicateConfigRepo: duplicateConfigRepo,
+		markerThumbGen:      markerThumbGen,
+		animatedThumbGen:    animatedThumbGen,
+		poolManager:         poolManager,
+		logger:              logger.With(zap.String("component", "job_queue_feeder")),
+		pollInterval:        2 * time.Second,
+		batchSize:           50,
+		bufferMultiplier:    10, // Keep up to workerCount*10 jobs buffered per phase
+		orphanTimeout:       30 * time.Second,
+		stuckPendingTime:    10 * time.Minute,
 	}
 }
 
@@ -78,7 +84,7 @@ func (f *JobQueueFeeder) Start() {
 	f.recoverOrphanedJobs()
 
 	// Start a feeder goroutine for each phase
-	phases := []string{"metadata", "thumbnail", "sprites", "animated_thumbnails"}
+	phases := []string{"metadata", "thumbnail", "sprites", "animated_thumbnails", "fingerprint"}
 	for _, phase := range phases {
 		f.wg.Add(1)
 		go f.runFeeder(phase)
@@ -162,6 +168,9 @@ func (f *JobQueueFeeder) feedPhase(phase string) {
 	case "animated_thumbnails":
 		currentQueued = queueStatus.AnimatedThumbnailsQueued
 		workerCount = poolConfig.AnimatedThumbnailsWorkers
+	case "fingerprint":
+		currentQueued = queueStatus.FingerprintQueued
+		workerCount = poolConfig.FingerprintWorkers
 	}
 
 	// Dynamic threshold: only buffer a small multiple of the worker count.
@@ -354,6 +363,34 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 			f.logger,
 		)
 		return f.poolManager.SubmitToAnimatedThumbnailsPool(job)
+
+	case "fingerprint":
+		if scene.Duration == 0 {
+			return fmt.Errorf("scene duration is 0: metadata not yet extracted")
+		}
+		intervalSec := 2 // default
+		if f.duplicateConfigRepo != nil {
+			if dupCfg, err := f.duplicateConfigRepo.Get(); err == nil && dupCfg != nil && dupCfg.SampleInterval > 0 {
+				intervalSec = dupCfg.SampleInterval
+			}
+		}
+		fingerprintJob := jobs.NewFingerprintJobWithID(
+			jobRecord.JobID,
+			jobRecord.SceneID,
+			scene.StoredPath,
+			scene.Duration,
+			intervalSec,
+			f.sceneRepo,
+			f.fingerprintRepo,
+			f.logger,
+		)
+		fingerprintJob.SetProgressCallback(func(jobID string, progress int) {
+			if err := f.repo.UpdateProgress(jobID, progress); err != nil {
+				f.logger.Warn("Failed to update fingerprint job progress",
+					zap.String("job_id", jobID), zap.Int("progress", progress), zap.Error(err))
+			}
+		})
+		return f.poolManager.SubmitToFingerprintPool(fingerprintJob)
 	}
 
 	return nil

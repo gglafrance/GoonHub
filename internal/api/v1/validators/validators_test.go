@@ -187,14 +187,16 @@ func TestValidatePoolConfig(t *testing.T) {
 		cfg     PoolConfigInput
 		wantErr bool
 	}{
-		{"all valid", PoolConfigInput{MetadataWorkers: 5, ThumbnailWorkers: 5, SpritesWorkers: 5, AnimatedThumbnailsWorkers: 5}, false},
-		{"minimum all", PoolConfigInput{MetadataWorkers: 1, ThumbnailWorkers: 1, SpritesWorkers: 1, AnimatedThumbnailsWorkers: 1}, false},
-		{"maximum all", PoolConfigInput{MetadataWorkers: 10, ThumbnailWorkers: 10, SpritesWorkers: 10, AnimatedThumbnailsWorkers: 10}, false},
-		{"metadata too low", PoolConfigInput{MetadataWorkers: 0, ThumbnailWorkers: 5, SpritesWorkers: 5, AnimatedThumbnailsWorkers: 5}, true},
-		{"thumbnail too high", PoolConfigInput{MetadataWorkers: 5, ThumbnailWorkers: 11, SpritesWorkers: 5, AnimatedThumbnailsWorkers: 5}, true},
-		{"sprites invalid", PoolConfigInput{MetadataWorkers: 5, ThumbnailWorkers: 5, SpritesWorkers: -1, AnimatedThumbnailsWorkers: 5}, true},
-		{"animated_thumbnails too low", PoolConfigInput{MetadataWorkers: 5, ThumbnailWorkers: 5, SpritesWorkers: 5, AnimatedThumbnailsWorkers: 0}, true},
-		{"animated_thumbnails too high", PoolConfigInput{MetadataWorkers: 5, ThumbnailWorkers: 5, SpritesWorkers: 5, AnimatedThumbnailsWorkers: 11}, true},
+		{"all valid", PoolConfigInput{MetadataWorkers: 5, ThumbnailWorkers: 5, SpritesWorkers: 5, AnimatedThumbnailsWorkers: 5, FingerprintWorkers: 5}, false},
+		{"minimum all", PoolConfigInput{MetadataWorkers: 1, ThumbnailWorkers: 1, SpritesWorkers: 1, AnimatedThumbnailsWorkers: 1, FingerprintWorkers: 1}, false},
+		{"maximum all", PoolConfigInput{MetadataWorkers: 10, ThumbnailWorkers: 10, SpritesWorkers: 10, AnimatedThumbnailsWorkers: 10, FingerprintWorkers: 10}, false},
+		{"metadata too low", PoolConfigInput{MetadataWorkers: 0, ThumbnailWorkers: 5, SpritesWorkers: 5, AnimatedThumbnailsWorkers: 5, FingerprintWorkers: 5}, true},
+		{"thumbnail too high", PoolConfigInput{MetadataWorkers: 5, ThumbnailWorkers: 11, SpritesWorkers: 5, AnimatedThumbnailsWorkers: 5, FingerprintWorkers: 5}, true},
+		{"sprites invalid", PoolConfigInput{MetadataWorkers: 5, ThumbnailWorkers: 5, SpritesWorkers: -1, AnimatedThumbnailsWorkers: 5, FingerprintWorkers: 5}, true},
+		{"animated_thumbnails too low", PoolConfigInput{MetadataWorkers: 5, ThumbnailWorkers: 5, SpritesWorkers: 5, AnimatedThumbnailsWorkers: 0, FingerprintWorkers: 5}, true},
+		{"animated_thumbnails too high", PoolConfigInput{MetadataWorkers: 5, ThumbnailWorkers: 5, SpritesWorkers: 5, AnimatedThumbnailsWorkers: 11, FingerprintWorkers: 5}, true},
+		{"fingerprint too low", PoolConfigInput{MetadataWorkers: 5, ThumbnailWorkers: 5, SpritesWorkers: 5, AnimatedThumbnailsWorkers: 5, FingerprintWorkers: 0}, true},
+		{"fingerprint too high", PoolConfigInput{MetadataWorkers: 5, ThumbnailWorkers: 5, SpritesWorkers: 5, AnimatedThumbnailsWorkers: 5, FingerprintWorkers: 11}, true},
 	}
 
 	for _, tt := range tests {

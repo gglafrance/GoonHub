@@ -46,6 +46,7 @@ func (h *PoolConfigHandler) UpdatePoolConfig(c *gin.Context) {
 		ThumbnailWorkers:          req.ThumbnailWorkers,
 		SpritesWorkers:            req.SpritesWorkers,
 		AnimatedThumbnailsWorkers: req.AnimatedThumbnailsWorkers,
+		FingerprintWorkers:        req.FingerprintWorkers,
 	}); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -61,6 +62,7 @@ func (h *PoolConfigHandler) UpdatePoolConfig(c *gin.Context) {
 		ThumbnailWorkers:          req.ThumbnailWorkers,
 		SpritesWorkers:            req.SpritesWorkers,
 		AnimatedThumbnailsWorkers: req.AnimatedThumbnailsWorkers,
+		FingerprintWorkers:        req.FingerprintWorkers,
 	}
 	if err := h.poolConfigRepo.Upsert(record); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Pool config applied but failed to persist: " + err.Error()})

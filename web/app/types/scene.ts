@@ -20,6 +20,9 @@ export interface SceneListItem {
     studio?: string;
     tags?: string[];
     actors?: string[];
+    fingerprint_status?: string;
+    fingerprint_count?: number;
+    duplicate_group_id?: number;
 }
 
 // Scene is the full scene representation with all metadata.
