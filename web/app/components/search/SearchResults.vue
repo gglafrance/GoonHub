@@ -33,11 +33,9 @@ const selectAllScenes = async () => {
     }
 };
 
-// Clear selection when search results change or select mode toggled off
-watch(
-    () => searchStore.scenes,
-    () => clearSelection(),
-);
+// Clear selection when search filters/sort change (but not on page change)
+const filterSignature = computed(() => JSON.stringify(searchStore.getSearchParams()));
+watch(filterSignature, () => clearSelection());
 watch(selectMode, (on) => {
     if (!on) clearSelection();
 });
