@@ -50,6 +50,8 @@ tmp/
 docker/config.prod.yaml
 docker/config-dev.yaml
 docker/config-dev-local.yaml
+*.mp4
+*.mkv
 
 # Importers
 importers/stash/.env
