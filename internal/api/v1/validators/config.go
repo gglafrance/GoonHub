@@ -37,7 +37,6 @@ type PoolConfigInput struct {
 	ThumbnailWorkers          int
 	SpritesWorkers            int
 	AnimatedThumbnailsWorkers int
-	FingerprintWorkers        int
 }
 
 // ValidatePoolConfig validates all pool configuration fields
@@ -52,9 +51,6 @@ func ValidatePoolConfig(cfg PoolConfigInput) error {
 		return err
 	}
 	if err := ValidateWorkerCount(cfg.AnimatedThumbnailsWorkers, "animated_thumbnails_workers"); err != nil {
-		return err
-	}
-	if err := ValidateWorkerCount(cfg.FingerprintWorkers, "fingerprint_workers"); err != nil {
 		return err
 	}
 	return nil

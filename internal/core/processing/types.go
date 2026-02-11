@@ -6,7 +6,6 @@ type PoolConfig struct {
 	ThumbnailWorkers          int `json:"thumbnail_workers"`
 	SpritesWorkers            int `json:"sprites_workers"`
 	AnimatedThumbnailsWorkers int `json:"animated_thumbnails_workers"`
-	FingerprintWorkers        int `json:"fingerprint_workers"`
 }
 
 // QualityConfig holds the processing quality configuration
@@ -32,12 +31,10 @@ type QueueStatus struct {
 	ThumbnailQueued           int `json:"thumbnail_queued"`
 	SpritesQueued             int `json:"sprites_queued"`
 	AnimatedThumbnailsQueued  int `json:"animated_thumbnails_queued"`
-	FingerprintQueued         int `json:"fingerprint_queued"`
 	MetadataActive            int `json:"metadata_active"`
 	ThumbnailActive           int `json:"thumbnail_active"`
 	SpritesActive             int `json:"sprites_active"`
 	AnimatedThumbnailsActive  int `json:"animated_thumbnails_active"`
-	FingerprintActive         int `json:"fingerprint_active"`
 }
 
 // BulkPhaseResult contains the results of a bulk phase submission
@@ -52,5 +49,4 @@ type PhaseState struct {
 	ThumbnailDone           bool
 	SpritesDone             bool
 	AnimatedThumbnailsDone  bool
-	FingerprintDone         bool
 }

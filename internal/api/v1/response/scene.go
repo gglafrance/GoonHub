@@ -21,7 +21,6 @@ type SceneListItem struct {
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 	StoredPath       string    `json:"stored_path"`
-	DuplicateGroupID *uint     `json:"duplicate_group_id,omitempty"`
 
 	// Optional fields included when requested via card_fields
 	ViewCount   *int64    `json:"view_count,omitempty"`
@@ -101,7 +100,6 @@ func ToSceneListItem(v data.Scene) SceneListItem {
 		CreatedAt:        v.CreatedAt,
 		UpdatedAt:        v.UpdatedAt,
 		StoredPath:       v.StoredPath,
-		DuplicateGroupID: v.DuplicateGroupID,
 	}
 }
 

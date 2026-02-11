@@ -211,17 +211,6 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                     />
                 </div>
 
-                <!-- Duplicate indicator -->
-                <div
-                    v-if="scene.duplicate_group_id"
-                    class="absolute top-1.5 left-1/2 z-25 -translate-x-1/2"
-                >
-                    <div class="flex items-center gap-1 rounded bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-semibold text-white backdrop-blur-sm">
-                        <Icon name="heroicons:document-duplicate" size="10" />
-                        <span>Duplicate</span>
-                    </div>
-                </div>
-
                 <!-- Watch progress bar -->
                 <div v-if="hasProgress" class="absolute right-0 bottom-0 left-0 z-20 h-1">
                     <div class="h-full w-full bg-white/20">

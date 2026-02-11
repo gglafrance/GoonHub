@@ -20,7 +20,6 @@ type PoolManager struct {
 	thumbnailPool           *jobs.WorkerPool
 	spritesPool             *jobs.WorkerPool
 	animatedThumbnailsPool  *jobs.WorkerPool
-	fingerprintPool         *jobs.WorkerPool
 	mu                      sync.RWMutex
 	config                  config.ProcessingConfig
 	qualityConfig           QualityConfig
@@ -45,7 +44,6 @@ func NewPoolManager(
 	if animatedThumbnailsWorkers <= 0 {
 		animatedThumbnailsWorkers = 1
 	}
-	fingerprintWorkers := 1
 
 	if poolConfigRepo != nil {
 		if dbConfig, err := poolConfigRepo.Get(); err == nil && dbConfig != nil {
@@ -55,15 +53,11 @@ func NewPoolManager(
 			if dbConfig.AnimatedThumbnailsWorkers > 0 {
 				animatedThumbnailsWorkers = dbConfig.AnimatedThumbnailsWorkers
 			}
-			if dbConfig.FingerprintWorkers > 0 {
-				fingerprintWorkers = dbConfig.FingerprintWorkers
-			}
 			logger.Info("Loaded pool config from database",
 				zap.Int("metadata_workers", metadataWorkers),
 				zap.Int("thumbnail_workers", thumbnailWorkers),
 				zap.Int("sprites_workers", spritesWorkers),
 				zap.Int("animated_thumbnails_workers", animatedThumbnailsWorkers),
-				zap.Int("fingerprint_workers", fingerprintWorkers),
 			)
 		}
 	}
@@ -205,9 +199,6 @@ func NewPoolManager(
 		logger.Info("Animated thumbnails pool timeout set", zap.Duration("timeout", cfg.AnimatedThumbnailsTimeout))
 	}
 
-	fingerprintPool := jobs.NewWorkerPool(fingerprintWorkers, queueBufferSize)
-	fingerprintPool.SetLogger(logger.With(zap.String("pool", "fingerprint")))
-
 	// Create output directories
 	createDirIfNotExists(cfg.SpriteDir, logger)
 	createDirIfNotExists(cfg.VttDir, logger)
@@ -220,7 +211,6 @@ func NewPoolManager(
 		thumbnailPool:          thumbnailPool,
 		spritesPool:            spritesPool,
 		animatedThumbnailsPool: animatedThumbnailsPool,
-		fingerprintPool:        fingerprintPool,
 		config:                 cfg,
 		qualityConfig:          qualityConfig,
 		logger:                 logger,
@@ -251,14 +241,12 @@ func (pm *PoolManager) Start() {
 	pm.thumbnailPool.Start()
 	pm.spritesPool.Start()
 	pm.animatedThumbnailsPool.Start()
-	pm.fingerprintPool.Start()
 
 	if pm.resultHandler != nil {
 		go pm.resultHandler(pm.metadataPool)
 		go pm.resultHandler(pm.thumbnailPool)
 		go pm.resultHandler(pm.spritesPool)
 		go pm.resultHandler(pm.animatedThumbnailsPool)
-		go pm.resultHandler(pm.fingerprintPool)
 	}
 
 	pm.logger.Info("Pool manager started",
@@ -266,7 +254,6 @@ func (pm *PoolManager) Start() {
 		zap.Int("thumbnail_workers", pm.thumbnailPool.ActiveWorkers()),
 		zap.Int("sprites_workers", pm.spritesPool.ActiveWorkers()),
 		zap.Int("animated_thumbnails_workers", pm.animatedThumbnailsPool.ActiveWorkers()),
-		zap.Int("fingerprint_workers", pm.fingerprintPool.ActiveWorkers()),
 	)
 }
 
@@ -277,7 +264,6 @@ func (pm *PoolManager) Stop() {
 	pm.thumbnailPool.Stop()
 	pm.spritesPool.Stop()
 	pm.animatedThumbnailsPool.Stop()
-	pm.fingerprintPool.Stop()
 }
 
 // GracefulStop performs graceful shutdown of all worker pools.
@@ -300,7 +286,7 @@ func (pm *PoolManager) GracefulStop(timeout time.Duration) map[string][]string {
 		phase  string
 		jobIDs []string
 	}
-	resultChan := make(chan poolResult, 5)
+	resultChan := make(chan poolResult, 4)
 
 	// Gracefully stop all pools in parallel
 	go func() {
@@ -319,13 +305,9 @@ func (pm *PoolManager) GracefulStop(timeout time.Duration) map[string][]string {
 		jobIDs := pm.animatedThumbnailsPool.GracefulStop(timeout)
 		resultChan <- poolResult{phase: "animated_thumbnails", jobIDs: jobIDs}
 	}()
-	go func() {
-		jobIDs := pm.fingerprintPool.GracefulStop(timeout)
-		resultChan <- poolResult{phase: "fingerprint", jobIDs: jobIDs}
-	}()
 
 	// Collect results
-	for range 5 {
+	for i := 0; i < 4; i++ {
 		res := <-resultChan
 		if len(res.jobIDs) > 0 {
 			result[res.phase] = res.jobIDs
@@ -343,7 +325,6 @@ func (pm *PoolManager) GracefulStop(timeout time.Duration) map[string][]string {
 		zap.Int("thumbnail_reclaimed", len(result["thumbnail"])),
 		zap.Int("sprites_reclaimed", len(result["sprites"])),
 		zap.Int("animated_thumbnails_reclaimed", len(result["animated_thumbnails"])),
-		zap.Int("fingerprint_reclaimed", len(result["fingerprint"])),
 	)
 
 	return result
@@ -390,7 +371,6 @@ func (pm *PoolManager) GetPoolConfig() PoolConfig {
 		ThumbnailWorkers:          pm.thumbnailPool.ActiveWorkers(),
 		SpritesWorkers:            pm.spritesPool.ActiveWorkers(),
 		AnimatedThumbnailsWorkers: pm.animatedThumbnailsPool.ActiveWorkers(),
-		FingerprintWorkers:        pm.fingerprintPool.ActiveWorkers(),
 	}
 }
 
@@ -403,12 +383,10 @@ func (pm *PoolManager) GetQueueStatus() QueueStatus {
 		ThumbnailQueued:          pm.thumbnailPool.QueueSize(),
 		SpritesQueued:            pm.spritesPool.QueueSize(),
 		AnimatedThumbnailsQueued: pm.animatedThumbnailsPool.QueueSize(),
-		FingerprintQueued:        pm.fingerprintPool.QueueSize(),
 		MetadataActive:           pm.metadataPool.ActiveJobCount(),
 		ThumbnailActive:          pm.thumbnailPool.ActiveJobCount(),
 		SpritesActive:            pm.spritesPool.ActiveJobCount(),
 		AnimatedThumbnailsActive: pm.animatedThumbnailsPool.ActiveJobCount(),
-		FingerprintActive:        pm.fingerprintPool.ActiveJobCount(),
 	}
 }
 
@@ -505,9 +483,6 @@ func (pm *PoolManager) UpdatePoolConfig(cfg PoolConfig) error {
 	if cfg.AnimatedThumbnailsWorkers < 1 || cfg.AnimatedThumbnailsWorkers > 10 {
 		return fmt.Errorf("animated_thumbnails_workers must be between 1 and 10")
 	}
-	if cfg.FingerprintWorkers < 1 || cfg.FingerprintWorkers > 10 {
-		return fmt.Errorf("fingerprint_workers must be between 1 and 10")
-	}
 
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
@@ -578,22 +553,6 @@ func (pm *PoolManager) UpdatePoolConfig(cfg PoolConfig) error {
 		pm.logger.Info("Resized animated thumbnails pool", zap.Int("workers", cfg.AnimatedThumbnailsWorkers))
 	}
 
-	// Resize fingerprint pool if needed
-	if cfg.FingerprintWorkers != pm.fingerprintPool.ActiveWorkers() {
-		newPool := jobs.NewWorkerPool(cfg.FingerprintWorkers, queueBufferSize)
-		newPool.SetLogger(pm.logger.With(zap.String("pool", "fingerprint")))
-		newPool.Start()
-		if pm.resultHandler != nil {
-			go pm.resultHandler(newPool)
-		}
-
-		oldPool := pm.fingerprintPool
-		pm.fingerprintPool = newPool
-		oldPool.Stop()
-
-		pm.logger.Info("Resized fingerprint pool", zap.Int("workers", cfg.FingerprintWorkers))
-	}
-
 	return nil
 }
 
@@ -622,11 +581,6 @@ func (pm *PoolManager) CancelJob(jobID string) error {
 		return nil
 	}
 
-	if err := pm.fingerprintPool.CancelJob(jobID); err == nil {
-		pm.logger.Info("Job cancelled in fingerprint pool", zap.String("job_id", jobID))
-		return nil
-	}
-
 	return fmt.Errorf("job not found: %s", jobID)
 }
 
@@ -645,9 +599,6 @@ func (pm *PoolManager) GetJob(jobID string) (jobs.Job, bool) {
 		return job, true
 	}
 	if job, ok := pm.animatedThumbnailsPool.GetJob(jobID); ok {
-		return job, true
-	}
-	if job, ok := pm.fingerprintPool.GetJob(jobID); ok {
 		return job, true
 	}
 	return nil, false
@@ -681,13 +632,6 @@ func (pm *PoolManager) SubmitToAnimatedThumbnailsPool(job jobs.Job) error {
 	return pm.animatedThumbnailsPool.Submit(job)
 }
 
-// SubmitToFingerprintPool submits a job to the fingerprint pool
-func (pm *PoolManager) SubmitToFingerprintPool(job jobs.Job) error {
-	pm.mu.RLock()
-	defer pm.mu.RUnlock()
-	return pm.fingerprintPool.Submit(job)
-}
-
 // LogStatus logs the status of all pools
 func (pm *PoolManager) LogStatus() {
 	pm.logger.Info("Pool manager status")
@@ -697,5 +641,4 @@ func (pm *PoolManager) LogStatus() {
 	pm.thumbnailPool.LogStatus()
 	pm.spritesPool.LogStatus()
 	pm.animatedThumbnailsPool.LogStatus()
-	pm.fingerprintPool.LogStatus()
 }

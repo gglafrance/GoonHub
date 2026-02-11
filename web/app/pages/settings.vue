@@ -23,8 +23,7 @@ type TabType =
     | 'users'
     | 'jobs'
     | 'storage'
-    | 'trash'
-    | 'duplicates';
+    | 'trash';
 
 interface SubTabConfig {
     id: string;
@@ -76,16 +75,6 @@ const tabConfig: TabConfig[] = [
     },
     { id: 'storage', label: 'Storage', icon: 'heroicons:folder', admin: true },
     { id: 'trash', label: 'Trash', icon: 'heroicons:trash', admin: true },
-    {
-        id: 'duplicates',
-        label: 'Duplicates',
-        icon: 'heroicons:document-duplicate',
-        admin: true,
-        subTabs: [
-            { id: 'config', label: 'Configuration' },
-            { id: 'groups', label: 'Groups' },
-        ],
-    },
 ];
 
 const activeTab = ref<TabType>('account');
@@ -571,7 +560,6 @@ definePageMeta({
                 <SettingsJobs v-if="activeTab === 'jobs'" :active-sub-tab="activeSubTab" />
                 <SettingsStorage v-if="activeTab === 'storage'" />
                 <SettingsTrash v-if="activeTab === 'trash'" />
-                <SettingsDuplicates v-if="activeTab === 'duplicates'" :active-sub-tab="activeSubTab" />
             </div>
         </main>
 
