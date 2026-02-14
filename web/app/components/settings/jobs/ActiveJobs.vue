@@ -24,7 +24,7 @@ const groupedJobs = computed(() => {
         if (!groups[job.phase]) {
             groups[job.phase] = [];
         }
-        groups[job.phase].push(job);
+        groups[job.phase]!.push(job);
     }
     return groups;
 });
@@ -112,10 +112,10 @@ const handleCancel = async (job: JobHistory) => {
                         phaseLabel(phase)
                     }}</span>
                     <span
-                        class="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px]
-                            font-medium text-emerald-400"
+                        class="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium
+                            text-emerald-400"
                     >
-                        {{ groupedJobs[phase].length }}
+                        {{ groupedJobs[phase]?.length ?? 0 }}
                     </span>
                     <span
                         v-if="phaseQueuedCount(phase) > 0"
@@ -138,17 +138,12 @@ const handleCancel = async (job: JobHistory) => {
                                 <span class="text-[11px] text-white">{{
                                     job.scene_title || `Scene #${job.scene_id}`
                                 }}</span>
-                                <span
-                                    v-if="job.retry_count > 0"
-                                    class="text-dim text-[10px]"
-                                >
+                                <span v-if="job.retry_count > 0" class="text-dim text-[10px]">
                                     (retry {{ job.retry_count }}/{{ job.max_retries }})
                                 </span>
                             </div>
                             <div class="flex items-center gap-2">
-                                <span
-                                    v-if="job.progress > 0"
-                                    class="text-[10px] text-emerald-400"
+                                <span v-if="job.progress > 0" class="text-[10px] text-emerald-400"
                                     >{{ job.progress }}%</span
                                 >
                                 <span class="text-dim text-[10px]">{{
@@ -156,8 +151,8 @@ const handleCancel = async (job: JobHistory) => {
                                 }}</span>
                                 <button
                                     :disabled="cancellingJobId !== null"
-                                    class="text-dim hover:text-lava rounded p-0.5
-                                        transition-colors disabled:opacity-30"
+                                    class="text-dim hover:text-lava rounded p-0.5 transition-colors
+                                        disabled:opacity-30"
                                     title="Cancel job"
                                     @click.stop="handleCancel(job)"
                                 >

@@ -53,7 +53,10 @@ const handleSave = async () => {
 
         <div class="mb-3 grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2">
             <!-- Audio thresholds -->
-            <h4 class="text-dim col-span-full mt-1 mb-2 text-[10px] font-medium tracking-wider uppercase">
+            <h4
+                class="text-dim col-span-full mt-1 mb-2 text-[10px] font-medium tracking-wider
+                    uppercase"
+            >
                 Audio
             </h4>
 
@@ -72,8 +75,8 @@ const handleSave = async () => {
                 />
                 <p class="mt-1 text-[10px] text-white/30">
                     Ratio of matching hash positions within a matched segment. Higher = stricter,
-                    requires more continuous overlap. Lower = catches re-encoded or partially trimmed
-                    duplicates but may false-positive.
+                    requires more continuous overlap. Lower = catches re-encoded or partially
+                    trimmed duplicates but may false-positive.
                 </p>
             </div>
             <div class="mb-3">
@@ -129,7 +132,10 @@ const handleSave = async () => {
             </div>
 
             <!-- Visual thresholds -->
-            <h4 class="text-dim col-span-full mt-2 mb-2 text-[10px] font-medium tracking-wider uppercase">
+            <h4
+                class="text-dim col-span-full mt-2 mb-2 text-[10px] font-medium tracking-wider
+                    uppercase"
+            >
                 Visual
             </h4>
 
@@ -146,9 +152,9 @@ const handleSave = async () => {
                         text-white"
                 />
                 <p class="mt-1 text-[10px] text-white/30">
-                    Maximum bit-difference between two frame hashes to consider them matching (0-32).
-                    Higher = tolerates re-encodes, resolution changes, and compression artifacts.
-                    Lower = only near-identical frames match, fewer false positives.
+                    Maximum bit-difference between two frame hashes to consider them matching
+                    (0-32). Higher = tolerates re-encodes, resolution changes, and compression
+                    artifacts. Lower = only near-identical frames match, fewer false positives.
                 </p>
             </div>
             <div class="mb-3">
@@ -187,7 +193,10 @@ const handleSave = async () => {
             </div>
 
             <!-- Shared -->
-            <h4 class="text-dim col-span-full mt-2 mb-2 text-[10px] font-medium tracking-wider uppercase">
+            <h4
+                class="text-dim col-span-full mt-2 mb-2 text-[10px] font-medium tracking-wider
+                    uppercase"
+            >
                 Alignment
             </h4>
 
