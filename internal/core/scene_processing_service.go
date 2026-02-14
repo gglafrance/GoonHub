@@ -167,6 +167,13 @@ func NewSceneProcessingService(
 	// Set the pool manager's result handler
 	poolManager.SetResultHandler(resultHandler.ProcessPoolResults)
 
+	// Set callback to update started_at when a worker picks up a job
+	if jobHistory != nil {
+		poolManager.SetOnJobExecuting(func(jobID string) {
+			jobHistory.UpdateStartedAt(jobID, time.Now())
+		})
+	}
+
 	return &SceneProcessingService{
 		poolManager:   poolManager,
 		phaseTracker:  phaseTracker,
@@ -267,6 +274,12 @@ func (s *SceneProcessingService) CancelJob(jobID string) error {
 // GetJob retrieves a job by its ID from any pool
 func (s *SceneProcessingService) GetJob(jobID string) (jobs.Job, bool) {
 	return s.poolManager.GetJob(jobID)
+}
+
+// GetExecutingJob retrieves a job by its ID only if it is actively being executed by a worker.
+// Unlike GetJob, this excludes jobs sitting in channel buffers waiting to be picked up.
+func (s *SceneProcessingService) GetExecutingJob(jobID string) (jobs.Job, bool) {
+	return s.poolManager.GetExecutingJob(jobID)
 }
 
 // GetPoolConfig returns the current pool configuration

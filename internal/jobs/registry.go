@@ -10,6 +10,7 @@ type JobRegistry struct {
 	mu           sync.RWMutex
 	byID         map[string]Job    // job_id -> Job
 	byScenePhase map[string]string // "sceneID:phase" -> job_id
+	executing    map[string]bool   // job_id -> true if a worker is actively executing
 }
 
 // NewJobRegistry creates a new JobRegistry.
@@ -17,6 +18,7 @@ func NewJobRegistry() *JobRegistry {
 	return &JobRegistry{
 		byID:         make(map[string]Job),
 		byScenePhase: make(map[string]string),
+		executing:    make(map[string]bool),
 	}
 }
 
@@ -53,6 +55,21 @@ func (r *JobRegistry) Unregister(jobID string) {
 	key := scenePhaseKey(job.GetSceneID(), job.GetPhase())
 	delete(r.byID, jobID)
 	delete(r.byScenePhase, key)
+	delete(r.executing, jobID)
+}
+
+// MarkExecuting marks a job as actively being executed by a worker.
+func (r *JobRegistry) MarkExecuting(jobID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.executing[jobID] = true
+}
+
+// IsExecuting returns true if the job is actively being executed by a worker.
+func (r *JobRegistry) IsExecuting(jobID string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.executing[jobID]
 }
 
 // Get retrieves a job by its ID.

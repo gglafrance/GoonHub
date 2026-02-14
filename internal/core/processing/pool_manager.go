@@ -29,6 +29,9 @@ type PoolManager struct {
 
 	// resultHandler is called when a job completes
 	resultHandler func(*jobs.WorkerPool)
+
+	// onJobExecuting is called when a worker picks up a job for execution
+	onJobExecuting func(jobID string)
 }
 
 // NewPoolManager creates a new PoolManager with the given configuration
@@ -255,6 +258,19 @@ func createDirIfNotExists(dir string, logger *zap.Logger) {
 // SetResultHandler sets the function to be called for processing results from each pool
 func (pm *PoolManager) SetResultHandler(handler func(*jobs.WorkerPool)) {
 	pm.resultHandler = handler
+}
+
+// SetOnJobExecuting sets a callback invoked when a worker picks up a job for execution.
+// Used to update started_at in the DB to reflect actual execution start time.
+func (pm *PoolManager) SetOnJobExecuting(fn func(jobID string)) {
+	pm.onJobExecuting = fn
+	pm.metadataPool.SetOnJobExecuting(fn)
+	pm.thumbnailPool.SetOnJobExecuting(fn)
+	pm.spritesPool.SetOnJobExecuting(fn)
+	pm.animatedThumbnailsPool.SetOnJobExecuting(fn)
+	if pm.fingerprintPool != nil {
+		pm.fingerprintPool.SetOnJobExecuting(fn)
+	}
 }
 
 // Start starts all worker pools and their result handlers
@@ -559,6 +575,7 @@ func (pm *PoolManager) UpdatePoolConfig(cfg PoolConfig) error {
 	if cfg.MetadataWorkers != pm.metadataPool.ActiveWorkers() {
 		newPool := jobs.NewWorkerPool(cfg.MetadataWorkers, queueBufferSize)
 		newPool.SetLogger(pm.logger.With(zap.String("pool", "metadata")))
+		newPool.SetOnJobExecuting(pm.onJobExecuting)
 		newPool.Start()
 		if pm.resultHandler != nil {
 			go pm.resultHandler(newPool)
@@ -575,6 +592,7 @@ func (pm *PoolManager) UpdatePoolConfig(cfg PoolConfig) error {
 	if cfg.ThumbnailWorkers != pm.thumbnailPool.ActiveWorkers() {
 		newPool := jobs.NewWorkerPool(cfg.ThumbnailWorkers, queueBufferSize)
 		newPool.SetLogger(pm.logger.With(zap.String("pool", "thumbnail")))
+		newPool.SetOnJobExecuting(pm.onJobExecuting)
 		newPool.Start()
 		if pm.resultHandler != nil {
 			go pm.resultHandler(newPool)
@@ -591,6 +609,7 @@ func (pm *PoolManager) UpdatePoolConfig(cfg PoolConfig) error {
 	if cfg.SpritesWorkers != pm.spritesPool.ActiveWorkers() {
 		newPool := jobs.NewWorkerPool(cfg.SpritesWorkers, queueBufferSize)
 		newPool.SetLogger(pm.logger.With(zap.String("pool", "sprites")))
+		newPool.SetOnJobExecuting(pm.onJobExecuting)
 		newPool.Start()
 		if pm.resultHandler != nil {
 			go pm.resultHandler(newPool)
@@ -607,6 +626,7 @@ func (pm *PoolManager) UpdatePoolConfig(cfg PoolConfig) error {
 	if cfg.AnimatedThumbnailsWorkers != pm.animatedThumbnailsPool.ActiveWorkers() {
 		newPool := jobs.NewWorkerPool(cfg.AnimatedThumbnailsWorkers, queueBufferSize)
 		newPool.SetLogger(pm.logger.With(zap.String("pool", "animated_thumbnails")))
+		newPool.SetOnJobExecuting(pm.onJobExecuting)
 		newPool.Start()
 		if pm.resultHandler != nil {
 			go pm.resultHandler(newPool)
@@ -623,6 +643,7 @@ func (pm *PoolManager) UpdatePoolConfig(cfg PoolConfig) error {
 	if pm.fingerprintPool != nil && cfg.FingerprintWorkers != pm.fingerprintPool.ActiveWorkers() {
 		newPool := jobs.NewWorkerPool(cfg.FingerprintWorkers, queueBufferSize)
 		newPool.SetLogger(pm.logger.With(zap.String("pool", "fingerprint")))
+		newPool.SetOnJobExecuting(pm.onJobExecuting)
 		newPool.Start()
 		if pm.resultHandler != nil {
 			go pm.resultHandler(newPool)
@@ -692,6 +713,32 @@ func (pm *PoolManager) GetJob(jobID string) (jobs.Job, bool) {
 	}
 	if pm.fingerprintPool != nil {
 		if job, ok := pm.fingerprintPool.GetJob(jobID); ok {
+			return job, true
+		}
+	}
+	return nil, false
+}
+
+// GetExecutingJob retrieves a job by its ID only if it is actively being executed by a worker.
+// Unlike GetJob, this excludes jobs sitting in channel buffers waiting to be picked up.
+func (pm *PoolManager) GetExecutingJob(jobID string) (jobs.Job, bool) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	if job, ok := pm.metadataPool.GetExecutingJob(jobID); ok {
+		return job, true
+	}
+	if job, ok := pm.thumbnailPool.GetExecutingJob(jobID); ok {
+		return job, true
+	}
+	if job, ok := pm.spritesPool.GetExecutingJob(jobID); ok {
+		return job, true
+	}
+	if job, ok := pm.animatedThumbnailsPool.GetExecutingJob(jobID); ok {
+		return job, true
+	}
+	if pm.fingerprintPool != nil {
+		if job, ok := pm.fingerprintPool.GetExecutingJob(jobID); ok {
 			return job, true
 		}
 	}

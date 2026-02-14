@@ -11,17 +11,18 @@ import (
 )
 
 type WorkerPool struct {
-	workerCount int
-	jobQueue    chan Job
-	resultChan  chan JobResult
-	wg          sync.WaitGroup
-	ctx         context.Context
-	cancel      context.CancelFunc
-	running     atomic.Bool
-	activeCount atomic.Int32 // Number of jobs currently being executed by workers
-	logger      *zap.Logger
-	registry    *JobRegistry
-	timeout     time.Duration
+	workerCount    int
+	jobQueue       chan Job
+	resultChan     chan JobResult
+	wg             sync.WaitGroup
+	ctx            context.Context
+	cancel         context.CancelFunc
+	running        atomic.Bool
+	activeCount    atomic.Int32 // Number of jobs currently being executed by workers
+	logger         *zap.Logger
+	registry       *JobRegistry
+	timeout        time.Duration
+	onJobExecuting func(jobID string) // called when a worker picks up a job for execution
 }
 
 func NewWorkerPool(workerCount int, queueSize int) *WorkerPool {
@@ -40,6 +41,12 @@ func NewWorkerPool(workerCount int, queueSize int) *WorkerPool {
 
 func (p *WorkerPool) SetLogger(logger *zap.Logger) {
 	p.logger = logger.With(zap.String("component", "worker_pool"))
+}
+
+// SetOnJobExecuting sets a callback invoked when a worker picks up a job for execution.
+// Used to update the DB started_at timestamp to reflect actual execution start.
+func (p *WorkerPool) SetOnJobExecuting(fn func(jobID string)) {
+	p.onJobExecuting = fn
 }
 
 func (p *WorkerPool) Start() {
@@ -75,6 +82,11 @@ func (p *WorkerPool) worker(id int) {
 			}
 
 			p.activeCount.Add(1)
+			p.registry.MarkExecuting(job.GetID())
+
+			if p.onJobExecuting != nil {
+				p.onJobExecuting(job.GetID())
+			}
 
 			p.logger.Info("Worker accepted job",
 				zap.Int("worker_id", id),
@@ -274,6 +286,19 @@ func (p *WorkerPool) GetTimeout() time.Duration {
 // GetJob retrieves a job by its ID from the registry.
 func (p *WorkerPool) GetJob(jobID string) (Job, bool) {
 	return p.registry.Get(jobID)
+}
+
+// GetExecutingJob retrieves a job by its ID only if it is actively being executed by a worker.
+// Jobs that are registered but still sitting in the channel buffer are not returned.
+func (p *WorkerPool) GetExecutingJob(jobID string) (Job, bool) {
+	job, exists := p.registry.Get(jobID)
+	if !exists {
+		return nil, false
+	}
+	if !p.registry.IsExecuting(jobID) {
+		return nil, false
+	}
+	return job, true
 }
 
 // CancelJob cancels a job by its ID. Returns an error if the job is not found.

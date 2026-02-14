@@ -62,7 +62,7 @@ func (h *JobHandler) ListJobs(c *gin.Context) {
 	// before the result handler updates the DB status.
 	var verifiedActive []data.JobHistory
 	for _, job := range activeJobs {
-		if _, inPool := h.processingService.GetJob(job.JobID); inPool {
+		if _, inPool := h.processingService.GetExecutingJob(job.JobID); inPool {
 			verifiedActive = append(verifiedActive, job)
 		}
 	}

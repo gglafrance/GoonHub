@@ -138,7 +138,7 @@ func (s *JobStatusService) GetJobStatus() *JobStatus {
 	// in the channel buffer. The pool registry is the source of truth.
 	var verifiedJobs []ActiveJob
 	for _, job := range activeJobs {
-		if _, inPool := s.processingService.GetJob(job.JobID); inPool {
+		if _, inPool := s.processingService.GetExecutingJob(job.JobID); inPool {
 			verifiedJobs = append(verifiedJobs, ActiveJob{
 				JobID:      job.JobID,
 				SceneID:    job.SceneID,

@@ -51,10 +51,15 @@ const handleSave = async () => {
 
         <h3 class="mb-4 text-sm font-medium text-white">Detection Thresholds</h3>
 
-        <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            <div>
+        <div class="mb-3 grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2">
+            <!-- Audio thresholds -->
+            <h4 class="text-dim col-span-full mt-1 mb-2 text-[10px] font-medium tracking-wider uppercase">
+                Audio
+            </h4>
+
+            <div class="mb-3">
                 <label class="text-dim mb-1 block text-[10px] tracking-wider uppercase"
-                    >Audio Density</label
+                    >Density</label
                 >
                 <input
                     v-model.number="localConfig.audio_density_threshold"
@@ -65,10 +70,15 @@ const handleSave = async () => {
                     class="border-border bg-panel w-full rounded-md border px-2.5 py-1.5 text-xs
                         text-white"
                 />
+                <p class="mt-1 text-[10px] text-white/30">
+                    Ratio of matching hash positions within a matched segment. Higher = stricter,
+                    requires more continuous overlap. Lower = catches re-encoded or partially trimmed
+                    duplicates but may false-positive.
+                </p>
             </div>
-            <div>
+            <div class="mb-3">
                 <label class="text-dim mb-1 block text-[10px] tracking-wider uppercase"
-                    >Audio Min Hashes</label
+                    >Min Hashes</label
                 >
                 <input
                     v-model.number="localConfig.audio_min_hashes"
@@ -77,10 +87,15 @@ const handleSave = async () => {
                     class="border-border bg-panel w-full rounded-md border px-2.5 py-1.5 text-xs
                         text-white"
                 />
+                <p class="mt-1 text-[10px] text-white/30">
+                    Minimum number of matching hash positions required to accept a match. Higher =
+                    ignores short or weak overlaps. Lower = detects shorter clips but risks false
+                    positives.
+                </p>
             </div>
-            <div>
+            <div class="mb-3">
                 <label class="text-dim mb-1 block text-[10px] tracking-wider uppercase"
-                    >Audio Max Hash Freq</label
+                    >Max Hash Freq</label
                 >
                 <input
                     v-model.number="localConfig.audio_max_hash_occurrences"
@@ -89,10 +104,15 @@ const handleSave = async () => {
                     class="border-border bg-panel w-full rounded-md border px-2.5 py-1.5 text-xs
                         text-white"
                 />
+                <p class="mt-1 text-[10px] text-white/30">
+                    Hashes appearing in more than this many scenes are discarded as too common (e.g.
+                    silence, intro music). Higher = keeps more hashes but may slow matching. Lower =
+                    filters aggressively, improving speed and precision.
+                </p>
             </div>
-            <div>
+            <div class="mb-3">
                 <label class="text-dim mb-1 block text-[10px] tracking-wider uppercase"
-                    >Audio Min Span</label
+                    >Min Span</label
                 >
                 <input
                     v-model.number="localConfig.audio_min_span"
@@ -101,10 +121,21 @@ const handleSave = async () => {
                     class="border-border bg-panel w-full rounded-md border px-2.5 py-1.5 text-xs
                         text-white"
                 />
+                <p class="mt-1 text-[10px] text-white/30">
+                    Minimum duration of a match in hash positions (~8 positions/sec). Higher =
+                    requires longer continuous overlap, rejecting short coincidental matches. Set to
+                    0 to disable.
+                </p>
             </div>
-            <div>
+
+            <!-- Visual thresholds -->
+            <h4 class="text-dim col-span-full mt-2 mb-2 text-[10px] font-medium tracking-wider uppercase">
+                Visual
+            </h4>
+
+            <div class="mb-3">
                 <label class="text-dim mb-1 block text-[10px] tracking-wider uppercase"
-                    >Visual Hamming Max</label
+                    >Hamming Max</label
                 >
                 <input
                     v-model.number="localConfig.visual_hamming_max"
@@ -114,10 +145,15 @@ const handleSave = async () => {
                     class="border-border bg-panel w-full rounded-md border px-2.5 py-1.5 text-xs
                         text-white"
                 />
+                <p class="mt-1 text-[10px] text-white/30">
+                    Maximum bit-difference between two frame hashes to consider them matching (0-32).
+                    Higher = tolerates re-encodes, resolution changes, and compression artifacts.
+                    Lower = only near-identical frames match, fewer false positives.
+                </p>
             </div>
-            <div>
+            <div class="mb-3">
                 <label class="text-dim mb-1 block text-[10px] tracking-wider uppercase"
-                    >Visual Min Frames</label
+                    >Min Frames</label
                 >
                 <input
                     v-model.number="localConfig.visual_min_frames"
@@ -126,10 +162,15 @@ const handleSave = async () => {
                     class="border-border bg-panel w-full rounded-md border px-2.5 py-1.5 text-xs
                         text-white"
                 />
+                <p class="mt-1 text-[10px] text-white/30">
+                    Minimum number of visually matching frames to accept a match. Higher = requires
+                    more frames to align, reducing false positives. Lower = detects shorter clips
+                    but may trigger on visually similar (non-duplicate) content.
+                </p>
             </div>
-            <div>
+            <div class="mb-3">
                 <label class="text-dim mb-1 block text-[10px] tracking-wider uppercase"
-                    >Visual Min Span</label
+                    >Min Span</label
                 >
                 <input
                     v-model.number="localConfig.visual_min_span"
@@ -138,8 +179,19 @@ const handleSave = async () => {
                     class="border-border bg-panel w-full rounded-md border px-2.5 py-1.5 text-xs
                         text-white"
                 />
+                <p class="mt-1 text-[10px] text-white/30">
+                    Minimum temporal span (in frames) that matched frames must cover. Prevents
+                    clustered frame matches from a single moment being accepted as a full duplicate.
+                    Set to 0 to disable.
+                </p>
             </div>
-            <div>
+
+            <!-- Shared -->
+            <h4 class="text-dim col-span-full mt-2 mb-2 text-[10px] font-medium tracking-wider uppercase">
+                Alignment
+            </h4>
+
+            <div class="mb-3">
                 <label class="text-dim mb-1 block text-[10px] tracking-wider uppercase"
                     >Delta Tolerance</label
                 >
@@ -150,6 +202,11 @@ const handleSave = async () => {
                     class="border-border bg-panel w-full rounded-md border px-2.5 py-1.5 text-xs
                         text-white"
                 />
+                <p class="mt-1 text-[10px] text-white/30">
+                    Offset tolerance when aligning matches between two scenes. Controls bin width in
+                    the alignment algorithm. Higher = tolerates slight timing differences (variable
+                    frame rates, minor edits). Lower = requires precise frame-to-frame alignment.
+                </p>
             </div>
         </div>
 

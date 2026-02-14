@@ -39,6 +39,9 @@ type JobHistoryRepository interface {
 	CancelPendingJobsForScene(sceneID uint) (int64, error)
 	CancelPendingJob(jobID string) error
 
+	// Job execution tracking
+	UpdateStartedAt(jobID string, startedAt time.Time) error
+
 	// Monitoring methods
 	CountRecentFailedByPhase(since time.Duration) (map[string]int, error)
 
@@ -70,6 +73,10 @@ func (r *JobHistoryRepositoryImpl) UpdateStatus(jobID string, status string, err
 		updates["completed_at"] = *completedAt
 	}
 	return r.DB.Model(&JobHistory{}).Where("job_id = ?", jobID).Updates(updates).Error
+}
+
+func (r *JobHistoryRepositoryImpl) UpdateStartedAt(jobID string, startedAt time.Time) error {
+	return r.DB.Model(&JobHistory{}).Where("job_id = ?", jobID).Update("started_at", startedAt).Error
 }
 
 func (r *JobHistoryRepositoryImpl) ListAll(page, limit int, status string) ([]JobHistory, int64, error) {

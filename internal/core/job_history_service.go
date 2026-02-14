@@ -249,6 +249,17 @@ func (s *JobHistoryService) UpdateProgress(jobID string, progress int) {
 	}
 }
 
+// UpdateStartedAt updates the started_at timestamp for a job.
+// Called when a worker picks up a job for execution to reflect actual start time.
+func (s *JobHistoryService) UpdateStartedAt(jobID string, startedAt time.Time) {
+	if err := s.repo.UpdateStartedAt(jobID, startedAt); err != nil {
+		s.logger.Error("Failed to update job started_at",
+			zap.String("job_id", jobID),
+			zap.Error(err),
+		)
+	}
+}
+
 // RecordJobFailedWithRetry records a job failure and schedules a retry if configured.
 func (s *JobHistoryService) RecordJobFailedWithRetry(jobID string, sceneID uint, phase string, jobErr error) {
 	now := time.Now()
