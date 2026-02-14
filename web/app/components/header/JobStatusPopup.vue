@@ -15,13 +15,14 @@ const { fetchRecentFailedJobs, retryJob } = useApiJobs();
 const popupRef = ref<HTMLDivElement | null>(null);
 const position = ref({ top: 0, left: 0 });
 
-const phases = ['metadata', 'thumbnail', 'sprites', 'animated_thumbnails'] as const;
+const phases = ['metadata', 'thumbnail', 'sprites', 'animated_thumbnails', 'fingerprint'] as const;
 
 const phaseLabels: Record<string, string> = {
     metadata: 'Metadata',
     thumbnail: 'Thumbnails',
     sprites: 'Sprites',
     animated_thumbnails: 'Previews',
+    fingerprint: 'Fingerprint',
 };
 
 const phaseIcons: Record<string, string> = {
@@ -29,6 +30,7 @@ const phaseIcons: Record<string, string> = {
     thumbnail: 'heroicons:photo',
     sprites: 'heroicons:squares-2x2',
     animated_thumbnails: 'heroicons:play-circle',
+    fingerprint: 'heroicons:finger-print',
 };
 
 const recentFailures = ref<JobHistory[]>([]);
