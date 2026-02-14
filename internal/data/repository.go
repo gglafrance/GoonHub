@@ -122,12 +122,17 @@ type SceneRepository interface {
 	CountTrashed() (int64, error)
 	GetExpiredTrashScenes(retentionDays int) ([]Scene, error)
 	GetByIDIncludingTrashed(id uint) (*Scene, error)
+	GetByIDsIncludingTrashed(ids []uint) ([]Scene, error)
 
 	// PornDB filtering
 	GetSceneIDsWithPornDBID() ([]uint, error)
 	GetSceneIDsWithoutPornDBID() ([]uint, error)
 
 	ListPopular(limit int) ([]Scene, error)
+
+	// Fingerprint operations
+	UpdateFingerprint(id uint, fpType string, audioFP []byte, visualFP []byte) error
+	GetScenesNeedingFingerprint(limit int) ([]Scene, error)
 }
 
 type SceneRepositoryImpl struct {
@@ -308,6 +313,8 @@ func (r *SceneRepositoryImpl) GetScenesNeedingPhase(phase string) ([]Scene, erro
 			return nil, err
 		}
 		return animScenes, nil
+	case "fingerprint":
+		baseQuery = baseQuery.Where("fingerprint_type IS NULL").Where("duration > 0")
 	default:
 		return nil, nil
 	}
@@ -566,6 +573,32 @@ func (r *SceneRepositoryImpl) GetByIDIncludingTrashed(id uint) (*Scene, error) {
 	return &scene, nil
 }
 
+func (r *SceneRepositoryImpl) GetByIDsIncludingTrashed(ids []uint) ([]Scene, error) {
+	if len(ids) == 0 {
+		return []Scene{}, nil
+	}
+
+	var scenes []Scene
+	if err := r.DB.Unscoped().Where("id IN ?", ids).Find(&scenes).Error; err != nil {
+		return nil, err
+	}
+
+	// Preserve the order of IDs
+	idToScene := make(map[uint]Scene, len(scenes))
+	for _, s := range scenes {
+		idToScene[s.ID] = s
+	}
+
+	result := make([]Scene, 0, len(ids))
+	for _, id := range ids {
+		if s, ok := idToScene[id]; ok {
+			result = append(result, s)
+		}
+	}
+
+	return result, nil
+}
+
 func (r *SceneRepositoryImpl) GetSceneIDsWithPornDBID() ([]uint, error) {
 	var ids []uint
 	err := r.DB.Model(&Scene{}).
@@ -594,6 +627,29 @@ func (r *SceneRepositoryImpl) ListPopular(limit int) ([]Scene, error) {
 	return scenes, nil
 }
 
+func (r *SceneRepositoryImpl) UpdateFingerprint(id uint, fpType string, audioFP []byte, visualFP []byte) error {
+	now := time.Now()
+	updates := map[string]interface{}{
+		"fingerprint_type": fpType,
+		"fingerprint_at":   now,
+	}
+	if audioFP != nil {
+		updates["audio_fingerprint"] = audioFP
+	}
+	if visualFP != nil {
+		updates["visual_fingerprint"] = visualFP
+	}
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (r *SceneRepositoryImpl) GetScenesNeedingFingerprint(limit int) ([]Scene, error) {
+	var scenes []Scene
+	if err := r.DB.Where("fingerprint_type IS NULL AND duration > 0 AND trashed_at IS NULL").
+		Limit(limit).Order("id ASC").Find(&scenes).Error; err != nil {
+		return nil, err
+	}
+	return scenes, nil
+}
 
 type UserRepositoryImpl struct {
 	DB *gorm.DB

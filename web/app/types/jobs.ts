@@ -3,7 +3,7 @@ export interface JobHistory {
     job_id: string;
     scene_id: number;
     scene_title: string;
-    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails';
+    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails' | 'fingerprint';
     status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timed_out';
     error_message?: string;
     started_at: string;
@@ -22,6 +22,8 @@ export interface PoolConfig {
     thumbnail_workers: number;
     sprites_workers: number;
     animated_thumbnails_workers: number;
+    fingerprint_workers: number;
+    duplication_enabled: boolean;
 }
 
 export interface ProcessingConfig {
@@ -45,14 +47,17 @@ export interface QueueStatus {
     thumbnail_queued: number;
     sprites_queued: number;
     animated_thumbnails_queued: number;
+    fingerprint_queued: number;
     metadata_running: number;
     thumbnail_running: number;
     sprites_running: number;
     animated_thumbnails_running: number;
+    fingerprint_running: number;
     metadata_pending: number;
     thumbnail_pending: number;
     sprites_pending: number;
     animated_thumbnails_pending: number;
+    fingerprint_pending: number;
 }
 
 export interface JobListResponse {
@@ -69,7 +74,7 @@ export interface JobListResponse {
 
 export interface TriggerConfig {
     id: number;
-    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails' | 'scan';
+    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails' | 'fingerprint' | 'scan';
     trigger_type: 'on_import' | 'after_job' | 'manual' | 'scheduled';
     after_phase: string | null;
     cron_expression: string | null;
@@ -77,7 +82,7 @@ export interface TriggerConfig {
 }
 
 export interface BulkJobRequest {
-    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails';
+    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails' | 'fingerprint';
     mode: 'missing' | 'all';
     force_target?: 'markers' | 'previews' | 'both';
 }
@@ -94,7 +99,7 @@ export interface DLQEntry {
     job_id: string;
     scene_id: number;
     scene_title: string;
-    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails';
+    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails' | 'fingerprint';
     original_error: string;
     failure_count: number;
     last_error: string;
@@ -119,7 +124,7 @@ export interface DLQListResponse {
 
 export interface RetryConfig {
     id: number;
-    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails' | 'scan';
+    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails' | 'fingerprint' | 'scan';
     max_retries: number;
     initial_delay_seconds: number;
     max_delay_seconds: number;
@@ -139,7 +144,7 @@ export interface ActiveJobInfo {
     job_id: string;
     scene_id: number;
     scene_title: string;
-    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails';
+    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails' | 'fingerprint';
     started_at: string;
 }
 

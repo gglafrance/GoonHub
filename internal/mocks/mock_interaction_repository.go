@@ -233,6 +233,20 @@ func (mr *MockInteractionRepositoryMockRecorder) IsLiked(userID, sceneID any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsLiked", reflect.TypeOf((*MockInteractionRepository)(nil).IsLiked), userID, sceneID)
 }
 
+// ReassignInteractionsToScene mocks base method.
+func (m *MockInteractionRepository) ReassignInteractionsToScene(fromSceneID, toSceneID uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReassignInteractionsToScene", fromSceneID, toSceneID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReassignInteractionsToScene indicates an expected call of ReassignInteractionsToScene.
+func (mr *MockInteractionRepositoryMockRecorder) ReassignInteractionsToScene(fromSceneID, toSceneID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReassignInteractionsToScene", reflect.TypeOf((*MockInteractionRepository)(nil).ReassignInteractionsToScene), fromSceneID, toSceneID)
+}
+
 // SetLike mocks base method.
 func (m *MockInteractionRepository) SetLike(userID, sceneID uint) error {
 	m.ctrl.T.Helper()

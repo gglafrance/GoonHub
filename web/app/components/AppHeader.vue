@@ -209,6 +209,19 @@ const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
                         <Icon name="heroicons:bookmark" size="18" class="sm:!h-3.5 sm:!w-3.5" />
                         <span class="hidden sm:inline">Markers</span>
                     </NuxtLink>
+
+                    <NuxtLink
+                        v-if="authStore.user?.role === 'admin'"
+                        to="/duplicates"
+                        class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
+                            text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
+                            sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
+                        active-class="!text-lava bg-lava/10"
+                        title="Duplicates"
+                    >
+                        <Icon name="heroicons:document-duplicate" size="18" class="sm:!h-3.5 sm:!w-3.5" />
+                        <span class="hidden sm:inline">Duplicates</span>
+                    </NuxtLink>
                 </div>
             </div>
         </nav>

@@ -43,6 +43,9 @@ type MarkerRepository interface {
 
 	// Search filter methods
 	GetSceneIDsByLabels(userID uint, labels []string) ([]uint, error)
+
+	// Reassignment methods (for duplicate resolution)
+	ReassignMarkersToScene(fromSceneID, toSceneID uint) error
 }
 
 type MarkerRepositoryImpl struct {
@@ -595,6 +598,13 @@ func (r *MarkerRepositoryImpl) GetSceneIDsByLabels(userID uint, labels []string)
 		return nil, err
 	}
 	return sceneIDs, nil
+}
+
+// ReassignMarkersToScene moves all markers from one scene to another
+func (r *MarkerRepositoryImpl) ReassignMarkersToScene(fromSceneID, toSceneID uint) error {
+	return r.DB.Model(&UserSceneMarker{}).
+		Where("scene_id = ?", fromSceneID).
+		Update("scene_id", toSceneID).Error
 }
 
 // Ensure MarkerRepositoryImpl implements MarkerRepository

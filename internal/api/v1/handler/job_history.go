@@ -85,15 +85,21 @@ func (h *JobHandler) ListJobs(c *gin.Context) {
 		"retention":    h.jobHistoryService.GetRetention(),
 		"pool_config":  poolConfig,
 		"queue_status": gin.H{
-			"metadata_queued":   queueStatus.MetadataQueued,
-			"thumbnail_queued":  queueStatus.ThumbnailQueued,
-			"sprites_queued":    queueStatus.SpritesQueued,
-			"metadata_running":  queueStatus.MetadataActive,
-			"thumbnail_running": queueStatus.ThumbnailActive,
-			"sprites_running":   queueStatus.SpritesActive,
-			"metadata_pending":  pendingByPhase["metadata"],
-			"thumbnail_pending": pendingByPhase["thumbnail"],
-			"sprites_pending":   pendingByPhase["sprites"],
+			"metadata_queued":            queueStatus.MetadataQueued,
+			"thumbnail_queued":           queueStatus.ThumbnailQueued,
+			"sprites_queued":             queueStatus.SpritesQueued,
+			"animated_thumbnails_queued":  queueStatus.AnimatedThumbnailsQueued,
+			"fingerprint_queued":         queueStatus.FingerprintQueued,
+			"metadata_running":           queueStatus.MetadataActive,
+			"thumbnail_running":          queueStatus.ThumbnailActive,
+			"sprites_running":            queueStatus.SpritesActive,
+			"animated_thumbnails_running": queueStatus.AnimatedThumbnailsActive,
+			"fingerprint_running":        queueStatus.FingerprintActive,
+			"metadata_pending":           pendingByPhase["metadata"],
+			"thumbnail_pending":          pendingByPhase["thumbnail"],
+			"sprites_pending":            pendingByPhase["sprites"],
+			"animated_thumbnails_pending": pendingByPhase["animated_thumbnails"],
+			"fingerprint_pending":        pendingByPhase["fingerprint"],
 		},
 	})
 }
@@ -174,7 +180,11 @@ func (h *JobHandler) TriggerBulkPhase(c *gin.Context) {
 
 	result, err := h.processingService.SubmitBulkPhase(req.Phase, req.Mode, req.ForceTarget, req.SceneIDs)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		status := http.StatusInternalServerError
+		if req.Phase == "fingerprint" && !h.processingService.IsDuplicationEnabled() {
+			status = http.StatusBadRequest
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
 

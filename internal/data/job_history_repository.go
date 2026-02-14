@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 type JobHistoryRepository interface {
@@ -200,7 +201,8 @@ func (r *JobHistoryRepositoryImpl) CreateBatch(records []*JobHistory) error {
 func (r *JobHistoryRepositoryImpl) ClaimPendingJobs(phase string, limit int) ([]JobHistory, error) {
 	var jobs []JobHistory
 
-	err := r.DB.Transaction(func(tx *gorm.DB) error {
+	silentDB := r.DB.Session(&gorm.Session{Logger: gormlogger.Default.LogMode(gormlogger.Silent)})
+	err := silentDB.Transaction(func(tx *gorm.DB) error {
 		// Select pending jobs with lock, skipping already locked rows
 		if err := tx.Raw(`
 			SELECT * FROM job_history

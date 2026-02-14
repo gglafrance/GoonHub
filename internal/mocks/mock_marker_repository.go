@@ -354,6 +354,20 @@ func (mr *MockMarkerRepositoryMockRecorder) GetSceneIDsByLabels(userID, labels a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSceneIDsByLabels", reflect.TypeOf((*MockMarkerRepository)(nil).GetSceneIDsByLabels), userID, labels)
 }
 
+// ReassignMarkersToScene mocks base method.
+func (m *MockMarkerRepository) ReassignMarkersToScene(fromSceneID, toSceneID uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReassignMarkersToScene", fromSceneID, toSceneID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReassignMarkersToScene indicates an expected call of ReassignMarkersToScene.
+func (mr *MockMarkerRepositoryMockRecorder) ReassignMarkersToScene(fromSceneID, toSceneID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReassignMarkersToScene", reflect.TypeOf((*MockMarkerRepository)(nil).ReassignMarkersToScene), fromSceneID, toSceneID)
+}
+
 // SetLabelTags mocks base method.
 func (m *MockMarkerRepository) SetLabelTags(userID uint, label string, tagIDs []uint) error {
 	m.ctrl.T.Helper()

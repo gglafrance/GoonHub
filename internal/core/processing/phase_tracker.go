@@ -100,6 +100,8 @@ func (pt *PhaseTracker) MarkPhaseComplete(sceneID uint, phase string) {
 		state.SpritesDone = true
 	case "animated_thumbnails":
 		state.AnimatedThumbnailsDone = true
+	case "fingerprint":
+		state.FingerprintDone = true
 	}
 }
 
@@ -127,6 +129,7 @@ func (pt *PhaseTracker) CheckAllPhasesComplete(sceneID uint, completedPhase stri
 	thumbnailInPipeline := false
 	spritesInPipeline := false
 	animatedThumbnailsInPipeline := false
+	fingerprintInPipeline := false
 	for _, p := range phasesAfterMeta {
 		if p == "thumbnail" {
 			thumbnailInPipeline = true
@@ -137,14 +140,18 @@ func (pt *PhaseTracker) CheckAllPhasesComplete(sceneID uint, completedPhase stri
 		if p == "animated_thumbnails" {
 			animatedThumbnailsInPipeline = true
 		}
+		if p == "fingerprint" {
+			fingerprintInPipeline = true
+		}
 	}
 
 	// Check completion: only phases in the pipeline matter
 	thumbnailReady := !thumbnailInPipeline || state.ThumbnailDone
 	spritesReady := !spritesInPipeline || state.SpritesDone
 	animatedThumbnailsReady := !animatedThumbnailsInPipeline || state.AnimatedThumbnailsDone
+	fingerprintReady := !fingerprintInPipeline || state.FingerprintDone
 
-	if thumbnailReady && spritesReady && animatedThumbnailsReady {
+	if thumbnailReady && spritesReady && animatedThumbnailsReady && fingerprintReady {
 		pt.ClearPhaseState(sceneID)
 		return true
 	}

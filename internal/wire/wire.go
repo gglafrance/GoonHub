@@ -13,6 +13,7 @@ import (
 	"goonhub/internal/config"
 	"goonhub/internal/core"
 	"goonhub/internal/data"
+	chClient "goonhub/internal/infrastructure/clickhouse"
 	"goonhub/internal/infrastructure/logging"
 	"goonhub/internal/infrastructure/meilisearch"
 	"goonhub/internal/infrastructure/persistence/postgres"
@@ -87,9 +88,14 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Share Link Repository
 		provideShareLinkRepository,
 
+		// Duplication Repositories
+		provideDuplicateGroupRepository,
+		provideDuplicationConfigRepository,
+
 		// ============================================================
 		// EXTERNAL SERVICES
 		// ============================================================
+		provideClickHouseClient,
 		provideMeilisearchClient,
 
 		// ============================================================
@@ -149,6 +155,10 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Share Service
 		provideShareService,
+
+		// Duplication Services
+		provideMatchingService,
+		provideDuplicateService,
 
 		// Streaming Manager
 		provideStreamManager,
@@ -216,6 +226,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Share Handler
 		provideShareHandler,
+
+		// Duplicate Handler
+		provideDuplicateHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -472,7 +485,7 @@ func provideRelatedScenesService(
 // --- Processing & Job Services ---
 
 func provideSceneProcessingService(repo data.SceneRepository, markerService *core.MarkerService, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository) *core.SceneProcessingService {
-	return core.NewSceneProcessingService(repo, markerService, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo, triggerConfigRepo)
+	return core.NewSceneProcessingService(repo, markerService, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo, triggerConfigRepo, &cfg.Duplication)
 }
 
 func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config, logger *logging.Logger) *core.JobHistoryService {
@@ -483,8 +496,8 @@ func provideJobStatusService(jobHistoryService *core.JobHistoryService, processi
 	return core.NewJobStatusService(jobHistoryService, processingService, logger.Logger)
 }
 
-func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, markerService *core.MarkerService, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobQueueFeeder {
-	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerService, markerService, processingService.GetPoolManager(), logger.Logger)
+func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, markerService *core.MarkerService, processingService *core.SceneProcessingService, dupConfigRepo data.DuplicationConfigRepository, cfg *config.Config, logger *logging.Logger) *core.JobQueueFeeder {
+	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerService, markerService, processingService.GetPoolManager(), cfg.Duplication.Enabled, dupConfigRepo, logger.Logger)
 }
 
 func provideTriggerScheduler(triggerConfigRepo data.TriggerConfigRepository, sceneRepo data.SceneRepository, processingService *core.SceneProcessingService, logger *logging.Logger) *core.TriggerScheduler {
@@ -563,6 +576,36 @@ func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRe
 
 func provideShareService(shareLinkRepo data.ShareLinkRepository, sceneRepo data.SceneRepository, logger *logging.Logger) *core.ShareService {
 	return core.NewShareService(shareLinkRepo, sceneRepo, logger.Logger)
+}
+
+// --- Duplication Repositories ---
+
+func provideDuplicateGroupRepository(db *gorm.DB) data.DuplicateGroupRepository {
+	return data.NewDuplicateGroupRepository(db)
+}
+
+func provideDuplicationConfigRepository(db *gorm.DB) data.DuplicationConfigRepository {
+	return data.NewDuplicationConfigRepository(db)
+}
+
+// --- ClickHouse & Duplication Services ---
+
+func provideClickHouseClient(cfg *config.Config, logger *logging.Logger) (*chClient.Client, error) {
+	if !cfg.Duplication.Enabled {
+		return nil, nil
+	}
+	return chClient.NewClient(cfg.ClickHouse, logger.Logger)
+}
+
+func provideMatchingService(clickhouse *chClient.Client, sceneRepo data.SceneRepository, dupGroupRepo data.DuplicateGroupRepository, dupConfigRepo data.DuplicationConfigRepository, logger *logging.Logger) *core.MatchingService {
+	if clickhouse == nil {
+		return nil
+	}
+	return core.NewMatchingService(clickhouse, sceneRepo, dupGroupRepo, dupConfigRepo, logger.Logger)
+}
+
+func provideDuplicateService(dupGroupRepo data.DuplicateGroupRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, markerRepo data.MarkerRepository, interactionRepo data.InteractionRepository, eventBus *core.EventBus, logger *logging.Logger) *core.DuplicateService {
+	return core.NewDuplicateService(dupGroupRepo, sceneRepo, tagRepo, actorRepo, markerRepo, interactionRepo, eventBus, logger.Logger)
 }
 
 // --- Streaming Manager ---
@@ -722,6 +765,10 @@ func provideShareHandler(shareService *core.ShareService, authService *core.Auth
 	return handler.NewShareHandler(shareService, authService, streamManager, cfg.Sharing.BaseURL)
 }
 
+func provideDuplicateHandler(duplicateService *core.DuplicateService, dupConfigRepo data.DuplicationConfigRepository) *handler.DuplicateHandler {
+	return handler.NewDuplicateHandler(duplicateService, dupConfigRepo)
+}
+
 // ============================================================================
 // ROUTER & SERVER PROVIDERS
 // ============================================================================
@@ -759,6 +806,7 @@ func provideRouter(
 	streamStatsHandler *handler.StreamStatsHandler,
 	playlistHandler *handler.PlaylistHandler,
 	shareHandler *handler.ShareHandler,
+	duplicateHandler *handler.DuplicateHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -771,7 +819,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, shareHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, duplicateHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 
@@ -807,12 +855,13 @@ func provideServer(
 	dlqService *core.DLQService,
 	actorService *core.ActorService,
 	studioService *core.StudioService,
+	matchingService *core.MatchingService,
 	shareServer *server.ShareServer,
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
-		actorService, studioService, shareServer,
+		actorService, studioService, matchingService, shareServer,
 	)
 }

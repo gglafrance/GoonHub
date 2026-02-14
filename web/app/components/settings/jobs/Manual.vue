@@ -1,9 +1,23 @@
 <script setup lang="ts">
 import type { ScanHistory, ScanStatus } from '~/types/scan';
-import type { BulkJobResponse } from '~/types/jobs';
+import type { BulkJobResponse, PoolConfig } from '~/types/jobs';
 
 const { startScan, cancelScan, getScanStatus, getScanHistory, triggerBulkPhase } = useApi();
+const { fetchPoolConfig } = useApiJobs();
 const { message, error, clearMessages } = useSettingsMessage();
+
+// Duplication feature flag
+const duplicationEnabled = ref(false);
+
+type BulkPhase = 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails' | 'fingerprint';
+
+const availablePhases = computed<BulkPhase[]>(() => {
+    const phases: BulkPhase[] = ['metadata', 'thumbnail', 'sprites', 'animated_thumbnails'];
+    if (duplicationEnabled.value) {
+        phases.push('fingerprint');
+    }
+    return phases;
+});
 
 // Scan state
 const scanLoading = ref(false);
@@ -18,12 +32,14 @@ const bulkLoading = ref<Record<string, boolean>>({
     thumbnail: false,
     sprites: false,
     animated_thumbnails: false,
+    fingerprint: false,
 });
 const bulkResults = ref<Record<string, BulkJobResponse | null>>({
     metadata: null,
     thumbnail: null,
     sprites: null,
     animated_thumbnails: null,
+    fingerprint: null,
 });
 
 const scanStore = useScanStore();
@@ -77,7 +93,7 @@ const handleCancelScan = async () => {
 };
 
 const handleBulkJob = async (
-    phase: 'metadata' | 'thumbnail' | 'sprites' | 'animated_thumbnails',
+    phase: BulkPhase,
     mode: 'missing' | 'all',
 ) => {
     bulkLoading.value[phase] = true;
@@ -95,7 +111,13 @@ const handleBulkJob = async (
 };
 
 onMounted(async () => {
-    await Promise.all([loadScanStatus(), loadScanHistory()]);
+    await Promise.all([
+        loadScanStatus(),
+        loadScanHistory(),
+        fetchPoolConfig().then((cfg: PoolConfig) => {
+            duplicationEnabled.value = cfg.duplication_enabled;
+        }).catch(() => {}),
+    ]);
 });
 
 watch(
@@ -195,6 +217,8 @@ const phaseLabel = (phase: string): string => {
             return 'Sprites';
         case 'animated_thumbnails':
             return 'Animated Thumbnails';
+        case 'fingerprint':
+            return 'Fingerprint';
         default:
             return phase;
     }
@@ -210,6 +234,8 @@ const phaseIcon = (phase: string): string => {
             return 'heroicons:squares-2x2';
         case 'animated_thumbnails':
             return 'heroicons:film';
+        case 'fingerprint':
+            return 'heroicons:finger-print';
         default:
             return 'heroicons:cog-6-tooth';
     }
@@ -225,6 +251,8 @@ const phaseDescription = (phase: string): string => {
             return 'Generate sprite sheets and VTT files for video preview';
         case 'animated_thumbnails':
             return 'Generate hover preview videos and animated marker clips';
+        case 'fingerprint':
+            return 'Generate audio/visual fingerprints for duplicate detection';
         default:
             return '';
     }
@@ -429,12 +457,7 @@ const phaseDescription = (phase: string): string => {
 
             <div class="space-y-4">
                 <div
-                    v-for="phase in [
-                        'metadata',
-                        'thumbnail',
-                        'sprites',
-                        'animated_thumbnails',
-                    ] as const"
+                    v-for="phase in availablePhases"
                     :key="phase"
                     class="border-border rounded-lg border bg-white/2 p-4"
                 >
@@ -530,6 +553,10 @@ const phaseDescription = (phase: string): string => {
                 <p>
                     <strong class="text-white/80">Animated Thumbnails:</strong> Generates looping
                     video clips for marker previews.
+                </p>
+                <p v-if="duplicationEnabled">
+                    <strong class="text-white/80">Fingerprint:</strong> Generates audio and visual
+                    fingerprints for duplicate detection.
                 </p>
                 <p class="text-dim/70 mt-3 italic">
                     Jobs are queued and processed by background workers. Check the History tab to

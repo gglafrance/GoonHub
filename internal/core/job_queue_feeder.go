@@ -20,8 +20,10 @@ type JobQueueFeeder struct {
 	sceneRepo         data.SceneRepository
 	markerThumbGen    jobs.MarkerThumbnailGenerator
 	animatedThumbGen  jobs.AnimatedThumbnailGenerator
-	poolManager       *processing.PoolManager
-	logger            *zap.Logger
+	poolManager        *processing.PoolManager
+	duplicationEnabled bool
+	dupConfigRepo      data.DuplicationConfigRepository
+	logger             *zap.Logger
 
 	pollInterval     time.Duration
 	batchSize        int
@@ -43,15 +45,19 @@ func NewJobQueueFeeder(
 	markerThumbGen jobs.MarkerThumbnailGenerator,
 	animatedThumbGen jobs.AnimatedThumbnailGenerator,
 	poolManager *processing.PoolManager,
+	duplicationEnabled bool,
+	dupConfigRepo data.DuplicationConfigRepository,
 	logger *zap.Logger,
 ) *JobQueueFeeder {
 	return &JobQueueFeeder{
-		repo:             repo,
-		sceneRepo:        sceneRepo,
-		markerThumbGen:   markerThumbGen,
-		animatedThumbGen: animatedThumbGen,
-		poolManager:      poolManager,
-		logger:           logger.With(zap.String("component", "job_queue_feeder")),
+		repo:               repo,
+		sceneRepo:          sceneRepo,
+		markerThumbGen:     markerThumbGen,
+		animatedThumbGen:   animatedThumbGen,
+		poolManager:        poolManager,
+		duplicationEnabled: duplicationEnabled,
+		dupConfigRepo:      dupConfigRepo,
+		logger:             logger.With(zap.String("component", "job_queue_feeder")),
 		pollInterval:     2 * time.Second,
 		batchSize:        50,
 		bufferMultiplier: 10, // Keep up to workerCount*10 jobs buffered per phase
@@ -79,6 +85,9 @@ func (f *JobQueueFeeder) Start() {
 
 	// Start a feeder goroutine for each phase
 	phases := []string{"metadata", "thumbnail", "sprites", "animated_thumbnails"}
+	if f.duplicationEnabled {
+		phases = append(phases, "fingerprint")
+	}
 	for _, phase := range phases {
 		f.wg.Add(1)
 		go f.runFeeder(phase)
@@ -162,6 +171,9 @@ func (f *JobQueueFeeder) feedPhase(phase string) {
 	case "animated_thumbnails":
 		currentQueued = queueStatus.AnimatedThumbnailsQueued
 		workerCount = poolConfig.AnimatedThumbnailsWorkers
+	case "fingerprint":
+		currentQueued = queueStatus.FingerprintQueued
+		workerCount = poolConfig.FingerprintWorkers
 	}
 
 	// Dynamic threshold: only buffer a small multiple of the worker count.
@@ -354,6 +366,26 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 			f.logger,
 		)
 		return f.poolManager.SubmitToAnimatedThumbnailsPool(job)
+
+	case "fingerprint":
+		if scene.Duration == 0 {
+			return fmt.Errorf("scene duration is 0: metadata not yet extracted")
+		}
+		fpMode := "audio_only"
+		if f.dupConfigRepo != nil {
+			if dupCfg, err := f.dupConfigRepo.Get(); err == nil && dupCfg != nil && dupCfg.FingerprintMode != "" {
+				fpMode = dupCfg.FingerprintMode
+			}
+		}
+		job = jobs.NewFingerprintJobWithID(
+			jobRecord.JobID,
+			jobRecord.SceneID,
+			scene.StoredPath,
+			scene.AudioCodec,
+			fpMode,
+			f.logger,
+		)
+		return f.poolManager.SubmitToFingerprintPool(job)
 	}
 
 	return nil

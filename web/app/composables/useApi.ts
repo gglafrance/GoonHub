@@ -35,6 +35,7 @@ export const useApi = () => {
     const markers = useApiMarkers();
     const playlists = useApiPlaylists();
     const shares = useApiShares();
+    const duplicates = useApiDuplicates();
 
     return {
         // Scene operations
@@ -212,5 +213,15 @@ export const useApi = () => {
         listShareLinks: shares.listShareLinks,
         deleteShareLink: shares.deleteShareLink,
         resolveShareLink: shares.resolveShareLink,
+
+        // Duplicate operations
+        listDuplicateGroups: duplicates.listGroups,
+        getDuplicateGroup: duplicates.getGroup,
+        getDuplicateStats: duplicates.getStats,
+        resolveDuplicateGroup: duplicates.resolveGroup,
+        dismissDuplicateGroup: duplicates.dismissGroup,
+        setDuplicateBest: duplicates.setBest,
+        getDuplicationConfig: duplicates.getConfig,
+        updateDuplicationConfig: duplicates.updateConfig,
     };
 };

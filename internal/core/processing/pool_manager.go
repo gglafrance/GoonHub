@@ -20,6 +20,8 @@ type PoolManager struct {
 	thumbnailPool           *jobs.WorkerPool
 	spritesPool             *jobs.WorkerPool
 	animatedThumbnailsPool  *jobs.WorkerPool
+	fingerprintPool         *jobs.WorkerPool
+	duplicationEnabled      bool
 	mu                      sync.RWMutex
 	config                  config.ProcessingConfig
 	qualityConfig           QualityConfig
@@ -35,6 +37,7 @@ func NewPoolManager(
 	logger *zap.Logger,
 	poolConfigRepo data.PoolConfigRepository,
 	processingConfigRepo data.ProcessingConfigRepository,
+	duplicationCfg *config.DuplicationConfig,
 ) *PoolManager {
 	// Check DB for persisted pool config overrides
 	metadataWorkers := cfg.MetadataWorkers
@@ -199,6 +202,25 @@ func NewPoolManager(
 		logger.Info("Animated thumbnails pool timeout set", zap.Duration("timeout", cfg.AnimatedThumbnailsTimeout))
 	}
 
+	// Create fingerprint pool if duplication is enabled
+	var fingerprintPool *jobs.WorkerPool
+	if duplicationCfg != nil && duplicationCfg.Enabled {
+		fpWorkers := duplicationCfg.FingerprintWorkers
+		if fpWorkers <= 0 {
+			fpWorkers = 1
+		}
+		if poolConfigRepo != nil {
+			if dbConfig, err := poolConfigRepo.Get(); err == nil && dbConfig != nil && dbConfig.FingerprintWorkers > 0 {
+				fpWorkers = dbConfig.FingerprintWorkers
+			}
+		}
+		fingerprintPool = jobs.NewWorkerPool(fpWorkers, queueBufferSize)
+		fingerprintPool.SetLogger(logger.With(zap.String("pool", "fingerprint")))
+		if duplicationCfg.FingerprintTimeout > 0 {
+			fingerprintPool.SetTimeout(duplicationCfg.FingerprintTimeout)
+		}
+	}
+
 	// Create output directories
 	createDirIfNotExists(cfg.SpriteDir, logger)
 	createDirIfNotExists(cfg.VttDir, logger)
@@ -211,6 +233,8 @@ func NewPoolManager(
 		thumbnailPool:          thumbnailPool,
 		spritesPool:            spritesPool,
 		animatedThumbnailsPool: animatedThumbnailsPool,
+		fingerprintPool:        fingerprintPool,
+		duplicationEnabled:     duplicationCfg != nil && duplicationCfg.Enabled,
 		config:                 cfg,
 		qualityConfig:          qualityConfig,
 		logger:                 logger,
@@ -249,12 +273,23 @@ func (pm *PoolManager) Start() {
 		go pm.resultHandler(pm.animatedThumbnailsPool)
 	}
 
-	pm.logger.Info("Pool manager started",
+	if pm.fingerprintPool != nil {
+		pm.fingerprintPool.Start()
+		if pm.resultHandler != nil {
+			go pm.resultHandler(pm.fingerprintPool)
+		}
+	}
+
+	logFields := []zap.Field{
 		zap.Int("metadata_workers", pm.metadataPool.ActiveWorkers()),
 		zap.Int("thumbnail_workers", pm.thumbnailPool.ActiveWorkers()),
 		zap.Int("sprites_workers", pm.spritesPool.ActiveWorkers()),
 		zap.Int("animated_thumbnails_workers", pm.animatedThumbnailsPool.ActiveWorkers()),
-	)
+	}
+	if pm.fingerprintPool != nil {
+		logFields = append(logFields, zap.Int("fingerprint_workers", pm.fingerprintPool.ActiveWorkers()))
+	}
+	pm.logger.Info("Pool manager started", logFields...)
 }
 
 // Stop stops all worker pools
@@ -264,6 +299,9 @@ func (pm *PoolManager) Stop() {
 	pm.thumbnailPool.Stop()
 	pm.spritesPool.Stop()
 	pm.animatedThumbnailsPool.Stop()
+	if pm.fingerprintPool != nil {
+		pm.fingerprintPool.Stop()
+	}
 }
 
 // GracefulStop performs graceful shutdown of all worker pools.
@@ -286,7 +324,12 @@ func (pm *PoolManager) GracefulStop(timeout time.Duration) map[string][]string {
 		phase  string
 		jobIDs []string
 	}
-	resultChan := make(chan poolResult, 4)
+
+	poolCount := 4
+	if pm.fingerprintPool != nil {
+		poolCount = 5
+	}
+	resultChan := make(chan poolResult, poolCount)
 
 	// Gracefully stop all pools in parallel
 	go func() {
@@ -305,9 +348,15 @@ func (pm *PoolManager) GracefulStop(timeout time.Duration) map[string][]string {
 		jobIDs := pm.animatedThumbnailsPool.GracefulStop(timeout)
 		resultChan <- poolResult{phase: "animated_thumbnails", jobIDs: jobIDs}
 	}()
+	if pm.fingerprintPool != nil {
+		go func() {
+			jobIDs := pm.fingerprintPool.GracefulStop(timeout)
+			resultChan <- poolResult{phase: "fingerprint", jobIDs: jobIDs}
+		}()
+	}
 
 	// Collect results
-	for i := 0; i < 4; i++ {
+	for i := 0; i < poolCount; i++ {
 		res := <-resultChan
 		if len(res.jobIDs) > 0 {
 			result[res.phase] = res.jobIDs
@@ -319,13 +368,17 @@ func (pm *PoolManager) GracefulStop(timeout time.Duration) map[string][]string {
 		totalReclaimed += len(ids)
 	}
 
-	pm.logger.Info("Pool manager graceful shutdown complete",
+	logFields := []zap.Field{
 		zap.Int("total_jobs_reclaimed", totalReclaimed),
 		zap.Int("metadata_reclaimed", len(result["metadata"])),
 		zap.Int("thumbnail_reclaimed", len(result["thumbnail"])),
 		zap.Int("sprites_reclaimed", len(result["sprites"])),
 		zap.Int("animated_thumbnails_reclaimed", len(result["animated_thumbnails"])),
-	)
+	}
+	if pm.fingerprintPool != nil {
+		logFields = append(logFields, zap.Int("fingerprint_reclaimed", len(result["fingerprint"])))
+	}
+	pm.logger.Info("Pool manager graceful shutdown complete", logFields...)
 
 	return result
 }
@@ -366,19 +419,24 @@ func (pm *PoolManager) migrateOldThumbnails() {
 func (pm *PoolManager) GetPoolConfig() PoolConfig {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
-	return PoolConfig{
+	cfg := PoolConfig{
 		MetadataWorkers:           pm.metadataPool.ActiveWorkers(),
 		ThumbnailWorkers:          pm.thumbnailPool.ActiveWorkers(),
 		SpritesWorkers:            pm.spritesPool.ActiveWorkers(),
 		AnimatedThumbnailsWorkers: pm.animatedThumbnailsPool.ActiveWorkers(),
+		DuplicationEnabled:        pm.duplicationEnabled,
 	}
+	if pm.fingerprintPool != nil {
+		cfg.FingerprintWorkers = pm.fingerprintPool.ActiveWorkers()
+	}
+	return cfg
 }
 
 // GetQueueStatus returns the current queue status
 func (pm *PoolManager) GetQueueStatus() QueueStatus {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
-	return QueueStatus{
+	qs := QueueStatus{
 		MetadataQueued:           pm.metadataPool.QueueSize(),
 		ThumbnailQueued:          pm.thumbnailPool.QueueSize(),
 		SpritesQueued:            pm.spritesPool.QueueSize(),
@@ -388,6 +446,11 @@ func (pm *PoolManager) GetQueueStatus() QueueStatus {
 		SpritesActive:            pm.spritesPool.ActiveJobCount(),
 		AnimatedThumbnailsActive: pm.animatedThumbnailsPool.ActiveJobCount(),
 	}
+	if pm.fingerprintPool != nil {
+		qs.FingerprintQueued = pm.fingerprintPool.QueueSize()
+		qs.FingerprintActive = pm.fingerprintPool.ActiveJobCount()
+	}
+	return qs
 }
 
 // GetQualityConfig returns the current quality configuration
@@ -483,6 +546,9 @@ func (pm *PoolManager) UpdatePoolConfig(cfg PoolConfig) error {
 	if cfg.AnimatedThumbnailsWorkers < 1 || cfg.AnimatedThumbnailsWorkers > 10 {
 		return fmt.Errorf("animated_thumbnails_workers must be between 1 and 10")
 	}
+	if pm.duplicationEnabled && (cfg.FingerprintWorkers < 1 || cfg.FingerprintWorkers > 10) {
+		return fmt.Errorf("fingerprint_workers must be between 1 and 10")
+	}
 
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
@@ -553,6 +619,22 @@ func (pm *PoolManager) UpdatePoolConfig(cfg PoolConfig) error {
 		pm.logger.Info("Resized animated thumbnails pool", zap.Int("workers", cfg.AnimatedThumbnailsWorkers))
 	}
 
+	// Resize fingerprint pool if needed (only if duplication is enabled)
+	if pm.fingerprintPool != nil && cfg.FingerprintWorkers != pm.fingerprintPool.ActiveWorkers() {
+		newPool := jobs.NewWorkerPool(cfg.FingerprintWorkers, queueBufferSize)
+		newPool.SetLogger(pm.logger.With(zap.String("pool", "fingerprint")))
+		newPool.Start()
+		if pm.resultHandler != nil {
+			go pm.resultHandler(newPool)
+		}
+
+		oldPool := pm.fingerprintPool
+		pm.fingerprintPool = newPool
+		oldPool.Stop()
+
+		pm.logger.Info("Resized fingerprint pool", zap.Int("workers", cfg.FingerprintWorkers))
+	}
+
 	return nil
 }
 
@@ -581,6 +663,13 @@ func (pm *PoolManager) CancelJob(jobID string) error {
 		return nil
 	}
 
+	if pm.fingerprintPool != nil {
+		if err := pm.fingerprintPool.CancelJob(jobID); err == nil {
+			pm.logger.Info("Job cancelled in fingerprint pool", zap.String("job_id", jobID))
+			return nil
+		}
+	}
+
 	return fmt.Errorf("job not found: %s", jobID)
 }
 
@@ -600,6 +689,11 @@ func (pm *PoolManager) GetJob(jobID string) (jobs.Job, bool) {
 	}
 	if job, ok := pm.animatedThumbnailsPool.GetJob(jobID); ok {
 		return job, true
+	}
+	if pm.fingerprintPool != nil {
+		if job, ok := pm.fingerprintPool.GetJob(jobID); ok {
+			return job, true
+		}
 	}
 	return nil, false
 }
@@ -632,6 +726,21 @@ func (pm *PoolManager) SubmitToAnimatedThumbnailsPool(job jobs.Job) error {
 	return pm.animatedThumbnailsPool.Submit(job)
 }
 
+// SubmitToFingerprintPool submits a job to the fingerprint pool
+func (pm *PoolManager) SubmitToFingerprintPool(job jobs.Job) error {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	if pm.fingerprintPool == nil {
+		return fmt.Errorf("fingerprint pool not enabled: duplication detection is disabled")
+	}
+	return pm.fingerprintPool.Submit(job)
+}
+
+// IsDuplicationEnabled returns whether duplication detection is enabled
+func (pm *PoolManager) IsDuplicationEnabled() bool {
+	return pm.duplicationEnabled
+}
+
 // LogStatus logs the status of all pools
 func (pm *PoolManager) LogStatus() {
 	pm.logger.Info("Pool manager status")
@@ -641,4 +750,7 @@ func (pm *PoolManager) LogStatus() {
 	pm.thumbnailPool.LogStatus()
 	pm.spritesPool.LogStatus()
 	pm.animatedThumbnailsPool.LogStatus()
+	if pm.fingerprintPool != nil {
+		pm.fingerprintPool.LogStatus()
+	}
 }
