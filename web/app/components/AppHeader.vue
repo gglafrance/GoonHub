@@ -219,7 +219,11 @@ const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
                         active-class="!text-lava bg-lava/10"
                         title="Duplicates"
                     >
-                        <Icon name="heroicons:document-duplicate" size="18" class="sm:!h-3.5 sm:!w-3.5" />
+                        <Icon
+                            name="heroicons:document-duplicate"
+                            size="18"
+                            class="sm:!h-3.5 sm:!w-3.5"
+                        />
                         <span class="hidden sm:inline">Duplicates</span>
                     </NuxtLink>
                 </div>

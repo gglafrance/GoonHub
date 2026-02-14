@@ -59,17 +59,14 @@ onMounted(loadConfig);
             <div class="mb-4">
                 <h3 class="text-sm font-semibold text-white">Duplication Detection</h3>
                 <p class="text-dim mt-0.5 text-[11px]">
-                    Configure fingerprint mode and detection thresholds for duplicate scene matching.
+                    Configure fingerprint mode and detection thresholds for duplicate scene
+                    matching.
                 </p>
             </div>
 
             <div v-if="loading" class="text-dim py-8 text-center text-xs">Loading...</div>
 
-            <DuplicatesConfigPanel
-                v-else-if="config"
-                :config="config"
-                @save="handleSave"
-            />
+            <DuplicatesConfigPanel v-else-if="config" :config="config" @save="handleSave" />
         </div>
     </div>
 </template>

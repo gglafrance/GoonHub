@@ -166,7 +166,8 @@ onMounted(() => {
             </div>
             <NuxtLink
                 to="/settings?tab=duplicates"
-                class="border-border text-dim hover:border-lava/30 hover:text-lava flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[11px] font-medium transition-all"
+                class="border-border text-dim hover:border-lava/30 hover:text-lava flex items-center
+                    gap-1.5 rounded-md border px-3 py-1.5 text-[11px] font-medium transition-all"
             >
                 <Icon name="heroicons:adjustments-horizontal" size="14" />
                 Settings
@@ -196,7 +197,11 @@ onMounted(() => {
                     v-for="s in statusTabs"
                     :key="s.value"
                     class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-all"
-                    :class="statusFilter === s.value ? 'bg-lava/20 text-lava' : 'text-dim hover:bg-white/5 hover:text-white'"
+                    :class="
+                        statusFilter === s.value
+                            ? 'bg-lava/20 text-lava'
+                            : 'text-dim hover:bg-white/5 hover:text-white'
+                    "
                     @click="setStatus(s.value)"
                 >
                     {{ s.label }}
@@ -205,7 +210,8 @@ onMounted(() => {
             <div class="flex items-center gap-2">
                 <select
                     :value="sortBy"
-                    class="border-border bg-panel rounded-md border px-2 py-1 text-[11px] text-white"
+                    class="border-border bg-panel rounded-md border px-2 py-1 text-[11px]
+                        text-white"
                     @change="setSort(($event.target as HTMLSelectElement).value)"
                 >
                     <option value="newest">Newest</option>
@@ -214,7 +220,10 @@ onMounted(() => {
                 <button
                     class="text-dim hover:text-lava transition-colors"
                     title="Refresh"
-                    @click="loadGroups(); loadStats()"
+                    @click="
+                        loadGroups();
+                        loadStats();
+                    "
                 >
                     <Icon name="heroicons:arrow-path" size="16" />
                 </button>
@@ -223,7 +232,9 @@ onMounted(() => {
 
         <!-- Loading -->
         <div v-if="loading" class="flex items-center justify-center py-20">
-            <div class="border-lava/30 border-t-lava h-6 w-6 animate-spin rounded-full border-2"></div>
+            <div
+                class="border-lava/30 border-t-lava h-6 w-6 animate-spin rounded-full border-2"
+            ></div>
         </div>
 
         <!-- Empty State -->
@@ -241,7 +252,8 @@ onMounted(() => {
             >
                 <!-- Group Header (clickable) -->
                 <button
-                    class="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-white/2"
+                    class="flex w-full items-center justify-between p-4 text-left transition-colors
+                        hover:bg-white/2"
                     @click="toggleGroup(group.id)"
                 >
                     <div class="flex items-center gap-3">
@@ -250,7 +262,8 @@ onMounted(() => {
                             <div
                                 v-for="(member, idx) in group.members.slice(0, 3)"
                                 :key="member.scene_id"
-                                class="border-void h-10 w-16 overflow-hidden rounded border-2 bg-black/50"
+                                class="border-void h-10 w-16 overflow-hidden rounded border-2
+                                    bg-black/50"
                                 :style="{ zIndex: 3 - idx }"
                             >
                                 <img
@@ -262,7 +275,8 @@ onMounted(() => {
                             </div>
                             <div
                                 v-if="group.members.length > 3"
-                                class="border-void bg-panel text-dim flex h-10 w-10 items-center justify-center rounded border-2 text-[10px] font-medium"
+                                class="border-void bg-panel text-dim flex h-10 w-10 items-center
+                                    justify-center rounded border-2 text-[10px] font-medium"
                             >
                                 +{{ group.members.length - 3 }}
                             </div>
@@ -270,21 +284,29 @@ onMounted(() => {
 
                         <div>
                             <div class="flex items-center gap-2">
-                                <span class="text-sm font-medium text-white">{{ group.scene_count }} scenes</span>
+                                <span class="text-sm font-medium text-white"
+                                    >{{ group.scene_count }} scenes</span
+                                >
                                 <span
-                                    class="rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase"
+                                    class="rounded-full px-1.5 py-0.5 text-[9px] font-semibold
+                                        uppercase"
                                     :class="{
                                         'bg-lava/20 text-lava': group.status === 'unresolved',
                                         'bg-emerald/20 text-emerald': group.status === 'resolved',
-                                        'bg-white/10 text-dim': group.status === 'dismissed',
+                                        'text-dim bg-white/10': group.status === 'dismissed',
                                     }"
                                 >
                                     {{ group.status }}
                                 </span>
                                 <span
                                     v-if="group.members[0]"
-                                    class="rounded-full bg-white/5 px-1.5 py-0.5 text-[9px] font-medium"
-                                    :class="group.members[0].match_type === 'audio' ? 'text-blue-400' : 'text-purple-400'"
+                                    class="rounded-full bg-white/5 px-1.5 py-0.5 text-[9px]
+                                        font-medium"
+                                    :class="
+                                        group.members[0].match_type === 'audio'
+                                            ? 'text-blue-400'
+                                            : 'text-purple-400'
+                                    "
                                 >
                                     {{ group.members[0].match_type }}
                                 </span>
@@ -311,10 +333,16 @@ onMounted(() => {
                             <thead>
                                 <tr class="border-border border-b bg-white/2">
                                     <th class="text-dim px-4 py-2 text-left font-medium">Scene</th>
-                                    <th class="text-dim px-3 py-2 text-left font-medium">Resolution</th>
-                                    <th class="text-dim px-3 py-2 text-left font-medium">Duration</th>
+                                    <th class="text-dim px-3 py-2 text-left font-medium">
+                                        Resolution
+                                    </th>
+                                    <th class="text-dim px-3 py-2 text-left font-medium">
+                                        Duration
+                                    </th>
                                     <th class="text-dim px-3 py-2 text-left font-medium">Codec</th>
-                                    <th class="text-dim px-3 py-2 text-left font-medium">Bitrate</th>
+                                    <th class="text-dim px-3 py-2 text-left font-medium">
+                                        Bitrate
+                                    </th>
                                     <th class="text-dim px-3 py-2 text-left font-medium">Size</th>
                                     <th class="text-dim px-3 py-2 text-left font-medium">Match</th>
                                     <th class="text-dim px-3 py-2 text-center font-medium">Best</th>
@@ -333,7 +361,11 @@ onMounted(() => {
                                 >
                                     <td class="px-4 py-2.5">
                                         <div class="flex items-center gap-2">
-                                            <div class="h-8 w-12 shrink-0 overflow-hidden rounded bg-black/50" :class="{ 'grayscale': member.is_trashed }">
+                                            <div
+                                                class="h-8 w-12 shrink-0 overflow-hidden rounded
+                                                    bg-black/50"
+                                                :class="{ grayscale: member.is_trashed }"
+                                            >
                                                 <img
                                                     :src="`/thumbnails/${member.scene_id}?size=sm`"
                                                     class="h-full w-full object-cover"
@@ -343,39 +375,70 @@ onMounted(() => {
                                             <div class="flex items-center gap-1.5">
                                                 <NuxtLink
                                                     :to="`/watch/${member.scene_id}`"
-                                                    class="max-w-48 truncate font-medium transition-colors"
-                                                    :class="member.is_trashed ? 'text-dim' : 'text-white hover:text-lava'"
+                                                    class="max-w-48 truncate font-medium
+                                                        transition-colors"
+                                                    :class="
+                                                        member.is_trashed
+                                                            ? 'text-dim'
+                                                            : 'hover:text-lava text-white'
+                                                    "
                                                     @click.stop
                                                 >
                                                     {{ member.title }}
                                                 </NuxtLink>
                                                 <span
                                                     v-if="member.is_trashed"
-                                                    class="rounded-full bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-dim"
+                                                    class="text-dim rounded-full bg-white/5 px-1.5
+                                                        py-0.5 text-[9px] font-medium"
                                                 >
                                                     Trashed
                                                 </span>
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-3 py-2.5 text-white">{{ member.width }}x{{ member.height }}</td>
-                                    <td class="px-3 py-2.5 text-white">{{ formatDuration(member.duration) }}</td>
+                                    <td class="px-3 py-2.5 text-white">
+                                        {{ member.width }}x{{ member.height }}
+                                    </td>
+                                    <td class="px-3 py-2.5 text-white">
+                                        {{ formatDuration(member.duration) }}
+                                    </td>
                                     <td class="px-3 py-2.5 text-white">{{ member.video_codec }}</td>
-                                    <td class="px-3 py-2.5 text-white">{{ formatBitrate(member.bit_rate) }}</td>
-                                    <td class="px-3 py-2.5 text-white">{{ formatSize(member.size) }}</td>
+                                    <td class="px-3 py-2.5 text-white">
+                                        {{ formatBitrate(member.bit_rate) }}
+                                    </td>
+                                    <td class="px-3 py-2.5 text-white">
+                                        {{ formatSize(member.size) }}
+                                    </td>
                                     <td class="px-3 py-2.5">
-                                        <span class="text-dim">{{ (member.confidence_score * 100).toFixed(0) }}%</span>
+                                        <span class="text-dim"
+                                            >{{ (member.confidence_score * 100).toFixed(0) }}%</span
+                                        >
                                     </td>
                                     <td class="px-3 py-2.5 text-center">
                                         <button
                                             v-if="group.status === 'unresolved'"
-                                            class="inline-flex h-5 w-5 items-center justify-center rounded-full border transition-all"
-                                            :class="member.is_best ? 'border-emerald bg-emerald/20 text-emerald' : 'border-white/20 text-dim hover:border-emerald/50'"
+                                            class="inline-flex h-5 w-5 items-center justify-center
+                                                rounded-full border transition-all"
+                                            :class="
+                                                member.is_best
+                                                    ? 'border-emerald bg-emerald/20 text-emerald'
+                                                    : `text-dim hover:border-emerald/50
+                                                        border-white/20`
+                                            "
                                             @click.stop="handleSetBest(group.id, member.scene_id)"
                                         >
-                                            <Icon v-if="member.is_best" name="heroicons:check" size="12" />
+                                            <Icon
+                                                v-if="member.is_best"
+                                                name="heroicons:check"
+                                                size="12"
+                                            />
                                         </button>
-                                        <Icon v-else-if="member.is_best" name="heroicons:check-circle-solid" size="16" class="text-emerald" />
+                                        <Icon
+                                            v-else-if="member.is_best"
+                                            name="heroicons:check-circle-solid"
+                                            size="16"
+                                            class="text-emerald"
+                                        />
                                     </td>
                                 </tr>
                             </tbody>
@@ -383,20 +446,30 @@ onMounted(() => {
                     </div>
 
                     <!-- Actions -->
-                    <div v-if="group.status === 'unresolved'" class="border-border flex items-center justify-between border-t p-4">
+                    <div
+                        v-if="group.status === 'unresolved'"
+                        class="border-border flex items-center justify-between border-t p-4"
+                    >
                         <label class="text-dim flex items-center gap-2 text-[11px]">
-                            <input v-model="mergeMetadata" type="checkbox" class="accent-lava rounded" />
+                            <input
+                                v-model="mergeMetadata"
+                                type="checkbox"
+                                class="accent-lava rounded"
+                            />
                             Merge metadata (tags, actors)
                         </label>
                         <div class="flex gap-2">
                             <button
-                                class="border-border text-dim rounded-md border px-3 py-1.5 text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white"
+                                class="border-border text-dim rounded-md border px-3 py-1.5
+                                    text-[11px] font-medium transition-all hover:bg-white/5
+                                    hover:text-white"
                                 @click="handleDismiss(group.id)"
                             >
                                 Dismiss
                             </button>
                             <button
-                                class="bg-lava hover:bg-lava/80 rounded-md px-3 py-1.5 text-[11px] font-medium text-white transition-all disabled:opacity-50"
+                                class="bg-lava hover:bg-lava/80 rounded-md px-3 py-1.5 text-[11px]
+                                    font-medium text-white transition-all disabled:opacity-50"
                                 :disabled="!group.best_scene_id"
                                 @click="handleResolve(group.id, group.best_scene_id!)"
                             >

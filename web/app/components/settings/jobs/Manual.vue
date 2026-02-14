@@ -92,10 +92,7 @@ const handleCancelScan = async () => {
     }
 };
 
-const handleBulkJob = async (
-    phase: BulkPhase,
-    mode: 'missing' | 'all',
-) => {
+const handleBulkJob = async (phase: BulkPhase, mode: 'missing' | 'all') => {
     bulkLoading.value[phase] = true;
     bulkResults.value[phase] = null;
     clearMessages();
@@ -114,9 +111,11 @@ onMounted(async () => {
     await Promise.all([
         loadScanStatus(),
         loadScanHistory(),
-        fetchPoolConfig().then((cfg: PoolConfig) => {
-            duplicationEnabled.value = cfg.duplication_enabled;
-        }).catch(() => {}),
+        fetchPoolConfig()
+            .then((cfg: PoolConfig) => {
+                duplicationEnabled.value = cfg.duplication_enabled;
+            })
+            .catch(() => {}),
     ]);
 });
 
