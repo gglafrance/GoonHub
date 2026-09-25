@@ -18,6 +18,9 @@ var SSE_EVENT_TYPES = [
     'scene:failed',
     'scene:cancelled',
     'scene:timed_out',
+    'short:progress',
+    'short:completed',
+    'short:failed',
     'jobs:status',
 ];
 

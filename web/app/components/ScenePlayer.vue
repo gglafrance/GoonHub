@@ -3,6 +3,7 @@ import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import type { Scene } from '~/types/scene';
 import type { Marker } from '~/types/marker';
+import type { SaveShortState } from '~/composables/useShortEditor';
 
 type Player = ReturnType<typeof videojs>;
 
@@ -29,6 +30,17 @@ interface ABLoopTimeButtonInstance {
 interface ABLoopToggleButtonInstance {
     setEnabled: (enabled: boolean) => void;
     _onToggle: (() => void) | null;
+}
+
+interface ABLoopSaveShortButtonInstance {
+    setShortState: (state: SaveShortState) => void;
+    _onClick: (() => void) | null;
+}
+
+// Shared shape of the video.js components shown and hidden together
+interface ToggleableComponent {
+    show: () => void;
+    hide: () => void;
 }
 
 // Register theater mode button component
@@ -283,6 +295,47 @@ if (ButtonClass) {
         }
     }
 
+    // Save the A/B range as a short. Disabled (with a tooltip saying what to
+    // do next) until the range is valid; amber when the range is over the
+    // Shorts length limit.
+    class ABLoopSaveShortButton extends ButtonClass {
+        private _valid: boolean = false;
+        public _onClick: (() => void) | null = null;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        constructor(player: Player, options?: any) {
+            super(player, options);
+            this._onClick = options?.onClick ?? null;
+            this.render();
+        }
+
+        buildCSSClass() {
+            return `vjs-ab-loop-time vjs-ab-loop-save-short ${super.buildCSSClass()}`;
+        }
+
+        handleClick() {
+            if (this._valid && this._onClick) this._onClick();
+        }
+
+        render() {
+            const el = this.el();
+            if (el)
+                el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="vjs-ab-loop-save-icon"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg><span class="vjs-ab-loop-value">Short</span>`;
+        }
+
+        // Not setState: video.js puts its own setState on every component
+        setShortState(state: SaveShortState) {
+            this._valid = state.valid;
+            const el = this.el() as HTMLElement | null;
+            if (!el) return;
+            el.classList.toggle('vjs-ab-loop-save-disabled', !state.valid);
+            el.classList.toggle('vjs-ab-loop-save-warning', state.valid && !!state.warning);
+            el.setAttribute('aria-disabled', state.valid ? 'false' : 'true');
+            el.setAttribute('title', state.warning ?? state.reason);
+            el.setAttribute('aria-label', state.warning ?? state.reason);
+        }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     videojs.registerComponent('PlaylistPrevButton', PlaylistPrevButton as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -293,6 +346,8 @@ if (ButtonClass) {
     videojs.registerComponent('ABLoopEndButton', ABLoopEndButton as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     videojs.registerComponent('ABLoopToggleButton', ABLoopToggleButton as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    videojs.registerComponent('ABLoopSaveShortButton', ABLoopSaveShortButton as any);
 }
 
 const props = defineProps<{
@@ -307,6 +362,10 @@ const props = defineProps<{
     playlistMode?: boolean;
     hasNext?: boolean;
     hasPrevious?: boolean;
+    // Short mode shows the A/B buttons even when the A/B setting is off
+    shortMode?: boolean;
+    canSaveShort?: boolean;
+    saveShortState?: SaveShortState;
 }>();
 
 const emit = defineEmits<{
@@ -317,6 +376,7 @@ const emit = defineEmits<{
     viewRecorded: [];
     next: [];
     previous: [];
+    saveShort: [];
 }>();
 
 const videoElement = ref<HTMLVideoElement>();
@@ -328,6 +388,7 @@ const playlistNextBtn = shallowRef<PlaylistButtonInstance | null>(null);
 const abLoopStartBtn = shallowRef<ABLoopTimeButtonInstance | null>(null);
 const abLoopEndBtn = shallowRef<ABLoopTimeButtonInstance | null>(null);
 const abLoopToggleBtn = shallowRef<ABLoopToggleButtonInstance | null>(null);
+const abLoopSaveShortBtn = shallowRef<ABLoopSaveShortButtonInstance | null>(null);
 const abLoop = useABLoop(player);
 const { vttCues, loadVttCues } = useVttParser();
 const { setup: setupThumbnailPreview, cleanup: cleanupThumbnailPreview } = useThumbnailPreview(
@@ -403,9 +464,11 @@ onMounted(async () => {
                 'progressControl',
                 'remainingTimeDisplay',
                 'playbackRateMenuButton',
-                ...(settingsStore.abLoopControls
-                    ? ['ABLoopStartButton', 'ABLoopEndButton', 'ABLoopToggleButton']
-                    : []),
+                // Always built; shown or hidden by the abLoopVisible watcher below
+                'ABLoopStartButton',
+                'ABLoopEndButton',
+                'ABLoopToggleButton',
+                'ABLoopSaveShortButton',
                 'pipToggle',
                 'TheaterModeButton',
                 'fullscreenToggle',
@@ -452,6 +515,14 @@ onMounted(async () => {
         if (toggleBtn) {
             abLoopToggleBtn.value = toggleBtn;
             toggleBtn._onToggle = () => abLoop.toggleEnabled();
+        }
+
+        const saveShortBtn = controlBar.getChild('ABLoopSaveShortButton') as unknown as
+            | ABLoopSaveShortButtonInstance
+            | undefined;
+        if (saveShortBtn) {
+            abLoopSaveShortBtn.value = saveShortBtn;
+            saveShortBtn._onClick = () => emit('saveShort');
         }
 
         // Add playlist prev/next buttons when in playlist mode
@@ -629,6 +700,36 @@ watch(abLoop.enabled, (isEnabled) => {
         abLoopToggleBtn.value.setEnabled(isEnabled);
     }
 });
+
+// A/B buttons show when the A/B setting is on or short mode is active; the
+// Save Short button also needs the user to be allowed to create shorts.
+const abLoopVisible = computed(() => settingsStore.abLoopControls || !!props.shortMode);
+watch(
+    [abLoopVisible, () => props.canSaveShort, abLoopStartBtn, abLoopSaveShortBtn],
+    ([visible, canSave]) => {
+        const setShown = (c: unknown, shown: boolean) => {
+            const comp = c as ToggleableComponent | null;
+            if (!comp) return;
+            if (shown) comp.show();
+            else comp.hide();
+        };
+        setShown(abLoopStartBtn.value, visible);
+        setShown(abLoopEndBtn.value, visible);
+        setShown(abLoopToggleBtn.value, visible);
+        setShown(abLoopSaveShortBtn.value, visible && !!canSave);
+    },
+    { immediate: true },
+);
+
+watch(
+    [() => props.saveShortState, abLoopSaveShortBtn],
+    ([state]) => {
+        abLoopSaveShortBtn.value?.setShortState(
+            state ?? { valid: false, reason: 'Set a start point', warning: null },
+        );
+    },
+    { immediate: true, deep: true },
+);
 
 // Sync playlist button disabled states
 watch(
@@ -1347,6 +1448,38 @@ onBeforeUnmount(() => {
 
 :deep(.vjs-ab-loop-toggle.vjs-ab-loop-enabled:hover) {
     background: rgba(255, 77, 77, 0.25);
+}
+
+/* Save Short button (next to the A/B buttons) */
+:deep(.vjs-ab-loop-save-short) {
+    min-width: 0;
+}
+
+:deep(.vjs-ab-loop-save-icon) {
+    width: 12px;
+    height: 12px;
+    color: rgba(255, 77, 77, 0.8);
+    flex-shrink: 0;
+}
+
+:deep(.vjs-ab-loop-save-short.vjs-ab-loop-save-disabled) {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+:deep(.vjs-ab-loop-save-short.vjs-ab-loop-save-disabled:hover) {
+    border-color: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+:deep(.vjs-ab-loop-save-short.vjs-ab-loop-save-warning) {
+    border-color: rgba(245, 158, 11, 0.45);
+    background: rgba(245, 158, 11, 0.1);
+}
+
+:deep(.vjs-ab-loop-save-short.vjs-ab-loop-save-warning .vjs-ab-loop-save-icon),
+:deep(.vjs-ab-loop-save-short.vjs-ab-loop-save-warning .vjs-ab-loop-value) {
+    color: rgb(251, 191, 36);
 }
 
 /* Hide text track display from control bar area */

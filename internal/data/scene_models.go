@@ -114,6 +114,9 @@ type Scene struct {
 	PreviewVideoPath string         `json:"preview_video_path"`
 	IsCorrupted      bool           `json:"is_corrupted" gorm:"default:false"`
 	TrashedAt        *time.Time     `json:"trashed_at,omitempty" gorm:"index"`
+	SourceSceneID    *uint          `json:"source_scene_id"`
+	SourceStart      *float64       `json:"source_start"`
+	SourceEnd        *float64       `json:"source_end"`
 }
 
 func (Scene) TableName() string {

@@ -23,6 +23,7 @@ const activeFilterCount = computed(() => {
     if (searchStore.minRating > 0 || searchStore.maxRating > 0) count++;
     if (searchStore.minJizzCount > 0 || searchStore.maxJizzCount > 0) count++;
     if (searchStore.matchType !== 'broad') count++;
+    if (searchStore.shorts !== searchStore.shortsDefault) count++;
     return count;
 });
 
@@ -172,6 +173,9 @@ onUnmounted(() => {
                             :options="resolutionOptions"
                             default-collapsed
                         />
+
+                        <!-- Shorts -->
+                        <SearchFiltersFilterShorts />
 
                         <!-- Liked -->
                         <SearchFiltersFilterLiked />

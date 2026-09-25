@@ -32,10 +32,16 @@ type SceneHandler struct {
 	InteractionRepo      data.InteractionRepository
 	TagRepo              data.TagRepository
 	ActorRepo            data.ActorRepository
+	ShortsSettings       shortsLimit
 	MaxItemsPerPage      int
 }
 
-func NewSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, maxItemsPerPage int) *SceneHandler {
+// shortsLimit gives the Shorts length limit for the shorts search filter.
+type shortsLimit interface {
+	GetMaxDuration() (int, error)
+}
+
+func NewSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, shortsSettings *core.ShortsSettingsService, maxItemsPerPage int) *SceneHandler {
 	return &SceneHandler{
 		Service:              service,
 		ProcessingService:    processingService,
@@ -47,6 +53,7 @@ func NewSceneHandler(service *core.SceneService, processingService *core.ScenePr
 		InteractionRepo:      interactionRepo,
 		TagRepo:              tagRepo,
 		ActorRepo:            actorRepo,
+		ShortsSettings:       shortsSettings,
 		MaxItemsPerPage:      maxItemsPerPage,
 	}
 }
@@ -91,6 +98,16 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 
 	req.Page, req.Limit = clampPagination(req.Page, req.Limit, 20, h.MaxItemsPerPage)
 
+	isClip, shorts, err := h.parseShortsSearchFilter(req.Shorts)
+	if err != nil {
+		if apperrors.IsValidation(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load shorts settings"})
+		}
+		return
+	}
+
 	var userID uint
 	if payload, err := middleware.GetUserFromContext(c); err == nil {
 		userID = payload.UserID
@@ -123,6 +140,8 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		MaxJizzCount:     req.MaxJizzCount,
 		MatchingStrategy: matchingStrategy,
 		Seed:             req.Seed,
+		IsClip:           isClip,
+		Shorts:           shorts,
 	}
 
 	if req.Tags != "" {

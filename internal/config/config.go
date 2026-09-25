@@ -23,6 +23,16 @@ type Config struct {
 	Streaming   StreamingConfig   `mapstructure:"streaming"`
 	Pagination  PaginationConfig  `mapstructure:"pagination"`
 	Sharing     SharingConfig     `mapstructure:"sharing"`
+	Shorts      ShortsConfig      `mapstructure:"shorts"`
+}
+
+// ShortsConfig controls how clips cut from a scene are encoded and stored.
+type ShortsConfig struct {
+	CRF           int    `mapstructure:"crf"`            // libx264 CRF for created shorts
+	Preset        string `mapstructure:"preset"`         // libx264 preset
+	AudioBitrate  string `mapstructure:"audio_bitrate"`  // AAC bitrate, e.g. "192k"
+	MaxConcurrent int    `mapstructure:"max_concurrent"` // shorts encoded at the same time
+	Subdir        string `mapstructure:"subdir"`         // folder under the default storage path when no save folder is set
 }
 
 type SharingConfig struct {
@@ -230,6 +240,11 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("streaming.buffer_size", 262144)       // 256KB (8x default 32KB)
 	v.SetDefault("streaming.path_cache_ttl", 5*time.Minute)
 	v.SetDefault("streaming.path_cache_max_size", 10000)
+	v.SetDefault("shorts.crf", 18)
+	v.SetDefault("shorts.preset", "medium")
+	v.SetDefault("shorts.audio_bitrate", "192k")
+	v.SetDefault("shorts.max_concurrent", 1)
+	v.SetDefault("shorts.subdir", "shorts")
 
 	// Environment variables
 	v.SetEnvPrefix("GOONHUB")

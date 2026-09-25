@@ -21,6 +21,7 @@ import (
 	"goonhub/internal/infrastructure/persistence/postgres"
 	"goonhub/internal/infrastructure/server"
 	"goonhub/internal/streaming"
+	"goonhub/pkg/ffmpeg"
 	"gorm.io/gorm"
 	"time"
 )
@@ -70,7 +71,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	watchHistoryRepository := provideWatchHistoryRepository(db)
 	relatedScenesService := provideRelatedScenesService(sceneRepository, tagRepository, actorRepository, studioRepository, actorInteractionRepository, studioInteractionRepository, watchHistoryRepository, logger)
 	manager := provideStreamManager(configConfig, sceneRepository, logger)
-	sceneHandler := provideSceneHandler(sceneService, sceneProcessingService, tagService, searchService, relatedScenesService, markerService, manager, interactionRepository, tagRepository, actorRepository, configConfig)
+	storagePathRepository := provideStoragePathRepository(db)
+	shortsSettingsService := provideShortsSettingsService(appSettingsRepository, storagePathRepository, configConfig, logger)
+	sceneHandler := provideSceneHandler(sceneService, sceneProcessingService, tagService, searchService, relatedScenesService, markerService, manager, interactionRepository, tagRepository, actorRepository, shortsSettingsService, configConfig)
 	userRepository := provideUserRepository(db)
 	revokedTokenRepository := provideRevokedTokenRepository(db)
 	authService, err := provideAuthService(userRepository, revokedTokenRepository, configConfig, logger)
@@ -113,7 +116,6 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	searchHandler := provideSearchHandler(searchService, searchConfigRepository)
 	watchHistoryService := provideWatchHistoryService(watchHistoryRepository, sceneRepository, searchService, logger)
 	watchHistoryHandler := provideWatchHistoryHandler(watchHistoryService)
-	storagePathRepository := provideStoragePathRepository(db)
 	storagePathService := provideStoragePathService(storagePathRepository, logger)
 	storagePathHandler := provideStoragePathHandler(storagePathService)
 	scanHistoryRepository := provideScanHistoryRepository(db)
@@ -138,12 +140,14 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	shareLinkRepository := provideShareLinkRepository(db)
 	shareService := provideShareService(shareLinkRepository, sceneRepository, logger)
 	shareHandler := provideShareHandler(shareService, authService, manager, configConfig)
+	shortClipService := provideShortClipService(sceneService, tagRepository, actorRepository, shortsSettingsService, eventBus, configConfig, logger)
+	shortsHandler := provideShortsHandler(searchService, shortsSettingsService, shortClipService, sceneRepository, interactionRepository, rbacService, configConfig)
 	ipRateLimiter := provideRateLimiter(configConfig)
 	ogMiddleware := provideOGMiddleware(sceneRepository, actorRepository, studioRepository, playlistRepository, shareLinkRepository, appSettingsRepository, logger)
-	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, shareHandler, authService, rbacService, ipRateLimiter, ogMiddleware)
+	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, shareHandler, shortsHandler, authService, rbacService, ipRateLimiter, ogMiddleware)
 	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, markerService, sceneProcessingService, logger)
 	shareServer := provideShareServer(configConfig, shareHandler, ogMiddleware, logger)
-	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService, shareServer)
+	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService, shareServer, shortClipService)
 	return serverServer, nil
 }
 
@@ -405,6 +409,19 @@ func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRep
 	return core.NewExplorerService(explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, jobHistoryRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir)
 }
 
+func provideShortsSettingsService(appSettingsRepo data.AppSettingsRepository, storagePathRepo data.StoragePathRepository, cfg *config.Config, logger *logging.Logger) *core.ShortsSettingsService {
+	return core.NewShortsSettingsService(appSettingsRepo, storagePathRepo, cfg.Shorts.Subdir, cfg.Processing.VideoDir, logger.Logger)
+}
+
+func provideShortClipService(sceneService *core.SceneService, tagRepo data.TagRepository, actorRepo data.ActorRepository, settingsService *core.ShortsSettingsService, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.ShortClipService {
+	opts := ffmpeg.ClipOptions{
+		CRF:          cfg.Shorts.CRF,
+		Preset:       cfg.Shorts.Preset,
+		AudioBitrate: cfg.Shorts.AudioBitrate,
+	}
+	return core.NewShortClipService(sceneService, tagRepo, actorRepo, settingsService, eventBus, opts, cfg.Shorts.MaxConcurrent, logger.Logger)
+}
+
 func providePornDBService(cfg *config.Config, logger *logging.Logger) *core.PornDBService {
 	return core.NewPornDBService(cfg.PornDB.APIKey, logger.Logger)
 }
@@ -482,8 +499,8 @@ func provideSettingsHandler(settingsService *core.SettingsService, cfg *config.C
 	return handler.NewSettingsHandler(settingsService, cfg.Pagination.MaxItemsPerPage)
 }
 
-func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, cfg *config.Config) *handler.SceneHandler {
-	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager, interactionRepo, tagRepo, actorRepo, cfg.Pagination.MaxItemsPerPage)
+func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, shortsSettings *core.ShortsSettingsService, cfg *config.Config) *handler.SceneHandler {
+	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager, interactionRepo, tagRepo, actorRepo, shortsSettings, cfg.Pagination.MaxItemsPerPage)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
@@ -590,6 +607,10 @@ func provideShareHandler(shareService *core.ShareService, authService *core.Auth
 	return handler.NewShareHandler(shareService, authService, streamManager, cfg.Sharing.BaseURL)
 }
 
+func provideShortsHandler(searchService *core.SearchService, settingsService *core.ShortsSettingsService, clipService *core.ShortClipService, sceneRepo data.SceneRepository, interactionRepo data.InteractionRepository, rbacService *core.RBACService, cfg *config.Config) *handler.ShortsHandler {
+	return handler.NewShortsHandler(searchService, settingsService, clipService, sceneRepo, interactionRepo, rbacService, cfg.Pagination.MaxItemsPerPage)
+}
+
 func provideRouter(
 	logger *logging.Logger,
 	cfg *config.Config,
@@ -623,6 +644,7 @@ func provideRouter(
 	streamStatsHandler *handler.StreamStatsHandler,
 	playlistHandler *handler.PlaylistHandler,
 	shareHandler *handler.ShareHandler,
+	shortsHandler *handler.ShortsHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -635,7 +657,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, shareHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, shortsHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 
@@ -672,11 +694,12 @@ func provideServer(
 	actorService *core.ActorService,
 	studioService *core.StudioService,
 	shareServer *server.ShareServer,
+	shortClipService *core.ShortClipService,
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
-		actorService, studioService, shareServer,
+		actorService, studioService, shareServer, shortClipService,
 	)
 }

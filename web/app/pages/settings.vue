@@ -23,6 +23,7 @@ type TabType =
     | 'users'
     | 'jobs'
     | 'storage'
+    | 'shorts'
     | 'trash';
 
 interface SubTabConfig {
@@ -74,6 +75,7 @@ const tabConfig: TabConfig[] = [
         ],
     },
     { id: 'storage', label: 'Storage', icon: 'heroicons:folder', admin: true },
+    { id: 'shorts', label: 'Shorts', icon: 'heroicons:film', admin: true },
     { id: 'trash', label: 'Trash', icon: 'heroicons:trash', admin: true },
 ];
 
@@ -559,6 +561,7 @@ definePageMeta({
                 <SettingsUsers v-if="activeTab === 'users'" />
                 <SettingsJobs v-if="activeTab === 'jobs'" :active-sub-tab="activeSubTab" />
                 <SettingsStorage v-if="activeTab === 'storage'" />
+                <SettingsShorts v-if="activeTab === 'shorts'" />
                 <SettingsTrash v-if="activeTab === 'trash'" />
             </div>
         </main>

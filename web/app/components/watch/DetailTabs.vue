@@ -5,8 +5,9 @@ import WatchThumbnail from './Thumbnail.vue';
 import WatchJobs from './Jobs.vue';
 import WatchHistory from './History.vue';
 import WatchMarkers from './Markers.vue';
+import WatchShorts from './Shorts.vue';
 
-type TabType = 'jobs' | 'thumbnail' | 'details' | 'history' | 'markers';
+type TabType = 'jobs' | 'thumbnail' | 'details' | 'history' | 'markers' | 'shorts';
 
 // Inject activeTab from parent (watch page) or use local state
 const injectedActiveTab = inject<Ref<TabType> | undefined>('activeTab', undefined);
@@ -20,9 +21,28 @@ const tabComponentMap: Record<TabType, Component> = {
     jobs: WatchJobs,
     history: WatchHistory,
     markers: WatchMarkers,
+    shorts: WatchShorts,
 };
 
 const currentComponent = computed(() => tabComponentMap[activeTab.value]);
+
+// Number of shorts cut from this scene, for the tab badge
+const route = useRoute();
+const { getSceneShorts } = useApiShorts();
+const shortTasks = useShortTasksStore();
+const shortsCount = ref(0);
+const tabSceneId = computed(() => parseInt(route.params.id as string));
+const loadShortsCount = async () => {
+    try {
+        const res = await getSceneShorts(tabSceneId.value, 1, 1);
+        shortsCount.value = res.total;
+    } catch {
+        shortsCount.value = 0;
+    }
+};
+onMounted(loadShortsCount);
+watch(tabSceneId, loadShortsCount);
+watch(() => shortTasks.completedTick[tabSceneId.value], loadShortsCount);
 </script>
 
 <template>
@@ -83,6 +103,23 @@ const currentComponent = computed(() => tabComponentMap[activeTab.value]);
                 @click="activeTab = 'markers'"
             >
                 Markers
+            </button>
+            <button
+                :class="[
+                    'flex items-center gap-1.5 border-b-2 px-3 pb-2.5 text-[11px] font-medium',
+                    'transition-colors',
+                    activeTab === 'shorts'
+                        ? 'border-lava text-white'
+                        : 'text-dim border-transparent hover:text-white',
+                ]"
+                @click="activeTab = 'shorts'"
+            >
+                Shorts
+                <span
+                    v-if="shortsCount > 0"
+                    class="bg-lava/15 text-lava rounded-full px-1.5 font-mono text-[9px] leading-4"
+                    >{{ shortsCount }}</span
+                >
             </button>
         </div>
 

@@ -55,6 +55,20 @@ func (mr *MockAppSettingsRepositoryMockRecorder) Get() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockAppSettingsRepository)(nil).Get))
 }
 
+// UpdateShortsSettings mocks base method.
+func (m *MockAppSettingsRepository) UpdateShortsSettings(maxDuration int, saveDir *string, searchDefault string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateShortsSettings", maxDuration, saveDir, searchDefault)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateShortsSettings indicates an expected call of UpdateShortsSettings.
+func (mr *MockAppSettingsRepositoryMockRecorder) UpdateShortsSettings(maxDuration, saveDir, searchDefault any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateShortsSettings", reflect.TypeOf((*MockAppSettingsRepository)(nil).UpdateShortsSettings), maxDuration, saveDir, searchDefault)
+}
+
 // Upsert mocks base method.
 func (m *MockAppSettingsRepository) Upsert(record *data.AppSettingsRecord) error {
 	m.ctrl.T.Helper()

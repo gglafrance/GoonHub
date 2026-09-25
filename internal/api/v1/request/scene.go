@@ -30,7 +30,8 @@ type SearchScenesRequest struct {
 	MaxJizzCount int     `form:"max_jizz_count"`
 	MatchType    string  `form:"match_type"`
 	MarkerLabels string  `form:"marker_labels"` // Comma-separated list of marker labels
-	Seed         int64   `form:"seed"`           // Random shuffle seed (0 = auto-generate)
+	Seed         int64   `form:"seed"`          // Random shuffle seed (0 = auto-generate)
+	Shorts       string  `form:"shorts"`        // all (default), only, hide, only_clips or hide_clips
 }
 
 type ApplySceneMetadataRequest struct {

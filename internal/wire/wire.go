@@ -18,6 +18,7 @@ import (
 	"goonhub/internal/infrastructure/persistence/postgres"
 	"goonhub/internal/infrastructure/server"
 	"goonhub/internal/streaming"
+	"goonhub/pkg/ffmpeg"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
@@ -150,6 +151,10 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Share Service
 		provideShareService,
 
+		// Shorts Services
+		provideShortsSettingsService,
+		provideShortClipService,
+
 		// Streaming Manager
 		provideStreamManager,
 
@@ -216,6 +221,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Share Handler
 		provideShareHandler,
+
+		// Shorts Handler
+		provideShortsHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -513,6 +521,21 @@ func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRep
 	return core.NewExplorerService(explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, jobHistoryRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir)
 }
 
+// --- Shorts Services ---
+
+func provideShortsSettingsService(appSettingsRepo data.AppSettingsRepository, storagePathRepo data.StoragePathRepository, cfg *config.Config, logger *logging.Logger) *core.ShortsSettingsService {
+	return core.NewShortsSettingsService(appSettingsRepo, storagePathRepo, cfg.Shorts.Subdir, cfg.Processing.VideoDir, logger.Logger)
+}
+
+func provideShortClipService(sceneService *core.SceneService, tagRepo data.TagRepository, actorRepo data.ActorRepository, settingsService *core.ShortsSettingsService, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.ShortClipService {
+	opts := ffmpeg.ClipOptions{
+		CRF:          cfg.Shorts.CRF,
+		Preset:       cfg.Shorts.Preset,
+		AudioBitrate: cfg.Shorts.AudioBitrate,
+	}
+	return core.NewShortClipService(sceneService, tagRepo, actorRepo, settingsService, eventBus, opts, cfg.Shorts.MaxConcurrent, logger.Logger)
+}
+
 // --- External API Services ---
 
 func providePornDBService(cfg *config.Config, logger *logging.Logger) *core.PornDBService {
@@ -608,8 +631,8 @@ func provideSettingsHandler(settingsService *core.SettingsService, cfg *config.C
 
 // --- Scene & Content Handlers ---
 
-func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, cfg *config.Config) *handler.SceneHandler {
-	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager, interactionRepo, tagRepo, actorRepo, cfg.Pagination.MaxItemsPerPage)
+func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, shortsSettings *core.ShortsSettingsService, cfg *config.Config) *handler.SceneHandler {
+	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager, interactionRepo, tagRepo, actorRepo, shortsSettings, cfg.Pagination.MaxItemsPerPage)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
@@ -722,6 +745,10 @@ func provideShareHandler(shareService *core.ShareService, authService *core.Auth
 	return handler.NewShareHandler(shareService, authService, streamManager, cfg.Sharing.BaseURL)
 }
 
+func provideShortsHandler(searchService *core.SearchService, settingsService *core.ShortsSettingsService, clipService *core.ShortClipService, sceneRepo data.SceneRepository, interactionRepo data.InteractionRepository, rbacService *core.RBACService, cfg *config.Config) *handler.ShortsHandler {
+	return handler.NewShortsHandler(searchService, settingsService, clipService, sceneRepo, interactionRepo, rbacService, cfg.Pagination.MaxItemsPerPage)
+}
+
 // ============================================================================
 // ROUTER & SERVER PROVIDERS
 // ============================================================================
@@ -759,6 +786,7 @@ func provideRouter(
 	streamStatsHandler *handler.StreamStatsHandler,
 	playlistHandler *handler.PlaylistHandler,
 	shareHandler *handler.ShareHandler,
+	shortsHandler *handler.ShortsHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -771,7 +799,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, shareHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, shortsHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 
@@ -808,11 +836,12 @@ func provideServer(
 	actorService *core.ActorService,
 	studioService *core.StudioService,
 	shareServer *server.ShareServer,
+	shortClipService *core.ShortClipService,
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
-		actorService, studioService, shareServer,
+		actorService, studioService, shareServer, shortClipService,
 	)
 }

@@ -52,6 +52,10 @@ export interface Scene extends SceneListItem {
     porndb_scene_id?: string;
     origin?: string;
     type?: string;
+    // Set on shorts cut from another scene
+    source_scene_id?: number | null;
+    source_start?: number | null;
+    source_end?: number | null;
 }
 
 export interface SceneListResponse {

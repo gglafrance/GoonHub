@@ -59,6 +59,15 @@ type SceneSearchParams struct {
 	Type             string   // Filter by type (standard, jav, hentai, amateur, professional, vr, compilation, pmv)
 	HasPornDBID      *bool    // nil = no filter, true = has, false = missing
 	Seed             int64    // Random shuffle seed (0 = auto-generate)
+	IsClip           *bool    // nil = no filter, true = only created shorts, false = hide them
+	Shorts           *ShortsFilter
+}
+
+// ShortsFilter keeps only, or drops, shorts: scenes from 1s up to MaxDuration
+// seconds, plus shorts cut from another scene at any length.
+type ShortsFilter struct {
+	Only        bool
+	MaxDuration int
 }
 
 // ScanLookupEntry is a lightweight struct for move detection during scans.
@@ -128,6 +137,9 @@ type SceneRepository interface {
 	GetSceneIDsWithoutPornDBID() ([]uint, error)
 
 	ListPopular(limit int) ([]Scene, error)
+
+	// Shorts cut from a scene, ordered by their start in the source
+	ListBySourceScene(sourceSceneID uint, page, limit int) ([]Scene, int64, error)
 }
 
 type SceneRepositoryImpl struct {
@@ -594,6 +606,25 @@ func (r *SceneRepositoryImpl) ListPopular(limit int) ([]Scene, error) {
 	return scenes, nil
 }
 
+func (r *SceneRepositoryImpl) ListBySourceScene(sourceSceneID uint, page, limit int) ([]Scene, int64, error) {
+	var scenes []Scene
+	var total int64
+
+	query := r.DB.Model(&Scene{}).Where("source_scene_id = ? AND trashed_at IS NULL", sourceSceneID)
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * limit
+	if err := r.DB.Where("source_scene_id = ? AND trashed_at IS NULL", sourceSceneID).
+		Order("source_start ASC, id ASC").
+		Limit(limit).Offset(offset).
+		Find(&scenes).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return scenes, total, nil
+}
 
 type UserRepositoryImpl struct {
 	DB *gorm.DB

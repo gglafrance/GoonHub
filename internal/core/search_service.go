@@ -319,6 +319,10 @@ func (s *SearchService) buildMeiliParams(params data.SceneSearchParams, preFilte
 		Offset:           (params.Page - 1) * params.Limit,
 		Limit:            params.Limit,
 		MatchingStrategy: params.MatchingStrategy,
+		IsClip:           params.IsClip,
+	}
+	if params.Shorts != nil {
+		meiliParams.Shorts = &meilisearch.ShortsFilter{Only: params.Shorts.Only, MaxDuration: params.Shorts.MaxDuration}
 	}
 
 	if params.MinDuration > 0 {
@@ -408,6 +412,7 @@ func buildSceneDocument(scene *data.Scene, tags []data.Tag, actors []data.Actor)
 		CreatedAt:        scene.CreatedAt.Unix(),
 		ProcessingStatus: scene.ProcessingStatus,
 		ViewCount:        int(scene.ViewCount),
+		IsClip:           isCreatedClip(scene),
 	}
 }
 

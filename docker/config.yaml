@@ -106,6 +106,14 @@ streaming:
   path_cache_ttl: 5m          # cache scene paths for 5 minutes
   path_cache_max_size: 10000  # max cached entries
 
+# Shorts cut from a scene's A/B range (re-encoded, frame-accurate)
+shorts:
+  crf: 18                     # libx264 quality
+  preset: medium              # libx264 preset
+  audio_bitrate: 192k         # AAC bitrate
+  max_concurrent: 1           # shorts encoded at the same time
+  subdir: shorts              # folder under the default storage path when no save folder is set
+
 # Dedicated share server (optional)
 # Runs a second HTTP listener serving only share-related routes.
 # Expose on a separate public domain (e.g., share.your-domain.com) while

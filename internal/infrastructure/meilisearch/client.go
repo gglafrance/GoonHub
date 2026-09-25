@@ -89,6 +89,7 @@ func (c *Client) EnsureIndex() error {
 		"created_at",
 		"processing_status",
 		"id",
+		"is_clip",
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update filterable attributes: %w", err)
@@ -327,6 +328,24 @@ func (c *Client) buildFilters(params SearchParams) []string {
 	// Processing status
 	if params.ProcessingStatus != "" {
 		filters = append(filters, fmt.Sprintf("processing_status = \"%s\"", params.ProcessingStatus))
+	}
+
+	// Created shorts. "!= true" also matches documents indexed before is_clip existed.
+	if params.IsClip != nil {
+		if *params.IsClip {
+			filters = append(filters, "is_clip = true")
+		} else {
+			filters = append(filters, "is_clip != true")
+		}
+	}
+
+	// Shorts. Scenes under 1s (not yet processed) are not shorts.
+	if params.Shorts != nil {
+		if params.Shorts.Only {
+			filters = append(filters, fmt.Sprintf("((duration >= 1 AND duration <= %d) OR is_clip = true)", params.Shorts.MaxDuration))
+		} else {
+			filters = append(filters, fmt.Sprintf("(duration < 1 OR duration > %d)", params.Shorts.MaxDuration), "is_clip != true")
+		}
 	}
 
 	// Pre-filtered scene IDs (for user-specific filters)

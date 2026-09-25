@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, shareHandler *handler.ShareHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, shareHandler *handler.ShareHandler, shortsHandler *handler.ShortsHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -73,6 +73,14 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					scenes.DELETE("/:id/markers/:markerID", middleware.RequirePermission(rbacService, "scenes:view"), markerHandler.DeleteMarker)
 					scenes.POST("/:id/shares", middleware.RequirePermission(rbacService, "scenes:view"), shareHandler.CreateShareLink)
 					scenes.GET("/:id/shares", middleware.RequirePermission(rbacService, "scenes:view"), shareHandler.ListShareLinks)
+					scenes.GET("/:id/shorts", middleware.RequirePermission(rbacService, "scenes:view"), shortsHandler.ListSceneShorts)
+					scenes.POST("/:id/shorts", middleware.RequirePermission(rbacService, "scenes:upload"), shortsHandler.CreateShort)
+				}
+
+				shorts := protected.Group("/shorts")
+				{
+					shorts.GET("", middleware.RequirePermission(rbacService, "scenes:view"), shortsHandler.ListShorts)
+					shorts.GET("/config", middleware.RequirePermission(rbacService, "scenes:view"), shortsHandler.GetConfig)
 				}
 
 				// Share link deletion (protected, not under /scenes/:id)
@@ -266,6 +274,10 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					// App settings
 					admin.GET("/app-settings", adminHandler.GetAppSettings)
 					admin.PUT("/app-settings", adminHandler.UpdateAppSettings)
+
+					// Shorts settings
+					admin.GET("/shorts-settings", shortsHandler.GetShortsSettings)
+					admin.PUT("/shorts-settings", shortsHandler.UpdateShortsSettings)
 				}
 			}
 		}

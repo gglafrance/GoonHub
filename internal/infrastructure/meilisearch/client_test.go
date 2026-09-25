@@ -62,6 +62,30 @@ func TestClient_buildFilters(t *testing.T) {
 			expectedLen:    1,
 			expectContains: []string{"(id = 1 OR id = 2 OR id = 3)"},
 		},
+		{
+			name:           "only created clips",
+			params:         SearchParams{IsClip: boolPtr(true)},
+			expectedLen:    1,
+			expectContains: []string{"is_clip = true"},
+		},
+		{
+			name:           "hide created clips",
+			params:         SearchParams{IsClip: boolPtr(false)},
+			expectedLen:    1,
+			expectContains: []string{"is_clip != true"},
+		},
+		{
+			name:           "only shorts",
+			params:         SearchParams{Shorts: &ShortsFilter{Only: true, MaxDuration: 90}},
+			expectedLen:    1,
+			expectContains: []string{"((duration >= 1 AND duration <= 90) OR is_clip = true)"},
+		},
+		{
+			name:           "hide shorts",
+			params:         SearchParams{Shorts: &ShortsFilter{MaxDuration: 90}},
+			expectedLen:    2,
+			expectContains: []string{"(duration < 1 OR duration > 90)", "is_clip != true"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -178,4 +202,8 @@ func floatPtr(f float64) *float64 {
 
 func intPtr(i int) *int {
 	return &i
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }

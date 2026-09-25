@@ -16,6 +16,7 @@ type SceneDocument struct {
 	CreatedAt        int64    `json:"created_at"`
 	ProcessingStatus string   `json:"processing_status"`
 	ViewCount        int      `json:"view_count"`
+	IsClip           bool     `json:"is_clip"`
 }
 
 // SearchParams contains parameters for searching scenes.
@@ -38,6 +39,15 @@ type SearchParams struct {
 	Limit            int
 	MatchingStrategy string // Meilisearch matching strategy: "last", "all", or "frequency"
 	FetchAllIDs      bool   // When true, fetch all matching IDs (ignore Offset/Limit, skip sort)
+	IsClip           *bool  // nil = no filter, true = only created shorts, false = hide them
+	Shorts           *ShortsFilter
+}
+
+// ShortsFilter keeps only, or drops, shorts: scenes from 1s up to MaxDuration
+// seconds, plus shorts cut from another scene at any length.
+type ShortsFilter struct {
+	Only        bool
+	MaxDuration int
 }
 
 // SearchResult contains the result of a search query.

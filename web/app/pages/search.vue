@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SavedSearch, SavedSearchFilters } from '~/types/saved_search';
+import { isShortsSearchFilter } from '~/types/shorts';
 
 const searchStore = useSearchStore();
 const route = useRoute();
@@ -45,6 +46,7 @@ const activeFilterCount = computed(() => {
     if (searchStore.minRating > 0 || searchStore.maxRating > 0) count++;
     if (searchStore.minJizzCount > 0 || searchStore.maxJizzCount > 0) count++;
     if (searchStore.matchType !== 'broad') count++;
+    if (searchStore.shorts !== searchStore.shortsDefault) count++;
     return count;
 });
 
@@ -74,6 +76,7 @@ const syncFromUrl = () => {
     const matchType = q.match_type as string;
     searchStore.matchType =
         matchType === 'strict' || matchType === 'frequency' ? matchType : 'broad';
+    searchStore.shorts = isShortsSearchFilter(q.shorts) ? q.shorts : searchStore.shortsDefault;
     nextTick(() => {
         isSyncingFromUrl = false;
     });
@@ -101,6 +104,7 @@ const syncToUrl = () => {
     if (searchStore.selectedMarkerLabels.length > 0)
         query.marker_labels = searchStore.selectedMarkerLabels.join(',');
     if (searchStore.matchType !== 'broad') query.match_type = searchStore.matchType;
+    if (searchStore.shorts !== searchStore.shortsDefault) query.shorts = searchStore.shorts;
 
     isUpdatingUrl = true;
     router.replace({ query }).finally(() => {
@@ -147,6 +151,7 @@ watch(
         searchStore.maxJizzCount,
         searchStore.selectedMarkerLabels,
         searchStore.matchType,
+        searchStore.shorts,
         searchStore.seed,
     ],
     () => {
@@ -200,6 +205,7 @@ const loadSavedSearchFromUrl = async () => {
 
 onMounted(async () => {
     searchStore.loadFilterOptions();
+    await searchStore.loadShortsDefault();
     const loaded = await loadSavedSearchFromUrl();
     if (!loaded) {
         syncFromUrl();

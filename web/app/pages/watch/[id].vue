@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { VttCue } from '~/composables/useVttParser';
 import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
+import { SHORT_EDITOR_KEY } from '~/composables/useShortEditor';
+import type { ShortTask } from '~/types/shorts';
 
 const route = useRoute();
 const router = useRouter();
@@ -59,6 +61,12 @@ const playerRef = ref<{
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     player?: any;
     vttCues?: VttCue[];
+    abLoop?: {
+        pointA: Ref<number | null>;
+        pointB: Ref<number | null>;
+        clear: () => void;
+        toggle: () => void;
+    };
 } | null>(null);
 const showResumePrompt = ref(false);
 const startTime = ref(0);
@@ -229,7 +237,23 @@ const goBack = () => {
 };
 
 // Tab state for DetailTabs (allows switching tabs from keyboard shortcuts)
-const activeTab = ref<'jobs' | 'thumbnail' | 'details' | 'history' | 'markers'>('details');
+const activeTab = ref<'jobs' | 'thumbnail' | 'details' | 'history' | 'markers' | 'shorts'>(
+    'details',
+);
+
+// Cutting a short from this scene: shared by the player, Shorts tab and modal
+const shortEditor = useShortEditor(computed(() => playerRef.value?.abLoop));
+const { active: shortModeActive, canCreate: canSaveShort, saveState: saveShortState } = shortEditor;
+provide(SHORT_EDITOR_KEY, shortEditor);
+const shortModalOpen = shortEditor.modalOpen;
+const shortTasksStore = useShortTasksStore();
+
+// The short is queued: show its progress card in the Shorts tab straight away
+const handleShortCreated = (task: ShortTask) => {
+    shortTasksStore.upsert({ ...task, status: 'queued' });
+    shortEditor.finish(task.task_id);
+    activeTab.value = 'shorts';
+};
 const pendingMarkerAdd = ref(false);
 
 provide('getPlayerTime', () => playerRef.value?.getCurrentTime() ?? 0);
@@ -267,6 +291,7 @@ const handleMarkerShortcut = (e: KeyboardEvent) => {
 onMounted(() => {
     window.addEventListener('keydown', handleMarkerShortcut);
     loadPage();
+    shortEditor.loadConfig();
 });
 
 onUnmounted(() => {
@@ -276,6 +301,7 @@ onUnmounted(() => {
 watch(
     () => route.params.id,
     () => {
+        shortEditor.active.value = false;
         loadPage();
     },
 );
@@ -480,6 +506,10 @@ definePageMeta({
                                     :playlist-mode="isPlaylistMode"
                                     :has-next="playlistPlayer.hasNext.value"
                                     :has-previous="playlistPlayer.hasPrevious.value"
+                                    :short-mode="shortModeActive"
+                                    :can-save-short="canSaveShort"
+                                    :save-short-state="saveShortState"
+                                    @save-short="shortEditor.save()"
                                     @play="isScenePlaying = true"
                                     @pause="isScenePlaying = false"
                                     @error="playerError = $event"
@@ -506,6 +536,13 @@ definePageMeta({
                                 </span>
                             </div>
                         </div>
+
+                        <!-- Link back to the scene a short was cut from -->
+                        <WatchShortSource
+                            v-if="scene.source_scene_id"
+                            :source-scene-id="scene.source_scene_id"
+                            :source-start="scene.source_start ?? 0"
+                        />
 
                         <!-- Detail tabs (Jobs, etc.) -->
                         <WatchDetailTabs />
@@ -547,6 +584,18 @@ definePageMeta({
             @previous="handlePlaylistPrevious"
             @shuffle="playlistPlayer.shuffle()"
             @unshuffle="playlistPlayer.unshuffle()"
+        />
+
+        <!-- Save the A/B range as a short -->
+        <WatchCreateShortModal
+            v-if="scene"
+            :visible="shortModalOpen"
+            :scene="scene"
+            :start="shortEditor.pointA.value"
+            :end="shortEditor.pointB.value"
+            :max-duration="shortEditor.maxDuration.value"
+            @close="shortModalOpen = false"
+            @created="handleShortCreated"
         />
 
         <!-- Playlist Auto-Advance Overlay -->

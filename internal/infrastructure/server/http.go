@@ -37,6 +37,7 @@ type Server struct {
 	actorService      *core.ActorService
 	studioService     *core.StudioService
 	shareServer       *ShareServer
+	shortClipService  *core.ShortClipService
 	srv               *http.Server
 }
 
@@ -60,6 +61,7 @@ func NewHTTPServer(
 	actorService *core.ActorService,
 	studioService *core.StudioService,
 	shareServer *ShareServer,
+	shortClipService *core.ShortClipService,
 ) *Server {
 	return &Server{
 		router:            router,
@@ -81,6 +83,7 @@ func NewHTTPServer(
 		actorService:      actorService,
 		studioService:     studioService,
 		shareServer:       shareServer,
+		shortClipService:  shortClipService,
 	}
 }
 
@@ -114,6 +117,11 @@ func (s *Server) Start() error {
 			s.studioService.SetIndexer(s.searchService)
 		}
 		s.logger.Info("Search indexer wired to services")
+	}
+
+	// Remove half-written shorts left by a crash or hard stop
+	if s.shortClipService != nil {
+		s.shortClipService.CleanupStalePartials()
 	}
 
 	// Recover any interrupted scans from previous runs
@@ -240,6 +248,11 @@ func (s *Server) Start() error {
 	if s.retryScheduler != nil {
 		s.retryScheduler.Stop()
 		s.logger.Info("Retry scheduler stopped")
+	}
+
+	if s.shortClipService != nil {
+		s.shortClipService.Shutdown(s.cfg.Shutdown.JobCompletionWait)
+		s.logger.Info("Short encodes stopped")
 	}
 
 	// ---------------------------------------------------------------------------

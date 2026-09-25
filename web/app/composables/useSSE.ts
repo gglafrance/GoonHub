@@ -49,6 +49,9 @@ const SCAN_EVENTS = [
     'scan:video_moved',
 ];
 
+// Shorts being cut from a scene (progress cards on the watch page)
+const SHORT_EVENTS = ['short:progress', 'short:completed', 'short:failed'];
+
 // Events that remove scenes from the store
 const SCENE_REMOVE_EVENTS = ['scene:trashed', 'scene:deleted'];
 
@@ -74,6 +77,15 @@ function handleSSEEvent(
     // Handle scene restore events (trigger a reload to get the scene back)
     if (SCENE_RESTORE_EVENTS.includes(eventType)) {
         sceneStore.loadScenes(sceneStore.currentPage);
+        return;
+    }
+
+    // Handle short events
+    if (SHORT_EVENTS.includes(eventType)) {
+        useShortTasksStore().handleEvent(
+            eventType,
+            event.data as unknown as import('~/types/shorts').ShortEventData,
+        );
         return;
     }
 
@@ -250,7 +262,7 @@ function useSSELeaderElection() {
             });
         }
 
-        for (const eventType of SCAN_EVENTS) {
+        for (const eventType of [...SCAN_EVENTS, ...SHORT_EVENTS]) {
             eventSource.addEventListener(eventType, (e: MessageEvent) => {
                 dispatchEvent(eventType, e.data);
                 channel?.postMessage({ type: 'sse-event', eventType, data: e.data });
@@ -498,8 +510,8 @@ function useSSEFallback() {
             });
         }
 
-        // Scan event handlers
-        for (const eventType of SCAN_EVENTS) {
+        // Scan and short event handlers
+        for (const eventType of [...SCAN_EVENTS, ...SHORT_EVENTS]) {
             eventSource.addEventListener(eventType, (e: MessageEvent) => {
                 handleSSEEvent(eventType, e.data, sceneStore);
             });

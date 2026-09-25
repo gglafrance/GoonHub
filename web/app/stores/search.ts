@@ -1,8 +1,11 @@
 import type { SceneListItem, SceneFilterOptions } from '~/types/scene';
 import type { SavedSearchFilters } from '~/types/saved_search';
+import type { ShortsSearchFilter } from '~/types/shorts';
+import { DEFAULT_SHORTS_SEARCH, isShortsSearchFilter } from '~/types/shorts';
 
 export const useSearchStore = defineStore('search', () => {
     const api = useApi();
+    const shortsApi = useApiShorts();
     const settingsStore = useSettingsStore();
 
     // Filter state
@@ -19,6 +22,24 @@ export const useSearchStore = defineStore('search', () => {
     const page = ref(1);
     const limit = computed(() => settingsStore.videosPerPage);
     const matchType = ref<'broad' | 'strict' | 'frequency'>('broad');
+    // Shorts filter, and where it starts (an admin setting)
+    const shorts = ref<ShortsSearchFilter>(DEFAULT_SHORTS_SEARCH);
+    const shortsDefault = ref<ShortsSearchFilter>(DEFAULT_SHORTS_SEARCH);
+    let shortsDefaultLoaded = false;
+
+    // Loads the admin's Shorts filter default once; keeps the built-in one on failure.
+    const loadShortsDefault = async () => {
+        if (shortsDefaultLoaded) return;
+        try {
+            const config = await shortsApi.getShortsConfig();
+            if (isShortsSearchFilter(config.search_default)) {
+                shortsDefault.value = config.search_default;
+            }
+            shortsDefaultLoaded = true;
+        } catch {
+            // Keep the built-in default
+        }
+    };
 
     // Random sort seed
     const seed = ref(0);
@@ -69,7 +90,8 @@ export const useSearchStore = defineStore('search', () => {
             minJizzCount.value > 0 ||
             maxJizzCount.value > 0 ||
             selectedMarkerLabels.value.length > 0 ||
-            matchType.value !== 'broad'
+            matchType.value !== 'broad' ||
+            shorts.value !== shortsDefault.value
         );
     });
 
@@ -104,6 +126,7 @@ export const useSearchStore = defineStore('search', () => {
             if (selectedMarkerLabels.value.length > 0)
                 params.marker_labels = selectedMarkerLabels.value.join(',');
             if (matchType.value !== 'broad') params.match_type = matchType.value;
+            if (shorts.value !== 'all') params.shorts = shorts.value;
 
             const result = await api.searchScenes(params);
             scenes.value = result.data;
@@ -159,6 +182,7 @@ export const useSearchStore = defineStore('search', () => {
         maxJizzCount.value = 0;
         selectedMarkerLabels.value = [];
         matchType.value = 'broad';
+        shorts.value = shortsDefault.value;
     };
 
     // Generate seed when switching to random, clear when switching away
@@ -216,6 +240,7 @@ export const useSearchStore = defineStore('search', () => {
         selectedMarkerLabels.value = filters.selected_marker_labels || [];
         sort.value = filters.sort || '';
         seed.value = filters.sort === 'random' ? generateSeed() : 0;
+        shorts.value = shortsDefault.value;
         page.value = 1; // Reset pagination when loading filters
     };
 
@@ -240,6 +265,7 @@ export const useSearchStore = defineStore('search', () => {
         if (selectedMarkerLabels.value.length > 0)
             params.marker_labels = selectedMarkerLabels.value.join(',');
         if (matchType.value !== 'broad') params.match_type = matchType.value;
+        if (shorts.value !== 'all') params.shorts = shorts.value;
         return params;
     };
 
@@ -264,6 +290,9 @@ export const useSearchStore = defineStore('search', () => {
         maxJizzCount,
         selectedMarkerLabels,
         matchType,
+        shorts,
+        shortsDefault,
+        loadShortsDefault,
         scenes,
         total,
         isLoading,

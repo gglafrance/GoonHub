@@ -133,24 +133,41 @@ func (s *SceneService) UploadScene(file *multipart.FileHeader, title string) (*d
 		Actors:           pq.StringArray{},
 	}
 
-	if stat, err := os.Stat(storedPath); err == nil {
-		modTime := stat.ModTime()
-		scene.FileCreatedAt = &modTime
-	}
-
-	if err := s.Repo.Create(scene); err != nil {
+	if err := s.createSceneFromPath(scene, nil); err != nil {
 		// Cleanup file if DB insert fails
 		os.Remove(storedPath)
 		return nil, err
 	}
 
+	return scene, nil
+}
+
+// createSceneFromPath inserts a scene row for a file that is already in place,
+// runs prepare (if any) on the new row, then submits it for processing and adds
+// it to the search index. Uploads and created shorts share it.
+func (s *SceneService) createSceneFromPath(scene *data.Scene, prepare func(scene *data.Scene)) error {
+	if scene.FileCreatedAt == nil {
+		if stat, err := os.Stat(scene.StoredPath); err == nil {
+			modTime := stat.ModTime()
+			scene.FileCreatedAt = &modTime
+		}
+	}
+
+	if err := s.Repo.Create(scene); err != nil {
+		return err
+	}
+
+	if prepare != nil {
+		prepare(scene)
+	}
+
 	if s.ProcessingService != nil {
 		// Submit scene for processing synchronously - this is just a queue operation,
 		// not the actual processing work, so it's safe to block briefly
-		if err := s.ProcessingService.SubmitScene(scene.ID, storedPath); err != nil {
+		if err := s.ProcessingService.SubmitScene(scene.ID, scene.StoredPath); err != nil {
 			s.logger.Error("Failed to submit scene for processing",
 				zap.Uint("scene_id", scene.ID),
-				zap.String("scene_path", storedPath),
+				zap.String("scene_path", scene.StoredPath),
 				zap.Error(err),
 			)
 			// Don't fail the upload - scene is saved but processing won't start automatically
@@ -168,7 +185,7 @@ func (s *SceneService) UploadScene(file *multipart.FileHeader, title string) (*d
 		}
 	}
 
-	return scene, nil
+	return nil
 }
 
 func (s *SceneService) ListScenes(page, limit int) ([]data.Scene, int64, error) {

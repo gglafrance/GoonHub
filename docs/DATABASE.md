@@ -70,6 +70,9 @@ Main content table storing video/scene metadata and processing state. Originally
 | `processing_status` | VARCHAR(50) | YES | 'pending' | Processing pipeline status |
 | `processing_error` | TEXT | YES | NULL | Last processing error message |
 | `is_corrupted` | BOOLEAN | NO | FALSE | Video file failed integrity check |
+| `source_scene_id` | BIGINT | YES | NULL | FK to `scenes.id` (SET NULL): the scene a short was cut from |
+| `source_start` | DOUBLE PRECISION | YES | NULL | Start of the cut range in the source scene (seconds) |
+| `source_end` | DOUBLE PRECISION | YES | NULL | End of the cut range in the source scene (seconds) |
 
 **Indexes:**
 - `idx_scenes_deleted_at` on `deleted_at`
@@ -79,6 +82,7 @@ Main content table storing video/scene metadata and processing state. Originally
 - `idx_scenes_stored_path` on `stored_path` WHERE deleted_at IS NULL
 - `idx_scenes_size_filename` on `(size, original_filename)`
 - `idx_scenes_studio_id` on `studio_id`
+- `idx_scenes_source_scene_id` on `source_scene_id`
 
 ---
 
@@ -908,6 +912,9 @@ Global application settings (singleton table).
 |--------|------|----------|---------|-------------|
 | `id` | INTEGER | NO | 1 | Primary key (always 1) |
 | `trash_retention_days` | INTEGER | NO | 7 | Days before trash auto-delete |
+| `shorts_max_duration` | INTEGER | NO | 60 | Longest scene (seconds) shown in the Shorts feed: any whole number from 1 |
+| `shorts_save_dir` | TEXT | YES | NULL | Folder for created shorts (NULL = `<default storage path>/shorts`) |
+| `shorts_search_default` | TEXT | NO | 'hide' | What the search page's Shorts filter starts on: all, hide, only, hide_clips or only_clips |
 | `updated_at` | TIMESTAMPTZ | YES | NOW() | Last update timestamp |
 
 **Constraints:**

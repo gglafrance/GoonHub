@@ -60,6 +60,9 @@ const resolutionOptions = [
                 default-collapsed
             />
 
+            <!-- Shorts -->
+            <SearchFiltersFilterShorts />
+
             <!-- Liked -->
             <SearchFiltersFilterLiked />
 

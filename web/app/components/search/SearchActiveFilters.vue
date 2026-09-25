@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { SHORTS_SEARCH_LABELS } from '~/types/shorts';
+
 const searchStore = useSearchStore();
 
 const removeTag = (tag: string) => {
@@ -100,6 +102,20 @@ const removeMarkerLabel = (label: string) => {
                     searchStore.minDuration = 0;
                     searchStore.maxDuration = 0;
                 "
+            >
+                <Icon name="heroicons:x-mark" size="12" />
+            </button>
+        </span>
+
+        <span
+            v-if="searchStore.shorts !== searchStore.shortsDefault"
+            class="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-0.5 text-[11px]
+                font-medium text-white"
+        >
+            {{ SHORTS_SEARCH_LABELS[searchStore.shorts] }}
+            <button
+                class="text-dim hover:text-white"
+                @click="searchStore.shorts = searchStore.shortsDefault"
             >
                 <Icon name="heroicons:x-mark" size="12" />
             </button>
