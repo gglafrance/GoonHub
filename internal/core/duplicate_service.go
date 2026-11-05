@@ -55,7 +55,7 @@ type DuplicateService struct {
 	actorRepo       data.ActorRepository
 	markerRepo      data.MarkerRepository
 	interactionRepo data.InteractionRepository
-	eventBus        *EventBus
+	sceneService    *SceneService
 	logger          *zap.Logger
 }
 
@@ -67,7 +67,7 @@ func NewDuplicateService(
 	actorRepo data.ActorRepository,
 	markerRepo data.MarkerRepository,
 	interactionRepo data.InteractionRepository,
-	eventBus *EventBus,
+	sceneService *SceneService,
 	logger *zap.Logger,
 ) *DuplicateService {
 	return &DuplicateService{
@@ -77,7 +77,7 @@ func NewDuplicateService(
 		actorRepo:       actorRepo,
 		markerRepo:      markerRepo,
 		interactionRepo: interactionRepo,
-		eventBus:        eventBus,
+		sceneService:    sceneService,
 		logger:          logger.With(zap.String("component", "duplicate_service")),
 	}
 }
@@ -196,7 +196,7 @@ func (ds *DuplicateService) ResolveGroup(groupID, bestSceneID uint, mergeMetadat
 
 	// Trash non-best scenes
 	for _, sid := range otherSceneIDs {
-		if _, err := ds.sceneRepo.MoveToTrash(sid); err != nil {
+		if _, err := ds.sceneService.MoveSceneToTrash(sid); err != nil {
 			return fmt.Errorf("failed to trash scene %d: %w", sid, err)
 		}
 	}

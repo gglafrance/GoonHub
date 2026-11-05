@@ -29,7 +29,8 @@ func newTestDuplicateService(t *testing.T) (
 	interactionRepo := mocks.NewMockInteractionRepository(ctrl)
 
 	eventBus := NewEventBus(zap.NewNop())
-	svc := NewDuplicateService(groupRepo, sceneRepo, tagRepo, actorRepo, markerRepo, interactionRepo, eventBus, zap.NewNop())
+	sceneService := &SceneService{Repo: sceneRepo, EventBus: eventBus, logger: zap.NewNop()}
+	svc := NewDuplicateService(groupRepo, sceneRepo, tagRepo, actorRepo, markerRepo, interactionRepo, sceneService, zap.NewNop())
 	return svc, groupRepo, sceneRepo, tagRepo, actorRepo, markerRepo, interactionRepo
 }
 
@@ -227,6 +228,8 @@ func TestResolveGroup_Success(t *testing.T) {
 
 	// Trash non-best scenes
 	now := time.Now()
+	sceneRepo.EXPECT().GetByIDIncludingTrashed(uint(20)).Return(&data.Scene{ID: 20}, nil)
+	sceneRepo.EXPECT().GetByIDIncludingTrashed(uint(30)).Return(&data.Scene{ID: 30}, nil)
 	sceneRepo.EXPECT().MoveToTrash(uint(20)).Return(&now, nil)
 	sceneRepo.EXPECT().MoveToTrash(uint(30)).Return(&now, nil)
 
@@ -284,6 +287,7 @@ func TestResolveGroup_NoMerge(t *testing.T) {
 
 	// Trash non-best
 	now := time.Now()
+	sceneRepo.EXPECT().GetByIDIncludingTrashed(uint(20)).Return(&data.Scene{ID: 20}, nil)
 	sceneRepo.EXPECT().MoveToTrash(uint(20)).Return(&now, nil)
 
 	// Set best and update status
@@ -391,8 +395,8 @@ func TestScoreScene_CodecRanking(t *testing.T) {
 	// Also verify the full scoring formula with concrete values:
 	// score = duration*1000 + width*height + codecRank + bitRate/1000
 	scene := &data.Scene{
-		Duration:   120,       // 120 * 1000 = 120_000
-		Width:      1920,      // 1920 * 1080 = 2_073_600
+		Duration:   120,  // 120 * 1000 = 120_000
+		Width:      1920, // 1920 * 1080 = 2_073_600
 		Height:     1080,
 		VideoCodec: "h264",    // 1_000_000
 		BitRate:    8_000_000, // 8_000_000 / 1000 = 8_000

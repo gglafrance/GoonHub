@@ -616,8 +616,8 @@ func provideSceneFingerprintIndex(matchingService *core.MatchingService) core.Sc
 	return matchingService
 }
 
-func provideDuplicateService(dupGroupRepo data.DuplicateGroupRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, markerRepo data.MarkerRepository, interactionRepo data.InteractionRepository, eventBus *core.EventBus, logger *logging.Logger) *core.DuplicateService {
-	return core.NewDuplicateService(dupGroupRepo, sceneRepo, tagRepo, actorRepo, markerRepo, interactionRepo, eventBus, logger.Logger)
+func provideDuplicateService(dupGroupRepo data.DuplicateGroupRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, markerRepo data.MarkerRepository, interactionRepo data.InteractionRepository, sceneService *core.SceneService, logger *logging.Logger) *core.DuplicateService {
+	return core.NewDuplicateService(dupGroupRepo, sceneRepo, tagRepo, actorRepo, markerRepo, interactionRepo, sceneService, logger.Logger)
 }
 
 // --- Streaming Manager ---

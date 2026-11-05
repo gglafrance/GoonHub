@@ -147,7 +147,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	shareLinkRepository := provideShareLinkRepository(db)
 	shareService := provideShareService(shareLinkRepository, sceneRepository, logger)
 	shareHandler := provideShareHandler(shareService, authService, manager, configConfig)
-	duplicateService := provideDuplicateService(duplicateGroupRepository, sceneRepository, tagRepository, actorRepository, markerRepository, interactionRepository, eventBus, logger)
+	duplicateService := provideDuplicateService(duplicateGroupRepository, sceneRepository, tagRepository, actorRepository, markerRepository, interactionRepository, sceneService, logger)
 	duplicateHandler := provideDuplicateHandler(duplicateService, duplicationConfigRepository)
 	ipRateLimiter := provideRateLimiter(configConfig)
 	ogMiddleware := provideOGMiddleware(sceneRepository, actorRepository, studioRepository, playlistRepository, shareLinkRepository, appSettingsRepository, logger)
@@ -496,8 +496,8 @@ func provideSceneFingerprintIndex(matchingService *core.MatchingService) core.Sc
 	return matchingService
 }
 
-func provideDuplicateService(dupGroupRepo data.DuplicateGroupRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, markerRepo data.MarkerRepository, interactionRepo data.InteractionRepository, eventBus *core.EventBus, logger *logging.Logger) *core.DuplicateService {
-	return core.NewDuplicateService(dupGroupRepo, sceneRepo, tagRepo, actorRepo, markerRepo, interactionRepo, eventBus, logger.Logger)
+func provideDuplicateService(dupGroupRepo data.DuplicateGroupRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, markerRepo data.MarkerRepository, interactionRepo data.InteractionRepository, sceneService *core.SceneService, logger *logging.Logger) *core.DuplicateService {
+	return core.NewDuplicateService(dupGroupRepo, sceneRepo, tagRepo, actorRepo, markerRepo, interactionRepo, sceneService, logger.Logger)
 }
 
 func provideStreamManager(cfg *config.Config, sceneRepo data.SceneRepository, logger *logging.Logger) *streaming.Manager {

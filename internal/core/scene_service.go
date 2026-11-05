@@ -483,8 +483,8 @@ func (s *SceneService) processAndSaveThumbnail(sceneID uint, scene *data.Scene, 
 // MoveSceneToTrash moves a scene to trash (soft delete with retention).
 // Returns the expiry date based on retention settings.
 func (s *SceneService) MoveSceneToTrash(id uint) (*time.Time, error) {
-	// Verify scene exists (and is not already trashed)
-	scene, err := s.Repo.GetByID(id)
+	// Include trashed scenes so retries can finish the job and index cleanup.
+	scene, err := s.Repo.GetByIDIncludingTrashed(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, apperrors.ErrSceneNotFound(id)
@@ -508,10 +508,13 @@ func (s *SceneService) MoveSceneToTrash(id uint) (*time.Time, error) {
 		}
 	}
 
-	// Move to trash
-	trashedAt, err := s.Repo.MoveToTrash(id)
-	if err != nil {
-		return nil, apperrors.NewInternalError("failed to move scene to trash", err)
+	// Preserve the original retention deadline when retrying an already trashed scene.
+	trashedAt := scene.TrashedAt
+	if trashedAt == nil {
+		trashedAt, err = s.Repo.MoveToTrash(id)
+		if err != nil {
+			return nil, apperrors.NewInternalError("failed to move scene to trash", err)
+		}
 	}
 
 	// Remove from search index
