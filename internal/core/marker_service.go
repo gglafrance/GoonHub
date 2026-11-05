@@ -836,8 +836,18 @@ func (s *MarkerService) GenerateScenePreview(ctx context.Context, sceneID uint, 
 	outputFilename := fmt.Sprintf("%d_preview.mp4", scene.ID)
 	outputPath := filepath.Join(s.scenePreviewDir, outputFilename)
 
-	if err := ffmpeg.ExtractScenePreviewWithContext(ctx, scene.StoredPath, outputPath,
-		scene.Duration, s.scenePreviewSegments, s.scenePreviewSegmentDuration, s.scenePreviewMaxDim, s.scenePreviewCRF); err != nil {
+	hasAudio := scene.AudioCodec != ""
+	err = ffmpeg.ExtractScenePreviewWithContext(ctx, scene.StoredPath, outputPath,
+		scene.Duration, s.scenePreviewSegments, s.scenePreviewSegmentDuration, s.scenePreviewMaxDim, s.scenePreviewCRF, hasAudio)
+	if err != nil && hasAudio && ctx.Err() == nil {
+		// An odd audio track (e.g. one that ends before a seek point) must not cost the scene its preview
+		s.logger.Warn("Scene preview with audio failed, retrying without audio",
+			zap.Uint("scene_id", scene.ID),
+			zap.Error(err))
+		err = ffmpeg.ExtractScenePreviewWithContext(ctx, scene.StoredPath, outputPath,
+			scene.Duration, s.scenePreviewSegments, s.scenePreviewSegmentDuration, s.scenePreviewMaxDim, s.scenePreviewCRF, false)
+	}
+	if err != nil {
 		return fmt.Errorf("failed to generate scene preview: %w", err)
 	}
 
