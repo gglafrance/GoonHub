@@ -515,8 +515,8 @@ func (pm *PoolManager) UpdateQualityConfig(cfg QualityConfig) error {
 	if cfg.ScenePreviewSegments != 0 && (cfg.ScenePreviewSegments < 2 || cfg.ScenePreviewSegments > 24) {
 		return fmt.Errorf("scene_preview_segments must be between 2 and 24")
 	}
-	if cfg.ScenePreviewSegmentDuration != 0 && (cfg.ScenePreviewSegmentDuration < 0.75 || cfg.ScenePreviewSegmentDuration > 5.0) {
-		return fmt.Errorf("scene_preview_segment_duration must be between 0.75 and 5.0")
+	if cfg.ScenePreviewSegmentDuration != 0 && (cfg.ScenePreviewSegmentDuration < 0.75 || cfg.ScenePreviewSegmentDuration > 30.0) {
+		return fmt.Errorf("scene_preview_segment_duration must be between 0.75 and 30.0")
 	}
 	if cfg.MarkerPreviewCRF != 0 && (cfg.MarkerPreviewCRF < 18 || cfg.MarkerPreviewCRF > 40) {
 		return fmt.Errorf("marker_preview_crf must be between 18 and 40")

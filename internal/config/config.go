@@ -147,7 +147,7 @@ type ProcessingConfig struct {
 	MarkerAnimatedDuration         int           `mapstructure:"marker_animated_duration"`          // animated clip duration in seconds (3-15)
 	ScenePreviewEnabled            bool          `mapstructure:"scene_preview_enabled"`             // enable scene preview video generation
 	ScenePreviewSegments           int           `mapstructure:"scene_preview_segments"`            // number of segments to sample (2-24)
-	ScenePreviewSegmentDuration    float64       `mapstructure:"scene_preview_segment_duration"`    // duration of each segment in seconds (0.75-5.0)
+	ScenePreviewSegmentDuration    float64       `mapstructure:"scene_preview_segment_duration"`    // duration of each segment in seconds (0.75-30.0)
 	ScenePreviewDir                string        `mapstructure:"scene_preview_dir"`                 // directory for scene preview videos
 	MarkerPreviewCRF               int           `mapstructure:"marker_preview_crf"`                // CRF for marker animated thumbnails (18-40)
 	ScenePreviewCRF                int           `mapstructure:"scene_preview_crf"`                 // CRF for scene preview videos (18-40)

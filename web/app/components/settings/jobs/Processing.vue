@@ -422,14 +422,14 @@ onMounted(() => {
                     <div>
                         <label class="text-xs font-medium text-white">Segment Duration</label>
                         <p class="text-dim text-[10px]">
-                            Length of each clip segment in seconds (0.75-5.0)
+                            Length of each clip segment in seconds (0.75-30.0)
                         </p>
                     </div>
                     <input
                         v-model.number="scenePreviewSegmentDuration"
                         type="number"
                         min="0.75"
-                        max="5"
+                        max="30"
                         step="0.25"
                         class="border-border bg-surface w-16 rounded-lg border px-2 py-1.5
                             text-center text-xs text-white focus:border-white/20 focus:outline-none"
