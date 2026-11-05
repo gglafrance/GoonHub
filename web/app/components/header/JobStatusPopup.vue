@@ -108,7 +108,7 @@ function formatElapsed(startedAt: string): string {
 
 function navigateToJobs() {
     emit('close');
-    navigateTo('/settings?tab=jobs');
+    navigateTo('/settings?tab=jobs&subtab=history');
 }
 
 watch(

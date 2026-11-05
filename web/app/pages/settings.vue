@@ -195,9 +195,7 @@ function isSubTabActive(subTabId: string) {
     return activeSubTab.value === subTabId;
 }
 
-onMounted(() => {
-    settingsStore.loadSettings();
-
+function applyTabFromUrl() {
     const tabFromUrl = route.query.tab as string;
     const subTabFromUrl = route.query.subtab as string;
 
@@ -222,9 +220,23 @@ onMounted(() => {
             }
         }
     }
+}
 
+onMounted(() => {
+    settingsStore.loadSettings();
+    applyTabFromUrl();
     updateUrl();
 });
+
+// Links into settings (e.g. the header job popup) only change the query when the page is
+// already open, so follow tab/subtab changes too; updateUrl's own replace is a no-op here
+watch(
+    () => [route.query.tab, route.query.subtab],
+    ([tab, subtab]) => {
+        if (tab === activeTab.value && (!subtab || subtab === activeSubTab.value)) return;
+        applyTabFromUrl();
+    },
+);
 
 definePageMeta({
     middleware: ['auth'],
