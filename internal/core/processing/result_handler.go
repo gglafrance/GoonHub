@@ -1,12 +1,27 @@
 package processing
 
 import (
+	"encoding/binary"
 	"fmt"
 	"goonhub/internal/data"
 	"goonhub/internal/jobs"
 
 	"go.uber.org/zap"
 )
+
+// MatchingService handles fingerprint matching and indexing
+type MatchingService interface {
+	IndexFingerprint(sceneID uint, fpType string, audioFP []int32, visualFP []uint64) error
+	FindMatches(sceneID uint, fpType string, audioFP []int32, visualFP []uint64) ([]MatchResult, error)
+	ProcessMatches(sceneID uint, matches []MatchResult) error
+}
+
+// MatchResult represents a fingerprint match between two scenes
+type MatchResult struct {
+	SceneID         uint
+	ConfidenceScore float64
+	MatchType       string // "audio" or "visual"
+}
 
 // ResultHandler processes job results from worker pools
 type ResultHandler struct {
@@ -15,9 +30,10 @@ type ResultHandler struct {
 	eventBus       EventPublisher
 	jobHistory     JobHistoryRecorder
 	phaseTracker   *PhaseTracker
-	poolManager    *PoolManager
-	indexer        SceneIndexer
-	logger         *zap.Logger
+	poolManager      *PoolManager
+	indexer          SceneIndexer
+	matchingService  MatchingService
+	logger           *zap.Logger
 
 	// onPhaseComplete is called when a phase completes to submit follow-up phases
 	onPhaseComplete func(sceneID uint, phase string) error
@@ -47,6 +63,11 @@ func NewResultHandler(
 // SetIndexer sets the scene indexer for search index updates
 func (rh *ResultHandler) SetIndexer(indexer SceneIndexer) {
 	rh.indexer = indexer
+}
+
+// SetMatchingService sets the matching service for fingerprint matching
+func (rh *ResultHandler) SetMatchingService(ms MatchingService) {
+	rh.matchingService = ms
 }
 
 // SetOnPhaseComplete sets the callback for phase completion
@@ -90,6 +111,8 @@ func (rh *ResultHandler) handleCompleted(result jobs.JobResult) {
 		rh.onSpritesComplete(result)
 	case "animated_thumbnails":
 		rh.onAnimatedThumbnailsComplete(result)
+	case "fingerprint":
+		rh.onFingerprintComplete(result)
 	}
 }
 
@@ -152,12 +175,15 @@ func (rh *ResultHandler) onMetadataComplete(result jobs.JobResult) {
 
 	submitThumbnail := false
 	submitSprites := false
+	var otherPhases []string
 	for _, phase := range phasesToTrigger {
-		if phase == "thumbnail" {
+		switch phase {
+		case "thumbnail":
 			submitThumbnail = true
-		}
-		if phase == "sprites" {
+		case "sprites":
 			submitSprites = true
+		default:
+			otherPhases = append(otherPhases, phase)
 		}
 	}
 
@@ -259,10 +285,24 @@ func (rh *ResultHandler) onMetadataComplete(result jobs.JobResult) {
 		}
 	}
 
+	// Dispatch any other triggered phases (e.g. fingerprint, animated_thumbnails) via the generic callback
+	for _, phase := range otherPhases {
+		if rh.onPhaseComplete != nil {
+			if err := rh.onPhaseComplete(result.SceneID, phase); err != nil {
+				rh.logger.Error("Failed to submit phase after metadata",
+					zap.Uint("scene_id", result.SceneID),
+					zap.String("phase", phase),
+					zap.Error(err),
+				)
+			}
+		}
+	}
+
 	rh.logger.Info("Submitted trigger-based jobs after metadata",
 		zap.Uint("scene_id", result.SceneID),
 		zap.Bool("thumbnail", submitThumbnail),
 		zap.Bool("sprites", submitSprites),
+		zap.Strings("other_phases", otherPhases),
 	)
 }
 
@@ -352,6 +392,154 @@ func (rh *ResultHandler) onAnimatedThumbnailsComplete(result jobs.JobResult) {
 
 	rh.phaseTracker.MarkPhaseComplete(result.SceneID, "animated_thumbnails")
 	rh.checkAndMarkComplete(result.SceneID, "animated_thumbnails")
+}
+
+func (rh *ResultHandler) onFingerprintComplete(result jobs.JobResult) {
+	fpJob, ok := result.Data.(*jobs.FingerprintJob)
+	if !ok {
+		rh.logger.Error("Invalid fingerprint job result data", zap.Uint("scene_id", result.SceneID))
+		return
+	}
+
+	fpResult := fpJob.GetResult()
+	if fpResult == nil {
+		rh.logger.Error("Fingerprint result is nil", zap.Uint("scene_id", result.SceneID))
+		return
+	}
+
+	// Save fingerprint to PostgreSQL
+	var audioFPBytes []byte
+	var visualFPBytes []byte
+	if fpResult.AudioFingerprint != nil {
+		audioFPBytes = int32SliceToBytes(fpResult.AudioFingerprint)
+	}
+	if fpResult.VisualFingerprint != nil {
+		visualFPBytes = uint64SliceToBytes(fpResult.VisualFingerprint)
+	}
+	if err := rh.repo.UpdateFingerprint(result.SceneID, fpResult.FingerprintTypeLabel(), audioFPBytes, visualFPBytes); err != nil {
+		rh.logger.Error("Failed to save fingerprint to database",
+			zap.Uint("scene_id", result.SceneID),
+			zap.Error(err),
+		)
+	}
+
+	// If matching service is available, index and find matches per type
+	if rh.matchingService != nil {
+		var allMatches []MatchResult
+
+		// Match and index audio fingerprint
+		if fpResult.AudioFingerprint != nil {
+			matches, err := rh.matchingService.FindMatches(result.SceneID, "audio", fpResult.AudioFingerprint, nil)
+			if err != nil {
+				rh.logger.Error("Failed to find audio fingerprint matches",
+					zap.Uint("scene_id", result.SceneID),
+					zap.Error(err),
+				)
+			} else {
+				allMatches = append(allMatches, matches...)
+			}
+			if err := rh.matchingService.IndexFingerprint(result.SceneID, "audio", fpResult.AudioFingerprint, nil); err != nil {
+				rh.logger.Error("Failed to index audio fingerprint",
+					zap.Uint("scene_id", result.SceneID),
+					zap.Error(err),
+				)
+			}
+		}
+
+		// Match and index visual fingerprint
+		if fpResult.VisualFingerprint != nil {
+			matches, err := rh.matchingService.FindMatches(result.SceneID, "visual", nil, fpResult.VisualFingerprint)
+			if err != nil {
+				rh.logger.Error("Failed to find visual fingerprint matches",
+					zap.Uint("scene_id", result.SceneID),
+					zap.Error(err),
+				)
+			} else {
+				allMatches = append(allMatches, matches...)
+			}
+			if err := rh.matchingService.IndexFingerprint(result.SceneID, "visual", nil, fpResult.VisualFingerprint); err != nil {
+				rh.logger.Error("Failed to index visual fingerprint",
+					zap.Uint("scene_id", result.SceneID),
+					zap.Error(err),
+				)
+			}
+		}
+
+		// Deduplicate matches (keep highest confidence per scene) and process
+		allMatches = deduplicateMatches(allMatches)
+		if len(allMatches) > 0 {
+			if err := rh.matchingService.ProcessMatches(result.SceneID, allMatches); err != nil {
+				rh.logger.Error("Failed to process fingerprint matches",
+					zap.Uint("scene_id", result.SceneID),
+					zap.Int("match_count", len(allMatches)),
+					zap.Error(err),
+				)
+			} else {
+				rh.logger.Info("Fingerprint matches processed",
+					zap.Uint("scene_id", result.SceneID),
+					zap.Int("match_count", len(allMatches)),
+				)
+			}
+		}
+	}
+
+	rh.eventBus.Publish(SceneEvent{
+		Type:    "scene:fingerprint_complete",
+		SceneID: result.SceneID,
+		Data: map[string]any{
+			"fingerprint_type": fpResult.FingerprintTypeLabel(),
+		},
+	})
+
+	// Trigger any phases configured to run after fingerprint
+	for _, phase := range rh.phaseTracker.GetPhasesTriggeredAfter("fingerprint") {
+		if rh.onPhaseComplete != nil {
+			if err := rh.onPhaseComplete(result.SceneID, phase); err != nil {
+				rh.logger.Error("Failed to submit phase after fingerprint",
+					zap.Uint("scene_id", result.SceneID),
+					zap.String("phase", phase),
+					zap.Error(err),
+				)
+			}
+		}
+	}
+
+	rh.phaseTracker.MarkPhaseComplete(result.SceneID, "fingerprint")
+	rh.checkAndMarkComplete(result.SceneID, "fingerprint")
+}
+
+// deduplicateMatches removes duplicate scene matches, keeping the highest confidence per scene ID.
+func deduplicateMatches(matches []MatchResult) []MatchResult {
+	if len(matches) <= 1 {
+		return matches
+	}
+	best := make(map[uint]MatchResult, len(matches))
+	for _, m := range matches {
+		if existing, ok := best[m.SceneID]; !ok || m.ConfidenceScore > existing.ConfidenceScore {
+			best[m.SceneID] = m
+		}
+	}
+	result := make([]MatchResult, 0, len(best))
+	for _, m := range best {
+		result = append(result, m)
+	}
+	return result
+}
+
+func int32SliceToBytes(data []int32) []byte {
+	buf := make([]byte, len(data)*4)
+	for i, v := range data {
+		binary.LittleEndian.PutUint32(buf[i*4:], uint32(v))
+	}
+	return buf
+}
+
+func uint64SliceToBytes(data []uint64) []byte {
+	buf := make([]byte, len(data)*8)
+	for i, v := range data {
+		binary.LittleEndian.PutUint64(buf[i*8:], v)
+	}
+	return buf
 }
 
 func (rh *ResultHandler) checkAndMarkComplete(sceneID uint, completedPhase string) {

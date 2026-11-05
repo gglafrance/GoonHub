@@ -53,6 +53,8 @@ export const useJobFormatting = () => {
                 return 'Sprites';
             case 'animated_thumbnails':
                 return 'Previews';
+            case 'fingerprint':
+                return 'Fingerprint';
             default:
                 return phase;
         }
@@ -68,6 +70,8 @@ export const useJobFormatting = () => {
                 return 'heroicons:squares-2x2';
             case 'animated_thumbnails':
                 return 'heroicons:film';
+            case 'fingerprint':
+                return 'heroicons:finger-print';
             default:
                 return 'heroicons:cog-6-tooth';
         }

@@ -12,6 +12,8 @@ const metadataWorkers = ref(0);
 const thumbnailWorkers = ref(0);
 const spritesWorkers = ref(0);
 const animatedThumbnailsWorkers = ref(0);
+const fingerprintWorkers = ref(0);
+const duplicationEnabled = ref(false);
 
 const loadConfig = async () => {
     loading.value = true;
@@ -22,6 +24,8 @@ const loadConfig = async () => {
         thumbnailWorkers.value = config.thumbnail_workers;
         spritesWorkers.value = config.sprites_workers;
         animatedThumbnailsWorkers.value = config.animated_thumbnails_workers;
+        fingerprintWorkers.value = config.fingerprint_workers;
+        duplicationEnabled.value = config.duplication_enabled;
     } catch (e: unknown) {
         error.value = e instanceof Error ? e.message : 'Failed to load pool config';
     } finally {
@@ -39,6 +43,7 @@ const applyConfig = async () => {
             thumbnail_workers: thumbnailWorkers.value,
             sprites_workers: spritesWorkers.value,
             animated_thumbnails_workers: animatedThumbnailsWorkers.value,
+            fingerprint_workers: fingerprintWorkers.value,
         });
         message.value = 'Pool configuration updated';
         setTimeout(() => {
@@ -169,6 +174,28 @@ onMounted(() => {
                     class="border-border bg-surface w-16 rounded-lg border px-2 py-1.5 text-center
                         text-xs text-white focus:border-white/20 focus:outline-none"
                     @change="animatedThumbnailsWorkers = clamp(animatedThumbnailsWorkers)"
+                />
+            </div>
+
+            <!-- Fingerprint Workers -->
+            <div v-if="duplicationEnabled" class="flex items-center justify-between">
+                <div>
+                    <label class="flex items-center gap-1.5 text-xs font-medium text-white">
+                        <Icon name="heroicons:finger-print" size="13" class="text-dim" />
+                        Fingerprint
+                    </label>
+                    <p class="text-dim text-[10px]">
+                        Audio/visual fingerprint extraction for duplicate detection
+                    </p>
+                </div>
+                <input
+                    v-model.number="fingerprintWorkers"
+                    type="number"
+                    min="1"
+                    max="10"
+                    class="border-border bg-surface w-16 rounded-lg border px-2 py-1.5 text-center
+                        text-xs text-white focus:border-white/20 focus:outline-none"
+                    @change="fingerprintWorkers = clamp(fingerprintWorkers)"
                 />
             </div>
 

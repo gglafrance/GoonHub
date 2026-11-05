@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_duplicate_group_members_unique_scene;

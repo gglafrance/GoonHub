@@ -30,6 +30,7 @@ export const useApiJobs = () => {
         thumbnail_workers: number;
         sprites_workers: number;
         animated_thumbnails_workers: number;
+        fingerprint_workers: number;
     }) => {
         const response = await fetch('/api/v1/admin/pool-config', {
             method: 'PUT',

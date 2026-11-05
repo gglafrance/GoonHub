@@ -64,7 +64,8 @@ FROM alpine:3.23.2
 RUN apk add --no-cache \
     ca-certificates \
     tzdata \
-    ffmpeg
+    ffmpeg \
+    chromaprint
 
 # Create non-root user
 RUN addgroup -g 1000 goonhub && \

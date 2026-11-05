@@ -36,6 +36,7 @@ type Server struct {
 	dlqService        *core.DLQService
 	actorService      *core.ActorService
 	studioService     *core.StudioService
+	matchingService   *core.MatchingService
 	shareServer       *ShareServer
 	srv               *http.Server
 }
@@ -59,6 +60,7 @@ func NewHTTPServer(
 	dlqService *core.DLQService,
 	actorService *core.ActorService,
 	studioService *core.StudioService,
+	matchingService *core.MatchingService,
 	shareServer *ShareServer,
 ) *Server {
 	return &Server{
@@ -80,6 +82,7 @@ func NewHTTPServer(
 		dlqService:        dlqService,
 		actorService:      actorService,
 		studioService:     studioService,
+		matchingService:   matchingService,
 		shareServer:       shareServer,
 	}
 }
@@ -114,6 +117,12 @@ func (s *Server) Start() error {
 			s.studioService.SetIndexer(s.searchService)
 		}
 		s.logger.Info("Search indexer wired to services")
+	}
+
+	// Wire up matching service to processing service for fingerprint matching
+	if s.matchingService != nil && s.processingService != nil {
+		s.processingService.SetMatchingService(s.matchingService)
+		s.logger.Info("Matching service wired to processing service")
 	}
 
 	// Recover any interrupted scans from previous runs

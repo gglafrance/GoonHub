@@ -2,6 +2,7 @@ package core
 
 import (
 	"goonhub/internal/config"
+	"goonhub/internal/core/matching"
 	"goonhub/internal/core/processing"
 	"goonhub/internal/data"
 	"goonhub/internal/jobs"
@@ -74,6 +75,43 @@ func (a *jobHistoryAdapter) ExistsPendingOrRunning(sceneID uint, phase string) (
 	return a.service.ExistsPendingOrRunning(sceneID, phase)
 }
 
+// matchingServiceAdapter adapts *MatchingService to the processing.MatchingService interface
+type matchingServiceAdapter struct {
+	ms *MatchingService
+}
+
+func (a *matchingServiceAdapter) IndexFingerprint(sceneID uint, fpType string, audioFP []int32, visualFP []uint64) error {
+	return a.ms.IndexFingerprint(sceneID, fpType, audioFP, visualFP)
+}
+
+func (a *matchingServiceAdapter) FindMatches(sceneID uint, fpType string, audioFP []int32, visualFP []uint64) ([]processing.MatchResult, error) {
+	results, err := a.ms.FindMatches(sceneID, fpType, audioFP, visualFP)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]processing.MatchResult, len(results))
+	for i, r := range results {
+		out[i] = processing.MatchResult{
+			SceneID:         r.SceneID,
+			ConfidenceScore: r.ConfidenceScore,
+			MatchType:       r.MatchType,
+		}
+	}
+	return out, nil
+}
+
+func (a *matchingServiceAdapter) ProcessMatches(sceneID uint, matches []processing.MatchResult) error {
+	converted := make([]matching.MatchResult, len(matches))
+	for i, m := range matches {
+		converted[i] = matching.MatchResult{
+			SceneID:         m.SceneID,
+			ConfidenceScore: m.ConfidenceScore,
+			MatchType:       m.MatchType,
+		}
+	}
+	return a.ms.ProcessMatches(sceneID, converted)
+}
+
 // SceneProcessingService orchestrates scene processing using worker pools
 type SceneProcessingService struct {
 	poolManager   *processing.PoolManager
@@ -95,12 +133,13 @@ func NewSceneProcessingService(
 	poolConfigRepo data.PoolConfigRepository,
 	processingConfigRepo data.ProcessingConfigRepository,
 	triggerConfigRepo data.TriggerConfigRepository,
+	duplicationCfg *config.DuplicationConfig,
 ) *SceneProcessingService {
 	// Create pool manager
-	poolManager := processing.NewPoolManager(cfg, logger, poolConfigRepo, processingConfigRepo)
+	poolManager := processing.NewPoolManager(cfg, logger, poolConfigRepo, processingConfigRepo, duplicationCfg)
 
 	// Create phase tracker
-	phaseTracker := processing.NewPhaseTracker(triggerConfigRepo)
+	phaseTracker := processing.NewPhaseTracker(triggerConfigRepo, poolManager.IsDuplicationEnabled())
 	if triggerConfigRepo != nil {
 		if err := phaseTracker.RefreshTriggerCache(); err != nil {
 			logger.Error("Failed to load trigger config cache", zap.Error(err))
@@ -128,6 +167,13 @@ func NewSceneProcessingService(
 	// Set the pool manager's result handler
 	poolManager.SetResultHandler(resultHandler.ProcessPoolResults)
 
+	// Set callback to update started_at when a worker picks up a job
+	if jobHistory != nil {
+		poolManager.SetOnJobExecuting(func(jobID string) {
+			jobHistory.UpdateStartedAt(jobID, time.Now())
+		})
+	}
+
 	return &SceneProcessingService{
 		poolManager:   poolManager,
 		phaseTracker:  phaseTracker,
@@ -141,6 +187,20 @@ func NewSceneProcessingService(
 // SetIndexer sets the scene indexer for search index updates
 func (s *SceneProcessingService) SetIndexer(indexer SceneIndexer) {
 	s.resultHandler.SetIndexer(indexer)
+}
+
+// SetMatchingService sets the matching service for fingerprint matching.
+// Accepts *MatchingService and wraps it to satisfy the processing.MatchingService interface.
+func (s *SceneProcessingService) SetMatchingService(ms *MatchingService) {
+	if ms == nil {
+		return
+	}
+	s.resultHandler.SetMatchingService(&matchingServiceAdapter{ms: ms})
+}
+
+// IsDuplicationEnabled returns whether duplication detection is enabled
+func (s *SceneProcessingService) IsDuplicationEnabled() bool {
+	return s.poolManager.IsDuplicationEnabled()
 }
 
 // Start starts all worker pools
@@ -214,6 +274,12 @@ func (s *SceneProcessingService) CancelJob(jobID string) error {
 // GetJob retrieves a job by its ID from any pool
 func (s *SceneProcessingService) GetJob(jobID string) (jobs.Job, bool) {
 	return s.poolManager.GetJob(jobID)
+}
+
+// GetExecutingJob retrieves a job by its ID only if it is actively being executed by a worker.
+// Unlike GetJob, this excludes jobs sitting in channel buffers waiting to be picked up.
+func (s *SceneProcessingService) GetExecutingJob(jobID string) (jobs.Job, bool) {
+	return s.poolManager.GetExecutingJob(jobID)
 }
 
 // GetPoolConfig returns the current pool configuration

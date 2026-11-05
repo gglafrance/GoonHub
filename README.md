@@ -339,16 +339,21 @@ graph TD
 
 ## Development
 
+With Go, Bun, Docker Compose, Air, FFmpeg/ffprobe, and `setsid` available on your PATH, run from the repository root:
+
 ```bash
-# Start dependencies
-cd docker && docker compose up -d
+# terminal.sh
+make dev
+```
 
-# Backend (port 8080)
-GOONHUB_CONFIG=config-dev.yaml go run ./cmd/server
+This starts PostgreSQL and Meilisearch, installs frontend dependencies on the first run, and launches Air and Nuxt with hot reload. Open `http://localhost:3000`; the API runs on port `8080`. Ctrl+C stops both development servers and leaves the Docker dependencies running.
 
-# Frontend dev server (port 3000, proxies API to backend)
-cd web && bun run dev
+Dependencies use the isolated Compose project `goonhub-dev`, with persistent volumes and automatically assigned ports bound to `127.0.0.1`. The launcher passes those ports to the backend, avoiding conflicts with other local databases. Set `GOONHUB_DEV_DATABASE_PORT` or `GOONHUB_DEV_MEILISEARCH_PORT` if you need fixed host ports; `GOONHUB_DEV_PROJECT` overrides the project name.
 
+The backend uses `docker/config-dev.yaml` by default. Set `GOONHUB_CONFIG` to use another configuration file. Duplicate detection remains opt-in; see [its setup documentation](docs/DUPLICATION_DETECTION.md).
+
+```bash
+# terminal.sh
 # Run tests
 make test-race
 

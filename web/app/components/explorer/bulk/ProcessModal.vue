@@ -57,6 +57,7 @@ const phaseOptions = [
     { key: 'thumbnail' as const, label: 'Thumbnails', icon: 'heroicons:photo' },
     { key: 'sprites' as const, label: 'Sprites', icon: 'heroicons:squares-2x2' },
     { key: 'animated_thumbnails' as const, label: 'Animated Thumbnails', icon: 'heroicons:film' },
+    { key: 'fingerprint' as const, label: 'Fingerprint', icon: 'heroicons:finger-print' },
 ] as const;
 
 const modeOptions = [

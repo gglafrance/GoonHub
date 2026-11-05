@@ -30,6 +30,9 @@ type InteractionRepository interface {
 	GetJizzedSceneIDs(userID uint, minCount, maxCount int) ([]uint, error)
 	GetLikesBySceneIDs(userID uint, sceneIDs []uint) (map[uint]bool, error)
 	GetJizzCountsBySceneIDs(userID uint, sceneIDs []uint) (map[uint]int, error)
+
+	// Reassignment methods (for duplicate resolution)
+	ReassignInteractionsToScene(fromSceneID, toSceneID uint) error
 }
 
 type InteractionRepositoryImpl struct {
@@ -263,6 +266,57 @@ func (r *InteractionRepositoryImpl) GetJizzCountsBySceneIDs(userID uint, sceneID
 		result[j.SceneID] = j.Count
 	}
 	return result, nil
+}
+
+// ReassignInteractionsToScene moves user interactions from one scene to another.
+// For each interaction table, it inserts records that don't already exist on the
+// target scene, then deletes the originals from the source scene.
+func (r *InteractionRepositoryImpl) ReassignInteractionsToScene(fromSceneID, toSceneID uint) error {
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		// Ratings: copy where user doesn't already have a rating on the target
+		if err := tx.Exec(`
+			INSERT INTO user_scene_ratings (user_id, scene_id, rating, created_at, updated_at)
+			SELECT user_id, ?, rating, created_at, updated_at
+			FROM user_scene_ratings
+			WHERE scene_id = ?
+			AND user_id NOT IN (SELECT user_id FROM user_scene_ratings WHERE scene_id = ?)
+		`, toSceneID, fromSceneID, toSceneID).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("scene_id = ?", fromSceneID).Delete(&UserSceneRating{}).Error; err != nil {
+			return err
+		}
+
+		// Likes: copy where user doesn't already have a like on the target
+		if err := tx.Exec(`
+			INSERT INTO user_scene_likes (user_id, scene_id, created_at)
+			SELECT user_id, ?, created_at
+			FROM user_scene_likes
+			WHERE scene_id = ?
+			AND user_id NOT IN (SELECT user_id FROM user_scene_likes WHERE scene_id = ?)
+		`, toSceneID, fromSceneID, toSceneID).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("scene_id = ?", fromSceneID).Delete(&UserSceneLike{}).Error; err != nil {
+			return err
+		}
+
+		// Jizzed: copy where user doesn't already have a jizz count on the target
+		if err := tx.Exec(`
+			INSERT INTO user_scene_jizzed (user_id, scene_id, count, created_at, updated_at)
+			SELECT user_id, ?, count, created_at, updated_at
+			FROM user_scene_jizzed
+			WHERE scene_id = ?
+			AND user_id NOT IN (SELECT user_id FROM user_scene_jizzed WHERE scene_id = ?)
+		`, toSceneID, fromSceneID, toSceneID).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("scene_id = ?", fromSceneID).Delete(&UserSceneJizzed{}).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
 
 // Ensure InteractionRepositoryImpl implements InteractionRepository

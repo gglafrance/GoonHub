@@ -112,8 +112,12 @@ type Scene struct {
 	Origin           string         `json:"origin" gorm:"size:100"`
 	Type             string         `json:"type" gorm:"size:50"`
 	PreviewVideoPath string         `json:"preview_video_path"`
-	IsCorrupted      bool           `json:"is_corrupted" gorm:"default:false"`
-	TrashedAt        *time.Time     `json:"trashed_at,omitempty" gorm:"index"`
+	IsCorrupted       bool           `json:"is_corrupted" gorm:"default:false"`
+	TrashedAt         *time.Time     `json:"trashed_at,omitempty" gorm:"index"`
+	AudioFingerprint  []byte         `json:"-" gorm:"column:audio_fingerprint"`
+	VisualFingerprint []byte         `json:"-" gorm:"column:visual_fingerprint"`
+	FingerprintType   *string        `json:"fingerprint_type,omitempty" gorm:"column:fingerprint_type;size:10"`
+	FingerprintAt     *time.Time     `json:"fingerprint_at,omitempty" gorm:"column:fingerprint_at"`
 }
 
 func (Scene) TableName() string {

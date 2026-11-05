@@ -22,7 +22,31 @@ type Config struct {
 	Shutdown    ShutdownConfig    `mapstructure:"shutdown"`
 	Streaming   StreamingConfig   `mapstructure:"streaming"`
 	Pagination  PaginationConfig  `mapstructure:"pagination"`
-	Sharing     SharingConfig     `mapstructure:"sharing"`
+	Sharing      SharingConfig      `mapstructure:"sharing"`
+	Duplication  DuplicationConfig  `mapstructure:"duplication"`
+	ClickHouse   ClickHouseConfig   `mapstructure:"clickhouse"`
+}
+
+type DuplicationConfig struct {
+	Enabled                 bool          `mapstructure:"enabled"`
+	FingerprintWorkers      int           `mapstructure:"fingerprint_workers"`
+	FingerprintTimeout      time.Duration `mapstructure:"fingerprint_timeout"`
+	AudioDensityThreshold   float64       `mapstructure:"audio_density_threshold"`
+	AudioMinHashes          int           `mapstructure:"audio_min_hashes"`
+	AudioMaxHashOccurrences int           `mapstructure:"audio_max_hash_occurrences"`
+	AudioMinSpan            int           `mapstructure:"audio_min_span"`
+	VisualHammingMax        int           `mapstructure:"visual_hamming_max"`
+	VisualMinFrames         int           `mapstructure:"visual_min_frames"`
+	VisualMinSpan           int           `mapstructure:"visual_min_span"`
+	DeltaTolerance          int           `mapstructure:"delta_tolerance"`
+}
+
+type ClickHouseConfig struct {
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	Database string `mapstructure:"database"`
+	User     string `mapstructure:"user"`
+	Password string `mapstructure:"password"`
 }
 
 type SharingConfig struct {
@@ -225,6 +249,22 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("pagination.max_items_per_page", 100)
 	v.SetDefault("sharing.base_url", "")
 	v.SetDefault("sharing.port", "")
+	v.SetDefault("duplication.enabled", false)
+	v.SetDefault("duplication.fingerprint_workers", 1)
+	v.SetDefault("duplication.fingerprint_timeout", 5*time.Minute)
+	v.SetDefault("duplication.audio_density_threshold", 0.50)
+	v.SetDefault("duplication.audio_min_hashes", 80)
+	v.SetDefault("duplication.audio_max_hash_occurrences", 10)
+	v.SetDefault("duplication.audio_min_span", 160)
+	v.SetDefault("duplication.visual_hamming_max", 5)
+	v.SetDefault("duplication.visual_min_frames", 20)
+	v.SetDefault("duplication.visual_min_span", 30)
+	v.SetDefault("duplication.delta_tolerance", 2)
+	v.SetDefault("clickhouse.host", "localhost")
+	v.SetDefault("clickhouse.port", 9000)
+	v.SetDefault("clickhouse.database", "goonhub")
+	v.SetDefault("clickhouse.user", "default")
+	v.SetDefault("clickhouse.password", "")
 	v.SetDefault("streaming.max_global_streams", 100)
 	v.SetDefault("streaming.max_streams_per_ip", 10)
 	v.SetDefault("streaming.buffer_size", 262144)       // 256KB (8x default 32KB)

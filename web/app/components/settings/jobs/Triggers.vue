@@ -93,6 +93,8 @@ const phaseLabel = (phase: string): string => {
             return 'Sprites';
         case 'animated_thumbnails':
             return 'Previews & Clips';
+        case 'fingerprint':
+            return 'Fingerprint';
         case 'scan':
             return 'Library Scan';
         default:
@@ -110,6 +112,8 @@ const phaseIcon = (phase: string): string => {
             return 'heroicons:squares-2x2';
         case 'animated_thumbnails':
             return 'heroicons:play-circle';
+        case 'fingerprint':
+            return 'heroicons:finger-print';
         case 'scan':
             return 'heroicons:folder-open';
         default:
@@ -127,6 +131,8 @@ const phaseDescription = (phase: string): string => {
             return 'Build sprite sheets and VTT files';
         case 'animated_thumbnails':
             return 'Hover preview videos and animated marker clips';
+        case 'fingerprint':
+            return 'Audio/visual fingerprint for duplication detection';
         case 'scan':
             return 'Discover new videos in storage paths';
         default:
@@ -165,7 +171,7 @@ const triggerLabel = (type: string): string => {
 };
 
 const availableAfterPhases = (currentPhase: string) => {
-    return ['metadata', 'thumbnail', 'sprites', 'animated_thumbnails'].filter(
+    return ['metadata', 'thumbnail', 'sprites', 'animated_thumbnails', 'fingerprint'].filter(
         (p) => p !== currentPhase,
     );
 };
