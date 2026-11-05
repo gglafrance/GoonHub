@@ -1,7 +1,10 @@
-.PHONY: mocks test test-race test-cover setup-test
+.PHONY: dev mocks test test-race test-cover setup-test
 
 setup-test:
 	mkdir -p web/dist && touch web/dist/main.html
+
+dev:
+	@bash scripts/dev.sh
 
 mocks: setup-test
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_user_repository.go -package=mocks goonhub/internal/data UserRepository

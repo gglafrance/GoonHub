@@ -86,6 +86,9 @@ func (s *TriggerScheduler) loadSchedules() error {
 	}
 
 	for _, cfg := range configs {
+		if cfg.Phase == "fingerprint" && !s.processingService.IsDuplicationEnabled() {
+			continue
+		}
 		if cfg.TriggerType != "scheduled" || cfg.CronExpression == nil {
 			continue
 		}
@@ -116,6 +119,10 @@ func (s *TriggerScheduler) loadSchedules() error {
 }
 
 func (s *TriggerScheduler) runScheduledPhase(phase string) {
+	if phase == "fingerprint" && !s.processingService.IsDuplicationEnabled() {
+		s.logger.Debug("Skipping scheduled fingerprint phase because duplication detection is disabled")
+		return
+	}
 	s.logger.Info("Running scheduled trigger", zap.String("phase", phase))
 
 	// Handle scan phase specially

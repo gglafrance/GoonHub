@@ -139,7 +139,7 @@ func NewSceneProcessingService(
 	poolManager := processing.NewPoolManager(cfg, logger, poolConfigRepo, processingConfigRepo, duplicationCfg)
 
 	// Create phase tracker
-	phaseTracker := processing.NewPhaseTracker(triggerConfigRepo)
+	phaseTracker := processing.NewPhaseTracker(triggerConfigRepo, poolManager.IsDuplicationEnabled())
 	if triggerConfigRepo != nil {
 		if err := phaseTracker.RefreshTriggerCache(); err != nil {
 			logger.Error("Failed to load trigger config cache", zap.Error(err))

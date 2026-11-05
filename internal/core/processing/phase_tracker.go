@@ -8,17 +8,23 @@ import (
 
 // PhaseTracker manages trigger configuration cache and phase state tracking
 type PhaseTracker struct {
-	triggerConfigRepo data.TriggerConfigRepository
-	triggerCache      []data.TriggerConfigRecord
-	triggerCacheMu    sync.RWMutex
-	phases            sync.Map // map[sceneID uint]*PhaseState
+	triggerConfigRepo  data.TriggerConfigRepository
+	duplicationEnabled bool
+	triggerCache       []data.TriggerConfigRecord
+	triggerCacheMu     sync.RWMutex
+	phases             sync.Map // map[sceneID uint]*PhaseState
 }
 
 // NewPhaseTracker creates a new PhaseTracker
-func NewPhaseTracker(triggerConfigRepo data.TriggerConfigRepository) *PhaseTracker {
+func NewPhaseTracker(triggerConfigRepo data.TriggerConfigRepository, duplicationEnabled bool) *PhaseTracker {
 	return &PhaseTracker{
-		triggerConfigRepo: triggerConfigRepo,
+		triggerConfigRepo:  triggerConfigRepo,
+		duplicationEnabled: duplicationEnabled,
 	}
+}
+
+func (pt *PhaseTracker) isPhaseEnabled(phase string) bool {
+	return phase != "fingerprint" || pt.duplicationEnabled
 }
 
 // RefreshTriggerCache reloads the trigger configuration from the database
@@ -50,6 +56,9 @@ func (pt *PhaseTracker) GetTriggerForPhase(phase string) *data.TriggerConfigReco
 
 // ShouldAutoDispatch returns whether a phase should be automatically dispatched
 func (pt *PhaseTracker) ShouldAutoDispatch(phase string) bool {
+	if !pt.isPhaseEnabled(phase) {
+		return false
+	}
 	trigger := pt.GetTriggerForPhase(phase)
 	if trigger == nil {
 		// Default behavior: metadata=on_import, thumbnail/sprites=after_job(metadata)
@@ -65,6 +74,9 @@ func (pt *PhaseTracker) GetPhasesTriggeredAfter(completedPhase string) []string 
 
 	var phases []string
 	for _, cfg := range pt.triggerCache {
+		if !pt.isPhaseEnabled(cfg.Phase) {
+			continue
+		}
 		if cfg.TriggerType == "after_job" && cfg.AfterPhase != nil && *cfg.AfterPhase == completedPhase {
 			phases = append(phases, cfg.Phase)
 		}
