@@ -88,7 +88,10 @@ const handleSubmit = async () => {
 
     for (const phase of selectedPhases.value) {
         try {
-            results.value[phase] = await triggerBulkPhase(phase, mode.value, undefined, sceneIds);
+            // Animated thumbnails skip existing output unless forced
+            const forceTarget =
+                phase === 'animated_thumbnails' && mode.value === 'all' ? 'both' : undefined;
+            results.value[phase] = await triggerBulkPhase(phase, mode.value, forceTarget, sceneIds);
         } catch (err) {
             const phaseLabel = phaseOptions.find((p) => p.key === phase)?.label ?? phase;
             results.value[phase] = { message: '', submitted: 0, skipped: 0, errors: 1 };

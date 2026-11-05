@@ -92,12 +92,23 @@ const handleCancelScan = async () => {
     }
 };
 
+// Phase awaiting confirmation before an "All" run
+const confirmPhase = ref<BulkPhase | null>(null);
+
+const confirmBulkAll = () => {
+    const phase = confirmPhase.value;
+    confirmPhase.value = null;
+    if (phase) handleBulkJob(phase, 'all');
+};
+
 const handleBulkJob = async (phase: BulkPhase, mode: 'missing' | 'all') => {
     bulkLoading.value[phase] = true;
     bulkResults.value[phase] = null;
     clearMessages();
     try {
-        const result = await triggerBulkPhase(phase, mode);
+        // Animated thumbnails skip existing output unless forced
+        const forceTarget = phase === 'animated_thumbnails' && mode === 'all' ? 'both' : undefined;
+        const result = await triggerBulkPhase(phase, mode, forceTarget);
         bulkResults.value[phase] = result;
         message.value = `${phaseLabel(phase)} jobs queued: ${result.submitted} submitted, ${result.skipped} skipped`;
     } catch (e: unknown) {
@@ -493,7 +504,7 @@ const phaseDescription = (phase: string): string => {
                                 class="bg-lava/80 hover:bg-lava disabled:bg-lava/40 rounded-lg px-3
                                     py-1.5 text-[11px] font-medium text-white transition-all
                                     disabled:cursor-not-allowed"
-                                @click="handleBulkJob(phase, 'all')"
+                                @click="confirmPhase = phase"
                             >
                                 {{ bulkLoading[phase] ? 'Queuing...' : 'All' }}
                             </button>
@@ -563,5 +574,25 @@ const phaseDescription = (phase: string): string => {
                 </p>
             </div>
         </div>
+
+        <UiConfirmModal
+            :visible="confirmPhase !== null"
+            :title="`Regenerate All ${confirmPhase ? phaseLabel(confirmPhase) : ''}?`"
+            confirm-label="Regenerate All"
+            icon="heroicons:arrow-path"
+            @close="confirmPhase = null"
+            @confirm="confirmBulkAll"
+        >
+            <p>
+                This re-runs
+                <span class="text-white">{{ confirmPhase ? phaseLabel(confirmPhase) : '' }}</span>
+                for every scene in your library and replaces what already exists, not just what is
+                missing.
+            </p>
+            <p>
+                With a large library this can take a long time, and the workers stay busy until it
+                finishes. Use Missing to only process scenes that do not have it yet.
+            </p>
+        </UiConfirmModal>
     </div>
 </template>
