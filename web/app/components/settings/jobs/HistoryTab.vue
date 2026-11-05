@@ -226,6 +226,24 @@ watch(
         if (val > 0) loadJobs(true);
     },
 );
+
+// The list is fetched, not streamed: reload it when the live SSE job status changes, or
+// finished jobs stay under Active Jobs (and new ones stay out of the history) until a reload
+const liveJobsKey = computed(() => {
+    const s = jobStatusStore.status;
+    if (!s) return '';
+    return [
+        s.total_running,
+        s.total_queued,
+        s.total_pending,
+        s.total_failed,
+        ...jobStatusStore.activeJobs.map((j) => j.job_id),
+    ].join(',');
+});
+
+watch(liveJobsKey, (key, prev) => {
+    if (prev && key !== prev) loadJobs(true);
+});
 </script>
 
 <template>
