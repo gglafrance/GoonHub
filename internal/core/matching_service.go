@@ -7,6 +7,7 @@ import (
 	"goonhub/internal/core/matching"
 	"goonhub/internal/data"
 	chClient "goonhub/internal/infrastructure/clickhouse"
+	"sort"
 	"sync"
 	"time"
 
@@ -148,92 +149,77 @@ func (ms *MatchingService) findVisualMatches(ctx context.Context, sceneID uint, 
 
 // ProcessMatches creates or merges duplicate groups based on match results
 func (ms *MatchingService) ProcessMatches(sceneID uint, matches []matching.MatchResult) error {
-	if len(matches) == 0 {
+	// Normalize matches so repeated/self hits cannot duplicate memberships.
+	matchMap := make(map[uint]matching.MatchResult)
+	for _, match := range matches {
+		if match.SceneID == sceneID {
+			continue
+		}
+		if previous, ok := matchMap[match.SceneID]; !ok || match.ConfidenceScore > previous.ConfidenceScore {
+			matchMap[match.SceneID] = match
+		}
+	}
+	if len(matchMap) == 0 {
 		return nil
 	}
+	matchedIDs := make([]uint, 0, len(matchMap))
+	for id := range matchMap {
+		matchedIDs = append(matchedIDs, id)
+	}
+	sort.Slice(matchedIDs, func(i, j int) bool { return matchedIDs[i] < matchedIDs[j] })
+	matches = make([]matching.MatchResult, 0, len(matchedIDs))
+	for _, id := range matchedIDs {
+		matches = append(matches, matchMap[id])
+	}
+	sceneIDs := append([]uint{sceneID}, matchedIDs...)
 
 	ms.processLock.Lock()
 	defer ms.processLock.Unlock()
 
-	// Collect all matched scene IDs
-	matchedSceneIDs := make([]uint, len(matches))
-	matchMap := make(map[uint]matching.MatchResult)
-	for i, m := range matches {
-		matchedSceneIDs[i] = m.SceneID
-		matchMap[m.SceneID] = m
-	}
-
-	// Check which matched scenes already belong to groups
-	existingGroups, err := ms.dupGroupRepo.GetGroupsBySceneIDs(matchedSceneIDs)
-	if err != nil {
-		return fmt.Errorf("failed to get existing groups: %w", err)
-	}
-
-	// Also check if the query scene itself is in a group
-	queryGroup, err := ms.dupGroupRepo.GetGroupBySceneID(sceneID)
-	if err != nil {
-		return fmt.Errorf("failed to get query scene group: %w", err)
-	}
-
-	// Collect unique group IDs
-	groupIDs := make(map[uint]bool)
-	if queryGroup != nil {
-		groupIDs[queryGroup.ID] = true
-	}
-	for _, groupID := range existingGroups {
-		groupIDs[groupID] = true
-	}
-
-	// Filter out resolved/dismissed groups. When a new duplicate is detected
-	// against a scene that was already in a resolved group, we create a fresh
-	// unresolved group rather than reopening the old one.
-	for gid := range groupIDs {
-		group, err := ms.dupGroupRepo.GetByID(gid)
+	return ms.dupGroupRepo.RunInTransaction(func(txRepo data.DuplicateGroupRepository) error {
+		memberships, err := txRepo.GetGroupsBySceneIDs(sceneIDs)
 		if err != nil {
-			return fmt.Errorf("failed to get group %d status: %w", gid, err)
+			return fmt.Errorf("failed to get existing memberships: %w", err)
 		}
-		if group.Status != "unresolved" {
-			delete(groupIDs, gid)
+		groupSet := make(map[uint]bool)
+		for _, groupID := range memberships {
+			groupSet[groupID] = true
 		}
-	}
-
-	switch len(groupIDs) {
-	case 0:
-		// No existing groups - create a new one (wrapped in transaction)
-		return ms.dupGroupRepo.RunInTransaction(func(txRepo data.DuplicateGroupRepository) error {
+		if len(groupSet) == 0 {
 			return ms.createNewGroupTx(txRepo, sceneID, matches)
-		})
-	case 1:
-		// One existing group - add the new scene to it (wrapped in transaction)
-		var targetGroupID uint
-		for gid := range groupIDs {
-			targetGroupID = gid
 		}
-		return ms.dupGroupRepo.RunInTransaction(func(txRepo data.DuplicateGroupRepository) error {
-			return ms.addToGroupTx(txRepo, targetGroupID, sceneID, matchMap)
-		})
-	default:
-		// Multiple groups - merge them all
-		var targetGroupID uint
-		var sourceGroupIDs []uint
-		first := true
-		for gid := range groupIDs {
-			if first {
-				targetGroupID = gid
-				first = false
-			} else {
-				sourceGroupIDs = append(sourceGroupIDs, gid)
+
+		groupIDs := make([]uint, 0, len(groupSet))
+		for id := range groupSet {
+			groupIDs = append(groupIDs, id)
+		}
+		sort.Slice(groupIDs, func(i, j int) bool { return groupIDs[i] < groupIDs[j] })
+		targetID := groupIDs[0]
+		target, err := txRepo.GetByID(targetID)
+		if err != nil {
+			return fmt.Errorf("failed to get group %d: %w", targetID, err)
+		}
+
+		// Reprocessing known members must not undo a resolution or dismissal.
+		// New members reuse and reopen the group to preserve unique memberships.
+		if len(groupIDs) == 1 && target.Status != "unresolved" && len(memberships) == len(sceneIDs) {
+			return nil
+		}
+		if len(groupIDs) > 1 {
+			if err := txRepo.MergeGroups(targetID, groupIDs[1:]); err != nil {
+				return fmt.Errorf("failed to merge groups: %w", err)
 			}
 		}
-		// Merge source groups into target
-		if err := ms.dupGroupRepo.MergeGroups(targetGroupID, sourceGroupIDs); err != nil {
-			return fmt.Errorf("failed to merge groups: %w", err)
+		if err := ms.addToGroupTx(txRepo, targetID, sceneID, matchMap); err != nil {
+			return err
 		}
-		// Add the new scene if not already a member (wrapped in transaction)
-		return ms.dupGroupRepo.RunInTransaction(func(txRepo data.DuplicateGroupRepository) error {
-			return ms.addToGroupTx(txRepo, targetGroupID, sceneID, matchMap)
-		})
-	}
+		if target.Status != "unresolved" {
+			if err := txRepo.UpdateStatus(targetID, "unresolved", nil); err != nil {
+				return fmt.Errorf("failed to reopen group %d: %w", targetID, err)
+			}
+		}
+		return nil
+	})
 }
 
 func (ms *MatchingService) createNewGroupTx(txRepo data.DuplicateGroupRepository, sceneID uint, matches []matching.MatchResult) error {
@@ -268,7 +254,9 @@ func (ms *MatchingService) createNewGroupTx(txRepo data.DuplicateGroupRepository
 	}
 
 	// Auto-score best variant (uses sceneRepo which is read-only, fine outside tx)
-	ms.autoScoreBestTx(txRepo, group.ID)
+	if err := ms.autoScoreBestTx(txRepo, group.ID); err != nil {
+		return err
+	}
 
 	ms.logger.Info("Created new duplicate group",
 		zap.Uint("group_id", group.ID),
@@ -279,76 +267,81 @@ func (ms *MatchingService) createNewGroupTx(txRepo data.DuplicateGroupRepository
 }
 
 func (ms *MatchingService) addToGroupTx(txRepo data.DuplicateGroupRepository, groupID uint, sceneID uint, matchMap map[uint]matching.MatchResult) error {
-	// Check if already a member
-	existing, err := ms.dupGroupRepo.GetGroupBySceneID(sceneID)
-	if err != nil {
-		return fmt.Errorf("failed to check existing membership: %w", err)
+	sceneIDs := make([]uint, 0, len(matchMap)+1)
+	sceneIDs = append(sceneIDs, sceneID)
+	for id := range matchMap {
+		sceneIDs = append(sceneIDs, id)
 	}
-	if existing != nil && existing.ID == groupID {
-		return nil // Already in this group
+	sort.Slice(sceneIDs, func(i, j int) bool { return sceneIDs[i] < sceneIDs[j] })
+	memberships, err := txRepo.GetGroupsBySceneIDs(sceneIDs)
+	if err != nil {
+		return fmt.Errorf("failed to check existing memberships: %w", err)
 	}
 
-	// Determine best confidence from matches
-	var bestScore float64
-	var matchType string
-	for _, m := range matchMap {
-		if m.ConfidenceScore > bestScore {
-			bestScore = m.ConfidenceScore
-			matchType = m.MatchType
+	var bestMatch matching.MatchResult
+	for _, match := range matchMap {
+		if match.ConfidenceScore > bestMatch.ConfidenceScore {
+			bestMatch = match
 		}
 	}
-	if matchType == "" {
-		matchType = "audio"
+	if bestMatch.MatchType == "" {
+		bestMatch.MatchType = "audio"
 	}
-
-	if err := txRepo.AddMember(&data.DuplicateGroupMember{
-		GroupID:         groupID,
-		SceneID:         sceneID,
-		ConfidenceScore: bestScore,
-		MatchType:       matchType,
-	}); err != nil {
-		return fmt.Errorf("failed to add scene to group: %w", err)
+	for _, id := range sceneIDs {
+		if existingID, ok := memberships[id]; ok {
+			if existingID != groupID {
+				return fmt.Errorf("scene %d still belongs to group %d", id, existingID)
+			}
+			continue
+		}
+		match := matchMap[id]
+		if id == sceneID {
+			match = bestMatch
+		}
+		if err := txRepo.AddMember(&data.DuplicateGroupMember{
+			GroupID: groupID, SceneID: id,
+			ConfidenceScore: match.ConfidenceScore, MatchType: match.MatchType,
+		}); err != nil {
+			return fmt.Errorf("failed to add scene %d to group: %w", id, err)
+		}
 	}
-
 	if err := txRepo.UpdateSceneCount(groupID); err != nil {
-		ms.logger.Error("Failed to update scene count", zap.Uint("group_id", groupID), zap.Error(err))
+		return fmt.Errorf("failed to update scene count: %w", err)
 	}
-
-	ms.autoScoreBestTx(txRepo, groupID)
-
-	return nil
+	return ms.autoScoreBestTx(txRepo, groupID)
 }
 
-// autoScoreBestTx uses a transactional repo for group operations but reads scenes from the main repo
-func (ms *MatchingService) autoScoreBestTx(txRepo data.DuplicateGroupRepository, groupID uint) {
+func (ms *MatchingService) autoScoreBestTx(txRepo data.DuplicateGroupRepository, groupID uint) error {
 	group, err := txRepo.GetByIDWithMembers(groupID)
-	if err != nil || group == nil {
-		return
+	if err != nil {
+		return fmt.Errorf("failed to get group members for scoring: %w", err)
 	}
 
 	var bestSceneID uint
 	var bestScore int64
-
 	for _, member := range group.Members {
-		scene, err := ms.sceneRepo.GetByID(member.SceneID)
+		scene, err := ms.sceneRepo.GetByIDIncludingTrashed(member.SceneID)
 		if err != nil {
+			return fmt.Errorf("failed to get scene %d for scoring: %w", member.SceneID, err)
+		}
+		if scene.TrashedAt != nil {
 			continue
 		}
 		score := scoreScene(scene)
-		if score > bestScore {
+		if bestSceneID == 0 || score > bestScore {
 			bestScore = score
 			bestSceneID = member.SceneID
 		}
 	}
-
 	if bestSceneID > 0 {
 		if err := txRepo.SetBestScene(groupID, bestSceneID); err != nil {
-			ms.logger.Error("Failed to set best scene", zap.Uint("group_id", groupID), zap.Error(err))
+			return fmt.Errorf("failed to set best scene: %w", err)
 		}
 	}
+	return nil
 }
 
-// scoreScene computes a quality score for a scene
+// scoreScene computes a quality score for a scene.
 func scoreScene(scene *data.Scene) int64 {
 	score := int64(scene.Duration) * 1000
 	score += int64(scene.Width) * int64(scene.Height)

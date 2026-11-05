@@ -158,6 +158,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Duplication Services
 		provideMatchingService,
+		provideSceneFingerprintIndex,
 		provideDuplicateService,
 
 		// Streaming Manager
@@ -433,8 +434,8 @@ func provideAdminService(userRepo data.UserRepository, roleRepo data.RoleReposit
 
 // --- Scene & Content Services ---
 
-func provideSceneService(repo data.SceneRepository, cfg *config.Config, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger, jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, appSettingsRepo data.AppSettingsRepository) *core.SceneService {
-	return core.NewSceneService(repo, cfg.Processing.VideoDir, cfg.Processing.MetadataDir, processingService, eventBus, logger.Logger, jobHistoryRepo, dlqRepo, appSettingsRepo)
+func provideSceneService(repo data.SceneRepository, cfg *config.Config, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger, jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, appSettingsRepo data.AppSettingsRepository, fingerprintIndex core.SceneFingerprintIndex) *core.SceneService {
+	return core.NewSceneService(repo, cfg.Processing.VideoDir, cfg.Processing.MetadataDir, processingService, eventBus, logger.Logger, jobHistoryRepo, dlqRepo, appSettingsRepo, fingerprintIndex)
 }
 
 func provideTagService(tagRepo data.TagRepository, sceneRepo data.SceneRepository, logger *logging.Logger) *core.TagService {
@@ -522,8 +523,8 @@ func provideScanService(storagePathService *core.StoragePathService, sceneRepo d
 	return core.NewScanService(storagePathService, sceneRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
 }
 
-func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, jobHistoryRepo data.JobHistoryRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config) *core.ExplorerService {
-	return core.NewExplorerService(explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, jobHistoryRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir)
+func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, jobHistoryRepo data.JobHistoryRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config, fingerprintIndex core.SceneFingerprintIndex) *core.ExplorerService {
+	return core.NewExplorerService(explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, jobHistoryRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir, fingerprintIndex)
 }
 
 // --- External API Services ---
@@ -602,6 +603,13 @@ func provideMatchingService(clickhouse *chClient.Client, sceneRepo data.SceneRep
 		return nil
 	}
 	return core.NewMatchingService(clickhouse, sceneRepo, dupGroupRepo, dupConfigRepo, logger.Logger)
+}
+
+func provideSceneFingerprintIndex(matchingService *core.MatchingService) core.SceneFingerprintIndex {
+	if matchingService == nil {
+		return nil
+	}
+	return matchingService
 }
 
 func provideDuplicateService(dupGroupRepo data.DuplicateGroupRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, markerRepo data.MarkerRepository, interactionRepo data.InteractionRepository, eventBus *core.EventBus, logger *logging.Logger) *core.DuplicateService {

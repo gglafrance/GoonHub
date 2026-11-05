@@ -111,11 +111,9 @@ func (r *DuplicateGroupRepositoryImpl) ListWithMembers(page, limit int, status s
 
 func (r *DuplicateGroupRepositoryImpl) UpdateStatus(id uint, status string, resolvedAt *time.Time) error {
 	updates := map[string]interface{}{
-		"status":     status,
-		"updated_at": time.Now(),
-	}
-	if resolvedAt != nil {
-		updates["resolved_at"] = resolvedAt
+		"status":      status,
+		"updated_at":  time.Now(),
+		"resolved_at": resolvedAt,
 	}
 	return r.DB.Model(&DuplicateGroup{}).Where("id = ?", id).Updates(updates).Error
 }

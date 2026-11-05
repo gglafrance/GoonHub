@@ -182,10 +182,7 @@ func (ds *DuplicateService) ResolveGroup(groupID, bestSceneID uint, mergeMetadat
 	// Merge metadata if requested
 	if mergeMetadata && len(otherSceneIDs) > 0 {
 		if err := ds.mergeMetadata(bestSceneID, otherSceneIDs); err != nil {
-			ds.logger.Error("Failed to merge metadata",
-				zap.Uint("best_scene_id", bestSceneID),
-				zap.Error(err),
-			)
+			return fmt.Errorf("failed to merge metadata into scene %d: %w", bestSceneID, err)
 		}
 	}
 
@@ -193,20 +190,14 @@ func (ds *DuplicateService) ResolveGroup(groupID, bestSceneID uint, mergeMetadat
 	for _, m := range group.Members {
 		isBest := m.SceneID == bestSceneID
 		if err := ds.groupRepo.UpdateMemberBest(groupID, m.SceneID, isBest); err != nil {
-			ds.logger.Error("Failed to update member best flag",
-				zap.Uint("scene_id", m.SceneID),
-				zap.Error(err),
-			)
+			return fmt.Errorf("failed to update best flag for scene %d: %w", m.SceneID, err)
 		}
 	}
 
 	// Trash non-best scenes
 	for _, sid := range otherSceneIDs {
 		if _, err := ds.sceneRepo.MoveToTrash(sid); err != nil {
-			ds.logger.Error("Failed to trash scene",
-				zap.Uint("scene_id", sid),
-				zap.Error(err),
-			)
+			return fmt.Errorf("failed to trash scene %d: %w", sid, err)
 		}
 	}
 
@@ -338,126 +329,108 @@ func (ds *DuplicateService) enrichGroup(group *data.DuplicateGroup) (*DuplicateG
 // mergeMetadata merges tags, actors, view counts, studio, markers, and interactions
 // from other scenes into the best scene
 func (ds *DuplicateService) mergeMetadata(bestSceneID uint, otherSceneIDs []uint) error {
-	// Merge tags
+	// Merge tags.
 	if ds.tagRepo != nil {
 		bestTags, err := ds.tagRepo.GetSceneTags(bestSceneID)
 		if err != nil {
-			ds.logger.Warn("Failed to get best scene tags", zap.Error(err))
-		} else {
-			bestTagIDs := make(map[uint]bool)
-			for _, t := range bestTags {
-				bestTagIDs[t.ID] = true
+			return fmt.Errorf("failed to get tags for scene %d: %w", bestSceneID, err)
+		}
+		bestTagIDs := make(map[uint]bool)
+		for _, tag := range bestTags {
+			bestTagIDs[tag.ID] = true
+		}
+		for _, sid := range otherSceneIDs {
+			tags, err := ds.tagRepo.GetSceneTags(sid)
+			if err != nil {
+				return fmt.Errorf("failed to get tags for scene %d: %w", sid, err)
 			}
-			for _, sid := range otherSceneIDs {
-				otherTags, err := ds.tagRepo.GetSceneTags(sid)
-				if err != nil {
-					continue
+			var newTagIDs []uint
+			for _, tag := range tags {
+				if !bestTagIDs[tag.ID] {
+					newTagIDs = append(newTagIDs, tag.ID)
+					bestTagIDs[tag.ID] = true
 				}
-				var newTagIDs []uint
-				for _, t := range otherTags {
-					if !bestTagIDs[t.ID] {
-						newTagIDs = append(newTagIDs, t.ID)
-						bestTagIDs[t.ID] = true
-					}
-				}
-				if len(newTagIDs) > 0 {
-					if err := ds.tagRepo.BulkAddTagsToScenes([]uint{bestSceneID}, newTagIDs); err != nil {
-						ds.logger.Warn("Failed to merge tags from scene",
-							zap.Uint("source_scene_id", sid),
-							zap.Error(err),
-						)
-					}
+			}
+			if len(newTagIDs) > 0 {
+				if err := ds.tagRepo.BulkAddTagsToScenes([]uint{bestSceneID}, newTagIDs); err != nil {
+					return fmt.Errorf("failed to merge tags from scene %d: %w", sid, err)
 				}
 			}
 		}
 	}
 
-	// Merge actors
+	// Merge actors.
 	if ds.actorRepo != nil {
 		bestActors, err := ds.actorRepo.GetSceneActors(bestSceneID)
 		if err != nil {
-			ds.logger.Warn("Failed to get best scene actors", zap.Error(err))
-		} else {
-			bestActorIDs := make(map[uint]bool)
-			for _, a := range bestActors {
-				bestActorIDs[a.ID] = true
+			return fmt.Errorf("failed to get actors for scene %d: %w", bestSceneID, err)
+		}
+		bestActorIDs := make(map[uint]bool)
+		for _, actor := range bestActors {
+			bestActorIDs[actor.ID] = true
+		}
+		for _, sid := range otherSceneIDs {
+			actors, err := ds.actorRepo.GetSceneActors(sid)
+			if err != nil {
+				return fmt.Errorf("failed to get actors for scene %d: %w", sid, err)
 			}
-			for _, sid := range otherSceneIDs {
-				otherActors, err := ds.actorRepo.GetSceneActors(sid)
-				if err != nil {
-					continue
+			var newActorIDs []uint
+			for _, actor := range actors {
+				if !bestActorIDs[actor.ID] {
+					newActorIDs = append(newActorIDs, actor.ID)
+					bestActorIDs[actor.ID] = true
 				}
-				var newActorIDs []uint
-				for _, a := range otherActors {
-					if !bestActorIDs[a.ID] {
-						newActorIDs = append(newActorIDs, a.ID)
-						bestActorIDs[a.ID] = true
-					}
-				}
-				if len(newActorIDs) > 0 {
-					if err := ds.actorRepo.BulkAddActorsToScenes([]uint{bestSceneID}, newActorIDs); err != nil {
-						ds.logger.Warn("Failed to merge actors from scene",
-							zap.Uint("source_scene_id", sid),
-							zap.Error(err),
-						)
-					}
+			}
+			if len(newActorIDs) > 0 {
+				if err := ds.actorRepo.BulkAddActorsToScenes([]uint{bestSceneID}, newActorIDs); err != nil {
+					return fmt.Errorf("failed to merge actors from scene %d: %w", sid, err)
 				}
 			}
 		}
 	}
 
-	// Merge studio from other scenes: copy to best scene if it has none
+	// Copy a studio only when the best scene has none.
 	allIDs := append([]uint{bestSceneID}, otherSceneIDs...)
-	allScenes, err := ds.sceneRepo.GetByIDsIncludingTrashed(allIDs)
+	scenes, err := ds.sceneRepo.GetByIDsIncludingTrashed(allIDs)
 	if err != nil {
-		ds.logger.Warn("Failed to fetch scenes for metadata merge", zap.Error(err))
-	} else {
-		sceneMap := make(map[uint]data.Scene, len(allScenes))
-		for _, s := range allScenes {
-			sceneMap[s.ID] = s
+		return fmt.Errorf("failed to fetch scenes for metadata merge: %w", err)
+	}
+	sceneMap := make(map[uint]data.Scene, len(scenes))
+	for _, scene := range scenes {
+		sceneMap[scene.ID] = scene
+	}
+	bestScene, ok := sceneMap[bestSceneID]
+	if !ok {
+		return fmt.Errorf("best scene %d not found", bestSceneID)
+	}
+	for _, sid := range otherSceneIDs {
+		if _, ok := sceneMap[sid]; !ok {
+			return fmt.Errorf("source scene %d not found", sid)
 		}
-
-		bestScene := sceneMap[bestSceneID]
-
-		// Copy studio if best scene has none but a duplicate does
-		if bestScene.StudioID == nil {
-			for _, sid := range otherSceneIDs {
-				other, ok := sceneMap[sid]
-				if ok && other.StudioID != nil {
-					if err := ds.sceneRepo.UpdateSceneMetadata(bestSceneID, bestScene.Title, bestScene.Description, other.Studio, bestScene.ReleaseDate, bestScene.PornDBSceneID); err != nil {
-						ds.logger.Warn("Failed to copy studio from duplicate",
-							zap.Uint("source_scene_id", sid),
-							zap.Error(err),
-						)
-					}
-					break
+	}
+	if bestScene.StudioID == nil {
+		for _, sid := range otherSceneIDs {
+			other := sceneMap[sid]
+			if other.StudioID != nil {
+				if err := ds.sceneRepo.UpdateSceneMetadata(bestSceneID, bestScene.Title, bestScene.Description, other.Studio, bestScene.ReleaseDate, bestScene.PornDBSceneID); err != nil {
+					return fmt.Errorf("failed to copy studio from scene %d: %w", sid, err)
 				}
+				break
 			}
 		}
 	}
 
-	// Merge markers
 	if ds.markerRepo != nil {
 		for _, sid := range otherSceneIDs {
 			if err := ds.markerRepo.ReassignMarkersToScene(sid, bestSceneID); err != nil {
-				ds.logger.Warn("Failed to reassign markers from scene",
-					zap.Uint("source_scene_id", sid),
-					zap.Uint("target_scene_id", bestSceneID),
-					zap.Error(err),
-				)
+				return fmt.Errorf("failed to reassign markers from scene %d: %w", sid, err)
 			}
 		}
 	}
-
-	// Merge interactions (ratings, likes, jizzed)
 	if ds.interactionRepo != nil {
 		for _, sid := range otherSceneIDs {
 			if err := ds.interactionRepo.ReassignInteractionsToScene(sid, bestSceneID); err != nil {
-				ds.logger.Warn("Failed to reassign interactions from scene",
-					zap.Uint("source_scene_id", sid),
-					zap.Uint("target_scene_id", bestSceneID),
-					zap.Error(err),
-				)
+				return fmt.Errorf("failed to reassign interactions from scene %d: %w", sid, err)
 			}
 		}
 	}
@@ -466,7 +439,5 @@ func (ds *DuplicateService) mergeMetadata(bestSceneID uint, otherSceneIDs []uint
 		zap.Uint("best_scene_id", bestSceneID),
 		zap.Int("source_count", len(otherSceneIDs)),
 	)
-
 	return nil
 }
-

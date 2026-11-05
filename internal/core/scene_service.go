@@ -21,6 +21,11 @@ import (
 	"gorm.io/gorm"
 )
 
+// SceneFingerprintIndex removes fingerprints before a scene is permanently deleted.
+type SceneFingerprintIndex interface {
+	RemoveSceneFromIndex(sceneID uint) error
+}
+
 type SceneService struct {
 	Repo              data.SceneRepository
 	ScenePath         string
@@ -32,6 +37,7 @@ type SceneService struct {
 	jobHistoryRepo    data.JobHistoryRepository
 	dlqRepo           data.DLQRepository
 	appSettingsRepo   data.AppSettingsRepository
+	fingerprintIndex  SceneFingerprintIndex
 }
 
 func NewSceneService(
@@ -44,6 +50,7 @@ func NewSceneService(
 	jobHistoryRepo data.JobHistoryRepository,
 	dlqRepo data.DLQRepository,
 	appSettingsRepo data.AppSettingsRepository,
+	fingerprintIndex SceneFingerprintIndex,
 ) *SceneService {
 	// Ensure scene directory exists
 	if err := os.MkdirAll(scenePath, 0755); err != nil {
@@ -69,6 +76,7 @@ func NewSceneService(
 		jobHistoryRepo:    jobHistoryRepo,
 		dlqRepo:           dlqRepo,
 		appSettingsRepo:   appSettingsRepo,
+		fingerprintIndex:  fingerprintIndex,
 	}
 }
 
@@ -608,6 +616,13 @@ func (s *SceneService) HardDeleteScene(id uint) error {
 		}
 	}
 
+	// Keep the scene available for retry if fingerprint cleanup fails.
+	if s.fingerprintIndex != nil {
+		if err := s.fingerprintIndex.RemoveSceneFromIndex(id); err != nil {
+			return apperrors.NewInternalError("failed to remove scene fingerprints", err)
+		}
+	}
+
 	// Hard delete from DB
 	deletedScene, err := s.Repo.HardDelete(id)
 	if err != nil {
@@ -704,8 +719,10 @@ func (s *SceneService) EmptyTrash() (int, error) {
 	}
 
 	deleted := 0
+	var deleteErr error
 	for _, scene := range scenes {
 		if err := s.HardDeleteScene(scene.ID); err != nil {
+			deleteErr = errors.Join(deleteErr, fmt.Errorf("failed to delete scene %d: %w", scene.ID, err))
 			s.logger.Warn("Failed to hard delete scene during empty trash",
 				zap.Uint("scene_id", scene.ID),
 				zap.Error(err),
@@ -715,7 +732,7 @@ func (s *SceneService) EmptyTrash() (int, error) {
 		deleted++
 	}
 
-	return deleted, nil
+	return deleted, deleteErr
 }
 
 // GetTrashRetentionDays returns the current trash retention setting.

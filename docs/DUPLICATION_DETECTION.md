@@ -615,12 +615,13 @@ type MatchingService struct {
 
 1. Collect all scene IDs involved: the query scene + all matched scenes.
 2. Look up which of these scenes already belong to existing groups (`GetGroupsBySceneIDs`).
-3. Also check if the query scene is already in a group (`GetGroupBySceneID`).
+3. Run membership lookup, group merging, member insertion, and status updates in one transaction.
 4. Branch:
    - **0 existing groups**: Create a new group. Add all scenes as members with their confidence scores.
-   - **1 existing group**: Add the query scene to the existing group.
-   - **Multiple existing groups**: Merge all groups into the lowest-ID group (transactionally moves all members, deletes source groups, updates count). Then add the query scene.
-5. Call `autoScoreBest(groupID)` to recompute the best variant.
+   - **1 existing group**: Add the query scene and every matched scene that is not already a member.
+   - **Multiple existing groups**: Merge all groups into the lowest-ID group, then add every missing scene.
+5. Resolved and dismissed groups retain their memberships. New members or a merge reopen the target group and clear `resolved_at`; reprocessing only known members preserves its closed status. This respects the unique scene-membership constraint.
+6. Recompute the best variant from non-trashed members. Failures roll back group changes.
 
 **`autoScoreBest` / `scoreScene` -- Quality heuristic:**
 
@@ -672,6 +673,10 @@ type DuplicateService struct {
 3. Update `is_best` flags on all members.
 4. Move all non-best scenes to trash via `sceneRepo.MoveToTrash()`.
 5. Set group status to `"resolved"` with a `resolved_at` timestamp.
+
+Every metadata, best-member, and trash operation must succeed before resolution is reported. A failure returns an error without marking the group resolved, so the operation can be retried. Earlier successful operations may already have been applied; metadata merging and trash updates support retry.
+
+Permanent single-scene deletion, bulk deletion, and emptying trash remove fingerprints through the injected fingerprint index before deleting the scene record. If fingerprint cleanup fails, the scene is retained for retry and an error is reported. Moving a scene to trash preserves its fingerprints.
 
 ---
 

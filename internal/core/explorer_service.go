@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,17 +15,18 @@ import (
 
 // ExplorerService provides folder-based scene browsing and bulk editing
 type ExplorerService struct {
-	explorerRepo    data.ExplorerRepository
-	storagePathRepo data.StoragePathRepository
-	sceneRepo       data.SceneRepository
-	tagRepo         data.TagRepository
-	actorRepo       data.ActorRepository
-	jobHistoryRepo  data.JobHistoryRepository
-	eventBus        *EventBus
-	logger          *zap.Logger
-	indexer         SceneIndexer
-	metadataPath    string
-	searchService   *SearchService
+	explorerRepo     data.ExplorerRepository
+	storagePathRepo  data.StoragePathRepository
+	sceneRepo        data.SceneRepository
+	tagRepo          data.TagRepository
+	actorRepo        data.ActorRepository
+	jobHistoryRepo   data.JobHistoryRepository
+	eventBus         *EventBus
+	logger           *zap.Logger
+	indexer          SceneIndexer
+	metadataPath     string
+	searchService    *SearchService
+	fingerprintIndex SceneFingerprintIndex
 }
 
 // NewExplorerService creates a new ExplorerService
@@ -38,17 +40,19 @@ func NewExplorerService(
 	eventBus *EventBus,
 	logger *zap.Logger,
 	metadataPath string,
+	fingerprintIndex SceneFingerprintIndex,
 ) *ExplorerService {
 	return &ExplorerService{
-		explorerRepo:    explorerRepo,
-		storagePathRepo: storagePathRepo,
-		sceneRepo:       sceneRepo,
-		tagRepo:         tagRepo,
-		actorRepo:       actorRepo,
-		jobHistoryRepo:  jobHistoryRepo,
-		eventBus:        eventBus,
-		logger:          logger,
-		metadataPath:    metadataPath,
+		explorerRepo:     explorerRepo,
+		storagePathRepo:  storagePathRepo,
+		sceneRepo:        sceneRepo,
+		tagRepo:          tagRepo,
+		actorRepo:        actorRepo,
+		jobHistoryRepo:   jobHistoryRepo,
+		eventBus:         eventBus,
+		logger:           logger,
+		metadataPath:     metadataPath,
+		fingerprintIndex: fingerprintIndex,
 	}
 }
 
@@ -381,7 +385,6 @@ func (s *ExplorerService) BulkUpdateActors(req BulkUpdateActorsRequest) (int, er
 	return len(req.SceneIDs), nil
 }
 
-
 // BulkUpdateStudioRequest represents a request to bulk update studio
 type BulkUpdateStudioRequest struct {
 	SceneIDs []uint `json:"scene_ids"`
@@ -451,6 +454,7 @@ func (s *ExplorerService) BulkDeleteScenes(sceneIDs []uint, permanent bool) (int
 	}
 
 	deleted := 0
+	var deleteErr error
 	deletedIDs := make([]uint, 0, len(scenes))
 	for _, scene := range scenes {
 		// Cancel pending jobs for this scene
@@ -464,6 +468,12 @@ func (s *ExplorerService) BulkDeleteScenes(sceneIDs []uint, permanent bool) (int
 		}
 
 		if permanent {
+			if s.fingerprintIndex != nil {
+				if err := s.fingerprintIndex.RemoveSceneFromIndex(scene.ID); err != nil {
+					deleteErr = errors.Join(deleteErr, fmt.Errorf("failed to remove fingerprints for scene %d: %w", scene.ID, err))
+					continue
+				}
+			}
 			// Hard delete: remove from DB and delete files
 			if _, err := s.sceneRepo.HardDelete(scene.ID); err != nil {
 				s.logger.Warn("Failed to hard delete scene",
@@ -520,6 +530,9 @@ func (s *ExplorerService) BulkDeleteScenes(sceneIDs []uint, permanent bool) (int
 		zap.Int("requested", len(sceneIDs)),
 	)
 
+	if deleteErr != nil {
+		return deleted, apperrors.NewInternalError("failed to delete some scenes", deleteErr)
+	}
 	return deleted, nil
 }
 
