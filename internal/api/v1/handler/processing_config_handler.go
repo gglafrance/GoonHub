@@ -47,27 +47,8 @@ func (h *ProcessingConfigHandler) UpdateProcessingConfig(c *gin.Context) {
 		return
 	}
 
-	// Propagate scene preview config to marker service
-	h.markerService.SetScenePreviewEnabled(req.ScenePreviewEnabled)
-	if req.ScenePreviewSegments > 0 {
-		h.markerService.SetScenePreviewSegments(req.ScenePreviewSegments)
-	}
-	if req.ScenePreviewSegmentDuration > 0 {
-		h.markerService.SetScenePreviewSegmentDuration(req.ScenePreviewSegmentDuration)
-	}
-	// Also propagate marker thumbnail settings
-	if req.MarkerThumbnailType != "" {
-		h.markerService.SetMarkerThumbnailType(req.MarkerThumbnailType)
-	}
-	if req.MarkerAnimatedDuration > 0 {
-		h.markerService.SetMarkerAnimatedDuration(req.MarkerAnimatedDuration)
-	}
-	if req.MarkerPreviewCRF > 0 {
-		h.markerService.SetMarkerPreviewCRF(req.MarkerPreviewCRF)
-	}
-	if req.ScenePreviewCRF > 0 {
-		h.markerService.SetScenePreviewCRF(req.ScenePreviewCRF)
-	}
+	// Propagate scene preview and marker thumbnail config to marker service
+	h.markerService.ApplyQualityConfig(req)
 
 	record := &data.ProcessingConfigRecord{
 		MaxFrameDimensionSm:         req.MaxFrameDimensionSm,

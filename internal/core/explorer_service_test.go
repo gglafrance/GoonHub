@@ -38,7 +38,8 @@ func newTestExplorerService(t *testing.T) (
 		jobHistoryRepo,
 		nil, // EventBus
 		zap.NewNop(),
-		"", // metadataPath
+		"",  // metadataPath
+		nil, // fingerprintIndex
 	)
 	return svc, explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, jobHistoryRepo
 }

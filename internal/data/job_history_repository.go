@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 type JobHistoryRepository interface {
@@ -38,6 +39,9 @@ type JobHistoryRepository interface {
 	CancelPendingJobsForScene(sceneID uint) (int64, error)
 	CancelPendingJob(jobID string) error
 
+	// Job execution tracking
+	UpdateStartedAt(jobID string, startedAt time.Time) error
+
 	// Monitoring methods
 	CountRecentFailedByPhase(since time.Duration) (map[string]int, error)
 
@@ -69,6 +73,10 @@ func (r *JobHistoryRepositoryImpl) UpdateStatus(jobID string, status string, err
 		updates["completed_at"] = *completedAt
 	}
 	return r.DB.Model(&JobHistory{}).Where("job_id = ?", jobID).Updates(updates).Error
+}
+
+func (r *JobHistoryRepositoryImpl) UpdateStartedAt(jobID string, startedAt time.Time) error {
+	return r.DB.Model(&JobHistory{}).Where("job_id = ?", jobID).Update("started_at", startedAt).Error
 }
 
 func (r *JobHistoryRepositoryImpl) ListAll(page, limit int, status string) ([]JobHistory, int64, error) {
@@ -200,7 +208,8 @@ func (r *JobHistoryRepositoryImpl) CreateBatch(records []*JobHistory) error {
 func (r *JobHistoryRepositoryImpl) ClaimPendingJobs(phase string, limit int) ([]JobHistory, error) {
 	var jobs []JobHistory
 
-	err := r.DB.Transaction(func(tx *gorm.DB) error {
+	silentDB := r.DB.Session(&gorm.Session{Logger: gormlogger.Default.LogMode(gormlogger.Silent)})
+	err := silentDB.Transaction(func(tx *gorm.DB) error {
 		// Select pending jobs with lock, skipping already locked rows
 		if err := tx.Raw(`
 			SELECT * FROM job_history

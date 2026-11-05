@@ -409,6 +409,20 @@ func (mr *MockJobHistoryRepositoryMockRecorder) UpdateRetryInfo(jobID, retryCoun
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRetryInfo", reflect.TypeOf((*MockJobHistoryRepository)(nil).UpdateRetryInfo), jobID, retryCount, maxRetries, nextRetryAt)
 }
 
+// UpdateStartedAt mocks base method.
+func (m *MockJobHistoryRepository) UpdateStartedAt(jobID string, startedAt time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateStartedAt", jobID, startedAt)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateStartedAt indicates an expected call of UpdateStartedAt.
+func (mr *MockJobHistoryRepositoryMockRecorder) UpdateStartedAt(jobID, startedAt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStartedAt", reflect.TypeOf((*MockJobHistoryRepository)(nil).UpdateStartedAt), jobID, startedAt)
+}
+
 // UpdateStatus mocks base method.
 func (m *MockJobHistoryRepository) UpdateStatus(jobID, status string, errorMessage *string, completedAt *time.Time) error {
 	m.ctrl.T.Helper()

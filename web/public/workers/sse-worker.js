@@ -93,9 +93,8 @@ function handleMessage(e) {
     var type = e.data.type;
 
     switch (type) {
-        case 'tab-join':
-            tabCount++;
-            break;
+        // 'tab-join' is ignored: tabs are counted in onconnect. Tabs only send it on
+        // 'worker-ready', which a tab joining an already running worker never sees.
         case 'tab-leave':
             tabCount = Math.max(0, tabCount - 1);
             if (tabCount === 0) {
@@ -120,9 +119,14 @@ try {
     /* BroadcastChannel not available */
 }
 
+// Every `new SharedWorker()` in a tab fires connect exactly once, so count tabs here.
+// Counting only on 'tab-join' undercounted: when the one counted tab closed, the stream
+// was closed under the other tabs and their job status stopped updating.
 self.onconnect = function (e) {
     var port = e.ports[0];
     if (port) {
         port.start();
     }
+    tabCount++;
+    connectSSE();
 };

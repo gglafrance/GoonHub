@@ -2,6 +2,7 @@
 const authStore = useAuthStore();
 const showShortcuts = ref(false);
 const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
+const { enabled: hoverAudioEnabled, toggle: toggleHoverAudio } = useHoverAudio();
 </script>
 
 <template>
@@ -73,6 +74,31 @@ const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
                         >
                             <Icon
                                 :name="safeModeEnabled ? 'heroicons:eye-slash' : 'heroicons:eye'"
+                                size="16"
+                            />
+                        </button>
+
+                        <button
+                            class="border-border flex h-7 w-7 items-center justify-center rounded-md
+                                border transition-all"
+                            :class="
+                                hoverAudioEnabled
+                                    ? 'border-lava/30 text-lava'
+                                    : 'text-dim hover:border-lava/30 hover:text-lava'
+                            "
+                            :title="
+                                hoverAudioEnabled
+                                    ? 'Mute preview sound on hover'
+                                    : 'Play preview sound on hover'
+                            "
+                            @click="toggleHoverAudio"
+                        >
+                            <Icon
+                                :name="
+                                    hoverAudioEnabled
+                                        ? 'heroicons:speaker-wave'
+                                        : 'heroicons:speaker-x-mark'
+                                "
                                 size="16"
                             />
                         </button>
@@ -208,6 +234,23 @@ const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
                     >
                         <Icon name="heroicons:bookmark" size="18" class="sm:!h-3.5 sm:!w-3.5" />
                         <span class="hidden sm:inline">Markers</span>
+                    </NuxtLink>
+
+                    <NuxtLink
+                        v-if="authStore.user?.role === 'admin'"
+                        to="/duplicates"
+                        class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
+                            text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
+                            sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
+                        active-class="!text-lava bg-lava/10"
+                        title="Duplicates"
+                    >
+                        <Icon
+                            name="heroicons:document-duplicate"
+                            size="18"
+                            class="sm:!h-3.5 sm:!w-3.5"
+                        />
+                        <span class="hidden sm:inline">Duplicates</span>
                     </NuxtLink>
                 </div>
             </div>

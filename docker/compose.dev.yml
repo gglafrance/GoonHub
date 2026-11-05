@@ -1,0 +1,40 @@
+# Dependencies for local Air/Nuxt development. Host ports are assigned by Docker.
+services:
+  postgres:
+    image: postgres:18.1-alpine3.23
+    environment:
+      POSTGRES_USER: goonhub
+      POSTGRES_PASSWORD: goonhub_dev_password
+      POSTGRES_DB: goonhub
+    ports:
+      - "127.0.0.1:${GOONHUB_DEV_DATABASE_PORT:-0}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goonhub -d goonhub"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.33.1
+    environment:
+      MEILI_ENV: development
+      MEILI_MASTER_KEY: goonhub_dev_master_key
+      MEILI_NO_ANALYTICS: true
+    ports:
+      - "127.0.0.1:${GOONHUB_DEV_MEILISEARCH_PORT:-0}:7700"
+    volumes:
+      - meilidata:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+  meilidata:

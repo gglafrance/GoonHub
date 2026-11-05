@@ -16,10 +16,12 @@ watch(
 );
 
 const { init: initSafeMode } = useSafeMode();
+const { init: initHoverAudio } = useHoverAudio();
 
 onMounted(() => {
     startAuthValidation();
     initSafeMode();
+    initHoverAudio();
 });
 
 onBeforeUnmount(() => {

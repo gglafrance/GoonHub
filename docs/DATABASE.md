@@ -721,8 +721,8 @@ Failed jobs that exceeded retry limits for manual review.
 |--------|------|----------|---------|-------------|
 | `id` | BIGSERIAL | NO | auto | Primary key |
 | `job_id` | VARCHAR(36) | NO | - | Original job UUID |
-| `video_id` | BIGINT | NO | - | Scene ID (legacy name) |
-| `video_title` | VARCHAR(255) | NO | '' | Scene title (legacy name) |
+| `scene_id` | BIGINT | NO | - | Scene ID |
+| `scene_title` | VARCHAR(255) | NO | '' | Scene title |
 | `phase` | VARCHAR(20) | NO | - | Processing phase |
 | `original_error` | TEXT | NO | - | First failure error message |
 | `failure_count` | INTEGER | NO | 1 | Total failure count |
@@ -737,7 +737,7 @@ Failed jobs that exceeded retry limits for manual review.
 **Indexes:**
 - UNIQUE on `job_id`
 - `idx_dlq_status` on `status`
-- `idx_dlq_video_id` on `video_id`
+- `idx_dlq_scene_id` on `scene_id`
 
 ---
 
@@ -1017,7 +1017,7 @@ Job System:
 |   job_history    |   | dead_letter_queue|   |   retry_config   |
 +------------------+   +------------------+   +------------------+
 | scene_id (FK)    |   | job_id           |   | phase            |
-| phase            |   | video_id         |   | max_retries      |
+| phase            |   | scene_id         |   | max_retries      |
 | status           |   | phase            |   | backoff_factor   |
 | priority         |   | status           |   +------------------+
 +------------------+   +------------------+

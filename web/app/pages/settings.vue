@@ -23,6 +23,7 @@ type TabType =
     | 'users'
     | 'jobs'
     | 'storage'
+    | 'duplicates'
     | 'trash';
 
 interface SubTabConfig {
@@ -74,6 +75,7 @@ const tabConfig: TabConfig[] = [
         ],
     },
     { id: 'storage', label: 'Storage', icon: 'heroicons:folder', admin: true },
+    { id: 'duplicates', label: 'Duplicates', icon: 'heroicons:document-duplicate', admin: true },
     { id: 'trash', label: 'Trash', icon: 'heroicons:trash', admin: true },
 ];
 
@@ -193,9 +195,7 @@ function isSubTabActive(subTabId: string) {
     return activeSubTab.value === subTabId;
 }
 
-onMounted(() => {
-    settingsStore.loadSettings();
-
+function applyTabFromUrl() {
     const tabFromUrl = route.query.tab as string;
     const subTabFromUrl = route.query.subtab as string;
 
@@ -220,9 +220,23 @@ onMounted(() => {
             }
         }
     }
+}
 
+onMounted(() => {
+    settingsStore.loadSettings();
+    applyTabFromUrl();
     updateUrl();
 });
+
+// Links into settings (e.g. the header job popup) only change the query when the page is
+// already open, so follow tab/subtab changes too; updateUrl's own replace is a no-op here
+watch(
+    () => [route.query.tab, route.query.subtab],
+    ([tab, subtab]) => {
+        if (tab === activeTab.value && (!subtab || subtab === activeSubTab.value)) return;
+        applyTabFromUrl();
+    },
+);
 
 definePageMeta({
     middleware: ['auth'],
@@ -559,6 +573,7 @@ definePageMeta({
                 <SettingsUsers v-if="activeTab === 'users'" />
                 <SettingsJobs v-if="activeTab === 'jobs'" :active-sub-tab="activeSubTab" />
                 <SettingsStorage v-if="activeTab === 'storage'" />
+                <SettingsDuplicates v-if="activeTab === 'duplicates'" />
                 <SettingsTrash v-if="activeTab === 'trash'" />
             </div>
         </main>

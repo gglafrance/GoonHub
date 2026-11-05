@@ -5,13 +5,14 @@ defineProps<{
         thumbnail_workers: number;
         sprites_workers: number;
         animated_thumbnails_workers: number;
+        fingerprint_workers: number;
     };
 }>();
 
 const jobStatusStore = useJobStatusStore();
 const { phaseLabel, phaseIcon } = useJobFormatting();
 
-const phases = ['metadata', 'thumbnail', 'sprites', 'animated_thumbnails'] as const;
+const phases = ['metadata', 'thumbnail', 'sprites', 'animated_thumbnails', 'fingerprint'] as const;
 
 function phaseWaiting(phase: string): number {
     const p = jobStatusStore.byPhase[phase];
@@ -36,7 +37,7 @@ function phaseWaiting(phase: string): number {
             </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <div
                 v-for="phase in phases"
                 :key="phase"

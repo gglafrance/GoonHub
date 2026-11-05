@@ -21,6 +21,11 @@ import (
 	"gorm.io/gorm"
 )
 
+// SceneFingerprintIndex removes fingerprints before a scene is permanently deleted.
+type SceneFingerprintIndex interface {
+	RemoveSceneFromIndex(sceneID uint) error
+}
+
 type SceneService struct {
 	Repo              data.SceneRepository
 	ScenePath         string
@@ -32,6 +37,7 @@ type SceneService struct {
 	jobHistoryRepo    data.JobHistoryRepository
 	dlqRepo           data.DLQRepository
 	appSettingsRepo   data.AppSettingsRepository
+	fingerprintIndex  SceneFingerprintIndex
 }
 
 func NewSceneService(
@@ -44,6 +50,7 @@ func NewSceneService(
 	jobHistoryRepo data.JobHistoryRepository,
 	dlqRepo data.DLQRepository,
 	appSettingsRepo data.AppSettingsRepository,
+	fingerprintIndex SceneFingerprintIndex,
 ) *SceneService {
 	// Ensure scene directory exists
 	if err := os.MkdirAll(scenePath, 0755); err != nil {
@@ -69,6 +76,7 @@ func NewSceneService(
 		jobHistoryRepo:    jobHistoryRepo,
 		dlqRepo:           dlqRepo,
 		appSettingsRepo:   appSettingsRepo,
+		fingerprintIndex:  fingerprintIndex,
 	}
 }
 
@@ -475,8 +483,8 @@ func (s *SceneService) processAndSaveThumbnail(sceneID uint, scene *data.Scene, 
 // MoveSceneToTrash moves a scene to trash (soft delete with retention).
 // Returns the expiry date based on retention settings.
 func (s *SceneService) MoveSceneToTrash(id uint) (*time.Time, error) {
-	// Verify scene exists (and is not already trashed)
-	scene, err := s.Repo.GetByID(id)
+	// Include trashed scenes so retries can finish the job and index cleanup.
+	scene, err := s.Repo.GetByIDIncludingTrashed(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, apperrors.ErrSceneNotFound(id)
@@ -500,10 +508,13 @@ func (s *SceneService) MoveSceneToTrash(id uint) (*time.Time, error) {
 		}
 	}
 
-	// Move to trash
-	trashedAt, err := s.Repo.MoveToTrash(id)
-	if err != nil {
-		return nil, apperrors.NewInternalError("failed to move scene to trash", err)
+	// Preserve the original retention deadline when retrying an already trashed scene.
+	trashedAt := scene.TrashedAt
+	if trashedAt == nil {
+		trashedAt, err = s.Repo.MoveToTrash(id)
+		if err != nil {
+			return nil, apperrors.NewInternalError("failed to move scene to trash", err)
+		}
 	}
 
 	// Remove from search index
@@ -608,6 +619,13 @@ func (s *SceneService) HardDeleteScene(id uint) error {
 		}
 	}
 
+	// Keep the scene available for retry if fingerprint cleanup fails.
+	if s.fingerprintIndex != nil {
+		if err := s.fingerprintIndex.RemoveSceneFromIndex(id); err != nil {
+			return apperrors.NewInternalError("failed to remove scene fingerprints", err)
+		}
+	}
+
 	// Hard delete from DB
 	deletedScene, err := s.Repo.HardDelete(id)
 	if err != nil {
@@ -704,8 +722,10 @@ func (s *SceneService) EmptyTrash() (int, error) {
 	}
 
 	deleted := 0
+	var deleteErr error
 	for _, scene := range scenes {
 		if err := s.HardDeleteScene(scene.ID); err != nil {
+			deleteErr = errors.Join(deleteErr, fmt.Errorf("failed to delete scene %d: %w", scene.ID, err))
 			s.logger.Warn("Failed to hard delete scene during empty trash",
 				zap.Uint("scene_id", scene.ID),
 				zap.Error(err),
@@ -715,7 +735,7 @@ func (s *SceneService) EmptyTrash() (int, error) {
 		deleted++
 	}
 
-	return deleted, nil
+	return deleted, deleteErr
 }
 
 // GetTrashRetentionDays returns the current trash retention setting.

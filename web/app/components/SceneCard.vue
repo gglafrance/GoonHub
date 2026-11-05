@@ -44,6 +44,24 @@ const handleCardClick = (event: MouseEvent) => {
 
 const hovering = ref(false);
 
+const { enabled: hoverAudio } = useHoverAudio();
+const HOVER_AUDIO_VOLUME = 0.6;
+
+const previewVideo = ref<HTMLVideoElement | null>(null);
+
+// The preview <video> mounts on hover. Browsers block sound until the page has had a
+// click, so a rejected unmuted play() falls back to playing muted.
+watch(previewVideo, (el) => {
+    if (!el) return;
+    el.muted = !hoverAudio.value;
+    el.volume = HOVER_AUDIO_VOLUME;
+    el.play().catch(() => {
+        if (el.muted || !el.isConnected) return;
+        el.muted = true;
+        el.play().catch(() => {});
+    });
+});
+
 const isProcessing = computed(() => isSceneProcessing(props.scene));
 const isCorrupted = computed(() => isSceneCorrupted(props.scene));
 
@@ -124,10 +142,9 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                 <!-- Preview video on hover -->
                 <video
                     v-if="hovering && previewUrl"
+                    ref="previewVideo"
                     :src="previewUrl"
-                    muted
                     loop
-                    autoplay
                     playsinline
                     preload="auto"
                     class="absolute inset-0 z-15 h-full w-full object-contain"

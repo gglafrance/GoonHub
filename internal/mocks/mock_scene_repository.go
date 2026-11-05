@@ -217,6 +217,21 @@ func (mr *MockSceneRepositoryMockRecorder) GetByIDs(ids any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByIDs", reflect.TypeOf((*MockSceneRepository)(nil).GetByIDs), ids)
 }
 
+// GetByIDsIncludingTrashed mocks base method.
+func (m *MockSceneRepository) GetByIDsIncludingTrashed(ids []uint) ([]data.Scene, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByIDsIncludingTrashed", ids)
+	ret0, _ := ret[0].([]data.Scene)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByIDsIncludingTrashed indicates an expected call of GetByIDsIncludingTrashed.
+func (mr *MockSceneRepositoryMockRecorder) GetByIDsIncludingTrashed(ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByIDsIncludingTrashed", reflect.TypeOf((*MockSceneRepository)(nil).GetByIDsIncludingTrashed), ids)
+}
+
 // GetBySizeAndFilename mocks base method.
 func (m *MockSceneRepository) GetBySizeAndFilename(size int64, filename string) (*data.Scene, error) {
 	m.ctrl.T.Helper()
@@ -365,6 +380,21 @@ func (m *MockSceneRepository) GetScenePathsForMissingDetection() ([]data.ScenePa
 func (mr *MockSceneRepositoryMockRecorder) GetScenePathsForMissingDetection() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetScenePathsForMissingDetection", reflect.TypeOf((*MockSceneRepository)(nil).GetScenePathsForMissingDetection))
+}
+
+// GetScenesNeedingFingerprint mocks base method.
+func (m *MockSceneRepository) GetScenesNeedingFingerprint(limit int) ([]data.Scene, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetScenesNeedingFingerprint", limit)
+	ret0, _ := ret[0].([]data.Scene)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetScenesNeedingFingerprint indicates an expected call of GetScenesNeedingFingerprint.
+func (mr *MockSceneRepositoryMockRecorder) GetScenesNeedingFingerprint(limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetScenesNeedingFingerprint", reflect.TypeOf((*MockSceneRepository)(nil).GetScenesNeedingFingerprint), limit)
 }
 
 // GetScenesNeedingPhase mocks base method.
@@ -541,6 +571,20 @@ func (m *MockSceneRepository) UpdateDetails(id uint, title, description string, 
 func (mr *MockSceneRepositoryMockRecorder) UpdateDetails(id, title, description, releaseDate any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDetails", reflect.TypeOf((*MockSceneRepository)(nil).UpdateDetails), id, title, description, releaseDate)
+}
+
+// UpdateFingerprint mocks base method.
+func (m *MockSceneRepository) UpdateFingerprint(id uint, fpType string, audioFP, visualFP []byte) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateFingerprint", id, fpType, audioFP, visualFP)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateFingerprint indicates an expected call of UpdateFingerprint.
+func (mr *MockSceneRepositoryMockRecorder) UpdateFingerprint(id, fpType, audioFP, visualFP any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateFingerprint", reflect.TypeOf((*MockSceneRepository)(nil).UpdateFingerprint), id, fpType, audioFP, visualFP)
 }
 
 // UpdateIsCorrupted mocks base method.

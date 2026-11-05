@@ -90,6 +90,7 @@ func (s *JobStatusService) GetJobStatus() *JobStatus {
 	thumbnailRunning := queueStatus.ThumbnailActive
 	spritesRunning := queueStatus.SpritesActive
 	animatedThumbnailsRunning := queueStatus.AnimatedThumbnailsActive
+	fingerprintRunning := queueStatus.FingerprintActive
 
 	// Build phase status map with pending and failed counts
 	byPhase := map[string]PhaseStatus{
@@ -117,13 +118,19 @@ func (s *JobStatusService) GetJobStatus() *JobStatus {
 			Pending: pendingByPhase["animated_thumbnails"],
 			Failed:  failedByPhase["animated_thumbnails"],
 		},
+		"fingerprint": {
+			Running: fingerprintRunning,
+			Queued:  queueStatus.FingerprintQueued,
+			Pending: pendingByPhase["fingerprint"],
+			Failed:  failedByPhase["fingerprint"],
+		},
 	}
 
 	// Calculate totals
-	totalRunning := metadataRunning + thumbnailRunning + spritesRunning + animatedThumbnailsRunning
-	totalQueued := queueStatus.MetadataQueued + queueStatus.ThumbnailQueued + queueStatus.SpritesQueued + queueStatus.AnimatedThumbnailsQueued
-	totalPending := pendingByPhase["metadata"] + pendingByPhase["thumbnail"] + pendingByPhase["sprites"] + pendingByPhase["animated_thumbnails"]
-	totalFailed := failedByPhase["metadata"] + failedByPhase["thumbnail"] + failedByPhase["sprites"] + failedByPhase["animated_thumbnails"]
+	totalRunning := metadataRunning + thumbnailRunning + spritesRunning + animatedThumbnailsRunning + fingerprintRunning
+	totalQueued := queueStatus.MetadataQueued + queueStatus.ThumbnailQueued + queueStatus.SpritesQueued + queueStatus.AnimatedThumbnailsQueued + queueStatus.FingerprintQueued
+	totalPending := pendingByPhase["metadata"] + pendingByPhase["thumbnail"] + pendingByPhase["sprites"] + pendingByPhase["animated_thumbnails"] + pendingByPhase["fingerprint"]
+	totalFailed := failedByPhase["metadata"] + failedByPhase["thumbnail"] + failedByPhase["sprites"] + failedByPhase["animated_thumbnails"] + failedByPhase["fingerprint"]
 
 	// Filter active jobs to only those actually in the worker pool.
 	// The DB marks jobs as 'running' when claimed by the feeder, but the job may
@@ -131,7 +138,7 @@ func (s *JobStatusService) GetJobStatus() *JobStatus {
 	// in the channel buffer. The pool registry is the source of truth.
 	var verifiedJobs []ActiveJob
 	for _, job := range activeJobs {
-		if _, inPool := s.processingService.GetJob(job.JobID); inPool {
+		if _, inPool := s.processingService.GetExecutingJob(job.JobID); inPool {
 			verifiedJobs = append(verifiedJobs, ActiveJob{
 				JobID:      job.JobID,
 				SceneID:    job.SceneID,
