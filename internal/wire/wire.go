@@ -486,7 +486,11 @@ func provideRelatedScenesService(
 // --- Processing & Job Services ---
 
 func provideSceneProcessingService(repo data.SceneRepository, markerService *core.MarkerService, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository) *core.SceneProcessingService {
-	return core.NewSceneProcessingService(repo, markerService, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo, triggerConfigRepo, &cfg.Duplication)
+	svc := core.NewSceneProcessingService(repo, markerService, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo, triggerConfigRepo, &cfg.Duplication)
+	// The pool manager has merged the DB-persisted config over the file config; hand the
+	// preview settings to the marker service too, or a restart reverts them to the file defaults
+	markerService.ApplyQualityConfig(svc.GetProcessingQualityConfig())
+	return svc
 }
 
 func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config, logger *logging.Logger) *core.JobHistoryService {

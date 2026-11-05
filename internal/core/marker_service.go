@@ -881,6 +881,31 @@ func (s *MarkerService) SetScenePreviewCRF(crf int) {
 	s.scenePreviewCRF = crf
 }
 
+// ApplyQualityConfig copies the marker thumbnail and scene preview settings from the
+// processing quality config. It runs at startup, so settings saved to the DB survive a
+// restart, and again whenever the config is updated. Zero values leave the current setting.
+func (s *MarkerService) ApplyQualityConfig(cfg ProcessingQualityConfig) {
+	s.SetScenePreviewEnabled(cfg.ScenePreviewEnabled)
+	if cfg.ScenePreviewSegments > 0 {
+		s.SetScenePreviewSegments(cfg.ScenePreviewSegments)
+	}
+	if cfg.ScenePreviewSegmentDuration > 0 {
+		s.SetScenePreviewSegmentDuration(cfg.ScenePreviewSegmentDuration)
+	}
+	if cfg.MarkerThumbnailType != "" {
+		s.SetMarkerThumbnailType(cfg.MarkerThumbnailType)
+	}
+	if cfg.MarkerAnimatedDuration > 0 {
+		s.SetMarkerAnimatedDuration(cfg.MarkerAnimatedDuration)
+	}
+	if cfg.MarkerPreviewCRF > 0 {
+		s.SetMarkerPreviewCRF(cfg.MarkerPreviewCRF)
+	}
+	if cfg.ScenePreviewCRF > 0 {
+		s.SetScenePreviewCRF(cfg.ScenePreviewCRF)
+	}
+}
+
 // GetScenePreviewEnabled returns whether scene preview generation is enabled
 func (s *MarkerService) GetScenePreviewEnabled() bool {
 	return s.scenePreviewEnabled
