@@ -92,6 +92,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideDuplicateGroupRepository,
 		provideDuplicationConfigRepository,
 
+		// Import Repository
+		provideImportRepository,
+
 		// ============================================================
 		// EXTERNAL SERVICES
 		// ============================================================
@@ -160,6 +163,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideMatchingService,
 		provideSceneFingerprintIndex,
 		provideDuplicateService,
+
+		// Import Service
+		provideImportService,
 
 		// Streaming Manager
 		provideStreamManager,
@@ -589,6 +595,10 @@ func provideDuplicateGroupRepository(db *gorm.DB) data.DuplicateGroupRepository 
 	return data.NewDuplicateGroupRepository(db)
 }
 
+func provideImportRepository(db *gorm.DB) data.ImportRepository {
+	return data.NewImportRepository(db)
+}
+
 func provideDuplicationConfigRepository(db *gorm.DB) data.DuplicationConfigRepository {
 	return data.NewDuplicationConfigRepository(db)
 }
@@ -765,8 +775,23 @@ func providePlaylistHandler(service *core.PlaylistService, cfg *config.Config) *
 	return handler.NewPlaylistHandler(service, cfg.Pagination.MaxItemsPerPage)
 }
 
-func provideImportHandler(sceneRepo data.SceneRepository, markerRepo data.MarkerRepository, logger *logging.Logger) *handler.ImportHandler {
-	return handler.NewImportHandler(sceneRepo, markerRepo, logger.Logger)
+func provideImportService(
+	importRepo data.ImportRepository,
+	sceneRepo data.SceneRepository,
+	tagRepo data.TagRepository,
+	actorRepo data.ActorRepository,
+	studioRepo data.StudioRepository,
+	storagePathRepo data.StoragePathRepository,
+	userRepo data.UserRepository,
+	interactionRepo data.InteractionRepository,
+	searchService *core.SearchService,
+	logger *logging.Logger,
+) *core.ImportService {
+	return core.NewImportService(importRepo, sceneRepo, tagRepo, actorRepo, studioRepo, storagePathRepo, userRepo, interactionRepo, searchService, logger.Logger)
+}
+
+func provideImportHandler(service *core.ImportService, logger *logging.Logger) *handler.ImportHandler {
+	return handler.NewImportHandler(service, logger.Logger)
 }
 
 func provideStreamStatsHandler(streamManager *streaming.Manager) *handler.StreamStatsHandler {
