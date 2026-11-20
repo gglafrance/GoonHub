@@ -398,6 +398,21 @@ func (s *HomepageService) fetchSavedSearchSection(userID uint, section data.Home
 	if savedSearch.Filters.MaxDuration != nil {
 		params.MaxDuration = *savedSearch.Filters.MaxDuration
 	}
+	if savedSearch.Filters.MinSize != nil {
+		params.MinSizeMB = *savedSearch.Filters.MinSize
+	}
+	if savedSearch.Filters.MaxSize != nil {
+		params.MaxSizeMB = *savedSearch.Filters.MaxSize
+	}
+	params.HasActors = savedSearch.Filters.HasActors
+	params.HasTags = savedSearch.Filters.HasTags
+	params.HasStudio = savedSearch.Filters.HasStudio
+	params.Watched = savedSearch.Filters.Watched
+	params.Rated = savedSearch.Filters.Rated
+	params.HasMarkers = savedSearch.Filters.HasMarkers
+	if len(savedSearch.Filters.MarkerLabels) > 0 {
+		params.MarkerLabels = savedSearch.Filters.MarkerLabels
+	}
 
 	if savedSearch.Filters.Liked != nil {
 		params.Liked = savedSearch.Filters.Liked

@@ -46,6 +46,31 @@ func TestClient_buildFilters(t *testing.T) {
 			expectContains: []string{"duration >= 60.000000", "duration <= 3600.000000"},
 		},
 		{
+			name: "metadata presence",
+			params: SearchParams{
+				HasActors: boolPtr(false),
+				HasTags:   boolPtr(true),
+				HasStudio: boolPtr(false),
+			},
+			expectedLen:    3,
+			expectContains: []string{"actors IS EMPTY", "tag_ids IS NOT EMPTY", "studio IS EMPTY"},
+		},
+		{
+			name:           "excluded scenes",
+			params:         SearchParams{ExcludeSceneIDs: []uint{4, 8}},
+			expectedLen:    1,
+			expectContains: []string{"id NOT IN [4, 8]"},
+		},
+		{
+			name: "size range",
+			params: SearchParams{
+				MinSize: int64Ptr(500 * 1024 * 1024),
+				MaxSize: int64Ptr(2 * 1024 * 1024 * 1024),
+			},
+			expectedLen:    2,
+			expectContains: []string{"size >= 524288000", "size <= 2147483648"},
+		},
+		{
 			name: "height range",
 			params: SearchParams{
 				MinHeight: intPtr(720),
@@ -179,3 +204,29 @@ func floatPtr(f float64) *float64 {
 func intPtr(i int) *int {
 	return &i
 }
+
+func int64Ptr(v int64) *int64 { return &v }
+
+func TestBuildSort_Fields(t *testing.T) {
+	client := &Client{}
+	tests := []struct {
+		sort, dir string
+		want      string
+	}{
+		{"size", "desc", "size:desc"},
+		{"size", "asc", "size:asc"},
+		{"duration", "asc", "duration:asc"},
+		{"created_at", "", "created_at:desc"},
+	}
+	for _, tt := range tests {
+		got := client.buildSort(SearchParams{Sort: tt.sort, SortDir: tt.dir})
+		if len(got) == 0 || got[0] != tt.want {
+			t.Fatalf("buildSort(%s, %s) = %v, want %s", tt.sort, tt.dir, got, tt.want)
+		}
+	}
+	if got := client.buildSort(SearchParams{Sort: "relevance"}); got != nil {
+		t.Fatalf("relevance must not sort, got %v", got)
+	}
+}
+
+func boolPtr(v bool) *bool { return &v }

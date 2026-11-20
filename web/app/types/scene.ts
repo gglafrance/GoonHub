@@ -73,6 +73,16 @@ export interface SceneSearchParams {
     studio?: string;
     min_duration?: number;
     max_duration?: number;
+    // File size bounds in megabytes
+    min_size?: number;
+    max_size?: number;
+    // Library status filters (absent = any)
+    watched?: boolean;
+    rated?: boolean;
+    has_markers?: boolean;
+    has_actors?: boolean;
+    has_tags?: boolean;
+    has_studio?: boolean;
     min_date?: string;
     max_date?: string;
     resolution?: string;
