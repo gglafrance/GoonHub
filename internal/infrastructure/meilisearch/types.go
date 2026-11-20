@@ -12,6 +12,7 @@ type SceneDocument struct {
 	TagIDs           []uint   `json:"tag_ids"`
 	TagNames         []string `json:"tag_names"`
 	Duration         float64  `json:"duration"`
+	Size             int64    `json:"size"`
 	Height           int      `json:"height"`
 	CreatedAt        int64    `json:"created_at"`
 	ProcessingStatus string   `json:"processing_status"`
@@ -20,12 +21,20 @@ type SceneDocument struct {
 
 // SearchParams contains parameters for searching scenes.
 type SearchParams struct {
-	Query            string
-	TagIDs           []uint
-	Actors           []string
-	Studio           string
-	MinDuration      *float64
-	MaxDuration      *float64
+	Query       string
+	TagIDs      []uint
+	Actors      []string
+	Studio      string
+	MinDuration *float64
+	MaxDuration *float64
+	MinSize     *int64 // bytes
+	MaxSize     *int64 // bytes
+	// Metadata presence (nil = any)
+	HasActors *bool
+	HasTags   *bool
+	HasStudio *bool
+	// ExcludeSceneIDs removes scenes (negative user filters: unwatched, unrated...)
+	ExcludeSceneIDs  []uint
 	MinHeight        *int
 	MaxHeight        *int
 	DateAfter        *int64

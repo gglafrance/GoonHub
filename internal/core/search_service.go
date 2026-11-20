@@ -10,6 +10,9 @@ import (
 	"goonhub/internal/infrastructure/meilisearch"
 )
 
+// bytesPerMB converts the file size filters (megabytes) to bytes.
+const bytesPerMB = 1024 * 1024
+
 // SearchResult contains the result of a search query.
 type SearchResult struct {
 	Scenes []data.Scene
@@ -125,6 +128,13 @@ func (s *SearchService) Search(params data.SceneSearchParams) (*SearchResult, er
 	// Build Meilisearch search params
 	meiliParams := s.buildMeiliParams(params, preFilteredIDs)
 
+	// Negative user status filters (unwatched, unrated, without markers)
+	excludedIDs, err := s.getUserExcludedIDs(params)
+	if err != nil {
+		return nil, err
+	}
+	meiliParams.ExcludeSceneIDs = excludedIDs
+
 	if isRandomSort {
 		meiliParams.FetchAllIDs = true
 	}
@@ -223,7 +233,79 @@ func (s *SearchService) hasUserFilters(params data.SceneSearchParams) bool {
 	return (params.Liked != nil && *params.Liked) ||
 		params.MinRating > 0 || params.MaxRating > 0 ||
 		params.MinJizzCount > 0 || params.MaxJizzCount > 0 ||
-		len(params.MarkerLabels) > 0
+		len(params.MarkerLabels) > 0 ||
+		isTrue(params.Watched) || isTrue(params.Rated) || isTrue(params.HasMarkers)
+}
+
+func isTrue(b *bool) bool  { return b != nil && *b }
+func isFalse(b *bool) bool { return b != nil && !*b }
+
+// getUserStatusIncludes returns the scene ID sets required by the positive user status filters
+// (watched, rated, with markers).
+func (s *SearchService) getUserStatusIncludes(params data.SceneSearchParams) ([][]uint, error) {
+	var sets [][]uint
+	if isTrue(params.Watched) {
+		ids, err := s.interactionRepo.GetWatchedSceneIDs(params.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get watched scene IDs: %w", err)
+		}
+		sets = append(sets, ids)
+	}
+	if isTrue(params.Rated) {
+		ids, err := s.interactionRepo.GetRatedSceneIDs(params.UserID, 0, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get rated scene IDs: %w", err)
+		}
+		sets = append(sets, ids)
+	}
+	if isTrue(params.HasMarkers) {
+		ids, err := s.interactionRepo.GetMarkedSceneIDs(params.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get marked scene IDs: %w", err)
+		}
+		sets = append(sets, ids)
+	}
+	return sets, nil
+}
+
+// getUserExcludedIDs returns the scenes removed by the negative user status filters
+// (unwatched, unrated, without markers).
+func (s *SearchService) getUserExcludedIDs(params data.SceneSearchParams) ([]uint, error) {
+	if params.UserID == 0 {
+		return nil, nil
+	}
+	seen := make(map[uint]bool)
+	var excluded []uint
+	add := func(ids []uint) {
+		for _, id := range ids {
+			if !seen[id] {
+				seen[id] = true
+				excluded = append(excluded, id)
+			}
+		}
+	}
+	if isFalse(params.Watched) {
+		ids, err := s.interactionRepo.GetWatchedSceneIDs(params.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get watched scene IDs: %w", err)
+		}
+		add(ids)
+	}
+	if isFalse(params.Rated) {
+		ids, err := s.interactionRepo.GetRatedSceneIDs(params.UserID, 0, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get rated scene IDs: %w", err)
+		}
+		add(ids)
+	}
+	if isFalse(params.HasMarkers) {
+		ids, err := s.interactionRepo.GetMarkedSceneIDs(params.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get marked scene IDs: %w", err)
+		}
+		add(ids)
+	}
+	return excluded, nil
 }
 
 // getUserFilteredIDs queries PostgreSQL for scene IDs matching user-specific filters.
@@ -242,6 +324,11 @@ func (s *SearchService) getUserFilteredIDs(params data.SceneSearchParams) ([]uin
 	}
 	if len(params.MarkerLabels) > 0 {
 		filterCount++
+	}
+	for _, status := range []*bool{params.Watched, params.Rated, params.HasMarkers} {
+		if isTrue(status) {
+			filterCount++
+		}
 	}
 	needsIntersection := filterCount > 1
 
@@ -290,6 +377,22 @@ func (s *SearchService) getUserFilteredIDs(params data.SceneSearchParams) ([]uin
 		}
 	}
 
+	// Positive user status filters (watched, rated, with markers) are always intersected
+	statusSets, err := s.getUserStatusIncludes(params)
+	if err != nil {
+		return nil, err
+	}
+	if len(statusSets) > 0 {
+		needsIntersection = true
+	}
+	for _, ids := range statusSets {
+		if result == nil {
+			result = ids
+		} else {
+			result = intersect(result, ids)
+		}
+	}
+
 	// Get scene IDs with markers matching specified labels
 	if len(params.MarkerLabels) > 0 {
 		ids, err := s.markerRepo.GetSceneIDsByLabels(params.UserID, params.MarkerLabels)
@@ -329,6 +432,17 @@ func (s *SearchService) buildMeiliParams(params data.SceneSearchParams, preFilte
 		maxDur := float64(params.MaxDuration)
 		meiliParams.MaxDuration = &maxDur
 	}
+	meiliParams.HasActors = params.HasActors
+	meiliParams.HasTags = params.HasTags
+	meiliParams.HasStudio = params.HasStudio
+	if params.MinSizeMB > 0 {
+		minSize := int64(params.MinSizeMB) * bytesPerMB
+		meiliParams.MinSize = &minSize
+	}
+	if params.MaxSizeMB > 0 {
+		maxSize := int64(params.MaxSizeMB) * bytesPerMB
+		meiliParams.MaxSize = &maxSize
+	}
 	if params.MinHeight > 0 {
 		meiliParams.MinHeight = &params.MinHeight
 	}
@@ -361,6 +475,12 @@ func (s *SearchService) buildMeiliParams(params data.SceneSearchParams, preFilte
 		meiliParams.SortDir = "asc"
 	case "duration_desc":
 		meiliParams.Sort = "duration"
+		meiliParams.SortDir = "desc"
+	case "size_asc":
+		meiliParams.Sort = "size"
+		meiliParams.SortDir = "asc"
+	case "size_desc":
+		meiliParams.Sort = "size"
 		meiliParams.SortDir = "desc"
 	case "created_at_asc":
 		meiliParams.Sort = "created_at"
@@ -404,6 +524,7 @@ func buildSceneDocument(scene *data.Scene, tags []data.Tag, actors []data.Actor)
 		TagIDs:           tagIDs,
 		TagNames:         tagNames,
 		Duration:         float64(scene.Duration),
+		Size:             scene.Size,
 		Height:           scene.Height,
 		CreatedAt:        scene.CreatedAt.Unix(),
 		ProcessingStatus: scene.ProcessingStatus,

@@ -3,6 +3,7 @@ package meilisearch
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -85,6 +86,7 @@ func (c *Client) EnsureIndex() error {
 		"actors",
 		"tag_ids",
 		"duration",
+		"size",
 		"height",
 		"created_at",
 		"processing_status",
@@ -102,6 +104,7 @@ func (c *Client) EnsureIndex() error {
 		"created_at",
 		"title",
 		"duration",
+		"size",
 		"view_count",
 	})
 	if err != nil {
@@ -308,6 +311,42 @@ func (c *Client) buildFilters(params SearchParams) []string {
 		filters = append(filters, fmt.Sprintf("duration <= %f", *params.MaxDuration))
 	}
 
+	// Metadata presence
+	for _, presence := range []struct {
+		field string
+		value *bool
+	}{
+		{"actors", params.HasActors},
+		{"tag_ids", params.HasTags},
+		{"studio", params.HasStudio},
+	} {
+		if presence.value == nil {
+			continue
+		}
+		if *presence.value {
+			filters = append(filters, presence.field+" IS NOT EMPTY")
+		} else {
+			filters = append(filters, presence.field+" IS EMPTY")
+		}
+	}
+
+	// Excluded scenes
+	if len(params.ExcludeSceneIDs) > 0 {
+		ids := make([]string, len(params.ExcludeSceneIDs))
+		for i, id := range params.ExcludeSceneIDs {
+			ids[i] = strconv.FormatUint(uint64(id), 10)
+		}
+		filters = append(filters, "id NOT IN ["+strings.Join(ids, ", ")+"]")
+	}
+
+	// File size range (bytes)
+	if params.MinSize != nil {
+		filters = append(filters, fmt.Sprintf("size >= %d", *params.MinSize))
+	}
+	if params.MaxSize != nil {
+		filters = append(filters, fmt.Sprintf("size <= %d", *params.MaxSize))
+	}
+
 	// Height range
 	if params.MinHeight != nil {
 		filters = append(filters, fmt.Sprintf("height >= %d", *params.MinHeight))
@@ -356,6 +395,8 @@ func (c *Client) buildSort(params SearchParams) []string {
 		sortField = "title"
 	case "duration", "length":
 		sortField = "duration"
+	case "size":
+		sortField = "size"
 	case "view_count", "views":
 		sortField = "view_count"
 	default:
