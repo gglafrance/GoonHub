@@ -51,6 +51,22 @@ func NewSceneHandler(service *core.SceneService, processingService *core.ScenePr
 	}
 }
 
+// populateCardMarkers adds the user's markers to scene card items (best effort).
+func (h *SceneHandler) populateCardMarkers(items []response.SceneListItem, sceneIDs []uint, userID uint) {
+	if h.MarkerService == nil || userID == 0 || len(sceneIDs) == 0 {
+		return
+	}
+	markersByScene, err := h.MarkerService.GetMarkersForScenes(userID, sceneIDs)
+	if err != nil {
+		return
+	}
+	for i := range items {
+		if markers, ok := markersByScene[items[i].ID]; ok {
+			items[i].Markers = response.ToSceneCardMarkers(markers)
+		}
+	}
+}
+
 func (h *SceneHandler) UploadScene(c *gin.Context) {
 	file, err := c.FormFile("scene")
 	if err != nil {
@@ -186,7 +202,10 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		sceneIDs[i] = s.ID
 	}
 
-	// Load tags/actors from join tables when requested
+	// Load tags/actors from join tables when requested (markers go with tags)
+	if cardFields.Tags {
+		h.populateCardMarkers(items, sceneIDs, userID)
+	}
 	if cardFields.Tags && len(sceneIDs) > 0 {
 		if tagsByScene, err := h.TagRepo.GetSceneTagsMultiple(sceneIDs); err == nil {
 			for i := range items {
@@ -726,7 +745,10 @@ func (h *SceneHandler) GetRelatedScenes(c *gin.Context) {
 		sceneIDs[i] = s.ID
 	}
 
-	// Load tags/actors from join tables when requested
+	// Load tags/actors from join tables when requested (markers go with tags)
+	if cardFields.Tags {
+		h.populateCardMarkers(items, sceneIDs, userID)
+	}
 	if cardFields.Tags && len(sceneIDs) > 0 {
 		if tagsByScene, err := h.TagRepo.GetSceneTagsMultiple(sceneIDs); err == nil {
 			for i := range items {

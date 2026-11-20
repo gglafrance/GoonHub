@@ -114,6 +114,8 @@ Per-user application preferences.
 | `autoplay` | BOOLEAN | NO | false | Auto-play next scene |
 | `default_volume` | INTEGER | NO | 100 | Default player volume (0-100) |
 | `loop` | BOOLEAN | NO | true | Loop video playback |
+| `default_marker_view` | VARCHAR(10) | NO | 'grouped' | Initial view of the markers page (`grouped` or `all`) |
+| `advanced_marker_filters` | BOOLEAN | NO | false | Show the advanced filter panel (labels, scene tags/actors/studio, ranges only) on the marker pages |
 | `marker_loop` | BOOLEAN | NO | false | Loop the marker range when clicking a marker that has an `end_timestamp` |
 | `videos_per_page` | INTEGER | NO | 20 | Grid pagination size |
 | `default_sort_order` | VARCHAR(50) | NO | 'created_at_desc' | Default sort order |
@@ -530,6 +532,25 @@ Video bookmarks/markers created by users.
 **Constraints:**
 - CHECK `timestamp >= 0`
 - CHECK `chk_user_scene_markers_end_after_start`: `end_timestamp IS NULL OR end_timestamp > timestamp`
+
+---
+
+### `saved_marker_filters`
+
+Named filters of the marker pages (advanced marker filters), per user.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `uuid` | UUID | NO | - | Public identifier (unique) |
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `name` | VARCHAR(100) | NO | - | Display name |
+| `filters` | JSONB | NO | '{}' | `labels`, `marker_tags`, `tags`, `actors`, `studio`, `ranges_only`, `sort`, `view` |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last update timestamp |
+
+**Indexes:**
+- `idx_saved_marker_filters_user_id` on `user_id`
 
 ---
 

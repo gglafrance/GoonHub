@@ -23,14 +23,34 @@ type SceneListItem struct {
 	StoredPath       string    `json:"stored_path"`
 
 	// Optional fields included when requested via card_fields
-	ViewCount   *int64    `json:"view_count,omitempty"`
-	Width       *int      `json:"width,omitempty"`
-	Height      *int      `json:"height,omitempty"`
-	FrameRate   *float64  `json:"frame_rate,omitempty"`
-	Description *string   `json:"description,omitempty"`
-	Studio      *string   `json:"studio,omitempty"`
-	Tags        []string  `json:"tags,omitempty"`
-	Actors      []string  `json:"actors,omitempty"`
+	ViewCount   *int64   `json:"view_count,omitempty"`
+	Width       *int     `json:"width,omitempty"`
+	Height      *int     `json:"height,omitempty"`
+	FrameRate   *float64 `json:"frame_rate,omitempty"`
+	Description *string  `json:"description,omitempty"`
+	Studio      *string  `json:"studio,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	Actors      []string `json:"actors,omitempty"`
+	// Markers of the current user, included together with tags
+	Markers []SceneCardMarker `json:"markers,omitempty"`
+}
+
+// SceneCardMarker is the marker summary shown in the scene card markers popover.
+type SceneCardMarker struct {
+	ID           uint   `json:"id"`
+	Label        string `json:"label"`
+	Color        string `json:"color"`
+	Timestamp    int    `json:"timestamp"`
+	EndTimestamp *int   `json:"end_timestamp,omitempty"`
+}
+
+// ToSceneCardMarkers converts markers to their card summary.
+func ToSceneCardMarkers(markers []data.UserSceneMarker) []SceneCardMarker {
+	out := make([]SceneCardMarker, len(markers))
+	for i, m := range markers {
+		out[i] = SceneCardMarker{ID: m.ID, Label: m.Label, Color: m.Color, Timestamp: m.Timestamp, EndTimestamp: m.EndTimestamp}
+	}
+	return out
 }
 
 // CardFields tracks which optional fields should be included in SceneListItem responses.

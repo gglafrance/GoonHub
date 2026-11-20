@@ -17,6 +17,8 @@ import type {
     LabelTagsResponse,
     MarkerTagsResponse,
     PaginatedResponse,
+    SavedMarkerFilter,
+    SavedMarkerFilterValues,
 } from '~/types/marker';
 import type { Tag } from '~/types/tag';
 
@@ -77,11 +79,13 @@ export const useApiMarkers = () => {
         page: number = 1,
         limit: number = 20,
         sort: string = 'count_desc',
+        extra: Record<string, string> = {},
     ): Promise<PaginatedResponse<MarkerLabelGroup>> => {
         const params = new URLSearchParams({
             page: String(page),
             limit: String(limit),
             sort,
+            ...extra,
         });
         const response = await fetch(`/api/v1/markers?${params}`, {
             headers: getAuthHeaders(),
@@ -94,11 +98,13 @@ export const useApiMarkers = () => {
         page: number = 1,
         limit: number = 20,
         sort: string = 'label_asc',
+        extra: Record<string, string> = {},
     ): Promise<PaginatedResponse<MarkerWithScene>> => {
         const params = new URLSearchParams({
             page: String(page),
             limit: String(limit),
             sort,
+            ...extra,
         });
         const response = await fetch(`/api/v1/markers/all?${params}`, {
             headers: getAuthHeaders(),
@@ -111,11 +117,13 @@ export const useApiMarkers = () => {
         label: string,
         page: number = 1,
         limit: number = 20,
+        extra: Record<string, string> = {},
     ): Promise<PaginatedResponse<MarkerWithScene>> => {
         const params = new URLSearchParams({
             label,
             page: String(page),
             limit: String(limit),
+            ...extra,
         });
         const response = await fetch(`/api/v1/markers/by-label?${params}`, {
             headers: getAuthHeaders(),
@@ -179,7 +187,55 @@ export const useApiMarkers = () => {
         return data.tags || [];
     };
 
+    // Saved marker filters (advanced marker filters presets)
+    const fetchSavedMarkerFilters = async (): Promise<{ filters: SavedMarkerFilter[] }> => {
+        const response = await fetch('/api/v1/marker-filters', {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const createSavedMarkerFilter = async (
+        name: string,
+        filters: SavedMarkerFilterValues,
+    ): Promise<SavedMarkerFilter> => {
+        const response = await fetch('/api/v1/marker-filters', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ name, filters }),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const updateSavedMarkerFilter = async (
+        uuid: string,
+        data: { name?: string; filters?: SavedMarkerFilterValues },
+    ): Promise<SavedMarkerFilter> => {
+        const response = await fetch(`/api/v1/marker-filters/${uuid}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(data),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const deleteSavedMarkerFilter = async (uuid: string): Promise<void> => {
+        const response = await fetch(`/api/v1/marker-filters/${uuid}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponseWithNoContent(response);
+    };
+
     return {
+        fetchSavedMarkerFilters,
+        createSavedMarkerFilter,
+        updateSavedMarkerFilter,
+        deleteSavedMarkerFilter,
         fetchMarkers,
         createMarker,
         updateMarker,

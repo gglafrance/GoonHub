@@ -769,8 +769,10 @@ func provideHomepageHandler(homepageService *core.HomepageService) *handler.Home
 	return handler.NewHomepageHandler(homepageService)
 }
 
-func provideMarkerHandler(markerService *core.MarkerService, cfg *config.Config) *handler.MarkerHandler {
-	return handler.NewMarkerHandler(markerService, cfg.Pagination.MaxItemsPerPage)
+func provideMarkerHandler(markerService *core.MarkerService, db *gorm.DB, cfg *config.Config, logger *logging.Logger) *handler.MarkerHandler {
+	h := handler.NewMarkerHandler(markerService, cfg.Pagination.MaxItemsPerPage)
+	h.SetSavedFilterService(core.NewSavedMarkerFilterService(data.NewSavedMarkerFilterRepository(db), logger.Logger))
+	return h
 }
 
 func providePlaylistHandler(service *core.PlaylistService, cfg *config.Config) *handler.PlaylistHandler {
