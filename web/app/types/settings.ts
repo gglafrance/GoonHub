@@ -10,6 +10,7 @@ export interface SortPreferences {
 }
 
 export type MarkerView = 'grouped' | 'all';
+export type PaginationPosition = 'top' | 'bottom' | 'both';
 
 export interface UserSettings {
     id: number;
@@ -31,6 +32,7 @@ export interface UserSettings {
     show_page_size_selector: boolean;
     advanced_marker_filters: boolean;
     default_marker_view: MarkerView;
+    pagination_position: PaginationPosition;
     scene_card_config: SceneCardConfig;
     max_items_per_page: number;
     created_at: string;

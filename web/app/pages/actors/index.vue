@@ -204,6 +204,22 @@ definePageMeta({
 
             <!-- Actor Grid -->
             <div v-else>
+                <Pagination
+                    v-model="currentPage"
+                    position="top"
+                    :total="total"
+                    :limit="limit"
+                    :show-page-size-selector="showSelector"
+                    :max-limit="maxLimit"
+                    @update:limit="
+                        (v: number) => {
+                            updatePageSize(v);
+                            if (currentPage === 1) loadActors(1);
+                            else currentPage = 1;
+                        }
+                    "
+                />
+
                 <ActorGrid :actors="actors" />
 
                 <Pagination

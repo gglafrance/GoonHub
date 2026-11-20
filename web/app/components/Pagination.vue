@@ -7,9 +7,12 @@ const props = withDefaults(
         showPageSizeSelector?: boolean;
         pageSizeOptions?: number[];
         maxLimit?: number;
+        // Placement of this instance; shown according to the "page controls position" setting
+        position?: 'top' | 'bottom';
     }>(),
     {
         showPageSizeSelector: false,
+        position: 'bottom',
         pageSizeOptions: () => [10, 20, 40, 60, 80, 100],
         maxLimit: 100,
     },
@@ -21,6 +24,24 @@ const emit = defineEmits<{
 }>();
 
 const { keys } = useKeyboardLayout();
+const settingsStore = useSettingsStore();
+
+// Shown when the setting is "both" or matches this instance's placement
+const shownHere = computed(() => {
+    const setting = settingsStore.paginationPosition;
+    return setting === 'both' || setting === props.position;
+});
+
+// Only one instance handles the keyboard shortcuts (the bottom one unless the setting is "top")
+const handlesKeys = computed(() =>
+    props.position === 'bottom'
+        ? settingsStore.paginationPosition !== 'top'
+        : settingsStore.paginationPosition === 'top',
+);
+
+const scrollToTop = () => {
+    if (import.meta.client) window.scrollTo({ top: 0, behavior: 'smooth' });
+};
 
 const totalPages = computed(() => Math.ceil(props.total / props.limit));
 
@@ -41,8 +62,9 @@ const editValue = ref('');
 const pageInput = ref<HTMLInputElement | null>(null);
 
 const setPage = (page: number) => {
-    if (page >= 1 && page <= totalPages.value) {
+    if (page >= 1 && page <= totalPages.value && page !== props.modelValue) {
         emit('update:modelValue', page);
+        scrollToTop();
     }
 };
 
@@ -59,6 +81,7 @@ const handlePageSizeChange = (e: Event) => {
     const newLimit = parseInt(val, 10);
     if (!isNaN(newLimit)) {
         emit('update:limit', newLimit);
+        scrollToTop();
     }
 };
 
@@ -68,6 +91,7 @@ const confirmCustom = () => {
         const clamped = Math.min(parsed, props.maxLimit);
         editingCustom.value = false;
         emit('update:limit', clamped);
+        scrollToTop();
     } else {
         editingCustom.value = false;
     }
@@ -98,6 +122,7 @@ const cancelEdit = () => {
 };
 
 const handleKeydown = (e: KeyboardEvent) => {
+    if (!handlesKeys.value) return;
     // Skip if typing in input, textarea, or contenteditable
     const target = e.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
@@ -122,8 +147,9 @@ onUnmounted(() => {
 
 <template>
     <div
-        v-if="totalPages > 1 || (showPageSizeSelector && availableSizes.length > 1)"
-        class="flex items-center justify-center gap-2 py-6"
+        v-if="shownHere && (totalPages > 1 || (showPageSizeSelector && availableSizes.length > 1))"
+        class="flex items-center justify-center gap-2"
+        :class="position === 'top' ? 'pb-4' : 'py-6'"
     >
         <template v-if="totalPages > 1">
             <button

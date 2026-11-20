@@ -108,5 +108,6 @@ type UpdateAllSettingsRequest struct {
 	ShowPageSizeSelector     bool                         `json:"show_page_size_selector"`
 	AdvancedMarkerFilters    bool                         `json:"advanced_marker_filters"`
 	DefaultMarkerView        string                       `json:"default_marker_view"`
+	PaginationPosition       string                       `json:"pagination_position"`
 	SceneCardConfig          UpdateSceneCardConfigRequest `json:"scene_card_config"`
 }

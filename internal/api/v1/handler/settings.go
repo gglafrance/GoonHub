@@ -192,6 +192,7 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		req.AdvancedMarkerFilters,
 		req.DefaultMarkerView,
 		sceneCardConfig,
+		core.WithPaginationPosition(req.PaginationPosition),
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

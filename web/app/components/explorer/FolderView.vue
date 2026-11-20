@@ -153,6 +153,22 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
 
             <!-- Scenes -->
             <div v-if="explorerStore.scenes.length > 0">
+                <Pagination
+                    position="top"
+                    :model-value="explorerStore.page"
+                    :total="explorerStore.totalScenes"
+                    :limit="explorerStore.limit"
+                    :show-page-size-selector="showSelector"
+                    :max-limit="maxLimit"
+                    @update:model-value="handlePageChange"
+                    @update:limit="
+                        (v: number) => {
+                            updatePageSize(v);
+                            handlePageChange(1);
+                        }
+                    "
+                />
+
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <h3 class="text-dim text-xs font-medium tracking-wider uppercase">Scenes</h3>
                     <SceneSelectionControls
