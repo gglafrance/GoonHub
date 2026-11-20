@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"goonhub/internal/data"
+	"strings"
 
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -160,13 +161,47 @@ func (s *SettingsService) UpdateHomepageConfig(userID uint, config data.Homepage
 	return settings, nil
 }
 
-func (s *SettingsService) validateHomepageConfig(config *data.HomepageConfig) error {
-	if len(config.Sections) > 20 {
-		return fmt.Errorf("maximum of 20 sections allowed")
-	}
+const (
+	maxHomepageTabs          = 12
+	maxHomepageTabNameLength = 40
+	maxHomepageSectionsInTab = 20
+)
 
+func (s *SettingsService) validateHomepageConfig(config *data.HomepageConfig) error {
+	// Legacy configs (sections without tabs) become a single tab
+	config.Normalize()
+
+	if len(config.Tabs) > maxHomepageTabs {
+		return fmt.Errorf("maximum of %d tabs allowed", maxHomepageTabs)
+	}
+	seenTabs := make(map[string]bool)
 	seenIDs := make(map[string]bool)
-	for i, section := range config.Sections {
+	for t, tab := range config.Tabs {
+		if tab.ID == "" {
+			return fmt.Errorf("tab %d: id is required", t)
+		}
+		if seenTabs[tab.ID] {
+			return fmt.Errorf("tab %d: duplicate id '%s'", t, tab.ID)
+		}
+		seenTabs[tab.ID] = true
+		if strings.TrimSpace(tab.Name) == "" {
+			return fmt.Errorf("tab %d: name is required", t)
+		}
+		if len(tab.Name) > maxHomepageTabNameLength {
+			return fmt.Errorf("tab %d: name must be %d characters or less", t, maxHomepageTabNameLength)
+		}
+		if len(tab.Sections) > maxHomepageSectionsInTab {
+			return fmt.Errorf("maximum of %d sections allowed", maxHomepageSectionsInTab)
+		}
+		if err := s.validateHomepageSections(tab.Sections, seenIDs); err != nil {
+			return fmt.Errorf("tab '%s': %w", tab.Name, err)
+		}
+	}
+	return nil
+}
+
+func (s *SettingsService) validateHomepageSections(sections []data.HomepageSection, seenIDs map[string]bool) error {
+	for i, section := range sections {
 		if section.ID == "" {
 			return fmt.Errorf("section %d: id is required", i)
 		}
@@ -175,7 +210,7 @@ func (s *SettingsService) validateHomepageConfig(config *data.HomepageConfig) er
 		}
 		seenIDs[section.ID] = true
 
-		if !allowedSectionTypes[section.Type] {
+		if !allowedSectionTypes[section.Type] && !IsHomepageWidgetType(section.Type) {
 			return fmt.Errorf("section %d: invalid type '%s'", i, section.Type)
 		}
 
@@ -196,6 +231,9 @@ func (s *SettingsService) validateHomepageConfig(config *data.HomepageConfig) er
 
 		// Validate type-specific config
 		if err := s.validateSectionConfig(&section); err != nil {
+			return fmt.Errorf("section %d: %w", i, err)
+		}
+		if err := validateHomepageWidgetConfig(&section); err != nil {
 			return fmt.Errorf("section %d: %w", i, err)
 		}
 	}

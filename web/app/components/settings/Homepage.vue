@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { HomepageSection } from '~/types/homepage';
+import type { HomepageSection, HomepageTab } from '~/types/homepage';
 
 const settingsStore = useSettingsStore();
 
@@ -7,6 +7,30 @@ const showModal = ref(false);
 const editingSection = ref<HomepageSection | null>(null);
 
 const config = computed(() => settingsStore.draft?.homepage_config ?? null);
+
+// Tab whose sections are edited
+const selectedTabId = ref('');
+const currentTab = computed<HomepageTab | null>(() => {
+    const tabs = config.value?.tabs ?? [];
+    return tabs.find((t) => t.id === selectedTabId.value) ?? tabs[0] ?? null;
+});
+const sections = computed<HomepageSection[]>(() => currentTab.value?.sections ?? []);
+
+watch(
+    () => config.value?.tabs,
+    (tabs) => {
+        if (tabs?.length && !tabs.some((t) => t.id === selectedTabId.value)) {
+            selectedTabId.value = config.value?.default_tab_id || tabs[0]!.id;
+        }
+    },
+    { immediate: true },
+);
+
+function setSections(next: HomepageSection[]) {
+    if (!currentTab.value) return;
+    next.forEach((s, i) => (s.order = i));
+    currentTab.value.sections = next;
+}
 
 function handleAddSection() {
     editingSection.value = null;
@@ -19,55 +43,57 @@ function handleEditSection(section: HomepageSection) {
 }
 
 function handleDeleteSection(sectionId: string) {
-    if (!config.value) return;
-    config.value.sections = config.value.sections.filter((s) => s.id !== sectionId);
+    setSections(sections.value.filter((s) => s.id !== sectionId));
 }
 
 function handleToggleSection(sectionId: string) {
-    if (!config.value) return;
-    const section = config.value.sections.find((s) => s.id === sectionId);
+    const section = sections.value.find((s) => s.id === sectionId);
     if (section) {
         section.enabled = !section.enabled;
     }
 }
 
 function handleMoveSection(sectionId: string, direction: 'up' | 'down') {
-    if (!config.value) return;
-    const index = config.value.sections.findIndex((s) => s.id === sectionId);
+    const index = sections.value.findIndex((s) => s.id === sectionId);
     if (index === -1) return;
 
     const newIndex = direction === 'up' ? index - 1 : index + 1;
-    if (newIndex < 0 || newIndex >= config.value.sections.length) return;
+    if (newIndex < 0 || newIndex >= sections.value.length) return;
 
-    // Swap sections
-    const sections = [...config.value.sections];
-    const temp = sections[index]!;
-    sections[index] = sections[newIndex]!;
-    sections[newIndex] = temp;
+    const next = [...sections.value];
+    const temp = next[index]!;
+    next[index] = next[newIndex]!;
+    next[newIndex] = temp;
+    setSections(next);
+}
 
-    // Update order values
-    sections.forEach((s, i) => {
-        s.order = i;
-    });
-
-    config.value.sections = sections;
+// Moves a section to the end of another tab
+function handleMoveToTab(sectionId: string, tabId: string) {
+    const target = config.value?.tabs.find((t) => t.id === tabId);
+    const section = sections.value.find((s) => s.id === sectionId);
+    if (!target || !section || target.id === currentTab.value?.id) return;
+    setSections(sections.value.filter((s) => s.id !== sectionId));
+    section.order = target.sections.length;
+    target.sections.push(section);
 }
 
 function handleSectionSaved(section: HomepageSection) {
-    if (!config.value) return;
-
-    const existingIndex = config.value.sections.findIndex((s) => s.id === section.id);
+    const existingIndex = sections.value.findIndex((s) => s.id === section.id);
     if (existingIndex >= 0) {
-        config.value.sections[existingIndex] = section;
+        const next = [...sections.value];
+        next[existingIndex] = section;
+        setSections(next);
     } else {
-        section.order = config.value.sections.length;
-        config.value.sections.push(section);
+        setSections([...sections.value, section]);
     }
     showModal.value = false;
 }
 
-const enabledCount = computed(() => config.value?.sections.filter((s) => s.enabled).length ?? 0);
-const totalCount = computed(() => config.value?.sections.length ?? 0);
+const otherTabs = computed(() =>
+    (config.value?.tabs ?? []).filter((t) => t.id !== currentTab.value?.id),
+);
+const enabledCount = computed(() => sections.value.filter((s) => s.enabled).length);
+const totalCount = computed(() => sections.value.length);
 </script>
 
 <template>
@@ -102,6 +128,9 @@ const totalCount = computed(() => config.value?.sections.length ?? 0);
                 </div>
             </div>
 
+            <!-- Tabs -->
+            <SettingsHomepageTabsEditor v-model:selected="selectedTabId" :config="config" />
+
             <!-- Sections -->
             <div class="glass-panel overflow-hidden">
                 <div class="border-border flex items-center justify-between border-b px-5 py-4">
@@ -110,7 +139,12 @@ const totalCount = computed(() => config.value?.sections.length ?? 0);
                             <Icon name="heroicons:squares-2x2" size="16" class="text-lava" />
                         </div>
                         <div>
-                            <h3 class="text-sm font-semibold text-white">Content Sections</h3>
+                            <h3 class="text-sm font-semibold text-white">
+                                Sections
+                                <span v-if="currentTab" class="text-lava">
+                                    · {{ currentTab.name }}
+                                </span>
+                            </h3>
                             <p class="text-dim text-[11px]">
                                 <span v-if="totalCount > 0">
                                     {{ enabledCount }} of {{ totalCount }} sections enabled
@@ -132,7 +166,7 @@ const totalCount = computed(() => config.value?.sections.length ?? 0);
 
                 <!-- Empty State -->
                 <div
-                    v-if="config.sections.length === 0"
+                    v-if="sections.length === 0"
                     class="flex flex-col items-center justify-center py-12"
                 >
                     <div
@@ -159,17 +193,40 @@ const totalCount = computed(() => config.value?.sections.length ?? 0);
                 <!-- Section List -->
                 <div v-else class="divide-border divide-y">
                     <TransitionGroup name="list" tag="div" class="divide-border divide-y">
-                        <SettingsHomepageSectionItem
-                            v-for="(section, index) in config.sections"
+                        <div
+                            v-for="(section, index) in sections"
                             :key="section.id"
-                            :section="section"
-                            :is-first="index === 0"
-                            :is-last="index === config.sections.length - 1"
-                            @edit="handleEditSection"
-                            @delete="handleDeleteSection"
-                            @toggle="handleToggleSection"
-                            @move="handleMoveSection"
-                        />
+                            class="flex items-center"
+                        >
+                            <SettingsHomepageSectionItem
+                                class="min-w-0 flex-1"
+                                :section="section"
+                                :is-first="index === 0"
+                                :is-last="index === sections.length - 1"
+                                @edit="handleEditSection"
+                                @delete="handleDeleteSection"
+                                @toggle="handleToggleSection"
+                                @move="handleMoveSection"
+                            />
+                            <select
+                                v-if="otherTabs.length"
+                                class="border-border bg-panel text-dim mr-4 w-28 shrink-0 rounded-md
+                                    border px-1.5 py-1 text-[10px]"
+                                title="Move to another tab"
+                                :value="''"
+                                @change="
+                                    handleMoveToTab(
+                                        section.id,
+                                        ($event.target as HTMLSelectElement).value,
+                                    )
+                                "
+                            >
+                                <option value="" disabled>Move to...</option>
+                                <option v-for="tab in otherTabs" :key="tab.id" :value="tab.id">
+                                    {{ tab.name }}
+                                </option>
+                            </select>
+                        </div>
                     </TransitionGroup>
                 </div>
             </div>
