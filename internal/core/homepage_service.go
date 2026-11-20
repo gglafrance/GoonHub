@@ -24,12 +24,15 @@ type HomepageSectionData struct {
 	WatchProgress map[uint]WatchProgress `json:"watch_progress,omitempty"`
 	Ratings       map[uint]float64       `json:"ratings,omitempty"`
 	Playlists     []PlaylistListItem     `json:"playlists,omitempty"`
+	// Widget is the payload of widget sections (see homepage_widgets.go)
+	Widget any `json:"widget,omitempty"`
 }
 
 // HomepageResponse represents the full homepage data
 type HomepageResponse struct {
-	Config   data.HomepageConfig   `json:"config"`
-	Sections []HomepageSectionData `json:"sections"`
+	Config      data.HomepageConfig   `json:"config"`
+	ActiveTabID string                `json:"active_tab_id"`
+	Sections    []HomepageSectionData `json:"sections"`
 }
 
 // HomepageService handles fetching homepage section data
@@ -45,6 +48,7 @@ type HomepageService struct {
 	actorRepo          data.ActorRepository
 	studioRepo         data.StudioRepository
 	logger             *zap.Logger
+	widgetDeps         HomepageWidgetDeps
 }
 
 // NewHomepageService creates a new HomepageService
@@ -76,24 +80,32 @@ func NewHomepageService(
 	}
 }
 
-// GetHomepageData fetches the full homepage data for a user
-func (s *HomepageService) GetHomepageData(userID uint) (*HomepageResponse, error) {
-	config, err := s.settingsService.GetHomepageConfig(userID)
+// GetHomepageData fetches the homepage data of one tab for a user (tabID empty: default tab).
+func (s *HomepageService) GetHomepageData(userID uint, tabID string) (*HomepageResponse, error) {
+	stored, err := s.settingsService.GetHomepageConfig(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get homepage config: %w", err)
 	}
+	config := *stored
+	config.Normalize()
+
+	tab := config.FindTab(tabID)
+	if tab == nil {
+		tab = config.FindTab(config.DefaultTabID)
+	}
 
 	// Sort sections by order
-	sections := make([]data.HomepageSection, len(config.Sections))
-	copy(sections, config.Sections)
+	sections := make([]data.HomepageSection, len(tab.Sections))
+	copy(sections, tab.Sections)
 	sort.Slice(sections, func(i, j int) bool {
 		return sections[i].Order < sections[j].Order
 	})
 
 	// Fetch data for each enabled section
 	response := &HomepageResponse{
-		Config:   *config,
-		Sections: make([]HomepageSectionData, 0, len(sections)),
+		Config:      config,
+		ActiveTabID: tab.ID,
+		Sections:    make([]HomepageSectionData, 0, len(sections)),
 	}
 
 	for _, section := range sections {
@@ -128,14 +140,7 @@ func (s *HomepageService) GetSectionData(userID uint, sectionID string) (*Homepa
 		return nil, fmt.Errorf("failed to get homepage config: %w", err)
 	}
 
-	var section *data.HomepageSection
-	for i := range config.Sections {
-		if config.Sections[i].ID == sectionID {
-			section = &config.Sections[i]
-			break
-		}
-	}
-
+	section := config.FindSection(sectionID)
 	if section == nil {
 		return nil, fmt.Errorf("section not found: %s", sectionID)
 	}
@@ -167,7 +172,11 @@ func (s *HomepageService) fetchSectionData(userID uint, section data.HomepageSec
 	case "playlist":
 		sectionData, err = s.fetchPlaylistSection(userID, section)
 	default:
-		return nil, fmt.Errorf("unknown section type: %s", section.Type)
+		spec, ok := homepageWidgets[section.Type]
+		if !ok {
+			return nil, fmt.Errorf("unknown section type: %s", section.Type)
+		}
+		sectionData, err = spec.Fetch(s, userID, section)
 	}
 
 	if err != nil {

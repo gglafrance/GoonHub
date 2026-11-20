@@ -1,5 +1,7 @@
 <script setup lang="ts">
 const homepageStore = useHomepageStore();
+const route = useRoute();
+const router = useRouter();
 
 useHead({ title: 'Library' });
 
@@ -10,9 +12,23 @@ useSeoMeta({
     ogDescription: 'Browse your personal scene library',
 });
 
+const queryTab = () => (typeof route.query.tab === 'string' ? route.query.tab : undefined);
+
 onMounted(async () => {
-    await homepageStore.loadHomepage();
+    await homepageStore.loadHomepage(queryTab());
 });
+
+// Keep the active tab in the URL (shareable, survives a reload)
+const handleSelectTab = (tabId: string) => {
+    router.replace({ query: { ...route.query, tab: tabId } });
+};
+
+watch(
+    () => route.query.tab,
+    (tab) => {
+        if (typeof tab === 'string' && homepageStore.config) homepageStore.selectTab(tab);
+    },
+);
 
 const handleRefreshSection = async (sectionId: string) => {
     await homepageStore.refreshSection(sectionId);
@@ -47,6 +63,12 @@ definePageMeta({
 
             <!-- Dynamic Sections -->
             <div v-else class="mt-5 sm:mt-8">
+                <HomepageTabBar
+                    :tabs="homepageStore.tabs"
+                    :active-id="homepageStore.activeTab?.id ?? null"
+                    @select="handleSelectTab"
+                />
+
                 <HomepageSection
                     v-for="section in homepageStore.enabledSections"
                     :key="section.id"

@@ -77,8 +77,73 @@ type UserSettings struct {
 
 // HomepageConfig represents the user's homepage layout configuration
 type HomepageConfig struct {
-	ShowUpload bool              `json:"show_upload"`
-	Sections   []HomepageSection `json:"sections"`
+	ShowUpload bool `json:"show_upload"`
+	// Sections is the legacy single-page layout, migrated into a first tab by Normalize.
+	Sections []HomepageSection `json:"sections"`
+	// Tabs of the homepage, each with its own sections.
+	Tabs []HomepageTab `json:"tabs"`
+	// DefaultTabID is the tab opened when OpenOn is "default" (or no tab was visited yet).
+	DefaultTabID string `json:"default_tab_id"`
+	// OpenOn: "last" (last visited tab, kept by the browser) or "default".
+	OpenOn string `json:"open_on"`
+}
+
+// HomepageTab is a tab of the homepage.
+type HomepageTab struct {
+	ID       string            `json:"id"`
+	Name     string            `json:"name"`
+	Icon     string            `json:"icon"`
+	Sections []HomepageSection `json:"sections"`
+}
+
+// Normalize migrates the legacy sections into a first "Home" tab and fills defaults.
+func (h *HomepageConfig) Normalize() {
+	if len(h.Tabs) == 0 {
+		sections := h.Sections
+		if sections == nil {
+			sections = []HomepageSection{}
+		}
+		h.Tabs = []HomepageTab{{ID: "home", Name: "Home", Icon: "heroicons:home", Sections: sections}}
+	}
+	h.Sections = []HomepageSection{}
+	for i := range h.Tabs {
+		if h.Tabs[i].Sections == nil {
+			h.Tabs[i].Sections = []HomepageSection{}
+		}
+	}
+	if h.FindTab(h.DefaultTabID) == nil {
+		h.DefaultTabID = h.Tabs[0].ID
+	}
+	if h.OpenOn != "last" && h.OpenOn != "default" {
+		h.OpenOn = "last"
+	}
+}
+
+// FindTab returns the tab with the given ID, or nil.
+func (h *HomepageConfig) FindTab(id string) *HomepageTab {
+	for i := range h.Tabs {
+		if h.Tabs[i].ID == id {
+			return &h.Tabs[i]
+		}
+	}
+	return nil
+}
+
+// FindSection returns the section with the given ID in any tab (or the legacy list), or nil.
+func (h *HomepageConfig) FindSection(id string) *HomepageSection {
+	for i := range h.Tabs {
+		for j := range h.Tabs[i].Sections {
+			if h.Tabs[i].Sections[j].ID == id {
+				return &h.Tabs[i].Sections[j]
+			}
+		}
+	}
+	for i := range h.Sections {
+		if h.Sections[i].ID == id {
+			return &h.Sections[i]
+		}
+	}
+	return nil
 }
 
 // HomepageSection represents a single section on the homepage
@@ -114,17 +179,15 @@ func (h *HomepageConfig) Scan(value any) error {
 		return err
 	}
 
-	// Ensure Sections is never nil so it serializes as [] instead of null
-	if h.Sections == nil {
-		h.Sections = []HomepageSection{}
-	}
+	// Migrate legacy sections into tabs; Sections then serializes as []
+	h.Normalize()
 
 	return nil
 }
 
 // DefaultHomepageConfig returns the default homepage configuration
 func DefaultHomepageConfig() HomepageConfig {
-	return HomepageConfig{
+	config := HomepageConfig{
 		ShowUpload: true,
 		Sections: []HomepageSection{
 			{
@@ -139,6 +202,8 @@ func DefaultHomepageConfig() HomepageConfig {
 			},
 		},
 	}
+	config.Normalize()
+	return config
 }
 
 // ParsingRulesSettings represents the user's parsing rules configuration

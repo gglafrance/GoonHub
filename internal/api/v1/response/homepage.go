@@ -13,19 +13,21 @@ type WatchProgress struct {
 
 // HomepageSectionData represents a section with its scene data (lightweight).
 type HomepageSectionData struct {
-	Section       data.HomepageSection     `json:"section"`
-	Scenes        []SceneListItem          `json:"scenes"`
-	Total         int64                    `json:"total"`
-	Seed          int64                    `json:"seed,omitempty"`
-	WatchProgress map[uint]WatchProgress   `json:"watch_progress,omitempty"`
-	Ratings       map[uint]float64         `json:"ratings,omitempty"`
+	Section       data.HomepageSection       `json:"section"`
+	Scenes        []SceneListItem            `json:"scenes"`
+	Total         int64                      `json:"total"`
+	Seed          int64                      `json:"seed,omitempty"`
+	WatchProgress map[uint]WatchProgress     `json:"watch_progress,omitempty"`
+	Ratings       map[uint]float64           `json:"ratings,omitempty"`
 	Playlists     []PlaylistListItemResponse `json:"playlists,omitempty"`
+	Widget        any                        `json:"widget,omitempty"`
 }
 
 // HomepageResponse represents the full homepage data response.
 type HomepageResponse struct {
-	Config   data.HomepageConfig   `json:"config"`
-	Sections []HomepageSectionData `json:"sections"`
+	Config      data.HomepageConfig   `json:"config"`
+	ActiveTabID string                `json:"active_tab_id"`
+	Sections    []HomepageSectionData `json:"sections"`
 }
 
 // ToHomepageResponse converts the service response to an API response with lightweight scenes.
@@ -57,12 +59,14 @@ func ToHomepageResponse(resp *core.HomepageResponse) *HomepageResponse {
 			WatchProgress: watchProgress,
 			Ratings:       s.Ratings,
 			Playlists:     playlists,
+			Widget:        s.Widget,
 		}
 	}
 
 	return &HomepageResponse{
-		Config:   resp.Config,
-		Sections: sections,
+		Config:      resp.Config,
+		ActiveTabID: resp.ActiveTabID,
+		Sections:    sections,
 	}
 }
 
