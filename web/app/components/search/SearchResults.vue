@@ -92,6 +92,22 @@ const handleBulkComplete = () => {
 
         <!-- Results Grid -->
         <template v-else-if="searchStore.scenes.length > 0">
+            <Pagination
+                v-model="searchStore.page"
+                position="top"
+                :total="searchStore.total"
+                :limit="searchStore.limit"
+                :show-page-size-selector="showSelector"
+                :max-limit="maxLimit"
+                @update:limit="
+                    (v: number) => {
+                        updatePageSize(v);
+                        if (searchStore.page === 1) searchStore.search();
+                        else searchStore.page = 1;
+                    }
+                "
+            />
+
             <SelectableSceneGrid
                 v-if="selectMode"
                 :scenes="searchStore.scenes"

@@ -123,6 +123,7 @@ func (s *SettingsService) GetSettings(userID uint) (*data.UserSettings, error) {
 			DefaultTagSort:         "az",
 			MarkerThumbnailCycling: true,
 			DefaultMarkerView:      "grouped",
+			PaginationPosition:     "bottom",
 			HomepageConfig:         data.DefaultHomepageConfig(),
 			SortPreferences:        data.DefaultSortPreferences(),
 			SceneCardConfig:        data.DefaultSceneCardConfig(),
@@ -300,7 +301,27 @@ func (s *SettingsService) UpdateParsingRules(userID uint, rules data.ParsingRule
 	return settings, nil
 }
 
-func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, abLoopControls bool, markerLoop bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences, playlistAutoAdvance string, playlistCountdownSeconds int, showPageSizeSelector bool, advancedMarkerFilters bool, defaultMarkerView string, sceneCardConfig data.SceneCardConfig) (*data.UserSettings, error) {
+// SettingsOption applies (and validates) an additional setting in UpdateAllSettings.
+type SettingsOption func(settings *data.UserSettings) error
+
+var allowedPaginationPositions = map[string]bool{"top": true, "bottom": true, "both": true}
+
+// WithPaginationPosition sets where page controls are shown (top, bottom or both; empty means
+// bottom).
+func WithPaginationPosition(position string) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if position == "" {
+			position = "bottom"
+		}
+		if !allowedPaginationPositions[position] {
+			return fmt.Errorf("invalid pagination position: %s", position)
+		}
+		settings.PaginationPosition = position
+		return nil
+	}
+}
+
+func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, abLoopControls bool, markerLoop bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences, playlistAutoAdvance string, playlistCountdownSeconds int, showPageSizeSelector bool, advancedMarkerFilters bool, defaultMarkerView string, sceneCardConfig data.SceneCardConfig, opts ...SettingsOption) (*data.UserSettings, error) {
 	if volume < 0 || volume > 100 {
 		return nil, fmt.Errorf("volume must be between 0 and 100")
 	}
@@ -386,6 +407,12 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 	settings.AdvancedMarkerFilters = advancedMarkerFilters
 	settings.DefaultMarkerView = defaultMarkerView
 	settings.SceneCardConfig = sceneCardConfig
+
+	for _, opt := range opts {
+		if err := opt(settings); err != nil {
+			return nil, err
+		}
+	}
 
 	if err := s.settingsRepo.Upsert(settings); err != nil {
 		return nil, fmt.Errorf("failed to update settings: %w", err)

@@ -7,6 +7,7 @@ import type {
     SortPreferences,
     SceneCardConfig,
     MarkerView,
+    PaginationPosition,
 } from '~/types/settings';
 import type { ParsingRulesSettings, ParsingPreset } from '~/types/parsing-rules';
 
@@ -39,6 +40,9 @@ export const useSettingsStore = defineStore(
         );
         const defaultMarkerView = computed<MarkerView>(
             () => settings.value?.default_marker_view ?? 'grouped',
+        );
+        const paginationPosition = computed<PaginationPosition>(
+            () => settings.value?.pagination_position ?? 'bottom',
         );
         const videosPerPage = computed(() => settings.value?.videos_per_page ?? 20);
         const defaultSortOrder = computed<SortOrder>(
@@ -236,6 +240,7 @@ export const useSettingsStore = defineStore(
             markerLoop,
             advancedMarkerFilters,
             defaultMarkerView,
+            paginationPosition,
             videosPerPage,
             defaultSortOrder,
             defaultTagSort,

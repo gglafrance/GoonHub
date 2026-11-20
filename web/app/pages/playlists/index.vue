@@ -185,6 +185,22 @@ const handleCreated = () => {
 
         <!-- Grid -->
         <template v-else>
+            <Pagination
+                v-model="store.currentPage"
+                position="top"
+                :total="store.total"
+                :limit="store.limit"
+                :show-page-size-selector="showSelector"
+                :max-limit="maxLimit"
+                @update:limit="
+                    (v: number) => {
+                        updatePageSize(v);
+                        if (store.currentPage === 1) store.loadPlaylists();
+                        else store.currentPage = 1;
+                    }
+                "
+            />
+
             <PlaylistGrid :playlists="store.playlists" />
 
             <Pagination

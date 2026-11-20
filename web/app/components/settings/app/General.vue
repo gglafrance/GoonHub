@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MarkerView } from '~/types/settings';
+import type { MarkerView, PaginationPosition } from '~/types/settings';
 
 const settingsStore = useSettingsStore();
 const { layout: keyboardLayout, setLayout: setKeyboardLayout } = useKeyboardLayout();
@@ -29,6 +29,19 @@ const appAdvancedMarkerFilters = computed({
         if (settingsStore.draft) settingsStore.draft.advanced_marker_filters = v;
     },
 });
+
+const appPaginationPosition = computed({
+    get: () => settingsStore.draft?.pagination_position ?? 'bottom',
+    set: (v: PaginationPosition) => {
+        if (settingsStore.draft) settingsStore.draft.pagination_position = v;
+    },
+});
+
+const paginationPositionOptions: { value: PaginationPosition; label: string }[] = [
+    { value: 'top', label: 'Top' },
+    { value: 'bottom', label: 'Bottom' },
+    { value: 'both', label: 'Top & Bottom' },
+];
 
 const appDefaultMarkerView = computed({
     get: () => settingsStore.draft?.default_marker_view ?? 'grouped',
@@ -84,6 +97,32 @@ const appShowPageSizeSelector = computed({
                     </p>
                 </div>
                 <UiToggle v-model="appShowPageSizeSelector" />
+            </div>
+
+            <!-- Pagination Position -->
+            <div class="flex items-center justify-between gap-4">
+                <div>
+                    <label class="text-sm font-medium text-white"> Page Controls Position </label>
+                    <p class="text-dim mt-0.5 text-xs">
+                        Where the page buttons are shown on paginated pages
+                    </p>
+                </div>
+                <div class="flex shrink-0 gap-1">
+                    <button
+                        v-for="opt in paginationPositionOptions"
+                        :key="opt.value"
+                        class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-all"
+                        :class="
+                            appPaginationPosition === opt.value
+                                ? 'border-lava bg-lava/10 text-lava'
+                                : `border-border text-muted hover:border-border-hover
+                                    hover:text-white`
+                        "
+                        @click="appPaginationPosition = opt.value"
+                    >
+                        {{ opt.label }}
+                    </button>
+                </div>
             </div>
 
             <!-- Keyboard Layout -->

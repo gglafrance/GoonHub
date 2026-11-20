@@ -368,6 +368,22 @@ definePageMeta({
 
                 <!-- Label Grid -->
                 <div v-else>
+                    <Pagination
+                        v-model="currentPage"
+                        position="top"
+                        :total="groupTotal"
+                        :limit="limit"
+                        :show-page-size-selector="showSelector"
+                        :max-limit="maxLimit"
+                        @update:limit="
+                            (v: number) => {
+                                updatePageSize(v);
+                                if (currentPage === 1) loadData(1);
+                                else currentPage = 1;
+                            }
+                        "
+                    />
+
                     <MarkerLabelGrid
                         :groups="filteredGroups"
                         :marker-thumbnail-type="markerThumbnailType"
@@ -409,6 +425,22 @@ definePageMeta({
 
                 <!-- All markers grid -->
                 <div v-else>
+                    <Pagination
+                        v-model="currentPage"
+                        position="top"
+                        :total="allTotal"
+                        :limit="limit"
+                        :show-page-size-selector="showSelector"
+                        :max-limit="maxLimit"
+                        @update:limit="
+                            (v: number) => {
+                                updatePageSize(v);
+                                if (currentPage === 1) loadData(1);
+                                else currentPage = 1;
+                            }
+                        "
+                    />
+
                     <div
                         class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
                     >
