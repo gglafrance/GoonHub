@@ -51,8 +51,7 @@ const handleMouseLeave = () => {
     scrubbing.value = false;
 };
 
-const { enabled: hoverAudio } = useHoverAudio();
-const HOVER_AUDIO_VOLUME = 0.6;
+const { enabled: hoverAudio, volume: hoverAudioVolume } = useHoverAudio();
 
 const previewVideo = ref<HTMLVideoElement | null>(null);
 
@@ -60,13 +59,21 @@ const previewVideo = ref<HTMLVideoElement | null>(null);
 // click, so a rejected unmuted play() falls back to playing muted.
 watch(previewVideo, (el) => {
     if (!el) return;
-    el.muted = !hoverAudio.value;
-    el.volume = HOVER_AUDIO_VOLUME;
+    el.muted = !hoverAudio.value || hoverAudioVolume.value === 0;
+    el.volume = hoverAudioVolume.value / 100;
     el.play().catch(() => {
         if (el.muted || !el.isConnected) return;
         el.muted = true;
         el.play().catch(() => {});
     });
+});
+
+// Apply sound changes (header control) to the preview playing under the cursor
+watch([hoverAudio, hoverAudioVolume], ([on, level]) => {
+    const el = previewVideo.value;
+    if (!el) return;
+    el.volume = level / 100;
+    el.muted = !on || level === 0;
 });
 
 watch(scrubbing, (isScrubbing) => {
