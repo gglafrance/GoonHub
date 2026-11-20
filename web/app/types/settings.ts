@@ -60,6 +60,10 @@ export type SortOrder =
     | 'duration_desc'
     | 'size_asc'
     | 'size_desc'
+    | 'last_jizz_desc'
+    | 'last_jizz_asc'
+    | 'jizz_count_desc'
+    | 'jizz_count_asc'
     | 'random';
 
 export type TagSort = 'az' | 'za' | 'most' | 'least';

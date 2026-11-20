@@ -156,6 +156,21 @@ func (mr *MockImportRepositoryMockRecorder) GetScenesForSummary(ids any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetScenesForSummary", reflect.TypeOf((*MockImportRepository)(nil).GetScenesForSummary), ids)
 }
 
+// InsertJizzEventIfAbsent mocks base method.
+func (m *MockImportRepository) InsertJizzEventIfAbsent(event *data.UserSceneJizzEvent) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertJizzEventIfAbsent", event)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertJizzEventIfAbsent indicates an expected call of InsertJizzEventIfAbsent.
+func (mr *MockImportRepositoryMockRecorder) InsertJizzEventIfAbsent(event any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertJizzEventIfAbsent", reflect.TypeOf((*MockImportRepository)(nil).InsertJizzEventIfAbsent), event)
+}
+
 // InsertWatchIfAbsent mocks base method.
 func (m *MockImportRepository) InsertWatchIfAbsent(watch *data.UserSceneWatch) (bool, error) {
 	m.ctrl.T.Helper()

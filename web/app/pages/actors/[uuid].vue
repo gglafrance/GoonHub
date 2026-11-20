@@ -84,6 +84,10 @@ const sortOptions = [
     { value: 'size_asc', label: 'Smallest' },
     { value: 'view_count_desc', label: 'Most Viewed' },
     { value: 'view_count_asc', label: 'Least Viewed' },
+    { value: 'jizz_count_desc', label: 'Most O' },
+    { value: 'jizz_count_asc', label: 'Least O' },
+    { value: 'last_jizz_desc', label: 'Last O' },
+    { value: 'last_jizz_asc', label: 'Oldest O' },
 ];
 
 // Random sort seed (synced to URL for persistence across refresh)

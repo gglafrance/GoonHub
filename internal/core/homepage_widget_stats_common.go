@@ -75,8 +75,8 @@ func validateStatsIntRange(cfg map[string]interface{}, key string, lo, hi int) e
 	return nil
 }
 
-// startOfDay returns local midnight of t in loc.
-func startOfDay(t time.Time, loc *time.Location) time.Time {
+// statsStartOfDay returns local midnight of t in loc.
+func statsStartOfDay(t time.Time, loc *time.Location) time.Time {
 	l := t.In(loc)
 	return time.Date(l.Year(), l.Month(), l.Day(), 0, 0, 0, 0, loc)
 }

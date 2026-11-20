@@ -68,29 +68,33 @@ watch(
             </span>
         </button>
 
-        <!-- Jizz -->
-        <button
-            class="group flex flex-col items-center gap-0.5 transition-all duration-200"
-            title="Track completion"
-            @click="incrementJizzed"
-        >
-            <div
-                class="transition-all duration-200"
-                :class="[
-                    jizzedCount > 0 ? 'text-white' : 'text-white/25 group-hover:text-white/50',
-                    jizzedAnimating ? 'scale-125' : 'scale-100',
-                ]"
+        <!-- Jizz (hover: dated history) -->
+        <WatchDetailsJizzHistory :scene-id="sceneId" :count="jizzedCount">
+            <button
+                class="group flex flex-col items-center gap-0.5 transition-all duration-200"
+                title="Add an o (hover for history)"
+                @click="incrementJizzed"
             >
-                <Icon name="fluent-emoji-high-contrast:sweat-droplets" size="18" />
-            </div>
-            <span
-                class="text-[9px] font-medium tabular-nums transition-colors duration-200"
-                :class="[
-                    jizzedCount > 0 ? 'text-white/70' : 'text-white/25 group-hover:text-white/40',
-                ]"
-            >
-                {{ jizzedCount > 0 ? jizzedCount : 'Jizz' }}
-            </span>
-        </button>
+                <div
+                    class="transition-all duration-200"
+                    :class="[
+                        jizzedCount > 0 ? 'text-white' : 'text-white/25 group-hover:text-white/50',
+                        jizzedAnimating ? 'scale-125' : 'scale-100',
+                    ]"
+                >
+                    <Icon name="fluent-emoji-high-contrast:sweat-droplets" size="18" />
+                </div>
+                <span
+                    class="text-[9px] font-medium tabular-nums transition-colors duration-200"
+                    :class="[
+                        jizzedCount > 0
+                            ? 'text-white/70'
+                            : 'text-white/25 group-hover:text-white/40',
+                    ]"
+                >
+                    {{ jizzedCount > 0 ? jizzedCount : 'Jizz' }}
+                </span>
+            </button>
+        </WatchDetailsJizzHistory>
     </div>
 </template>

@@ -22,7 +22,7 @@ const hovered = ref<string | null>(null);
     <figure>
         <figcaption class="text-dim mb-2 text-[10px] font-medium uppercase">{{ title }}</figcaption>
         <div
-            class="flex h-28 items-end gap-0.5 border-b border-white/10"
+            class="flex h-28 items-end gap-0.5 border-b border-white/10 pt-4"
             role="list"
             :aria-label="title"
             @mouseleave="hovered = null"
@@ -38,13 +38,11 @@ const hovered = ref<string | null>(null);
                 <div
                     class="w-full rounded-t transition-colors"
                     :class="
-                        bar.peak
-                            ? 'bg-lava'
-                            : hovered === bar.key
-                              ? 'bg-lava/70'
-                              : 'bg-lava/40'
+                        bar.peak ? 'bg-lava' : hovered === bar.key ? 'bg-lava/70' : 'bg-lava/40'
                     "
-                    :style="{ height: `${Math.max(bar.count > 0 ? 2 : 0, (bar.count / max) * 100)}%` }"
+                    :style="{
+                        height: `${Math.max(bar.count > 0 ? 2 : 0, (bar.count / max) * 100)}%`,
+                    }"
                 />
                 <!-- Direct label on the peak only -->
                 <span

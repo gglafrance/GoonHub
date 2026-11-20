@@ -41,6 +41,7 @@ export type WidgetSectionType =
     | 'activity_calendar'
     | 'watch_times'
     | 'records'
+    | 'jizz_insights'
     | 'trends'
     | 'performer_spotlight'
     // Tools
@@ -448,7 +449,7 @@ export const SECTION_TYPE_META: Record<SectionType, SectionTypeMeta> = {
     },
     activity_calendar: {
         label: 'Activity Calendar',
-        description: 'Daily viewing heatmap with streaks',
+        description: 'Daily views or O heatmap with streaks',
         icon: 'heroicons:calendar',
         color: 'text-emerald bg-emerald/10',
         category: 'stats',
@@ -459,7 +460,7 @@ export const SECTION_TYPE_META: Record<SectionType, SectionTypeMeta> = {
     },
     watch_times: {
         label: 'When You Watch',
-        description: 'Views by hour of the day and day of the week',
+        description: 'Views and O by hour of the day and day of the week',
         icon: 'heroicons:clock',
         color: 'text-blue-400 bg-blue-400/10',
         category: 'stats',
@@ -473,6 +474,17 @@ export const SECTION_TYPE_META: Record<SectionType, SectionTypeMeta> = {
         description: 'Most watched scene, longest streak, biggest file...',
         icon: 'heroicons:trophy',
         color: 'text-amber-400 bg-amber-400/10',
+        category: 'stats',
+        sort: noSort,
+        defaultLimit: 1,
+        usesLimit: false,
+        widget: true,
+    },
+    jizz_insights: {
+        label: 'O Insights',
+        description: 'Dated O per month, favorite hour and day, top scenes',
+        icon: 'heroicons:chart-bar-square',
+        color: 'text-lava bg-lava/10',
         category: 'stats',
         sort: noSort,
         defaultLimit: 1,

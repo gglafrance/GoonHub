@@ -10,7 +10,7 @@ All v2 fields are optional and backward compatible with v1 clients.
 Lets a client detect v2 support (a v1 server returns 404).
 
 ```json
-200 {"version": 2, "features": ["scene_associations", "scene_interactions", "scene_update_existing", "marker_dedup", "marker_tags", "marker_end", "scene_summary", "skip_index"]}
+200 {"version": 2, "features": ["scene_associations", "scene_interactions", "scene_update_existing", "marker_dedup", "marker_tags", "marker_end", "scene_summary", "jizz_history", "skip_index"]}
 ```
 
 ## POST /api/v1/admin/import/scenes
@@ -39,6 +39,7 @@ New fields:
 | `rating` | `*float64` | 0.5–5, rounded to nearest 0.5; upsert. `0`/absent = don't touch |
 | `liked` | `*bool` | true = set like, false = remove like, absent = don't touch |
 | `jizzed_count` | `*int` | sets the exact count (not an increment); absent = don't touch |
+| `jizz_history` | `[]string` | dates (RFC 3339) of the "o", stored as dated events deduplicated on (user, scene, instant); the count is raised to at least their number. Feature `jizz_history` |
 | `watches` | `[]{watched_at RFC3339, watch_duration int, last_position int, completed bool}` | inserted into watch history; an entry with the same (user, scene, watched_at to the second) is not inserted twice |
 
 Behaviour:
