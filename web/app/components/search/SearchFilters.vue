@@ -48,6 +48,12 @@ const resolutionOptions = [
             <!-- Duration -->
             <SearchFiltersFilterDuration />
 
+            <!-- File size -->
+            <SearchFiltersFilterSize />
+
+            <!-- Library status -->
+            <SearchFiltersFilterStatus />
+
             <!-- Date Range -->
             <SearchFiltersFilterDateRange />
 

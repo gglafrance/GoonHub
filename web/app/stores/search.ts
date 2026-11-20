@@ -1,6 +1,27 @@
 import type { SceneListItem, SceneFilterOptions } from '~/types/scene';
 import type { SavedSearchFilters } from '~/types/saved_search';
 
+// Library status filters: null = any, true = yes, false = no
+export const SEARCH_STATUS_KEYS = [
+    'watched',
+    'rated',
+    'has_markers',
+    'has_actors',
+    'has_tags',
+    'has_studio',
+] as const;
+export type SearchStatusKey = (typeof SEARCH_STATUS_KEYS)[number];
+export type SearchStatus = Record<SearchStatusKey, boolean | null>;
+
+const emptyStatus = (): SearchStatus => ({
+    watched: null,
+    rated: null,
+    has_markers: null,
+    has_actors: null,
+    has_tags: null,
+    has_studio: null,
+});
+
 export const useSearchStore = defineStore('search', () => {
     const api = useApi();
     const settingsStore = useSettingsStore();
@@ -12,6 +33,21 @@ export const useSearchStore = defineStore('search', () => {
     const studio = ref('');
     const minDuration = ref(0);
     const maxDuration = ref(0);
+    // File size bounds in megabytes (0 = no bound)
+    const minSize = ref(0);
+    const maxSize = ref(0);
+    const status = ref<SearchStatus>(emptyStatus());
+    const activeStatusCount = computed(
+        () => SEARCH_STATUS_KEYS.filter((k) => status.value[k] !== null).length,
+    );
+    const statusParams = (): Record<string, string> => {
+        const out: Record<string, string> = {};
+        for (const k of SEARCH_STATUS_KEYS) {
+            const v = status.value[k];
+            if (v !== null) out[k] = String(v);
+        }
+        return out;
+    };
     const minDate = ref('');
     const maxDate = ref('');
     const resolution = ref('');
@@ -60,6 +96,9 @@ export const useSearchStore = defineStore('search', () => {
             studio.value !== '' ||
             minDuration.value > 0 ||
             maxDuration.value > 0 ||
+            minSize.value > 0 ||
+            maxSize.value > 0 ||
+            activeStatusCount.value > 0 ||
             minDate.value !== '' ||
             maxDate.value !== '' ||
             resolution.value !== '' ||
@@ -91,6 +130,9 @@ export const useSearchStore = defineStore('search', () => {
             if (studio.value) params.studio = studio.value;
             if (minDuration.value > 0) params.min_duration = minDuration.value;
             if (maxDuration.value > 0) params.max_duration = maxDuration.value;
+            if (minSize.value > 0) params.min_size = minSize.value;
+            if (maxSize.value > 0) params.max_size = maxSize.value;
+            Object.assign(params, statusParams());
             if (minDate.value) params.min_date = minDate.value;
             if (maxDate.value) params.max_date = maxDate.value;
             if (resolution.value) params.resolution = resolution.value;
@@ -146,6 +188,9 @@ export const useSearchStore = defineStore('search', () => {
         studio.value = '';
         minDuration.value = 0;
         maxDuration.value = 0;
+        minSize.value = 0;
+        maxSize.value = 0;
+        status.value = emptyStatus();
         minDate.value = '';
         maxDate.value = '';
         resolution.value = '';
@@ -182,6 +227,12 @@ export const useSearchStore = defineStore('search', () => {
         if (resolution.value) filters.resolution = resolution.value;
         if (minDuration.value > 0) filters.min_duration = minDuration.value;
         if (maxDuration.value > 0) filters.max_duration = maxDuration.value;
+        if (minSize.value > 0) filters.min_size = minSize.value;
+        if (maxSize.value > 0) filters.max_size = maxSize.value;
+        for (const k of SEARCH_STATUS_KEYS) {
+            const v = status.value[k];
+            if (v !== null) filters[k] = v;
+        }
         if (minDate.value) filters.min_date = minDate.value;
         if (maxDate.value) filters.max_date = maxDate.value;
         if (liked.value) filters.liked = true;
@@ -206,6 +257,13 @@ export const useSearchStore = defineStore('search', () => {
         resolution.value = filters.resolution || '';
         minDuration.value = filters.min_duration || 0;
         maxDuration.value = filters.max_duration || 0;
+        minSize.value = filters.min_size || 0;
+        maxSize.value = filters.max_size || 0;
+        status.value = emptyStatus();
+        for (const k of SEARCH_STATUS_KEYS) {
+            const v = filters[k];
+            if (typeof v === 'boolean') status.value[k] = v;
+        }
         minDate.value = filters.min_date || '';
         maxDate.value = filters.max_date || '';
         liked.value = filters.liked || false;
@@ -227,6 +285,9 @@ export const useSearchStore = defineStore('search', () => {
         if (studio.value) params.studio = studio.value;
         if (minDuration.value > 0) params.min_duration = minDuration.value;
         if (maxDuration.value > 0) params.max_duration = maxDuration.value;
+        if (minSize.value > 0) params.min_size = minSize.value;
+        if (maxSize.value > 0) params.max_size = maxSize.value;
+        Object.assign(params, statusParams());
         if (minDate.value) params.min_date = minDate.value;
         if (maxDate.value) params.max_date = maxDate.value;
         if (resolution.value) params.resolution = resolution.value;
@@ -250,6 +311,10 @@ export const useSearchStore = defineStore('search', () => {
         studio,
         minDuration,
         maxDuration,
+        minSize,
+        maxSize,
+        status,
+        activeStatusCount,
         minDate,
         maxDate,
         resolution,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { SEARCH_STATUS_KEYS } from '~/stores/search';
 import type { SavedSearch, SavedSearchFilters } from '~/types/saved_search';
 
 const searchStore = useSearchStore();
@@ -39,6 +40,8 @@ const activeFilterCount = computed(() => {
         count += searchStore.selectedMarkerLabels.length;
     if (searchStore.studio) count++;
     if (searchStore.minDuration > 0 || searchStore.maxDuration > 0) count++;
+    if (searchStore.minSize > 0 || searchStore.maxSize > 0) count++;
+    count += searchStore.activeStatusCount;
     if (searchStore.minDate || searchStore.maxDate) count++;
     if (searchStore.resolution) count++;
     if (searchStore.liked) count++;
@@ -57,6 +60,12 @@ const syncFromUrl = () => {
     searchStore.studio = (q.studio as string) || '';
     searchStore.minDuration = q.min_duration ? Number(q.min_duration) : 0;
     searchStore.maxDuration = q.max_duration ? Number(q.max_duration) : 0;
+    searchStore.minSize = q.min_size ? Number(q.min_size) : 0;
+    searchStore.maxSize = q.max_size ? Number(q.max_size) : 0;
+    for (const k of SEARCH_STATUS_KEYS) {
+        const v = q[k];
+        searchStore.status[k] = v === 'true' ? true : v === 'false' ? false : null;
+    }
     searchStore.minDate = (q.min_date as string) || '';
     searchStore.maxDate = (q.max_date as string) || '';
     searchStore.resolution = (q.resolution as string) || '';
@@ -87,6 +96,12 @@ const syncToUrl = () => {
     if (searchStore.studio) query.studio = searchStore.studio;
     if (searchStore.minDuration > 0) query.min_duration = String(searchStore.minDuration);
     if (searchStore.maxDuration > 0) query.max_duration = String(searchStore.maxDuration);
+    if (searchStore.minSize > 0) query.min_size = String(searchStore.minSize);
+    if (searchStore.maxSize > 0) query.max_size = String(searchStore.maxSize);
+    for (const k of SEARCH_STATUS_KEYS) {
+        const v = searchStore.status[k];
+        if (v !== null) query[k] = String(v);
+    }
     if (searchStore.minDate) query.min_date = searchStore.minDate;
     if (searchStore.maxDate) query.max_date = searchStore.maxDate;
     if (searchStore.resolution) query.resolution = searchStore.resolution;
@@ -136,6 +151,9 @@ watch(
         searchStore.studio,
         searchStore.minDuration,
         searchStore.maxDuration,
+        searchStore.minSize,
+        searchStore.maxSize,
+        JSON.stringify(searchStore.status),
         searchStore.minDate,
         searchStore.maxDate,
         searchStore.resolution,

@@ -30,6 +30,10 @@ type InteractionRepository interface {
 	GetLikedSceneIDs(userID uint) ([]uint, error)
 	GetRatedSceneIDs(userID uint, minRating, maxRating float64) ([]uint, error)
 	GetJizzedSceneIDs(userID uint, minCount, maxCount int) ([]uint, error)
+	// GetWatchedSceneIDs returns the scenes the user has watched at least once.
+	GetWatchedSceneIDs(userID uint) ([]uint, error)
+	// GetMarkedSceneIDs returns the scenes on which the user has markers.
+	GetMarkedSceneIDs(userID uint) ([]uint, error)
 	GetLikesBySceneIDs(userID uint, sceneIDs []uint) (map[uint]bool, error)
 	GetJizzCountsBySceneIDs(userID uint, sceneIDs []uint) (map[uint]int, error)
 
@@ -119,7 +123,7 @@ func (r *InteractionRepositoryImpl) IncrementJizzed(userID, sceneID uint) (int, 
 		Count:   1,
 	}
 	result := r.DB.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "user_id"}, {Name: "scene_id"}},
+		Columns: []clause.Column{{Name: "user_id"}, {Name: "scene_id"}},
 		DoUpdates: clause.Assignments(map[string]interface{}{
 			"count":      gorm.Expr("user_scene_jizzed.count + 1"),
 			"updated_at": gorm.Expr("NOW()"),
@@ -250,6 +254,20 @@ func (r *InteractionRepositoryImpl) GetJizzedSceneIDs(userID uint, minCount, max
 		return nil, err
 	}
 	return ids, nil
+}
+
+func (r *InteractionRepositoryImpl) GetWatchedSceneIDs(userID uint) ([]uint, error) {
+	var ids []uint
+	err := r.DB.Raw("SELECT DISTINCT scene_id FROM user_scene_watches WHERE user_id = ?", userID).
+		Scan(&ids).Error
+	return ids, err
+}
+
+func (r *InteractionRepositoryImpl) GetMarkedSceneIDs(userID uint) ([]uint, error) {
+	var ids []uint
+	err := r.DB.Raw("SELECT DISTINCT scene_id FROM user_scene_markers WHERE user_id = ?", userID).
+		Scan(&ids).Error
+	return ids, err
 }
 
 func (r *InteractionRepositoryImpl) GetLikesBySceneIDs(userID uint, sceneIDs []uint) (map[uint]bool, error) {

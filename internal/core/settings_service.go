@@ -63,6 +63,8 @@ var allowedEntitySceneSorts = map[string]bool{
 	"title_desc":      true,
 	"duration_asc":    true,
 	"duration_desc":   true,
+	"size_asc":        true,
+	"size_desc":       true,
 	"view_count_desc": true,
 	"view_count_asc":  true,
 	"random":          true,

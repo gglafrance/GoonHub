@@ -17,6 +17,8 @@ const activeFilterCount = computed(() => {
         count += searchStore.selectedMarkerLabels.length;
     if (searchStore.studio) count++;
     if (searchStore.minDuration > 0 || searchStore.maxDuration > 0) count++;
+    if (searchStore.minSize > 0 || searchStore.maxSize > 0) count++;
+    count += searchStore.activeStatusCount;
     if (searchStore.minDate || searchStore.maxDate) count++;
     if (searchStore.resolution) count++;
     if (searchStore.liked) count++;
@@ -46,6 +48,8 @@ const sortOptions = [
     { value: 'title_desc', label: 'Title Z-A' },
     { value: 'duration_asc', label: 'Shortest' },
     { value: 'duration_desc', label: 'Longest' },
+    { value: 'size_desc', label: 'Largest' },
+    { value: 'size_asc', label: 'Smallest' },
     { value: 'view_count_desc', label: 'Most Viewed' },
     { value: 'view_count_asc', label: 'Least Viewed' },
 ];
@@ -160,6 +164,8 @@ onUnmounted(() => {
 
                         <!-- Duration -->
                         <SearchFiltersFilterDuration />
+                        <SearchFiltersFilterSize />
+                        <SearchFiltersFilterStatus />
 
                         <!-- Date Range -->
                         <SearchFiltersFilterDateRange />
