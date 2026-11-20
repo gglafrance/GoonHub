@@ -122,11 +122,11 @@ func NewSpritesJobWithID(
 	}
 }
 
-func (j *SpritesJob) GetID() string      { return j.id }
-func (j *SpritesJob) GetSceneID() uint    { return j.sceneID }
-func (j *SpritesJob) GetPhase() string    { return "sprites" }
-func (j *SpritesJob) GetStatus() JobStatus { return j.status }
-func (j *SpritesJob) GetError() error     { return j.error }
+func (j *SpritesJob) GetID() string             { return j.id }
+func (j *SpritesJob) GetSceneID() uint          { return j.sceneID }
+func (j *SpritesJob) GetPhase() string          { return "sprites" }
+func (j *SpritesJob) GetStatus() JobStatus      { return j.status }
+func (j *SpritesJob) GetError() error           { return j.error }
 func (j *SpritesJob) GetResult() *SpritesResult { return j.result }
 
 func (j *SpritesJob) Cancel() {
@@ -158,6 +158,20 @@ func (j *SpritesJob) Execute() error {
 	return j.ExecuteWithContext(context.Background())
 }
 
+// effectiveSpriteInterval shortens the sprite frame interval for short scenes so that they still
+// get at least minFrames frames (one sprite row) instead of no sprite sheet at all, which the
+// scene card scrubber and the player seek preview need.
+func effectiveSpriteInterval(duration, interval, minFrames int) int {
+	if interval <= 0 || duration <= 0 || minFrames <= 0 || duration/interval >= minFrames {
+		return interval
+	}
+	short := duration / minFrames
+	if short < 1 {
+		short = 1
+	}
+	return short
+}
+
 func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 	// Create a cancellable context for this execution
 	j.ctx, j.cancelFn = context.WithCancel(ctx)
@@ -165,13 +179,14 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 
 	startTime := time.Now()
 	j.status = JobStatusRunning
+	frameInterval := effectiveSpriteInterval(j.duration, j.frameInterval, j.gridCols)
 
 	j.logger.Info("Starting sprite sheet generation job",
 		zap.String("job_id", j.id),
 		zap.Uint("scene_id", j.sceneID),
 		zap.Int("tile_width", j.tileWidth),
 		zap.Int("tile_height", j.tileHeight),
-		zap.Int("frame_interval", j.frameInterval),
+		zap.Int("frame_interval", frameInterval),
 		zap.Int("grid_cols", j.gridCols),
 		zap.Int("grid_rows", j.gridRows),
 	)
@@ -205,7 +220,7 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 		j.tileHeight,
 		j.gridCols,
 		j.gridRows,
-		j.frameInterval,
+		frameInterval,
 		j.frameQuality,
 		j.concurrency,
 		progressCallback,
@@ -248,7 +263,7 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 		vttPath,
 		spriteSheets,
 		j.duration,
-		j.frameInterval,
+		frameInterval,
 		j.gridCols,
 		j.gridRows,
 		j.tileWidth,

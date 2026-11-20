@@ -43,6 +43,13 @@ const handleCardClick = (event: MouseEvent) => {
 };
 
 const hovering = ref(false);
+// True while the cursor is on the bottom scrub strip (preview paused, sprite frame shown)
+const scrubbing = ref(false);
+
+const handleMouseLeave = () => {
+    hovering.value = false;
+    scrubbing.value = false;
+};
 
 const { enabled: hoverAudio } = useHoverAudio();
 const HOVER_AUDIO_VOLUME = 0.6;
@@ -62,6 +69,16 @@ watch(previewVideo, (el) => {
     });
 });
 
+watch(scrubbing, (isScrubbing) => {
+    const el = previewVideo.value;
+    if (!el) return;
+    if (isScrubbing) {
+        el.pause();
+    } else {
+        el.play().catch(() => {});
+    }
+});
+
 const isProcessing = computed(() => isSceneProcessing(props.scene));
 const isCorrupted = computed(() => isSceneCorrupted(props.scene));
 
@@ -77,6 +94,10 @@ const previewUrl = computed(() => {
     const v = props.scene.updated_at ? new Date(props.scene.updated_at).getTime() : '';
     return v ? `/scene-previews/${props.scene.id}?v=${v}` : `/scene-previews/${props.scene.id}`;
 });
+
+const sceneVersion = computed(() =>
+    props.scene.updated_at ? String(new Date(props.scene.updated_at).getTime()) : undefined,
+);
 
 const progressPercent = computed(() => {
     if (!props.progress || props.progress.duration <= 0) return 0;
@@ -117,7 +138,7 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                 class="bg-void relative"
                 :class="fluid ? 'aspect-video w-full' : 'h-[158px] sm:h-45'"
                 @mouseenter="hovering = true"
-                @mouseleave="hovering = false"
+                @mouseleave="handleMouseLeave"
             >
                 <!-- Blurred background (stretched to fill) -->
                 <img
@@ -172,6 +193,15 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                 >
                     <Icon name="heroicons:play" size="32" />
                 </div>
+
+                <!-- Scrubber: hover the bottom strip to browse the scene -->
+                <SceneCardPreviewScrubber
+                    v-if="hovering && thumbnailUrl && !isProcessing && !selectable"
+                    :scene-id="scene.id"
+                    :duration="scene.duration"
+                    :version="sceneVersion"
+                    @update:active="scrubbing = $event"
+                />
 
                 <!-- Badge zones -->
                 <div class="absolute top-1.5 left-1.5 z-20" :class="selectable ? 'mt-6' : ''">
