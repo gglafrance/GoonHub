@@ -50,6 +50,10 @@ const sortOptions = [
     { value: 'duration_desc', label: 'Longest' },
     { value: 'size_desc', label: 'Largest' },
     { value: 'size_asc', label: 'Smallest' },
+    { value: 'jizz_count_desc', label: 'Most O' },
+    { value: 'jizz_count_asc', label: 'Least O' },
+    { value: 'last_jizz_desc', label: 'Last O' },
+    { value: 'last_jizz_asc', label: 'Oldest O' },
     { value: 'view_count_desc', label: 'Most Viewed' },
     { value: 'view_count_asc', label: 'Least Viewed' },
 ];

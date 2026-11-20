@@ -7,6 +7,16 @@ const period = computed({
     set: (v: string | number) => (config.value = { ...config.value, period: String(v) }),
 });
 
+const metric = computed({
+    get: () => String(config.value.metric ?? 'views'),
+    set: (v: string | number) => (config.value = { ...config.value, metric: String(v) }),
+});
+
+const metrics = [
+    { value: 'views', label: 'Views' },
+    { value: 'jizz', label: 'O' },
+];
+
 const periods = [
     { value: 'week', label: '7 days' },
     { value: 'month', label: '30 days' },
@@ -15,10 +25,18 @@ const periods = [
 </script>
 
 <template>
-    <SettingsHomepageWidgetConfigDisplayOptionButtons
-        v-model="period"
-        label="Period"
-        :options="periods"
-        hint="Rolling period, compared to the period just before"
-    />
+    <div class="space-y-4">
+        <SettingsHomepageWidgetConfigDisplayOptionButtons
+            v-model="metric"
+            label="Rank by"
+            :options="metrics"
+            hint="O ranks by dated O only"
+        />
+        <SettingsHomepageWidgetConfigDisplayOptionButtons
+            v-model="period"
+            label="Period"
+            :options="periods"
+            hint="Rolling period, compared to the period just before"
+        />
+    </div>
 </template>

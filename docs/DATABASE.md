@@ -508,6 +508,22 @@ Deduplication table for 24-hour view count increment logic.
 
 ---
 
+### `user_scene_jizz_events`
+
+Dated "o" (jizz) events; `user_scene_jizzed.count` stays the per-scene total.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `scene_id` | BIGINT | NO | - | FK to `scenes.id` (CASCADE) |
+| `jizzed_at` | TIMESTAMPTZ | NO | - | When it happened |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Record creation |
+
+**Indexes:** `(user_id, jizzed_at)`, `scene_id`. **Constraints:** UNIQUE `(user_id, scene_id, jizzed_at)`.
+
+---
+
 ### `user_scene_markers`
 
 Video bookmarks/markers created by users.

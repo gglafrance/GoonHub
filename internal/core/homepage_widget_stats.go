@@ -13,10 +13,13 @@ import (
 //
 //	tiles  []string  tiles to show, in order (default: all, see statsWidgetTiles)
 //	period string    "month" (calendar month, default), "week" (ISO week), "30d" or "7d":
-//	                 period of the views figure, compared to the previous period
+//	                 period of the views and o figures, compared to the previous period
 //	tz     string    IANA timezone for the period boundaries (default: server TZ, else UTC)
 
-var statsWidgetTiles = []string{"scenes", "hours", "size", "watched", "views", "jizz", "liked", "markers", "rating"}
+var statsWidgetTiles = []string{
+	"scenes", "hours", "size", "watched", "views", "jizz", "jizz_period", "last_jizz", "jizz_per_week",
+	"liked", "markers", "rating",
+}
 
 var statsWidgetPeriods = map[string]bool{"month": true, "week": true, "30d": true, "7d": true}
 
@@ -32,10 +35,16 @@ type StatsWidgetPayload struct {
 	ViewsPeriod     int64    `json:"views_period"`
 	ViewsPrevPeriod int64    `json:"views_prev_period"`
 	JizzTotal       int64    `json:"jizz_total"`
-	LikedCount      int64    `json:"liked_count"`
-	MarkerCount     int64    `json:"marker_count"`
-	RatedCount      int64    `json:"rated_count"`
-	AvgRating       *float64 `json:"avg_rating"`
+	// Dated o: count of the period and of the previous one, last o, weekly average since
+	// the first dated o
+	JizzPeriod     int64      `json:"jizz_period"`
+	JizzPrevPeriod int64      `json:"jizz_prev_period"`
+	LastJizzAt     *time.Time `json:"last_jizz_at"`
+	JizzPerWeek    float64    `json:"jizz_per_week"`
+	LikedCount     int64      `json:"liked_count"`
+	MarkerCount    int64      `json:"marker_count"`
+	RatedCount     int64      `json:"rated_count"`
+	AvgRating      *float64   `json:"avg_rating"`
 }
 
 func init() {
@@ -44,7 +53,7 @@ func init() {
 
 // statsPeriodBounds returns the start of the current and previous periods.
 func statsPeriodBounds(period string, now time.Time, loc *time.Location) (prevStart, start time.Time) {
-	today := startOfDay(now, loc)
+	today := statsStartOfDay(now, loc)
 	switch period {
 	case "week":
 		offset := (int(today.Weekday()) + 6) % 7 // days since Monday
@@ -118,6 +127,14 @@ func fetchStatsWidget(s *HomepageService, userID uint, section data.HomepageSect
 		RatedCount:      stats.RatedCount,
 		AvgRating:       stats.AvgRating,
 	}
+	jizz, err := data.QueryJizzPeriodStats(db, userID, prevStart, start)
+	if err != nil {
+		return nil, fmt.Errorf("stats widget: %w", err)
+	}
+	payload.JizzPeriod = jizz.Period
+	payload.JizzPrevPeriod = jizz.PrevPeriod
+	payload.LastJizzAt = jizz.Last
+	payload.JizzPerWeek = jizzPerWeek(jizz.Total, jizz.First, time.Now())
 	if stats.SceneCount > 0 {
 		payload.WatchedPercent = float64(stats.WatchedScenes) * 100 / float64(stats.SceneCount)
 	}
@@ -148,4 +165,16 @@ func validateStatsWidget(cfg map[string]interface{}) error {
 		}
 	}
 	return validateStatsTimezone(cfg)
+}
+
+// jizzPerWeek is the weekly average of dated o since the first one (at least one week).
+func jizzPerWeek(total int64, first *time.Time, now time.Time) float64 {
+	if total == 0 || first == nil {
+		return 0
+	}
+	weeks := now.Sub(*first).Hours() / (24 * 7)
+	if weeks < 1 {
+		weeks = 1
+	}
+	return float64(total) / weeks
 }

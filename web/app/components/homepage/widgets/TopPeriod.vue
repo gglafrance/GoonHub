@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { HomepageSection, HomepageSectionData } from '~/types/homepage';
 
-// top_period widget: most watched scenes over the period, with views and the change compared
-// to the previous period.
+// top_period widget: most watched (or most o'd) scenes over the period, with the count and the
+// change compared to the previous period. With metric jizz, the "views" fields hold o counts.
 interface TopPeriodItem {
     scene_id: number;
     views: number;
@@ -13,6 +13,7 @@ const props = defineProps<{
     section: HomepageSection;
     data: HomepageSectionData<{
         period: 'week' | 'month' | 'year';
+        metric?: 'views' | 'jizz';
         total_views: number;
         previous_total_views: number;
         items: TopPeriodItem[];
@@ -28,6 +29,8 @@ const PERIOD_LABELS = {
 } as const;
 
 const period = computed(() => PERIOD_LABELS[props.data.widget?.period ?? 'month']);
+const isJizz = computed(() => props.data.widget?.metric === 'jizz');
+const unit = computed(() => (isJizz.value ? 'O' : 'views'));
 
 const items = computed(() => {
     const byId = new Map(props.data.widget?.items?.map((i) => [i.scene_id, i]) ?? []);
@@ -55,19 +58,19 @@ const change = computed(() => {
     <div class="border-border rounded-lg border bg-white/2 p-4">
         <div class="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span class="text-2xl font-bold text-white">{{ total }}</span>
-            <span class="text-dim text-xs">views over the {{ period.current }}</span>
+            <span class="text-dim text-xs">{{ unit }} over the {{ period.current }}</span>
             <span
                 v-if="change !== null"
                 class="rounded-full px-1.5 py-0.5 font-mono text-[10px]"
                 :class="change >= 0 ? 'bg-emerald/10 text-emerald' : 'bg-lava/10 text-lava'"
-                :title="`${previousTotal} views over the ${period.previous}`"
+                :title="`${previousTotal} ${unit} over the ${period.previous}`"
             >
                 {{ change >= 0 ? '+' : '' }}{{ change }}%
             </span>
         </div>
 
         <div v-if="items.length === 0" class="text-dim py-6 text-center text-xs">
-            Nothing watched over the {{ period.current }}
+            {{ isJizz ? 'No dated O' : 'Nothing watched' }} over the {{ period.current }}
         </div>
         <ol v-else class="grid gap-x-6 gap-y-1 md:grid-cols-2">
             <li v-for="item in items" :key="item.scene.id">
@@ -97,7 +100,9 @@ const change = computed(() => {
                         </div>
                     </div>
                     <div class="shrink-0 text-right">
-                        <div class="font-mono text-xs text-white">{{ item.views }}x</div>
+                        <div class="font-mono text-xs text-white">
+                            {{ item.views }}{{ isJizz ? ' O' : 'x' }}
+                        </div>
                         <div
                             class="font-mono text-[10px]"
                             :class="

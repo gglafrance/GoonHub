@@ -35,9 +35,11 @@ type ImportSceneRequest struct {
 
 // ImportInteractionsRequest holds the interactions applied for the current user.
 type ImportInteractionsRequest struct {
-	Rating      *float64             `json:"rating,omitempty"`
-	Liked       *bool                `json:"liked,omitempty"`
-	JizzedCount *int                 `json:"jizzed_count,omitempty"`
+	Rating      *float64 `json:"rating,omitempty"`
+	Liked       *bool    `json:"liked,omitempty"`
+	JizzedCount *int     `json:"jizzed_count,omitempty"`
+	// JizzHistory holds the dates (RFC 3339) of the "o", imported as dated events
+	JizzHistory []string             `json:"jizz_history,omitempty"`
 	Watches     []ImportWatchRequest `json:"watches,omitempty"`
 }
 

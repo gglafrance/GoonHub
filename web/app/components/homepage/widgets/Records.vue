@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { HomepageSection, HomepageSectionData } from '~/types/homepage';
 
-// records widget: viewing records and library extremes.
+// records widget: viewing and o records and library extremes.
 interface RecordScene {
     id: number;
     title: string;
@@ -19,6 +19,11 @@ interface RecordsPayload {
     first_view: string | null;
     total_watch_time: number;
     total_views: number;
+    first_jizz: string | null;
+    dated_jizz_total: number;
+    longest_jizz_streak: { days: number; start: string; end: string } | null;
+    busiest_jizz_day: { day: string; count: number } | null;
+    most_jizzed_in_a_day: (RecordScene & { day: string }) | null;
     timezone: string;
 }
 
@@ -30,6 +35,7 @@ const props = defineProps<{
 defineEmits<{ refresh: [] }>();
 
 const { formatDuration, formatSize } = useFormatter();
+const linkComponent = resolveComponent('NuxtLink');
 const number = new Intl.NumberFormat();
 const dayFormat = new Intl.DateTimeFormat(undefined, {
     day: 'numeric',
@@ -93,6 +99,42 @@ const items = computed<RecordItem[]>(() => {
             detail: formatDay(p.busiest_day.day),
         });
     }
+    if (p.first_jizz) {
+        list.push({
+            key: 'first_jizz',
+            label: 'First O',
+            icon: 'heroicons:sparkles',
+            value: dayFormat.format(new Date(p.first_jizz)),
+            detail: `${number.format(p.dated_jizz_total)} dated O since`,
+        });
+    }
+    if (p.longest_jizz_streak) {
+        list.push({
+            key: 'longest_jizz_streak',
+            label: 'Longest O streak',
+            icon: 'heroicons:bolt',
+            value: `${p.longest_jizz_streak.days} ${p.longest_jizz_streak.days > 1 ? 'days' : 'day'}`,
+            detail: `${formatDay(p.longest_jizz_streak.start)} - ${formatDay(p.longest_jizz_streak.end)}`,
+        });
+    }
+    if (p.busiest_jizz_day) {
+        list.push({
+            key: 'busiest_jizz_day',
+            label: 'Busiest O day',
+            icon: 'heroicons:calendar-days',
+            value: `${number.format(p.busiest_jizz_day.count)} O`,
+            detail: formatDay(p.busiest_jizz_day.day),
+        });
+    }
+    if (p.most_jizzed_in_a_day) {
+        list.push({
+            key: 'most_jizzed_in_a_day',
+            label: `Most O in a day (${formatDay(p.most_jizzed_in_a_day.day)})`,
+            icon: 'heroicons:fire',
+            value: `${number.format(p.most_jizzed_in_a_day.value)} O`,
+            scene: p.most_jizzed_in_a_day,
+        });
+    }
     if (p.longest_scene) {
         list.push({
             key: 'longest_scene',
@@ -135,7 +177,7 @@ const items = computed<RecordItem[]>(() => {
 <template>
     <div v-if="items.length" class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <component
-            :is="item.scene ? resolveComponent('NuxtLink') : 'div'"
+            :is="item.scene ? linkComponent : 'div'"
             v-for="item in items"
             :key="item.key"
             :to="item.scene ? `/watch/${item.scene.id}` : undefined"

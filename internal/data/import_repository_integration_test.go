@@ -268,3 +268,28 @@ func TestImportRepository_MarkerDedupAndCounts(t *testing.T) {
 		t.Fatalf("expected soft-deleted scene excluded, got %+v err=%v", scenes, err)
 	}
 }
+
+func TestImportRepository_JizzEventsDeduplicated(t *testing.T) {
+	db := importTestDB(t)
+	f := newImportFixture(t, db)
+	repo := NewImportRepository(db)
+	suffix := f.tags[0].Name[len("import-a-"):]
+	scene := &Scene{Title: "Jizz", StoredPath: "/import-test/" + suffix + "/jizz.mp4", Tags: pq.StringArray{}, Actors: pq.StringArray{}}
+	if err := db.Create(scene).Error; err != nil {
+		t.Fatal(err)
+	}
+	at := time.Date(2024, 5, 1, 20, 15, 0, 0, time.UTC)
+	for i, want := range []bool{true, false} {
+		inserted, err := repo.InsertJizzEventIfAbsent(&UserSceneJizzEvent{UserID: f.user.ID, SceneID: scene.ID, JizzedAt: at})
+		if err != nil {
+			t.Fatalf("insert %d: %v", i, err)
+		}
+		if inserted != want {
+			t.Fatalf("insert %d: inserted=%v, want %v", i, inserted, want)
+		}
+	}
+	last, err := (&InteractionRepositoryImpl{DB: db}).GetLastJizzTimes(f.user.ID, []uint{scene.ID})
+	if err != nil || !last[scene.ID].Equal(at) {
+		t.Fatalf("last jizz = %v, %v", last, err)
+	}
+}

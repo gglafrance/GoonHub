@@ -205,6 +205,7 @@ func toImportSceneInput(req request.ImportSceneRequest) core.ImportSceneInput {
 			Rating:      req.Interactions.Rating,
 			Liked:       req.Interactions.Liked,
 			JizzedCount: req.Interactions.JizzedCount,
+			JizzHistory: req.Interactions.JizzHistory,
 			Watches:     watches,
 		}
 	}

@@ -1,6 +1,8 @@
 package data
 
 import (
+	"gorm.io/gorm/clause"
+
 	"errors"
 	"time"
 
@@ -28,6 +30,8 @@ type ImportRepository interface {
 	// InsertWatchIfAbsent inserts the watch unless an entry already exists for the same
 	// (user, scene, watched_at truncated to the second). Returns true if inserted.
 	InsertWatchIfAbsent(watch *UserSceneWatch) (bool, error)
+	// InsertJizzEventIfAbsent records a dated jizz event unless the same instant exists.
+	InsertJizzEventIfAbsent(event *UserSceneJizzEvent) (bool, error)
 
 	// Markers
 	// FindMarker returns the oldest marker matching the natural key, or (nil, nil) if none.
@@ -95,6 +99,14 @@ func (r *ImportRepositoryImpl) SetLiked(userID, sceneID uint, liked bool) error 
 
 func (r *ImportRepositoryImpl) SetJizzedCount(userID, sceneID uint, count int) error {
 	return (&InteractionRepositoryImpl{DB: r.DB}).SetJizzedCount(userID, sceneID, count)
+}
+
+func (r *ImportRepositoryImpl) InsertJizzEventIfAbsent(event *UserSceneJizzEvent) (bool, error) {
+	result := r.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(event)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }
 
 func (r *ImportRepositoryImpl) InsertWatchIfAbsent(watch *UserSceneWatch) (bool, error) {
