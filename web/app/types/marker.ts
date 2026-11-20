@@ -3,6 +3,7 @@ export interface Marker {
     user_id: number;
     scene_id: number;
     timestamp: number;
+    end_timestamp?: number | null;
     label: string;
     color: string;
     thumbnail_path: string;
@@ -14,12 +15,15 @@ export interface Marker {
 
 export interface CreateMarkerRequest {
     timestamp: number;
+    end_timestamp?: number;
     label?: string;
     color?: string;
 }
 
 export interface UpdateMarkerRequest {
     timestamp?: number;
+    end_timestamp?: number;
+    clear_end_timestamp?: boolean;
     label?: string;
     color?: string;
 }

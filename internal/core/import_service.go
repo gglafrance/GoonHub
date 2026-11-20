@@ -38,6 +38,7 @@ var ImportFeatures = []string{
 	"scene_update_existing",
 	"marker_dedup",
 	"marker_tags",
+	"marker_end",
 	"scene_summary",
 	"skip_index",
 }
@@ -116,6 +117,7 @@ type ImportMarkerInput struct {
 	SceneID        uint
 	UserID         *uint
 	Timestamp      int
+	EndTimestamp   *int
 	Label          string
 	Color          string
 	TagIDs         []uint
@@ -707,14 +709,17 @@ func (s *ImportService) reindexScene(sceneID uint) {
 }
 
 // ImportMarker creates a marker (without thumbnail generation), deduplicated on the natural key
-// (user_id, scene_id, timestamp, label). With UpdateExisting, an existing marker gets its color
-// and individual tags updated instead of returning a conflict.
+// (user_id, scene_id, timestamp, label). With UpdateExisting, an existing marker gets its color,
+// end timestamp (when provided) and individual tags updated instead of returning a conflict.
 func (s *ImportService) ImportMarker(currentUserID uint, in ImportMarkerInput) (*ImportMarkerResult, error) {
 	if in.SceneID == 0 {
 		return nil, apperrors.NewValidationErrorWithField("scene_id", "scene_id is required")
 	}
 	if in.Timestamp < 0 {
 		return nil, apperrors.NewValidationErrorWithField("timestamp", "timestamp must be >= 0")
+	}
+	if in.EndTimestamp != nil && *in.EndTimestamp <= in.Timestamp {
+		return nil, apperrors.NewValidationErrorWithField("end_timestamp", "end_timestamp must be greater than timestamp")
 	}
 	if utf8.RuneCountInString(in.Label) > importMaxMarkerLabelLen {
 		return nil, apperrors.NewValidationErrorWithField("label", fmt.Sprintf("label must be at most %d characters", importMaxMarkerLabelLen))
@@ -774,6 +779,11 @@ func (s *ImportService) ImportMarker(currentUserID uint, in ImportMarkerInput) (
 					return fmt.Errorf("failed to update marker color: %w", err)
 				}
 			}
+			if in.EndTimestamp != nil && (existing.EndTimestamp == nil || *existing.EndTimestamp != *in.EndTimestamp) {
+				if err := tx.UpdateMarkerEndTimestamp(existing.ID, in.EndTimestamp); err != nil {
+					return fmt.Errorf("failed to update marker end timestamp: %w", err)
+				}
+			}
 			if err := tx.ApplyLabelTagsToMarker(userID, existing.ID, in.Label); err != nil {
 				return fmt.Errorf("failed to apply label tags: %w", err)
 			}
@@ -790,11 +800,12 @@ func (s *ImportService) ImportMarker(currentUserID uint, in ImportMarkerInput) (
 			color = importDefaultMarkerColor
 		}
 		marker := &data.UserSceneMarker{
-			UserID:    userID,
-			SceneID:   in.SceneID,
-			Timestamp: in.Timestamp,
-			Label:     in.Label,
-			Color:     color,
+			UserID:       userID,
+			SceneID:      in.SceneID,
+			Timestamp:    in.Timestamp,
+			EndTimestamp: in.EndTimestamp,
+			Label:        in.Label,
+			Color:        color,
 		}
 		if err := tx.CreateMarker(marker); err != nil {
 			return fmt.Errorf("failed to create marker record: %w", err)

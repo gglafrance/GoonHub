@@ -54,6 +54,7 @@ type ImportMarkerRequest struct {
 	SceneID        uint   `json:"scene_id" binding:"required"`
 	UserID         *uint  `json:"user_id,omitempty"`
 	Timestamp      int    `json:"timestamp" binding:"min=0"`
+	EndTimestamp   *int   `json:"end_timestamp,omitempty"`
 	Label          string `json:"label"`
 	Color          string `json:"color"`
 	TagIDs         []uint `json:"tag_ids"`

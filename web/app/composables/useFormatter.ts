@@ -37,8 +37,15 @@ export const useFormatter = () => {
         return `${fps.toFixed(3)} fps`;
     };
 
+    // Marker timecode: "start" for a point marker, "start-end" for a range marker
+    const formatMarkerRange = (start: number, end?: number | null): string =>
+        end != null && end > start
+            ? `${formatDuration(start)}-${formatDuration(end)}`
+            : formatDuration(start);
+
     return {
         formatDuration,
+        formatMarkerRange,
         formatSize,
         formatBitRate,
         formatFrameRate,

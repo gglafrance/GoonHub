@@ -6,10 +6,12 @@ import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 const route = useRoute();
 const { createMarker, updateMarker, deleteMarker, fetchLabelSuggestions } = useApiMarkers();
 const { fetchProcessingConfig } = useApiJobs();
-const { formatDuration } = useFormatter();
+const { formatDuration, formatMarkerRange } = useFormatter();
 const { observe } = useAnimatedMarkerPreview();
 const getPlayerTime = inject<() => number>('getPlayerTime');
 const seekToTime = inject<(time: number) => void>('seekToTime');
+const playMarker =
+    inject<(marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) => void>('playMarker');
 const refreshMarkers = inject<() => Promise<void>>('refreshMarkers');
 const pendingMarkerAdd = inject<Ref<boolean>>('pendingMarkerAdd');
 
@@ -165,9 +167,13 @@ const handleAddMarker = async () => {
     }
 };
 
-const handleSeekToMarker = (timestamp: number) => {
-    if (seekToTime) {
-        seekToTime(timestamp);
+const handleSeekToMarker = (marker: Marker) => {
+    if (playMarker || seekToTime) {
+        if (playMarker) {
+            playMarker(marker);
+        } else {
+            seekToTime!(marker.timestamp);
+        }
         window.scrollTo({ top: 0, behavior: 'smooth' });
         const playerEl = document.getElementById('video-player');
         if (playerEl) {
@@ -209,6 +215,34 @@ const handleSaveEdit = async (marker: Marker) => {
         refreshMarkers?.();
     } catch (e) {
         error.value = e instanceof Error ? e.message : 'Failed to update marker';
+    }
+};
+
+// Sets the end of the marker range to the current player time
+const handleSetEnd = async (marker: Marker, event: Event) => {
+    event.stopPropagation();
+    const end = Math.floor(getPlayerTime?.() ?? 0);
+    if (end <= marker.timestamp) {
+        error.value = 'Seek past the marker start to set its end';
+        return;
+    }
+    error.value = null;
+    try {
+        await updateMarker(sceneId.value, marker.id, { end_timestamp: end });
+        refreshMarkers?.();
+    } catch (e) {
+        error.value = e instanceof Error ? e.message : 'Failed to set marker end';
+    }
+};
+
+const handleClearEnd = async (marker: Marker, event: Event) => {
+    event.stopPropagation();
+    error.value = null;
+    try {
+        await updateMarker(sceneId.value, marker.id, { clear_end_timestamp: true });
+        refreshMarkers?.();
+    } catch (e) {
+        error.value = e instanceof Error ? e.message : 'Failed to clear marker end';
     }
 };
 
@@ -351,8 +385,12 @@ onMounted(async () => {
                 <!-- Thumbnail / Placeholder -->
                 <button
                     class="relative aspect-video w-full cursor-pointer overflow-hidden bg-black/40"
-                    :title="`Seek to ${formatDuration(marker.timestamp)}`"
-                    @click="handleSeekToMarker(marker.timestamp)"
+                    :title="
+                        markerHasRange(marker)
+                            ? `Play ${formatMarkerRange(marker.timestamp, marker.end_timestamp)}`
+                            : `Seek to ${formatDuration(marker.timestamp)}`
+                    "
+                    @click="handleSeekToMarker(marker)"
                 >
                     <!-- Animated Thumbnail -->
                     <video
@@ -388,7 +426,7 @@ onMounted(async () => {
                         class="absolute right-2 bottom-2 rounded bg-black/70 px-1.5 py-0.5 font-mono
                             text-[10px] text-white backdrop-blur-sm"
                     >
-                        {{ formatDuration(marker.timestamp) }}
+                        {{ formatMarkerRange(marker.timestamp, marker.end_timestamp) }}
                     </div>
 
                     <!-- Play Icon on Hover -->
@@ -462,6 +500,32 @@ onMounted(async () => {
                             </span>
                         </template>
                     </div>
+
+                    <!-- Range end: set at current time / clear -->
+                    <button
+                        v-if="editingMarkerId !== marker.id && markerHasRange(marker)"
+                        class="text-dim hover:bg-surface-hover flex shrink-0 items-center
+                            justify-center rounded p-1.5 opacity-0 transition-all
+                            group-hover:opacity-100 hover:text-white"
+                        title="Remove end (point marker)"
+                        @click="handleClearEnd(marker, $event)"
+                    >
+                        <Icon name="heroicons:arrows-pointing-in" size="12" />
+                    </button>
+                    <button
+                        v-if="editingMarkerId !== marker.id"
+                        class="text-dim hover:bg-surface-hover flex shrink-0 items-center
+                            justify-center rounded p-1.5 opacity-0 transition-all
+                            group-hover:opacity-100 hover:text-white"
+                        :title="
+                            markerHasRange(marker)
+                                ? 'Move end to current time'
+                                : 'Set end at current time (range marker)'
+                        "
+                        @click="handleSetEnd(marker, $event)"
+                    >
+                        <Icon name="heroicons:arrow-right-end-on-rectangle" size="12" />
+                    </button>
 
                     <!-- Delete Button -->
                     <button

@@ -368,6 +368,8 @@ func TestImportMarker_Validation(t *testing.T) {
 		{"negative timestamp", ImportMarkerInput{SceneID: 1, Timestamp: -1}, "timestamp"},
 		{"label too long", ImportMarkerInput{SceneID: 1, Label: strings.Repeat("é", 101)}, "label must be at most 100"},
 		{"bad color", ImportMarkerInput{SceneID: 1, Color: "red"}, "color"},
+		{"end equal to start", ImportMarkerInput{SceneID: 1, Timestamp: 10, EndTimestamp: ptr(10)}, "end_timestamp"},
+		{"end before start", ImportMarkerInput{SceneID: 1, Timestamp: 10, EndTimestamp: ptr(5)}, "end_timestamp"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -481,6 +483,64 @@ func TestImportMarker_DedupUpdateExisting(t *testing.T) {
 	}
 	if res.ID != 11 || res.Created {
 		t.Fatalf("unexpected result: %+v", res)
+	}
+}
+
+func TestImportMarker_CreateWithEnd(t *testing.T) {
+	svc, d := newTestImportService(t)
+	d.sceneRepo.EXPECT().GetByID(uint(2)).Return(&data.Scene{ID: 2}, nil)
+	d.expectTx()
+	var created *data.UserSceneMarker
+	d.importRepo.EXPECT().FindMarker(uint(1), uint(2), 30, "Intro").Return(nil, nil)
+	d.importRepo.EXPECT().CreateMarker(gomock.Any()).DoAndReturn(func(m *data.UserSceneMarker) error {
+		m.ID = 12
+		created = m
+		return nil
+	})
+	d.importRepo.EXPECT().ApplyLabelTagsToMarker(uint(1), uint(12), "Intro").Return(nil)
+
+	if _, err := svc.ImportMarker(1, ImportMarkerInput{SceneID: 2, Timestamp: 30, EndTimestamp: ptr(45), Label: "Intro"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if created.EndTimestamp == nil || *created.EndTimestamp != 45 {
+		t.Fatalf("expected end_timestamp 45, got %v", created.EndTimestamp)
+	}
+}
+
+func TestImportMarker_UpdateExistingEnd(t *testing.T) {
+	tests := []struct {
+		name       string
+		existing   *int
+		in         *int
+		wantUpdate bool
+	}{
+		{"set missing end", nil, ptr(45), true},
+		{"change end", ptr(40), ptr(45), true},
+		{"same end", ptr(45), ptr(45), false},
+		{"absent end keeps existing", ptr(45), nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, d := newTestImportService(t)
+			d.sceneRepo.EXPECT().GetByID(uint(2)).Return(&data.Scene{ID: 2}, nil)
+			d.expectTx()
+			d.importRepo.EXPECT().FindMarker(uint(1), uint(2), 30, "Intro").
+				Return(&data.UserSceneMarker{ID: 11, SceneID: 2, Color: "#FFFFFF", EndTimestamp: tt.existing}, nil)
+			if tt.wantUpdate {
+				d.importRepo.EXPECT().UpdateMarkerEndTimestamp(uint(11), tt.in).Return(nil)
+			}
+			d.importRepo.EXPECT().ApplyLabelTagsToMarker(uint(1), uint(11), "Intro").Return(nil)
+
+			res, err := svc.ImportMarker(1, ImportMarkerInput{
+				SceneID: 2, Timestamp: 30, EndTimestamp: tt.in, Label: "Intro", UpdateExisting: true,
+			})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if res.ID != 11 || res.Created {
+				t.Fatalf("unexpected result: %+v", res)
+			}
+		})
 	}
 }
 

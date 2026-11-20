@@ -74,12 +74,15 @@ func TestUpdateAllSettings_Success(t *testing.T) {
 	settingsRepo.EXPECT().Upsert(gomock.Any()).Return(nil)
 
 	autoplay, volume, loop, alc, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs, spss, scc := validAllSettingsArgs()
-	settings, err := svc.UpdateAllSettings(1, autoplay, volume, loop, alc, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs, spss, scc)
+	settings, err := svc.UpdateAllSettings(1, autoplay, volume, loop, alc, true, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs, spss, scc)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 	if settings.DefaultVolume != 50 {
 		t.Fatalf("expected volume 50, got %d", settings.DefaultVolume)
+	}
+	if !settings.MarkerLoop {
+		t.Fatal("expected marker loop to be enabled")
 	}
 }
 
@@ -108,7 +111,7 @@ func TestUpdateAllSettings_InvalidFields(t *testing.T) {
 			sp := data.DefaultSortPreferences()
 			sp.Actors = tt.actorSort
 
-			_, err := svc.UpdateAllSettings(1, false, tt.volume, false, false, tt.vpp, tt.sort, tt.tagSort, true,
+			_, err := svc.UpdateAllSettings(1, false, tt.volume, false, false, false, tt.vpp, tt.sort, tt.tagSort, true,
 				data.DefaultHomepageConfig(), data.DefaultParsingRulesSettings(), sp, "countdown", 5, false, data.DefaultSceneCardConfig())
 			if err == nil {
 				t.Fatal("expected error")

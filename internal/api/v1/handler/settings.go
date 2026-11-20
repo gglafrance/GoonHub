@@ -178,6 +178,7 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		req.DefaultVolume,
 		req.Loop,
 		req.AbLoopControls,
+		req.MarkerLoop,
 		req.VideosPerPage,
 		req.DefaultSortOrder,
 		req.DefaultTagSort,

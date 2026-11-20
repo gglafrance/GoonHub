@@ -57,12 +57,12 @@ var allowedMarkerSorts = map[string]bool{
 }
 
 var allowedEntitySceneSorts = map[string]bool{
-	"":               true,
-	"created_at_asc": true,
-	"title_asc":      true,
-	"title_desc":     true,
-	"duration_asc":   true,
-	"duration_desc":  true,
+	"":                true,
+	"created_at_asc":  true,
+	"title_asc":       true,
+	"title_desc":      true,
+	"duration_asc":    true,
+	"duration_desc":   true,
 	"view_count_desc": true,
 	"view_count_asc":  true,
 	"random":          true,
@@ -110,6 +110,7 @@ func (s *SettingsService) GetSettings(userID uint) (*data.UserSettings, error) {
 			DefaultVolume:          100,
 			Loop:                   false,
 			AbLoopControls:         false,
+			MarkerLoop:             false,
 			VideosPerPage:          20,
 			DefaultSortOrder:       "created_at_desc",
 			DefaultTagSort:         "az",
@@ -291,7 +292,7 @@ func (s *SettingsService) UpdateParsingRules(userID uint, rules data.ParsingRule
 	return settings, nil
 }
 
-func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, abLoopControls bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences, playlistAutoAdvance string, playlistCountdownSeconds int, showPageSizeSelector bool, sceneCardConfig data.SceneCardConfig) (*data.UserSettings, error) {
+func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, abLoopControls bool, markerLoop bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences, playlistAutoAdvance string, playlistCountdownSeconds int, showPageSizeSelector bool, sceneCardConfig data.SceneCardConfig) (*data.UserSettings, error) {
 	if volume < 0 || volume > 100 {
 		return nil, fmt.Errorf("volume must be between 0 and 100")
 	}
@@ -357,6 +358,7 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 	settings.DefaultVolume = volume
 	settings.Loop = loop
 	settings.AbLoopControls = abLoopControls
+	settings.MarkerLoop = markerLoop
 	settings.VideosPerPage = videosPerPage
 	settings.DefaultSortOrder = sortOrder
 	settings.DefaultTagSort = tagSort
@@ -467,10 +469,10 @@ var allowedBadgeFields = map[string]bool{
 	"views":      true,
 	"jizz_count": true,
 	"watched":    true,
-	"file_size":   true,
-	"added_at":    true,
-	"frame_rate":  true,
-	"tags":        true,
+	"file_size":  true,
+	"added_at":   true,
+	"frame_rate": true,
+	"tags":       true,
 	"actors":     true,
 }
 

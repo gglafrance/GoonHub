@@ -303,6 +303,8 @@ const props = defineProps<{
     defaultVolume?: number;
     scene?: Scene;
     startTime?: number;
+    // Marker range to loop once the player is ready (e.g. opened from a marker link)
+    loopRange?: { start: number; end: number } | null;
     markers?: Marker[];
     playlistMode?: boolean;
     hasNext?: boolean;
@@ -341,7 +343,45 @@ const {
 } = useMarkerIndicators(
     player,
     computed(() => props.markers ?? []),
+    (marker) => playMarker(marker),
 );
+
+// A/B loop range last applied from a marker, so that clicking a point marker afterwards
+// only clears a loop the user did not set by hand.
+let markerLoopRange: { start: number; end: number } | null = null;
+
+// A range marker sets the A/B loop points to its start and end; the "Loop Marker Ranges"
+// setting decides whether looping starts right away (an active loop stays active). A point
+// marker clears a loop previously set from a marker.
+const applyMarkerLoop = (marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) => {
+    if (markerHasRange(marker)) {
+        // Keep looping when the loop is already on (e.g. turned on with the A/B toggle)
+        abLoop.setRange(
+            marker.timestamp,
+            marker.end_timestamp,
+            settingsStore.markerLoop || abLoop.enabled.value,
+        );
+        markerLoopRange = { start: marker.timestamp, end: marker.end_timestamp };
+        return;
+    }
+    if (
+        markerLoopRange &&
+        abLoop.pointA.value === markerLoopRange.start &&
+        abLoop.pointB.value === markerLoopRange.end
+    ) {
+        abLoop.clear();
+    }
+    markerLoopRange = null;
+};
+
+// Seeks to a marker and plays it, looping its range when applicable.
+const playMarker = (marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) => {
+    const p = player.value;
+    if (!p) return;
+    applyMarkerLoop(marker);
+    p.currentTime(marker.timestamp);
+    p.play()?.catch(() => {});
+};
 
 const sceneRef = computed(() => props.scene);
 const { hasRecordedView, setupTracking, cleanup } = useWatchTracking({
@@ -523,6 +563,13 @@ onMounted(async () => {
             player.value!.currentTime(props.startTime);
         }
 
+        if (props.loopRange) {
+            applyMarkerLoop({
+                timestamp: props.loopRange.start,
+                end_timestamp: props.loopRange.end,
+            });
+        }
+
         if (props.autoplay) {
             tryAutoplay(player.value!);
         }
@@ -563,6 +610,7 @@ watch(
 
         // Clear AB loop and reset before loading new source
         abLoop.clear();
+        markerLoopRange = null;
         p.pause();
         p.currentTime(0);
         p.src({ type: 'video/mp4', src: newUrl });
@@ -578,6 +626,20 @@ watch(vttUrl, (newVttUrl) => {
         loadVttCues(newVttUrl);
     }
 });
+
+// Apply a marker loop range passed by the page (defined after the sceneUrl watcher so that a
+// scene change clears the previous loop first)
+watch(
+    () => props.loopRange,
+    (range) => {
+        if (!player.value) return;
+        applyMarkerLoop(
+            range
+                ? { timestamp: range.start, end_timestamp: range.end }
+                : { timestamp: 0, end_timestamp: null },
+        );
+    },
+);
 
 // Watch for marker changes
 watch(
@@ -650,6 +712,7 @@ defineExpose({
     player,
     vttCues,
     abLoop,
+    playMarker,
 });
 
 onBeforeUnmount(() => {
@@ -1106,6 +1169,15 @@ onBeforeUnmount(() => {
 :deep(.vjs-progress-control:hover .vjs-marker-container) {
     top: 0px;
     height: 6px;
+}
+
+:deep(.vjs-marker-range) {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background-color: var(--marker-color, #ff4d4d);
+    opacity: 0.35;
+    pointer-events: none;
 }
 
 :deep(.vjs-marker-tick) {

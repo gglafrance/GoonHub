@@ -114,6 +114,7 @@ Per-user application preferences.
 | `autoplay` | BOOLEAN | NO | false | Auto-play next scene |
 | `default_volume` | INTEGER | NO | 100 | Default player volume (0-100) |
 | `loop` | BOOLEAN | NO | true | Loop video playback |
+| `marker_loop` | BOOLEAN | NO | false | Loop the marker range when clicking a marker that has an `end_timestamp` |
 | `videos_per_page` | INTEGER | NO | 20 | Grid pagination size |
 | `default_sort_order` | VARCHAR(50) | NO | 'created_at_desc' | Default sort order |
 | `default_tag_sort` | VARCHAR(10) | NO | 'az' | Tag sorting (az, za, count) |
@@ -514,6 +515,7 @@ Video bookmarks/markers created by users.
 | `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
 | `scene_id` | BIGINT | NO | - | FK to `scenes.id` (CASCADE) |
 | `timestamp` | INTEGER | NO | - | Position in seconds |
+| `end_timestamp` | INTEGER | YES | NULL | Optional end of the marked range in seconds (looped on click when `user_settings.marker_loop` is on) |
 | `label` | VARCHAR(100) | YES | NULL | Marker label/name |
 | `color` | VARCHAR(7) | NO | '#FFFFFF' | Hex color code |
 | `thumbnail_path` | VARCHAR(255) | YES | NULL | Generated thumbnail path |
@@ -527,6 +529,7 @@ Video bookmarks/markers created by users.
 
 **Constraints:**
 - CHECK `timestamp >= 0`
+- CHECK `chk_user_scene_markers_end_after_start`: `end_timestamp IS NULL OR end_timestamp > timestamp`
 
 ---
 

@@ -48,26 +48,27 @@ type RevokedToken struct {
 }
 
 type UserSettings struct {
-	ID               uint           `gorm:"primarykey" json:"id"`
-	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
-	UserID           uint           `gorm:"uniqueIndex;not null" json:"user_id"`
-	Autoplay         bool           `gorm:"not null;default:false" json:"autoplay"`
-	DefaultVolume    int            `gorm:"not null;default:100" json:"default_volume"`
-	Loop             bool           `gorm:"not null;default:false" json:"loop"`
-	AbLoopControls   bool           `gorm:"not null;default:false" json:"ab_loop_controls"`
-	VideosPerPage    int            `gorm:"not null;default:20" json:"videos_per_page"`
-	DefaultSortOrder string         `gorm:"not null;default:'created_at_desc'" json:"default_sort_order"`
-	DefaultTagSort          string         `gorm:"not null;default:'az'" json:"default_tag_sort"`
-	MarkerThumbnailCycling     bool                 `gorm:"not null;default:true" json:"marker_thumbnail_cycling"`
-	HomepageConfig             HomepageConfig       `gorm:"type:jsonb;not null" json:"homepage_config"`
-	ParsingRules               ParsingRulesSettings `gorm:"type:jsonb;not null" json:"parsing_rules"`
-	SortPreferences            SortPreferences      `gorm:"type:jsonb;not null" json:"sort_preferences"`
-	PlaylistAutoAdvance        string               `gorm:"not null;default:'countdown'" json:"playlist_auto_advance"`
-	PlaylistCountdownSeconds   int                  `gorm:"not null;default:5" json:"playlist_countdown_seconds"`
-	ShowPageSizeSelector       bool                 `gorm:"not null;default:false" json:"show_page_size_selector"`
-	SceneCardConfig            SceneCardConfig      `gorm:"type:jsonb;not null" json:"scene_card_config"`
-	MaxItemsPerPage            int                  `gorm:"-" json:"max_items_per_page"`
+	ID                       uint                 `gorm:"primarykey" json:"id"`
+	CreatedAt                time.Time            `json:"created_at"`
+	UpdatedAt                time.Time            `json:"updated_at"`
+	UserID                   uint                 `gorm:"uniqueIndex;not null" json:"user_id"`
+	Autoplay                 bool                 `gorm:"not null;default:false" json:"autoplay"`
+	DefaultVolume            int                  `gorm:"not null;default:100" json:"default_volume"`
+	Loop                     bool                 `gorm:"not null;default:false" json:"loop"`
+	AbLoopControls           bool                 `gorm:"not null;default:false" json:"ab_loop_controls"`
+	MarkerLoop               bool                 `gorm:"not null;default:false" json:"marker_loop"`
+	VideosPerPage            int                  `gorm:"not null;default:20" json:"videos_per_page"`
+	DefaultSortOrder         string               `gorm:"not null;default:'created_at_desc'" json:"default_sort_order"`
+	DefaultTagSort           string               `gorm:"not null;default:'az'" json:"default_tag_sort"`
+	MarkerThumbnailCycling   bool                 `gorm:"not null;default:true" json:"marker_thumbnail_cycling"`
+	HomepageConfig           HomepageConfig       `gorm:"type:jsonb;not null" json:"homepage_config"`
+	ParsingRules             ParsingRulesSettings `gorm:"type:jsonb;not null" json:"parsing_rules"`
+	SortPreferences          SortPreferences      `gorm:"type:jsonb;not null" json:"sort_preferences"`
+	PlaylistAutoAdvance      string               `gorm:"not null;default:'countdown'" json:"playlist_auto_advance"`
+	PlaylistCountdownSeconds int                  `gorm:"not null;default:5" json:"playlist_countdown_seconds"`
+	ShowPageSizeSelector     bool                 `gorm:"not null;default:false" json:"show_page_size_selector"`
+	SceneCardConfig          SceneCardConfig      `gorm:"type:jsonb;not null" json:"scene_card_config"`
+	MaxItemsPerPage          int                  `gorm:"-" json:"max_items_per_page"`
 }
 
 // HomepageConfig represents the user's homepage layout configuration

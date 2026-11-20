@@ -12,7 +12,7 @@ useSeoMeta({
 
 const { fetchLabelGroups, fetchAllMarkers } = useApiMarkers();
 const { fetchProcessingConfig } = useApiJobs();
-const { formatDuration } = useFormatter();
+const { formatMarkerRange } = useFormatter();
 const { observe } = useAnimatedMarkerPreview();
 const settingsStore = useSettingsStore();
 
@@ -317,7 +317,7 @@ definePageMeta({
                         <NuxtLink
                             v-for="marker in allMarkers"
                             :key="marker.id"
-                            :to="`/watch/${marker.scene_id}?t=${marker.timestamp}`"
+                            :to="markerWatchUrl(marker)"
                             class="group relative block max-w-[320px] overflow-hidden rounded-lg
                                 transition-transform duration-200"
                         >
@@ -358,7 +358,7 @@ definePageMeta({
                                         py-0.5 text-[10px] font-semibold text-white/90 tabular-nums
                                         backdrop-blur-sm"
                                 >
-                                    {{ formatDuration(marker.timestamp) }}
+                                    {{ formatMarkerRange(marker.timestamp, marker.end_timestamp) }}
                                 </div>
 
                                 <!-- Label badge -->
