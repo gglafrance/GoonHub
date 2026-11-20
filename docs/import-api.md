@@ -10,7 +10,7 @@ All v2 fields are optional and backward compatible with v1 clients.
 Lets a client detect v2 support (a v1 server returns 404).
 
 ```json
-200 {"version": 2, "features": ["scene_associations", "scene_interactions", "scene_update_existing", "marker_dedup", "marker_tags", "scene_summary", "skip_index"]}
+200 {"version": 2, "features": ["scene_associations", "scene_interactions", "scene_update_existing", "marker_dedup", "marker_tags", "marker_end", "scene_summary", "skip_index"]}
 ```
 
 ## POST /api/v1/admin/import/scenes
@@ -62,6 +62,7 @@ Behaviour:
 | `scene_id` | uint, required | |
 | `user_id` | uint, optional | defaults to the current user |
 | `timestamp` | int ≥ 0 | seconds |
+| `end_timestamp` | int or absent | end of the marker range in seconds, must be > `timestamp` (400 otherwise). Feature `marker_end` |
 | `label` | string | ≤ 100 chars (400 otherwise) |
 | `color` | string | default `#FFFFFF` |
 | `tag_ids` | `[]uint` or absent | individual marker tags, applied after label tags (added, not replacing label tags) |
@@ -69,7 +70,7 @@ Behaviour:
 
 Dedup on the natural key (user_id, scene_id, timestamp, label):
 - exists and `update_existing=false` → `409 {"id", "scene_id", "error"}`
-- exists and `update_existing=true` → color and `tag_ids` applied → `200 {"id", "scene_id", "created": false}`
+- exists and `update_existing=true` → color, `end_timestamp` (when present) and `tag_ids` applied → `200 {"id", "scene_id", "created": false}`
 - created → `201 {"id", "scene_id", "created": true}`
 
 ## POST /api/v1/admin/import/scenes/summary

@@ -269,6 +269,20 @@ func (mr *MockImportRepositoryMockRecorder) UpdateMarkerColor(markerID, color an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMarkerColor", reflect.TypeOf((*MockImportRepository)(nil).UpdateMarkerColor), markerID, color)
 }
 
+// UpdateMarkerEndTimestamp mocks base method.
+func (m *MockImportRepository) UpdateMarkerEndTimestamp(markerID uint, endTimestamp *int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateMarkerEndTimestamp", markerID, endTimestamp)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateMarkerEndTimestamp indicates an expected call of UpdateMarkerEndTimestamp.
+func (mr *MockImportRepositoryMockRecorder) UpdateMarkerEndTimestamp(markerID, endTimestamp any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMarkerEndTimestamp", reflect.TypeOf((*MockImportRepository)(nil).UpdateMarkerEndTimestamp), markerID, endTimestamp)
+}
+
 // UpdateSceneFields mocks base method.
 func (m *MockImportRepository) UpdateSceneFields(sceneID uint, fields map[string]any) error {
 	m.ctrl.T.Helper()

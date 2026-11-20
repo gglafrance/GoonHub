@@ -94,6 +94,7 @@ func (h *ImportHandler) ImportMarker(c *gin.Context) {
 		SceneID:        req.SceneID,
 		UserID:         req.UserID,
 		Timestamp:      req.Timestamp,
+		EndTimestamp:   req.EndTimestamp,
 		Label:          req.Label,
 		Color:          req.Color,
 		TagIDs:         req.TagIDs,

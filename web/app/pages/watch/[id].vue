@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { VttCue } from '~/composables/useVttParser';
+import type { Marker } from '~/types/marker';
 import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
 const route = useRoute();
@@ -59,9 +60,19 @@ const playerRef = ref<{
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     player?: any;
     vttCues?: VttCue[];
+    playMarker?: (marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) => void;
 } | null>(null);
 const showResumePrompt = ref(false);
 const startTime = ref(0);
+// Marker range to loop, from the ?t=&end= query (links from the markers pages)
+const markerLoopRange = ref<{ start: number; end: number } | null>(null);
+
+const parseQueryLoopRange = (): { start: number; end: number } | null => {
+    const start = parseInt(route.query.t as string, 10);
+    const end = parseInt(route.query.end as string, 10);
+    if (isNaN(start) || isNaN(end) || start < 0 || end <= start) return null;
+    return { start, end };
+};
 const forceAutoplay = ref(false);
 
 const thumbnailVersion = ref(0);
@@ -137,6 +148,7 @@ async function loadPage() {
     showResumePrompt.value = false;
     startTime.value = 0;
     forceAutoplay.value = false;
+    markerLoopRange.value = null;
 
     // Load all data via centralized composable
     await watchPageData.refreshAll();
@@ -157,6 +169,7 @@ async function loadPage() {
             startTime.value = timestamp;
             forceAutoplay.value = true;
             showResumePrompt.value = false;
+            markerLoopRange.value = parseQueryLoopRange();
         }
     }
 }
@@ -239,6 +252,15 @@ provide('seekToTime', (time: number) => {
     startTime.value = time;
     showResumePrompt.value = false;
 });
+// Plays a marker from the markers tab, looping its range when the setting is on
+provide('playMarker', (marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) => {
+    showResumePrompt.value = false;
+    if (playerRef.value?.playMarker) {
+        playerRef.value.playMarker(marker);
+    } else {
+        startTime.value = marker.timestamp;
+    }
+});
 provide('activeTab', activeTab);
 provide('pendingMarkerAdd', pendingMarkerAdd);
 
@@ -282,14 +304,15 @@ watch(
 
 // Handle timestamp query parameter changes (e.g., clicking different markers for same scene)
 watch(
-    () => route.query.t,
-    (newTime) => {
+    () => [route.query.t, route.query.end],
+    ([newTime]) => {
         if (newTime) {
             const timestamp = parseInt(newTime as string, 10);
             if (!isNaN(timestamp) && timestamp >= 0) {
                 startTime.value = timestamp;
                 forceAutoplay.value = true;
                 showResumePrompt.value = false;
+                markerLoopRange.value = parseQueryLoopRange();
             }
         }
     },
@@ -477,6 +500,7 @@ definePageMeta({
                                     :loop="isPlaylistMode ? false : settingsStore.loop"
                                     :default-volume="settingsStore.defaultVolume"
                                     :start-time="startTime"
+                                    :loop-range="markerLoopRange"
                                     :playlist-mode="isPlaylistMode"
                                     :has-next="playlistPlayer.hasNext.value"
                                     :has-previous="playlistPlayer.hasPrevious.value"

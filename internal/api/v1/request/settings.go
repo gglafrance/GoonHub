@@ -18,8 +18,8 @@ type ChangeUsernameRequest struct {
 }
 
 type UpdateHomepageConfigRequest struct {
-	ShowUpload bool                       `json:"show_upload"`
-	Sections   []HomepageSectionRequest   `json:"sections" binding:"required,dive"`
+	ShowUpload bool                     `json:"show_upload"`
+	Sections   []HomepageSectionRequest `json:"sections" binding:"required,dive"`
 }
 
 type HomepageSectionRequest struct {
@@ -39,10 +39,10 @@ type UpdateParsingRulesRequest struct {
 }
 
 type ParsingPresetRequest struct {
-	ID        string                `json:"id" binding:"required"`
-	Name      string                `json:"name" binding:"required,max=100"`
-	IsBuiltIn bool                  `json:"isBuiltIn"`
-	Rules     []ParsingRuleRequest  `json:"rules" binding:"dive"`
+	ID        string               `json:"id" binding:"required"`
+	Name      string               `json:"name" binding:"required,max=100"`
+	IsBuiltIn bool                 `json:"isBuiltIn"`
+	Rules     []ParsingRuleRequest `json:"rules" binding:"dive"`
 }
 
 type ParsingRuleRequest struct {
@@ -91,19 +91,20 @@ type ContentRowRequest struct {
 }
 
 type UpdateAllSettingsRequest struct {
-	Autoplay                  bool                          `json:"autoplay"`
-	DefaultVolume             int                           `json:"default_volume" binding:"min=0,max=100"`
-	Loop                      bool                          `json:"loop"`
-	AbLoopControls            bool                          `json:"ab_loop_controls"`
-	VideosPerPage             int                           `json:"videos_per_page" binding:"required,min=1"`
-	DefaultSortOrder          string                        `json:"default_sort_order" binding:"required"`
-	DefaultTagSort            string                        `json:"default_tag_sort" binding:"required"`
-	MarkerThumbnailCycling    bool                          `json:"marker_thumbnail_cycling"`
-	HomepageConfig            UpdateHomepageConfigRequest    `json:"homepage_config" binding:"required"`
-	ParsingRules              UpdateParsingRulesRequest      `json:"parsing_rules"`
-	SortPreferences           UpdateSortPreferencesRequest   `json:"sort_preferences" binding:"required"`
-	PlaylistAutoAdvance       string                        `json:"playlist_auto_advance"`
-	PlaylistCountdownSeconds  int                           `json:"playlist_countdown_seconds"`
-	ShowPageSizeSelector      bool                          `json:"show_page_size_selector"`
-	SceneCardConfig           UpdateSceneCardConfigRequest   `json:"scene_card_config"`
+	Autoplay                 bool                         `json:"autoplay"`
+	DefaultVolume            int                          `json:"default_volume" binding:"min=0,max=100"`
+	Loop                     bool                         `json:"loop"`
+	AbLoopControls           bool                         `json:"ab_loop_controls"`
+	MarkerLoop               bool                         `json:"marker_loop"`
+	VideosPerPage            int                          `json:"videos_per_page" binding:"required,min=1"`
+	DefaultSortOrder         string                       `json:"default_sort_order" binding:"required"`
+	DefaultTagSort           string                       `json:"default_tag_sort" binding:"required"`
+	MarkerThumbnailCycling   bool                         `json:"marker_thumbnail_cycling"`
+	HomepageConfig           UpdateHomepageConfigRequest  `json:"homepage_config" binding:"required"`
+	ParsingRules             UpdateParsingRulesRequest    `json:"parsing_rules"`
+	SortPreferences          UpdateSortPreferencesRequest `json:"sort_preferences" binding:"required"`
+	PlaylistAutoAdvance      string                       `json:"playlist_auto_advance"`
+	PlaylistCountdownSeconds int                          `json:"playlist_countdown_seconds"`
+	ShowPageSizeSelector     bool                         `json:"show_page_size_selector"`
+	SceneCardConfig          UpdateSceneCardConfigRequest `json:"scene_card_config"`
 }

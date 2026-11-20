@@ -133,7 +133,21 @@ func (s *MarkerService) ListMarkers(userID, sceneID uint) ([]data.MarkerWithTags
 	return result, nil
 }
 
-func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, label, color string) (*data.UserSceneMarker, error) {
+// validateMarkerEnd checks that an optional marker end lies after the start and within the scene.
+func validateMarkerEnd(timestamp int, endTimestamp *int, sceneDuration int) error {
+	if endTimestamp == nil {
+		return nil
+	}
+	if *endTimestamp <= timestamp {
+		return apperrors.NewValidationError(fmt.Sprintf("end_timestamp %d must be greater than timestamp %d", *endTimestamp, timestamp))
+	}
+	if sceneDuration > 0 && *endTimestamp > sceneDuration {
+		return apperrors.NewValidationError(fmt.Sprintf("end_timestamp %d exceeds scene duration %d", *endTimestamp, sceneDuration))
+	}
+	return nil
+}
+
+func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, endTimestamp *int, label, color string) (*data.UserSceneMarker, error) {
 	// Validate scene exists and get duration
 	scene, err := s.sceneRepo.GetByID(sceneID)
 	if err != nil {
@@ -150,6 +164,9 @@ func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, label,
 	}
 	if scene.Duration > 0 && timestamp > scene.Duration {
 		return nil, apperrors.NewValidationError(fmt.Sprintf("timestamp %d exceeds scene duration %d", timestamp, scene.Duration))
+	}
+	if err := validateMarkerEnd(timestamp, endTimestamp, scene.Duration); err != nil {
+		return nil, err
 	}
 
 	// Check marker limit
@@ -176,11 +193,12 @@ func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, label,
 	}
 
 	marker := &data.UserSceneMarker{
-		UserID:    userID,
-		SceneID:   sceneID,
-		Timestamp: timestamp,
-		Label:     label,
-		Color:     color,
+		UserID:       userID,
+		SceneID:      sceneID,
+		Timestamp:    timestamp,
+		EndTimestamp: endTimestamp,
+		Label:        label,
+		Color:        color,
 	}
 
 	if err := s.markerRepo.Create(marker); err != nil {
@@ -218,7 +236,9 @@ func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, label,
 	return marker, nil
 }
 
-func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color *string, timestamp *int) (*data.UserSceneMarker, error) {
+// UpdateMarker updates the provided fields of a marker. endTimestamp sets the end of the marker
+// range; clearEnd removes it (endTimestamp is then ignored).
+func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color *string, timestamp *int, endTimestamp *int, clearEnd bool) (*data.UserSceneMarker, error) {
 	marker, err := s.markerRepo.GetByID(markerID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -270,6 +290,26 @@ func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color
 			timestampChanged = true
 		}
 		marker.Timestamp = *timestamp
+	}
+
+	if clearEnd {
+		marker.EndTimestamp = nil
+	} else if endTimestamp != nil {
+		end := *endTimestamp
+		marker.EndTimestamp = &end
+	}
+	if marker.EndTimestamp != nil && (timestamp != nil || endTimestamp != nil) {
+		if scene == nil {
+			var err error
+			scene, err = s.sceneRepo.GetByID(marker.SceneID)
+			if err != nil {
+				s.logger.Error("failed to get scene", zap.Uint("sceneID", marker.SceneID), zap.Error(err))
+				return nil, apperrors.NewInternalError("failed to get scene", err)
+			}
+		}
+		if err := validateMarkerEnd(marker.Timestamp, marker.EndTimestamp, scene.Duration); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := s.markerRepo.Update(marker); err != nil {

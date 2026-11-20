@@ -81,7 +81,7 @@ func TestImportCapabilities(t *testing.T) {
 		t.Fatalf("expected version 2, got %v", out["version"])
 	}
 	features, _ := out["features"].([]any)
-	want := []string{"scene_associations", "scene_interactions", "scene_update_existing", "marker_dedup", "marker_tags", "scene_summary", "skip_index"}
+	want := []string{"scene_associations", "scene_interactions", "scene_update_existing", "marker_dedup", "marker_tags", "marker_end", "scene_summary", "skip_index"}
 	if len(features) != len(want) {
 		t.Fatalf("expected %d features, got %v", len(want), features)
 	}
