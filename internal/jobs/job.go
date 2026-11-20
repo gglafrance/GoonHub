@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 )
 
 type JobStatus string
@@ -43,6 +44,12 @@ type Job interface {
 	GetPhase() string
 	GetStatus() JobStatus
 	GetError() error
+}
+
+// TimeoutScaler is implemented by jobs whose execution time depends on their input (e.g. the
+// video duration): the worker pool uses JobTimeout(poolTimeout) instead of the pool timeout.
+type TimeoutScaler interface {
+	JobTimeout(base time.Duration) time.Duration
 }
 
 type JobResult struct {

@@ -42,6 +42,7 @@ type FingerprintJob struct {
 	scenePath       string
 	audioCodec      string // from scene metadata - determines audio vs visual path
 	fingerprintMode string // "audio_only" or "dual"
+	sceneDuration   int    // seconds, scales the timeout of long videos
 	status          JobStatus
 	error           error
 	cancelled       atomic.Bool
@@ -68,6 +69,24 @@ func NewFingerprintJob(
 		logger:          logger,
 		status:          JobStatusPending,
 	}
+}
+
+// SetSceneDuration sets the video duration (seconds), used to scale the job timeout.
+func (j *FingerprintJob) SetSceneDuration(seconds int) {
+	j.sceneDuration = seconds
+}
+
+// fingerprintTimeoutPerVideoSecond is the time allowed per second of video beyond the pool
+// timeout: long videos (hours) must not time out after a fixed 10 minutes and redo all the work.
+const fingerprintTimeoutPerVideoSecond = 500 * time.Millisecond
+
+// JobTimeout implements TimeoutScaler: the pool timeout, raised for long videos.
+func (j *FingerprintJob) JobTimeout(base time.Duration) time.Duration {
+	scaled := time.Duration(j.sceneDuration) * fingerprintTimeoutPerVideoSecond
+	if scaled > base {
+		return scaled
+	}
+	return base
 }
 
 // NewFingerprintJobWithID creates a FingerprintJob with a pre-assigned job ID.
