@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MarkerWithScene } from '~/types/marker';
+import type { MarkerWithScene, SavedMarkerFilterValues } from '~/types/marker';
 
 const route = useRoute();
 const router = useRouter();
@@ -19,6 +19,32 @@ const isLoading = ref(true);
 const error = ref<string | null>(null);
 
 const label = computed(() => decodeURIComponent(route.params.label as string));
+
+// No sort on this page: markers are listed newest first
+const fixedSort = ref('recent');
+const {
+    enabled: filtersEnabled,
+    state: filterState,
+    params: filterParams,
+    activeCount: filterCount,
+    reset: resetFilters,
+    options: filterOptions,
+    loadOptions: loadFilterOptions,
+    snapshot: filterSnapshot,
+    applySaved,
+} = useMarkerFilters(fixedSort, false);
+
+const applySavedFilter = (values: SavedMarkerFilterValues) => {
+    applySaved(values);
+    showFilters.value = true;
+    loadFilterOptions();
+};
+const showFilters = ref(filterCount.value > 0);
+
+const toggleFilters = () => {
+    showFilters.value = !showFilters.value;
+    if (showFilters.value) loadFilterOptions();
+};
 
 const pageTitle = computed(() => label.value || 'Markers');
 useHead({ title: pageTitle });
@@ -43,7 +69,12 @@ const loadMarkers = async (page: number) => {
     isLoading.value = true;
     error.value = null;
     try {
-        const response = await fetchMarkersByLabel(label.value, page, limit.value);
+        const response = await fetchMarkersByLabel(
+            label.value,
+            page,
+            limit.value,
+            filterParams.value,
+        );
         markers.value = response.data;
         total.value = response.pagination.total_items;
     } catch (err) {
@@ -55,6 +86,7 @@ const loadMarkers = async (page: number) => {
 
 onMounted(async () => {
     loadMarkers(currentPage.value);
+    if (showFilters.value && filtersEnabled.value) loadFilterOptions();
     try {
         const config = await fetchProcessingConfig();
         markerThumbnailType.value = config.marker_thumbnail_type || 'static';
@@ -74,6 +106,14 @@ watch(
     () => currentPage.value,
     (newPage) => {
         loadMarkers(newPage);
+    },
+);
+
+watch(
+    () => JSON.stringify(filterParams.value),
+    () => {
+        if (currentPage.value === 1) loadMarkers(1);
+        else currentPage.value = 1;
     },
 );
 
@@ -103,13 +143,37 @@ definePageMeta({
             <div class="mb-4">
                 <div class="flex items-center justify-between">
                     <h1 class="text-lg font-semibold text-white">{{ label }}</h1>
-                    <span
-                        class="border-border bg-panel text-dim rounded-full border px-2.5 py-0.5
-                            font-mono text-[11px]"
-                    >
-                        {{ total }} markers
-                    </span>
+                    <div class="flex items-center gap-2">
+                        <MarkersFiltersToggle
+                            v-if="filtersEnabled"
+                            class="py-1"
+                            :open="showFilters"
+                            :active-count="filterCount"
+                            @toggle="toggleFilters"
+                        />
+                        <MarkersFiltersSavedMenu
+                            v-if="filtersEnabled"
+                            :snapshot="filterSnapshot"
+                            @apply="applySavedFilter"
+                        />
+                        <span
+                            class="border-border bg-panel text-dim rounded-full border px-2.5 py-0.5
+                                font-mono text-[11px]"
+                        >
+                            {{ total }} markers
+                        </span>
+                    </div>
                 </div>
+
+                <!-- Advanced filters (setting "Advanced Marker Filters") -->
+                <MarkersFiltersPanel
+                    v-if="filtersEnabled && showFilters"
+                    class="mt-3"
+                    :state="filterState"
+                    :options="filterOptions"
+                    :active-count="filterCount"
+                    @reset="resetFilters"
+                />
             </div>
 
             <!-- Label Tag Manager -->
@@ -153,6 +217,7 @@ definePageMeta({
                     >
                         <!-- Thumbnail -->
                         <div class="relative aspect-video w-full overflow-hidden bg-black/40">
+                            <MarkersTagsBadge :tags="marker.tags" :label="marker.label" />
                             <video
                                 v-if="
                                     markerThumbnailType === 'animated' &&

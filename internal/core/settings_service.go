@@ -68,6 +68,11 @@ var allowedEntitySceneSorts = map[string]bool{
 	"random":          true,
 }
 
+var allowedMarkerViews = map[string]bool{
+	"grouped": true,
+	"all":     true,
+}
+
 var allowedPlaylistAutoAdvance = map[string]bool{
 	"instant":   true,
 	"countdown": true,
@@ -115,6 +120,7 @@ func (s *SettingsService) GetSettings(userID uint) (*data.UserSettings, error) {
 			DefaultSortOrder:       "created_at_desc",
 			DefaultTagSort:         "az",
 			MarkerThumbnailCycling: true,
+			DefaultMarkerView:      "grouped",
 			HomepageConfig:         data.DefaultHomepageConfig(),
 			SortPreferences:        data.DefaultSortPreferences(),
 			SceneCardConfig:        data.DefaultSceneCardConfig(),
@@ -292,7 +298,7 @@ func (s *SettingsService) UpdateParsingRules(userID uint, rules data.ParsingRule
 	return settings, nil
 }
 
-func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, abLoopControls bool, markerLoop bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences, playlistAutoAdvance string, playlistCountdownSeconds int, showPageSizeSelector bool, sceneCardConfig data.SceneCardConfig) (*data.UserSettings, error) {
+func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, abLoopControls bool, markerLoop bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences, playlistAutoAdvance string, playlistCountdownSeconds int, showPageSizeSelector bool, advancedMarkerFilters bool, defaultMarkerView string, sceneCardConfig data.SceneCardConfig) (*data.UserSettings, error) {
 	if volume < 0 || volume > 100 {
 		return nil, fmt.Errorf("volume must be between 0 and 100")
 	}
@@ -332,6 +338,12 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 	if playlistAutoAdvance == "" {
 		playlistAutoAdvance = "countdown"
 	}
+	if defaultMarkerView == "" {
+		defaultMarkerView = "grouped"
+	}
+	if !allowedMarkerViews[defaultMarkerView] {
+		return nil, fmt.Errorf("invalid default marker view: %s", defaultMarkerView)
+	}
 	if !allowedPlaylistAutoAdvance[playlistAutoAdvance] {
 		return nil, fmt.Errorf("invalid playlist auto advance: %s", playlistAutoAdvance)
 	}
@@ -369,6 +381,8 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 	settings.PlaylistAutoAdvance = playlistAutoAdvance
 	settings.PlaylistCountdownSeconds = playlistCountdownSeconds
 	settings.ShowPageSizeSelector = showPageSizeSelector
+	settings.AdvancedMarkerFilters = advancedMarkerFilters
+	settings.DefaultMarkerView = defaultMarkerView
 	settings.SceneCardConfig = sceneCardConfig
 
 	if err := s.settingsRepo.Upsert(settings); err != nil {

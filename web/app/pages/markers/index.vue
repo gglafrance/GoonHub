@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MarkerLabelGroup, MarkerWithScene } from '~/types/marker';
+import type { MarkerLabelGroup, MarkerWithScene, SavedMarkerFilterValues } from '~/types/marker';
 
 useHead({ title: 'Markers' });
 
@@ -20,7 +20,27 @@ const settingsStore = useSettingsStore();
 const markerThumbnailType = ref('static');
 
 type ViewMode = 'grouped' | 'all';
-const viewMode = ref<ViewMode>('grouped');
+const isViewMode = (v: unknown): v is ViewMode => v === 'grouped' || v === 'all';
+
+// Initial view: the URL (`view`) wins, else the account default (Settings > App)
+const route = useRoute();
+const router = useRouter();
+const urlView = route.query.view;
+const viewMode = ref<ViewMode>(isViewMode(urlView) ? urlView : settingsStore.defaultMarkerView);
+let viewChosen = isViewMode(urlView);
+
+// Settings may load after this page: apply the account default unless a view was chosen
+watch(
+    () => settingsStore.defaultMarkerView,
+    (view) => {
+        if (!viewChosen) viewMode.value = view;
+    },
+);
+
+const setViewMode = (view: ViewMode) => {
+    viewChosen = true;
+    viewMode.value = view;
+};
 
 // Grouped mode state
 const groups = ref<MarkerLabelGroup[]>([]);
@@ -37,12 +57,51 @@ const sortBy = useUrlSort(settingsStore.sortPreferences?.markers || 'label_asc')
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 
+const {
+    enabled: filtersEnabled,
+    state: filterState,
+    params: filterParams,
+    activeCount: filterCount,
+    reset: resetFilters,
+    snapshot: filterSnapshot,
+    applySaved,
+    options: filterOptions,
+    loadOptions: loadFilterOptions,
+    seed: randomSeed,
+    reshuffle,
+} = useMarkerFilters(sortBy);
+
+// Saved marker filters also keep the sort and the view
+const savedFilterSnapshot = () => ({
+    ...filterSnapshot(),
+    sort: sortBy.value,
+    view: viewMode.value,
+});
+
+const applySavedFilter = async (values: SavedMarkerFilterValues) => {
+    applySaved(values);
+    if (values.view && values.view !== viewMode.value) {
+        setViewMode(values.view);
+        await nextTick();
+    }
+    if (values.sort) sortBy.value = values.sort;
+    showFilters.value = true;
+    loadFilterOptions();
+};
+const showFilters = ref(filterCount.value > 0);
+
+const toggleFilters = () => {
+    showFilters.value = !showFilters.value;
+    if (showFilters.value) loadFilterOptions();
+};
+
 const groupedSortOptions = [
     { value: 'label_asc', label: 'A-Z' },
     { value: 'label_desc', label: 'Z-A' },
     { value: 'count_desc', label: 'Most markers' },
     { value: 'count_asc', label: 'Fewest markers' },
     { value: 'recent', label: 'Recently added' },
+    { value: 'random', label: 'Random' },
 ];
 
 const allSortOptions = [
@@ -50,6 +109,7 @@ const allSortOptions = [
     { value: 'label_desc', label: 'Z-A' },
     { value: 'recent', label: 'Recent' },
     { value: 'oldest', label: 'Oldest' },
+    { value: 'random', label: 'Random' },
 ];
 
 const sortOptions = computed(() =>
@@ -76,7 +136,12 @@ const loadGroups = async (page = 1) => {
     isLoading.value = true;
     error.value = null;
     try {
-        const response = await fetchLabelGroups(page, limit.value, sortBy.value);
+        const response = await fetchLabelGroups(
+            page,
+            limit.value,
+            sortBy.value,
+            filterParams.value,
+        );
         groups.value = response.data;
         groupTotal.value = response.pagination.total_items;
         currentPage.value = page;
@@ -91,7 +156,7 @@ const loadAllMarkers = async (page = 1) => {
     isLoading.value = true;
     error.value = null;
     try {
-        const response = await fetchAllMarkers(page, limit.value, sortBy.value);
+        const response = await fetchAllMarkers(page, limit.value, sortBy.value, filterParams.value);
         allMarkers.value = response.data;
         allTotal.value = response.pagination.total_items;
         currentPage.value = page;
@@ -112,6 +177,7 @@ const loadData = (page = 1) => {
 
 onMounted(async () => {
     loadData(currentPage.value);
+    if (showFilters.value && filtersEnabled.value) loadFilterOptions();
     try {
         const config = await fetchProcessingConfig();
         markerThumbnailType.value = config.marker_thumbnail_type || 'static';
@@ -127,11 +193,16 @@ watch(
     },
 );
 
-watch(sortBy, () => {
+// Sort and filters (including the random seed) reload from the first page
+watch([sortBy, () => JSON.stringify(filterParams.value)], () => {
     loadData(1);
 });
 
-watch(viewMode, () => {
+watch(viewMode, (view) => {
+    // Keep the view in the URL so that a reload stays on it (deferred like the other URL syncs)
+    setTimeout(() => {
+        router.replace({ query: { ...router.currentRoute.value.query, view } });
+    }, 0);
     // Reset sort to a valid default for the new mode
     const validSorts = sortOptions.value.map((o) => o.value);
     if (!validSorts.includes(sortBy.value)) {
@@ -185,7 +256,7 @@ definePageMeta({
                                     ? 'bg-lava/15 text-lava'
                                     : 'text-dim hover:text-white'
                             "
-                            @click="viewMode = 'grouped'"
+                            @click="setViewMode('grouped')"
                         >
                             Grouped
                         </button>
@@ -196,7 +267,7 @@ definePageMeta({
                                     ? 'bg-lava/15 text-lava'
                                     : 'text-dim hover:text-white'
                             "
-                            @click="viewMode = 'all'"
+                            @click="setViewMode('all')"
                         >
                             All
                         </button>
@@ -219,8 +290,35 @@ definePageMeta({
                     </div>
                     <div v-else class="flex-1" />
 
+                    <MarkersFiltersToggle
+                        v-if="filtersEnabled"
+                        :open="showFilters"
+                        :active-count="filterCount"
+                        @toggle="toggleFilters"
+                    />
+                    <MarkersFiltersSavedMenu
+                        v-if="filtersEnabled"
+                        :snapshot="savedFilterSnapshot"
+                        @apply="applySavedFilter"
+                    />
                     <UiSortSelect v-model="sortBy" :options="sortOptions" />
+                    <MarkersRandomSeed
+                        v-if="sortBy === 'random'"
+                        :seed="randomSeed"
+                        @reshuffle="reshuffle"
+                    />
                 </div>
+
+                <!-- Advanced filters (setting "Advanced Marker Filters") -->
+                <MarkersFiltersPanel
+                    v-if="filtersEnabled && showFilters"
+                    class="mt-3"
+                    :state="filterState"
+                    :options="filterOptions"
+                    :active-count="filterCount"
+                    with-labels
+                    @reset="resetFilters"
+                />
             </div>
 
             <!-- Error -->
@@ -363,12 +461,21 @@ definePageMeta({
 
                                 <!-- Label badge -->
                                 <div
-                                    v-if="marker.label"
-                                    class="absolute top-1.5 left-1.5 max-w-[80%] truncate rounded
-                                        bg-black/70 px-1.5 py-0.5 text-[10px] font-medium
-                                        text-white/90 backdrop-blur-sm"
+                                    class="absolute top-1.5 left-1.5 flex max-w-[80%] items-center
+                                        gap-1"
                                 >
-                                    {{ marker.label }}
+                                    <span
+                                        v-if="marker.label"
+                                        class="truncate rounded bg-black/70 px-1.5 py-0.5
+                                            text-[10px] font-medium text-white/90 backdrop-blur-sm"
+                                    >
+                                        {{ marker.label }}
+                                    </span>
+                                    <MarkersTagsBadge
+                                        inline
+                                        :tags="marker.tags"
+                                        :label="marker.label"
+                                    />
                                 </div>
                             </div>
 

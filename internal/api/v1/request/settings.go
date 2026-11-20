@@ -106,5 +106,7 @@ type UpdateAllSettingsRequest struct {
 	PlaylistAutoAdvance      string                       `json:"playlist_auto_advance"`
 	PlaylistCountdownSeconds int                          `json:"playlist_countdown_seconds"`
 	ShowPageSizeSelector     bool                         `json:"show_page_size_selector"`
+	AdvancedMarkerFilters    bool                         `json:"advanced_marker_filters"`
+	DefaultMarkerView        string                       `json:"default_marker_view"`
 	SceneCardConfig          UpdateSceneCardConfigRequest `json:"scene_card_config"`
 }

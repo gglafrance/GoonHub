@@ -184,6 +184,14 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					markers.POST("/:markerID/tags", markerHandler.AddMarkerTags)
 				}
 
+				markerFilters := protected.Group("/marker-filters")
+				{
+					markerFilters.GET("", markerHandler.ListSavedFilters)
+					markerFilters.POST("", markerHandler.CreateSavedFilter)
+					markerFilters.PUT("/:uuid", markerHandler.UpdateSavedFilter)
+					markerFilters.DELETE("/:uuid", markerHandler.DeleteSavedFilter)
+				}
+
 				admin := protected.Group("/admin")
 				admin.Use(middleware.RequireRole("admin"))
 				{

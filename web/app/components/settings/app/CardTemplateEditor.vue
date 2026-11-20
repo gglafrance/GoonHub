@@ -23,6 +23,11 @@ const sampleScene: SceneListItem = {
     studio: 'Sample Studio',
     tags: ['tag-1', 'tag-2', 'tag-3'],
     actors: ['Actor One', 'Actor Two'],
+    markers: [
+        { id: 1, label: 'Intro', color: '#FFFFFF', timestamp: 12 },
+        { id: 2, label: 'Highlight', color: '#FF4D4D', timestamp: 245, end_timestamp: 301 },
+        { id: 3, label: 'Finale', color: '#34D399', timestamp: 690 },
+    ],
 };
 const sampleRating = 4;
 const sampleLiked = true;
@@ -48,7 +53,7 @@ const badgeFields = [
     { value: 'file_size', label: 'File Size' },
     { value: 'added_at', label: 'Date Added' },
     { value: 'frame_rate', label: 'Frame Rate' },
-    { value: 'tags', label: 'Tags' },
+    { value: 'tags', label: 'Tags & Markers' },
     { value: 'actors', label: 'Actors' },
 ];
 
@@ -61,7 +66,7 @@ const contentFields = [
     { value: 'jizz_count', label: 'Jizz Count', fullOnly: false, hasMode: false },
     { value: 'rating', label: 'Rating', fullOnly: false, hasMode: false },
     { value: 'description', label: 'Description', fullOnly: true, hasMode: false },
-    { value: 'tags', label: 'Tags', fullOnly: false, hasMode: true },
+    { value: 'tags', label: 'Tags & Markers', fullOnly: false, hasMode: true },
     { value: 'actors', label: 'Actors', fullOnly: false, hasMode: true },
     { value: 'studio', label: 'Studio', fullOnly: true, hasMode: false },
 ];
@@ -184,6 +189,7 @@ function fieldLabel(value: string): string {
                         :completed="true"
                         :config-override="config"
                         fluid
+                        preview
                     />
                 </div>
             </div>

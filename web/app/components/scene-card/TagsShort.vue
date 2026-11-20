@@ -4,6 +4,9 @@ const props = defineProps<{
     badge?: boolean;
 }>();
 
+// In the card template preview, links must not navigate away from the editor
+const { blockInPreview } = useSceneCardPreview();
+
 const showPopover = ref(false);
 const trigger = ref<HTMLElement | null>(null);
 const popoverStyle = ref<Record<string, string>>({});
@@ -80,6 +83,7 @@ function onPopoverLeave() {
                     :style="popoverStyle"
                     @mouseenter="onPopoverEnter"
                     @mouseleave="onPopoverLeave"
+                    @click.capture="blockInPreview"
                 >
                     <NuxtLink
                         v-for="tag in props.tags"

@@ -9,6 +9,8 @@ export interface SortPreferences {
     studio_scenes: string;
 }
 
+export type MarkerView = 'grouped' | 'all';
+
 export interface UserSettings {
     id: number;
     user_id: number;
@@ -27,6 +29,8 @@ export interface UserSettings {
     playlist_auto_advance: PlaylistAutoAdvance;
     playlist_countdown_seconds: number;
     show_page_size_selector: boolean;
+    advanced_marker_filters: boolean;
+    default_marker_view: MarkerView;
     scene_card_config: SceneCardConfig;
     max_items_per_page: number;
     created_at: string;

@@ -13,6 +13,36 @@ export interface Marker {
     tags?: MarkerTagInfo[];
 }
 
+// Marker summary attached to scene cards (with the tags card field)
+export interface SceneCardMarker {
+    id: number;
+    label: string;
+    color: string;
+    timestamp: number;
+    end_timestamp?: number | null;
+}
+
+// Filters stored by a saved marker filter (marker pages advanced filters)
+export interface SavedMarkerFilterValues {
+    labels?: string[];
+    marker_tags?: string[];
+    tags?: string[];
+    actors?: string[];
+    studio?: string;
+    ranges_only?: boolean;
+    sort?: string;
+    view?: 'grouped' | 'all';
+}
+
+export interface SavedMarkerFilter {
+    id: number;
+    uuid: string;
+    name: string;
+    filters: SavedMarkerFilterValues;
+    created_at: string;
+    updated_at: string;
+}
+
 export interface CreateMarkerRequest {
     timestamp: number;
     end_timestamp?: number;

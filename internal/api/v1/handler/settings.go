@@ -189,6 +189,8 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		req.PlaylistAutoAdvance,
 		req.PlaylistCountdownSeconds,
 		req.ShowPageSizeSelector,
+		req.AdvancedMarkerFilters,
+		req.DefaultMarkerView,
 		sceneCardConfig,
 	)
 	if err != nil {

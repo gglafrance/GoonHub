@@ -14,6 +14,8 @@ const props = defineProps<{
     selectable?: boolean;
     selected?: boolean;
     configOverride?: SceneCardConfig;
+    // Card template editor preview: the card and its links do not navigate
+    preview?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -34,7 +36,15 @@ const handleCheckboxClick = (event: Event) => {
     emit('toggleSelection', props.scene.id);
 };
 
+provideSceneCardPreview(!!props.preview);
+const NuxtLinkComponent = resolveComponent('NuxtLink');
+
 const handleCardClick = (event: MouseEvent) => {
+    if (props.preview) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+    }
     if (props.selectable) {
         event.preventDefault();
         event.stopPropagation();
@@ -132,8 +142,9 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
             <Icon name="heroicons:check" size="12" />
         </button>
 
-        <NuxtLink
-            :to="`/watch/${scene.id}`"
+        <component
+            :is="preview ? 'div' : NuxtLinkComponent"
+            :to="preview ? undefined : `/watch/${scene.id}`"
             class="group border-border bg-surface hover:border-border-hover hover:bg-elevated
                 relative block overflow-hidden rounded-lg border transition-all duration-200"
             :class="[
@@ -332,6 +343,6 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                     </slot>
                 </div>
             </div>
-        </NuxtLink>
+        </component>
     </div>
 </template>
