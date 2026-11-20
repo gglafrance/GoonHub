@@ -18,13 +18,25 @@ type ChangeUsernameRequest struct {
 }
 
 type UpdateHomepageConfigRequest struct {
-	ShowUpload bool                     `json:"show_upload"`
-	Sections   []HomepageSectionRequest `json:"sections" binding:"required,dive"`
+	ShowUpload bool `json:"show_upload"`
+	// Sections is the legacy single-page layout (migrated into a tab when Tabs is empty)
+	Sections     []HomepageSectionRequest `json:"sections" binding:"dive"`
+	Tabs         []HomepageTabRequest     `json:"tabs" binding:"dive"`
+	DefaultTabID string                   `json:"default_tab_id"`
+	OpenOn       string                   `json:"open_on" binding:"omitempty,oneof=last default"`
+}
+
+type HomepageTabRequest struct {
+	ID       string                   `json:"id" binding:"required,max=100"`
+	Name     string                   `json:"name" binding:"required,max=40"`
+	Icon     string                   `json:"icon" binding:"max=100"`
+	Sections []HomepageSectionRequest `json:"sections" binding:"dive"`
 }
 
 type HomepageSectionRequest struct {
-	ID      string                 `json:"id" binding:"required"`
-	Type    string                 `json:"type" binding:"required,oneof=latest actor studio tag saved_search continue_watching most_viewed liked playlist"`
+	ID string `json:"id" binding:"required"`
+	// Type is validated by the settings service (built-in sections and registered widgets)
+	Type    string                 `json:"type" binding:"required,max=50"`
 	Title   string                 `json:"title" binding:"required,max=100"`
 	Enabled bool                   `json:"enabled"`
 	Limit   int                    `json:"limit" binding:"required,min=1,max=50"`

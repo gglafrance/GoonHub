@@ -558,9 +558,15 @@ func provideHomepageService(
 	tagRepo data.TagRepository,
 	actorRepo data.ActorRepository,
 	studioRepo data.StudioRepository,
+	db *gorm.DB,
+	markerRepo data.MarkerRepository,
+	relatedScenesService *core.RelatedScenesService,
+	jobHistoryRepo data.JobHistoryRepository,
+	duplicateService *core.DuplicateService,
+	storagePathRepo data.StoragePathRepository,
 	logger *logging.Logger,
 ) *core.HomepageService {
-	return core.NewHomepageService(
+	svc := core.NewHomepageService(
 		settingsService,
 		searchService,
 		savedSearchService,
@@ -573,6 +579,15 @@ func provideHomepageService(
 		studioRepo,
 		logger.Logger,
 	)
+	svc.SetWidgetDeps(core.HomepageWidgetDeps{
+		DB:            db,
+		Markers:       markerRepo,
+		RelatedScenes: relatedScenesService,
+		JobHistory:    jobHistoryRepo,
+		Duplicates:    duplicateService,
+		StoragePaths:  storagePathRepo,
+	})
+	return svc
 }
 
 func provideMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {

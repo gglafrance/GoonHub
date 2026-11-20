@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { HomepageSection, HomepageSectionData, SectionType } from '~/types/homepage';
-import { SECTION_TYPE_LABELS } from '~/types/homepage';
+import { SECTION_TYPE_LABELS, SECTION_TYPE_META } from '~/types/homepage';
 
 const props = defineProps<{
     section: HomepageSection;
@@ -12,6 +12,13 @@ const emit = defineEmits<{
 }>();
 
 const isRefreshing = ref(false);
+
+const authStore = useAuthStore();
+const meta = computed(() => SECTION_TYPE_META[props.section.type as SectionType]);
+const isWidget = computed(() => meta.value?.widget ?? false);
+// Widgets can hide the section header (e.g. a full width banner)
+const showHeader = computed(() => props.section.config?.hide_header !== true);
+const hiddenForUser = computed(() => meta.value?.adminOnly && authStore.user?.role !== 'admin');
 
 const handleRefresh = async () => {
     if (isRefreshing.value) return;
@@ -138,9 +145,9 @@ const seeAllLink = computed(() => {
 </script>
 
 <template>
-    <div class="mb-6 sm:mb-8">
+    <div v-if="!hiddenForUser" class="mb-6 sm:mb-8">
         <!-- Section Header -->
-        <div class="mb-3 flex items-center justify-between sm:mb-4">
+        <div v-if="showHeader" class="mb-3 flex items-center justify-between sm:mb-4">
             <div class="flex min-w-0 items-center gap-2 sm:gap-3">
                 <h2
                     class="truncate text-xs font-semibold tracking-wide text-white uppercase
@@ -149,7 +156,7 @@ const seeAllLink = computed(() => {
                     {{ displayTitle }}
                 </h2>
                 <span
-                    v-if="data"
+                    v-if="data && !isWidget"
                     class="border-border bg-panel text-dim shrink-0 rounded-full border px-1.5
                         py-0.5 font-mono text-[9px] sm:px-2 sm:text-[10px]"
                 >
@@ -173,6 +180,7 @@ const seeAllLink = computed(() => {
                     />
                 </button>
                 <NuxtLink
+                    v-if="!isWidget"
                     :to="seeAllLink"
                     class="text-dim hover:text-lava flex items-center gap-0.5 rounded-md px-2 py-1.5
                         text-xs transition-colors hover:bg-white/5 sm:gap-1 sm:rounded-none
@@ -189,6 +197,14 @@ const seeAllLink = computed(() => {
         <div v-if="!data" class="flex h-48 items-center justify-center">
             <LoadingSpinner size="sm" />
         </div>
+
+        <!-- Widget sections -->
+        <HomepageWidgetRenderer
+            v-else-if="isWidget"
+            :section="section"
+            :data="data"
+            @refresh="handleRefresh"
+        />
 
         <!-- Playlist section -->
         <template v-else-if="section.type === 'playlist'">

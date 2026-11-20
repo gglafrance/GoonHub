@@ -6,8 +6,9 @@ import type { HomepageResponse, HomepageSectionData } from '~/types/homepage';
 export const useApiHomepage = () => {
     const { fetchOptions, getAuthHeaders, handleResponse } = useApiCore();
 
-    const fetchHomepageData = async (): Promise<HomepageResponse> => {
-        const response = await fetch('/api/v1/homepage', {
+    const fetchHomepageData = async (tabId?: string): Promise<HomepageResponse> => {
+        const query = tabId ? `?tab=${encodeURIComponent(tabId)}` : '';
+        const response = await fetch(`/api/v1/homepage${query}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });

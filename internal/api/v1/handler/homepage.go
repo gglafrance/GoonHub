@@ -28,7 +28,7 @@ func (h *HomepageHandler) GetHomepageData(c *gin.Context) {
 		return
 	}
 
-	data, err := h.homepageService.GetHomepageData(userPayload.UserID)
+	data, err := h.homepageService.GetHomepageData(userPayload.UserID, c.Query("tab"))
 	if err != nil {
 		response.Error(c, apperrors.NewInternalError("failed to fetch homepage data", err))
 		return
