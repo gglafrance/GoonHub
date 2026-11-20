@@ -24,6 +24,12 @@ type DuplicateGroupRepository interface {
 	CountByStatus() (map[string]int64, error)
 	Delete(id uint) error
 	UpdateMemberBest(groupID uint, sceneID uint, isBest bool) error
+	// FillMemberSegment stores the matching segment of a member that has none yet.
+	FillMemberSegment(member *DuplicateGroupMember) error
+	// SetMemberDeleteAfter schedules (or cancels, with nil) the deletion of group members.
+	SetMemberDeleteAfter(groupID uint, sceneIDs []uint, deleteAfter *time.Time) error
+	// ListMembersDueForDeletion returns members whose scheduled deletion time has passed.
+	ListMembersDueForDeletion(now time.Time, limit int) ([]DuplicateGroupMember, error)
 	RunInTransaction(fn func(DuplicateGroupRepository) error) error
 }
 
@@ -124,6 +130,36 @@ func (r *DuplicateGroupRepositoryImpl) SetBestScene(id uint, sceneID uint) error
 
 func (r *DuplicateGroupRepositoryImpl) AddMember(member *DuplicateGroupMember) error {
 	return r.DB.Create(member).Error
+}
+
+func (r *DuplicateGroupRepositoryImpl) FillMemberSegment(member *DuplicateGroupMember) error {
+	return r.DB.Model(&DuplicateGroupMember{}).
+		Where("group_id = ? AND scene_id = ? AND match_start IS NULL", member.GroupID, member.SceneID).
+		Updates(map[string]any{
+			"match_start":  member.MatchStart,
+			"match_end":    member.MatchEnd,
+			"ref_scene_id": member.RefSceneID,
+			"ref_start":    member.RefStart,
+			"ref_end":      member.RefEnd,
+		}).Error
+}
+
+func (r *DuplicateGroupRepositoryImpl) SetMemberDeleteAfter(groupID uint, sceneIDs []uint, deleteAfter *time.Time) error {
+	if len(sceneIDs) == 0 {
+		return nil
+	}
+	return r.DB.Model(&DuplicateGroupMember{}).
+		Where("group_id = ? AND scene_id IN ?", groupID, sceneIDs).
+		Update("delete_after", deleteAfter).Error
+}
+
+func (r *DuplicateGroupRepositoryImpl) ListMembersDueForDeletion(now time.Time, limit int) ([]DuplicateGroupMember, error) {
+	var members []DuplicateGroupMember
+	err := r.DB.Where("delete_after IS NOT NULL AND delete_after <= ?", now).
+		Order("delete_after ASC").
+		Limit(limit).
+		Find(&members).Error
+	return members, err
 }
 
 func (r *DuplicateGroupRepositoryImpl) RemoveMember(groupID, sceneID uint) error {
@@ -277,6 +313,6 @@ func (r *DuplicationConfigRepositoryImpl) Upsert(record *DuplicationConfigRecord
 	record.UpdatedAt = time.Now()
 	return r.DB.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"audio_density_threshold", "audio_min_hashes", "audio_max_hash_occurrences", "audio_min_span", "visual_hamming_max", "visual_min_frames", "visual_min_span", "delta_tolerance", "fingerprint_mode", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"audio_density_threshold", "audio_min_hashes", "audio_max_hash_occurrences", "audio_min_span", "visual_hamming_max", "visual_min_frames", "visual_min_span", "delta_tolerance", "fingerprint_mode", "delete_resolved_files", "deletion_delay_hours", "best_selection_criteria", "updated_at"}),
 	}).Create(record).Error
 }

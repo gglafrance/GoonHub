@@ -52,12 +52,19 @@ func matchingPostgresTestDB(t *testing.T) *gorm.DB {
 		`CREATE TABLE scenes (id BIGINT PRIMARY KEY, duration INTEGER NOT NULL DEFAULT 0,
 		 trashed_at TIMESTAMPTZ, deleted_at TIMESTAMPTZ)`,
 		`INSERT INTO scenes (id, duration) VALUES (10, 10), (20, 20), (30, 30), (40, 40)`,
+		// Altered by the later duplication migrations
+		`CREATE TABLE duplication_config (id INTEGER PRIMARY KEY)`,
 	} {
 		if err := tx.Exec(sql).Error; err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, name := range []string{"000057_create_duplicate_groups.up.sql", "000062_unique_scene_in_duplicate_group.up.sql"} {
+	for _, name := range []string{
+		"000057_create_duplicate_groups.up.sql",
+		"000062_unique_scene_in_duplicate_group.up.sql",
+		"000066_duplicate_match_segments_and_deletion.up.sql",
+		"000067_add_best_selection_criteria.up.sql",
+	} {
 		sql, err := os.ReadFile(filepath.Join("..", "infrastructure", "persistence", "migrator", "migrations", name))
 		if err != nil {
 			t.Fatal(err)

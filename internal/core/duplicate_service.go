@@ -1,8 +1,10 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"goonhub/internal/data"
+	"path/filepath"
 	"time"
 
 	"go.uber.org/zap"
@@ -37,6 +39,27 @@ type DuplicateGroupMemberDetail struct {
 	MatchType       string     `json:"match_type"`
 	IsTrashed       bool       `json:"is_trashed"`
 	TrashedAt       *time.Time `json:"trashed_at,omitempty"`
+	FileName        string     `json:"file_name"`
+	// Matching segment in this scene and the corresponding segment in RefSceneID (seconds)
+	MatchStart *float64 `json:"match_start,omitempty"`
+	MatchEnd   *float64 `json:"match_end,omitempty"`
+	RefSceneID *uint    `json:"ref_scene_id,omitempty"`
+	RefStart   *float64 `json:"ref_start,omitempty"`
+	RefEnd     *float64 `json:"ref_end,omitempty"`
+	// DeleteAfter is when the scene (not kept at resolution) will be permanently deleted
+	DeleteAfter *time.Time `json:"delete_after,omitempty"`
+}
+
+// BulkResolveFailure reports a group that could not be resolved by ResolveGroups.
+type BulkResolveFailure struct {
+	GroupID uint   `json:"group_id"`
+	Error   string `json:"error"`
+}
+
+// BulkResolveResult is the outcome of ResolveGroups.
+type BulkResolveResult struct {
+	Resolved []uint               `json:"resolved"`
+	Failed   []BulkResolveFailure `json:"failed"`
 }
 
 // DuplicateStats holds stats by status
@@ -56,7 +79,20 @@ type DuplicateService struct {
 	markerRepo      data.MarkerRepository
 	interactionRepo data.InteractionRepository
 	sceneService    *SceneService
+	configRepo      data.DuplicationConfigRepository
 	logger          *zap.Logger
+	cancelCleanup   context.CancelFunc
+}
+
+// deletionCleanupInterval is how often scheduled deletions of resolved duplicates are applied.
+const deletionCleanupInterval = 10 * time.Minute
+
+// deletionCleanupBatch caps the deletions applied per cleanup run.
+const deletionCleanupBatch = 200
+
+// SetConfigRepo provides the duplication config (deletion of the scenes not kept at resolution).
+func (ds *DuplicateService) SetConfigRepo(repo data.DuplicationConfigRepository) {
+	ds.configRepo = repo
 }
 
 // NewDuplicateService creates a new DuplicateService
@@ -135,16 +171,15 @@ func (ds *DuplicateService) ScoreBestVariant(groupID uint) (uint, error) {
 	}
 
 	var bestSceneID uint
-	var bestScore int64
+	var best *data.Scene
 
 	for _, member := range group.Members {
 		scene, err := ds.sceneRepo.GetByID(member.SceneID)
 		if err != nil {
 			continue
 		}
-		score := scoreScene(scene)
-		if score > bestScore {
-			bestScore = score
+		if best == nil || betterSceneBy(scene, best, ds.bestCriteria()) {
+			best = scene
 			bestSceneID = member.SceneID
 		}
 	}
@@ -201,6 +236,13 @@ func (ds *DuplicateService) ResolveGroup(groupID, bestSceneID uint, mergeMetadat
 		}
 	}
 
+	// Schedule the permanent deletion of the trashed scenes when configured
+	if deleteAfter := ds.scheduledDeletionTime(); deleteAfter != nil && len(otherSceneIDs) > 0 {
+		if err := ds.groupRepo.SetMemberDeleteAfter(groupID, otherSceneIDs, deleteAfter); err != nil {
+			return fmt.Errorf("failed to schedule deletion of resolved duplicates: %w", err)
+		}
+	}
+
 	// Update group status
 	now := time.Now()
 	if err := ds.groupRepo.SetBestScene(groupID, bestSceneID); err != nil {
@@ -252,6 +294,197 @@ func (ds *DuplicateService) SetBest(groupID, sceneID uint) error {
 	}
 
 	return ds.groupRepo.SetBestScene(groupID, sceneID)
+}
+
+// scheduledDeletionTime returns when the scenes not kept at resolution must be deleted, or nil
+// when deletion of resolved duplicates is disabled.
+func (ds *DuplicateService) scheduledDeletionTime() *time.Time {
+	if ds.configRepo == nil {
+		return nil
+	}
+	cfg, err := ds.configRepo.Get()
+	if err != nil {
+		ds.logger.Warn("Failed to read duplication config, not scheduling deletion", zap.Error(err))
+		return nil
+	}
+	if cfg == nil || !cfg.DeleteResolvedFiles {
+		return nil
+	}
+	at := time.Now().Add(time.Duration(max(cfg.DeletionDelayHours, 0)) * time.Hour)
+	return &at
+}
+
+// bestCriteria returns the configured best variant selection criteria.
+func (ds *DuplicateService) bestCriteria() []string {
+	if ds.configRepo == nil {
+		return DefaultBestCriteria
+	}
+	cfg, err := ds.configRepo.Get()
+	if err != nil {
+		ds.logger.Warn("Failed to read duplication config, using default best criteria", zap.Error(err))
+		return DefaultBestCriteria
+	}
+	return bestCriteriaFromConfig(cfg)
+}
+
+// bestMemberScene returns the best variant to keep among the group's non-trashed members.
+func (ds *DuplicateService) bestMemberScene(group *data.DuplicateGroup) (uint, error) {
+	sceneIDs := make([]uint, len(group.Members))
+	for i, m := range group.Members {
+		sceneIDs[i] = m.SceneID
+	}
+	scenes, err := ds.sceneRepo.GetByIDsIncludingTrashed(sceneIDs)
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch group scenes: %w", err)
+	}
+	criteria := ds.bestCriteria()
+	var best *data.Scene
+	for i := range scenes {
+		if scenes[i].TrashedAt != nil {
+			continue
+		}
+		if best == nil || betterSceneBy(&scenes[i], best, criteria) {
+			best = &scenes[i]
+		}
+	}
+	if best == nil {
+		return 0, fmt.Errorf("group %d has no scene left to keep", group.ID)
+	}
+	return best.ID, nil
+}
+
+// AutoSelectBest marks, in each unresolved group, the best variant according to the configured
+// criteria (default: highest resolution, then longest duration, then highest bitrate, then
+// smallest file). Returns group ID -> scene ID.
+func (ds *DuplicateService) AutoSelectBest(groupIDs []uint) (map[uint]uint, error) {
+	selected := make(map[uint]uint, len(groupIDs))
+	for _, groupID := range groupIDs {
+		group, err := ds.groupRepo.GetByIDWithMembers(groupID)
+		if err != nil {
+			return selected, fmt.Errorf("failed to get group %d: %w", groupID, err)
+		}
+		if group.Status != "unresolved" {
+			continue
+		}
+		bestID, err := ds.bestMemberScene(group)
+		if err != nil {
+			return selected, err
+		}
+		if err := ds.SetBest(groupID, bestID); err != nil {
+			return selected, err
+		}
+		selected[groupID] = bestID
+	}
+	return selected, nil
+}
+
+// ResolveGroups resolves several unresolved groups. With autoSelect the best variant is chosen
+// automatically, otherwise the group's current best (or the automatic choice when none is set).
+// A failing group does not stop the others.
+func (ds *DuplicateService) ResolveGroups(groupIDs []uint, autoSelect, mergeMetadata bool) BulkResolveResult {
+	result := BulkResolveResult{Resolved: []uint{}, Failed: []BulkResolveFailure{}}
+	fail := func(groupID uint, err error) {
+		result.Failed = append(result.Failed, BulkResolveFailure{GroupID: groupID, Error: err.Error()})
+	}
+	for _, groupID := range groupIDs {
+		group, err := ds.groupRepo.GetByIDWithMembers(groupID)
+		if err != nil {
+			fail(groupID, fmt.Errorf("failed to get group: %w", err))
+			continue
+		}
+		if group.Status != "unresolved" {
+			fail(groupID, fmt.Errorf("group is %s", group.Status))
+			continue
+		}
+		var bestID uint
+		if !autoSelect && group.BestSceneID != nil {
+			bestID = *group.BestSceneID
+		} else if bestID, err = ds.bestMemberScene(group); err != nil {
+			fail(groupID, err)
+			continue
+		}
+		if err := ds.ResolveGroup(groupID, bestID, mergeMetadata); err != nil {
+			fail(groupID, err)
+			continue
+		}
+		result.Resolved = append(result.Resolved, groupID)
+	}
+	ds.logger.Info("Bulk resolved duplicate groups",
+		zap.Int("resolved", len(result.Resolved)),
+		zap.Int("failed", len(result.Failed)),
+	)
+	return result
+}
+
+// CancelDeletion cancels the scheduled deletion of a scene not kept at resolution.
+func (ds *DuplicateService) CancelDeletion(groupID, sceneID uint) error {
+	return ds.groupRepo.SetMemberDeleteAfter(groupID, []uint{sceneID}, nil)
+}
+
+// RunDeletionCleanup permanently deletes the scenes (and their files) whose scheduled deletion
+// time has passed. A scene restored from the trash meanwhile is kept and unscheduled.
+func (ds *DuplicateService) RunDeletionCleanup() (int, error) {
+	members, err := ds.groupRepo.ListMembersDueForDeletion(time.Now(), deletionCleanupBatch)
+	if err != nil {
+		return 0, fmt.Errorf("failed to list scheduled deletions: %w", err)
+	}
+	deleted := 0
+	for _, m := range members {
+		scene, err := ds.sceneRepo.GetByIDIncludingTrashed(m.SceneID)
+		if err != nil {
+			ds.logger.Warn("Scheduled deletion: scene not found", zap.Uint("scene_id", m.SceneID), zap.Error(err))
+			continue
+		}
+		if scene.TrashedAt == nil {
+			// Restored from the trash meanwhile: keep it
+			if err := ds.groupRepo.SetMemberDeleteAfter(m.GroupID, []uint{m.SceneID}, nil); err != nil {
+				ds.logger.Warn("Failed to unschedule restored scene", zap.Uint("scene_id", m.SceneID), zap.Error(err))
+			}
+			continue
+		}
+		if err := ds.sceneService.HardDeleteScene(m.SceneID); err != nil {
+			ds.logger.Warn("Scheduled deletion failed", zap.Uint("scene_id", m.SceneID), zap.Error(err))
+			continue
+		}
+		deleted++
+		ds.logger.Info("Deleted resolved duplicate",
+			zap.Uint("scene_id", m.SceneID),
+			zap.Uint("group_id", m.GroupID),
+			zap.String("path", scene.StoredPath),
+		)
+	}
+	return deleted, nil
+}
+
+// StartDeletionCleanupTicker applies scheduled deletions now and then periodically.
+func (ds *DuplicateService) StartDeletionCleanupTicker() {
+	ctx, cancel := context.WithCancel(context.Background())
+	ds.cancelCleanup = cancel
+	run := func() {
+		if _, err := ds.RunDeletionCleanup(); err != nil {
+			ds.logger.Warn("Duplicate deletion cleanup failed", zap.Error(err))
+		}
+	}
+	go func() {
+		run()
+		ticker := time.NewTicker(deletionCleanupInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				run()
+			}
+		}
+	}()
+}
+
+// StopDeletionCleanupTicker stops the periodic cleanup.
+func (ds *DuplicateService) StopDeletionCleanupTicker() {
+	if ds.cancelCleanup != nil {
+		ds.cancelCleanup()
+	}
 }
 
 // enrichGroup converts a DuplicateGroup to DuplicateGroupWithScenes by fetching scene details.
@@ -311,6 +544,13 @@ func (ds *DuplicateService) enrichGroup(group *data.DuplicateGroup) (*DuplicateG
 			MatchType:       m.MatchType,
 			IsTrashed:       scene.TrashedAt != nil,
 			TrashedAt:       scene.TrashedAt,
+			FileName:        filepath.Base(scene.StoredPath),
+			MatchStart:      m.MatchStart,
+			MatchEnd:        m.MatchEnd,
+			RefSceneID:      m.RefSceneID,
+			RefStart:        m.RefStart,
+			RefEnd:          m.RefEnd,
+			DeleteAfter:     m.DeleteAfter,
 		})
 	}
 

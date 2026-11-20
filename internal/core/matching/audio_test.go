@@ -538,3 +538,21 @@ func TestFindAudioMatches_SilentPartsDoNotCount(t *testing.T) {
 		t.Fatalf("matching only on silence must not produce a match, got %+v", got)
 	}
 }
+
+func TestFindAudioMatches_ReportsAlignedSegment(t *testing.T) {
+	// Query positions 0..99 match scene 2 at offsets 50..149 (delta +50).
+	query := make([]int32, 100)
+	hits := map[int32][]AudioHit{}
+	for i := range query {
+		query[i] = int32(5000 + i)
+		hits[query[i]] = []AudioHit{{SceneID: 2, Offset: uint32(50 + i)}}
+	}
+
+	got := FindAudioMatches(1, query, hits, 80, 0.5, 2, 0)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 match, got %+v", got)
+	}
+	if got[0].QueryStart != 0 || got[0].QueryEnd != 99 || got[0].Delta != 50 {
+		t.Fatalf("unexpected segment: start=%d end=%d delta=%d", got[0].QueryStart, got[0].QueryEnd, got[0].Delta)
+	}
+}

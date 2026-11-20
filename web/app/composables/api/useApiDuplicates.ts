@@ -1,3 +1,5 @@
+import type { BulkResolveResult } from '~/types/duplicates';
+
 export const useApiDuplicates = () => {
     const { fetchOptions, getAuthHeaders, handleResponse } = useApiCore();
 
@@ -57,6 +59,46 @@ export const useApiDuplicates = () => {
         return handleResponse(response);
     };
 
+    const autoSelectBest = async (
+        groupIds: number[],
+    ): Promise<{ selected: Record<string, number> }> => {
+        const response = await fetch('/api/v1/admin/duplicates/auto-select', {
+            ...fetchOptions(),
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ group_ids: groupIds }),
+        });
+        return handleResponse(response);
+    };
+
+    const resolveBulk = async (
+        groupIds: number[],
+        autoSelect: boolean,
+        mergeMetadata: boolean,
+    ): Promise<BulkResolveResult> => {
+        const response = await fetch('/api/v1/admin/duplicates/resolve-bulk', {
+            ...fetchOptions(),
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+                group_ids: groupIds,
+                auto_select: autoSelect,
+                merge_metadata: mergeMetadata,
+            }),
+        });
+        return handleResponse(response);
+    };
+
+    const cancelDeletion = async (groupId: number, sceneId: number) => {
+        const response = await fetch(`/api/v1/admin/duplicates/${groupId}/cancel-deletion`, {
+            ...fetchOptions(),
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ scene_id: sceneId }),
+        });
+        return handleResponse(response);
+    };
+
     const getConfig = async () => {
         const response = await fetch('/api/v1/admin/duplicates/config', {
             ...fetchOptions(),
@@ -82,6 +124,9 @@ export const useApiDuplicates = () => {
         resolveGroup,
         dismissGroup,
         setBest,
+        autoSelectBest,
+        resolveBulk,
+        cancelDeletion,
         getConfig,
         updateConfig,
     };

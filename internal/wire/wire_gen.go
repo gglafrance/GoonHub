@@ -149,14 +149,14 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	shareLinkRepository := provideShareLinkRepository(db)
 	shareService := provideShareService(shareLinkRepository, sceneRepository, logger)
 	shareHandler := provideShareHandler(shareService, authService, manager, configConfig)
-	duplicateService := provideDuplicateService(duplicateGroupRepository, sceneRepository, tagRepository, actorRepository, markerRepository, interactionRepository, sceneService, logger)
+	duplicateService := provideDuplicateService(duplicateGroupRepository, sceneRepository, tagRepository, actorRepository, markerRepository, interactionRepository, sceneService, duplicationConfigRepository, logger)
 	duplicateHandler := provideDuplicateHandler(duplicateService, duplicationConfigRepository)
 	ipRateLimiter := provideRateLimiter(configConfig)
 	ogMiddleware := provideOGMiddleware(sceneRepository, actorRepository, studioRepository, playlistRepository, shareLinkRepository, appSettingsRepository, logger)
 	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, shareHandler, duplicateHandler, authService, rbacService, ipRateLimiter, ogMiddleware)
 	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, markerService, sceneProcessingService, duplicationConfigRepository, configConfig, logger)
 	shareServer := provideShareServer(configConfig, shareHandler, ogMiddleware, logger)
-	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService, matchingService, shareServer)
+	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService, matchingService, duplicateService, shareServer)
 	return serverServer, nil
 }
 
@@ -502,8 +502,10 @@ func provideSceneFingerprintIndex(matchingService *core.MatchingService) core.Sc
 	return matchingService
 }
 
-func provideDuplicateService(dupGroupRepo data.DuplicateGroupRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, markerRepo data.MarkerRepository, interactionRepo data.InteractionRepository, sceneService *core.SceneService, logger *logging.Logger) *core.DuplicateService {
-	return core.NewDuplicateService(dupGroupRepo, sceneRepo, tagRepo, actorRepo, markerRepo, interactionRepo, sceneService, logger.Logger)
+func provideDuplicateService(dupGroupRepo data.DuplicateGroupRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, markerRepo data.MarkerRepository, interactionRepo data.InteractionRepository, sceneService *core.SceneService, dupConfigRepo data.DuplicationConfigRepository, logger *logging.Logger) *core.DuplicateService {
+	svc := core.NewDuplicateService(dupGroupRepo, sceneRepo, tagRepo, actorRepo, markerRepo, interactionRepo, sceneService, logger.Logger)
+	svc.SetConfigRepo(dupConfigRepo)
+	return svc
 }
 
 func provideStreamManager(cfg *config.Config, sceneRepo data.SceneRepository, logger *logging.Logger) *streaming.Manager {
@@ -745,12 +747,13 @@ func provideServer(
 	actorService *core.ActorService,
 	studioService *core.StudioService,
 	matchingService *core.MatchingService,
+	duplicateService *core.DuplicateService,
 	shareServer *server.ShareServer,
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
-		actorService, studioService, matchingService, shareServer,
+		actorService, studioService, matchingService, duplicateService, shareServer,
 	)
 }

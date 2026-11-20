@@ -626,8 +626,10 @@ func provideSceneFingerprintIndex(matchingService *core.MatchingService) core.Sc
 	return matchingService
 }
 
-func provideDuplicateService(dupGroupRepo data.DuplicateGroupRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, markerRepo data.MarkerRepository, interactionRepo data.InteractionRepository, sceneService *core.SceneService, logger *logging.Logger) *core.DuplicateService {
-	return core.NewDuplicateService(dupGroupRepo, sceneRepo, tagRepo, actorRepo, markerRepo, interactionRepo, sceneService, logger.Logger)
+func provideDuplicateService(dupGroupRepo data.DuplicateGroupRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, markerRepo data.MarkerRepository, interactionRepo data.InteractionRepository, sceneService *core.SceneService, dupConfigRepo data.DuplicationConfigRepository, logger *logging.Logger) *core.DuplicateService {
+	svc := core.NewDuplicateService(dupGroupRepo, sceneRepo, tagRepo, actorRepo, markerRepo, interactionRepo, sceneService, logger.Logger)
+	svc.SetConfigRepo(dupConfigRepo)
+	return svc
 }
 
 // --- Streaming Manager ---
@@ -893,12 +895,13 @@ func provideServer(
 	actorService *core.ActorService,
 	studioService *core.StudioService,
 	matchingService *core.MatchingService,
+	duplicateService *core.DuplicateService,
 	shareServer *server.ShareServer,
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
-		actorService, studioService, matchingService, shareServer,
+		actorService, studioService, matchingService, duplicateService, shareServer,
 	)
 }
