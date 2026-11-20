@@ -456,17 +456,17 @@ func TestFloorDiv(t *testing.T) {
 		a, b     int
 		expected int
 	}{
-		{7, 3, 2},      // 7/3 = 2.33, floor = 2
-		{-7, 3, -3},    // -7/3 = -2.33, floor = -3 (Go truncation gives -2)
-		{7, -3, -3},    // 7/-3 = -2.33, floor = -3 (Go truncation gives -2)
-		{-7, -3, 2},    // -7/-3 = 2.33, floor = 2
-		{6, 3, 2},      // exact division
-		{-6, 3, -2},    // exact division
-		{0, 3, 0},      // zero dividend
-		{1, 2, 0},      // 1/2 = 0.5, floor = 0
-		{-1, 2, -1},    // -1/2 = -0.5, floor = -1 (Go truncation gives 0)
-		{3, 2, 1},      // 3/2 = 1.5, floor = 1
-		{-3, 2, -2},    // -3/2 = -1.5, floor = -2 (Go truncation gives -1)
+		{7, 3, 2},   // 7/3 = 2.33, floor = 2
+		{-7, 3, -3}, // -7/3 = -2.33, floor = -3 (Go truncation gives -2)
+		{7, -3, -3}, // 7/-3 = -2.33, floor = -3 (Go truncation gives -2)
+		{-7, -3, 2}, // -7/-3 = 2.33, floor = 2
+		{6, 3, 2},   // exact division
+		{-6, 3, -2}, // exact division
+		{0, 3, 0},   // zero dividend
+		{1, 2, 0},   // 1/2 = 0.5, floor = 0
+		{-1, 2, -1}, // -1/2 = -0.5, floor = -1 (Go truncation gives 0)
+		{3, 2, 1},   // 3/2 = 1.5, floor = 1
+		{-3, 2, -2}, // -3/2 = -1.5, floor = -2 (Go truncation gives -1)
 	}
 
 	for _, tt := range tests {
@@ -498,5 +498,43 @@ func TestFloorDiv_BinningSymmetry(t *testing.T) {
 		if count != deltaTolerance {
 			t.Errorf("bin %d has %d members, expected %d", bin, count, deltaTolerance)
 		}
+	}
+}
+
+func TestFindAudioMatches_SilenceIsIgnored(t *testing.T) {
+	// A fully silent query track: the same chromaprint value at every position.
+	const silence = int32(627964279)
+	query := make([]int32, 500)
+	for i := range query {
+		query[i] = silence
+	}
+	// The other scene has a long silent section.
+	hits := map[int32][]AudioHit{silence: {}}
+	for off := 0; off < 300; off++ {
+		hits[silence] = append(hits[silence], AudioHit{SceneID: 2, Offset: uint32(1000 + off)})
+	}
+
+	if got := FindAudioMatches(1, query, hits, 80, 0.5, 2, 0); len(got) != 0 {
+		t.Fatalf("silent audio must not match, got %+v", got)
+	}
+}
+
+func TestFindAudioMatches_SilentPartsDoNotCount(t *testing.T) {
+	// Real audio with a silent section: only the distinct hashes may align.
+	const silence = int32(627964279)
+	var query []int32
+	for i := 0; i < 200; i++ {
+		query = append(query, silence)
+	}
+	for i := 0; i < 100; i++ {
+		query = append(query, int32(10000+i))
+	}
+	hits := map[int32][]AudioHit{silence: {}}
+	for off := 0; off < 200; off++ {
+		hits[silence] = append(hits[silence], AudioHit{SceneID: 2, Offset: uint32(off)})
+	}
+
+	if got := FindAudioMatches(1, query, hits, 80, 0.5, 2, 0); len(got) != 0 {
+		t.Fatalf("matching only on silence must not produce a match, got %+v", got)
 	}
 }

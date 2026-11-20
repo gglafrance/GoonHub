@@ -91,7 +91,7 @@ func NewFingerprintJobWithID(
 	}
 }
 
-func (j *FingerprintJob) GetID() string                { return j.id }
+func (j *FingerprintJob) GetID() string                 { return j.id }
 func (j *FingerprintJob) GetSceneID() uint              { return j.sceneID }
 func (j *FingerprintJob) GetPhase() string              { return "fingerprint" }
 func (j *FingerprintJob) GetStatus() JobStatus          { return j.status }
@@ -147,9 +147,17 @@ func (j *FingerprintJob) ExecuteWithContext(ctx context.Context) error {
 				j.status = JobStatusCancelled
 				return fmt.Errorf("job cancelled")
 			}
-			j.error = err
-			j.status = JobStatusFailed
-			return err
+			// In dual mode the visual fingerprint alone is still usable for matching (e.g. a
+			// silent audio track gives an empty chromaprint), so only fail if visual fails too.
+			if !extractVisual {
+				j.error = err
+				j.status = JobStatusFailed
+				return err
+			}
+			j.logger.Warn("Audio extraction failed in dual mode, falling back to visual fingerprint",
+				zap.Uint("scene_id", j.sceneID),
+				zap.Error(err),
+			)
 		}
 	}
 

@@ -13,6 +13,12 @@ type AudioHit struct {
 	Offset  uint32
 }
 
+// MaxQueryHashRepeats is the number of times a hash may occur within the query fingerprint
+// before it is ignored. Chromaprint gives the same value for every frame of digital silence (or
+// any constant signal), so a silent track (or the silent parts of a video) would otherwise
+// align with the silent parts of any other video and score a 100% match.
+const MaxQueryHashRepeats = 8
+
 // floorDiv performs floor division (rounds toward negative infinity),
 // unlike Go's built-in integer division which truncates toward zero.
 // This ensures uniform bin widths: without it, bin 0 covers 3 delta values
@@ -49,6 +55,12 @@ func FindAudioMatches(
 		deltaTolerance = 2
 	}
 
+	// Ignore non-discriminative hashes that repeat within the query (silence, constant tones).
+	hashCounts := make(map[int32]int, len(queryHashes))
+	for _, hash := range queryHashes {
+		hashCounts[hash]++
+	}
+
 	// sceneBins maps sceneID -> binKey -> bin tracking unique query positions.
 	// Using unique query positions (not raw hit count) prevents score inflation
 	// when a single query position produces multiple hits from the same scene
@@ -61,6 +73,9 @@ func FindAudioMatches(
 	sceneBins := make(map[uint]map[int]*binData)
 
 	for queryOffset, hash := range queryHashes {
+		if hashCounts[hash] > MaxQueryHashRepeats {
+			continue
+		}
 		hashHits, ok := hits[hash]
 		if !ok {
 			continue
