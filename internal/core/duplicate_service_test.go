@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"goonhub/internal/data"
 	"goonhub/internal/mocks"
@@ -121,7 +122,7 @@ func TestScoreBestVariant_HigherResWins(t *testing.T) {
 	}
 }
 
-func TestScoreBestVariant_BetterCodecWins(t *testing.T) {
+func TestScoreBestVariant_SmallerFileWinsTie(t *testing.T) {
 	svc, groupRepo, sceneRepo, _, _, _, _ := newTestDuplicateService(t)
 
 	group := &data.DuplicateGroup{
@@ -134,23 +135,9 @@ func TestScoreBestVariant_BetterCodecWins(t *testing.T) {
 		},
 	}
 
-	// Same resolution, same duration, same bitrate - only codec differs
-	scene100 := &data.Scene{
-		ID:         100,
-		Duration:   600,
-		Width:      1920,
-		Height:     1080,
-		VideoCodec: "h264",
-		BitRate:    5_000_000,
-	}
-	scene200 := &data.Scene{
-		ID:         200,
-		Duration:   600,
-		Width:      1920,
-		Height:     1080,
-		VideoCodec: "hevc",
-		BitRate:    5_000_000,
-	}
+	// Same resolution, duration and bitrate: the smaller file wins
+	scene100 := &data.Scene{ID: 100, Duration: 600, Width: 1920, Height: 1080, BitRate: 5_000_000, Size: 900}
+	scene200 := &data.Scene{ID: 200, Duration: 600, Width: 1920, Height: 1080, BitRate: 5_000_000, Size: 800}
 
 	groupRepo.EXPECT().GetByIDWithMembers(uint(1)).Return(group, nil)
 	sceneRepo.EXPECT().GetByID(uint(100)).Return(scene100, nil)
@@ -162,7 +149,7 @@ func TestScoreBestVariant_BetterCodecWins(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if bestID != 200 {
-		t.Fatalf("expected best scene ID=200 (hevc), got %d", bestID)
+		t.Fatalf("expected best scene ID=200 (smaller file), got %d", bestID)
 	}
 }
 
@@ -361,50 +348,31 @@ func TestSetBest_InvalidMember(t *testing.T) {
 	}
 }
 
-func TestScoreScene_CodecRanking(t *testing.T) {
-	// scoreScene is a package-level function, testable directly via white-box access
+func TestBetterScene_Criteria(t *testing.T) {
+	base := data.Scene{ID: 1, Width: 1920, Height: 1080, Duration: 600, BitRate: 5_000_000, Size: 1000}
 	tests := []struct {
-		name      string
-		codec     string
-		wantBonus int64
+		name   string
+		mutate func(s *data.Scene)
+		want   bool
 	}{
-		{"av1 gets 3M bonus", "av1", 3_000_000},
-		{"hevc gets 2M bonus", "hevc", 2_000_000},
-		{"h265 gets 2M bonus", "h265", 2_000_000},
-		{"h264 gets 1M bonus", "h264", 1_000_000},
-		{"unknown gets no bonus", "vp9", 0},
-		{"empty gets no bonus", "", 0},
+		{"higher resolution wins", func(s *data.Scene) { s.Width, s.Height = 3840, 2160; s.Duration = 10 }, true},
+		{"lower resolution loses", func(s *data.Scene) { s.Width, s.Height = 1280, 720; s.BitRate = 50_000_000 }, false},
+		{"same resolution, longer wins", func(s *data.Scene) { s.Duration = 700; s.BitRate = 1 }, true},
+		{"same resolution and duration, higher bitrate wins", func(s *data.Scene) { s.BitRate = 8_000_000; s.Size = 9999 }, true},
+		{"all equal but smaller file wins", func(s *data.Scene) { s.Size = 500 }, true},
+		{"all equal but bigger file loses", func(s *data.Scene) { s.Size = 5000 }, false},
+		{"codec is not a criterion", func(s *data.Scene) { s.VideoCodec = "av1"; s.ID = 2 }, false},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			scene := &data.Scene{
-				Duration:   0,
-				Width:      0,
-				Height:     0,
-				VideoCodec: tt.codec,
-				BitRate:    0,
-			}
-			score := scoreScene(scene)
-			if score != tt.wantBonus {
-				t.Fatalf("scoreScene with codec %q: got %d, want %d", tt.codec, score, tt.wantBonus)
+			candidate := base
+			candidate.ID = 2
+			tt.mutate(&candidate)
+			reference := base
+			if got := betterScene(&candidate, &reference); got != tt.want {
+				t.Fatalf("betterScene = %v, want %v", got, tt.want)
 			}
 		})
-	}
-
-	// Also verify the full scoring formula with concrete values:
-	// score = duration*1000 + width*height + codecRank + bitRate/1000
-	scene := &data.Scene{
-		Duration:   120,  // 120 * 1000 = 120_000
-		Width:      1920, // 1920 * 1080 = 2_073_600
-		Height:     1080,
-		VideoCodec: "h264",    // 1_000_000
-		BitRate:    8_000_000, // 8_000_000 / 1000 = 8_000
-	}
-	got := scoreScene(scene)
-	want := int64(120_000 + 2_073_600 + 1_000_000 + 8_000) // = 3_201_600
-	if got != want {
-		t.Fatalf("scoreScene full formula: got %d, want %d", got, want)
 	}
 }
 
@@ -518,6 +486,92 @@ func TestMergeMetadata_Studio(t *testing.T) {
 
 	err := svc.mergeMetadata(10, []uint{20})
 	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestAutoSelectBest_SkipsTrashedAndResolved(t *testing.T) {
+	svc, groupRepo, sceneRepo, _, _, _, _ := newTestDuplicateService(t)
+	trashedAt := time.Now()
+	group := &data.DuplicateGroup{ID: 1, Status: "unresolved", Members: []data.DuplicateGroupMember{
+		{GroupID: 1, SceneID: 10}, {GroupID: 1, SceneID: 20}, {GroupID: 1, SceneID: 30},
+	}}
+	resolved := &data.DuplicateGroup{ID: 2, Status: "resolved"}
+
+	groupRepo.EXPECT().GetByIDWithMembers(uint(1)).Return(group, nil).Times(2)
+	sceneRepo.EXPECT().GetByIDsIncludingTrashed([]uint{10, 20, 30}).Return([]data.Scene{
+		{ID: 10, Width: 1280, Height: 720},
+		{ID: 20, Width: 3840, Height: 2160, TrashedAt: &trashedAt}, // trashed: not eligible
+		{ID: 30, Width: 1920, Height: 1080},
+	}, nil)
+	groupRepo.EXPECT().UpdateMemberBest(uint(1), uint(10), false).Return(nil)
+	groupRepo.EXPECT().UpdateMemberBest(uint(1), uint(20), false).Return(nil)
+	groupRepo.EXPECT().UpdateMemberBest(uint(1), uint(30), true).Return(nil)
+	groupRepo.EXPECT().SetBestScene(uint(1), uint(30)).Return(nil)
+	groupRepo.EXPECT().GetByIDWithMembers(uint(2)).Return(resolved, nil)
+
+	selected, err := svc.AutoSelectBest([]uint{1, 2})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(selected) != 1 || selected[1] != 30 {
+		t.Fatalf("unexpected selection: %v", selected)
+	}
+}
+
+func TestResolveGroups_ReportsFailuresAndContinues(t *testing.T) {
+	svc, groupRepo, _, _, _, _, _ := newTestDuplicateService(t)
+	groupRepo.EXPECT().GetByIDWithMembers(uint(1)).Return(&data.DuplicateGroup{ID: 1, Status: "dismissed"}, nil)
+	groupRepo.EXPECT().GetByIDWithMembers(uint(2)).Return(nil, errors.New("boom"))
+
+	result := svc.ResolveGroups([]uint{1, 2}, true, false)
+	if len(result.Resolved) != 0 || len(result.Failed) != 2 {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+}
+
+func TestRunDeletionCleanup_KeepsRestoredScenes(t *testing.T) {
+	svc, groupRepo, sceneRepo, _, _, _, _ := newTestDuplicateService(t)
+	groupRepo.EXPECT().ListMembersDueForDeletion(gomock.Any(), deletionCleanupBatch).Return([]data.DuplicateGroupMember{
+		{GroupID: 1, SceneID: 20},
+	}, nil)
+	// The scene was restored from the trash: it must be unscheduled, not deleted
+	sceneRepo.EXPECT().GetByIDIncludingTrashed(uint(20)).Return(&data.Scene{ID: 20}, nil)
+	groupRepo.EXPECT().SetMemberDeleteAfter(uint(1), []uint{20}, nil).Return(nil)
+
+	deleted, err := svc.RunDeletionCleanup()
+	if err != nil || deleted != 0 {
+		t.Fatalf("expected nothing deleted, got %d, %v", deleted, err)
+	}
+}
+
+func TestResolveGroup_SchedulesDeletionWhenConfigured(t *testing.T) {
+	svc, groupRepo, sceneRepo, _, _, _, _ := newTestDuplicateService(t)
+	ctrl := gomock.NewController(t)
+	configRepo := mocks.NewMockDuplicationConfigRepository(ctrl)
+	svc.SetConfigRepo(configRepo)
+
+	group := &data.DuplicateGroup{ID: 1, Status: "unresolved", Members: []data.DuplicateGroupMember{
+		{GroupID: 1, SceneID: 10}, {GroupID: 1, SceneID: 20},
+	}}
+	now := time.Now()
+	groupRepo.EXPECT().GetByIDWithMembers(uint(1)).Return(group, nil)
+	groupRepo.EXPECT().UpdateMemberBest(uint(1), uint(10), true).Return(nil)
+	groupRepo.EXPECT().UpdateMemberBest(uint(1), uint(20), false).Return(nil)
+	sceneRepo.EXPECT().GetByIDIncludingTrashed(uint(20)).Return(&data.Scene{ID: 20}, nil)
+	sceneRepo.EXPECT().MoveToTrash(uint(20)).Return(&now, nil)
+	configRepo.EXPECT().Get().Return(&data.DuplicationConfigRecord{DeleteResolvedFiles: true, DeletionDelayHours: 24}, nil)
+	groupRepo.EXPECT().SetMemberDeleteAfter(uint(1), []uint{20}, gomock.Any()).DoAndReturn(
+		func(_ uint, _ []uint, at *time.Time) error {
+			if at == nil || at.Before(now.Add(23*time.Hour)) || at.After(now.Add(25*time.Hour)) {
+				t.Fatalf("unexpected deletion time: %v", at)
+			}
+			return nil
+		})
+	groupRepo.EXPECT().SetBestScene(uint(1), uint(10)).Return(nil)
+	groupRepo.EXPECT().UpdateStatus(uint(1), "resolved", gomock.Any()).Return(nil)
+
+	if err := svc.ResolveGroup(1, 10, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

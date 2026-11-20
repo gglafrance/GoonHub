@@ -5,6 +5,12 @@ type MatchResult struct {
 	SceneID         uint
 	ConfidenceScore float64
 	MatchType       string // "audio" or "visual"
+	// Aligned segment, in fingerprint positions (audio hashes or visual frames): the query
+	// scene matches from QueryStart to QueryEnd, the matched scene at the same positions
+	// shifted by Delta.
+	QueryStart int
+	QueryEnd   int
+	Delta      int
 }
 
 // AudioHit represents a hit from the audio fingerprint index
@@ -69,6 +75,8 @@ func FindAudioMatches(
 		queryPositions map[int]struct{}
 		minQuery       int
 		maxQuery       int
+		deltaSum       int
+		deltaCount     int
 	}
 	sceneBins := make(map[uint]map[int]*binData)
 
@@ -100,6 +108,8 @@ func FindAudioMatches(
 				sceneBins[hit.SceneID][binKey] = bd
 			}
 			bd.queryPositions[queryOffset] = struct{}{}
+			bd.deltaSum += delta
+			bd.deltaCount++
 			if queryOffset < bd.minQuery {
 				bd.minQuery = queryOffset
 			}
@@ -117,6 +127,7 @@ func FindAudioMatches(
 		// (high count, low density) from being selected over a smaller dense
 		// bin that would have been a valid match.
 		var bestScore float64
+		var bestBin *binData
 		matched := false
 
 		for _, bd := range bins {
@@ -141,6 +152,7 @@ func FindAudioMatches(
 
 			if score >= densityThreshold && score > bestScore {
 				bestScore = score
+				bestBin = bd
 				matched = true
 			}
 		}
@@ -150,6 +162,9 @@ func FindAudioMatches(
 				SceneID:         sceneID,
 				ConfidenceScore: bestScore,
 				MatchType:       "audio",
+				QueryStart:      bestBin.minQuery,
+				QueryEnd:        bestBin.maxQuery,
+				Delta:           bestBin.deltaSum / max(bestBin.deltaCount, 1),
 			})
 		}
 	}

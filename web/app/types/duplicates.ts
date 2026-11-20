@@ -25,6 +25,20 @@ export interface DuplicateGroupMember {
     match_type: 'audio' | 'visual';
     is_trashed: boolean;
     trashed_at?: string;
+    file_name: string;
+    // Matching segment in this scene and the corresponding one in ref_scene_id (seconds)
+    match_start?: number;
+    match_end?: number;
+    ref_scene_id?: number;
+    ref_start?: number;
+    ref_end?: number;
+    // When this scene (not kept at resolution) will be permanently deleted
+    delete_after?: string;
+}
+
+export interface BulkResolveResult {
+    resolved: number[];
+    failed: { group_id: number; error: string }[];
 }
 
 export interface DuplicateStats {
@@ -44,4 +58,8 @@ export interface DuplicationConfig {
     visual_min_span: number;
     delta_tolerance: number;
     fingerprint_mode: 'audio_only' | 'dual';
+    delete_resolved_files: boolean;
+    deletion_delay_hours: number;
+    best_selection_criteria: string[];
+    available_best_criteria?: string[];
 }
