@@ -12,11 +12,16 @@ export const useApiStorage = () => {
         return handleResponse(response);
     };
 
-    const createStoragePath = async (name: string, path: string, isDefault: boolean) => {
+    const createStoragePath = async (
+        name: string,
+        path: string,
+        isDefault: boolean,
+        readOnly = false,
+    ) => {
         const response = await fetch('/api/v1/admin/storage-paths', {
             method: 'POST',
             headers: getAuthHeaders(),
-            body: JSON.stringify({ name, path, is_default: isDefault }),
+            body: JSON.stringify({ name, path, is_default: isDefault, read_only: readOnly }),
         });
         return handleResponse(response);
     };
@@ -26,11 +31,13 @@ export const useApiStorage = () => {
         name: string,
         path: string,
         isDefault: boolean,
+        readOnly?: boolean,
     ) => {
         const response = await fetch(`/api/v1/admin/storage-paths/${id}`, {
             method: 'PUT',
             headers: getAuthHeaders(),
-            body: JSON.stringify({ name, path, is_default: isDefault }),
+            // read_only omitted (undefined) keeps the current value
+            body: JSON.stringify({ name, path, is_default: isDefault, read_only: readOnly }),
         });
         return handleResponse(response);
     };

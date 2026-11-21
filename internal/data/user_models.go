@@ -77,9 +77,13 @@ type UserSettings struct {
 	// No gorm default so that false is written when the row is created (the column defaults to true).
 	PlayerGestures bool `gorm:"not null" json:"player_gestures"`
 	// GestureSeekStep: seconds skipped by a double-tap on the sides of the player (5, 10, 15, 30)
-	GestureSeekStep int             `gorm:"not null;default:10" json:"gesture_seek_step"`
-	SceneCardConfig SceneCardConfig `gorm:"type:jsonb;not null" json:"scene_card_config"`
-	MaxItemsPerPage int             `gorm:"-" json:"max_items_per_page"`
+	GestureSeekStep int `gorm:"not null;default:10" json:"gesture_seek_step"`
+	// ShowReplayHeatmap / RecordReplayHeatmap: "most replayed" heatmap above the player
+	// progress bar, and recording of the watched parts (both on by default)
+	ShowReplayHeatmap   bool            `gorm:"not null;default:true" json:"show_replay_heatmap"`
+	RecordReplayHeatmap bool            `gorm:"not null;default:true" json:"record_replay_heatmap"`
+	SceneCardConfig     SceneCardConfig `gorm:"type:jsonb;not null" json:"scene_card_config"`
+	MaxItemsPerPage     int             `gorm:"-" json:"max_items_per_page"`
 }
 
 // HomepageConfig represents the user's homepage layout configuration

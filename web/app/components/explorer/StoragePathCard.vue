@@ -21,12 +21,24 @@ const href = computed(() => `/explorer/${props.storagePath.id}`);
             >
                 <Icon name="heroicons:folder" size="20" class="text-lava" />
             </div>
-            <span
-                v-if="storagePath.is_default"
-                class="bg-emerald/10 text-emerald rounded-full px-2 py-0.5 text-[10px] font-medium"
-            >
-                Default
-            </span>
+            <div class="flex flex-wrap justify-end gap-1">
+                <span
+                    v-if="storagePath.read_only"
+                    class="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5
+                        text-[10px] font-medium text-white/70"
+                    title="GoonHub never modifies files in this path"
+                >
+                    <Icon name="heroicons:lock-closed" size="10" />
+                    Read-only
+                </span>
+                <span
+                    v-if="storagePath.is_default"
+                    class="bg-emerald/10 text-emerald rounded-full px-2 py-0.5 text-[10px]
+                        font-medium"
+                >
+                    Default
+                </span>
+            </div>
         </div>
 
         <div class="w-full min-w-0">

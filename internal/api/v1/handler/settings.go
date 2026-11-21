@@ -211,6 +211,7 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		core.WithPaginationPosition(req.PaginationPosition),
 		core.WithDateFormat(req.DateFormat),
 		core.WithPlayerGestures(req.PlayerGestures, req.GestureSeekStep),
+		core.WithReplayHeatmap(req.ShowReplayHeatmap, req.RecordReplayHeatmap),
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

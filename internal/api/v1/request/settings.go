@@ -123,7 +123,10 @@ type UpdateAllSettingsRequest struct {
 	PaginationPosition       string                       `json:"pagination_position"`
 	DateFormat               string                       `json:"date_format"`
 	// PlayerGestures and GestureSeekStep keep their current value when omitted (nil / 0)
-	PlayerGestures  *bool                        `json:"player_gestures"`
-	GestureSeekStep int                          `json:"gesture_seek_step"`
-	SceneCardConfig UpdateSceneCardConfigRequest `json:"scene_card_config"`
+	PlayerGestures  *bool `json:"player_gestures"`
+	GestureSeekStep int   `json:"gesture_seek_step"`
+	// Nil (field absent) keeps the current value: both settings are on by default
+	ShowReplayHeatmap   *bool                        `json:"show_replay_heatmap"`
+	RecordReplayHeatmap *bool                        `json:"record_replay_heatmap"`
+	SceneCardConfig     UpdateSceneCardConfigRequest `json:"scene_card_config"`
 }

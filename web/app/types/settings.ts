@@ -38,6 +38,8 @@ export interface UserSettings {
     date_format: DateFormat;
     player_gestures: boolean;
     gesture_seek_step: number;
+    show_replay_heatmap: boolean;
+    record_replay_heatmap: boolean;
     scene_card_config: SceneCardConfig;
     max_items_per_page: number;
     created_at: string;

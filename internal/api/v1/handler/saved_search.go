@@ -206,6 +206,8 @@ func requestFiltersToData(f request.SavedSearchFilters) data.Filters {
 		HasActors:      f.HasActors,
 		HasTags:        f.HasTags,
 		HasStudio:      f.HasStudio,
+		SourceSites:    core.NormalizeSourceSites(f.SourceSites),
+		HasSource:      f.HasSource,
 		Watched:        f.Watched,
 		Rated:          f.Rated,
 		HasMarkers:     f.HasMarkers,

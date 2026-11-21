@@ -38,6 +38,20 @@ const playerMarkerLoop = computed({
     },
 });
 
+const showReplayHeatmap = computed({
+    get: () => settingsStore.draft?.show_replay_heatmap ?? true,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.show_replay_heatmap = v;
+    },
+});
+
+const recordReplayHeatmap = computed({
+    get: () => settingsStore.draft?.record_replay_heatmap ?? true,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.record_replay_heatmap = v;
+    },
+});
+
 const playlistAutoAdvance = computed({
     get: () => settingsStore.draft?.playlist_auto_advance ?? 'countdown',
     set: (v: PlaylistAutoAdvance) => {
@@ -104,6 +118,29 @@ const autoAdvanceOptions: { value: PlaylistAutoAdvance; label: string; desc: str
                         </div>
                     </div>
                     <UiToggle v-model="playerMarkerLoop" />
+                </div>
+
+                <!-- Replay Heatmap -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-sm text-white">Most Replayed Heatmap</div>
+                        <div class="text-dim text-xs">
+                            Show a curve above the progress bar that peaks on the parts of a scene
+                            you watch the most
+                        </div>
+                    </div>
+                    <UiToggle v-model="showReplayHeatmap" />
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-sm text-white">Record Watched Parts</div>
+                        <div class="text-dim text-xs">
+                            Remember which parts of each scene you play to build the heatmap;
+                            turning it off keeps what was already recorded
+                        </div>
+                    </div>
+                    <UiToggle v-model="recordReplayHeatmap" />
                 </div>
 
                 <!-- Volume Slider -->

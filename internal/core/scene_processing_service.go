@@ -282,9 +282,14 @@ func (s *SceneProcessingService) GetExecutingJob(jobID string) (jobs.Job, bool) 
 	return s.poolManager.GetExecutingJob(jobID)
 }
 
-// GetPoolConfig returns the current pool configuration
+// GetPoolConfig returns the effective pool sizes (quiet-hours overrides included)
 func (s *SceneProcessingService) GetPoolConfig() PoolConfig {
 	return s.poolManager.GetPoolConfig()
+}
+
+// GetBasePoolConfig returns the configured pool sizes, without the quiet-hours overrides
+func (s *SceneProcessingService) GetBasePoolConfig() PoolConfig {
+	return s.poolManager.GetBasePoolConfig()
 }
 
 // GetQueueStatus returns the current queue status

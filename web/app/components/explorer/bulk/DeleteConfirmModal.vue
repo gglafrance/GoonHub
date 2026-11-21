@@ -85,7 +85,8 @@ const handleClose = () => {
                             <p class="text-dim mt-1 text-xs">
                                 <template v-if="permanent">
                                     This will permanently delete the scene files, thumbnails, and
-                                    all associated data. This action cannot be undone.
+                                    all associated data. This action cannot be undone. Video files
+                                    on read-only storage paths are kept.
                                 </template>
                                 <template v-else>
                                     Scenes will be moved to trash and automatically deleted after
@@ -110,7 +111,8 @@ const handleClose = () => {
                                 >
                                 <p class="text-dim mt-0.5 text-xs">
                                     Skip trash and delete immediately. Video files will be removed
-                                    from disk. This cannot be undone.
+                                    from disk, except on read-only storage paths. This cannot be
+                                    undone.
                                 </p>
                             </div>
                         </label>

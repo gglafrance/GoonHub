@@ -42,6 +42,8 @@ export interface Scene extends SceneListItem {
     description?: string;
     // the web page the scene comes from ('' or absent: unknown)
     source_url?: string;
+    // site of the source URL, normalized by the server ("pornhub.com"; '' without a source)
+    source_site?: string;
     studio?: string;
     tags?: string[];
     actors?: string[];
@@ -55,6 +57,27 @@ export interface Scene extends SceneListItem {
     porndb_scene_id?: string;
     origin?: string;
     type?: string;
+    // how the player can play the file (scene detail endpoint only)
+    playback?: ScenePlayback;
+}
+
+// direct: the browser plays the original; remux: the original streams are copied into an MP4
+// on the fly; transcode: the video is re-encoded on the fly (H.264 + AAC)
+export type ScenePlaybackMode = 'direct' | 'remux' | 'transcode';
+
+export interface ScenePlayback {
+    mode: ScenePlaybackMode;
+    // what browsers can't play ('' or absent for direct)
+    reason?: string;
+    // false: the admin turned on-the-fly transcoding off, only direct scenes play
+    transcode_enabled: boolean;
+}
+
+// Why the player can't play a scene: disabled (conversion turned off), limit (all conversion
+// slots in use), failed (conversion error)
+export interface PlaybackNotice {
+    kind: 'disabled' | 'limit' | 'failed';
+    reason?: string;
 }
 
 export interface SceneListResponse {
@@ -85,6 +108,9 @@ export interface SceneSearchParams {
     has_actors?: boolean;
     has_tags?: boolean;
     has_studio?: boolean;
+    // comma-separated source sites (OR), and source presence
+    source_site?: string;
+    has_source?: boolean;
     min_date?: string;
     max_date?: string;
     resolution?: string;
@@ -109,6 +135,12 @@ export interface TagOption {
 
 export interface MarkerLabelOption {
     label: string;
+    count: number;
+}
+
+// A site scenes come from, with its scene count (GET /scenes/source-sites)
+export interface SourceSiteOption {
+    site: string;
     count: number;
 }
 
