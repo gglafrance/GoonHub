@@ -9,6 +9,9 @@ const TILES = [
     { value: 'watched', label: 'Watched share' },
     { value: 'views', label: 'Views of the period' },
     { value: 'jizz', label: 'Jizz total' },
+    { value: 'jizz_period', label: 'O of the period' },
+    { value: 'last_jizz', label: 'Last O' },
+    { value: 'jizz_per_week', label: 'O per week' },
     { value: 'liked', label: 'Liked' },
     { value: 'markers', label: 'Markers' },
     { value: 'rating', label: 'Average rating' },
@@ -71,7 +74,7 @@ const tz = computed({
         </div>
         <div>
             <label class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider uppercase">
-                Views period
+                Period (views and O)
             </label>
             <UiSelectMenu v-model="period" :options="PERIODS" />
             <p class="text-dim mt-1 text-[10px]">Compared to the previous period.</p>

@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"goonhub/internal/data"
 
@@ -98,6 +99,33 @@ func (s *InteractionService) IncrementJizzed(userID, sceneID uint) (int, error) 
 		return 0, fmt.Errorf("failed to increment jizzed: %w", err)
 	}
 	return count, nil
+}
+
+// JizzHistoryLimit caps the dated o returned with the jizz count.
+const JizzHistoryLimit = 50
+
+// JizzHistory is the dated o of a scene for a user (most recent first).
+type JizzHistory struct {
+	Events []time.Time
+	// Total is the number of dated events (Events is capped at JizzHistoryLimit)
+	Total int
+}
+
+// GetJizzHistory returns the user's dated o on a scene, most recent first.
+func (s *InteractionService) GetJizzHistory(userID, sceneID uint) (*JizzHistory, error) {
+	events, err := s.repo.GetJizzEvents(userID, sceneID)
+	if err != nil {
+		s.logger.Error("failed to get jizz history", zap.Uint("userID", userID), zap.Uint("sceneID", sceneID), zap.Error(err))
+		return nil, fmt.Errorf("failed to get jizz history: %w", err)
+	}
+	history := &JizzHistory{Events: []time.Time{}, Total: len(events)}
+	for i, e := range events {
+		if i >= JizzHistoryLimit {
+			break
+		}
+		history.Events = append(history.Events, e.JizzedAt)
+	}
+	return history, nil
 }
 
 func (s *InteractionService) GetJizzedCount(userID, sceneID uint) (int, error) {

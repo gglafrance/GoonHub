@@ -83,6 +83,10 @@ const entitySceneSortOptions = [
     { value: 'duration_desc', label: 'Longest' },
     { value: 'view_count_desc', label: 'Most Viewed' },
     { value: 'view_count_asc', label: 'Least Viewed' },
+    { value: 'jizz_count_desc', label: 'Most O' },
+    { value: 'jizz_count_asc', label: 'Least O' },
+    { value: 'last_jizz_desc', label: 'Last O' },
+    { value: 'last_jizz_asc', label: 'Oldest O' },
     { value: 'random', label: 'Random' },
 ];
 
@@ -95,6 +99,10 @@ const sceneSortOptions: { value: SortOrder; label: string }[] = [
     { value: 'duration_desc', label: 'Longest First' },
     { value: 'size_asc', label: 'Smallest First' },
     { value: 'size_desc', label: 'Largest First' },
+    { value: 'jizz_count_desc', label: 'Most O' },
+    { value: 'jizz_count_asc', label: 'Least O' },
+    { value: 'last_jizz_desc', label: 'Last O' },
+    { value: 'last_jizz_asc', label: 'Oldest O' },
     { value: 'random', label: 'Random' },
 ];
 </script>

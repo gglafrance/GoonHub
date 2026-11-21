@@ -7,12 +7,14 @@ import (
 	"goonhub/internal/data"
 )
 
-// top_period: the user's most watched scenes over a rolling period, compared to the period
-// before it.
+// top_period: the user's most watched (or most o'd) scenes over a rolling period, compared to
+// the period before it.
 //
-// Config: period (week = 7 days, month = 30 days, year = 365 days; default month).
-// Payload: {"period", "from", "to", "total_views", "previous_total_views",
+// Config: period (week = 7 days, month = 30 days, year = 365 days; default month),
+// metric (views = views, jizz = dated o; default views).
+// Payload: {"period", "metric", "from", "to", "total_views", "previous_total_views",
 // "items": [{"scene_id", "views", "previous_views"}]} (items in rank order, like Scenes).
+// With metric jizz, the "views" fields hold o counts.
 
 var topPeriodPeriods = []string{"week", "month", "year"}
 
@@ -24,6 +26,7 @@ type topPeriodItem struct {
 
 type topPeriodWidgetPayload struct {
 	Period             string          `json:"period"`
+	Metric             string          `json:"metric"`
 	From               time.Time       `json:"from"`
 	To                 time.Time       `json:"to"`
 	TotalViews         int64           `json:"total_views"`
@@ -45,6 +48,9 @@ func validateTopPeriodWidget(cfg map[string]interface{}) error {
 	if err := displayValidateOneOf(cfg, "period", topPeriodPeriods...); err != nil {
 		return fmt.Errorf("top of the period: %w", err)
 	}
+	if err := validateStatsMetric(cfg, false); err != nil {
+		return fmt.Errorf("top of the period: %w", err)
+	}
 	return nil
 }
 
@@ -54,27 +60,33 @@ func fetchTopPeriodWidget(s *HomepageService, userID uint, section data.Homepage
 		return nil, err
 	}
 	period := widgetConfigString(section.Config, "period", "month")
+	metric := statsMetric(section.Config, false)
 	from, to, prevFrom := displayPeriodWindow(period, topPeriodNow())
 
-	top, err := q.TopWatchedScenes(userID, from, to, clampInt(section.Limit, 1, 50))
+	topScenes, countsFor, count := q.TopWatchedScenes, q.ViewCountsForScenes, q.CountViews
+	if metric == statsMetricJizz {
+		topScenes, countsFor, count = q.TopJizzedScenes, q.JizzCountsForScenes, q.CountJizz
+	}
+
+	top, err := topScenes(userID, from, to, clampInt(section.Limit, 1, 50))
 	if err != nil {
-		return nil, fmt.Errorf("failed to get top watched scenes: %w", err)
+		return nil, fmt.Errorf("failed to get top scenes of the period: %w", err)
 	}
 	ids := make([]uint, len(top))
 	for i, t := range top {
 		ids[i] = t.SceneID
 	}
-	previous, err := q.ViewCountsForScenes(userID, ids, prevFrom, from)
+	previous, err := countsFor(userID, ids, prevFrom, from)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get previous period views: %w", err)
+		return nil, fmt.Errorf("failed to get previous period counts: %w", err)
 	}
-	total, err := q.CountViews(userID, from, to)
+	total, err := count(userID, from, to)
 	if err != nil {
-		return nil, fmt.Errorf("failed to count views: %w", err)
+		return nil, fmt.Errorf("failed to count the period: %w", err)
 	}
-	previousTotal, err := q.CountViews(userID, prevFrom, from)
+	previousTotal, err := count(userID, prevFrom, from)
 	if err != nil {
-		return nil, fmt.Errorf("failed to count previous views: %w", err)
+		return nil, fmt.Errorf("failed to count the previous period: %w", err)
 	}
 
 	var scenes []data.Scene
@@ -103,6 +115,7 @@ func fetchTopPeriodWidget(s *HomepageService, userID uint, section data.Homepage
 		Total:   int64(len(scenes)),
 		Widget: topPeriodWidgetPayload{
 			Period:             period,
+			Metric:             metric,
 			From:               from,
 			To:                 to,
 			TotalViews:         total,

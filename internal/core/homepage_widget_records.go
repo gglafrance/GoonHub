@@ -7,7 +7,7 @@ import (
 	"goonhub/internal/data"
 )
 
-// records: the user's viewing records and library extremes.
+// records: the user's viewing and o records and library extremes.
 //
 // Config:
 //
@@ -21,14 +21,14 @@ type RecordSceneRef struct {
 	Value         int64  `json:"value"`
 }
 
-// RecordStreak is the longest run of consecutive days with views.
+// RecordStreak is the longest run of consecutive days with views (or o).
 type RecordStreak struct {
 	Days  int    `json:"days"`
 	Start string `json:"start"`
 	End   string `json:"end"`
 }
 
-// RecordDay is the day with the most views.
+// RecordDay is the day with the most views (or o).
 type RecordDay struct {
 	Day   string `json:"day"`
 	Count int64  `json:"count"`
@@ -45,7 +45,19 @@ type RecordsPayload struct {
 	FirstView      *time.Time      `json:"first_view"`
 	TotalWatchTime int64           `json:"total_watch_time"`
 	TotalViews     int64           `json:"total_views"`
-	Timezone       string          `json:"timezone"`
+	// Dated o records
+	FirstJizz         *time.Time      `json:"first_jizz"`
+	DatedJizzTotal    int64           `json:"dated_jizz_total"`
+	LongestJizzStreak *RecordStreak   `json:"longest_jizz_streak"`
+	BusiestJizzDay    *RecordDay      `json:"busiest_jizz_day"`
+	MostJizzedInADay  *RecordSceneDay `json:"most_jizzed_in_a_day"`
+	Timezone          string          `json:"timezone"`
+}
+
+// RecordSceneDay is a scene with its count on a given local day.
+type RecordSceneDay struct {
+	RecordSceneRef
+	Day string `json:"day"`
 }
 
 func init() {
@@ -97,7 +109,23 @@ func fetchRecordsWidget(s *HomepageService, userID uint, section data.HomepageSe
 	if err != nil {
 		return nil, fmt.Errorf("records widget: %w", err)
 	}
-	streak, busiest := buildDayRecords(days, startOfDay(time.Now(), loc).Format(statsWidgetDayLayout))
+	today := statsStartOfDay(time.Now(), loc).Format(statsWidgetDayLayout)
+	streak, busiest := buildDayRecords(days, today)
+
+	now := time.Now()
+	jizz, err := data.QueryJizzPeriodStats(db, userID, now, now)
+	if err != nil {
+		return nil, fmt.Errorf("records widget: %w", err)
+	}
+	jizzDays, err := data.QueryDailyJizz(db, userID, tz, time.Time{})
+	if err != nil {
+		return nil, fmt.Errorf("records widget: %w", err)
+	}
+	jizzStreak, busiestJizz := buildDayRecords(jizzDays, today)
+	mostInADay, err := data.QueryMostJizzedSceneInADay(db, userID, tz)
+	if err != nil {
+		return nil, fmt.Errorf("records widget: %w", err)
+	}
 
 	payload := RecordsPayload{
 		MostRewatched:  toRecordSceneRef(records.MostRewatched),
@@ -110,6 +138,22 @@ func fetchRecordsWidget(s *HomepageService, userID uint, section data.HomepageSe
 		TotalWatchTime: records.TotalWatchTime,
 		TotalViews:     records.TotalViews,
 		Timezone:       tz,
+
+		FirstJizz:         jizz.First,
+		DatedJizzTotal:    jizz.Total,
+		LongestJizzStreak: jizzStreak,
+		BusiestJizzDay:    busiestJizz,
+	}
+	if mostInADay != nil {
+		payload.MostJizzedInADay = &RecordSceneDay{
+			RecordSceneRef: RecordSceneRef{
+				ID:            mostInADay.ID,
+				Title:         mostInADay.Title,
+				ThumbnailPath: mostInADay.ThumbnailPath,
+				Value:         mostInADay.Count,
+			},
+			Day: mostInADay.Day,
+		}
 	}
 	return emptyWidgetData(section, payload), nil
 }

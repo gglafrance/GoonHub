@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"math/rand"
+	"sort"
 
 	"go.uber.org/zap"
 
@@ -72,6 +73,7 @@ func (s *SearchService) Search(params data.SceneSearchParams) (*SearchResult, er
 	}
 
 	isRandomSort := params.Sort == "random"
+	isJizzSort := isJizzSortOrder(params.Sort)
 
 	// Start with SceneIDs pre-filter if provided (e.g., folder search)
 	var preFilteredIDs []uint
@@ -135,7 +137,7 @@ func (s *SearchService) Search(params data.SceneSearchParams) (*SearchResult, er
 	}
 	meiliParams.ExcludeSceneIDs = excludedIDs
 
-	if isRandomSort {
+	if isRandomSort || isJizzSort {
 		meiliParams.FetchAllIDs = true
 	}
 
@@ -153,6 +155,11 @@ func (s *SearchService) Search(params data.SceneSearchParams) (*SearchResult, er
 	// For random sort, shuffle all IDs and paginate in Go
 	if isRandomSort {
 		return s.handleRandomSort(result.IDs, params)
+	}
+
+	// O sorts are user specific: order all matching IDs in Go, then paginate
+	if isJizzSort {
+		return s.handleJizzSort(result.IDs, params)
 	}
 
 	// Fetch full scene records from PostgreSQL
@@ -223,6 +230,102 @@ func (s *SearchService) handleRandomSort(allIDs []uint, params data.SceneSearchP
 	}
 
 	return &SearchResult{Scenes: scenes, Total: total, Seed: seed}, nil
+}
+
+// Sorts ordering scenes by the user's o, done in Go over all matching IDs.
+const (
+	sortLastJizzDesc  = "last_jizz_desc"
+	sortLastJizzAsc   = "last_jizz_asc"
+	sortJizzCountDesc = "jizz_count_desc"
+	sortJizzCountAsc  = "jizz_count_asc"
+)
+
+// isJizzSortOrder reports whether the sort orders scenes by the user's o (last dated o or
+// o count).
+func isJizzSortOrder(sort string) bool {
+	switch sort {
+	case sortLastJizzDesc, sortLastJizzAsc, sortJizzCountDesc, sortJizzCountAsc:
+		return true
+	}
+	return false
+}
+
+// jizzLookupBatch bounds the scene IDs sent per o query (PostgreSQL parameter limit).
+const jizzLookupBatch = 10000
+
+// handleJizzSort orders the matching scenes by the user's o, then paginates:
+//   - last_jizz_desc / last_jizz_asc: by the most recent dated o; scenes without a dated o
+//     come last in both directions;
+//   - jizz_count_desc / jizz_count_asc: by the o count; scenes without o count as 0, so they
+//     come last in "most" and first in "least".
+//
+// Ties are broken by ascending scene ID.
+func (s *SearchService) handleJizzSort(allIDs []uint, params data.SceneSearchParams) (*SearchResult, error) {
+	byCount := params.Sort == sortJizzCountDesc || params.Sort == sortJizzCountAsc
+	desc := params.Sort == sortLastJizzDesc || params.Sort == sortJizzCountDesc
+
+	keys := make(map[uint]int64, len(allIDs))
+	if params.UserID != 0 && s.interactionRepo != nil {
+		for start := 0; start < len(allIDs); start += jizzLookupBatch {
+			end := min(start+jizzLookupBatch, len(allIDs))
+			batch := allIDs[start:end]
+			if byCount {
+				counts, err := s.interactionRepo.GetJizzCountsBySceneIDs(params.UserID, batch)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get o counts: %w", err)
+				}
+				for id, count := range counts {
+					keys[id] = int64(count)
+				}
+				continue
+			}
+			times, err := s.interactionRepo.GetLastJizzTimes(params.UserID, batch)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get last o times: %w", err)
+			}
+			for id, at := range times {
+				keys[id] = at.UnixNano()
+			}
+		}
+	}
+
+	ordered := make([]uint, len(allIDs))
+	copy(ordered, allIDs)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		ki, okI := keys[ordered[i]]
+		kj, okJ := keys[ordered[j]]
+		if !byCount && okI != okJ {
+			return okI // scenes with a dated o first
+		}
+		// A missing count reads as 0 (the zero value)
+		if ki != kj {
+			if desc {
+				return ki > kj
+			}
+			return ki < kj
+		}
+		return ordered[i] < ordered[j]
+	})
+
+	total := int64(len(ordered))
+	page, limit := params.Page, params.Limit
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+	offset := (page - 1) * limit
+	if offset >= len(ordered) {
+		return &SearchResult{Scenes: []data.Scene{}, Total: total}, nil
+	}
+	end := min(offset+limit, len(ordered))
+
+	scenes, err := s.sceneRepo.GetByIDs(ordered[offset:end])
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch scenes by IDs: %w", err)
+	}
+	return &SearchResult{Scenes: scenes, Total: total}, nil
 }
 
 // hasUserFilters returns true if the params include user-specific filters.

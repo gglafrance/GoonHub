@@ -1,17 +1,26 @@
 <script setup lang="ts">
 import type { HomepageSection, HomepageSectionData } from '~/types/homepage';
 
-// activity_calendar widget: GitHub-style heatmap of views per day, with streaks.
-interface CalendarPayload {
-    weeks: number;
-    start: string;
-    today: string;
+// activity_calendar widget: GitHub-style heatmap of views and/or O per day, with streaks.
+// With metric "both", a toggle switches between the two series (same lava ramp, never two
+// hues on one grid).
+interface CalendarSeries {
     days: { day: string; count: number }[];
     total: number;
     active_days: number;
     max: number;
     current_streak: number;
     longest_streak: number;
+}
+
+type CalendarMetric = 'views' | 'jizz';
+
+interface CalendarPayload extends CalendarSeries {
+    weeks: number;
+    start: string;
+    today: string;
+    metric?: CalendarMetric | 'both';
+    series?: Partial<Record<CalendarMetric, CalendarSeries>>;
     timezone: string;
 }
 
@@ -31,6 +40,33 @@ const WEEKDAY_LABELS = ['Mon', '', 'Wed', '', 'Fri', '', ''];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const number = new Intl.NumberFormat();
+
+const available = computed<CalendarMetric[]>(() => {
+    const series = props.data.widget?.series ?? {};
+    const list = (['views', 'jizz'] as CalendarMetric[]).filter((m) => series[m]);
+    return list.length ? list : ['views'];
+});
+const active = ref<CalendarMetric>('views');
+watch(
+    available,
+    (list) => {
+        if (!list.includes(active.value)) active.value = list[0]!;
+    },
+    { immediate: true },
+);
+
+// Series shown: the selected one, else the top level figures (older payloads)
+const current = computed<CalendarSeries | null>(() => {
+    const p = props.data.widget;
+    if (!p) return null;
+    return p.series?.[active.value] ?? p;
+});
+
+const UNITS: Record<CalendarMetric, { one: string; many: string; title: string }> = {
+    views: { one: 'view', many: 'views', title: 'Views' },
+    jizz: { one: 'O', many: 'O', title: 'O' },
+};
+const unit = computed(() => UNITS[active.value]);
 
 // Dates are handled as UTC calendar days to avoid local DST shifts
 const parseDay = (day: string) => new Date(`${day}T00:00:00Z`);
@@ -53,7 +89,7 @@ interface Cell {
 
 const counts = computed(() => {
     const map = new Map<string, number>();
-    for (const d of props.data.widget?.days ?? []) map.set(d.day, d.count);
+    for (const d of current.value?.days ?? []) map.set(d.day, d.count);
     return map;
 });
 
@@ -65,6 +101,7 @@ const levelOf = (count: number, max: number) => {
 
 const grid = computed(() => {
     const p = props.data.widget;
+    const max = current.value?.max ?? 0;
     if (!p) return { cells: [] as Cell[], months: [] as { x: number; label: string }[], weeks: 0 };
     const start = parseDay(p.start);
     const today = parseDay(p.today);
@@ -82,7 +119,7 @@ const grid = computed(() => {
                 count,
                 x: LEFT + w * STEP,
                 y: TOP + d * STEP,
-                level: levelOf(count, p.max),
+                level: levelOf(count, max),
             });
             if (d === 0 && date.getUTCMonth() !== lastMonth) {
                 lastMonth = date.getUTCMonth();
@@ -100,13 +137,7 @@ const width = computed(() => LEFT + grid.value.weeks * STEP);
 const height = TOP + 7 * STEP;
 
 // Sequential lava ramp (one hue, opacity steps) on the dark surface
-const LEVEL_CLASSES = [
-    'fill-white/5',
-    'fill-lava/25',
-    'fill-lava/45',
-    'fill-lava/70',
-    'fill-lava',
-];
+const LEVEL_CLASSES = ['fill-white/5', 'fill-lava/25', 'fill-lava/45', 'fill-lava/70', 'fill-lava'];
 
 const hovered = ref<Cell | null>(null);
 const tooltipStyle = ref<Record<string, string>>({});
@@ -122,14 +153,16 @@ const showTooltip = (cell: Cell, event: MouseEvent) => {
 
 const tooltipText = (cell: Cell) =>
     `${longDate.format(parseDay(cell.day))}: ${
-        cell.count === 0 ? 'no views' : `${number.format(cell.count)} view${cell.count > 1 ? 's' : ''}`
+        cell.count === 0
+            ? `no ${unit.value.many}`
+            : `${number.format(cell.count)} ${cell.count > 1 ? unit.value.many : unit.value.one}`
     }`;
 
 const summary = computed(() => {
-    const p = props.data.widget;
+    const p = current.value;
     if (!p) return [];
     return [
-        { label: 'Views', value: number.format(p.total) },
+        { label: unit.value.title, value: number.format(p.total) },
         { label: 'Active days', value: number.format(p.active_days) },
         { label: 'Current streak', value: `${p.current_streak} d` },
         { label: 'Longest streak', value: `${p.longest_streak} d` },
@@ -137,21 +170,28 @@ const summary = computed(() => {
 });
 
 const ariaLabel = computed(() => {
-    const p = props.data.widget;
+    const p = current.value;
+    const weeks = props.data.widget?.weeks ?? 0;
     if (!p) return 'Activity calendar';
-    return `Views per day over the last ${p.weeks} weeks: ${p.total} views on ${p.active_days} days, current streak ${p.current_streak} days, longest streak ${p.longest_streak} days`;
+    return `${unit.value.title} per day over the last ${weeks} weeks: ${p.total} ${unit.value.many} on ${p.active_days} days, current streak ${p.current_streak} days, longest streak ${p.longest_streak} days`;
 });
 </script>
 
 <template>
     <div v-if="data.widget" class="border-border rounded-lg border bg-white/2 p-4">
-        <div class="mb-3 flex flex-wrap gap-x-6 gap-y-2">
+        <div class="mb-3 flex flex-wrap items-start gap-x-6 gap-y-2">
             <div v-for="item in summary" :key="item.label">
                 <div class="text-dim text-[10px] font-medium uppercase">{{ item.label }}</div>
                 <div class="font-mono text-sm font-semibold text-white tabular-nums">
                     {{ item.value }}
                 </div>
             </div>
+            <HomepageWidgetsMetricToggle
+                v-if="available.length > 1"
+                v-model="active"
+                :options="available"
+                class="ml-auto"
+            />
         </div>
 
         <div class="overflow-x-auto">

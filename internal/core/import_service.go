@@ -40,6 +40,7 @@ var ImportFeatures = []string{
 	"marker_tags",
 	"marker_end",
 	"scene_summary",
+	"jizz_history",
 	"skip_index",
 }
 
@@ -71,6 +72,8 @@ type ImportInteractionsInput struct {
 	Rating      *float64
 	Liked       *bool
 	JizzedCount *int
+	// JizzHistory: dates (RFC 3339) of the "o", stored as dated events (deduplicated)
+	JizzHistory []string
 	Watches     []ImportWatchInput
 }
 
@@ -207,6 +210,7 @@ type preparedInteractions struct {
 	rating      *float64
 	liked       *bool
 	jizzedCount *int
+	jizzHistory []time.Time
 	watches     []preparedWatch
 }
 
@@ -439,6 +443,20 @@ func prepareImportInteractions(in *ImportInteractionsInput) (*preparedInteractio
 			return nil, apperrors.NewValidationErrorWithField("interactions.jizzed_count", "jizzed_count must be >= 0")
 		}
 		count := *in.JizzedCount
+		p.jizzedCount = &count
+	}
+
+	for i, raw := range in.JizzHistory {
+		at, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			field := fmt.Sprintf("interactions.jizz_history[%d]", i)
+			return nil, apperrors.NewValidationErrorWithField(field, fmt.Sprintf("%s must be an RFC 3339 date", field))
+		}
+		p.jizzHistory = append(p.jizzHistory, at.UTC())
+	}
+	// The count can never be lower than the number of dated events
+	if len(p.jizzHistory) > 0 && (p.jizzedCount == nil || *p.jizzedCount < len(p.jizzHistory)) {
+		count := len(p.jizzHistory)
 		p.jizzedCount = &count
 	}
 
@@ -675,6 +693,12 @@ func applyImportInteractions(tx data.ImportRepository, userID, sceneID uint, p *
 	if p.jizzedCount != nil {
 		if err := tx.SetJizzedCount(userID, sceneID, *p.jizzedCount); err != nil {
 			return fmt.Errorf("failed to set jizzed count: %w", err)
+		}
+	}
+	for _, at := range p.jizzHistory {
+		event := &data.UserSceneJizzEvent{UserID: userID, SceneID: sceneID, JizzedAt: at}
+		if _, err := tx.InsertJizzEventIfAbsent(event); err != nil {
+			return fmt.Errorf("failed to insert jizz event: %w", err)
 		}
 	}
 	for _, w := range p.watches {

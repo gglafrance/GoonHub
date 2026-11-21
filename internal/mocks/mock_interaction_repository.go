@@ -12,6 +12,7 @@ package mocks
 import (
 	data "goonhub/internal/data"
 	reflect "reflect"
+	time "time"
 
 	gomock "go.uber.org/mock/gomock"
 )
@@ -98,6 +99,21 @@ func (mr *MockInteractionRepositoryMockRecorder) GetJizzCountsBySceneIDs(userID,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJizzCountsBySceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetJizzCountsBySceneIDs), userID, sceneIDs)
 }
 
+// GetJizzEvents mocks base method.
+func (m *MockInteractionRepository) GetJizzEvents(userID, sceneID uint) ([]data.UserSceneJizzEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetJizzEvents", userID, sceneID)
+	ret0, _ := ret[0].([]data.UserSceneJizzEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetJizzEvents indicates an expected call of GetJizzEvents.
+func (mr *MockInteractionRepositoryMockRecorder) GetJizzEvents(userID, sceneID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJizzEvents", reflect.TypeOf((*MockInteractionRepository)(nil).GetJizzEvents), userID, sceneID)
+}
+
 // GetJizzedCount mocks base method.
 func (m *MockInteractionRepository) GetJizzedCount(userID, sceneID uint) (int, error) {
 	m.ctrl.T.Helper()
@@ -126,6 +142,21 @@ func (m *MockInteractionRepository) GetJizzedSceneIDs(userID uint, minCount, max
 func (mr *MockInteractionRepositoryMockRecorder) GetJizzedSceneIDs(userID, minCount, maxCount any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJizzedSceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetJizzedSceneIDs), userID, minCount, maxCount)
+}
+
+// GetLastJizzTimes mocks base method.
+func (m *MockInteractionRepository) GetLastJizzTimes(userID uint, sceneIDs []uint) (map[uint]time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLastJizzTimes", userID, sceneIDs)
+	ret0, _ := ret[0].(map[uint]time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLastJizzTimes indicates an expected call of GetLastJizzTimes.
+func (mr *MockInteractionRepositoryMockRecorder) GetLastJizzTimes(userID, sceneIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastJizzTimes", reflect.TypeOf((*MockInteractionRepository)(nil).GetLastJizzTimes), userID, sceneIDs)
 }
 
 // GetLikedSceneIDs mocks base method.

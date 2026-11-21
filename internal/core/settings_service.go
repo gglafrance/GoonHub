@@ -27,6 +27,10 @@ var allowedSortOrders = map[string]bool{
 	"size_desc":       true,
 	"view_count_desc": true,
 	"view_count_asc":  true,
+	"last_jizz_desc":  true,
+	"last_jizz_asc":   true,
+	"jizz_count_desc": true,
+	"jizz_count_asc":  true,
 	"random":          true,
 }
 
@@ -68,6 +72,10 @@ var allowedEntitySceneSorts = map[string]bool{
 	"size_desc":       true,
 	"view_count_desc": true,
 	"view_count_asc":  true,
+	"last_jizz_desc":  true,
+	"last_jizz_asc":   true,
+	"jizz_count_desc": true,
+	"jizz_count_asc":  true,
 	"random":          true,
 }
 

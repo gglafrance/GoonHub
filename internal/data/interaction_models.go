@@ -41,6 +41,19 @@ func (UserSceneJizzed) TableName() string {
 	return "user_scene_jizzed"
 }
 
+// UserSceneJizzEvent is one dated "o" on a scene (the total stays in UserSceneJizzed.Count).
+type UserSceneJizzEvent struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	UserID    uint      `gorm:"not null" json:"user_id"`
+	SceneID   uint      `gorm:"not null;column:scene_id" json:"scene_id"`
+	JizzedAt  time.Time `gorm:"not null" json:"jizzed_at"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (UserSceneJizzEvent) TableName() string {
+	return "user_scene_jizz_events"
+}
+
 type UserSceneWatch struct {
 	ID            uint      `gorm:"primarykey" json:"id"`
 	UserID        uint      `gorm:"not null" json:"user_id"`
