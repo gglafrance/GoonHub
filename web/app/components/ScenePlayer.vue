@@ -383,6 +383,35 @@ const playMarker = (marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) => {
     p.play()?.catch(() => {});
 };
 
+// Touch gestures (double-tap seek, swipes, long-press 2x), feedback teleported into the player
+const playerEl = shallowRef<HTMLElement | null>(null);
+const {
+    indicator: gestureIndicator,
+    setup: setupGestures,
+    cleanup: cleanupGestures,
+} = usePlayerGestures({
+    player,
+    vttCues,
+    enabled: computed(() => settingsStore.playerGestures),
+    seekStep: computed(() => settingsStore.gestureSeekStep),
+});
+
+// Picture-in-picture: the button only shows where the browser supports it, and a scene playing
+// in picture-in-picture keeps playing when its page is left
+const pipSupported = import.meta.client && !!document.pictureInPictureEnabled;
+const pipKeeper = usePipKeeper();
+const route = useRoute();
+// Page of the current scene (updated when the scene changes, not when the page is left)
+const snapshotRoute = () => ({ path: route.path, query: { ...route.query } });
+let pageRoute = snapshotRoute();
+
+// From the picture-in-picture window back to the tab: reopen this page at the current time
+const returnToScene = (time: number) => {
+    const query = { ...pageRoute.query, t: String(Math.floor(time)) };
+    delete query.end;
+    navigateTo({ path: pageRoute.path, query });
+};
+
 const sceneRef = computed(() => props.scene);
 const { hasRecordedView, setupTracking, cleanup } = useWatchTracking({
     player,
@@ -426,6 +455,9 @@ const vttUrl = computed(() => {
 onMounted(async () => {
     if (!videoElement.value) return;
 
+    // A scene left in picture-in-picture stops here; the same scene continues where it was
+    const pipHandoff = pipKeeper.takeOver();
+
     player.value = videojs(videoElement.value, {
         controls: true,
         autoplay: props.autoplay ? 'any' : false,
@@ -446,12 +478,14 @@ onMounted(async () => {
                 ...(settingsStore.abLoopControls
                     ? ['ABLoopStartButton', 'ABLoopEndButton', 'ABLoopToggleButton']
                     : []),
-                'pipToggle',
+                ...(pipSupported ? ['pictureInPictureToggle'] : []),
                 'TheaterModeButton',
                 'fullscreenToggle',
             ],
         },
     });
+
+    playerEl.value = player.value.el() as HTMLElement;
 
     // Get reference to theater mode button and configure it
     const controlBar = player.value.getChild('controlBar');
@@ -547,6 +581,7 @@ onMounted(async () => {
     player.value.ready(() => {
         setupThumbnailPreview();
         setupMarkerIndicators();
+        setupGestures();
         if (vttUrl.value) {
             loadVttCues(vttUrl.value);
         }
@@ -561,6 +596,9 @@ onMounted(async () => {
         // Seek to start time if provided
         if (props.startTime && props.startTime > 0) {
             player.value!.currentTime(props.startTime);
+        } else if (pipHandoff && pipHandoff.sceneUrl === props.sceneUrl) {
+            player.value!.currentTime(pipHandoff.time);
+            if (pipHandoff.playing && !props.autoplay) tryAutoplay(player.value!);
         }
 
         if (props.loopRange) {
@@ -607,6 +645,8 @@ watch(
     (newUrl) => {
         if (!player.value) return;
         const p = player.value;
+
+        pageRoute = snapshotRoute();
 
         // Clear AB loop and reset before loading new source
         abLoop.clear();
@@ -719,7 +759,8 @@ onBeforeUnmount(() => {
     cleanup();
     cleanupThumbnailPreview();
     cleanupMarkerIndicators();
-    if (player.value) {
+    cleanupGestures();
+    if (player.value && !pipKeeper.keep(player.value, props.sceneUrl, returnToScene)) {
         player.value.dispose();
     }
 });
@@ -740,6 +781,9 @@ onBeforeUnmount(() => {
         >
             <source :src="sceneUrl" type="video/mp4" />
         </video>
+        <Teleport v-if="playerEl" :to="playerEl">
+            <PlayerGestureOverlay :indicator="gestureIndicator" />
+        </Teleport>
     </div>
 </template>
 
@@ -1419,6 +1463,22 @@ onBeforeUnmount(() => {
 
 :deep(.vjs-ab-loop-toggle.vjs-ab-loop-enabled:hover) {
     background: rgba(255, 77, 77, 0.25);
+}
+
+/* ========================================
+   TOUCH GESTURES
+   ======================================== */
+/* Inline, the browser keeps vertical scrolling and pinch-zoom; horizontal drags are scrubs */
+:deep(.vjs-gestures .vjs-tech) {
+    touch-action: pan-y pinch-zoom;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* In fullscreen, every drag is a gesture (vertical: volume and brightness) */
+:deep(.vjs-gestures.vjs-fullscreen .vjs-tech) {
+    touch-action: none;
 }
 
 /* Hide text track display from control bar area */

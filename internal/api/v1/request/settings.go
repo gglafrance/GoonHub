@@ -122,5 +122,8 @@ type UpdateAllSettingsRequest struct {
 	DefaultMarkerView        string                       `json:"default_marker_view"`
 	PaginationPosition       string                       `json:"pagination_position"`
 	DateFormat               string                       `json:"date_format"`
-	SceneCardConfig          UpdateSceneCardConfigRequest `json:"scene_card_config"`
+	// PlayerGestures and GestureSeekStep keep their current value when omitted (nil / 0)
+	PlayerGestures  *bool                        `json:"player_gestures"`
+	GestureSeekStep int                          `json:"gesture_seek_step"`
+	SceneCardConfig UpdateSceneCardConfigRequest `json:"scene_card_config"`
 }

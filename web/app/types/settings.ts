@@ -36,6 +36,8 @@ export interface UserSettings {
     default_marker_view: MarkerView;
     pagination_position: PaginationPosition;
     date_format: DateFormat;
+    player_gestures: boolean;
+    gesture_seek_step: number;
     scene_card_config: SceneCardConfig;
     max_items_per_page: number;
     created_at: string;

@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"goonhub/internal/data"
+	"slices"
 	"strings"
 
 	"go.uber.org/zap"
@@ -134,6 +135,8 @@ func (s *SettingsService) GetSettings(userID uint) (*data.UserSettings, error) {
 			DefaultMarkerView:      "grouped",
 			PaginationPosition:     "bottom",
 			DateFormat:             DefaultDateFormat,
+			PlayerGestures:         true,
+			GestureSeekStep:        DefaultGestureSeekStep,
 			HomepageConfig:         data.DefaultHomepageConfig(),
 			SortPreferences:        data.DefaultSortPreferences(),
 			SceneCardConfig:        data.DefaultSceneCardConfig(),
@@ -383,6 +386,34 @@ func WithDateFormat(format string) SettingsOption {
 	}
 }
 
+// DefaultGestureSeekStep is the seek of a double-tap on the player sides, in seconds.
+const DefaultGestureSeekStep = 10
+
+// AllowedGestureSeekSteps are the double-tap seek steps a user can choose, in seconds.
+var AllowedGestureSeekSteps = []int{5, 10, 15, 30}
+
+// WithPlayerGestures turns the player touch gestures on or off and sets the double-tap seek step.
+// A nil enabled or a zero seek step keeps the current value, so that a client which does not know
+// these settings does not reset them.
+func WithPlayerGestures(enabled *bool, seekStep int) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if seekStep == 0 {
+			seekStep = settings.GestureSeekStep
+			if !slices.Contains(AllowedGestureSeekSteps, seekStep) {
+				seekStep = DefaultGestureSeekStep
+			}
+		}
+		if !slices.Contains(AllowedGestureSeekSteps, seekStep) {
+			return fmt.Errorf("invalid gesture seek step: %d", seekStep)
+		}
+		if enabled != nil {
+			settings.PlayerGestures = *enabled
+		}
+		settings.GestureSeekStep = seekStep
+		return nil
+	}
+}
+
 // WithPaginationPosition sets where page controls are shown (top, bottom or both; empty means
 // bottom).
 func WithPaginationPosition(position string) SettingsOption {
@@ -463,6 +494,8 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 			ParsingRules:    data.DefaultParsingRulesSettings(),
 			SortPreferences: data.DefaultSortPreferences(),
 			SceneCardConfig: data.DefaultSceneCardConfig(),
+			PlayerGestures:  true,
+			GestureSeekStep: DefaultGestureSeekStep,
 		}
 	}
 
