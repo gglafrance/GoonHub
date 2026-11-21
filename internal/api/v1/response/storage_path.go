@@ -19,6 +19,7 @@ type StoragePathWithUsage struct {
 	Name      string             `json:"name"`
 	Path      string             `json:"path"`
 	IsDefault bool               `json:"is_default"`
+	ReadOnly  bool               `json:"read_only"`
 	CreatedAt string             `json:"created_at"`
 	UpdatedAt string             `json:"updated_at"`
 	DiskUsage *DiskUsageResponse `json:"disk_usage"`
@@ -42,6 +43,7 @@ func ToStoragePathsWithUsage(paths []data.StoragePath, usageMap map[uint]*core.D
 			Name:      p.Name,
 			Path:      p.Path,
 			IsDefault: p.IsDefault,
+			ReadOnly:  p.ReadOnly,
 			CreatedAt: p.CreatedAt.Format("2006-01-02T15:04:05Z"),
 			UpdatedAt: p.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 			DiskUsage: usage,

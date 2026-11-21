@@ -11,6 +11,7 @@ type StoragePath struct {
 	Name      string    `gorm:"not null;size:100" json:"name"`
 	Path      string    `gorm:"not null;uniqueIndex;size:500" json:"path"`
 	IsDefault bool      `gorm:"not null;default:false" json:"is_default"`
+	ReadOnly  bool      `gorm:"not null;default:false" json:"read_only"` // GoonHub never deletes, moves, renames or writes media files under this path
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
