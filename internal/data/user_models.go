@@ -69,8 +69,10 @@ type UserSettings struct {
 	ShowPageSizeSelector     bool                 `gorm:"not null;default:false" json:"show_page_size_selector"`
 	AdvancedMarkerFilters    bool                 `gorm:"not null;default:false" json:"advanced_marker_filters"`
 	DefaultMarkerView        string               `gorm:"size:10;not null;default:'grouped'" json:"default_marker_view"`
-	SceneCardConfig          SceneCardConfig      `gorm:"type:jsonb;not null" json:"scene_card_config"`
-	MaxItemsPerPage          int                  `gorm:"-" json:"max_items_per_page"`
+	// PaginationPosition: where page controls are shown on paginated pages (top, bottom, both)
+	PaginationPosition string          `gorm:"size:10;not null;default:'bottom'" json:"pagination_position"`
+	SceneCardConfig    SceneCardConfig `gorm:"type:jsonb;not null" json:"scene_card_config"`
+	MaxItemsPerPage    int             `gorm:"-" json:"max_items_per_page"`
 }
 
 // HomepageConfig represents the user's homepage layout configuration

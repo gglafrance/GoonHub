@@ -207,6 +207,22 @@ definePageMeta({
 
             <!-- Markers Grid -->
             <div v-else>
+                <Pagination
+                    v-model="currentPage"
+                    position="top"
+                    :total="total"
+                    :limit="limit"
+                    :show-page-size-selector="showSelector"
+                    :max-limit="maxLimit"
+                    @update:limit="
+                        (v: number) => {
+                            updatePageSize(v);
+                            if (currentPage === 1) loadMarkers(1);
+                            else currentPage = 1;
+                        }
+                    "
+                />
+
                 <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                     <NuxtLink
                         v-for="marker in markers"

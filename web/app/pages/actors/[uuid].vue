@@ -1039,6 +1039,13 @@ definePageMeta({
                     </div>
 
                     <div v-else>
+                        <Pagination
+                            v-model="scenesPage"
+                            position="top"
+                            :total="scenesTotal"
+                            :limit="scenesLimit"
+                        />
+
                         <SelectableSceneGrid
                             v-if="selectMode"
                             :scenes="scenes"
