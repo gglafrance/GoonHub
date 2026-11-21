@@ -56,6 +56,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideActorInteractionRepository,
 		provideStudioInteractionRepository,
 		provideWatchHistoryRepository,
+		provideReplayHeatmapRepository,
 
 		// Job & Processing Repositories
 		provideJobHistoryRepository,
@@ -129,6 +130,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideStudioInteractionService,
 		provideSearchService,
 		provideWatchHistoryService,
+		provideReplayHeatmapService,
 		provideRelatedScenesService,
 
 		// Processing & Job Services
@@ -320,6 +322,10 @@ func provideWatchHistoryRepository(db *gorm.DB) data.WatchHistoryRepository {
 	return data.NewWatchHistoryRepository(db)
 }
 
+func provideReplayHeatmapRepository(db *gorm.DB) data.ReplayHeatmapRepository {
+	return data.NewReplayHeatmapRepository(db)
+}
+
 // --- Job & Processing Repositories ---
 
 func provideJobHistoryRepository(db *gorm.DB) data.JobHistoryRepository {
@@ -491,6 +497,10 @@ func provideSearchService(meiliClient *meilisearch.Client, sceneRepo data.SceneR
 
 func provideWatchHistoryService(repo data.WatchHistoryRepository, sceneRepo data.SceneRepository, searchService *core.SearchService, logger *logging.Logger) *core.WatchHistoryService {
 	return core.NewWatchHistoryService(repo, sceneRepo, searchService, logger.Logger)
+}
+
+func provideReplayHeatmapService(repo data.ReplayHeatmapRepository, sceneRepo data.SceneRepository, settingsRepo data.UserSettingsRepository, logger *logging.Logger) *core.ReplayHeatmapService {
+	return core.NewReplayHeatmapService(repo, sceneRepo, settingsRepo, logger.Logger)
 }
 
 func provideRelatedScenesService(
@@ -753,8 +763,8 @@ func provideSearchHandler(searchService *core.SearchService, searchConfigRepo da
 	return handler.NewSearchHandler(searchService, searchConfigRepo)
 }
 
-func provideWatchHistoryHandler(service *core.WatchHistoryService) *handler.WatchHistoryHandler {
-	return handler.NewWatchHistoryHandler(service)
+func provideWatchHistoryHandler(service *core.WatchHistoryService, heatmapService *core.ReplayHeatmapService) *handler.WatchHistoryHandler {
+	return handler.NewWatchHistoryHandler(service, heatmapService)
 }
 
 // --- Job & Processing Handlers ---

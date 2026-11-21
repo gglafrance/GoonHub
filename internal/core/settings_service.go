@@ -134,6 +134,8 @@ func (s *SettingsService) GetSettings(userID uint) (*data.UserSettings, error) {
 			DefaultMarkerView:      "grouped",
 			PaginationPosition:     "bottom",
 			DateFormat:             DefaultDateFormat,
+			ShowReplayHeatmap:      true,
+			RecordReplayHeatmap:    true,
 			HomepageConfig:         data.DefaultHomepageConfig(),
 			SortPreferences:        data.DefaultSortPreferences(),
 			SceneCardConfig:        data.DefaultSceneCardConfig(),
@@ -383,6 +385,20 @@ func WithDateFormat(format string) SettingsOption {
 	}
 }
 
+// WithReplayHeatmap sets whether the "most replayed" heatmap is shown on the player and
+// whether watched parts are recorded; nil keeps the current value (on for a new row).
+func WithReplayHeatmap(show, record *bool) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if show != nil {
+			settings.ShowReplayHeatmap = *show
+		}
+		if record != nil {
+			settings.RecordReplayHeatmap = *record
+		}
+		return nil
+	}
+}
+
 // WithPaginationPosition sets where page controls are shown (top, bottom or both; empty means
 // bottom).
 func WithPaginationPosition(position string) SettingsOption {
@@ -456,13 +472,17 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 	}
 
 	settings, err := s.settingsRepo.GetByUserID(userID)
+	created := false
 	if err != nil {
+		created = true
 		settings = &data.UserSettings{
-			UserID:          userID,
-			HomepageConfig:  data.DefaultHomepageConfig(),
-			ParsingRules:    data.DefaultParsingRulesSettings(),
-			SortPreferences: data.DefaultSortPreferences(),
-			SceneCardConfig: data.DefaultSceneCardConfig(),
+			UserID:              userID,
+			HomepageConfig:      data.DefaultHomepageConfig(),
+			ParsingRules:        data.DefaultParsingRulesSettings(),
+			SortPreferences:     data.DefaultSortPreferences(),
+			SceneCardConfig:     data.DefaultSceneCardConfig(),
+			ShowReplayHeatmap:   true,
+			RecordReplayHeatmap: true,
 		}
 	}
 
@@ -493,6 +513,13 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 
 	if err := s.settingsRepo.Upsert(settings); err != nil {
 		return nil, fmt.Errorf("failed to update settings: %w", err)
+	}
+	// On insert GORM leaves out zero values of columns that have a default (a setting that is
+	// on by default but turned off here would be stored as on): write the new row once more.
+	if created && (!settings.ShowReplayHeatmap || !settings.RecordReplayHeatmap) {
+		if err := s.settingsRepo.Upsert(settings); err != nil {
+			return nil, fmt.Errorf("failed to update settings: %w", err)
+		}
 	}
 
 	return settings, nil

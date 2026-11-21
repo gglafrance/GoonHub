@@ -119,6 +119,8 @@ Per-user application preferences.
 | `advanced_marker_filters` | BOOLEAN | NO | false | Show the advanced filter panel (labels, scene tags/actors/studio, ranges only) on the marker pages |
 | `pagination_position` | VARCHAR(10) | NO | 'bottom' | Page controls position on paginated pages: `top`, `bottom` or `both` |
 | `date_format` | VARCHAR(20) | NO | 'auto' | Date display: `auto` (browser locale), `DD/MM/YYYY`, `MM/DD/YYYY`, `YYYY-MM-DD`, `DD.MM.YYYY`, `D MMM YYYY` or `MMM D, YYYY` |
+| `show_replay_heatmap` | BOOLEAN | NO | true | Show the "most replayed" heatmap (from `user_scene_heatmaps`) above the player progress bar |
+| `record_replay_heatmap` | BOOLEAN | NO | true | Record which parts of a scene are watched into `user_scene_heatmaps` |
 | `marker_loop` | BOOLEAN | NO | false | Loop the marker range when clicking a marker that has an `end_timestamp` |
 | `videos_per_page` | INTEGER | NO | 20 | Grid pagination size |
 | `default_sort_order` | VARCHAR(50) | NO | 'created_at_desc' | Default sort order |
@@ -486,6 +488,27 @@ Watch history with position tracking for resume functionality.
 **Indexes:**
 - `idx_user_scene_watches_user_scene` on `(user_id, scene_id)`
 - `idx_user_scene_watches_user_date` on `(user_id, watched_at DESC)`
+
+---
+
+### `user_scene_heatmaps`
+
+"Most replayed" histogram per user and scene (migration 079). The scene is split into 100
+equal buckets; each element of `buckets` is the watched time in milliseconds that fell into
+that bucket, summed over every viewing. The player reports the ranges it actually played
+(seeking over a part does not count it) and the server adds their overlap with each bucket in
+a single upsert (element-wise sum, saturating at the INTEGER maximum). Bucket bounds use
+`scenes.duration`, or the player's duration while it is unknown.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `scene_id` | BIGINT | NO | - | FK to `scenes.id` (CASCADE) |
+| `buckets` | INTEGER[] | NO | - | Watched milliseconds per bucket (100 elements) |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Record creation timestamp |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last report |
+
+**Indexes:** primary key `(user_id, scene_id)`, `idx_user_scene_heatmaps_scene` on `scene_id`.
 
 ---
 

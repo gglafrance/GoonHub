@@ -49,6 +49,8 @@ export const useSettingsStore = defineStore(
             const format = settings.value?.date_format;
             return isDateFormat(format) ? format : DEFAULT_DATE_FORMAT;
         });
+        const showReplayHeatmap = computed(() => settings.value?.show_replay_heatmap ?? true);
+        const recordReplayHeatmap = computed(() => settings.value?.record_replay_heatmap ?? true);
         const videosPerPage = computed(() => settings.value?.videos_per_page ?? 20);
         const defaultSortOrder = computed<SortOrder>(
             () => settings.value?.default_sort_order ?? 'created_at_desc',
@@ -247,6 +249,8 @@ export const useSettingsStore = defineStore(
             defaultMarkerView,
             paginationPosition,
             dateFormat,
+            showReplayHeatmap,
+            recordReplayHeatmap,
             videosPerPage,
             defaultSortOrder,
             defaultTagSort,
