@@ -71,7 +71,7 @@ func (h *MarkerHandler) CreateMarker(c *gin.Context) {
 		return
 	}
 
-	marker, err := h.service.CreateMarker(userID, uint(sceneID), req.Timestamp, req.Label, req.Color)
+	marker, err := h.service.CreateMarker(userID, uint(sceneID), req.Timestamp, req.EndTimestamp, req.Label, req.Color)
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -98,7 +98,7 @@ func (h *MarkerHandler) UpdateMarker(c *gin.Context) {
 		return
 	}
 
-	marker, err := h.service.UpdateMarker(userID, uint(markerID), req.Label, req.Color, req.Timestamp)
+	marker, err := h.service.UpdateMarker(userID, uint(markerID), req.Label, req.Color, req.Timestamp, req.EndTimestamp, req.ClearEndTimestamp)
 	if err != nil {
 		response.Error(c, err)
 		return

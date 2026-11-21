@@ -31,6 +31,13 @@ const playerAbLoopControls = computed({
     },
 });
 
+const playerMarkerLoop = computed({
+    get: () => settingsStore.draft?.marker_loop ?? false,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.marker_loop = v;
+    },
+});
+
 const playlistAutoAdvance = computed({
     get: () => settingsStore.draft?.playlist_auto_advance ?? 'countdown',
     set: (v: PlaylistAutoAdvance) => {
@@ -85,6 +92,18 @@ const autoAdvanceOptions: { value: PlaylistAutoAdvance; label: string; desc: str
                         </div>
                     </div>
                     <UiToggle v-model="playerAbLoopControls" />
+                </div>
+
+                <!-- Marker Loop -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-sm text-white">Loop Marker Ranges</div>
+                        <div class="text-dim text-xs">
+                            Clicking a marker that has an end time sets the A/B loop to its range;
+                            when on, the loop starts right away
+                        </div>
+                    </div>
+                    <UiToggle v-model="playerMarkerLoop" />
                 </div>
 
                 <!-- Volume Slider -->

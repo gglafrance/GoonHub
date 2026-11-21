@@ -5,7 +5,7 @@ const route = useRoute();
 const router = useRouter();
 const { fetchMarkersByLabel } = useApiMarkers();
 const { fetchProcessingConfig } = useApiJobs();
-const { formatDuration } = useFormatter();
+const { formatMarkerRange } = useFormatter();
 const { observe } = useAnimatedMarkerPreview();
 
 // Marker thumbnail type (static or animated)
@@ -147,7 +147,7 @@ definePageMeta({
                     <NuxtLink
                         v-for="marker in markers"
                         :key="marker.id"
-                        :to="`/watch/${marker.scene_id}?t=${marker.timestamp}`"
+                        :to="markerWatchUrl(marker)"
                         class="group relative block max-w-[320px] overflow-hidden rounded-lg
                             transition-transform duration-200"
                     >
@@ -188,7 +188,7 @@ definePageMeta({
                                     py-0.5 text-[10px] font-semibold text-white/90 tabular-nums
                                     backdrop-blur-sm"
                             >
-                                {{ formatDuration(marker.timestamp) }}
+                                {{ formatMarkerRange(marker.timestamp, marker.end_timestamp) }}
                             </div>
                         </div>
 

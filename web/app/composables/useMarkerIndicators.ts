@@ -18,7 +18,7 @@ interface VideoJsPlayerWithControls extends Player {
 export function useMarkerIndicators(
     player: Ref<Player | null>,
     markers: Ref<Marker[]>,
-    onSeek?: (timestamp: number) => void,
+    onMarkerClick?: (marker: Marker) => void,
 ) {
     let container: HTMLDivElement | null = null;
     let boundUpdate: (() => void) | null = null;
@@ -75,6 +75,16 @@ export function useMarkerIndicators(
             const percent = (marker.timestamp / duration) * 100;
             if (percent < 0 || percent > 100) return;
 
+            if (markerHasRange(marker)) {
+                const endPercent = Math.min(100, (marker.end_timestamp / duration) * 100);
+                const range = document.createElement('div');
+                range.className = 'vjs-marker-range';
+                range.style.left = `${percent}%`;
+                range.style.width = `${endPercent - percent}%`;
+                range.style.setProperty('--marker-color', marker.color || '#FF4D4D');
+                container!.appendChild(range);
+            }
+
             const tick = createTick(marker, percent);
             container!.appendChild(tick);
         });
@@ -119,7 +129,9 @@ export function useMarkerIndicators(
         // Timestamp
         const timestamp = document.createElement('div');
         timestamp.className = 'vjs-marker-tooltip-time';
-        timestamp.textContent = formatTime(marker.timestamp);
+        timestamp.textContent = markerHasRange(marker)
+            ? `${formatTime(marker.timestamp)}-${formatTime(marker.end_timestamp)}`
+            : formatTime(marker.timestamp);
         info.appendChild(timestamp);
 
         tooltip.appendChild(info);
@@ -129,8 +141,8 @@ export function useMarkerIndicators(
         // Click handler
         tick.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (onSeek) {
-                onSeek(marker.timestamp);
+            if (onMarkerClick) {
+                onMarkerClick(marker);
             } else if (player.value) {
                 player.value.currentTime(marker.timestamp);
                 player.value.play()?.catch(() => {});

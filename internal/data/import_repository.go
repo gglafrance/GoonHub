@@ -34,6 +34,8 @@ type ImportRepository interface {
 	FindMarker(userID, sceneID uint, timestamp int, label string) (*UserSceneMarker, error)
 	CreateMarker(marker *UserSceneMarker) error
 	UpdateMarkerColor(markerID uint, color string) error
+	// UpdateMarkerEndTimestamp sets (or clears, with nil) the end of a marker range.
+	UpdateMarkerEndTimestamp(markerID uint, endTimestamp *int) error
 	ApplyLabelTagsToMarker(userID, markerID uint, label string) error
 	AddMarkerTags(markerID uint, tagIDs []uint) error
 	SetMarkerTags(markerID uint, tagIDs []uint) error
@@ -135,6 +137,10 @@ func (r *ImportRepositoryImpl) CreateMarker(marker *UserSceneMarker) error {
 
 func (r *ImportRepositoryImpl) UpdateMarkerColor(markerID uint, color string) error {
 	return r.DB.Model(&UserSceneMarker{}).Where("id = ?", markerID).Update("color", color).Error
+}
+
+func (r *ImportRepositoryImpl) UpdateMarkerEndTimestamp(markerID uint, endTimestamp *int) error {
+	return r.DB.Model(&UserSceneMarker{}).Where("id = ?", markerID).Update("end_timestamp", endTimestamp).Error
 }
 
 func (r *ImportRepositoryImpl) ApplyLabelTagsToMarker(userID, markerID uint, label string) error {

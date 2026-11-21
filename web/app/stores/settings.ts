@@ -32,6 +32,7 @@ export const useSettingsStore = defineStore(
         const defaultVolume = computed(() => settings.value?.default_volume ?? 100);
         const loop = computed(() => settings.value?.loop ?? false);
         const abLoopControls = computed(() => settings.value?.ab_loop_controls ?? false);
+        const markerLoop = computed(() => settings.value?.marker_loop ?? false);
         const videosPerPage = computed(() => settings.value?.videos_per_page ?? 20);
         const defaultSortOrder = computed<SortOrder>(
             () => settings.value?.default_sort_order ?? 'created_at_desc',
@@ -225,6 +226,7 @@ export const useSettingsStore = defineStore(
             defaultVolume,
             loop,
             abLoopControls,
+            markerLoop,
             videosPerPage,
             defaultSortOrder,
             defaultTagSort,

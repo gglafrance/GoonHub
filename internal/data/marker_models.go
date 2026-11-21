@@ -5,12 +5,14 @@ import (
 )
 
 type UserSceneMarker struct {
-	ID            uint      `gorm:"primarykey" json:"id"`
-	UserID        uint      `gorm:"not null" json:"user_id"`
-	SceneID       uint      `gorm:"not null;column:scene_id" json:"scene_id"`
-	Timestamp     int       `gorm:"not null" json:"timestamp"` // seconds
-	Label         string    `gorm:"size:100" json:"label"`
-	Color         string    `gorm:"size:7;default:'#FFFFFF'" json:"color"`
+	ID        uint `gorm:"primarykey" json:"id"`
+	UserID    uint `gorm:"not null" json:"user_id"`
+	SceneID   uint `gorm:"not null;column:scene_id" json:"scene_id"`
+	Timestamp int  `gorm:"not null" json:"timestamp"` // seconds
+	// EndTimestamp is the optional end of the marked range, in seconds (> Timestamp).
+	EndTimestamp          *int      `gorm:"column:end_timestamp" json:"end_timestamp"`
+	Label                 string    `gorm:"size:100" json:"label"`
+	Color                 string    `gorm:"size:7;default:'#FFFFFF'" json:"color"`
 	ThumbnailPath         string    `gorm:"size:255" json:"thumbnail_path"`
 	AnimatedThumbnailPath string    `gorm:"size:255" json:"animated_thumbnail_path"`
 	CreatedAt             time.Time `json:"created_at"`
