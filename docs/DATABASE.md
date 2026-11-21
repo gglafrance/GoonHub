@@ -119,6 +119,8 @@ Per-user application preferences.
 | `advanced_marker_filters` | BOOLEAN | NO | false | Show the advanced filter panel (labels, scene tags/actors/studio, ranges only) on the marker pages |
 | `pagination_position` | VARCHAR(10) | NO | 'bottom' | Page controls position on paginated pages: `top`, `bottom` or `both` |
 | `date_format` | VARCHAR(20) | NO | 'auto' | Date display: `auto` (browser locale), `DD/MM/YYYY`, `MM/DD/YYYY`, `YYYY-MM-DD`, `DD.MM.YYYY`, `D MMM YYYY` or `MMM D, YYYY` |
+| `player_gestures` | BOOLEAN | NO | true | Touch gestures on the video player: double-tap seek, swipes (scrub, volume, brightness) and long-press 2x speed |
+| `gesture_seek_step` | INTEGER | NO | 10 | Seconds skipped by a double-tap on the sides of the player: 5, 10, 15 or 30 |
 | `show_replay_heatmap` | BOOLEAN | NO | true | Show the "most replayed" heatmap (from `user_scene_heatmaps`) above the player progress bar |
 | `record_replay_heatmap` | BOOLEAN | NO | true | Record which parts of a scene are watched into `user_scene_heatmaps` |
 | `marker_loop` | BOOLEAN | NO | false | Loop the marker range when clicking a marker that has an `end_timestamp` |

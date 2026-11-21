@@ -164,6 +164,8 @@ const autoAdvanceOptions: { value: PlaylistAutoAdvance; label: string; desc: str
             </div>
         </div>
 
+        <SettingsPlayerGestures />
+
         <!-- Playlist Player Settings -->
         <div class="glass-panel p-5">
             <h3 class="mb-5 text-sm font-semibold text-white">Playlist Auto-Advance</h3>
