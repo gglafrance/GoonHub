@@ -40,7 +40,8 @@ interface TouchState {
 
 // Elements of the player that keep their own touch handling
 const CONTROL_SELECTOR =
-    '.vjs-control-bar, .vjs-menu, .vjs-modal-dialog, .vjs-big-play-button, button, a, input';
+    '.vjs-control-bar, .vjs-menu, .vjs-modal-dialog, .vjs-big-play-button, button, a, input, ' +
+    '[data-player-overlay]';
 
 // iOS and iPadOS do not let scripts set the volume (it stays at the hardware level)
 function isAppleTouchDevice(): boolean {

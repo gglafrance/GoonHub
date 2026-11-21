@@ -783,6 +783,8 @@ defineExpose({
     vttCues,
     abLoop,
     playMarker,
+    // video.js root element: overlays teleported into it also show in fullscreen
+    playerEl,
 });
 
 onBeforeUnmount(() => {
