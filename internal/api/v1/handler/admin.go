@@ -303,7 +303,14 @@ func (h *AdminHandler) GetAppSettings(c *gin.Context) {
 }
 
 func (h *AdminHandler) UpdateAppSettings(c *gin.Context) {
-	var req data.AppSettingsRecord
+	// Start from the current settings so that fields missing from the request keep their
+	// value instead of being reset (e.g. transcoding_enabled from an older client)
+	current, err := h.AppSettingsRepo.Get()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get app settings"})
+		return
+	}
+	req := *current
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
 		return

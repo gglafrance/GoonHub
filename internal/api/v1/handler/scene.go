@@ -29,13 +29,14 @@ type SceneHandler struct {
 	RelatedScenesService *core.RelatedScenesService
 	MarkerService        *core.MarkerService
 	StreamManager        *streaming.Manager
+	Transcoder           *streaming.Transcoder
 	InteractionRepo      data.InteractionRepository
 	TagRepo              data.TagRepository
 	ActorRepo            data.ActorRepository
 	MaxItemsPerPage      int
 }
 
-func NewSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, maxItemsPerPage int) *SceneHandler {
+func NewSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, transcoder *streaming.Transcoder, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, maxItemsPerPage int) *SceneHandler {
 	return &SceneHandler{
 		Service:              service,
 		ProcessingService:    processingService,
@@ -44,6 +45,7 @@ func NewSceneHandler(service *core.SceneService, processingService *core.ScenePr
 		RelatedScenesService: relatedScenesService,
 		MarkerService:        markerService,
 		StreamManager:        streamManager,
+		Transcoder:           transcoder,
 		InteractionRepo:      interactionRepo,
 		TagRepo:              tagRepo,
 		ActorRepo:            actorRepo,
@@ -408,7 +410,25 @@ func (h *SceneHandler) GetScene(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, response.NewSceneDetail(scene))
+	resp := sceneDetailResponse{SceneDetail: response.NewSceneDetail(scene)}
+	if h.Transcoder != nil {
+		resp.Playback = h.Transcoder.PlaybackInfo(scene)
+	} else {
+		plan := streaming.DecidePlayback(scene.StoredPath, scene.VideoCodec, scene.AudioCodec)
+		resp.Playback = streaming.PlaybackInfo{Mode: plan.Mode, Reason: plan.Reason}
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+// TranscodeScene streams a scene converted on the fly for browsers that can't play the
+// original (see serveTranscode). Same access rules as StreamScene.
+func (h *SceneHandler) TranscodeScene(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
+		return
+	}
+	serveTranscode(c, h.Transcoder, h.StreamManager, uint(id))
 }
 
 // ListSourceSites lists the sites scenes come from with their scene counts, for the search
@@ -485,6 +505,7 @@ func (h *SceneHandler) StreamScene(c *gin.Context) {
 
 	c.Header("Content-Type", mimeType)
 	c.Header("Cache-Control", "public, max-age=86400")
+	setDownloadDisposition(c, filePath)
 
 	// Use the buffer pool for efficient I/O (256KB vs Go's default 32KB)
 	buf := h.StreamManager.BufferPool().Get()

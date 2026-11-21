@@ -22,6 +22,8 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 			{
 				shares.GET("/:token", shareHandler.ResolveShareLink)
 				shares.GET("/:token/stream", shareHandler.StreamShareLink)
+				shares.GET("/:token/transcode", shareHandler.TranscodeShareLink)
+				shares.HEAD("/:token/transcode", shareHandler.TranscodeShareLink)
 			}
 
 			auth := v1.Group("/auth")
@@ -297,4 +299,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 
 	// Public scene streaming endpoint (outside /api for better access)
 	r.GET("/api/v1/scenes/:id/stream", sceneHandler.StreamScene)
+	// Same access as the stream, for the files browsers can't play (HEAD: slot available?)
+	r.GET("/api/v1/scenes/:id/transcode", sceneHandler.TranscodeScene)
+	r.HEAD("/api/v1/scenes/:id/transcode", sceneHandler.TranscodeScene)
 }

@@ -16,6 +16,7 @@ const loading = ref(true);
 const errorState = ref<'not_found' | 'expired' | 'auth_required' | null>(null);
 
 const streamUrl = computed(() => `/api/v1/shares/${token.value}/stream`);
+const transcodeUrl = computed(() => `/api/v1/shares/${token.value}/transcode`);
 
 const loadShare = async () => {
     loading.value = true;
@@ -127,6 +128,9 @@ watch(
                 <div class="bg-surface/30 overflow-hidden rounded-xl">
                     <LazyScenePlayer
                         :scene-url="streamUrl"
+                        :transcode-url="transcodeUrl"
+                        :playback="resolved.scene.playback"
+                        :duration-hint="resolved.scene.duration"
                         :poster-url="`/thumbnails/${resolved.scene.id}?size=lg`"
                         :autoplay="false"
                     />
