@@ -78,7 +78,8 @@ func (h *SceneHandler) UploadScene(c *gin.Context) {
 
 	scene, err := h.Service.UploadScene(file, title)
 	if err != nil {
-		if errors.Is(err, apperrors.ErrInvalidFileExtension) {
+		// Invalid extension, or upload directory under a read-only storage path
+		if apperrors.IsValidation(err) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
