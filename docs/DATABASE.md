@@ -125,6 +125,7 @@ Per-user application preferences.
 | `gesture_seek_step` | INTEGER | NO | 10 | Seconds skipped by a double-tap on the sides of the player: 5, 10, 15 or 30 |
 | `show_replay_heatmap` | BOOLEAN | NO | true | Show the "most replayed" heatmap (from `user_scene_heatmaps`) above the player progress bar |
 | `record_replay_heatmap` | BOOLEAN | NO | true | Record which parts of a scene are watched into `user_scene_heatmaps` |
+| `show_scrubber` | BOOLEAN | NO | false | Show the thumbnail scrubber strip (sprite sheet thumbnails and markers, drag or wheel to scroll, click to seek) under the player on the watch page (migration 084) |
 | `marker_loop` | BOOLEAN | NO | false | Loop the marker range when clicking a marker that has an `end_timestamp` |
 | `videos_per_page` | INTEGER | NO | 20 | Grid pagination size |
 | `default_sort_order` | VARCHAR(50) | NO | 'created_at_desc' | Default sort order |

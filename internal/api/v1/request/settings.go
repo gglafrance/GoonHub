@@ -134,6 +134,8 @@ type UpdateAllSettingsRequest struct {
 	InfiniteScroll *bool `json:"infinite_scroll"`
 	// SceneListView: nil keeps the current value
 	SceneListView *SceneListViewRequest `json:"scene_list_view"`
+	// ShowScrubber: nil keeps the current value
+	ShowScrubber *bool `json:"show_scrubber"`
 }
 
 // SceneListViewRequest is the grid/table view per scene list page and the table columns.

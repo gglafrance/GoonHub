@@ -219,6 +219,7 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		core.WithInfiniteScroll(req.InfiniteScroll),
 		core.WithPlayerGestures(req.PlayerGestures, req.GestureSeekStep),
 		core.WithReplayHeatmap(req.ShowReplayHeatmap, req.RecordReplayHeatmap),
+		core.WithScrubber(req.ShowScrubber),
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

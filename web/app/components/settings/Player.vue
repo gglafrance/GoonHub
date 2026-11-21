@@ -52,6 +52,13 @@ const recordReplayHeatmap = computed({
     },
 });
 
+const showScrubber = computed({
+    get: () => settingsStore.draft?.show_scrubber ?? false,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.show_scrubber = v;
+    },
+});
+
 const playlistAutoAdvance = computed({
     get: () => settingsStore.draft?.playlist_auto_advance ?? 'countdown',
     set: (v: PlaylistAutoAdvance) => {
@@ -141,6 +148,18 @@ const autoAdvanceOptions: { value: PlaylistAutoAdvance; label: string; desc: str
                         </div>
                     </div>
                     <UiToggle v-model="recordReplayHeatmap" />
+                </div>
+
+                <!-- Thumbnail Scrubber -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-sm text-white">Thumbnail Scrubber</div>
+                        <div class="text-dim text-xs">
+                            Show a strip of the scene thumbnails under the player: drag or scroll it
+                            and click a thumbnail to jump to that moment
+                        </div>
+                    </div>
+                    <UiToggle v-model="showScrubber" />
                 </div>
 
                 <!-- Volume Slider -->
