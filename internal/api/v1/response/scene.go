@@ -68,6 +68,35 @@ type CardFields struct {
 	Liked       bool
 	JizzCount   bool
 	ReleaseDate bool
+	// Watched: the user's "watched to the end" sidecar map (no field on the item itself)
+	Watched bool
+}
+
+// CardSidecars are the user's own interactions with the listed scenes, keyed by scene ID,
+// for the scene cards. Each map is only set when its card field was asked for.
+type CardSidecars struct {
+	Ratings    map[uint]float64 `json:"ratings,omitempty"`
+	Likes      map[uint]bool    `json:"likes,omitempty"`
+	JizzCounts map[uint]int     `json:"jizz_counts,omitempty"`
+	Watched    map[uint]bool    `json:"watched,omitempty"`
+}
+
+// With returns the fields of f plus those of other.
+func (f CardFields) With(other CardFields) CardFields {
+	return CardFields{
+		Views:       f.Views || other.Views,
+		Resolution:  f.Resolution || other.Resolution,
+		FrameRate:   f.FrameRate || other.FrameRate,
+		Description: f.Description || other.Description,
+		Studio:      f.Studio || other.Studio,
+		Tags:        f.Tags || other.Tags,
+		Actors:      f.Actors || other.Actors,
+		Rating:      f.Rating || other.Rating,
+		Liked:       f.Liked || other.Liked,
+		JizzCount:   f.JizzCount || other.JizzCount,
+		ReleaseDate: f.ReleaseDate || other.ReleaseDate,
+		Watched:     f.Watched || other.Watched,
+	}
 }
 
 // SceneModelFields are the optional fields read from the scene row itself (no extra query),
@@ -110,6 +139,8 @@ func ParseCardFields(raw string) CardFields {
 			f.JizzCount = true
 		case "release_date":
 			f.ReleaseDate = true
+		case "watched":
+			f.Watched = true
 		}
 	}
 	return f

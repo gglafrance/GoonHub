@@ -19,6 +19,7 @@ type FolderContentsResponse struct {
 	TotalScenes int64             `json:"total_scenes"`
 	Page        int               `json:"page"`
 	Limit       int               `json:"limit"`
+	CardSidecars
 }
 
 // ToFolderContentsResponse converts the service response to an API response.
@@ -40,6 +41,7 @@ type FolderSearchResponse struct {
 	Total  int64           `json:"total"`
 	Page   int             `json:"page"`
 	Limit  int             `json:"limit"`
+	CardSidecars
 }
 
 // ToFolderSearchResponse converts the service response to an API response.

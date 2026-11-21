@@ -136,7 +136,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	scanHandler := provideScanHandler(scanService)
 	explorerRepository := provideExplorerRepository(db)
 	explorerService := provideExplorerService(explorerRepository, storagePathRepository, sceneRepository, tagRepository, actorRepository, jobHistoryRepository, eventBus, logger, configConfig, sceneFingerprintIndex, mediaFileGuard)
-	explorerHandler := provideExplorerHandler(explorerService)
+	explorerHandler := provideExplorerHandler(explorerService, tagRepository, actorRepository, interactionRepository)
 	pornDBService := providePornDBService(configConfig, logger)
 	pornDBHandler := providePornDBHandler(pornDBService)
 	savedSearchRepository := provideSavedSearchRepository(db)
@@ -659,8 +659,8 @@ func provideScanHandler(scanService *core.ScanService) *handler.ScanHandler {
 	return handler.NewScanHandler(scanService)
 }
 
-func provideExplorerHandler(explorerService *core.ExplorerService) *handler.ExplorerHandler {
-	return handler.NewExplorerHandler(explorerService)
+func provideExplorerHandler(explorerService *core.ExplorerService, tagRepo data.TagRepository, actorRepo data.ActorRepository, interactionRepo data.InteractionRepository) *handler.ExplorerHandler {
+	return handler.NewExplorerHandler(explorerService, tagRepo, actorRepo, interactionRepo)
 }
 
 func providePornDBHandler(pornDBService *core.PornDBService) *handler.PornDBHandler {

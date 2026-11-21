@@ -174,6 +174,10 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
 
                 <SceneCollection
                     :scenes="explorerStore.scenes"
+                    :ratings="explorerStore.cardSidecars.ratings"
+                    :likes="explorerStore.cardSidecars.likes"
+                    :jizz-counts="explorerStore.cardSidecars.jizzCounts"
+                    :watched="explorerStore.cardSidecars.watched"
                     :table="isTable"
                     :select-mode="selectMode"
                     :is-scene-selected="explorerStore.isSceneSelected"

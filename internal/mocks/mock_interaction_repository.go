@@ -249,6 +249,21 @@ func (mr *MockInteractionRepositoryMockRecorder) GetRatingsBySceneIDs(userID, sc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRatingsBySceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetRatingsBySceneIDs), userID, sceneIDs)
 }
 
+// GetWatchedBySceneIDs mocks base method.
+func (m *MockInteractionRepository) GetWatchedBySceneIDs(userID uint, sceneIDs []uint) (map[uint]bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWatchedBySceneIDs", userID, sceneIDs)
+	ret0, _ := ret[0].(map[uint]bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWatchedBySceneIDs indicates an expected call of GetWatchedBySceneIDs.
+func (mr *MockInteractionRepositoryMockRecorder) GetWatchedBySceneIDs(userID, sceneIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWatchedBySceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetWatchedBySceneIDs), userID, sceneIDs)
+}
+
 // GetWatchedSceneIDs mocks base method.
 func (m *MockInteractionRepository) GetWatchedSceneIDs(userID uint) ([]uint, error) {
 	m.ctrl.T.Helper()

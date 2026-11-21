@@ -43,6 +43,8 @@ type InteractionRepository interface {
 	GetMarkedSceneIDs(userID uint) ([]uint, error)
 	GetLikesBySceneIDs(userID uint, sceneIDs []uint) (map[uint]bool, error)
 	GetJizzCountsBySceneIDs(userID uint, sceneIDs []uint) (map[uint]int, error)
+	// GetWatchedBySceneIDs returns the scenes of sceneIDs the user watched to the end at least once
+	GetWatchedBySceneIDs(userID uint, sceneIDs []uint) (map[uint]bool, error)
 
 	// Reassignment methods (for duplicate resolution)
 	ReassignInteractionsToScene(fromSceneID, toSceneID uint) error
@@ -331,6 +333,25 @@ func (r *InteractionRepositoryImpl) GetLikesBySceneIDs(userID uint, sceneIDs []u
 	result := make(map[uint]bool)
 	for _, l := range likes {
 		result[l.SceneID] = true
+	}
+	return result, nil
+}
+
+func (r *InteractionRepositoryImpl) GetWatchedBySceneIDs(userID uint, sceneIDs []uint) (map[uint]bool, error) {
+	result := make(map[uint]bool)
+	if len(sceneIDs) == 0 {
+		return result, nil
+	}
+	var ids []uint
+	err := r.DB.Model(&UserSceneWatch{}).
+		Where("user_id = ? AND scene_id IN ? AND completed", userID, sceneIDs).
+		Distinct("scene_id").
+		Pluck("scene_id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		result[id] = true
 	}
 	return result, nil
 }

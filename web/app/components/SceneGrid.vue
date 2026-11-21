@@ -6,6 +6,7 @@ defineProps<{
     ratings?: Record<string, number>;
     likes?: Record<string, boolean>;
     jizzCounts?: Record<string, number>;
+    watched?: Record<string, boolean>;
 }>();
 
 const { sceneGridClass, sceneGridStyle } = useGridDensity();
@@ -20,6 +21,7 @@ const { sceneGridClass, sceneGridStyle } = useGridDensity();
             :rating="ratings?.[scene.id]"
             :liked="likes?.[scene.id]"
             :jizz-count="jizzCounts?.[scene.id]"
+            :completed="watched?.[scene.id]"
             fluid
         />
     </div>

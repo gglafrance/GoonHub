@@ -141,6 +141,7 @@ const handleBulkComplete = () => {
                 :ratings="searchStore.ratings"
                 :likes="searchStore.likes"
                 :jizz-counts="searchStore.jizzCounts"
+                :watched="searchStore.watched"
                 :table="isTable"
                 :select-mode="selectMode"
                 :is-scene-selected="isSceneSelected"

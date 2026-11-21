@@ -90,6 +90,8 @@ export interface SceneListResponse {
     ratings?: Record<string, number>;
     likes?: Record<string, boolean>;
     jizz_counts?: Record<string, number>;
+    // scenes the user watched to the end (card_fields "watched")
+    watched?: Record<string, boolean>;
     seed?: number;
 }
 

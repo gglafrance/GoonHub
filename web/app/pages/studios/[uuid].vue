@@ -13,6 +13,8 @@ const studio = ref<Studio | null>(null);
 const scenes = ref<Scene[]>([]);
 const scenesTotal = ref(0);
 const scenesRatings = ref<Record<string, number>>({});
+// The user's likes, jizz counts and watched scenes, for the card badges
+const scenesSidecars = ref(emptyCardSidecars());
 const scenesPage = useUrlPagination();
 const scenesLimit = computed(() => settingsStore.videosPerPage);
 const isLoading = ref(true);
@@ -272,6 +274,7 @@ const runScenesPlan = async (plan: PageLoadPlan) => {
             partial ? { ...scenesRatings.value } : {},
             ...responses.map((r) => r.ratings ?? {}),
         );
+        scenesSidecars.value = mergeCardSidecars(scenesSidecars.value, responses, partial);
         loadedPages.value = commitPageLoad(loadedPages.value, plan);
     } catch {
         // Ignore scene loading errors
@@ -907,6 +910,9 @@ definePageMeta({
                         <SceneCollection
                             :scenes="scenes"
                             :ratings="scenesRatings"
+                            :likes="scenesSidecars.likes"
+                            :jizz-counts="scenesSidecars.jizzCounts"
+                            :watched="scenesSidecars.watched"
                             :table="isTable"
                             :select-mode="selectMode"
                             :is-scene-selected="isSceneSelected"
