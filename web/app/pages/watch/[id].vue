@@ -239,13 +239,14 @@ const handleStartOver = () => {
     showResumePrompt.value = false;
 };
 
-const goBack = () => {
-    if (playlistUuid.value) {
-        router.push(`/playlists/${playlistUuid.value}`);
-    } else {
-        router.push('/');
-    }
-};
+// Back returns to the list the scene was opened from (through the history, so that it comes
+// back with its filters, page and scroll position), else to the playlist or the library
+const { origin: navOrigin, goBack: goBackToOrigin } = useNavOrigin();
+const backLabel = computed(() => {
+    if (navOrigin.value) return navOriginLabel(navOrigin.value.fullPath);
+    return isPlaylistMode.value ? 'Playlist' : 'Library';
+});
+const goBack = () => goBackToOrigin(playlistUuid.value ? `/playlists/${playlistUuid.value}` : '/');
 
 // Tab state for DetailTabs (allows switching tabs from keyboard shortcuts)
 const activeTab = ref<'jobs' | 'thumbnail' | 'details' | 'history' | 'markers'>('details');
@@ -349,9 +350,7 @@ definePageMeta({
                     >
                         <Icon name="heroicons:arrow-left" size="12" />
                     </div>
-                    <span class="text-xs font-medium">{{
-                        isPlaylistMode ? 'Playlist' : 'Library'
-                    }}</span>
+                    <span class="text-xs font-medium">{{ backLabel }}</span>
                 </button>
 
                 <div v-if="scene" class="text-dim hidden truncate text-xs sm:block">
@@ -388,7 +387,7 @@ definePageMeta({
                         hover:text-white"
                     @click="goBack"
                 >
-                    Return to Library
+                    Return to {{ backLabel }}
                 </button>
             </div>
 
@@ -413,7 +412,7 @@ definePageMeta({
                         hover:text-white"
                     @click="goBack"
                 >
-                    Return to Library
+                    Return to {{ backLabel }}
                 </button>
             </div>
 

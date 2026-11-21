@@ -13,10 +13,17 @@ useSeoMeta({
     ogDescription: 'Your recently watched scenes',
 });
 
-const rangeDays = ref(30);
-const rangeMode = ref<'preset' | 'custom'>('preset');
-const customSince = ref('');
-const customUntil = ref('');
+// Range kept in the URL (`days`, `mode`, `since`, `until`): Back from a scene, a reload or a
+// shared link show the same period
+const rangeDays = useUrlQueryRef('days', 30, (raw) => {
+    const n = Number(raw);
+    return Number.isInteger(n) && n >= 0 ? n : undefined;
+});
+const rangeMode = useUrlQueryRef<'preset' | 'custom'>('mode', 'preset', (raw) =>
+    raw === 'custom' ? 'custom' : undefined,
+);
+const customSince = useUrlString('since');
+const customUntil = useUrlString('until');
 const entries = ref<WatchHistoryEntry[]>([]);
 const isLoading = ref(true);
 

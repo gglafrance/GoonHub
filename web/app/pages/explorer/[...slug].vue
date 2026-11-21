@@ -90,58 +90,85 @@ const parseSlug = (slug: string | string[] | undefined) => {
     return { storagePathId, folderPath };
 };
 
-// Initialize from URL on mount
-onMounted(async () => {
-    const { storagePathId, folderPath } = parseSlug(route.params.slug);
+// The view lives in the URL: folder in the path, `page`, and the folder search (`q`, `tpdb`),
+// so that Back from a scene, a reload or a shared link open the same view.
+const patchQuery = useUrlQueryPatch();
+// URL syncs start once the store holds this page's view
+let mounted = false;
 
+/** Applies the URL to the store; returns whether the view changed. */
+const applyUrl = (): boolean => {
+    const { storagePathId, folderPath } = parseSlug(route.params.slug);
+    const view = {
+        page: queryPositiveInt(route.query.page, 1),
+        q: queryString(route.query.q),
+        tpdb: queryTriState(route.query.tpdb),
+    };
+    const folderChanged =
+        storagePathId !== explorerStore.currentStoragePathID ||
+        folderPath !== explorerStore.currentPath;
+    const changed =
+        folderChanged ||
+        view.page !== explorerStore.page ||
+        view.q !== explorerStore.searchQuery ||
+        view.tpdb !== explorerStore.searchHasPornDBID;
+    explorerStore.currentStoragePathID = storagePathId;
+    explorerStore.currentPath = folderPath;
+    explorerStore.page = view.page;
+    explorerStore.searchQuery = view.q;
+    explorerStore.searchHasPornDBID = view.tpdb;
+    if (folderChanged) explorerStore.clearSelection();
+    return changed;
+};
+
+// Store -> URL (page changes, folder search)
+watch(
+    () => [explorerStore.page, explorerStore.searchQuery, explorerStore.searchHasPornDBID],
+    () => {
+        if (!mounted) return;
+        patchQuery({
+            page: explorerStore.page > 1 ? String(explorerStore.page) : undefined,
+            q: explorerStore.searchQuery || undefined,
+            tpdb:
+                explorerStore.searchHasPornDBID === null
+                    ? undefined
+                    : String(explorerStore.searchHasPornDBID),
+        });
+    },
+);
+
+onMounted(async () => {
+    const { storagePathId } = parseSlug(route.params.slug);
     if (storagePathId === null) {
         router.replace('/explorer');
         return;
     }
 
-    await explorerStore.loadStoragePaths();
+    // Storage paths already known (Back from a scene): no need to wait for them again
+    if (explorerStore.storagePaths.length === 0) await explorerStore.loadStoragePaths();
 
     // Check if storage path exists
-    const exists = explorerStore.storagePaths.some((sp) => sp.id === storagePathId);
-    if (!exists) {
+    if (!explorerStore.storagePaths.some((sp) => sp.id === storagePathId)) {
         router.replace('/explorer');
         return;
     }
 
-    explorerStore.currentStoragePathID = storagePathId;
-    explorerStore.currentPath = folderPath;
-    // Read page from URL query, default to 1
-    const urlPage = Number(route.query.page);
-    explorerStore.page = urlPage > 0 ? urlPage : 1;
-    explorerStore.clearSelection();
-
-    await explorerStore.loadFolderContents();
+    applyUrl();
+    mounted = true;
+    await explorerStore.refresh();
 });
 
-// Watch URL changes (browser back/forward)
+// URL -> store (folder links, browser back/forward)
 watch(
-    () => route.params.slug,
-    async (newSlug) => {
-        const { storagePathId, folderPath } = parseSlug(newSlug);
-
+    () => route.fullPath,
+    async () => {
+        if (!mounted) return;
+        const { storagePathId } = parseSlug(route.params.slug);
         if (storagePathId === null) {
             router.replace('/explorer');
             return;
         }
-
-        // Only update if changed
-        if (
-            storagePathId !== explorerStore.currentStoragePathID ||
-            folderPath !== explorerStore.currentPath
-        ) {
-            explorerStore.currentStoragePathID = storagePathId;
-            explorerStore.currentPath = folderPath;
-            // Read page from URL query, default to 1
-            const urlPage = Number(route.query.page);
-            explorerStore.page = urlPage > 0 ? urlPage : 1;
-            explorerStore.clearSelection();
-            await explorerStore.loadFolderContents();
-        }
+        if (applyUrl()) await explorerStore.refresh();
     },
 );
 

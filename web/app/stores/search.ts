@@ -6,6 +6,7 @@ import type {
 } from '~/types/scene';
 import type { SavedSearchFilters } from '~/types/saved_search';
 import type { LoadedPages, PageLoadPlan } from '~/utils/infinitePages';
+import type { SearchUrlState } from '~/utils/searchUrlState';
 
 // Library status filters: null = any, true = yes, false = no
 export const SEARCH_STATUS_KEYS = [
@@ -140,11 +141,19 @@ export const useSearchStore = defineStore('search', () => {
     ): Record<string, T> =>
         Object.assign(partial ? { ...current } : {}, ...maps.map((m) => m ?? {}));
 
-    const runSearch = async (plan: PageLoadPlan) => {
+    // Data version the list was (re)built at: after an edit anywhere (version changed) the list
+    // held is not shown again on Back, it is loaded like a new one (see useDataVersion)
+    let loadedVersion = -1;
+
+    /** Runs a page plan; silent: refreshes the list in place, without the loading states. */
+    const runSearch = async (plan: PageLoadPlan, silent = false) => {
         const request = ++searchRequest;
+        const version = currentDataVersion();
         const partial = plan.mode !== 'replace';
-        if (partial) isLoadingMore.value = true;
-        else isLoading.value = true;
+        if (!silent) {
+            if (partial) isLoadingMore.value = true;
+            else isLoading.value = true;
+        }
         error.value = '';
 
         try {
@@ -176,9 +185,12 @@ export const useSearchStore = defineStore('search', () => {
                 partial,
             );
             loadedPages.value = commitPageLoad(loadedPages.value, plan);
+            // Appended/prepended pages keep the version of the list they join
+            if (!partial) loadedVersion = version;
         } catch (e: unknown) {
             if (request === searchRequest) {
                 error.value = e instanceof Error ? e.message : 'Search failed';
+                loadedVersion = -1;
             }
         } finally {
             if (request === searchRequest) {
@@ -188,16 +200,31 @@ export const useSearchStore = defineStore('search', () => {
         }
     };
 
-    // Loads the current page (appended to the list when it is the next one with infinite scroll)
-    const search = () =>
-        runSearch(
-            planPageLoad(
-                loadedPages.value,
-                page.value,
-                settingsStore.infiniteScroll,
-                JSON.stringify({ ...getSearchParams(), limit: limit.value }),
-            ),
-        );
+    /**
+     * Loads the current page (appended to the list when it is the next one with infinite scroll).
+     * Coming back to the list already held (Back from a scene: same filters, same URL page, no
+     * edit since), it stays on screen at once, with all its infinite scroll pages, and is
+     * refreshed in place instead of flashing a spinner.
+     */
+    const search = () => {
+        const context = JSON.stringify({ ...getSearchParams(), limit: limit.value });
+        const infinite = settingsStore.infiniteScroll;
+        const held = loadedPages.value;
+        const isHeld =
+            held.last > 0 &&
+            held.last === page.value &&
+            (held.context ?? '') === context &&
+            loadedVersion === currentDataVersion() &&
+            (infinite || held.first === held.last);
+        if (isHeld) {
+            const pages: number[] = [];
+            for (let p = held.first; p <= held.last; p++) pages.push(p);
+            // A long scrolled list is kept as is (no edit since): refreshing it would be heavy
+            if (pages.length > INFINITE_REBUILD_PAGES) return Promise.resolve();
+            return runSearch({ pages, mode: 'replace', context }, true);
+        }
+        return runSearch(planPageLoad(held, page.value, infinite, context));
+    };
 
     // Infinite scroll opened on a later page: loads the page before the list
     const loadPrevious = async () => {
@@ -364,6 +391,68 @@ export const useSearchStore = defineStore('search', () => {
         return params;
     };
 
+    /** Search state kept in the URL (see utils/searchUrlState.ts). */
+    const getUrlState = (): SearchUrlState => ({
+        query: query.value,
+        selectedTags: selectedTags.value,
+        selectedActors: selectedActors.value,
+        studio: studio.value,
+        minDuration: minDuration.value,
+        maxDuration: maxDuration.value,
+        minSize: minSize.value,
+        maxSize: maxSize.value,
+        status: status.value,
+        selectedSourceSites: selectedSourceSites.value,
+        minDate: minDate.value,
+        maxDate: maxDate.value,
+        resolution: resolution.value,
+        sort: sort.value,
+        seed: seed.value,
+        page: page.value,
+        liked: liked.value,
+        minRating: minRating.value,
+        maxRating: maxRating.value,
+        minJizzCount: minJizzCount.value,
+        maxJizzCount: maxJizzCount.value,
+        selectedMarkerLabels: selectedMarkerLabels.value,
+        matchType: matchType.value,
+    });
+
+    /**
+     * Applies the state read from the URL. Returns false when the URL had to be completed (a
+     * random sort without its seed gets one, so that Back brings the same order back).
+     */
+    const applyUrlState = (s: SearchUrlState): boolean => {
+        query.value = s.query;
+        selectedTags.value = s.selectedTags;
+        selectedActors.value = s.selectedActors;
+        studio.value = s.studio;
+        minDuration.value = s.minDuration;
+        maxDuration.value = s.maxDuration;
+        minSize.value = s.minSize;
+        maxSize.value = s.maxSize;
+        status.value = { ...s.status };
+        selectedSourceSites.value = s.selectedSourceSites;
+        minDate.value = s.minDate;
+        maxDate.value = s.maxDate;
+        resolution.value = s.resolution;
+        sort.value = s.sort;
+        page.value = s.page;
+        liked.value = s.liked;
+        minRating.value = s.minRating;
+        maxRating.value = s.maxRating;
+        minJizzCount.value = s.minJizzCount;
+        maxJizzCount.value = s.maxJizzCount;
+        selectedMarkerLabels.value = s.selectedMarkerLabels;
+        matchType.value = s.matchType;
+        if (s.sort === 'random' && !s.seed) {
+            seed.value = generateSeed();
+            return false;
+        }
+        seed.value = s.seed;
+        return true;
+    };
+
     return {
         query,
         selectedTags,
@@ -403,6 +492,8 @@ export const useSearchStore = defineStore('search', () => {
         filterOptions,
         hasActiveFilters,
         getSearchParams,
+        getUrlState,
+        applyUrlState,
         search,
         loadPrevious,
         reshuffle,

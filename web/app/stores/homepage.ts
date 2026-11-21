@@ -7,6 +7,10 @@ import type {
 } from '~/types/homepage';
 
 const LAST_TAB_STORAGE_KEY = 'homepage-last-tab';
+// Sections loaded during the visit are shown again as they were when coming back to the
+// homepage (Back from a scene keeps the same random picks and the scroll position), unless
+// they are older than this or the library data changed since.
+const KEEP_SECTIONS_MS = 5 * 60 * 1000;
 
 export const useHomepageStore = defineStore('homepage', () => {
     const config = ref<HomepageConfig | null>(null);
@@ -16,6 +20,8 @@ export const useHomepageStore = defineStore('homepage', () => {
     const loadedTabs = ref<Set<string>>(new Set());
     const isLoading = ref(false);
     const error = ref<string | null>(null);
+    let loadedAt = 0;
+    let loadedVersion = -1;
 
     const { fetchHomepageData, fetchSectionData } = useApiHomepage();
 
@@ -61,6 +67,7 @@ export const useHomepageStore = defineStore('homepage', () => {
     const loadHomepage = async (tabId?: string) => {
         isLoading.value = true;
         error.value = null;
+        const version = currentDataVersion();
         try {
             sectionsData.value = new Map();
             loadedTabs.value = new Set();
@@ -72,6 +79,8 @@ export const useHomepageStore = defineStore('homepage', () => {
                 }
             }
             applyResponse(data);
+            loadedAt = Date.now();
+            loadedVersion = version;
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : 'Unknown error';
             if (message !== 'Unauthorized') {
@@ -79,6 +88,29 @@ export const useHomepageStore = defineStore('homepage', () => {
             }
         } finally {
             isLoading.value = false;
+        }
+    };
+
+    /**
+     * Opens the homepage: reuses the sections loaded earlier in the visit when they are still
+     * fresh (no refetch flash, same random order), else loads it. The tab is the requested one,
+     * else follows the "open on" setting, as on a first load.
+     */
+    const openHomepage = async (tabId?: string) => {
+        const cfg = config.value;
+        const fresh =
+            !!cfg &&
+            !error.value &&
+            loadedVersion === currentDataVersion() &&
+            Date.now() - loadedAt < KEEP_SECTIONS_MS;
+        if (!fresh || (tabId && !cfg.tabs.some((t) => t.id === tabId))) {
+            await loadHomepage(tabId);
+            return;
+        }
+        await selectTab(tabId || initialTabId(cfg));
+        // The scene just watched changes this one: refresh it in place
+        for (const section of enabledSections.value) {
+            if (section.type === 'continue_watching') refreshSection(section.id);
         }
     };
 
@@ -112,6 +144,8 @@ export const useHomepageStore = defineStore('homepage', () => {
     };
 
     const reset = () => {
+        loadedAt = 0;
+        loadedVersion = -1;
         config.value = null;
         activeTabId.value = null;
         sectionsData.value = new Map();
@@ -130,6 +164,7 @@ export const useHomepageStore = defineStore('homepage', () => {
         error,
         enabledSections,
         loadHomepage,
+        openHomepage,
         selectTab,
         refreshSection,
         getSectionData,

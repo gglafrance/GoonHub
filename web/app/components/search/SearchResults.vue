@@ -10,7 +10,7 @@ const { isTable } = useSceneListView('search', () => searchStore.search());
 // Infinite scroll instead of page controls (user setting)
 const settingsStore = useSettingsStore();
 const infiniteScroll = computed(() => settingsStore.infiniteScroll);
-const { restore: restoreScroll, keepPositionWhile } = useInfiniteScrollPosition();
+const { keepPositionWhile } = useInfiniteScrollPosition();
 const hasMore = computed(
     () => searchStore.loadedPages.last * searchStore.limit < searchStore.total,
 );
@@ -20,13 +20,6 @@ const loadMore = () => {
     searchStore.page = searchStore.loadedPages.last + 1;
 };
 const loadPrevious = () => keepPositionWhile(() => searchStore.loadPrevious());
-// Back on a scrolled list: where the user was, once it is rebuilt
-watch(
-    () => searchStore.isLoading,
-    (loading, was) => {
-        if (was && !loading) restoreScroll();
-    },
-);
 watch(infiniteScroll, () => searchStore.search());
 const scenesRef = computed(() => searchStore.scenes);
 const {

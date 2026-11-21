@@ -10,16 +10,11 @@ defineEmits<{
     'update:selectMode': [value: boolean];
 }>();
 
-const route = useRoute();
-const router = useRouter();
 const explorerStore = useExplorerStore();
 const { showSelector, maxLimit, updatePageSize } = usePageSize();
 // Grid or table. Folder listings have no user data (rating) nor actors, and keep their order.
 const { isTable } = useSceneListView('explorer');
 const hiddenTableColumns: SceneTableColumn[] = ['rating', 'actors'];
-
-let isUpdatingUrl = false;
-let isSyncingFromUrl = false;
 
 // Folder delete modal state
 const showDeleteModal = ref(false);
@@ -36,50 +31,7 @@ const onFolderDeleted = async () => {
     await explorerStore.loadFolderContents();
 };
 
-// Sync URL when store page changes
-watch(
-    () => explorerStore.page,
-    (newPage) => {
-        if (isSyncingFromUrl) return;
-
-        const query = { ...route.query };
-        if (newPage === 1) {
-            delete query.page;
-        } else {
-            query.page = String(newPage);
-        }
-
-        isUpdatingUrl = true;
-        router.replace({ query }).finally(() => {
-            isUpdatingUrl = false;
-        });
-    },
-);
-
-// Handle browser back/forward navigation
-watch(
-    () => route.query.page,
-    () => {
-        if (isUpdatingUrl) return;
-
-        const urlPage = Number(route.query.page);
-        const targetPage = urlPage > 0 ? urlPage : 1;
-        if (explorerStore.page !== targetPage) {
-            isSyncingFromUrl = true;
-            explorerStore.page = targetPage;
-            nextTick(() => {
-                isSyncingFromUrl = false;
-            });
-
-            if (explorerStore.isSearchActive) {
-                explorerStore.performSearch();
-            } else {
-                explorerStore.loadFolderContents();
-            }
-        }
-    },
-);
-
+// The page and the search are kept in the URL by the explorer page
 const handlePageChange = async (page: number) => {
     explorerStore.page = page;
     if (explorerStore.isSearchActive) {
@@ -92,7 +44,7 @@ const handlePageChange = async (page: number) => {
 // Infinite scroll instead of page controls (user setting)
 const settingsStore = useSettingsStore();
 const infiniteScroll = computed(() => settingsStore.infiniteScroll);
-const { restore: restoreScroll, keepPositionWhile } = useInfiniteScrollPosition();
+const { keepPositionWhile } = useInfiniteScrollPosition();
 const hasMore = computed(
     () => explorerStore.loadedPages.last * explorerStore.limit < explorerStore.totalScenes,
 );
@@ -101,13 +53,6 @@ const loadMore = () => {
     handlePageChange(explorerStore.loadedPages.last + 1);
 };
 const loadPrevious = () => keepPositionWhile(() => explorerStore.loadPrevious());
-// Back on a scrolled folder: where the user was, once the list is rebuilt
-watch(
-    () => explorerStore.isLoading || explorerStore.isSearching,
-    (loading, was) => {
-        if (was && !loading) restoreScroll();
-    },
-);
 watch(infiniteScroll, () => handlePageChange(explorerStore.page));
 
 const hasContent = computed(

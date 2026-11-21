@@ -153,15 +153,23 @@ export const useExplorerStore = defineStore('explorer', () => {
     const isLoadingMore = ref(false);
     let contentsRequest = 0;
 
-    const runFolderPlan = async (plan: PageLoadPlan) => {
+    // Data version the list was (re)built at: contents loaded before an edit anywhere are not
+    // shown again on Back (see useDataVersion and refresh())
+    let loadedVersion = -1;
+
+    /** Runs a page plan; silent: refreshes the list in place, without the loading states. */
+    const runFolderPlan = async (plan: PageLoadPlan, silent = false) => {
         if (!currentStoragePathID.value) return;
         const storagePathID = currentStoragePathID.value;
         const folderPath = currentPath.value;
         const request = ++contentsRequest;
+        const version = currentDataVersion();
         const partial = plan.mode !== 'replace';
 
-        if (partial) isLoadingMore.value = true;
-        else isLoading.value = true;
+        if (!silent) {
+            if (partial) isLoadingMore.value = true;
+            else isLoading.value = true;
+        }
         error.value = null;
         try {
             const responses: FolderContentsResponse[] = await Promise.all(
@@ -178,6 +186,7 @@ export const useExplorerStore = defineStore('explorer', () => {
             );
             totalScenes.value = last.total_scenes;
             loadedPages.value = commitPageLoad(loadedPages.value, plan);
+            if (!partial) loadedVersion = version;
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : 'Unknown error';
             if (message !== 'Unauthorized' && request === contentsRequest) {
@@ -297,9 +306,10 @@ export const useExplorerStore = defineStore('explorer', () => {
     };
 
     // Search actions
-    const runSearchPlan = async (plan: PageLoadPlan) => {
+    const runSearchPlan = async (plan: PageLoadPlan, silent = false) => {
         if (!currentStoragePathID.value) return;
         const request = ++contentsRequest;
+        const version = currentDataVersion();
         const partial = plan.mode !== 'replace';
         const criteria = {
             storage_path_id: currentStoragePathID.value,
@@ -311,8 +321,10 @@ export const useExplorerStore = defineStore('explorer', () => {
             has_porndb_id: searchHasPornDBID.value ?? undefined,
         };
 
-        if (partial) isLoadingMore.value = true;
-        else isSearching.value = true;
+        if (!silent) {
+            if (partial) isLoadingMore.value = true;
+            else isSearching.value = true;
+        }
         error.value = null;
         try {
             const responses = await Promise.all(
@@ -328,6 +340,7 @@ export const useExplorerStore = defineStore('explorer', () => {
             // Hide subfolders during search
             subfolders.value = [];
             loadedPages.value = commitPageLoad(loadedPages.value, plan);
+            if (!partial) loadedVersion = version;
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : 'Unknown error';
             if (message !== 'Unauthorized' && request === contentsRequest) {
@@ -368,6 +381,40 @@ export const useExplorerStore = defineStore('explorer', () => {
                 searchContext(),
             ),
         );
+    };
+
+    /**
+     * Loads the current view (folder contents or search results), as the explorer page does
+     * after reading the URL. The list already held for this exact view (Back from a scene: same
+     * folder, search and URL page, no edit since) stays on screen, with all its infinite scroll
+     * pages, and is refreshed in place; the contents of another view are cleared first.
+     */
+    const refresh = async () => {
+        const searching = isSearchActive.value;
+        const context = searching ? searchContext() : folderContext();
+        const held = loadedPages.value;
+        const sameView =
+            held.last > 0 &&
+            (held.context ?? '') === context &&
+            loadedVersion === currentDataVersion();
+        const infinite = settingsStore.infiniteScroll;
+        if (sameView && held.last === page.value && (infinite || held.first === held.last)) {
+            const pages: number[] = [];
+            for (let p = held.first; p <= held.last; p++) pages.push(p);
+            // A long scrolled list is kept as is (no edit since): refreshing it would be heavy
+            if (pages.length > INFINITE_REBUILD_PAGES) return;
+            const plan: PageLoadPlan = { pages, mode: 'replace', context };
+            await (searching ? runSearchPlan(plan, true) : runFolderPlan(plan, true));
+            return;
+        }
+        if (!sameView) {
+            subfolders.value = [];
+            scenes.value = [];
+            totalScenes.value = 0;
+            loadedPages.value = { first: 0, last: 0 };
+        }
+        if (searching) await performSearch();
+        else await loadFolderContents();
     };
 
     // Infinite scroll opened on a later page: loads the page before the list
@@ -446,6 +493,7 @@ export const useExplorerStore = defineStore('explorer', () => {
         navigateUp,
         navigateToBreadcrumb,
         loadFolderContents,
+        refresh,
         setPage,
         toggleSceneSelection,
         selectAllOnPage,

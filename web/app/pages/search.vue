@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { SEARCH_STATUS_KEYS } from '~/stores/search';
 import type { SavedSearch, SavedSearchFilters } from '~/types/saved_search';
 
 const searchStore = useSearchStore();
@@ -52,77 +51,20 @@ const activeFilterCount = computed(() => {
     return count;
 });
 
-const syncFromUrl = () => {
+// The whole search (filters, source sites, sort, random seed, page) lives in the URL: Back, a
+// reload or a shared link restore it exactly. See utils/searchUrlState.ts for the mapping.
+const syncFromUrl = (): boolean => {
     isSyncingFromUrl = true;
-    const q = route.query;
-    searchStore.query = (q.q as string) || '';
-    searchStore.selectedTags = q.tags ? (q.tags as string).split(',') : [];
-    searchStore.selectedActors = q.actors ? (q.actors as string).split(',') : [];
-    searchStore.studio = (q.studio as string) || '';
-    searchStore.minDuration = q.min_duration ? Number(q.min_duration) : 0;
-    searchStore.maxDuration = q.max_duration ? Number(q.max_duration) : 0;
-    searchStore.minSize = q.min_size ? Number(q.min_size) : 0;
-    searchStore.maxSize = q.max_size ? Number(q.max_size) : 0;
-    for (const k of SEARCH_STATUS_KEYS) {
-        const v = q[k];
-        searchStore.status[k] = v === 'true' ? true : v === 'false' ? false : null;
-    }
-    searchStore.selectedSourceSites = q.source_site
-        ? (q.source_site as string).split(',').filter(Boolean)
-        : [];
-    searchStore.minDate = (q.min_date as string) || '';
-    searchStore.maxDate = (q.max_date as string) || '';
-    searchStore.resolution = (q.resolution as string) || '';
-    searchStore.sort = (q.sort as string) || '';
-    searchStore.page = q.page ? Number(q.page) : 1;
-    searchStore.liked = q.liked === 'true';
-    searchStore.minRating = q.min_rating ? Number(q.min_rating) : 0;
-    searchStore.maxRating = q.max_rating ? Number(q.max_rating) : 0;
-    searchStore.minJizzCount = q.min_jizz_count ? Number(q.min_jizz_count) : 0;
-    searchStore.maxJizzCount = q.max_jizz_count ? Number(q.max_jizz_count) : 0;
-    searchStore.selectedMarkerLabels = q.marker_labels
-        ? (q.marker_labels as string).split(',')
-        : [];
-    searchStore.seed = q.seed ? Number(q.seed) : 0;
-    const matchType = q.match_type as string;
-    searchStore.matchType =
-        matchType === 'strict' || matchType === 'frequency' ? matchType : 'broad';
+    const complete = searchStore.applyUrlState(searchStateFromQuery(route.query));
     nextTick(() => {
         isSyncingFromUrl = false;
     });
+    return complete;
 };
 
 const syncToUrl = () => {
-    const query: Record<string, string> = {};
-    if (searchStore.query) query.q = searchStore.query;
-    if (searchStore.selectedTags.length > 0) query.tags = searchStore.selectedTags.join(',');
-    if (searchStore.selectedActors.length > 0) query.actors = searchStore.selectedActors.join(',');
-    if (searchStore.studio) query.studio = searchStore.studio;
-    if (searchStore.minDuration > 0) query.min_duration = String(searchStore.minDuration);
-    if (searchStore.maxDuration > 0) query.max_duration = String(searchStore.maxDuration);
-    if (searchStore.minSize > 0) query.min_size = String(searchStore.minSize);
-    if (searchStore.maxSize > 0) query.max_size = String(searchStore.maxSize);
-    for (const k of SEARCH_STATUS_KEYS) {
-        const v = searchStore.status[k];
-        if (v !== null) query[k] = String(v);
-    }
-    if (searchStore.selectedSourceSites.length > 0)
-        query.source_site = searchStore.selectedSourceSites.join(',');
-    if (searchStore.minDate) query.min_date = searchStore.minDate;
-    if (searchStore.maxDate) query.max_date = searchStore.maxDate;
-    if (searchStore.resolution) query.resolution = searchStore.resolution;
-    if (searchStore.sort) query.sort = searchStore.sort;
-    if (searchStore.sort === 'random' && searchStore.seed) query.seed = String(searchStore.seed);
-    if (searchStore.page > 1) query.page = String(searchStore.page);
-    if (searchStore.liked) query.liked = 'true';
-    if (searchStore.minRating > 0) query.min_rating = String(searchStore.minRating);
-    if (searchStore.maxRating > 0) query.max_rating = String(searchStore.maxRating);
-    if (searchStore.minJizzCount > 0) query.min_jizz_count = String(searchStore.minJizzCount);
-    if (searchStore.maxJizzCount > 0) query.max_jizz_count = String(searchStore.maxJizzCount);
-    if (searchStore.selectedMarkerLabels.length > 0)
-        query.marker_labels = searchStore.selectedMarkerLabels.join(',');
-    if (searchStore.matchType !== 'broad') query.match_type = searchStore.matchType;
-
+    const query = searchStateToQuery(searchStore.getUrlState());
+    if (sameQuery(route.query, query)) return;
     isUpdatingUrl = true;
     router.replace({ query }).finally(() => {
         isUpdatingUrl = false;
@@ -198,7 +140,7 @@ watch(
         if (isUpdatingUrl) return;
         // A saved search opened while already on this page (e.g. from the command palette)
         if (route.query.saved && (await loadSavedSearchFromUrl())) return;
-        syncFromUrl();
+        if (!syncFromUrl()) syncToUrl();
         searchStore.search();
     },
     { deep: true },
@@ -230,7 +172,7 @@ onMounted(async () => {
     searchStore.loadSourceSites();
     const loaded = await loadSavedSearchFromUrl();
     if (!loaded) {
-        syncFromUrl();
+        if (!syncFromUrl()) syncToUrl();
         searchStore.search();
     }
 });

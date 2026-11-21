@@ -74,12 +74,13 @@ const handleBulkComplete = () => {
     loadScenes(scenesPage.value);
 };
 
-// Scene search/sort state
-const scenesQuery = ref('');
+// Scene search/sort state, kept in the URL (`q`, `sort`, `seed`, `page`) so that Back from a
+// scene, a reload or a shared link show the same scenes in the same order
 const defaultSort = settingsStore.sortPreferences?.studio_scenes ?? '';
-const scenesSort = ref(
-    typeof route.query.sort === 'string' && route.query.sort ? route.query.sort : defaultSort,
-);
+const scenesSort = useUrlSort(defaultSort);
+const { seed: scenesSeed, reshuffle: drawNewSeed } = useUrlSeed(scenesSort);
+const urlScenesQuery = useUrlString('q');
+const scenesQuery = ref(urlScenesQuery.value);
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const sortOptions = [
@@ -100,31 +101,10 @@ const sortOptions = [
     { value: 'last_jizz_asc', label: 'Oldest O' },
 ];
 
-// Random sort seed (synced to URL for persistence across refresh)
-const generateSeed = () => Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
-const scenesSeed = ref(route.query.seed ? Number(route.query.seed) : 0);
-
-// Single URL sync for sort + seed to avoid race conditions
-const syncSortToUrl = () => {
-    const query = { ...route.query };
-    if (scenesSort.value === defaultSort || !scenesSort.value) {
-        delete query.sort;
-    } else {
-        query.sort = scenesSort.value;
-    }
-    if (scenesSort.value === 'random' && scenesSeed.value) {
-        query.seed = String(scenesSeed.value);
-    } else {
-        delete query.seed;
-    }
-    router.replace({ query });
-};
-
 const reshuffle = () => {
-    scenesSeed.value = generateSeed();
-    syncSortToUrl();
-    scenesPage.value = 1;
-    loadScenes(1);
+    drawNewSeed();
+    if (scenesPage.value === 1) loadScenes(1);
+    else scenesPage.value = 1;
 };
 
 // Rating state
@@ -290,7 +270,6 @@ const runScenesPlan = async (plan: PageLoadPlan) => {
             ...responses.map((r) => r.ratings ?? {}),
         );
         loadedPages.value = commitPageLoad(loadedPages.value, plan);
-        if (!partial) restoreScroll();
     } catch {
         // Ignore scene loading errors
     } finally {
@@ -316,7 +295,7 @@ const loadScenes = (page: number) =>
         planPageLoad(loadedPages.value, page, settingsStore.infiniteScroll, scenesContext()),
     );
 
-const { restore: restoreScroll, keepPositionWhile } = useInfiniteScrollPosition();
+const { keepPositionWhile } = useInfiniteScrollPosition();
 const hasMoreScenes = computed(
     () => loadedPages.value.last * scenesLimit.value < scenesTotal.value,
 );
@@ -339,42 +318,27 @@ const onSearchInput = () => {
     if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
     searchDebounceTimer = setTimeout(() => {
         clearSelection();
-        scenesPage.value = 1;
-        loadScenes(1);
+        urlScenesQuery.value = scenesQuery.value;
+        if (scenesPage.value === 1) loadScenes(1);
+        else scenesPage.value = 1;
     }, 300);
 };
 
-watch(scenesSort, (newSort) => {
-    if (newSort === 'random' && scenesSeed.value === 0) {
-        scenesSeed.value = generateSeed();
-    } else if (newSort !== 'random') {
-        scenesSeed.value = 0;
+// Browser back/forward, links to this page
+watch(urlScenesQuery, (value) => {
+    if (value !== scenesQuery.value) {
+        scenesQuery.value = value;
+        onSearchInput();
     }
-    clearSelection();
-    syncSortToUrl();
-    scenesPage.value = 1;
-    loadScenes(1);
 });
 
-// Handle browser back/forward navigation
-watch(
-    () => route.query.sort,
-    () => {
-        const urlSort =
-            typeof route.query.sort === 'string' && route.query.sort
-                ? route.query.sort
-                : defaultSort;
-        if (scenesSort.value !== urlSort) {
-            scenesSort.value = urlSort;
-        }
-    },
-);
+watch(scenesSort, () => {
+    clearSelection();
+    if (scenesPage.value === 1) loadScenes(1);
+    else scenesPage.value = 1;
+});
 
 onMounted(() => {
-    if (scenesSort.value === 'random' && scenesSeed.value === 0) {
-        scenesSeed.value = generateSeed();
-        syncSortToUrl();
-    }
     loadStudio();
 });
 
@@ -392,9 +356,9 @@ watch(
     },
 );
 
-const goBack = () => {
-    router.push('/studios');
-};
+// Back to the list with its filters, page and scroll position when coming from it
+const { backTo } = useNavOrigin();
+const goBack = () => backTo('/studios');
 
 const handleStudioUpdated = () => {
     showEditModal.value = false;

@@ -24,7 +24,6 @@ const isViewMode = (v: unknown): v is ViewMode => v === 'grouped' || v === 'all'
 
 // Initial view: the URL (`view`) wins, else the account default (Settings > App)
 const route = useRoute();
-const router = useRouter();
 const urlView = route.query.view;
 const viewMode = ref<ViewMode>(isViewMode(urlView) ? urlView : settingsStore.defaultMarkerView);
 let viewChosen = isViewMode(urlView);
@@ -52,7 +51,9 @@ const allTotal = ref(0);
 
 const currentPage = useUrlPagination();
 const { limit, showSelector, maxLimit, updatePageSize } = usePageSize();
-const searchQuery = ref('');
+// Label search (client-side), kept in the URL (`q`) once typed
+const urlSearch = useUrlString('q');
+const searchQuery = ref(urlSearch.value);
 const sortBy = useUrlSort(settingsStore.sortPreferences?.markers || 'label_asc');
 const isLoading = ref(false);
 const error = ref<string | null>(null);
@@ -198,11 +199,10 @@ watch([sortBy, () => JSON.stringify(filterParams.value)], () => {
     loadData(1);
 });
 
+const patchQuery = useUrlQueryPatch();
 watch(viewMode, (view) => {
-    // Keep the view in the URL so that a reload stays on it (deferred like the other URL syncs)
-    setTimeout(() => {
-        router.replace({ query: { ...router.currentRoute.value.query, view } });
-    }, 0);
+    // Keep the view in the URL so that Back or a reload stays on it
+    patchQuery({ view });
     // Reset sort to a valid default for the new mode
     const validSorts = sortOptions.value.map((o) => o.value);
     if (!validSorts.includes(sortBy.value)) {
@@ -212,14 +212,19 @@ watch(viewMode, (view) => {
     loadData(1);
 });
 
-// Debounce search to avoid flickering
+// Client-side filtering: only the URL write is debounced
 watch(searchQuery, () => {
     if (searchTimeout) {
         clearTimeout(searchTimeout);
     }
     searchTimeout = setTimeout(() => {
-        // Client-side filtering, no need to reload
-    }, 100);
+        urlSearch.value = searchQuery.value;
+    }, 300);
+});
+
+// Browser back/forward, links to this page
+watch(urlSearch, (value) => {
+    if (value !== searchQuery.value) searchQuery.value = value;
 });
 
 definePageMeta({
