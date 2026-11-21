@@ -11,10 +11,10 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// Integration test of migration 000077 (job scheduling tables): defaults that keep the previous
+// Integration test of migration 000078 (job scheduling tables): defaults that keep the previous
 // behaviour, constraints, and down/up. It migrates the database down and up again, so it needs
 // a disposable database of its own: GOONHUB_TEST_MIGRATION_POSTGRES_DSN.
-func TestMigration077JobScheduling(t *testing.T) {
+func TestMigration078JobScheduling(t *testing.T) {
 	dsn := os.Getenv("GOONHUB_TEST_MIGRATION_POSTGRES_DSN")
 	if dsn == "" {
 		t.Skip("GOONHUB_TEST_MIGRATION_POSTGRES_DSN not set")
@@ -42,15 +42,15 @@ func TestMigration077JobScheduling(t *testing.T) {
 		return exists
 	}
 
-	if err := m.Migrate(74); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		t.Fatalf("migrate to 74: %v", err)
+	if err := m.Migrate(77); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		t.Fatalf("migrate to 77: %v", err)
 	}
 	if tableExists("job_schedule_config") || tableExists("job_phase_schedules") {
-		t.Fatal("tables exist before migration 077")
+		t.Fatal("tables exist before migration 078")
 	}
 
-	if err := m.Migrate(77); err != nil {
-		t.Fatalf("migrate to 77: %v", err)
+	if err := m.Migrate(78); err != nil {
+		t.Fatalf("migrate to 78: %v", err)
 	}
 	var tz, qs, qe string
 	var maxJobs, windowHours int
@@ -84,8 +84,8 @@ func TestMigration077JobScheduling(t *testing.T) {
 		}
 	}
 
-	if err := m.Migrate(74); err != nil {
-		t.Fatalf("migrate down to 74: %v", err)
+	if err := m.Migrate(77); err != nil {
+		t.Fatalf("migrate down to 77: %v", err)
 	}
 	if tableExists("job_schedule_config") || tableExists("job_phase_schedules") {
 		t.Fatal("tables still exist after migrating down")

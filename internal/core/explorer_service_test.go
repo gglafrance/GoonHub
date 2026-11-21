@@ -40,6 +40,7 @@ func newTestExplorerService(t *testing.T) (
 		zap.NewNop(),
 		"",  // metadataPath
 		nil, // fingerprintIndex
+		nil, // mediaGuard
 	)
 	return svc, explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, jobHistoryRepo
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, shareHandler *handler.ShareHandler, duplicateHandler *handler.DuplicateHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, shareHandler *handler.ShareHandler, duplicateHandler *handler.DuplicateHandler, libraryHealthHandler *handler.LibraryHealthHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -22,6 +22,8 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 			{
 				shares.GET("/:token", shareHandler.ResolveShareLink)
 				shares.GET("/:token/stream", shareHandler.StreamShareLink)
+				shares.GET("/:token/transcode", shareHandler.TranscodeShareLink)
+				shares.HEAD("/:token/transcode", shareHandler.TranscodeShareLink)
 			}
 
 			auth := v1.Group("/auth")
@@ -43,6 +45,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					scenes.POST("", middleware.RequirePermission(rbacService, "scenes:upload"), sceneHandler.UploadScene)
 					scenes.GET("", middleware.RequirePermission(rbacService, "scenes:view"), sceneHandler.ListScenes)
 					scenes.GET("/filters", middleware.RequirePermission(rbacService, "scenes:view"), sceneHandler.GetFilterOptions)
+					scenes.GET("/source-sites", middleware.RequirePermission(rbacService, "scenes:view"), sceneHandler.ListSourceSites)
 					scenes.GET("/:id", middleware.RequirePermission(rbacService, "scenes:view"), sceneHandler.GetScene)
 					scenes.GET("/:id/reprocess", middleware.RequirePermission(rbacService, "scenes:reprocess"), sceneHandler.ReprocessScene)
 					scenes.PUT("/:id/thumbnail", middleware.RequirePermission(rbacService, "scenes:upload"), sceneHandler.ExtractThumbnail)
@@ -291,6 +294,14 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					admin.POST("/duplicates/:id/resolve", duplicateHandler.ResolveGroup)
 					admin.POST("/duplicates/:id/dismiss", duplicateHandler.DismissGroup)
 					admin.PUT("/duplicates/:id/best", duplicateHandler.SetBest)
+
+					// Library health (media files are only read: stat, never written)
+					admin.GET("/library-health", libraryHealthHandler.GetSummary)
+					admin.GET("/library-health/scenes", libraryHealthHandler.ListScenes)
+					admin.GET("/library-health/preview", libraryHealthHandler.PreviewAction)
+					admin.POST("/library-health/tasks", libraryHealthHandler.StartTask)
+					admin.POST("/library-health/tasks/cancel", libraryHealthHandler.CancelTask)
+					admin.GET("/library-health/tasks/status", libraryHealthHandler.GetTaskStatus)
 				}
 			}
 		}
@@ -298,4 +309,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 
 	// Public scene streaming endpoint (outside /api for better access)
 	r.GET("/api/v1/scenes/:id/stream", sceneHandler.StreamScene)
+	// Same access as the stream, for the files browsers can't play (HEAD: slot available?)
+	r.GET("/api/v1/scenes/:id/transcode", sceneHandler.TranscodeScene)
+	r.HEAD("/api/v1/scenes/:id/transcode", sceneHandler.TranscodeScene)
 }

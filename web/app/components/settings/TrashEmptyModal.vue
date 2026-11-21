@@ -23,7 +23,8 @@ const emit = defineEmits<{
                 <p class="text-dim mb-4 text-xs">
                     Are you sure you want to permanently delete
                     <span class="text-white">{{ count }} scene{{ count === 1 ? '' : 's' }}</span
-                    >? This action cannot be undone.
+                    >? This action cannot be undone. Video files on read-only storage paths are
+                    kept.
                 </p>
                 <div class="flex justify-end gap-2">
                     <button

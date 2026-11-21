@@ -946,8 +946,11 @@ Configured storage locations for video files.
 | `name` | VARCHAR(100) | NO | - | Display name |
 | `path` | VARCHAR(500) | NO | - | Filesystem path |
 | `is_default` | BOOLEAN | NO | false | Default storage flag |
+| `read_only` | BOOLEAN | NO | false | GoonHub never deletes, moves, renames or writes media files under this path (migration 075) |
 | `created_at` | TIMESTAMPTZ | NO | NOW() | Record creation timestamp |
 | `updated_at` | TIMESTAMPTZ | NO | NOW() | Last update timestamp |
+
+**Read-only paths:** a scene's file is protected when its `storage_path_id` points to a read-only path or when its `stored_path` lies under one (prefix check). Permanently deleting such a scene (trash, empty trash, explorer bulk delete, resolved duplicates) deletes the row and the generated files (thumbnails, sprites, VTT) but keeps the video file, so the next scan adds it again. Uploads into a read-only path are refused. The decision is made in one place, `core.MediaFileGuard`.
 
 **Indexes:**
 - `idx_storage_paths_single_default` UNIQUE on `is_default` WHERE is_default = TRUE
@@ -990,6 +993,66 @@ File scan operation records.
 
 ---
 
+### `library_health_checks`
+
+Runs of the background tasks of the admin library health page (migration 077): the
+missing-file check (`missing_files`, stats every active scene file) and the size fix
+(`fix_sizes`, re-reads from disk the size of scenes stored with size 0). Both only read the
+media files.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `kind` | VARCHAR(30) | NO | - | `missing_files` or `fix_sizes` |
+| `status` | VARCHAR(20) | NO | 'running' | Task status |
+| `started_at` | TIMESTAMPTZ | NO | NOW() | Start timestamp |
+| `completed_at` | TIMESTAMPTZ | YES | NULL | End timestamp |
+| `total` | INT | NO | 0 | Scenes to look at |
+| `checked` | INT | NO | 0 | Scenes looked at so far |
+| `missing` | INT | NO | 0 | Files that do not exist |
+| `unreadable` | INT | NO | 0 | Files that could not be stat'ed (permission, I/O error, not a regular file) |
+| `fixed` | INT | NO | 0 | `fix_sizes`: scenes whose size was updated |
+| `unchanged` | INT | NO | 0 | `fix_sizes`: files found but still 0 bytes, or scene changed meanwhile |
+| `error_message` | TEXT | YES | NULL | Failure details |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Record creation timestamp |
+
+**Valid `status` values:** `running`, `completed`, `cancelled`, `failed` (a task left
+`running` by a restart is marked `failed` on startup)
+
+**Indexes:**
+- `idx_library_health_checks_kind_started` on `(kind, started_at DESC)`
+
+**Constraints:**
+- CHECK `kind IN ('missing_files', 'fix_sizes')`
+- CHECK `status IN ('running', 'completed', 'cancelled', 'failed')`
+
+---
+
+### `library_health_check_items`
+
+Files a missing-file check found missing or unreadable. Only the items of the latest
+completed check are kept: completing a check drops the items of the earlier ones, and a
+cancelled or failed check drops its own partial items. The health page only lists the items
+whose scene is still active and still at the checked path.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `check_id` | BIGINT | NO | - | FK to library_health_checks (CASCADE) |
+| `scene_id` | BIGINT | NO | - | FK to scenes (CASCADE) |
+| `stored_path` | TEXT | NO | - | Path that was checked |
+| `reason` | VARCHAR(20) | NO | - | `missing` or `unreadable` |
+| `detail` | TEXT | NO | '' | Error text for `unreadable` |
+
+**Indexes:**
+- `idx_library_health_check_items_check_reason` on `(check_id, reason, scene_id)`
+- `idx_library_health_check_items_scene_id` on `scene_id`
+
+**Constraints:**
+- CHECK `reason IN ('missing', 'unreadable')`
+
+---
+
 ## Application Settings
 
 ### `app_settings`
@@ -1000,6 +1063,8 @@ Global application settings (singleton table).
 |--------|------|----------|---------|-------------|
 | `id` | INTEGER | NO | 1 | Primary key (always 1) |
 | `trash_retention_days` | INTEGER | NO | 7 | Days before trash auto-delete |
+| `serve_og_metadata` | BOOLEAN | NO | true | Serve OpenGraph tags to link preview crawlers |
+| `transcoding_enabled` | BOOLEAN | NO | true | Convert scenes browsers can't play (AVI, MKV, HEVC, ...) on the fly with ffmpeg (migration 076) |
 | `updated_at` | TIMESTAMPTZ | YES | NOW() | Last update timestamp |
 
 **Constraints:**

@@ -10,7 +10,7 @@ import (
 )
 
 // Integration tests of the job queue claim order (job priority, new scenes first, age), of the
-// stuck pending recovery exclusion and of the job schedule settings (migration 000077), on the
+// stuck pending recovery exclusion and of the job schedule settings (migration 000078), on the
 // disposable import test database (GOONHUB_TEST_IMPORT_POSTGRES_DSN).
 
 // claimTestPhase returns a phase name of its own so that other jobs in the database never mix in.
