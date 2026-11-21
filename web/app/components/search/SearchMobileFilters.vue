@@ -19,6 +19,7 @@ const activeFilterCount = computed(() => {
     if (searchStore.minDuration > 0 || searchStore.maxDuration > 0) count++;
     if (searchStore.minSize > 0 || searchStore.maxSize > 0) count++;
     count += searchStore.activeStatusCount;
+    count += searchStore.selectedSourceSites.length;
     if (searchStore.minDate || searchStore.maxDate) count++;
     if (searchStore.resolution) count++;
     if (searchStore.liked) count++;
@@ -165,6 +166,9 @@ onUnmounted(() => {
 
                         <!-- Studio -->
                         <SearchFiltersFilterStudio />
+
+                        <!-- Source site -->
+                        <SearchFiltersFilterSource />
 
                         <!-- Duration -->
                         <SearchFiltersFilterDuration />

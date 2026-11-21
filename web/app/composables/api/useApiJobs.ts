@@ -1,5 +1,7 @@
+import type { JobScheduleConfig, JobScheduleResponse } from '~/types/jobs';
+
 /**
- * Job-related API operations: history, pool config, processing config, triggers.
+ * Job-related API operations: history, pool config, processing config, triggers, scheduling.
  */
 export const useApiJobs = () => {
     const { fetchOptions, getAuthHeaders, handleResponse } = useApiCore();
@@ -33,6 +35,23 @@ export const useApiJobs = () => {
         fingerprint_workers: number;
     }) => {
         const response = await fetch('/api/v1/admin/pool-config', {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(config),
+        });
+        return handleResponse(response);
+    };
+
+    const fetchJobSchedule = async (): Promise<JobScheduleResponse> => {
+        const response = await fetch('/api/v1/admin/job-schedule', {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const updateJobSchedule = async (config: JobScheduleConfig): Promise<JobScheduleResponse> => {
+        const response = await fetch('/api/v1/admin/job-schedule', {
             method: 'PUT',
             headers: getAuthHeaders(),
             body: JSON.stringify(config),
@@ -201,6 +220,8 @@ export const useApiJobs = () => {
         fetchJobs,
         fetchPoolConfig,
         updatePoolConfig,
+        fetchJobSchedule,
+        updateJobSchedule,
         fetchProcessingConfig,
         updateProcessingConfig,
         fetchTriggerConfig,

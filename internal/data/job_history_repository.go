@@ -25,7 +25,7 @@ type JobHistoryRepository interface {
 	// DB-backed job queue methods
 	CreatePending(record *JobHistory) error
 	CreateBatch(records []*JobHistory) error
-	ClaimPendingJobs(phase string, limit int) ([]JobHistory, error)
+	ClaimPendingJobs(phase string, limit int, opts ClaimOptions) ([]JobHistory, error)
 	CountPendingByPhase() (map[string]int, error)
 	ExistsPendingOrRunning(sceneID uint, phase string) (bool, error)
 	MarkOrphanedRunningAsFailed(olderThan time.Duration) (int64, error)
@@ -33,7 +33,7 @@ type JobHistoryRepository interface {
 	// Graceful shutdown methods
 	ResetJobsToPending(jobIDs []string) (int64, error)
 	MarkRunningAsInterrupted() (int64, error)
-	MarkStuckPendingJobsAsFailed(olderThan time.Duration) (int64, error)
+	MarkStuckPendingJobsAsFailed(olderThan time.Duration, excludePhases []string) (int64, error)
 
 	// Scene-specific methods
 	CancelPendingJobsForScene(sceneID uint) (int64, error)
@@ -203,22 +203,47 @@ func (r *JobHistoryRepositoryImpl) CreateBatch(records []*JobHistory) error {
 	return r.DB.CreateInBatches(records, 100).Error
 }
 
+// ClaimOptions tunes the order in which ClaimPendingJobs picks pending jobs.
+type ClaimOptions struct {
+	// NewSceneSince, when not zero, claims the jobs of scenes created at or after this time
+	// before the other jobs of the same priority ("new scenes first").
+	NewSceneSince time.Time
+}
+
 // ClaimPendingJobs atomically claims up to 'limit' pending jobs for a phase.
 // Uses FOR UPDATE SKIP LOCKED, sets status='running' and StartedAt.
-func (r *JobHistoryRepositoryImpl) ClaimPendingJobs(phase string, limit int) ([]JobHistory, error) {
+// Order: job priority (higher first), then, with opts.NewSceneSince, jobs of recently created
+// scenes, then the oldest job first.
+func (r *JobHistoryRepositoryImpl) ClaimPendingJobs(phase string, limit int, opts ClaimOptions) ([]JobHistory, error) {
 	var jobs []JobHistory
 
 	silentDB := r.DB.Session(&gorm.Session{Logger: gormlogger.Default.LogMode(gormlogger.Silent)})
 	err := silentDB.Transaction(func(tx *gorm.DB) error {
 		// Select pending jobs with lock, skipping already locked rows
-		if err := tx.Raw(`
-			SELECT * FROM job_history
-			WHERE phase = ? AND status = 'pending'
-			ORDER BY priority DESC, created_at ASC
-			LIMIT ?
-			FOR UPDATE SKIP LOCKED
-		`, phase, limit).Scan(&jobs).Error; err != nil {
-			return err
+		var selectErr error
+		if opts.NewSceneSince.IsZero() {
+			selectErr = tx.Raw(`
+				SELECT * FROM job_history
+				WHERE phase = ? AND status = 'pending'
+				ORDER BY priority DESC, created_at ASC
+				LIMIT ?
+				FOR UPDATE SKIP LOCKED
+			`, phase, limit).Scan(&jobs).Error
+		} else {
+			// A job whose scene is gone sorts with the old ones; the feeder fails it.
+			selectErr = tx.Raw(`
+				SELECT jh.* FROM job_history jh
+				LEFT JOIN scenes s ON s.id = jh.scene_id
+				WHERE jh.phase = ? AND jh.status = 'pending'
+				ORDER BY jh.priority DESC,
+					(s.created_at IS NOT NULL AND s.created_at >= ?) DESC,
+					jh.created_at ASC
+				LIMIT ?
+				FOR UPDATE OF jh SKIP LOCKED
+			`, phase, opts.NewSceneSince, limit).Scan(&jobs).Error
+		}
+		if selectErr != nil {
+			return selectErr
 		}
 
 		if len(jobs) == 0 {
@@ -343,12 +368,17 @@ func (r *JobHistoryRepositoryImpl) MarkRunningAsInterrupted() (int64, error) {
 
 // MarkStuckPendingJobsAsFailed marks pending jobs that have been stuck for too long as failed.
 // This handles edge cases where jobs got stuck in pending state.
-func (r *JobHistoryRepositoryImpl) MarkStuckPendingJobsAsFailed(olderThan time.Duration) (int64, error) {
+// Phases in excludePhases are left alone (their jobs may wait for a time window on purpose).
+func (r *JobHistoryRepositoryImpl) MarkStuckPendingJobsAsFailed(olderThan time.Duration, excludePhases []string) (int64, error) {
 	cutoff := time.Now().Add(-olderThan)
 	errMsg := "Stuck pending job recovered after server restart"
 
-	result := r.DB.Model(&JobHistory{}).
-		Where("status = ? AND created_at < ?", JobStatusPending, cutoff).
+	query := r.DB.Model(&JobHistory{}).
+		Where("status = ? AND created_at < ?", JobStatusPending, cutoff)
+	if len(excludePhases) > 0 {
+		query = query.Where("phase NOT IN ?", excludePhases)
+	}
+	result := query.
 		Updates(map[string]any{
 			"status":        JobStatusFailed,
 			"error_message": errMsg,

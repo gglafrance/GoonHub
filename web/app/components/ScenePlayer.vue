@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
-import type { Scene } from '~/types/scene';
+import type { Scene, ScenePlayback } from '~/types/scene';
 import type { Marker } from '~/types/marker';
 
 type Player = ReturnType<typeof videojs>;
@@ -309,6 +309,12 @@ const props = defineProps<{
     playlistMode?: boolean;
     hasNext?: boolean;
     hasPrevious?: boolean;
+    // Whether the browser can play the original (defaults to scene.playback)
+    playback?: ScenePlayback | null;
+    // On-the-fly conversion endpoint, used when the browser can't play the original
+    transcodeUrl?: string;
+    // Scene duration in seconds when no scene is passed (shown for converted streams)
+    durationHint?: number;
 }>();
 
 const emit = defineEmits<{
@@ -382,6 +388,18 @@ const playMarker = (marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) => {
     p.currentTime(marker.timestamp);
     p.play()?.catch(() => {});
 };
+
+const transcode = useTranscodePlayback(player, {
+    playback: () => props.playback ?? props.scene?.playback,
+    transcodeUrl: () => props.transcodeUrl,
+    duration: () => props.durationHint ?? props.scene?.duration ?? 0,
+    loop: () => props.loop ?? false,
+});
+const { notice: playbackNotice, active: transcodeActive, mode: transcodeMode } = transcode;
+// The original file, as an attachment (offered when the browser can't play it)
+const downloadUrl = computed(
+    () => `${props.sceneUrl}${props.sceneUrl.includes('?') ? '&' : '?'}download=1`,
+);
 
 const sceneRef = computed(() => props.scene);
 const { hasRecordedView, setupTracking, cleanup } = useWatchTracking({
@@ -529,7 +547,14 @@ onMounted(async () => {
     player.value.on('play', () => emit('play'));
     player.value.on('pause', () => emit('pause'));
     player.value.on('ended', () => emit('ended'));
-    player.value.on('error', (e: unknown) => emit('error', e));
+    player.value.on('error', (e: unknown) => {
+        // Formats the browser can't play are converted on the fly or explained in an overlay
+        if (transcode.handleError()) return;
+        emit('error', e);
+    });
+
+    transcode.attach();
+    transcode.init(props.startTime ?? 0, !!props.autoplay);
 
     // Set up watch tracking (handles timeupdate, ended, and beforeunload)
     setupTracking();
@@ -563,8 +588,8 @@ onMounted(async () => {
             progressHolder.appendChild(abLoopMarkerA);
         }
 
-        // Seek to start time if provided
-        if (props.startTime && props.startTime > 0) {
+        // Seek to start time if provided (a converted stream already starts there)
+        if (props.startTime && props.startTime > 0 && !transcode.active.value) {
             player.value!.currentTime(props.startTime);
         }
 
@@ -617,10 +642,11 @@ watch(
         abLoop.clear();
         markerLoopRange = null;
         p.pause();
-        p.currentTime(0);
-        p.src({ type: 'video/mp4', src: newUrl });
+        // (a converted stream would reload at 0 first)
+        if (!transcode.active.value) p.currentTime(0);
+        const playable = transcode.load(newUrl, 0, !!props.autoplay);
 
-        if (props.autoplay) {
+        if (props.autoplay && playable) {
             p.ready(() => tryAutoplay(p));
         }
     },
@@ -721,6 +747,7 @@ defineExpose({
 });
 
 onBeforeUnmount(() => {
+    transcode.detach();
     cleanup();
     cleanupThumbnailPreview();
     cleanupMarkerIndicators();
@@ -744,17 +771,61 @@ onBeforeUnmount(() => {
             :poster="posterUrl"
             crossorigin="anonymous"
         >
-            <source :src="sceneUrl" type="video/mp4" />
+            <source v-if="transcode.startsDirect" :src="sceneUrl" type="video/mp4" />
         </video>
+        <div
+            v-if="transcodeActive && !playbackNotice"
+            class="transcode-badge"
+            :title="
+                transcodeMode === 'remux'
+                    ? 'The browser cannot read this file container: it is repackaged on the fly'
+                    : 'The browser cannot play this format: it is converted on the fly'
+            "
+        >
+            <Icon name="heroicons:arrow-path-rounded-square" size="12" />
+            {{ transcodeMode === 'remux' ? 'Remuxed' : 'Converted' }} on the fly
+        </div>
+        <PlayerPlaybackNotice
+            v-if="playbackNotice"
+            :notice="playbackNotice"
+            :download-url="downloadUrl"
+            @retry="transcode.retry()"
+        />
     </div>
 </template>
 
 <style scoped>
 .video-wrapper {
+    position: relative;
     width: 100%;
     margin: 0 auto;
     background: #050505;
     overflow: hidden;
+}
+
+.transcode-badge {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    background: rgba(8, 8, 8, 0.6);
+    backdrop-filter: blur(12px);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 10px;
+    font-weight: 500;
+    pointer-events: auto;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.video-wrapper:hover .transcode-badge {
+    opacity: 1;
 }
 
 .video-wrapper--portrait {

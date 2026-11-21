@@ -109,6 +109,7 @@ async function saveSourceUrl(sourceUrl: string) {
         );
         if (scene.value) {
             scene.value.source_url = updated.source_url;
+            scene.value.source_site = updated.source_site;
         }
         showSavedIndicator();
     } catch (err: unknown) {
@@ -208,6 +209,7 @@ function handleSceneDeleted() {
                     <!-- Source -->
                     <WatchDetailsSourceEditor
                         :source-url="scene?.source_url || ''"
+                        :source-site="scene?.source_site || ''"
                         @save="saveSourceUrl"
                     />
                 </div>

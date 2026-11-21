@@ -164,6 +164,7 @@ export const useApiAdmin = () => {
     const updateAppSettings = async (settings: {
         serve_og_metadata: boolean;
         trash_retention_days: number;
+        transcoding_enabled: boolean;
     }) => {
         const response = await fetch('/api/v1/admin/app-settings', {
             method: 'PUT',

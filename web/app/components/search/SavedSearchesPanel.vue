@@ -39,6 +39,7 @@ const getFilterSummary = (filters: SavedSearchFilters): string => {
     if (filters.selected_tags?.length) parts.push(`${filters.selected_tags.length} tags`);
     if (filters.selected_actors?.length) parts.push(`${filters.selected_actors.length} actors`);
     if (filters.studio) parts.push(filters.studio);
+    if (filters.source_sites?.length) parts.push(filters.source_sites.join(', '));
     if (filters.resolution) parts.push(filters.resolution);
     if (filters.liked) parts.push('Liked');
 

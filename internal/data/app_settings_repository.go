@@ -11,6 +11,7 @@ type AppSettingsRecord struct {
 	ID                 int       `gorm:"primaryKey" json:"id"`
 	TrashRetentionDays int       `gorm:"column:trash_retention_days" json:"trash_retention_days"`
 	ServeOGMetadata    bool      `gorm:"column:serve_og_metadata" json:"serve_og_metadata"`
+	TranscodingEnabled bool      `gorm:"column:transcoding_enabled" json:"transcoding_enabled"` // on-the-fly conversion of the scenes browsers can't play
 	UpdatedAt          time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
 
@@ -41,6 +42,7 @@ func (r *AppSettingsRepositoryImpl) Get() (*AppSettingsRecord, error) {
 				ID:                 1,
 				TrashRetentionDays: 7,
 				ServeOGMetadata:    true,
+				TranscodingEnabled: true,
 				UpdatedAt:          time.Now(),
 			}, nil
 		}
@@ -54,6 +56,6 @@ func (r *AppSettingsRepositoryImpl) Upsert(record *AppSettingsRecord) error {
 	record.UpdatedAt = time.Now()
 	return r.DB.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"trash_retention_days", "serve_og_metadata", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"trash_retention_days", "serve_og_metadata", "transcoding_enabled", "updated_at"}),
 	}).Create(record).Error
 }

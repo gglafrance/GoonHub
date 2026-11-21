@@ -122,7 +122,7 @@ const handleClose = () => {
                             <span class="text-xs font-medium text-white">Permanently delete</span>
                             <p class="text-dim mt-0.5 text-xs">
                                 Skip trash and delete immediately. Video files will be removed from
-                                disk. This cannot be undone.
+                                disk, except on read-only storage paths. This cannot be undone.
                             </p>
                         </div>
                     </label>
