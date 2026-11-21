@@ -46,6 +46,8 @@ const items = computed<TodoItem[]>(() => {
             count: p.no_tags,
             icon: 'heroicons:tag',
             share: share(p.no_tags),
+            link: '/triage?has_tags=false',
+            hint: 'Tag them in triage mode',
         },
         {
             key: 'actors',
@@ -53,6 +55,8 @@ const items = computed<TodoItem[]>(() => {
             count: p.no_actors,
             icon: 'heroicons:user',
             share: share(p.no_actors),
+            link: '/triage?has_actors=false',
+            hint: 'Add actors in triage mode',
         },
         {
             key: 'studio',
@@ -60,14 +64,16 @@ const items = computed<TodoItem[]>(() => {
             count: p.no_studio,
             icon: 'heroicons:building-office-2',
             share: share(p.no_studio),
+            link: '/triage?has_studio=false',
+            hint: 'Set studios in triage mode',
         },
         {
             key: 'rating',
             label: 'Watched, not rated',
             count: p.watched_not_rated,
             icon: 'heroicons:star',
-            link: '/history',
-            hint: 'Scenes you watched without rating them',
+            link: '/triage?watched=true&rated=false',
+            hint: 'Rate the scenes you watched, in triage mode',
         },
         {
             key: 'thumbnail',

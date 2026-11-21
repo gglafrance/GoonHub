@@ -262,6 +262,19 @@ const handleSearchSaved = (_search: SavedSearch) => {
                 </span>
             </button>
 
+            <!-- Triage the results one at a time -->
+            <NuxtLink
+                v-if="searchStore.hasActiveFilters"
+                :to="{ path: '/triage', query: searchStore.getSearchParams() }"
+                class="border-border bg-surface hover:border-lava/40 hover:bg-lava/10 flex h-10
+                    shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium
+                    text-white transition-all sm:py-2"
+                title="Triage these scenes one at a time"
+            >
+                <Icon name="heroicons:bolt" size="14" />
+                <span class="hidden sm:inline">Triage</span>
+            </NuxtLink>
+
             <!-- Save search button -->
             <button
                 v-if="searchStore.hasActiveFilters"

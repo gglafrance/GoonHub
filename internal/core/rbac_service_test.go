@@ -210,3 +210,52 @@ func TestHasPermission_ConcurrentReadsDuringRefresh(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestPermissionsForRole_SortedNames(t *testing.T) {
+	svc, _, _ := newTestRBACService(t, map[string][]string{
+		"moderator": {"scenes:upload", "scenes:trash", "scenes:view"},
+		"user":      {"scenes:view"},
+	})
+
+	got := svc.PermissionsForRole("moderator")
+	want := []string{"scenes:trash", "scenes:upload", "scenes:view"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
+	}
+}
+
+func TestPermissionsForRole_UnknownRoleIsEmpty(t *testing.T) {
+	svc, _, _ := newTestRBACService(t, map[string][]string{
+		"user": {"scenes:view"},
+	})
+
+	got := svc.PermissionsForRole("ghost")
+	if got == nil {
+		t.Fatal("expected a non-nil empty slice for an unknown role")
+	}
+	if len(got) != 0 {
+		t.Fatalf("expected no permission, got %v", got)
+	}
+}
+
+func TestPermissionsForRole_FollowsRefresh(t *testing.T) {
+	svc, roleRepo, _ := newTestRBACService(t, map[string][]string{
+		"user": {"scenes:view"},
+	})
+	roleRepo.EXPECT().GetAllRolePermissions().Return(map[string][]string{
+		"user": {"scenes:view", "scenes:upload"},
+	}, nil)
+	if err := svc.RefreshCache(); err != nil {
+		t.Fatalf("refresh failed: %v", err)
+	}
+
+	got := svc.PermissionsForRole("user")
+	if len(got) != 2 || got[0] != "scenes:upload" || got[1] != "scenes:view" {
+		t.Fatalf("expected [scenes:upload scenes:view], got %v", got)
+	}
+}
