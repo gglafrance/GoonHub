@@ -65,6 +65,7 @@ export function navOriginLabel(fullPath: string): string {
         [/^\/markers/, 'Markers'],
         [/^\/history/, 'History'],
         [/^\/duplicates/, 'Duplicates'],
+        [/^\/triage/, 'Triage'],
         [/^\/settings/, 'Settings'],
     ];
     return labels.find(([re]) => re.test(path))?.[1] ?? 'Previous page';

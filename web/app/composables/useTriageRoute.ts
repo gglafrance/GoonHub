@@ -47,6 +47,7 @@ export const triageFiltersFromQuery = (query: LocationQuery): SavedSearchFilters
         min_jizz_count: num(query.min_jizz_count),
         max_jizz_count: num(query.max_jizz_count),
         selected_marker_labels: list(query.marker_labels),
+        source_sites: list(query.source_site),
         sort: str(query.sort) || undefined,
     };
     for (const k of SEARCH_STATUS_KEYS) {
