@@ -341,6 +341,16 @@ strict mode, dropped otherwise), there is no database constraint because existin
 already overlap. Resolution by name (`GET /actors/resolve`, PornDB matching) is an exact,
 case-insensitive match on the name or an alias.
 
+**Actors split by alias (migration 083):** the up migration merges every actor B into actor A
+when B's name (trimmed, case-insensitive) equals an alias of exactly one other non-deleted
+actor A, the way the merge tool does (scene credits, ratings and likes, homepage sections,
+saved filters, aliases, photo; B is soft-deleted). The plan is computed once on the data
+before any merge: a name that is an alias of several actors is skipped; with mutual aliases
+the oldest actor (lowest id) is kept; a chain (C -> B -> A) is merged into its final target A;
+loops of three or more actors, and chains leading into them, are skipped. Studios follow the
+same rule (also scenes and child/network studios). The down migration only reverts the
+schema: the merges are not undone.
+
 **Constraints:**
 - UNIQUE on `uuid`
 
