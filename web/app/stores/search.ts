@@ -1,4 +1,4 @@
-import type { SceneListItem, SceneFilterOptions } from '~/types/scene';
+import type { SceneListItem, SceneFilterOptions, SourceSiteOption } from '~/types/scene';
 import type { SavedSearchFilters } from '~/types/saved_search';
 
 // Library status filters: null = any, true = yes, false = no
@@ -9,6 +9,7 @@ export const SEARCH_STATUS_KEYS = [
     'has_actors',
     'has_tags',
     'has_studio',
+    'has_source',
 ] as const;
 export type SearchStatusKey = (typeof SEARCH_STATUS_KEYS)[number];
 export type SearchStatus = Record<SearchStatusKey, boolean | null>;
@@ -20,6 +21,7 @@ const emptyStatus = (): SearchStatus => ({
     has_actors: null,
     has_tags: null,
     has_studio: null,
+    has_source: null,
 });
 
 export const useSearchStore = defineStore('search', () => {
@@ -37,6 +39,8 @@ export const useSearchStore = defineStore('search', () => {
     const minSize = ref(0);
     const maxSize = ref(0);
     const status = ref<SearchStatus>(emptyStatus());
+    // Source sites (OR), normalized like the server does ("pornhub.com")
+    const selectedSourceSites = ref<string[]>([]);
     const activeStatusCount = computed(
         () => SEARCH_STATUS_KEYS.filter((k) => status.value[k] !== null).length,
     );
@@ -88,6 +92,9 @@ export const useSearchStore = defineStore('search', () => {
         types: [],
     });
 
+    // Sites scenes come from, with their scene counts (for the Source filter)
+    const sourceSites = ref<SourceSiteOption[]>([]);
+
     const hasActiveFilters = computed(() => {
         return (
             query.value !== '' ||
@@ -99,6 +106,7 @@ export const useSearchStore = defineStore('search', () => {
             minSize.value > 0 ||
             maxSize.value > 0 ||
             activeStatusCount.value > 0 ||
+            selectedSourceSites.value.length > 0 ||
             minDate.value !== '' ||
             maxDate.value !== '' ||
             resolution.value !== '' ||
@@ -133,6 +141,8 @@ export const useSearchStore = defineStore('search', () => {
             if (minSize.value > 0) params.min_size = minSize.value;
             if (maxSize.value > 0) params.max_size = maxSize.value;
             Object.assign(params, statusParams());
+            if (selectedSourceSites.value.length > 0)
+                params.source_site = selectedSourceSites.value.join(',');
             if (minDate.value) params.min_date = minDate.value;
             if (maxDate.value) params.max_date = maxDate.value;
             if (resolution.value) params.resolution = resolution.value;
@@ -181,6 +191,15 @@ export const useSearchStore = defineStore('search', () => {
         }
     };
 
+    const loadSourceSites = async () => {
+        try {
+            const result = await api.fetchSourceSites();
+            sourceSites.value = result.sites || [];
+        } catch (e: unknown) {
+            console.error('Failed to load source sites:', e);
+        }
+    };
+
     const resetFilters = () => {
         query.value = '';
         selectedTags.value = [];
@@ -191,6 +210,7 @@ export const useSearchStore = defineStore('search', () => {
         minSize.value = 0;
         maxSize.value = 0;
         status.value = emptyStatus();
+        selectedSourceSites.value = [];
         minDate.value = '';
         maxDate.value = '';
         resolution.value = '';
@@ -233,6 +253,8 @@ export const useSearchStore = defineStore('search', () => {
             const v = status.value[k];
             if (v !== null) filters[k] = v;
         }
+        if (selectedSourceSites.value.length > 0)
+            filters.source_sites = [...selectedSourceSites.value];
         if (minDate.value) filters.min_date = minDate.value;
         if (maxDate.value) filters.max_date = maxDate.value;
         if (liked.value) filters.liked = true;
@@ -264,6 +286,7 @@ export const useSearchStore = defineStore('search', () => {
             const v = filters[k];
             if (typeof v === 'boolean') status.value[k] = v;
         }
+        selectedSourceSites.value = filters.source_sites || [];
         minDate.value = filters.min_date || '';
         maxDate.value = filters.max_date || '';
         liked.value = filters.liked || false;
@@ -288,6 +311,8 @@ export const useSearchStore = defineStore('search', () => {
         if (minSize.value > 0) params.min_size = minSize.value;
         if (maxSize.value > 0) params.max_size = maxSize.value;
         Object.assign(params, statusParams());
+        if (selectedSourceSites.value.length > 0)
+            params.source_site = selectedSourceSites.value.join(',');
         if (minDate.value) params.min_date = minDate.value;
         if (maxDate.value) params.max_date = maxDate.value;
         if (resolution.value) params.resolution = resolution.value;
@@ -315,6 +340,8 @@ export const useSearchStore = defineStore('search', () => {
         maxSize,
         status,
         activeStatusCount,
+        selectedSourceSites,
+        sourceSites,
         minDate,
         maxDate,
         resolution,
@@ -342,6 +369,7 @@ export const useSearchStore = defineStore('search', () => {
         search,
         reshuffle,
         loadFilterOptions,
+        loadSourceSites,
         resetFilters,
         getCurrentFilters,
         loadFilters,

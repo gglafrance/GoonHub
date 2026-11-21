@@ -59,6 +59,10 @@ export interface UserSettings {
     default_marker_view: MarkerView;
     pagination_position: PaginationPosition;
     date_format: DateFormat;
+    player_gestures: boolean;
+    gesture_seek_step: number;
+    show_replay_heatmap: boolean;
+    record_replay_heatmap: boolean;
     scene_card_config: SceneCardConfig;
     scene_list_view: SceneListView;
     max_items_per_page: number;

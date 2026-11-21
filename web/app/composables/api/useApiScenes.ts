@@ -1,3 +1,6 @@
+import type { ReplayHeatmap, ReplayHeatmapRecordResult } from '~/types/watch';
+import type { SourceSiteOption } from '~/types/scene';
+
 /**
  * Scene-related API operations: CRUD, search, streaming, filters, interactions.
  */
@@ -95,6 +98,15 @@ export const useApiScenes = () => {
 
     const fetchFilterOptions = async () => {
         const response = await fetch('/api/v1/scenes/filters', {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    // Sites scenes come from, with their scene counts, most scenes first
+    const fetchSourceSites = async (): Promise<{ sites: SourceSiteOption[] }> => {
+        const response = await fetch('/api/v1/scenes/source-sites', {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
@@ -246,6 +258,32 @@ export const useApiScenes = () => {
         return handleResponse(response);
     };
 
+    const getReplayHeatmap = async (sceneId: number): Promise<ReplayHeatmap> => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/heatmap`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    // Reports played [start, end] ranges (seconds); keepalive lets it finish while the page
+    // is being left. Returns the updated heatmap.
+    const recordReplayHeatmap = async (
+        sceneId: number,
+        ranges: [number, number][],
+        duration: number,
+        keepalive = false,
+    ): Promise<ReplayHeatmapRecordResult> => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/heatmap`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ ranges, duration }),
+            keepalive,
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
     const getSceneWatchHistory = async (sceneId: number, limit = 10) => {
         const params = new URLSearchParams({ limit: limit.toString() });
         const response = await fetch(`/api/v1/scenes/${sceneId}/history?${params}`, {
@@ -332,6 +370,7 @@ export const useApiScenes = () => {
         searchScenes,
         fetchAllSearchSceneIDs,
         fetchFilterOptions,
+        fetchSourceSites,
         fetchScene,
         updateSceneDetails,
         extractThumbnail,
@@ -346,6 +385,8 @@ export const useApiScenes = () => {
         incrementJizzed,
         recordWatch,
         getResumePosition,
+        getReplayHeatmap,
+        recordReplayHeatmap,
         getSceneWatchHistory,
         getUserWatchHistory,
         getUserWatchHistoryByDateRange,

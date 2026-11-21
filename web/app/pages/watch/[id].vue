@@ -105,6 +105,12 @@ const streamUrl = computed(() => {
     return `/api/v1/scenes/${scene.value.id}/stream`;
 });
 
+// On-the-fly conversion of the formats browsers can't play
+const transcodeUrl = computed(() => {
+    if (!scene.value) return '';
+    return `/api/v1/scenes/${scene.value.id}/transcode`;
+});
+
 const posterUrl = computed(() => {
     if (!scene.value || !scene.value.thumbnail_path) return '';
     const base = `/thumbnails/${scene.value.id}?size=lg`;
@@ -491,6 +497,7 @@ definePageMeta({
                                 <LazyScenePlayer
                                     ref="playerRef"
                                     :scene-url="streamUrl"
+                                    :transcode-url="transcodeUrl"
                                     :poster-url="posterUrl"
                                     :scene="scene"
                                     :markers="markers"

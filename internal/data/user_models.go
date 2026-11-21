@@ -72,8 +72,17 @@ type UserSettings struct {
 	// PaginationPosition: where page controls are shown on paginated pages (top, bottom, both)
 	PaginationPosition string `gorm:"size:10;not null;default:'bottom'" json:"pagination_position"`
 	// DateFormat: how dates are displayed (auto = browser locale, or a pattern like DD/MM/YYYY)
-	DateFormat      string          `gorm:"size:20;not null;default:'auto'" json:"date_format"`
-	SceneCardConfig SceneCardConfig `gorm:"type:jsonb;not null" json:"scene_card_config"`
+	DateFormat string `gorm:"size:20;not null;default:'auto'" json:"date_format"`
+	// PlayerGestures: touch gestures on the video player (double-tap seek, swipes, long-press 2x).
+	// No gorm default so that false is written when the row is created (the column defaults to true).
+	PlayerGestures bool `gorm:"not null" json:"player_gestures"`
+	// GestureSeekStep: seconds skipped by a double-tap on the sides of the player (5, 10, 15, 30)
+	GestureSeekStep int `gorm:"not null;default:10" json:"gesture_seek_step"`
+	// ShowReplayHeatmap / RecordReplayHeatmap: "most replayed" heatmap above the player
+	// progress bar, and recording of the watched parts (both on by default)
+	ShowReplayHeatmap   bool            `gorm:"not null;default:true" json:"show_replay_heatmap"`
+	RecordReplayHeatmap bool            `gorm:"not null;default:true" json:"record_replay_heatmap"`
+	SceneCardConfig     SceneCardConfig `gorm:"type:jsonb;not null" json:"scene_card_config"`
 	// SceneListView: grid or table per scene list page, and the table columns
 	SceneListView   SceneListView `gorm:"type:jsonb;not null" json:"scene_list_view"`
 	MaxItemsPerPage int           `gorm:"-" json:"max_items_per_page"`

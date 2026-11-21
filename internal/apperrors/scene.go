@@ -103,3 +103,16 @@ func ErrSceneFileNotFound(path string) *NotFoundError {
 		ID:       path,
 	}
 }
+
+// ErrStoragePathReadOnly is returned when an operation would delete, move, rename or write a
+// media file under a read-only storage path.
+func ErrStoragePathReadOnly(name string) *ValidationError {
+	return &ValidationError{
+		baseError: baseError{
+			message:    fmt.Sprintf("storage path %q is read-only: GoonHub does not modify its files", name),
+			code:       CodeStoragePathReadOnly,
+			httpStatus: http.StatusBadRequest,
+		},
+		Field: "storage_path",
+	}
+}

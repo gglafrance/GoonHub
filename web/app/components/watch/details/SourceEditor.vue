@@ -1,8 +1,10 @@
 <script setup lang="ts">
 // The web page a scene comes from: a link that opens in a new tab, editable
 // inline. Saving an empty value clears it. The server checks the URL.
+// The site name (normalized by the server) links to the search filtered by that site.
 const props = defineProps<{
     sourceUrl: string;
+    sourceSite?: string;
 }>();
 
 const emit = defineEmits<{
@@ -65,6 +67,17 @@ watch(
             @keydown.esc.prevent="cancel"
         />
         <div v-else-if="sourceUrl" class="group -mx-2 flex min-h-8 items-center gap-1.5 px-2">
+            <NuxtLink
+                v-if="sourceSite"
+                :to="{ path: '/search', query: { source_site: sourceSite } }"
+                :title="`Scenes from ${sourceSite}`"
+                class="border-border hover:border-lava/40 hover:text-lava inline-flex shrink-0
+                    items-center gap-1 rounded-md border bg-white/5 px-1.5 py-0.5 text-[11px]
+                    font-medium text-white transition-colors"
+            >
+                <Icon name="heroicons:globe-alt" size="12" />
+                {{ sourceSite }}
+            </NuxtLink>
             <a
                 :href="sourceUrl"
                 target="_blank"

@@ -26,7 +26,8 @@ const delayLabel = computed(() => {
                 <h3 class="text-sm font-medium text-white">Delete Files Not Kept</h3>
                 <p class="text-dim mt-0.5 text-[10px]">
                     When a group is resolved, the scenes not kept go to the trash. With this on,
-                    they are then permanently deleted (scene and video file).
+                    they are then permanently deleted (scene and video file). Video files on
+                    read-only storage paths are kept: only the scene is removed.
                 </p>
             </div>
             <UiToggle v-model="enabled" />

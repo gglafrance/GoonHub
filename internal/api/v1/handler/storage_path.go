@@ -39,7 +39,7 @@ func (h *StoragePathHandler) Create(c *gin.Context) {
 		return
 	}
 
-	storagePath, err := h.Service.Create(req.Name, req.Path, req.IsDefault)
+	storagePath, err := h.Service.Create(req.Name, req.Path, req.IsDefault, req.ReadOnly)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -61,7 +61,7 @@ func (h *StoragePathHandler) Update(c *gin.Context) {
 		return
 	}
 
-	storagePath, err := h.Service.Update(uint(id), req.Name, req.Path, req.IsDefault)
+	storagePath, err := h.Service.Update(uint(id), req.Name, req.Path, req.IsDefault, req.ReadOnly)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
