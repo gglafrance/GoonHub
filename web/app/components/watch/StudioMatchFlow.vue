@@ -12,7 +12,14 @@ const emit = defineEmits<{
     error: [message: string];
 }>();
 
-const { fetchStudios, createStudio, setSceneStudio } = useApiStudios();
+const { fetchStudios, createStudio, resolveStudio, setSceneStudio } = useApiStudios();
+
+// Creates the studio, unless a studio already has this name or alias: that one is reused
+async function findOrCreateStudio(input: Record<string, unknown>): Promise<number> {
+    const known = typeof input.name === 'string' ? await resolveStudio(input.name) : null;
+    if (known) return known.data.id;
+    return (await createStudio(input)).id;
+}
 const { searchPornDBSites, getPornDBSite } = useApiPornDB();
 
 const matchStep = ref<'search' | 'porndb' | 'create' | null>('search');
@@ -76,7 +83,7 @@ async function selectPornDBSite(site: PornDBSiteDetails) {
     try {
         // Fetch full details to get all metadata
         const details = await getPornDBSite(site.id);
-        const newStudio = await createStudio({
+        const newStudioId = await findOrCreateStudio({
             name: details.name,
             short_name: details.short_name,
             url: details.url,
@@ -87,19 +94,19 @@ async function selectPornDBSite(site: PornDBSiteDetails) {
             poster: details.poster,
             porndb_id: details.id,
         });
-        await setSceneStudio(props.sceneId, newStudio.id);
+        await setSceneStudio(props.sceneId, newStudioId);
         emit('done');
     } catch {
         // If fetching details fails, try basic creation
         try {
-            const newStudio = await createStudio({
+            const newStudioId = await findOrCreateStudio({
                 name: site.name,
                 short_name: site.short_name,
                 url: site.url,
                 logo: site.logo,
                 porndb_id: site.id,
             });
-            await setSceneStudio(props.sceneId, newStudio.id);
+            await setSceneStudio(props.sceneId, newStudioId);
             emit('done');
         } catch (e: unknown) {
             emit('error', e instanceof Error ? e.message : 'Failed to create studio');
@@ -112,10 +119,10 @@ async function selectPornDBSite(site: PornDBSiteDetails) {
 async function createStudioWithName() {
     searching.value = true;
     try {
-        const newStudio = await createStudio({
+        const newStudioId = await findOrCreateStudio({
             name: props.siteName,
         });
-        await setSceneStudio(props.sceneId, newStudio.id);
+        await setSceneStudio(props.sceneId, newStudioId);
         emit('done');
     } catch (e: unknown) {
         emit('error', e instanceof Error ? e.message : 'Failed to create studio');
@@ -184,6 +191,12 @@ onMounted(() => {
                     <div class="p-2">
                         <p class="truncate text-center text-xs font-medium text-white">
                             {{ studio.name }}
+                        </p>
+                        <p
+                            v-if="studio.matched_alias"
+                            class="text-lava/80 truncate text-center text-[10px]"
+                        >
+                            aka {{ studio.matched_alias }}
                         </p>
                         <p v-if="studio.scene_count" class="text-dim text-center text-[10px]">
                             {{ studio.scene_count }} scene{{ studio.scene_count === 1 ? '' : 's' }}

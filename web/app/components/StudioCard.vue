@@ -60,7 +60,14 @@ const logoUrl = computed(() => {
                 {{ studio.name }}
             </h3>
             <p
-                v-if="studio.short_name"
+                v-if="studio.matched_alias"
+                class="text-lava/80 truncate text-[11px]"
+                :title="(studio.aliases || []).join(', ')"
+            >
+                aka {{ studio.matched_alias }}
+            </p>
+            <p
+                v-else-if="studio.short_name"
                 class="text-dim truncate text-[11px]"
                 :title="studio.short_name"
             >

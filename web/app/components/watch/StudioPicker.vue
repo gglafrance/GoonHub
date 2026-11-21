@@ -41,7 +41,11 @@ const filteredStudios = computed(() => {
 
     if (searchQuery.value) {
         const q = searchQuery.value.toLowerCase();
-        studios = studios.filter((s) => s.name.toLowerCase().includes(q));
+        studios = studios.filter(
+            (s) =>
+                s.name.toLowerCase().includes(q) ||
+                (s.aliases || []).some((a) => a.toLowerCase().includes(q)),
+        );
     }
 
     switch (sortMode.value) {

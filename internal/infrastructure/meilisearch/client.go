@@ -71,6 +71,7 @@ func (c *Client) EnsureIndex() error {
 		"path",
 		"description",
 		"actors",
+		"actor_aliases",
 		"tag_names",
 	})
 	if err != nil {

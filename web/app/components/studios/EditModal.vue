@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Studio } from '~/types/studio';
+import type { EntityConflict } from '~/types/conflict';
 
 const props = defineProps<{
     visible: boolean;
@@ -19,6 +20,7 @@ const isEditMode = computed(() => !!props.studio);
 
 const form = ref({
     name: '',
+    aliases: [] as string[],
     short_name: '',
     url: '',
     description: '',
@@ -26,6 +28,7 @@ const form = ref({
 
 const loading = ref(false);
 const error = ref('');
+const conflict = ref<EntityConflict<Studio> | null>(null);
 const logoFile = ref<File | null>(null);
 const logoPreview = ref<string | null>(null);
 
@@ -38,6 +41,7 @@ const revokeBlobPreview = () => {
 const resetForm = () => {
     form.value = {
         name: props.initialName || '',
+        aliases: [],
         short_name: '',
         url: '',
         description: '',
@@ -53,6 +57,7 @@ const syncForm = () => {
     }
     form.value = {
         name: props.studio.name,
+        aliases: [...(props.studio.aliases || [])],
         short_name: props.studio.short_name || '',
         url: props.studio.url || '',
         description: props.studio.description || '',
@@ -88,6 +93,7 @@ const handleLogoChange = (event: Event) => {
 
 const handleSubmit = async () => {
     error.value = '';
+    conflict.value = null;
     loading.value = true;
 
     try {
@@ -96,11 +102,11 @@ const handleSubmit = async () => {
             if (logoFile.value) {
                 await api.uploadStudioLogo(props.studio.id, logoFile.value);
             }
-            await api.updateStudio(props.studio.id, form.value);
+            await api.updateStudio(props.studio.id, form.value, { strict: true });
             emit('updated');
         } else {
             // Create new studio
-            let newStudio = await api.createStudio(form.value);
+            let newStudio = await api.createStudio(form.value, { strict: true });
             // Upload logo if provided — use the returned studio which has logo set
             if (logoFile.value && newStudio.id) {
                 newStudio = await api.uploadStudioLogo(newStudio.id, logoFile.value);
@@ -108,10 +114,12 @@ const handleSubmit = async () => {
             emit('created', newStudio);
         }
     } catch (e: unknown) {
-        error.value =
-            e instanceof Error
-                ? e.message
-                : `Failed to ${isEditMode.value ? 'update' : 'create'} studio`;
+        conflict.value = getEntityConflict<Studio>(e);
+        error.value = conflict.value
+            ? ''
+            : e instanceof Error
+              ? e.message
+              : `Failed to ${isEditMode.value ? 'update' : 'create'} studio`;
     } finally {
         loading.value = false;
     }
@@ -119,6 +127,7 @@ const handleSubmit = async () => {
 
 const handleClose = () => {
     error.value = '';
+    conflict.value = null;
     revokeBlobPreview();
     logoFile.value = null;
     emit('close');
@@ -138,8 +147,14 @@ const handleClose = () => {
                     {{ isEditMode ? 'Edit Studio' : 'Create Studio' }}
                 </h3>
 
+                <AliasesConflictNotice
+                    v-if="conflict"
+                    :conflict="conflict"
+                    kind="studio"
+                    class="mb-3"
+                />
                 <div
-                    v-if="error"
+                    v-else-if="error"
                     class="border-lava/20 bg-lava/5 text-lava mb-3 rounded-lg border px-3 py-2
                         text-xs"
                 >
@@ -219,6 +234,17 @@ const handleClose = () => {
                                     focus:outline-none"
                             />
                         </div>
+                    </div>
+
+                    <!-- Aliases -->
+                    <div>
+                        <label
+                            class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
+                                uppercase"
+                        >
+                            Aliases
+                        </label>
+                        <UiAliasChips v-model="form.aliases" />
                     </div>
 
                     <!-- URL -->

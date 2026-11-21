@@ -110,6 +110,21 @@ func (mr *MockActorRepositoryMockRecorder) Delete(id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockActorRepository)(nil).Delete), id)
 }
 
+// FindByNameOrAlias mocks base method.
+func (m *MockActorRepository) FindByNameOrAlias(names []string, excludeID uint) ([]data.Actor, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByNameOrAlias", names, excludeID)
+	ret0, _ := ret[0].([]data.Actor)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindByNameOrAlias indicates an expected call of FindByNameOrAlias.
+func (mr *MockActorRepositoryMockRecorder) FindByNameOrAlias(names, excludeID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByNameOrAlias", reflect.TypeOf((*MockActorRepository)(nil).FindByNameOrAlias), names, excludeID)
+}
+
 // GetActorSceneIDs mocks base method.
 func (m *MockActorRepository) GetActorSceneIDs(actorID uint) ([]uint, error) {
 	m.ctrl.T.Helper()
@@ -186,6 +201,21 @@ func (mr *MockActorRepositoryMockRecorder) GetByUUID(uuid any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByUUID", reflect.TypeOf((*MockActorRepository)(nil).GetByUUID), uuid)
 }
 
+// GetMergePreview mocks base method.
+func (m *MockActorRepository) GetMergePreview(targetID, sourceID uint) (*data.ActorMergeStats, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMergePreview", targetID, sourceID)
+	ret0, _ := ret[0].(*data.ActorMergeStats)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMergePreview indicates an expected call of GetMergePreview.
+func (mr *MockActorRepositoryMockRecorder) GetMergePreview(targetID, sourceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMergePreview", reflect.TypeOf((*MockActorRepository)(nil).GetMergePreview), targetID, sourceID)
+}
+
 // GetSceneActors mocks base method.
 func (m *MockActorRepository) GetSceneActors(sceneID uint) ([]data.Actor, error) {
 	m.ctrl.T.Helper()
@@ -245,6 +275,22 @@ func (m *MockActorRepository) List(page, limit int, sort string, genders []strin
 func (mr *MockActorRepositoryMockRecorder) List(page, limit, sort, genders any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockActorRepository)(nil).List), page, limit, sort, genders)
+}
+
+// Merge mocks base method.
+func (m *MockActorRepository) Merge(target, source *data.Actor) (*data.ActorMergeStats, []uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Merge", target, source)
+	ret0, _ := ret[0].(*data.ActorMergeStats)
+	ret1, _ := ret[1].([]uint)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// Merge indicates an expected call of Merge.
+func (mr *MockActorRepositoryMockRecorder) Merge(target, source any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Merge", reflect.TypeOf((*MockActorRepository)(nil).Merge), target, source)
 }
 
 // Search mocks base method.

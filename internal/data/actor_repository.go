@@ -27,6 +27,11 @@ type ActorRepository interface {
 	BulkAddActorsToScenes(sceneIDs []uint, actorIDs []uint) error
 	BulkRemoveActorsFromScenes(sceneIDs []uint, actorIDs []uint) error
 	BulkReplaceActorsForScenes(sceneIDs []uint, actorIDs []uint) error
+
+	// Names and aliases (actor_alias_repository.go)
+	FindByNameOrAlias(names []string, excludeID uint) ([]Actor, error)
+	GetMergePreview(targetID, sourceID uint) (*ActorMergeStats, error)
+	Merge(target *Actor, source *Actor) (*ActorMergeStats, []uint, error)
 }
 
 type ActorRepositoryImpl struct {
@@ -146,7 +151,7 @@ func (r *ActorRepositoryImpl) Search(query string, page, limit int, sort string,
 	offset := (page - 1) * limit
 	searchPattern := "%" + query + "%"
 
-	countQuery := r.DB.Model(&Actor{}).Where("(name ILIKE ? OR array_to_string(aliases, ',') ILIKE ?)", searchPattern, searchPattern)
+	countQuery := r.DB.Model(&Actor{}).Where("(name ILIKE ? OR EXISTS (SELECT 1 FROM unnest(aliases) AS al(v) WHERE al.v ILIKE ?))", searchPattern, searchPattern)
 	if len(genders) > 0 {
 		countQuery = countQuery.Where("gender IN ?", genders)
 	}
@@ -162,7 +167,7 @@ func (r *ActorRepositoryImpl) Search(query string, page, limit int, sort string,
 		Joins("LEFT JOIN scene_actors ON scene_actors.actor_id = actors.id").
 		Joins("LEFT JOIN scenes ON scenes.id = scene_actors.scene_id AND scenes.deleted_at IS NULL").
 		Where("actors.deleted_at IS NULL").
-		Where("(actors.name ILIKE ? OR array_to_string(actors.aliases, ',') ILIKE ?)", searchPattern, searchPattern)
+		Where("(actors.name ILIKE ? OR EXISTS (SELECT 1 FROM unnest(actors.aliases) AS al(v) WHERE al.v ILIKE ?))", searchPattern, searchPattern)
 	if len(genders) > 0 {
 		q = q.Where("actors.gender IN ?", genders)
 	}

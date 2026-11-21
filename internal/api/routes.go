@@ -95,7 +95,10 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 				actors := protected.Group("/actors")
 				{
 					actors.GET("", actorHandler.ListActors)
+					actors.GET("/resolve", actorHandler.ResolveActor)
 					actors.GET("/:uuid", actorHandler.GetActorByUUID)
+					actors.GET("/:uuid/merge-preview", middleware.RequirePermission(rbacService, "actors:merge"), actorHandler.MergeActorPreview)
+					actors.POST("/:uuid/merge", middleware.RequirePermission(rbacService, "actors:merge"), actorHandler.MergeActor)
 					actors.GET("/:uuid/scenes", actorHandler.GetActorScenes)
 					actors.GET("/:uuid/interactions", actorInteractionHandler.GetInteractions)
 					actors.PUT("/:uuid/rating", actorInteractionHandler.SetRating)
@@ -106,7 +109,10 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 				studios := protected.Group("/studios")
 				{
 					studios.GET("", studioHandler.ListStudios)
+					studios.GET("/resolve", studioHandler.ResolveStudio)
 					studios.GET("/:uuid", studioHandler.GetStudioByUUID)
+					studios.GET("/:uuid/merge-preview", middleware.RequirePermission(rbacService, "studios:merge"), studioHandler.MergeStudioPreview)
+					studios.POST("/:uuid/merge", middleware.RequirePermission(rbacService, "studios:merge"), studioHandler.MergeStudio)
 					studios.GET("/:uuid/scenes", studioHandler.GetStudioScenes)
 					studios.GET("/:uuid/interactions", studioInteractionHandler.GetInteractions)
 					studios.PUT("/:uuid/rating", studioInteractionHandler.SetRating)

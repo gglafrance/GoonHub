@@ -91,3 +91,61 @@ For post-import verification. Body `{"ids": [1,2,3]}` (max 1000, else 400).
 
 `marker_count`, `rating`, `liked`, `jizzed_count`, `watch_count` are for the current user.
 `missing` lists IDs that don't exist (or are soft-deleted).
+
+## Actors and studios: aliases, resolution, duplicates
+
+Actors and studios are created with `POST /api/v1/admin/actors` / `POST /api/v1/admin/studios`
+(admin) and updated with `PUT .../{id}`. Both accept `aliases` (`[]string`): other names of the
+entity. Aliases are trimmed, deduplicated case-insensitively, and an alias equal to the entity's
+own name is dropped.
+
+**Default (import clients):** unchanged contract. Several actors/studios may have the same name
+(e.g. a client that does not match by name creates one actor per source performer). An alias
+already used by **another** actor (resp. studio) as its name or alias is dropped silently (logged);
+the response body has the stored `aliases`.
+
+**`?strict=true`** (what the GoonHub UI sends on its create/edit forms): a name, or an alias,
+already used by another entity as its name or alias (case-insensitive) is refused:
+
+```json
+409 {"error": "actor 'Jane Doe' already exists", "code": "CONFLICT", "field": "name",
+     "value": "jane doe", "existing": {"id": 3, "uuid": "...", "name": "Jane Doe", "aliases": ["JD"], ...}}
+```
+
+`field` is `name` or `aliases`, `value` the colliding value, `existing` the full entity. On update
+the name is only checked when it changes.
+
+### GET /api/v1/actors/resolve?name= and GET /api/v1/studios/resolve?name=
+
+Exact, case-insensitive match on the name **or an alias** (any authenticated user). Use it to
+find-or-create by name instead of `GET /actors?q=` (a substring search limited to 100 results).
+
+```json
+200 {"data": {<full actor or studio>}, "matched": "alias", "matched_alias": "JD", "candidates": 1}
+404 {"error": "Actor not found"}
+400 when name is empty
+```
+
+When several entities match (`candidates` > 1, possible with duplicate names), `data` is the best
+one: a name match before an alias match, then the oldest.
+
+`GET /actors?q=` and `GET /studios?q=` also match aliases (substring); each result has `aliases`
+and, when the query matched an alias but not the name, `matched_alias`.
+
+### Merge
+
+`POST /api/v1/actors/{uuid}/merge` `{"source_uuid": "..."}` merges the source actor into the actor
+of the URL (permission `actors:merge`: admin and moderator): the source's scenes, ratings and likes
+move to the target (a user's own rating/like of the target is kept), homepage sections and saved
+filters that referenced the source point to the target, the source's name and aliases become
+aliases of the target, the target keeps its photo unless it has none, and the source is deleted.
+`GET /api/v1/actors/{uuid}/merge-preview?source_uuid=` returns the same body without merging:
+
+```json
+200 {"target": {...}, "source": {...}, "scenes": 12, "shared_scenes": 1, "ratings": 2, "likes": 1,
+     "aliases_added": ["Jane D."], "image_from_source": false}
+```
+
+Studios: `POST /api/v1/studios/{uuid}/merge` and `GET .../merge-preview` (permission
+`studios:merge`), with `child_studios` (studios whose parent or network was the source, moved
+to the target) and `logo_from_source` instead of `shared_scenes` and `image_from_source`.

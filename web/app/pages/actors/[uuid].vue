@@ -20,6 +20,7 @@ const showEditModal = ref(false);
 const showCreateModal = ref(false);
 const showFetchModal = ref(false);
 const showDeleteModal = ref(false);
+const showMergeModal = ref(false);
 
 // Scene selection
 const selectMode = ref(false);
@@ -156,6 +157,8 @@ watch(
 const actorUuid = computed(() => route.params.uuid as string);
 
 const isAdmin = computed(() => authStore.user?.role === 'admin');
+// actors:merge is granted to admins and moderators
+const canMerge = computed(() => isAdmin.value || authStore.user?.role === 'moderator');
 
 const displayRating = computed(() => (isHovering.value ? hoverRating.value : currentRating.value));
 
@@ -331,6 +334,15 @@ const handleActorUpdated = () => {
 const handleActorCreated = (newActor: Actor) => {
     showCreateModal.value = false;
     router.push(`/actors/${newActor.uuid}`);
+};
+
+const onAliasesUpdated = (aliases: string[]) => {
+    if (actor.value) actor.value.aliases = aliases;
+};
+
+const handleActorMerged = (targetUuid: string) => {
+    showMergeModal.value = false;
+    router.push(`/actors/${targetUuid}`);
 };
 
 const handleActorDeleted = () => {
@@ -530,9 +542,13 @@ definePageMeta({
                                 <h1 class="truncate text-xl font-bold text-white sm:text-2xl">
                                     {{ actor.name }}
                                 </h1>
-                                <p v-if="actor.aliases?.length" class="text-dim mt-0.5 text-sm">
-                                    Also known as: {{ actor.aliases.join(', ') }}
-                                </p>
+                                <AliasesPanel
+                                    kind="actor"
+                                    :entity-id="actor.id"
+                                    :aliases="actor.aliases || []"
+                                    :editable="isAdmin"
+                                    @updated="onAliasesUpdated"
+                                />
                                 <div class="text-dim mt-1 text-sm">
                                     {{ actor.scene_count }}
                                     {{ actor.scene_count === 1 ? 'scene' : 'scenes' }}
@@ -540,8 +556,9 @@ definePageMeta({
                             </div>
 
                             <!-- Desktop: Full admin buttons -->
-                            <div v-if="isAdmin" class="hidden items-center gap-2 sm:flex">
+                            <div v-if="canMerge" class="hidden items-center gap-2 sm:flex">
                                 <button
+                                    v-if="isAdmin"
                                     class="border-border bg-panel hover:border-lava/50
                                         hover:text-lava text-dim flex items-center gap-1 rounded-lg
                                         border px-3 py-1.5 text-sm transition-colors"
@@ -551,6 +568,7 @@ definePageMeta({
                                     New
                                 </button>
                                 <button
+                                    v-if="isAdmin"
                                     class="border-border bg-panel hover:border-lava/50
                                         hover:text-lava text-dim flex items-center gap-1 rounded-lg
                                         border px-3 py-1.5 text-sm transition-colors"
@@ -560,6 +578,7 @@ definePageMeta({
                                     Fetch
                                 </button>
                                 <button
+                                    v-if="isAdmin"
                                     class="border-border bg-panel hover:border-lava/50
                                         hover:text-lava text-dim flex items-center gap-1 rounded-lg
                                         border px-3 py-1.5 text-sm transition-colors"
@@ -569,6 +588,17 @@ definePageMeta({
                                     Edit
                                 </button>
                                 <button
+                                    class="border-border bg-panel hover:border-lava/50
+                                        hover:text-lava text-dim flex items-center gap-1 rounded-lg
+                                        border px-3 py-1.5 text-sm transition-colors"
+                                    title="Merge this actor into another one"
+                                    @click="showMergeModal = true"
+                                >
+                                    <Icon name="heroicons:arrows-pointing-in" size="14" />
+                                    Merge into...
+                                </button>
+                                <button
+                                    v-if="isAdmin"
                                     class="border-border bg-panel text-dim flex items-center gap-1
                                         rounded-lg border px-3 py-1.5 text-sm transition-colors
                                         hover:border-red-500/50 hover:text-red-500"
@@ -580,7 +610,7 @@ definePageMeta({
                             </div>
 
                             <!-- Mobile: Dropdown menu -->
-                            <div v-if="isAdmin" class="relative sm:hidden">
+                            <div v-if="canMerge" class="relative sm:hidden">
                                 <button
                                     class="border-border bg-panel text-dim flex h-9 w-9 items-center
                                         justify-center rounded-lg border transition-colors
@@ -598,6 +628,7 @@ definePageMeta({
                                             w-40 rounded-lg border py-1 shadow-xl"
                                     >
                                         <button
+                                            v-if="isAdmin"
                                             class="text-dim flex w-full items-center gap-2 px-3 py-2
                                                 text-sm transition-colors hover:bg-white/5
                                                 hover:text-white"
@@ -610,6 +641,7 @@ definePageMeta({
                                             New Actor
                                         </button>
                                         <button
+                                            v-if="isAdmin"
                                             class="text-dim flex w-full items-center gap-2 px-3 py-2
                                                 text-sm transition-colors hover:bg-white/5
                                                 hover:text-white"
@@ -622,6 +654,7 @@ definePageMeta({
                                             Fetch Metadata
                                         </button>
                                         <button
+                                            v-if="isAdmin"
                                             class="text-dim flex w-full items-center gap-2 px-3 py-2
                                                 text-sm transition-colors hover:bg-white/5
                                                 hover:text-white"
@@ -633,8 +666,21 @@ definePageMeta({
                                             <Icon name="heroicons:pencil" size="16" />
                                             Edit
                                         </button>
-                                        <div class="border-border my-1 border-t" />
                                         <button
+                                            class="text-dim flex w-full items-center gap-2 px-3 py-2
+                                                text-sm transition-colors hover:bg-white/5
+                                                hover:text-white"
+                                            @click="
+                                                showMergeModal = true;
+                                                showAdminMenu = false;
+                                            "
+                                        >
+                                            <Icon name="heroicons:arrows-pointing-in" size="16" />
+                                            Merge into...
+                                        </button>
+                                        <div v-if="isAdmin" class="border-border my-1 border-t" />
+                                        <button
+                                            v-if="isAdmin"
                                             class="flex w-full items-center gap-2 px-3 py-2 text-sm
                                                 text-red-400 transition-colors hover:bg-red-500/10"
                                             @click="
@@ -1102,6 +1148,16 @@ definePageMeta({
                 :current-actor="actor"
                 @close="showFetchModal = false"
                 @apply="handleApplyMetadata"
+            />
+
+            <!-- Merge Modal -->
+            <MergeEntityModal
+                v-if="actor && showMergeModal"
+                :visible="showMergeModal"
+                kind="actor"
+                :source="actor"
+                @close="showMergeModal = false"
+                @merged="handleActorMerged"
             />
 
             <!-- Delete Modal -->

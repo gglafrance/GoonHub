@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ActorListItem } from '~/types/actor';
+import type { Actor, ActorListItem } from '~/types/actor';
 
 const props = withDefaults(
     defineProps<{
@@ -183,8 +183,16 @@ function handleCreateClick() {
 async function handleCreateActor(name: string) {
     creating.value = true;
     try {
-        const res = await createActor({ name });
-        selectedActorIDs.value.add(res.id);
+        let id: number;
+        try {
+            id = (await createActor({ name }, { strict: true })).id;
+        } catch (err) {
+            // the name is already an actor's name or alias: select that actor
+            const conflict = getEntityConflict<Actor>(err);
+            if (!conflict) throw err;
+            id = conflict.existing.id;
+        }
+        selectedActorIDs.value.add(id);
         selectedActorIDs.value = new Set(selectedActorIDs.value);
         searchQuery.value = '';
         await loadActors();
@@ -505,6 +513,12 @@ async function handleSubmit() {
                                             "
                                         >
                                             {{ actor.name }}
+                                            <span
+                                                v-if="actor.matched_alias"
+                                                class="text-dim ml-1 text-[10px] font-normal"
+                                            >
+                                                aka {{ actor.matched_alias }}
+                                            </span>
                                         </p>
                                         <div class="mt-0.5 flex items-center gap-2">
                                             <span class="text-dim text-[10px]">

@@ -6,7 +6,6 @@ import (
 	"goonhub/internal/api/v1/response"
 	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
-	"goonhub/internal/data"
 	"io"
 	"net/http"
 	"os"
@@ -51,31 +50,11 @@ func (h *ActorHandler) ListActors(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":  toActorListItems(actors),
+		"data":  toActorListItems(actors, query),
 		"total": total,
 		"page":  page,
 		"limit": limit,
 	})
-}
-
-func toActorListItems(actors []data.ActorWithCount) []response.ActorListItem {
-	items := make([]response.ActorListItem, len(actors))
-	for i, a := range actors {
-		aliases := []string(a.Aliases)
-		if aliases == nil {
-			aliases = []string{}
-		}
-		items[i] = response.ActorListItem{
-			ID:         a.ID,
-			UUID:       a.UUID,
-			Name:       a.Name,
-			Aliases:    aliases,
-			ImageURL:   a.ImageURL,
-			Gender:     a.Gender,
-			SceneCount: a.SceneCount,
-		}
-	}
-	return items
 }
 
 func (h *ActorHandler) GetActorByUUID(c *gin.Context) {
@@ -161,6 +140,7 @@ func (h *ActorHandler) CreateActor(c *gin.Context) {
 		Piercings:       req.Piercings,
 		FakeBoobs:       req.FakeBoobs,
 		SameSexOnly:     req.SameSexOnly,
+		Strict:          strictQuery(c),
 	}
 
 	if req.Birthday != nil && *req.Birthday != "" {
@@ -178,6 +158,9 @@ func (h *ActorHandler) CreateActor(c *gin.Context) {
 
 	actor, err := h.Service.Create(input)
 	if err != nil {
+		if writeEntityConflict(c, err) {
+			return
+		}
 		if apperrors.IsValidation(err) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
@@ -224,6 +207,7 @@ func (h *ActorHandler) UpdateActor(c *gin.Context) {
 		Piercings:       req.Piercings,
 		FakeBoobs:       req.FakeBoobs,
 		SameSexOnly:     req.SameSexOnly,
+		Strict:          strictQuery(c),
 	}
 
 	if req.Birthday != nil && *req.Birthday != "" {
@@ -241,6 +225,9 @@ func (h *ActorHandler) UpdateActor(c *gin.Context) {
 
 	actor, err := h.Service.Update(uint(id), input)
 	if err != nil {
+		if writeEntityConflict(c, err) {
+			return
+		}
 		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Actor not found"})
 			return

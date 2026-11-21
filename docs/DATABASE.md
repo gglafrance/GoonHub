@@ -190,6 +190,8 @@ Permission definitions for granular access control.
 - `scenes:delete` - Delete scenes
 - `scenes:reprocess` - Reprocess scenes
 - `scenes:trash` - Move scenes to trash
+- `actors:merge` - Merge an actor into another one (admin, moderator; migration 081)
+- `studios:merge` - Merge a studio into another one (admin, moderator; migration 081)
 - `users:manage` - Manage users
 - `users:create` - Create new users
 - `users:delete` - Delete users
@@ -288,6 +290,7 @@ Actor/performer profiles with biographical data.
 | `updated_at` | TIMESTAMPTZ | NO | NOW() | Last update timestamp |
 | `deleted_at` | TIMESTAMPTZ | YES | NULL | Soft delete timestamp |
 | `name` | VARCHAR(255) | NO | - | Actor name |
+| `aliases` | TEXT[] | NO | '{}' | Other names of the actor (NOT NULL since migration 081) |
 | `image_url` | VARCHAR(512) | YES | NULL | Profile image URL |
 | `gender` | VARCHAR(50) | YES | NULL | Gender identity |
 | `birthday` | DATE | YES | NULL | Date of birth |
@@ -312,7 +315,16 @@ Actor/performer profiles with biographical data.
 **Indexes:**
 - `idx_actors_uuid` on `uuid`
 - `idx_actors_name` on `name`
+- `idx_actors_name_lower` on `lower(name)` WHERE deleted_at IS NULL
+- `idx_actors_aliases` GIN on `aliases`
 - `idx_actors_deleted_at` on `deleted_at`
+
+**Names and aliases:** names are not unique (import clients create same-name actors). Aliases
+are trimmed, deduplicated case-insensitively and never equal the actor's own name; the
+application keeps an alias from being another actor's name or alias (rejected with 409 in
+strict mode, dropped otherwise), there is no database constraint because existing data may
+already overlap. Resolution by name (`GET /actors/resolve`, PornDB matching) is an exact,
+case-insensitive match on the name or an alias.
 
 **Constraints:**
 - UNIQUE on `uuid`
@@ -350,6 +362,7 @@ Studio/network entities for content organization.
 | `updated_at` | TIMESTAMPTZ | NO | NOW() | Last update timestamp |
 | `deleted_at` | TIMESTAMPTZ | YES | NULL | Soft delete timestamp |
 | `name` | VARCHAR(255) | NO | - | Studio name |
+| `aliases` | TEXT[] | NO | '{}' | Other names of the studio (migration 081), same rules as `actors.aliases` |
 | `short_name` | VARCHAR(100) | YES | NULL | Abbreviated name |
 | `url` | VARCHAR(512) | YES | NULL | Studio website |
 | `description` | TEXT | YES | NULL | Studio description |
@@ -364,6 +377,8 @@ Studio/network entities for content organization.
 **Indexes:**
 - `idx_studios_uuid` on `uuid`
 - `idx_studios_name` on `name`
+- `idx_studios_name_lower` on `lower(name)` WHERE deleted_at IS NULL
+- `idx_studios_aliases` GIN on `aliases`
 - `idx_studios_deleted_at` on `deleted_at`
 - `idx_studios_porndb_id` on `porndb_id`
 

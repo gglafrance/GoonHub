@@ -122,6 +122,16 @@ func (s *Server) Start() error {
 		s.logger.Info("Search indexer wired to services")
 	}
 
+	// Studio aliases given by name resolve to the studio's name
+	if s.studioService != nil {
+		if s.sceneService != nil {
+			s.sceneService.SetStudioResolver(s.studioService)
+		}
+		if s.explorerService != nil {
+			s.explorerService.SetStudioResolver(s.studioService)
+		}
+	}
+
 	// Wire up matching service to processing service for fingerprint matching
 	if s.matchingService != nil && s.processingService != nil {
 		s.processingService.SetMatchingService(s.matchingService)

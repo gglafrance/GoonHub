@@ -53,3 +53,8 @@ type UpdateActorRequest struct {
 type SetSceneActorsRequest struct {
 	ActorIDs []uint `json:"actor_ids"`
 }
+
+// MergeActorRequest names the actor merged into the actor of the URL (which is kept).
+type MergeActorRequest struct {
+	SourceUUID string `json:"source_uuid" binding:"required"`
+}

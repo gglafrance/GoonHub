@@ -91,6 +91,7 @@ async function onStudioCreated(studio: Studio) {
         id: studio.id,
         uuid: studio.uuid,
         name: studio.name,
+        aliases: studio.aliases || [],
         short_name: studio.short_name || '',
         logo: studio.logo || '',
         scene_count: 0,
