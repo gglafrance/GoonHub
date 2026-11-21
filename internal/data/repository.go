@@ -292,49 +292,49 @@ func (r *SceneRepositoryImpl) GetPendingProcessing() ([]Scene, error) {
 }
 
 func (r *SceneRepositoryImpl) GetScenesNeedingPhase(phase string) ([]Scene, error) {
+	query := scenesNeedingPhaseQuery(r.DB, phase)
+	if query == nil {
+		return nil, nil
+	}
 	var scenes []Scene
+	if err := query.Find(&scenes).Error; err != nil {
+		return nil, err
+	}
+	return scenes, nil
+}
 
-	baseQuery := r.DB.Model(&Scene{}).
-		Where("deleted_at IS NULL").
-		Where("trashed_at IS NULL").
+// scenesNeedingPhaseQuery selects the scenes a "missing" bulk run of the phase queues a job
+// for: scenes lacking the phase output, with metadata when the phase needs it, and without a
+// pending or running job of that phase. It returns nil for an unknown phase. The library
+// health page counts with it, so the count it shows before queuing matches what is queued.
+func scenesNeedingPhaseQuery(db *gorm.DB, phase string) *gorm.DB {
+	query := db.Model(&Scene{}).
+		Where("scenes.deleted_at IS NULL").
+		Where("scenes.trashed_at IS NULL").
 		Where("NOT EXISTS (SELECT 1 FROM job_history jh WHERE jh.scene_id = scenes.id AND jh.phase = ? AND jh.status IN ('pending', 'running'))", phase)
 
 	switch phase {
 	case "metadata":
-		baseQuery = baseQuery.Where("duration = 0")
+		return query.Where("scenes.duration = 0")
 	case "thumbnail":
-		baseQuery = baseQuery.Where("thumbnail_path = ''").Where("duration > 0")
+		return query.Where("scenes.thumbnail_path = ''").Where("scenes.duration > 0")
 	case "sprites":
-		baseQuery = baseQuery.Where("sprite_sheet_path = ''").Where("duration > 0")
+		return query.Where("scenes.sprite_sheet_path = ''").Where("scenes.duration > 0")
 	case "animated_thumbnails":
-		// Scenes that have markers without animated thumbnails OR missing scene preview video
-		var animScenes []Scene
-		err := r.DB.Raw(`
-			SELECT DISTINCT s.* FROM scenes s
-			WHERE s.duration > 0 AND s.deleted_at IS NULL AND s.trashed_at IS NULL
-			AND (
-				(s.preview_video_path = '' OR s.preview_video_path IS NULL)
-				OR EXISTS (
-					SELECT 1 FROM user_scene_markers m
-					WHERE m.scene_id = s.id
-					AND (m.animated_thumbnail_path = '' OR m.animated_thumbnail_path IS NULL)
-				)
+		// Scenes missing their preview video, or with markers without animated thumbnails
+		return query.Where("scenes.duration > 0").Where(`(
+			(scenes.preview_video_path = '' OR scenes.preview_video_path IS NULL)
+			OR EXISTS (
+				SELECT 1 FROM user_scene_markers m
+				WHERE m.scene_id = scenes.id
+				AND (m.animated_thumbnail_path = '' OR m.animated_thumbnail_path IS NULL)
 			)
-		`).Find(&animScenes).Error
-		if err != nil {
-			return nil, err
-		}
-		return animScenes, nil
+		)`)
 	case "fingerprint":
-		baseQuery = baseQuery.Where("fingerprint_type IS NULL").Where("duration > 0")
+		return query.Where("scenes.fingerprint_type IS NULL").Where("scenes.duration > 0")
 	default:
-		return nil, nil
+		return nil
 	}
-
-	if err := baseQuery.Find(&scenes).Error; err != nil {
-		return nil, err
-	}
-	return scenes, nil
 }
 
 func (r *SceneRepositoryImpl) Delete(id uint) error {

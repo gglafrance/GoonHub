@@ -117,6 +117,9 @@ streaming:
     threads: 0                # ffmpeg threads per conversion, 0 = auto
     keyframe_interval: 2      # seconds between keyframes (MP4 fragment length)
 
+library_health:
+  stat_concurrency: 8         # files stat'ed at once by the health page checks (keep low on NFS)
+
 # Dedicated share server (optional)
 # Runs a second HTTP listener serving only share-related routes.
 # Expose on a separate public domain (e.g., share.your-domain.com) while
