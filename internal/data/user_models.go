@@ -67,6 +67,8 @@ type UserSettings struct {
 	PlaylistAutoAdvance      string               `gorm:"not null;default:'countdown'" json:"playlist_auto_advance"`
 	PlaylistCountdownSeconds int                  `gorm:"not null;default:5" json:"playlist_countdown_seconds"`
 	ShowPageSizeSelector     bool                 `gorm:"not null;default:false" json:"show_page_size_selector"`
+	AdvancedMarkerFilters    bool                 `gorm:"not null;default:false" json:"advanced_marker_filters"`
+	DefaultMarkerView        string               `gorm:"size:10;not null;default:'grouped'" json:"default_marker_view"`
 	SceneCardConfig          SceneCardConfig      `gorm:"type:jsonb;not null" json:"scene_card_config"`
 	MaxItemsPerPage          int                  `gorm:"-" json:"max_items_per_page"`
 }

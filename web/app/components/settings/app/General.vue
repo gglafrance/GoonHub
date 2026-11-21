@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { MarkerView } from '~/types/settings';
+
 const settingsStore = useSettingsStore();
 const { layout: keyboardLayout, setLayout: setKeyboardLayout } = useKeyboardLayout();
 
@@ -20,6 +22,25 @@ const appMarkerThumbnailCycling = computed({
         if (settingsStore.draft) settingsStore.draft.marker_thumbnail_cycling = v;
     },
 });
+
+const appAdvancedMarkerFilters = computed({
+    get: () => settingsStore.draft?.advanced_marker_filters ?? false,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.advanced_marker_filters = v;
+    },
+});
+
+const appDefaultMarkerView = computed({
+    get: () => settingsStore.draft?.default_marker_view ?? 'grouped',
+    set: (v: MarkerView) => {
+        if (settingsStore.draft) settingsStore.draft.default_marker_view = v;
+    },
+});
+
+const markerViewOptions: { value: MarkerView; label: string }[] = [
+    { value: 'grouped', label: 'Grouped' },
+    { value: 'all', label: 'All' },
+];
 
 const appShowPageSizeSelector = computed({
     get: () => settingsStore.draft?.show_page_size_selector ?? false,
@@ -112,6 +133,42 @@ const appShowPageSizeSelector = computed({
                     </p>
                 </div>
                 <UiToggle v-model="appMarkerThumbnailCycling" />
+            </div>
+
+            <!-- Default Markers View -->
+            <div class="flex items-center justify-between">
+                <div>
+                    <label class="text-sm font-medium text-white"> Default Markers View </label>
+                    <p class="text-dim mt-0.5 text-xs">
+                        View shown when opening the markers page: grouped by label or all markers
+                    </p>
+                </div>
+                <div class="border-border bg-void/50 flex shrink-0 rounded-lg border p-0.5">
+                    <button
+                        v-for="opt in markerViewOptions"
+                        :key="opt.value"
+                        class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-all"
+                        :class="
+                            appDefaultMarkerView === opt.value
+                                ? 'bg-lava/15 text-lava'
+                                : 'text-dim hover:text-white'
+                        "
+                        @click="appDefaultMarkerView = opt.value"
+                    >
+                        {{ opt.label }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Advanced Marker Filters -->
+            <div class="flex items-center justify-between">
+                <div>
+                    <label class="text-sm font-medium text-white"> Advanced Marker Filters </label>
+                    <p class="text-dim mt-0.5 text-xs">
+                        Filter marker pages by labels, scene tags, actors, studio and range markers
+                    </p>
+                </div>
+                <UiToggle v-model="appAdvancedMarkerFilters" />
             </div>
         </div>
     </div>

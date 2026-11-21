@@ -6,6 +6,7 @@ import type {
     KeyboardLayout,
     SortPreferences,
     SceneCardConfig,
+    MarkerView,
 } from '~/types/settings';
 import type { ParsingRulesSettings, ParsingPreset } from '~/types/parsing-rules';
 
@@ -33,6 +34,12 @@ export const useSettingsStore = defineStore(
         const loop = computed(() => settings.value?.loop ?? false);
         const abLoopControls = computed(() => settings.value?.ab_loop_controls ?? false);
         const markerLoop = computed(() => settings.value?.marker_loop ?? false);
+        const advancedMarkerFilters = computed(
+            () => settings.value?.advanced_marker_filters ?? false,
+        );
+        const defaultMarkerView = computed<MarkerView>(
+            () => settings.value?.default_marker_view ?? 'grouped',
+        );
         const videosPerPage = computed(() => settings.value?.videos_per_page ?? 20);
         const defaultSortOrder = computed<SortOrder>(
             () => settings.value?.default_sort_order ?? 'created_at_desc',
@@ -227,6 +234,8 @@ export const useSettingsStore = defineStore(
             loop,
             abLoopControls,
             markerLoop,
+            advancedMarkerFilters,
+            defaultMarkerView,
             videosPerPage,
             defaultSortOrder,
             defaultTagSort,

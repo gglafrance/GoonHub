@@ -392,6 +392,7 @@ onMounted(async () => {
                     "
                     @click="handleSeekToMarker(marker)"
                 >
+                    <MarkersTagsBadge :tags="marker.tags" :label="marker.label" />
                     <!-- Animated Thumbnail -->
                     <video
                         v-if="markerThumbnailType === 'animated' && getAnimatedUrl(marker)"

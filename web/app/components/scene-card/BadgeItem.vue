@@ -96,8 +96,19 @@ const badge = computed(() => {
 </script>
 
 <template>
-    <!-- Tags badge with popover -->
-    <SceneCardTagsShort v-if="field === 'tags' && scene.tags?.length" :tags="scene.tags" badge />
+    <!-- Tags badge with popover, with the scene markers badge next to it -->
+    <div
+        v-if="field === 'tags' && (scene.tags?.length || scene.markers?.length)"
+        class="flex items-center gap-1"
+    >
+        <SceneCardTagsShort v-if="scene.tags?.length" :tags="scene.tags" badge />
+        <SceneCardMarkersShort
+            v-if="scene.markers?.length"
+            :scene-id="scene.id"
+            :markers="scene.markers"
+            badge
+        />
+    </div>
 
     <!-- Actors badge with popover -->
     <SceneCardActorsShort

@@ -60,17 +60,22 @@ const isMetaField = computed(() =>
         {{ scene.studio }}
     </NuxtLink>
 
-    <!-- Tags short mode -->
-    <SceneCardTagsShort
-        v-else-if="field === 'tags' && mode === 'short' && scene.tags?.length"
-        :tags="scene.tags"
-    />
-
-    <!-- Tags long mode -->
-    <SceneCardTagsLong
-        v-else-if="field === 'tags' && mode !== 'short' && scene.tags?.length"
-        :tags="scene.tags"
-    />
+    <!-- Tags (short or long mode), with the scene markers icon next to them -->
+    <div
+        v-else-if="field === 'tags' && (scene.tags?.length || scene.markers?.length)"
+        class="flex min-w-0 items-center gap-1.5"
+    >
+        <SceneCardMarkersShort
+            v-if="scene.markers?.length"
+            class="shrink-0"
+            :scene-id="scene.id"
+            :markers="scene.markers"
+        />
+        <template v-if="scene.tags?.length">
+            <SceneCardTagsShort v-if="mode === 'short'" :tags="scene.tags" />
+            <SceneCardTagsLong v-else class="min-w-0" :tags="scene.tags" />
+        </template>
+    </div>
 
     <!-- Actors short mode -->
     <SceneCardActorsShort

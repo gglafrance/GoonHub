@@ -36,6 +36,7 @@ mocks: setup-test
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_duplicate_group_repository.go -package=mocks goonhub/internal/data DuplicateGroupRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_duplication_config_repository.go -package=mocks goonhub/internal/data DuplicationConfigRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_import_repository.go -package=mocks goonhub/internal/data ImportRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_saved_marker_filter_repository.go -package=mocks goonhub/internal/data SavedMarkerFilterRepository
 
 test: mocks
 	go test ./...

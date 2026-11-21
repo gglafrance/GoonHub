@@ -2,12 +2,14 @@ package handler
 
 import (
 	"strconv"
+	"strings"
 
 	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/request"
 	"goonhub/internal/api/v1/response"
 	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
+	"goonhub/internal/data"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,6 +17,7 @@ import (
 type MarkerHandler struct {
 	service         *core.MarkerService
 	maxItemsPerPage int
+	savedFilters    *core.SavedMarkerFilterService
 }
 
 func NewMarkerHandler(service *core.MarkerService, maxItemsPerPage int) *MarkerHandler {
@@ -142,6 +145,36 @@ func (h *MarkerHandler) ListLabelSuggestions(c *gin.Context) {
 	response.OK(c, gin.H{"labels": suggestions})
 }
 
+// markerListOptions reads the sort, seed (random sort) and filter query parameters
+// (ranges_only, and comma-separated labels, tags (scene), marker_tags, actors, plus studio).
+func markerListOptions(c *gin.Context, defaultSort string) data.MarkerListOptions {
+	seed, _ := strconv.ParseInt(c.Query("seed"), 10, 64)
+	return data.MarkerListOptions{
+		SortBy:     c.DefaultQuery("sort", defaultSort),
+		Seed:       seed,
+		RangesOnly: c.Query("ranges_only") == "true",
+		Labels:     splitQueryList(c.Query("labels")),
+		Tags:       splitQueryList(c.Query("tags")),
+		Actors:     splitQueryList(c.Query("actors")),
+		Studio:     strings.TrimSpace(c.Query("studio")),
+		MarkerTags: splitQueryList(c.Query("marker_tags")),
+	}
+}
+
+// splitQueryList splits a comma-separated query value, dropping empty entries.
+func splitQueryList(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	var out []string
+	for _, v := range strings.Split(raw, ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
 func (h *MarkerHandler) ListLabelGroups(c *gin.Context) {
 	userID, ok := h.requireAuth(c)
 	if !ok {
@@ -151,9 +184,9 @@ func (h *MarkerHandler) ListLabelGroups(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	page, limit = clampPagination(page, limit, 20, h.maxItemsPerPage)
-	sortBy := c.DefaultQuery("sort", "count_desc")
+	opts := markerListOptions(c, "count_desc")
 
-	groups, total, err := h.service.GetLabelGroups(userID, page, limit, sortBy)
+	groups, total, err := h.service.GetLabelGroups(userID, page, limit, opts)
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -178,7 +211,7 @@ func (h *MarkerHandler) ListMarkersByLabel(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	page, limit = clampPagination(page, limit, 20, h.maxItemsPerPage)
 
-	markers, total, err := h.service.GetMarkersByLabel(userID, label, page, limit)
+	markers, total, err := h.service.GetMarkersByLabel(userID, label, page, limit, markerListOptions(c, ""))
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -197,9 +230,9 @@ func (h *MarkerHandler) ListAllMarkers(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	page, limit = clampPagination(page, limit, 20, h.maxItemsPerPage)
-	sortBy := c.DefaultQuery("sort", "label_asc")
+	opts := markerListOptions(c, "label_asc")
 
-	markers, total, err := h.service.GetAllMarkers(userID, page, limit, sortBy)
+	markers, total, err := h.service.GetAllMarkers(userID, page, limit, opts)
 	if err != nil {
 		response.Error(c, err)
 		return

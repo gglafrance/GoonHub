@@ -20,6 +20,7 @@ export interface SceneListItem {
     studio?: string;
     tags?: string[];
     actors?: string[];
+    markers?: import('~/types/marker').SceneCardMarker[];
 }
 
 // Scene is the full scene representation with all metadata.
