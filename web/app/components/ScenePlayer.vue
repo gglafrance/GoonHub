@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
-import type { Scene } from '~/types/scene';
+import type { Scene, ScenePlayback } from '~/types/scene';
 import type { Marker } from '~/types/marker';
 
 type Player = ReturnType<typeof videojs>;
@@ -309,6 +309,12 @@ const props = defineProps<{
     playlistMode?: boolean;
     hasNext?: boolean;
     hasPrevious?: boolean;
+    // Whether the browser can play the original (defaults to scene.playback)
+    playback?: ScenePlayback | null;
+    // On-the-fly conversion endpoint, used when the browser can't play the original
+    transcodeUrl?: string;
+    // Scene duration in seconds when no scene is passed (shown for converted streams)
+    durationHint?: number;
 }>();
 
 const emit = defineEmits<{
@@ -383,8 +389,52 @@ const playMarker = (marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) => {
     p.play()?.catch(() => {});
 };
 
+// Touch gestures (double-tap seek, swipes, long-press 2x), feedback teleported into the player
+const playerEl = shallowRef<HTMLElement | null>(null);
+const {
+    indicator: gestureIndicator,
+    setup: setupGestures,
+    cleanup: cleanupGestures,
+} = usePlayerGestures({
+    player,
+    vttCues,
+    enabled: computed(() => settingsStore.playerGestures),
+    seekStep: computed(() => settingsStore.gestureSeekStep),
+});
+
+// Picture-in-picture: the button only shows where the browser supports it, and a scene playing
+// in picture-in-picture keeps playing when its page is left
+const pipSupported = import.meta.client && !!document.pictureInPictureEnabled;
+const pipKeeper = usePipKeeper();
+const route = useRoute();
+// Page of the current scene (updated when the scene changes, not when the page is left)
+const snapshotRoute = () => ({ path: route.path, query: { ...route.query } });
+let pageRoute = snapshotRoute();
+
+// From the picture-in-picture window back to the tab: reopen this page at the current time
+const returnToScene = (time: number) => {
+    const query = { ...pageRoute.query, t: String(Math.floor(time)) };
+    delete query.end;
+    navigateTo({ path: pageRoute.path, query });
+};
+const transcode = useTranscodePlayback(player, {
+    playback: () => props.playback ?? props.scene?.playback,
+    transcodeUrl: () => props.transcodeUrl,
+    duration: () => props.durationHint ?? props.scene?.duration ?? 0,
+    loop: () => props.loop ?? false,
+});
+const { notice: playbackNotice, active: transcodeActive, mode: transcodeMode } = transcode;
+// The original file, as an attachment (offered when the browser can't play it)
+const downloadUrl = computed(
+    () => `${props.sceneUrl}${props.sceneUrl.includes('?') ? '&' : '?'}download=1`,
+);
+
 const sceneRef = computed(() => props.scene);
 const { hasRecordedView, setupTracking, cleanup } = useWatchTracking({
+    player,
+    scene: sceneRef,
+});
+const { setup: setupReplayHeatmap, cleanup: cleanupReplayHeatmap } = useReplayHeatmap({
     player,
     scene: sceneRef,
 });
@@ -426,6 +476,9 @@ const vttUrl = computed(() => {
 onMounted(async () => {
     if (!videoElement.value) return;
 
+    // A scene left in picture-in-picture stops here; the same scene continues where it was
+    const pipHandoff = pipKeeper.takeOver();
+
     player.value = videojs(videoElement.value, {
         controls: true,
         autoplay: props.autoplay ? 'any' : false,
@@ -446,12 +499,14 @@ onMounted(async () => {
                 ...(settingsStore.abLoopControls
                     ? ['ABLoopStartButton', 'ABLoopEndButton', 'ABLoopToggleButton']
                     : []),
-                'pipToggle',
+                ...(pipSupported ? ['pictureInPictureToggle'] : []),
                 'TheaterModeButton',
                 'fullscreenToggle',
             ],
         },
     });
+
+    playerEl.value = player.value.el() as HTMLElement;
 
     // Get reference to theater mode button and configure it
     const controlBar = player.value.getChild('controlBar');
@@ -525,7 +580,14 @@ onMounted(async () => {
     player.value.on('play', () => emit('play'));
     player.value.on('pause', () => emit('pause'));
     player.value.on('ended', () => emit('ended'));
-    player.value.on('error', (e: unknown) => emit('error', e));
+    player.value.on('error', (e: unknown) => {
+        // Formats the browser can't play are converted on the fly or explained in an overlay
+        if (transcode.handleError()) return;
+        emit('error', e);
+    });
+
+    transcode.attach();
+    transcode.init(props.startTime ?? 0, !!props.autoplay);
 
     // Set up watch tracking (handles timeupdate, ended, and beforeunload)
     setupTracking();
@@ -547,6 +609,8 @@ onMounted(async () => {
     player.value.ready(() => {
         setupThumbnailPreview();
         setupMarkerIndicators();
+        setupGestures();
+        setupReplayHeatmap();
         if (vttUrl.value) {
             loadVttCues(vttUrl.value);
         }
@@ -558,9 +622,12 @@ onMounted(async () => {
             progressHolder.appendChild(abLoopMarkerA);
         }
 
-        // Seek to start time if provided
-        if (props.startTime && props.startTime > 0) {
+        // Seek to start time if provided (a converted stream already starts there)
+        if (props.startTime && props.startTime > 0 && !transcode.active.value) {
             player.value!.currentTime(props.startTime);
+        } else if (pipHandoff && pipHandoff.sceneUrl === props.sceneUrl) {
+            player.value!.currentTime(pipHandoff.time);
+            if (pipHandoff.playing && !props.autoplay) tryAutoplay(player.value!);
         }
 
         if (props.loopRange) {
@@ -608,14 +675,17 @@ watch(
         if (!player.value) return;
         const p = player.value;
 
+        pageRoute = snapshotRoute();
+
         // Clear AB loop and reset before loading new source
         abLoop.clear();
         markerLoopRange = null;
         p.pause();
-        p.currentTime(0);
-        p.src({ type: 'video/mp4', src: newUrl });
+        // (a converted stream would reload at 0 first)
+        if (!transcode.active.value) p.currentTime(0);
+        const playable = transcode.load(newUrl, 0, !!props.autoplay);
 
-        if (props.autoplay) {
+        if (props.autoplay && playable) {
             p.ready(() => tryAutoplay(p));
         }
     },
@@ -716,10 +786,13 @@ defineExpose({
 });
 
 onBeforeUnmount(() => {
+    transcode.detach();
     cleanup();
     cleanupThumbnailPreview();
     cleanupMarkerIndicators();
-    if (player.value) {
+    cleanupGestures();
+    cleanupReplayHeatmap();
+    if (player.value && !pipKeeper.keep(player.value, props.sceneUrl, returnToScene)) {
         player.value.dispose();
     }
 });
@@ -738,17 +811,64 @@ onBeforeUnmount(() => {
             :poster="posterUrl"
             crossorigin="anonymous"
         >
-            <source :src="sceneUrl" type="video/mp4" />
+            <source v-if="transcode.startsDirect" :src="sceneUrl" type="video/mp4" />
         </video>
+        <Teleport v-if="playerEl" :to="playerEl">
+            <PlayerGestureOverlay :indicator="gestureIndicator" />
+        </Teleport>
+        <div
+            v-if="transcodeActive && !playbackNotice"
+            class="transcode-badge"
+            :title="
+                transcodeMode === 'remux'
+                    ? 'The browser cannot read this file container: it is repackaged on the fly'
+                    : 'The browser cannot play this format: it is converted on the fly'
+            "
+        >
+            <Icon name="heroicons:arrow-path-rounded-square" size="12" />
+            {{ transcodeMode === 'remux' ? 'Remuxed' : 'Converted' }} on the fly
+        </div>
+        <PlayerPlaybackNotice
+            v-if="playbackNotice"
+            :notice="playbackNotice"
+            :download-url="downloadUrl"
+            @retry="transcode.retry()"
+        />
     </div>
 </template>
 
 <style scoped>
 .video-wrapper {
+    position: relative;
     width: 100%;
     margin: 0 auto;
     background: #050505;
     overflow: hidden;
+}
+
+.transcode-badge {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    background: rgba(8, 8, 8, 0.6);
+    backdrop-filter: blur(12px);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 10px;
+    font-weight: 500;
+    pointer-events: auto;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.video-wrapper:hover .transcode-badge {
+    opacity: 1;
 }
 
 .video-wrapper--portrait {
@@ -1279,6 +1399,37 @@ onBeforeUnmount(() => {
 }
 
 /* ========================================
+   REPLAY HEATMAP ("most replayed")
+   ======================================== */
+:deep(.vjs-replay-heatmap) {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    height: 22px;
+    pointer-events: none;
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
+    z-index: 1;
+}
+
+:deep(.vjs-progress-control:hover .vjs-replay-heatmap) {
+    opacity: 1;
+}
+
+:deep(.vjs-replay-heatmap svg) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+:deep(.vjs-replay-heatmap-line) {
+    stroke: rgba(255, 255, 255, 0.45);
+    stroke-width: 1px;
+}
+
+/* ========================================
    LOADING SPINNER
    ======================================== */
 :deep(.vjs-loading-spinner) {
@@ -1419,6 +1570,22 @@ onBeforeUnmount(() => {
 
 :deep(.vjs-ab-loop-toggle.vjs-ab-loop-enabled:hover) {
     background: rgba(255, 77, 77, 0.25);
+}
+
+/* ========================================
+   TOUCH GESTURES
+   ======================================== */
+/* Inline, the browser keeps vertical scrolling and pinch-zoom; horizontal drags are scrubs */
+:deep(.vjs-gestures .vjs-tech) {
+    touch-action: pan-y pinch-zoom;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* In fullscreen, every drag is a gesture (vertical: volume and brightness) */
+:deep(.vjs-gestures.vjs-fullscreen .vjs-tech) {
+    touch-action: none;
 }
 
 /* Hide text track display from control bar area */

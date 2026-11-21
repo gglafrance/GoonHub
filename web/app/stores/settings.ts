@@ -41,6 +41,11 @@ export const useSettingsStore = defineStore(
         const loop = computed(() => settings.value?.loop ?? false);
         const abLoopControls = computed(() => settings.value?.ab_loop_controls ?? false);
         const markerLoop = computed(() => settings.value?.marker_loop ?? false);
+        // Touch gestures on the player (on by default, also for share pages without settings)
+        const playerGestures = computed(() => settings.value?.player_gestures ?? true);
+        const gestureSeekStep = computed(() =>
+            normalizeGestureSeekStep(settings.value?.gesture_seek_step),
+        );
         const advancedMarkerFilters = computed(
             () => settings.value?.advanced_marker_filters ?? false,
         );
@@ -59,6 +64,8 @@ export const useSettingsStore = defineStore(
             return density === 'compact' || density === 'large' ? density : 'comfortable';
         });
         const infiniteScroll = computed(() => settings.value?.infinite_scroll ?? false);
+        const showReplayHeatmap = computed(() => settings.value?.show_replay_heatmap ?? true);
+        const recordReplayHeatmap = computed(() => settings.value?.record_replay_heatmap ?? true);
         const videosPerPage = computed(() => settings.value?.videos_per_page ?? 20);
         const defaultSortOrder = computed<SortOrder>(
             () => settings.value?.default_sort_order ?? 'created_at_desc',
@@ -318,6 +325,8 @@ export const useSettingsStore = defineStore(
             loop,
             abLoopControls,
             markerLoop,
+            playerGestures,
+            gestureSeekStep,
             advancedMarkerFilters,
             defaultMarkerView,
             paginationPosition,
@@ -326,6 +335,8 @@ export const useSettingsStore = defineStore(
             infiniteScroll,
             setGridDensity,
             setInfiniteScroll,
+            showReplayHeatmap,
+            recordReplayHeatmap,
             videosPerPage,
             defaultSortOrder,
             defaultTagSort,

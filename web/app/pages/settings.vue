@@ -24,6 +24,7 @@ type TabType =
     | 'jobs'
     | 'storage'
     | 'duplicates'
+    | 'health'
     | 'trash';
 
 interface SubTabConfig {
@@ -69,6 +70,7 @@ const tabConfig: TabConfig[] = [
             { id: 'manual', label: 'Manual' },
             { id: 'history', label: 'History' },
             { id: 'workers', label: 'Workers' },
+            { id: 'scheduling', label: 'Scheduling' },
             { id: 'processing', label: 'Processing' },
             { id: 'triggers', label: 'Triggers' },
             { id: 'retry', label: 'Retry' },
@@ -77,6 +79,7 @@ const tabConfig: TabConfig[] = [
     },
     { id: 'storage', label: 'Storage', icon: 'heroicons:folder', admin: true },
     { id: 'duplicates', label: 'Duplicates', icon: 'heroicons:document-duplicate', admin: true },
+    { id: 'health', label: 'Health', icon: 'heroicons:heart', admin: true },
     { id: 'trash', label: 'Trash', icon: 'heroicons:trash', admin: true },
 ];
 
@@ -575,6 +578,7 @@ definePageMeta({
                 <SettingsJobs v-if="activeTab === 'jobs'" :active-sub-tab="activeSubTab" />
                 <SettingsStorage v-if="activeTab === 'storage'" />
                 <SettingsDuplicates v-if="activeTab === 'duplicates'" />
+                <SettingsHealth v-if="activeTab === 'health'" />
                 <SettingsTrash v-if="activeTab === 'trash'" />
             </div>
         </main>

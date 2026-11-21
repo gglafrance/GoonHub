@@ -17,7 +17,7 @@ import (
 // get the default view (grids, default table columns), and the column goes away on down. It
 // migrates the database down and up again, so it needs a disposable database of its own:
 // GOONHUB_TEST_MIGRATION_POSTGRES_DSN.
-func TestMigration084SceneListView(t *testing.T) {
+func TestMigration081SceneListView(t *testing.T) {
 	dsn := os.Getenv("GOONHUB_TEST_MIGRATION_POSTGRES_DSN")
 	if dsn == "" {
 		t.Skip("GOONHUB_TEST_MIGRATION_POSTGRES_DSN not set")
@@ -37,7 +37,7 @@ func TestMigration084SceneListView(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	const version = 84
+	const version = 81
 	// the migration before (numbers are not contiguous while features are merged)
 	prev, err := source.Prev(version)
 	if err != nil {
@@ -48,7 +48,7 @@ func TestMigration084SceneListView(t *testing.T) {
 	}
 
 	var userID int64
-	if err := db.QueryRow(`INSERT INTO users (username, password, role) VALUES ('migration-084', 'x', 'user') RETURNING id`).Scan(&userID); err != nil {
+	if err := db.QueryRow(`INSERT INTO users (username, password, role) VALUES ('migration-081', 'x', 'user') RETURNING id`).Scan(&userID); err != nil {
 		t.Fatalf("insert user: %v", err)
 	}
 	t.Cleanup(func() {

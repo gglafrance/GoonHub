@@ -136,6 +136,10 @@ func (s *SettingsService) GetSettings(userID uint) (*data.UserSettings, error) {
 			PaginationPosition:     "bottom",
 			DateFormat:             DefaultDateFormat,
 			GridDensity:            DefaultGridDensity,
+			PlayerGestures:         true,
+			GestureSeekStep:        DefaultGestureSeekStep,
+			ShowReplayHeatmap:      true,
+			RecordReplayHeatmap:    true,
 			HomepageConfig:         data.DefaultHomepageConfig(),
 			SortPreferences:        data.DefaultSortPreferences(),
 			SceneCardConfig:        data.DefaultSceneCardConfig(),
@@ -386,6 +390,48 @@ func WithDateFormat(format string) SettingsOption {
 	}
 }
 
+// DefaultGestureSeekStep is the seek of a double-tap on the player sides, in seconds.
+const DefaultGestureSeekStep = 10
+
+// AllowedGestureSeekSteps are the double-tap seek steps a user can choose, in seconds.
+var AllowedGestureSeekSteps = []int{5, 10, 15, 30}
+
+// WithPlayerGestures turns the player touch gestures on or off and sets the double-tap seek step.
+// A nil enabled or a zero seek step keeps the current value, so that a client which does not know
+// these settings does not reset them.
+func WithPlayerGestures(enabled *bool, seekStep int) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if seekStep == 0 {
+			seekStep = settings.GestureSeekStep
+			if !slices.Contains(AllowedGestureSeekSteps, seekStep) {
+				seekStep = DefaultGestureSeekStep
+			}
+		}
+		if !slices.Contains(AllowedGestureSeekSteps, seekStep) {
+			return fmt.Errorf("invalid gesture seek step: %d", seekStep)
+		}
+		if enabled != nil {
+			settings.PlayerGestures = *enabled
+		}
+		settings.GestureSeekStep = seekStep
+		return nil
+	}
+}
+
+// WithReplayHeatmap sets whether the "most replayed" heatmap is shown on the player and
+// whether watched parts are recorded; nil keeps the current value (on for a new row).
+func WithReplayHeatmap(show, record *bool) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if show != nil {
+			settings.ShowReplayHeatmap = *show
+		}
+		if record != nil {
+			settings.RecordReplayHeatmap = *record
+		}
+		return nil
+	}
+}
+
 // WithPaginationPosition sets where page controls are shown (top, bottom or both; empty means
 // bottom).
 func WithPaginationPosition(position string) SettingsOption {
@@ -538,14 +584,20 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 	}
 
 	settings, err := s.settingsRepo.GetByUserID(userID)
+	created := false
 	if err != nil {
+		created = true
 		settings = &data.UserSettings{
-			UserID:          userID,
-			HomepageConfig:  data.DefaultHomepageConfig(),
-			ParsingRules:    data.DefaultParsingRulesSettings(),
-			SortPreferences: data.DefaultSortPreferences(),
-			SceneCardConfig: data.DefaultSceneCardConfig(),
-			SceneListView:   data.DefaultSceneListView(),
+			UserID:              userID,
+			HomepageConfig:      data.DefaultHomepageConfig(),
+			ParsingRules:        data.DefaultParsingRulesSettings(),
+			SortPreferences:     data.DefaultSortPreferences(),
+			SceneCardConfig:     data.DefaultSceneCardConfig(),
+			PlayerGestures:      true,
+			GestureSeekStep:     DefaultGestureSeekStep,
+			ShowReplayHeatmap:   true,
+			RecordReplayHeatmap: true,
+			SceneListView:       data.DefaultSceneListView(),
 		}
 	}
 
@@ -576,6 +628,13 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 
 	if err := s.settingsRepo.Upsert(settings); err != nil {
 		return nil, fmt.Errorf("failed to update settings: %w", err)
+	}
+	// On insert GORM leaves out zero values of columns that have a default (a setting that is
+	// on by default but turned off here would be stored as on): write the new row once more.
+	if created && (!settings.ShowReplayHeatmap || !settings.RecordReplayHeatmap) {
+		if err := s.settingsRepo.Upsert(settings); err != nil {
+			return nil, fmt.Errorf("failed to update settings: %w", err)
+		}
 	}
 
 	return settings, nil

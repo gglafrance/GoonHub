@@ -26,6 +26,8 @@ const filterSummary = computed(() => {
     if (f.selected_tags?.length) parts.push(`${f.selected_tags.length} tag(s)`);
     if (f.selected_actors?.length) parts.push(`${f.selected_actors.length} actor(s)`);
     if (f.studio) parts.push(`Studio: ${f.studio}`);
+    if (f.source_sites?.length) parts.push(`Source: ${f.source_sites.join(', ')}`);
+    if (f.has_source !== undefined) parts.push(f.has_source ? 'With source' : 'Without source');
     if (f.resolution) parts.push(`${f.resolution}`);
     if (f.min_duration || f.max_duration) {
         const min = f.min_duration ? `${Math.floor(f.min_duration / 60)}m` : '0m';

@@ -54,6 +54,7 @@ Find exactly what you're looking for. Powered by Meilisearch, GoonHub delivers i
 
 - **Instant full-text search** - Searches across titles, descriptions, filenames, actors, and tags
 - **12+ filter types** - Tags, actors, studio, duration range, date range, resolution, rating range, liked status, jizz count, marker labels, match type, and sort order
+- **Source site filter** - Filter by the site scenes come from (pornhub.com, xvideos.com...), with scene counts, or by having a source at all. After upgrading to a version with this filter, rebuild the search index once (Settings > App > Search > Rebuild Search Index) so existing scenes get their source site
 - **Smart sort options** - Newest, oldest, alphabetical, random (with shareable seed), most viewed, longest, highest rated
 - **Saved searches** - Store your favorite filter combinations for one-click access
 - **URL-persisted filters** - Share or bookmark any search configuration; browser back/forward works naturally

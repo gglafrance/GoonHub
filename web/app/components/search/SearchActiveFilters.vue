@@ -11,6 +11,10 @@ const removeActor = (actor: string) => {
     searchStore.selectedActors = searchStore.selectedActors.filter((a) => a !== actor);
 };
 
+const removeSourceSite = (site: string) => {
+    searchStore.selectedSourceSites = searchStore.selectedSourceSites.filter((s) => s !== site);
+};
+
 const removeMarkerLabel = (label: string) => {
     searchStore.selectedMarkerLabels = searchStore.selectedMarkerLabels.filter((l) => l !== label);
 };
@@ -30,6 +34,7 @@ const STATUS_LABELS: Record<SearchStatusKey, [string, string]> = {
     has_actors: ['With actors', 'Without actors'],
     has_tags: ['With tags', 'Without tags'],
     has_studio: ['With studio', 'Without studio'],
+    has_source: ['With source', 'Without source'],
 };
 
 const statusChips = computed(() =>
@@ -101,6 +106,19 @@ const statusChips = computed(() =>
         >
             Studio: {{ searchStore.studio }}
             <button class="text-dim hover:text-white" @click="searchStore.studio = ''">
+                <Icon name="heroicons:x-mark" size="12" />
+            </button>
+        </span>
+
+        <span
+            v-for="site in searchStore.selectedSourceSites"
+            :key="'source-' + site"
+            class="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-0.5 text-[11px]
+                font-medium text-white"
+        >
+            <Icon name="heroicons:globe-alt" size="12" class="opacity-50" />
+            {{ site }}
+            <button class="text-dim hover:text-white" @click="removeSourceSite(site)">
                 <Icon name="heroicons:x-mark" size="12" />
             </button>
         </span>

@@ -416,6 +416,8 @@ func (s *HomepageService) fetchSavedSearchSection(userID uint, section data.Home
 	params.HasActors = savedSearch.Filters.HasActors
 	params.HasTags = savedSearch.Filters.HasTags
 	params.HasStudio = savedSearch.Filters.HasStudio
+	params.SourceSites = NormalizeSourceSites(savedSearch.Filters.SourceSites)
+	params.HasSource = savedSearch.Filters.HasSource
 	params.Watched = savedSearch.Filters.Watched
 	params.Rated = savedSearch.Filters.Rated
 	params.HasMarkers = savedSearch.Filters.HasMarkers

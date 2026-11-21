@@ -9,6 +9,7 @@
         "preview": "nuxt preview",
         "postinstall": "nuxt prepare",
         "lint": "eslint .",
+        "test": "bun test tests",
         "lint:fix": "eslint . --fix",
         "prettier": "prettier --write --cache ."
     },

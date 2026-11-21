@@ -19,6 +19,7 @@ export interface ShareSceneData {
     actors: string[];
     created_at: string;
     release_date: string | null;
+    playback?: import('~/types/scene').ScenePlayback;
 }
 
 export interface ResolvedShareLink {

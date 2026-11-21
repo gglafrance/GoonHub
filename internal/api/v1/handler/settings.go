@@ -217,6 +217,8 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		core.WithSceneListView(sceneListView),
 		core.WithGridDensity(req.GridDensity),
 		core.WithInfiniteScroll(req.InfiniteScroll),
+		core.WithPlayerGestures(req.PlayerGestures, req.GestureSeekStep),
+		core.WithReplayHeatmap(req.ShowReplayHeatmap, req.RecordReplayHeatmap),
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
