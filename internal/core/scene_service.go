@@ -254,6 +254,29 @@ func (s *SceneService) UpdateSceneMetadata(id uint, title, description, studio s
 	return scene, nil
 }
 
+// UpdateSceneSourceURL sets where a scene comes from (empty clears it). The
+// URL is validated by NormalizeSourceURL.
+func (s *SceneService) UpdateSceneSourceURL(id uint, sourceURL string) (*data.Scene, error) {
+	normalized, err := NormalizeSourceURL(sourceURL)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.Repo.GetByID(id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrSceneNotFound(id)
+		}
+		return nil, apperrors.NewInternalError("failed to get scene", err)
+	}
+	if err := s.Repo.UpdateSourceURL(id, normalized); err != nil {
+		return nil, apperrors.NewInternalError("failed to update scene source", err)
+	}
+	scene, err := s.Repo.GetByID(id)
+	if err != nil {
+		return nil, apperrors.NewInternalError("failed to get scene", err)
+	}
+	return scene, nil
+}
+
 func (s *SceneService) DeleteScene(id uint) error {
 	scene, err := s.Repo.GetByID(id)
 	if err != nil {

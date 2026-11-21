@@ -40,6 +40,8 @@ export interface Scene extends SceneListItem {
     processing_error?: string;
     file_created_at?: string;
     description?: string;
+    // the web page the scene comes from ('' or absent: unknown)
+    source_url?: string;
     studio?: string;
     tags?: string[];
     actors?: string[];

@@ -671,6 +671,20 @@ func (mr *MockSceneRepositoryMockRecorder) UpdateSceneMetadata(id, title, descri
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSceneMetadata", reflect.TypeOf((*MockSceneRepository)(nil).UpdateSceneMetadata), id, title, description, studio, releaseDate, porndbSceneID)
 }
 
+// UpdateSourceURL mocks base method.
+func (m *MockSceneRepository) UpdateSourceURL(id uint, sourceURL string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSourceURL", id, sourceURL)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateSourceURL indicates an expected call of UpdateSourceURL.
+func (mr *MockSceneRepositoryMockRecorder) UpdateSourceURL(id, sourceURL any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSourceURL", reflect.TypeOf((*MockSceneRepository)(nil).UpdateSourceURL), id, sourceURL)
+}
+
 // UpdateSprites mocks base method.
 func (m *MockSceneRepository) UpdateSprites(id uint, spriteSheetPath, vttPath string, spriteSheetCount int) error {
 	m.ctrl.T.Helper()
