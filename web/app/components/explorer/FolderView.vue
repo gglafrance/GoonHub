@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FolderInfo } from '~/types/explorer';
+import type { SceneTableColumn } from '~/types/settings';
 
 defineProps<{
     selectMode?: boolean;
@@ -13,6 +14,9 @@ const route = useRoute();
 const router = useRouter();
 const explorerStore = useExplorerStore();
 const { showSelector, maxLimit, updatePageSize } = usePageSize();
+// Grid or table. Folder listings have no user data (rating) nor actors, and keep their order.
+const { isTable } = useSceneListView('explorer');
+const hiddenTableColumns: SceneTableColumn[] = ['rating', 'actors'];
 
 let isUpdatingUrl = false;
 let isSyncingFromUrl = false;
@@ -171,31 +175,38 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
 
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <h3 class="text-dim text-xs font-medium tracking-wider uppercase">Scenes</h3>
-                    <SceneSelectionControls
-                        :select-mode="selectMode"
-                        :has-selection="explorerStore.hasSelection"
-                        :is-selecting-all="explorerStore.isSelectingAll"
-                        :all-page-scenes-selected="explorerStore.allPageScenesSelected"
-                        :all-scenes-selected="explorerStore.allFolderScenesSelected"
-                        :total-scenes="explorerStore.totalScenes"
-                        :show-recursive="explorerStore.subfolders.length > 0"
-                        :is-recursive-disabled="explorerStore.isSelectingAll"
-                        @update:select-mode="$emit('update:selectMode', $event)"
-                        @deselect-all="explorerStore.clearSelection()"
-                        @select-page="explorerStore.selectAllOnPage()"
-                        @select-all="explorerStore.selectAllInFolder()"
-                        @select-recursive="explorerStore.selectAllInFolderRecursive()"
-                    />
+                    <div class="flex items-center gap-3">
+                        <SceneSelectionControls
+                            :select-mode="selectMode"
+                            :has-selection="explorerStore.hasSelection"
+                            :is-selecting-all="explorerStore.isSelectingAll"
+                            :all-page-scenes-selected="explorerStore.allPageScenesSelected"
+                            :all-scenes-selected="explorerStore.allFolderScenesSelected"
+                            :total-scenes="explorerStore.totalScenes"
+                            :show-recursive="explorerStore.subfolders.length > 0"
+                            :is-recursive-disabled="explorerStore.isSelectingAll"
+                            @update:select-mode="$emit('update:selectMode', $event)"
+                            @deselect-all="explorerStore.clearSelection()"
+                            @select-page="explorerStore.selectAllOnPage()"
+                            @select-all="explorerStore.selectAllInFolder()"
+                            @select-recursive="explorerStore.selectAllInFolderRecursive()"
+                        />
+                        <SceneTableViewControls
+                            page="explorer"
+                            :hidden-columns="hiddenTableColumns"
+                        />
+                    </div>
                 </div>
 
-                <SelectableSceneGrid
-                    v-if="selectMode"
+                <SceneCollection
                     :scenes="explorerStore.scenes"
+                    :table="isTable"
+                    :select-mode="selectMode"
                     :is-scene-selected="explorerStore.isSceneSelected"
+                    :hidden-columns="hiddenTableColumns"
                     @toggle-selection="explorerStore.toggleSceneSelection"
                     @drag-select="(ids, additive) => explorerStore.dragSelect(ids, additive)"
                 />
-                <SceneGrid v-else :scenes="explorerStore.scenes" />
 
                 <Pagination
                     :model-value="explorerStore.page"

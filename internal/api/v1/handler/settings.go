@@ -187,6 +187,10 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		StudioScenes: req.SortPreferences.StudioScenes,
 	}
 	sceneCardConfig := h.convertRequestToSceneCardConfig(req.SceneCardConfig)
+	var sceneListView *data.SceneListView
+	if req.SceneListView != nil {
+		sceneListView = &data.SceneListView{Pages: req.SceneListView.Pages, Columns: req.SceneListView.Columns}
+	}
 
 	settings, err := h.SettingsService.UpdateAllSettings(
 		userPayload.UserID,
@@ -210,6 +214,7 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		sceneCardConfig,
 		core.WithPaginationPosition(req.PaginationPosition),
 		core.WithDateFormat(req.DateFormat),
+		core.WithSceneListView(sceneListView),
 		core.WithPlayerGestures(req.PlayerGestures, req.GestureSeekStep),
 		core.WithReplayHeatmap(req.ShowReplayHeatmap, req.RecordReplayHeatmap),
 	)

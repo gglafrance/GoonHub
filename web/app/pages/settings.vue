@@ -50,6 +50,7 @@ const tabConfig: TabConfig[] = [
         icon: 'heroicons:cog-6-tooth',
         subTabs: [
             { id: 'general', label: 'General' },
+            { id: 'display', label: 'Display' },
             { id: 'sort-defaults', label: 'Sort Defaults' },
             { id: 'card-template', label: 'Card Template' },
             { id: 'search', label: 'Search', admin: true },

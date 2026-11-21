@@ -142,6 +142,7 @@ func (s *SettingsService) GetSettings(userID uint) (*data.UserSettings, error) {
 			HomepageConfig:         data.DefaultHomepageConfig(),
 			SortPreferences:        data.DefaultSortPreferences(),
 			SceneCardConfig:        data.DefaultSceneCardConfig(),
+			SceneListView:          data.DefaultSceneListView(),
 		}, nil
 	}
 	return settings, nil
@@ -445,6 +446,55 @@ func WithPaginationPosition(position string) SettingsOption {
 	}
 }
 
+// SceneListPages are the page types whose scene list can be shown as a grid or a table.
+var SceneListPages = []string{"search", "actor", "studio", "playlist", "explorer"}
+
+// SceneTableColumns are the columns a scene table can show.
+var SceneTableColumns = []string{
+	"thumbnail", "title", "duration", "resolution", "file_size", "rating", "views",
+	"studio", "actors", "release_date", "added_at",
+}
+
+// WithSceneListView sets the grid/table view per page and the table columns. A nil view keeps
+// the current one (clients that do not know the setting).
+func WithSceneListView(view *data.SceneListView) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if view == nil {
+			return nil
+		}
+		validated, err := validateSceneListView(*view)
+		if err != nil {
+			return err
+		}
+		settings.SceneListView = validated
+		return nil
+	}
+}
+
+func validateSceneListView(view data.SceneListView) (data.SceneListView, error) {
+	out := data.SceneListView{Pages: map[string]string{}, Columns: []string{}}
+	for page, mode := range view.Pages {
+		if !slices.Contains(SceneListPages, page) {
+			return out, fmt.Errorf("invalid scene list page: %s", page)
+		}
+		if mode != data.SceneListViewGrid && mode != data.SceneListViewTable {
+			return out, fmt.Errorf("invalid scene list view for %s: %s", page, mode)
+		}
+		out.Pages[page] = mode
+	}
+	for _, col := range view.Columns {
+		if !slices.Contains(SceneTableColumns, col) {
+			return out, fmt.Errorf("invalid scene table column: %s", col)
+		}
+		if slices.Contains(out.Columns, col) {
+			return out, fmt.Errorf("duplicate scene table column: %s", col)
+		}
+		out.Columns = append(out.Columns, col)
+	}
+	out.Normalize()
+	return out, nil
+}
+
 func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, abLoopControls bool, markerLoop bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences, playlistAutoAdvance string, playlistCountdownSeconds int, showPageSizeSelector bool, advancedMarkerFilters bool, defaultMarkerView string, sceneCardConfig data.SceneCardConfig, opts ...SettingsOption) (*data.UserSettings, error) {
 	if volume < 0 || volume > 100 {
 		return nil, fmt.Errorf("volume must be between 0 and 100")
@@ -516,6 +566,7 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 			GestureSeekStep:     DefaultGestureSeekStep,
 			ShowReplayHeatmap:   true,
 			RecordReplayHeatmap: true,
+			SceneListView:       data.DefaultSceneListView(),
 		}
 	}
 

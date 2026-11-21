@@ -129,4 +129,12 @@ type UpdateAllSettingsRequest struct {
 	ShowReplayHeatmap   *bool                        `json:"show_replay_heatmap"`
 	RecordReplayHeatmap *bool                        `json:"record_replay_heatmap"`
 	SceneCardConfig     UpdateSceneCardConfigRequest `json:"scene_card_config"`
+	// SceneListView: nil keeps the current value
+	SceneListView *SceneListViewRequest `json:"scene_list_view"`
+}
+
+// SceneListViewRequest is the grid/table view per scene list page and the table columns.
+type SceneListViewRequest struct {
+	Pages   map[string]string `json:"pages"`
+	Columns []string          `json:"columns"`
 }

@@ -21,6 +21,8 @@ export interface SceneListItem {
     tags?: string[];
     actors?: string[];
     markers?: import('~/types/marker').SceneCardMarker[];
+    // Included via the release_date card field (scene tables)
+    release_date?: string;
 }
 
 // Scene is the full scene representation with all metadata.

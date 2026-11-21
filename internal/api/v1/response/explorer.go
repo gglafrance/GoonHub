@@ -27,7 +27,7 @@ func ToFolderContentsResponse(resp *core.FolderContentsResponse) *FolderContents
 		StoragePath: resp.StoragePath,
 		CurrentPath: resp.CurrentPath,
 		Subfolders:  resp.Subfolders,
-		Scenes:      ToSceneListItems(resp.Scenes),
+		Scenes:      ToSceneListItemsWithFields(resp.Scenes, SceneModelFields),
 		TotalScenes: resp.TotalScenes,
 		Page:        resp.Page,
 		Limit:       resp.Limit,
@@ -45,7 +45,7 @@ type FolderSearchResponse struct {
 // ToFolderSearchResponse converts the service response to an API response.
 func ToFolderSearchResponse(resp *core.FolderSearchResponse) *FolderSearchResponse {
 	return &FolderSearchResponse{
-		Scenes: ToSceneListItems(resp.Scenes),
+		Scenes: ToSceneListItemsWithFields(resp.Scenes, SceneModelFields),
 		Total:  resp.Total,
 		Page:   resp.Page,
 		Limit:  resp.Limit,
