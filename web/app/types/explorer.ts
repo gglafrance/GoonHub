@@ -25,6 +25,10 @@ export interface FolderContentsResponse {
     total_scenes: number;
     page: number;
     limit: number;
+    ratings?: Record<string, number>;
+    likes?: Record<string, boolean>;
+    jizz_counts?: Record<string, number>;
+    watched?: Record<string, boolean>;
 }
 
 export interface BulkUpdateTagsRequest {
@@ -95,6 +99,10 @@ export interface FolderSearchResponse {
     total: number;
     page: number;
     limit: number;
+    ratings?: Record<string, number>;
+    likes?: Record<string, boolean>;
+    jizz_counts?: Record<string, number>;
+    watched?: Record<string, boolean>;
 }
 
 export interface ScenesMatchInfoRequest {

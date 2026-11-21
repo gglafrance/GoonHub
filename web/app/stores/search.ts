@@ -88,6 +88,7 @@ export const useSearchStore = defineStore('search', () => {
     const ratings = ref<Record<string, number>>({});
     const likes = ref<Record<string, boolean>>({});
     const jizzCounts = ref<Record<string, number>>({});
+    const watched = ref<Record<string, boolean>>({});
 
     // Filter options
     const filterOptions = ref<SceneFilterOptions>({
@@ -182,6 +183,11 @@ export const useSearchStore = defineStore('search', () => {
             jizzCounts.value = mergeMaps(
                 jizzCounts.value,
                 results.map((r) => r.jizz_counts),
+                partial,
+            );
+            watched.value = mergeMaps(
+                watched.value,
+                results.map((r) => r.watched),
                 partial,
             );
             loadedPages.value = commitPageLoad(loadedPages.value, plan);
@@ -489,6 +495,7 @@ export const useSearchStore = defineStore('search', () => {
         ratings,
         likes,
         jizzCounts,
+        watched,
         filterOptions,
         hasActiveFilters,
         getSearchParams,

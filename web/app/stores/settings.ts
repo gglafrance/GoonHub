@@ -111,6 +111,7 @@ export const useSettingsStore = defineStore(
                 frame_rate: 'frame_rate',
                 tags: 'tags',
                 actors: 'actors',
+                watched: 'watched',
             };
 
             // Content field name -> API card_fields name mapping

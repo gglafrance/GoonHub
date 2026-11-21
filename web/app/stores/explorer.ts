@@ -19,6 +19,8 @@ export const useExplorerStore = defineStore('explorer', () => {
     const subfolders = ref<FolderInfo[]>([]);
     const scenes = ref<SceneListItem[]>([]);
     const totalScenes = ref(0);
+    // The user's ratings, likes, jizz counts and watched scenes, for the card badges
+    const cardSidecars = ref(emptyCardSidecars());
     const page = ref(1);
     const isLoading = ref(false);
     const error = ref<string | null>(null);
@@ -173,10 +175,19 @@ export const useExplorerStore = defineStore('explorer', () => {
         error.value = null;
         try {
             const responses: FolderContentsResponse[] = await Promise.all(
-                plan.pages.map((p) => getFolderContents(storagePathID, folderPath, p, limit.value)),
+                plan.pages.map((p) =>
+                    getFolderContents(
+                        storagePathID,
+                        folderPath,
+                        p,
+                        limit.value,
+                        useSettingsStore().listFieldsParam,
+                    ),
+                ),
             );
             // A newer load replaced this one
             if (request !== contentsRequest) return;
+            cardSidecars.value = mergeCardSidecars(cardSidecars.value, responses, partial);
             const last = responses[responses.length - 1]!;
             subfolders.value = last.subfolders;
             scenes.value = mergePageItems(
@@ -328,9 +339,15 @@ export const useExplorerStore = defineStore('explorer', () => {
         error.value = null;
         try {
             const responses = await Promise.all(
-                plan.pages.map((p) => searchInFolder({ ...criteria, page: p, limit: limit.value })),
+                plan.pages.map((p) =>
+                    searchInFolder(
+                        { ...criteria, page: p, limit: limit.value },
+                        useSettingsStore().listFieldsParam,
+                    ),
+                ),
             );
             if (request !== contentsRequest) return;
+            cardSidecars.value = mergeCardSidecars(cardSidecars.value, responses, partial);
             scenes.value = mergePageItems(
                 scenes.value,
                 responses.flatMap((r) => r.scenes),
@@ -460,6 +477,7 @@ export const useExplorerStore = defineStore('explorer', () => {
         currentPath,
         subfolders,
         scenes,
+        cardSidecars,
         totalScenes,
         page,
         loadedPages,

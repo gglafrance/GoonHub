@@ -8,6 +8,7 @@ defineProps<{
     ratings?: Record<string, number>;
     likes?: Record<string, boolean>;
     jizzCounts?: Record<string, number>;
+    watched?: Record<string, boolean>;
     table?: boolean;
     selectMode?: boolean;
     isSceneSelected: (id: number) => boolean;
@@ -44,6 +45,7 @@ const emit = defineEmits<{
         :ratings="ratings"
         :likes="likes"
         :jizz-counts="jizzCounts"
+        :watched="watched"
         :is-scene-selected="isSceneSelected"
         @toggle-selection="emit('toggleSelection', $event)"
         @drag-select="(ids, additive) => emit('dragSelect', ids, additive)"
@@ -54,5 +56,6 @@ const emit = defineEmits<{
         :ratings="ratings"
         :likes="likes"
         :jizz-counts="jizzCounts"
+        :watched="watched"
     />
 </template>

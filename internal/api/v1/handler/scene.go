@@ -227,32 +227,7 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 	if cardFields.Tags {
 		h.populateCardMarkers(items, sceneIDs, userID)
 	}
-	if cardFields.Tags && len(sceneIDs) > 0 {
-		if tagsByScene, err := h.TagRepo.GetSceneTagsMultiple(sceneIDs); err == nil {
-			for i := range items {
-				if tags, ok := tagsByScene[items[i].ID]; ok {
-					names := make([]string, len(tags))
-					for j, t := range tags {
-						names[j] = t.Name
-					}
-					items[i].Tags = names
-				}
-			}
-		}
-	}
-	if cardFields.Actors && len(sceneIDs) > 0 {
-		if actorsByScene, err := h.ActorRepo.GetSceneActorsMultiple(sceneIDs); err == nil {
-			for i := range items {
-				if actors, ok := actorsByScene[items[i].ID]; ok {
-					names := make([]string, len(actors))
-					for j, a := range actors {
-						names[j] = a.Name
-					}
-					items[i].Actors = names
-				}
-			}
-		}
-	}
+	fillCardTagsActors(h.TagRepo, h.ActorRepo, items, sceneIDs, cardFields)
 
 	resp := gin.H{
 		"data":  items,
@@ -264,24 +239,8 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		resp["seed"] = result.Seed
 	}
 
-	// Load interaction sidecar maps if requested
-	if userID > 0 {
-		if cardFields.Rating {
-			if ratings, err := h.InteractionRepo.GetRatingsBySceneIDs(userID, sceneIDs); err == nil {
-				resp["ratings"] = ratings
-			}
-		}
-		if cardFields.Liked {
-			if likes, err := h.InteractionRepo.GetLikesBySceneIDs(userID, sceneIDs); err == nil {
-				resp["likes"] = likes
-			}
-		}
-		if cardFields.JizzCount {
-			if jizzCounts, err := h.InteractionRepo.GetJizzCountsBySceneIDs(userID, sceneIDs); err == nil {
-				resp["jizz_counts"] = jizzCounts
-			}
-		}
-	}
+	// The user's interactions with these scenes, for the card badges
+	addCardSidecars(resp, loadCardSidecars(h.InteractionRepo, userID, sceneIDs, cardFields))
 
 	c.JSON(http.StatusOK, resp)
 }
@@ -832,56 +791,15 @@ func (h *SceneHandler) GetRelatedScenes(c *gin.Context) {
 	if cardFields.Tags {
 		h.populateCardMarkers(items, sceneIDs, userID)
 	}
-	if cardFields.Tags && len(sceneIDs) > 0 {
-		if tagsByScene, err := h.TagRepo.GetSceneTagsMultiple(sceneIDs); err == nil {
-			for i := range items {
-				if tags, ok := tagsByScene[items[i].ID]; ok {
-					names := make([]string, len(tags))
-					for j, t := range tags {
-						names[j] = t.Name
-					}
-					items[i].Tags = names
-				}
-			}
-		}
-	}
-	if cardFields.Actors && len(sceneIDs) > 0 {
-		if actorsByScene, err := h.ActorRepo.GetSceneActorsMultiple(sceneIDs); err == nil {
-			for i := range items {
-				if actors, ok := actorsByScene[items[i].ID]; ok {
-					names := make([]string, len(actors))
-					for j, a := range actors {
-						names[j] = a.Name
-					}
-					items[i].Actors = names
-				}
-			}
-		}
-	}
+	fillCardTagsActors(h.TagRepo, h.ActorRepo, items, sceneIDs, cardFields)
 
 	resp := gin.H{
 		"data":  items,
 		"total": len(scenes),
 	}
 
-	// Load interaction sidecar maps if requested
-	if userID > 0 {
-		if cardFields.Rating {
-			if ratings, err := h.InteractionRepo.GetRatingsBySceneIDs(userID, sceneIDs); err == nil {
-				resp["ratings"] = ratings
-			}
-		}
-		if cardFields.Liked {
-			if likes, err := h.InteractionRepo.GetLikesBySceneIDs(userID, sceneIDs); err == nil {
-				resp["likes"] = likes
-			}
-		}
-		if cardFields.JizzCount {
-			if jizzCounts, err := h.InteractionRepo.GetJizzCountsBySceneIDs(userID, sceneIDs); err == nil {
-				resp["jizz_counts"] = jizzCounts
-			}
-		}
-	}
+	// The user's interactions with these scenes, for the card badges
+	addCardSidecars(resp, loadCardSidecars(h.InteractionRepo, userID, sceneIDs, cardFields))
 
 	c.JSON(http.StatusOK, resp)
 }

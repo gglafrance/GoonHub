@@ -33,11 +33,13 @@ export const useApiExplorer = () => {
         folderPath: string,
         page = 1,
         limit = 24,
+        cardFields?: string,
     ): Promise<FolderContentsResponse> => {
         const params = new URLSearchParams({
             page: page.toString(),
             limit: limit.toString(),
         });
+        if (cardFields) params.set('card_fields', cardFields);
 
         // Ensure path starts with / for the API
         const normalizedPath = folderPath.startsWith('/') ? folderPath : `/${folderPath}`;
@@ -103,8 +105,12 @@ export const useApiExplorer = () => {
         return handleResponse(response);
     };
 
-    const searchInFolder = async (request: FolderSearchRequest): Promise<FolderSearchResponse> => {
-        const response = await fetch('/api/v1/explorer/search', {
+    const searchInFolder = async (
+        request: FolderSearchRequest,
+        cardFields?: string,
+    ): Promise<FolderSearchResponse> => {
+        const query = cardFields ? `?card_fields=${encodeURIComponent(cardFields)}` : '';
+        const response = await fetch(`/api/v1/explorer/search${query}`, {
             method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify(request),

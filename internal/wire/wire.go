@@ -807,8 +807,8 @@ func provideScanHandler(scanService *core.ScanService) *handler.ScanHandler {
 	return handler.NewScanHandler(scanService)
 }
 
-func provideExplorerHandler(explorerService *core.ExplorerService) *handler.ExplorerHandler {
-	return handler.NewExplorerHandler(explorerService)
+func provideExplorerHandler(explorerService *core.ExplorerService, tagRepo data.TagRepository, actorRepo data.ActorRepository, interactionRepo data.InteractionRepository) *handler.ExplorerHandler {
+	return handler.NewExplorerHandler(explorerService, tagRepo, actorRepo, interactionRepo)
 }
 
 // --- External API Handlers ---

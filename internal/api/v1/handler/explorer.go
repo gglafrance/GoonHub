@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/request"
 	"goonhub/internal/api/v1/response"
 	"goonhub/internal/core"
+	"goonhub/internal/data"
 	"strconv"
 	"strings"
 
@@ -11,13 +13,37 @@ import (
 )
 
 type ExplorerHandler struct {
-	Service *core.ExplorerService
+	Service         *core.ExplorerService
+	TagRepo         data.TagRepository
+	ActorRepo       data.ActorRepository
+	InteractionRepo data.InteractionRepository
 }
 
-func NewExplorerHandler(service *core.ExplorerService) *ExplorerHandler {
+func NewExplorerHandler(service *core.ExplorerService, tagRepo data.TagRepository, actorRepo data.ActorRepository, interactionRepo data.InteractionRepository) *ExplorerHandler {
 	return &ExplorerHandler{
-		Service: service,
+		Service:         service,
+		TagRepo:         tagRepo,
+		ActorRepo:       actorRepo,
+		InteractionRepo: interactionRepo,
 	}
+}
+
+// cardScenes builds the scene items of an explorer list with the card fields asked for
+// (?card_fields=, like GET /scenes) on top of the fields read from the scene row, and the
+// user's interaction maps, so explorer cards follow the user's card template too.
+func (h *ExplorerHandler) cardScenes(c *gin.Context, scenes []data.Scene) ([]response.SceneListItem, response.CardSidecars) {
+	fields := response.ParseCardFields(c.Query("card_fields")).With(response.SceneModelFields)
+	items := response.ToSceneListItemsWithFields(scenes, fields)
+	sceneIDs := make([]uint, len(scenes))
+	for i, s := range scenes {
+		sceneIDs[i] = s.ID
+	}
+	fillCardTagsActors(h.TagRepo, h.ActorRepo, items, sceneIDs, fields)
+	var userID uint
+	if payload, err := middleware.GetUserFromContext(c); err == nil {
+		userID = payload.UserID
+	}
+	return items, loadCardSidecars(h.InteractionRepo, userID, sceneIDs, fields)
 }
 
 // GetStoragePaths returns all storage paths with their scene counts
@@ -65,7 +91,9 @@ func (h *ExplorerHandler) GetFolderContents(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, response.ToFolderContentsResponse(contents))
+	resp := response.ToFolderContentsResponse(contents)
+	resp.Scenes, resp.CardSidecars = h.cardScenes(c, contents.Scenes)
+	response.OK(c, resp)
 }
 
 // BulkUpdateTags updates tags for multiple videos
@@ -232,5 +260,7 @@ func (h *ExplorerHandler) SearchInFolder(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, response.ToFolderSearchResponse(result))
+	resp := response.ToFolderSearchResponse(result)
+	resp.Scenes, resp.CardSidecars = h.cardScenes(c, result.Scenes)
+	response.OK(c, resp)
 }
