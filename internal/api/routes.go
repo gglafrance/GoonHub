@@ -251,7 +251,9 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					admin.GET("/porndb/sites/:id", pornDBHandler.GetSite)
 
 					// Import endpoints
+					admin.GET("/import/capabilities", importHandler.Capabilities)
 					admin.POST("/import/scenes", importHandler.ImportScene)
+					admin.POST("/import/scenes/summary", importHandler.SceneSummary)
 					admin.POST("/import/markers", importHandler.ImportMarker)
 
 					// Stream statistics

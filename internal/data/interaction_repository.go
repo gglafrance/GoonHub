@@ -23,6 +23,8 @@ type InteractionRepository interface {
 	DeleteLike(userID, sceneID uint) error
 	IsLiked(userID, sceneID uint) (bool, error)
 	IncrementJizzed(userID, sceneID uint) (int, error)
+	// SetJizzedCount sets the exact jizzed count (not an increment). A count <= 0 removes the record.
+	SetJizzedCount(userID, sceneID uint, count int) error
 	GetJizzedCount(userID, sceneID uint) (int, error)
 	GetAllInteractions(userID, sceneID uint) (*SceneInteractions, error)
 	GetLikedSceneIDs(userID uint) ([]uint, error)
@@ -134,6 +136,24 @@ func (r *InteractionRepositoryImpl) IncrementJizzed(userID, sceneID uint) (int, 
 		return 0, err
 	}
 	return updated.Count, nil
+}
+
+func (r *InteractionRepositoryImpl) SetJizzedCount(userID, sceneID uint, count int) error {
+	if count <= 0 {
+		return r.DB.Where("user_id = ? AND scene_id = ?", userID, sceneID).Delete(&UserSceneJizzed{}).Error
+	}
+	record := UserSceneJizzed{
+		UserID:  userID,
+		SceneID: sceneID,
+		Count:   count,
+	}
+	return r.DB.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "user_id"}, {Name: "scene_id"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"count":      count,
+			"updated_at": gorm.Expr("NOW()"),
+		}),
+	}).Create(&record).Error
 }
 
 func (r *InteractionRepositoryImpl) GetJizzedCount(userID, sceneID uint) (int, error) {

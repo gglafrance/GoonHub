@@ -247,6 +247,20 @@ func (mr *MockInteractionRepositoryMockRecorder) ReassignInteractionsToScene(fro
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReassignInteractionsToScene", reflect.TypeOf((*MockInteractionRepository)(nil).ReassignInteractionsToScene), fromSceneID, toSceneID)
 }
 
+// SetJizzedCount mocks base method.
+func (m *MockInteractionRepository) SetJizzedCount(userID, sceneID uint, count int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetJizzedCount", userID, sceneID, count)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetJizzedCount indicates an expected call of SetJizzedCount.
+func (mr *MockInteractionRepositoryMockRecorder) SetJizzedCount(userID, sceneID, count any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetJizzedCount", reflect.TypeOf((*MockInteractionRepository)(nil).SetJizzedCount), userID, sceneID, count)
+}
+
 // SetLike mocks base method.
 func (m *MockInteractionRepository) SetLike(userID, sceneID uint) error {
 	m.ctrl.T.Helper()

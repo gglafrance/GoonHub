@@ -1,109 +1,172 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
-	"time"
 
+	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/request"
 	"goonhub/internal/api/v1/response"
-	"goonhub/internal/apperrors"
-	"goonhub/internal/data"
+	"goonhub/internal/core"
 
 	"github.com/gin-gonic/gin"
-	"github.com/lib/pq"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
 
+// ImportHandler exposes the admin import API (v2) used by external importers.
 type ImportHandler struct {
-	sceneRepo  data.SceneRepository
-	markerRepo data.MarkerRepository
-	logger     *zap.Logger
+	service *core.ImportService
+	logger  *zap.Logger
 }
 
-func NewImportHandler(sceneRepo data.SceneRepository, markerRepo data.MarkerRepository, logger *zap.Logger) *ImportHandler {
+func NewImportHandler(service *core.ImportService, logger *zap.Logger) *ImportHandler {
 	return &ImportHandler{
-		sceneRepo:  sceneRepo,
-		markerRepo: markerRepo,
-		logger:     logger,
+		service: service,
+		logger:  logger,
 	}
 }
 
-// ImportScene creates a scene record from pre-existing metadata without triggering processing.
+// Capabilities lets a client detect import API v2 support.
+func (h *ImportHandler) Capabilities(c *gin.Context) {
+	features := make([]string, len(core.ImportFeatures))
+	copy(features, core.ImportFeatures)
+	response.OK(c, response.ImportCapabilitiesResponse{
+		Version:  core.ImportAPIVersion,
+		Features: features,
+	})
+}
+
+// ImportScene creates (or updates, with update_existing) a scene record from pre-existing
+// metadata without triggering processing.
 func (h *ImportHandler) ImportScene(c *gin.Context) {
+	payload, err := middleware.GetUserFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
 	var req request.ImportSceneRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request body")
+		response.BadRequest(c, fmt.Sprintf("Invalid request body: %v", err))
 		return
 	}
 
-	// Verify the file exists at the stored path (unless explicitly skipped)
-	if !req.SkipFileCheck {
-		if _, err := os.Stat(req.StoredPath); err != nil {
-			if os.IsNotExist(err) {
-				response.Error(c, apperrors.NewValidationError(fmt.Sprintf("file not found at stored_path: %s", req.StoredPath)))
-				return
-			}
-			h.logger.Error("failed to stat file", zap.String("path", req.StoredPath), zap.Error(err))
-			response.Error(c, apperrors.NewInternalError("failed to verify file", err))
+	result, err := h.service.ImportScene(payload.UserID, toImportSceneInput(req))
+	if err != nil {
+		var conflict *core.ImportConflictError
+		if errors.As(err, &conflict) {
+			c.JSON(http.StatusConflict, response.ImportSceneConflictResponse{
+				ID:    conflict.ID,
+				Title: conflict.Title,
+				Error: conflict.Error(),
+			})
 			return
 		}
-	}
-
-	// Check if a scene with this path already exists
-	existing, err := h.sceneRepo.GetByStoredPath(req.StoredPath)
-	if err != nil && err != gorm.ErrRecordNotFound {
-		h.logger.Error("failed to check existing scene", zap.String("path", req.StoredPath), zap.Error(err))
-		response.Error(c, apperrors.NewInternalError("failed to check existing scene", err))
-		return
-	}
-	if existing != nil {
-		c.JSON(http.StatusConflict, gin.H{
-			"id":    existing.ID,
-			"title": existing.Title,
-			"error": fmt.Sprintf("scene already exists at path: %s", req.StoredPath),
-		})
+		response.Error(c, err)
 		return
 	}
 
-	// Parse release date if provided
-	var releaseDate *time.Time
-	if req.ReleaseDate != nil && *req.ReleaseDate != "" {
-		parsed, err := time.Parse("2006-01-02", *req.ReleaseDate)
-		if err != nil {
-			response.Error(c, apperrors.NewValidationError(fmt.Sprintf("invalid release_date format, expected YYYY-MM-DD: %s", *req.ReleaseDate)))
+	body := response.ImportSceneResponse{ID: result.ID, Title: result.Title, Created: result.Created}
+	if result.Created {
+		response.Created(c, body)
+		return
+	}
+	response.OK(c, body)
+}
+
+// ImportMarker creates (or updates, with update_existing) a marker record without
+// generating a thumbnail. Markers are deduplicated on (user_id, scene_id, timestamp, label).
+func (h *ImportHandler) ImportMarker(c *gin.Context) {
+	payload, err := middleware.GetUserFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var req request.ImportMarkerRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, fmt.Sprintf("Invalid request body: %v", err))
+		return
+	}
+
+	result, err := h.service.ImportMarker(payload.UserID, core.ImportMarkerInput{
+		SceneID:        req.SceneID,
+		UserID:         req.UserID,
+		Timestamp:      req.Timestamp,
+		Label:          req.Label,
+		Color:          req.Color,
+		TagIDs:         req.TagIDs,
+		UpdateExisting: req.UpdateExisting,
+	})
+	if err != nil {
+		var conflict *core.ImportConflictError
+		if errors.As(err, &conflict) {
+			c.JSON(http.StatusConflict, response.ImportMarkerConflictResponse{
+				ID:      conflict.ID,
+				SceneID: conflict.SceneID,
+				Error:   conflict.Error(),
+			})
 			return
 		}
-		releaseDate = &parsed
-	}
-
-	// Derive original filename from stored path if not provided
-	originalFilename := req.OriginalFilename
-	if originalFilename == "" {
-		originalFilename = filepath.Base(req.StoredPath)
-	}
-
-	// Validate and default origin
-	origin := req.Origin
-	if origin != "" && !data.IsValidSceneOrigin(origin) {
-		response.Error(c, apperrors.NewValidationError(fmt.Sprintf("invalid origin: %s", origin)))
+		response.Error(c, err)
 		return
 	}
 
-	// Validate and default type
-	sceneType := req.Type
-	if sceneType != "" && !data.IsValidSceneType(sceneType) {
-		response.Error(c, apperrors.NewValidationError(fmt.Sprintf("invalid type: %s", sceneType)))
+	body := response.ImportMarkerResponse{ID: result.ID, SceneID: result.SceneID, Created: result.Created}
+	if result.Created {
+		response.Created(c, body)
+		return
+	}
+	response.OK(c, body)
+}
+
+// SceneSummary returns the imported state of the given scenes for post-import verification.
+func (h *ImportHandler) SceneSummary(c *gin.Context) {
+	payload, err := middleware.GetUserFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	scene := &data.Scene{
+	var req request.ImportSceneSummaryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, fmt.Sprintf("Invalid request body: %v", err))
+		return
+	}
+
+	result, err := h.service.Summary(payload.UserID, req.IDs)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	items := make([]response.ImportSceneSummaryItem, len(result.Scenes))
+	for i, s := range result.Scenes {
+		items[i] = response.ImportSceneSummaryItem{
+			ID:          s.ID,
+			Title:       s.Title,
+			StoredPath:  s.StoredPath,
+			StudioID:    s.StudioID,
+			TagIDs:      s.TagIDs,
+			ActorIDs:    s.ActorIDs,
+			ViewCount:   s.ViewCount,
+			MarkerCount: s.MarkerCount,
+			Rating:      s.Rating,
+			Liked:       s.Liked,
+			JizzedCount: s.JizzedCount,
+			WatchCount:  s.WatchCount,
+			Trashed:     s.Trashed,
+		}
+	}
+	response.OK(c, response.ImportSceneSummaryResponse{Data: items, Missing: result.Missing})
+}
+
+func toImportSceneInput(req request.ImportSceneRequest) core.ImportSceneInput {
+	in := core.ImportSceneInput{
 		Title:            req.Title,
 		StoredPath:       req.StoredPath,
-		OriginalFilename: originalFilename,
+		OriginalFilename: req.OriginalFilename,
 		Size:             req.Size,
 		Duration:         req.Duration,
 		Width:            req.Width,
@@ -113,82 +176,36 @@ func (h *ImportHandler) ImportScene(c *gin.Context) {
 		VideoCodec:       req.VideoCodec,
 		AudioCodec:       req.AudioCodec,
 		Description:      req.Description,
-		ReleaseDate:      releaseDate,
+		ReleaseDate:      req.ReleaseDate,
 		StudioID:         req.StudioID,
 		StoragePathID:    req.StoragePathID,
-		ProcessingStatus: "completed",
-		Origin:           origin,
-		Type:             sceneType,
-		Tags:             pq.StringArray{},
-		Actors:           pq.StringArray{},
+		Origin:           req.Origin,
+		Type:             req.Type,
+		SkipFileCheck:    req.SkipFileCheck,
+		TagIDs:           req.TagIDs,
+		ActorIDs:         req.ActorIDs,
+		ViewCount:        req.ViewCount,
+		CreatedAt:        req.CreatedAt,
+		FileCreatedAt:    req.FileCreatedAt,
+		UpdateExisting:   req.UpdateExisting,
+		SkipIndex:        req.SkipIndex,
 	}
-
-	if err := h.sceneRepo.Create(scene); err != nil {
-		h.logger.Error("failed to create imported scene", zap.String("title", req.Title), zap.Error(err))
-		response.Error(c, apperrors.NewInternalError("failed to create scene record", err))
-		return
-	}
-
-	h.logger.Info("imported scene", zap.Uint("id", scene.ID), zap.String("title", scene.Title))
-	response.Created(c, gin.H{
-		"id":    scene.ID,
-		"title": scene.Title,
-	})
-}
-
-// ImportMarker creates a marker record without generating a thumbnail.
-func (h *ImportHandler) ImportMarker(c *gin.Context) {
-	var req request.ImportMarkerRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request body")
-		return
-	}
-
-	// Verify the scene exists
-	_, err := h.sceneRepo.GetByID(req.SceneID)
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			response.Error(c, apperrors.NewNotFoundError("scene", req.SceneID))
-			return
+	if req.Interactions != nil {
+		watches := make([]core.ImportWatchInput, len(req.Interactions.Watches))
+		for i, w := range req.Interactions.Watches {
+			watches[i] = core.ImportWatchInput{
+				WatchedAt:     w.WatchedAt,
+				WatchDuration: w.WatchDuration,
+				LastPosition:  w.LastPosition,
+				Completed:     w.Completed,
+			}
 		}
-		h.logger.Error("failed to verify scene", zap.Uint("sceneID", req.SceneID), zap.Error(err))
-		response.Error(c, apperrors.NewInternalError("failed to verify scene", err))
-		return
-	}
-
-	// Default color
-	color := req.Color
-	if color == "" {
-		color = "#FFFFFF"
-	}
-
-	marker := &data.UserSceneMarker{
-		UserID:    req.UserID,
-		SceneID:   req.SceneID,
-		Timestamp: req.Timestamp,
-		Label:     req.Label,
-		Color:     color,
-	}
-
-	if err := h.markerRepo.Create(marker); err != nil {
-		h.logger.Error("failed to create imported marker", zap.Uint("sceneID", req.SceneID), zap.Error(err))
-		response.Error(c, apperrors.NewInternalError("failed to create marker record", err))
-		return
-	}
-
-	// Apply label tags if the marker has a label (best effort)
-	if req.Label != "" {
-		if err := h.markerRepo.ApplyLabelTagsToMarker(req.UserID, marker.ID, req.Label); err != nil {
-			h.logger.Warn("failed to apply label tags to imported marker",
-				zap.Uint("markerID", marker.ID),
-				zap.String("label", req.Label),
-				zap.Error(err))
+		in.Interactions = &core.ImportInteractionsInput{
+			Rating:      req.Interactions.Rating,
+			Liked:       req.Interactions.Liked,
+			JizzedCount: req.Interactions.JizzedCount,
+			Watches:     watches,
 		}
 	}
-
-	h.logger.Info("imported marker", zap.Uint("id", marker.ID), zap.Uint("sceneID", req.SceneID))
-	response.Created(c, gin.H{
-		"id":       marker.ID,
-		"scene_id": marker.SceneID,
-	})
+	return in
 }
