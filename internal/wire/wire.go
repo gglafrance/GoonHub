@@ -975,6 +975,7 @@ func provideServer(
 	studioService *core.StudioService,
 	matchingService *core.MatchingService,
 	duplicateService *core.DuplicateService,
+	markerService *core.MarkerService,
 	shareServer *server.ShareServer,
 	transcoder *streaming.Transcoder,
 ) *server.Server {
@@ -982,6 +983,6 @@ func provideServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
-		actorService, studioService, matchingService, duplicateService, shareServer, transcoder,
+		actorService, studioService, matchingService, duplicateService, markerService, shareServer, transcoder,
 	)
 }

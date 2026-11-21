@@ -135,6 +135,60 @@ const handleSuggestionKeydown = (e: KeyboardEvent, isEdit: boolean) => {
     }
 };
 
+// Adds a marker to the page's list, kept in timestamp order like the API returns it
+const insertMarker = (marker: Marker) => {
+    if (!watchPageData) return;
+    const list = watchPageData.markers.value.filter((m) => m.id !== marker.id);
+    list.push(marker);
+    list.sort((a, b) => a.timestamp - b.timestamp || a.id - b.id);
+    watchPageData.markers.value = list;
+};
+
+// Marker thumbnails are made in the background after creation: poll the markers until the
+// new ones have theirs (or give up after a while, the marker works without it)
+const THUMBNAIL_POLL_INTERVAL_MS = 2000;
+const THUMBNAIL_POLL_MAX_ATTEMPTS = 20;
+const pendingThumbnailIds = new Set<number>();
+let thumbnailPollTimer: ReturnType<typeof setTimeout> | null = null;
+let thumbnailPollAttempts = 0;
+let unmounted = false;
+
+const hasThumbnail = (marker: Marker) =>
+    markerThumbnailType.value === 'animated'
+        ? !!marker.animated_thumbnail_path
+        : !!marker.thumbnail_path;
+
+const pollThumbnails = async () => {
+    thumbnailPollTimer = null;
+    await refreshMarkers?.();
+    if (unmounted) return;
+    for (const id of [...pendingThumbnailIds]) {
+        const marker = markers.value.find((m) => m.id === id);
+        if (!marker || hasThumbnail(marker)) pendingThumbnailIds.delete(id);
+    }
+    thumbnailPollAttempts++;
+    if (pendingThumbnailIds.size === 0 || thumbnailPollAttempts >= THUMBNAIL_POLL_MAX_ATTEMPTS) {
+        pendingThumbnailIds.clear();
+        return;
+    }
+    thumbnailPollTimer = setTimeout(pollThumbnails, THUMBNAIL_POLL_INTERVAL_MS);
+};
+
+const waitForThumbnail = (markerId: number) => {
+    pendingThumbnailIds.add(markerId);
+    thumbnailPollAttempts = 0;
+    if (!thumbnailPollTimer) {
+        thumbnailPollTimer = setTimeout(pollThumbnails, THUMBNAIL_POLL_INTERVAL_MS);
+    }
+};
+
+onBeforeUnmount(() => {
+    unmounted = true;
+    if (thumbnailPollTimer) clearTimeout(thumbnailPollTimer);
+    thumbnailPollTimer = null;
+    pendingThumbnailIds.clear();
+});
+
 const handleAddMarker = async () => {
     if (saving.value) return;
 
@@ -148,6 +202,8 @@ const handleAddMarker = async () => {
             label: newMarkerLabel.value.trim() || undefined,
         });
         newMarkerLabel.value = '';
+        // Show the new marker at once (list and timeline), without waiting for a refetch
+        insertMarker(marker);
         // Start editing the new marker's label
         editingMarkerId.value = marker.id;
         editingLabel.value = marker.label;
@@ -158,8 +214,8 @@ const handleAddMarker = async () => {
                 input.focus();
             }
         });
-        // Refresh parent markers for timeline indicators
-        refreshMarkers?.();
+        // Its thumbnail is made in the background: refetch until it is there
+        waitForThumbnail(marker.id);
     } catch (e) {
         error.value = e instanceof Error ? e.message : 'Failed to add marker';
     } finally {

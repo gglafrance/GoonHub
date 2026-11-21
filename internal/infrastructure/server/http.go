@@ -39,6 +39,7 @@ type Server struct {
 	studioService     *core.StudioService
 	matchingService   *core.MatchingService
 	duplicateService  *core.DuplicateService
+	markerService     *core.MarkerService
 	shareServer       *ShareServer
 	transcoder        *streaming.Transcoder
 	srv               *http.Server
@@ -65,6 +66,7 @@ func NewHTTPServer(
 	studioService *core.StudioService,
 	matchingService *core.MatchingService,
 	duplicateService *core.DuplicateService,
+	markerService *core.MarkerService,
 	shareServer *ShareServer,
 	transcoder *streaming.Transcoder,
 ) *Server {
@@ -89,6 +91,7 @@ func NewHTTPServer(
 		studioService:     studioService,
 		matchingService:   matchingService,
 		duplicateService:  duplicateService,
+		markerService:     markerService,
 		shareServer:       shareServer,
 		transcoder:        transcoder,
 	}
@@ -160,6 +163,11 @@ func (s *Server) Start() error {
 
 	if s.processingService != nil {
 		s.processingService.Start()
+	}
+
+	// Marker thumbnails are made in the background so new markers show at once
+	if s.markerService != nil {
+		s.markerService.Start()
 	}
 
 	// Start job queue feeder AFTER processing service starts
@@ -283,6 +291,10 @@ func (s *Server) Start() error {
 	// Also drains channel buffers and returns those job IDs
 	// ---------------------------------------------------------------------------
 	s.logger.Info("PHASE 2: Waiting for in-flight jobs to complete...")
+
+	if s.markerService != nil {
+		s.markerService.Stop(s.cfg.Shutdown.JobCompletionWait)
+	}
 
 	var bufferedJobs map[string][]string
 	if s.processingService != nil {

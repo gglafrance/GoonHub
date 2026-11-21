@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"goonhub/internal/apperrors"
@@ -37,7 +38,24 @@ type MarkerService struct {
 	markerPreviewCRF            int
 	scenePreviewCRF             int
 	logger                      *zap.Logger
+
+	// Marker thumbnails are made in the background (ffmpeg takes seconds, the new marker
+	// must show at once). Nil queue (Start not called, as in tests): made inline.
+	thumbnailWorkers int
+	thumbnailQueue   chan markerThumbnailTask
+	thumbnailWG      sync.WaitGroup
+	startOnce        sync.Once
+	stopOnce         sync.Once
 }
+
+// markerThumbnailTask asks for the thumbnail of a marker, made from its current row.
+type markerThumbnailTask struct {
+	markerID uint
+}
+
+// markerThumbnailQueueSize is how many thumbnails can wait for a worker; beyond it, the
+// thumbnail is made inline (slower answer, but never lost).
+const markerThumbnailQueueSize = 256
 
 func NewMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *zap.Logger) *MarkerService {
 	markerAnimatedDuration := cfg.Processing.MarkerAnimatedDuration
@@ -64,7 +82,12 @@ func NewMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepo
 	if scenePreviewCRF <= 0 {
 		scenePreviewCRF = 27
 	}
+	thumbnailWorkers := cfg.Processing.MarkerThumbnailWorkers
+	if thumbnailWorkers <= 0 {
+		thumbnailWorkers = 2
+	}
 	return &MarkerService{
+		thumbnailWorkers:            thumbnailWorkers,
 		markerRepo:                  markerRepo,
 		sceneRepo:                   sceneRepo,
 		tagRepo:                     tagRepo,
@@ -217,22 +240,8 @@ func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, endTim
 		}
 	}
 
-	// Generate the appropriate thumbnail type (best effort - marker is still useful without it)
-	if s.markerThumbnailType == "animated" {
-		if err := s.generateAnimatedThumbnail(marker, scene); err != nil {
-			s.logger.Warn("failed to generate animated marker thumbnail",
-				zap.Uint("markerID", marker.ID),
-				zap.Uint("sceneID", sceneID),
-				zap.Error(err))
-		}
-	} else {
-		if err := s.generateThumbnail(marker, scene); err != nil {
-			s.logger.Warn("failed to generate marker thumbnail",
-				zap.Uint("markerID", marker.ID),
-				zap.Uint("sceneID", sceneID),
-				zap.Error(err))
-		}
-	}
+	// The thumbnail is made in the background (best effort - the marker is useful without it)
+	s.queueThumbnail(marker, scene)
 
 	return marker, nil
 }
@@ -353,21 +362,9 @@ func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color
 			}
 		}
 
-		// Generate new thumbnail matching the current type
+		// New thumbnail matching the current type, in the background
 		if scene != nil {
-			if s.markerThumbnailType == "animated" {
-				if err := s.generateAnimatedThumbnail(marker, scene); err != nil {
-					s.logger.Warn("failed to regenerate animated marker thumbnail",
-						zap.Uint("markerID", marker.ID),
-						zap.Error(err))
-				}
-			} else {
-				if err := s.generateThumbnail(marker, scene); err != nil {
-					s.logger.Warn("failed to regenerate marker thumbnail",
-						zap.Uint("markerID", marker.ID),
-						zap.Error(err))
-				}
-			}
+			s.queueThumbnail(marker, scene)
 		}
 	}
 
@@ -628,6 +625,87 @@ func (s *MarkerService) GenerateMissingForScene(ctx context.Context, sceneID uin
 
 // generateThumbnail extracts a frame at the marker's timestamp and saves it as a thumbnail.
 // This is a best-effort operation - the marker remains valid even if thumbnail generation fails.
+// Start starts the background marker thumbnail workers. Safe to call once.
+func (s *MarkerService) Start() {
+	s.startOnce.Do(func() {
+		s.thumbnailQueue = make(chan markerThumbnailTask, markerThumbnailQueueSize)
+		for i := 0; i < s.thumbnailWorkers; i++ {
+			s.thumbnailWG.Add(1)
+			go func() {
+				defer s.thumbnailWG.Done()
+				for task := range s.thumbnailQueue {
+					s.runThumbnailTask(task)
+				}
+			}()
+		}
+		s.logger.Info("Marker thumbnail workers started", zap.Int("workers", s.thumbnailWorkers))
+	})
+}
+
+// Stop lets the workers finish the queued thumbnails, waiting at most timeout.
+func (s *MarkerService) Stop(timeout time.Duration) {
+	s.stopOnce.Do(func() {
+		if s.thumbnailQueue == nil {
+			return
+		}
+		close(s.thumbnailQueue)
+		done := make(chan struct{})
+		go func() {
+			s.thumbnailWG.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(timeout):
+			s.logger.Warn("Marker thumbnails still running at shutdown")
+		}
+	})
+}
+
+// queueThumbnail has the marker's thumbnail made by a worker, or inline when the workers
+// aren't running or their queue is full.
+func (s *MarkerService) queueThumbnail(marker *data.UserSceneMarker, scene *data.Scene) {
+	if s.thumbnailQueue != nil {
+		select {
+		case s.thumbnailQueue <- markerThumbnailTask{markerID: marker.ID}:
+			return
+		default:
+			s.logger.Warn("Marker thumbnail queue full, making it inline", zap.Uint("markerID", marker.ID))
+		}
+	}
+	s.makeThumbnail(marker, scene)
+}
+
+// runThumbnailTask makes a queued thumbnail from the marker's current row (its time may
+// have changed since it was queued; a deleted marker is skipped).
+func (s *MarkerService) runThumbnailTask(task markerThumbnailTask) {
+	marker, err := s.markerRepo.GetByID(task.markerID)
+	if err != nil || marker == nil {
+		return
+	}
+	scene, err := s.sceneRepo.GetByID(marker.SceneID)
+	if err != nil {
+		s.logger.Warn("failed to get scene for marker thumbnail", zap.Uint("markerID", marker.ID), zap.Error(err))
+		return
+	}
+	s.makeThumbnail(marker, scene)
+}
+
+// makeThumbnail makes the thumbnail type the server is configured for.
+func (s *MarkerService) makeThumbnail(marker *data.UserSceneMarker, scene *data.Scene) {
+	if s.markerThumbnailType == "animated" {
+		if err := s.generateAnimatedThumbnail(marker, scene); err != nil {
+			s.logger.Warn("failed to generate animated marker thumbnail",
+				zap.Uint("markerID", marker.ID), zap.Uint("sceneID", scene.ID), zap.Error(err))
+		}
+		return
+	}
+	if err := s.generateThumbnail(marker, scene); err != nil {
+		s.logger.Warn("failed to generate marker thumbnail",
+			zap.Uint("markerID", marker.ID), zap.Uint("sceneID", scene.ID), zap.Error(err))
+	}
+}
+
 func (s *MarkerService) generateThumbnail(marker *data.UserSceneMarker, scene *data.Scene) error {
 	// Ensure marker thumbnail directory exists
 	if err := os.MkdirAll(s.markerThumbnailDir, 0755); err != nil {
@@ -660,9 +738,10 @@ func (s *MarkerService) generateThumbnail(marker *data.UserSceneMarker, scene *d
 		return fmt.Errorf("failed to extract thumbnail: %w", err)
 	}
 
-	// Update marker with thumbnail path
+	// Update marker with thumbnail path (only that column: the user may have edited the
+	// marker while its thumbnail was being made)
 	marker.ThumbnailPath = thumbnailFilename
-	if err := s.markerRepo.Update(marker); err != nil {
+	if err := s.markerRepo.UpdateThumbnailPath(marker.ID, thumbnailFilename); err != nil {
 		// Clean up the generated thumbnail file
 		os.Remove(thumbnailPath)
 		return fmt.Errorf("failed to update marker with thumbnail path: %w", err)
@@ -698,7 +777,7 @@ func (s *MarkerService) generateAnimatedThumbnail(marker *data.UserSceneMarker, 
 	}
 
 	marker.AnimatedThumbnailPath = animatedFilename
-	if err := s.markerRepo.Update(marker); err != nil {
+	if err := s.markerRepo.UpdateAnimatedThumbnailPath(marker.ID, animatedFilename); err != nil {
 		os.Remove(animatedPath)
 		return fmt.Errorf("failed to update marker with animated thumbnail path: %w", err)
 	}

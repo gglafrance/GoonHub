@@ -165,7 +165,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, authService, rbacService, ipRateLimiter, ogMiddleware)
 	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, markerService, sceneProcessingService, duplicationConfigRepository, jobSchedulingService, configConfig, logger)
 	shareServer := provideShareServer(configConfig, shareHandler, ogMiddleware, logger)
-	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService, matchingService, duplicateService, shareServer, transcoder)
+	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService, matchingService, duplicateService, markerService, shareServer, transcoder)
 	return serverServer, nil
 }
 
@@ -819,6 +819,7 @@ func provideServer(
 	studioService *core.StudioService,
 	matchingService *core.MatchingService,
 	duplicateService *core.DuplicateService,
+	markerService *core.MarkerService,
 	shareServer *server.ShareServer,
 	transcoder *streaming.Transcoder,
 ) *server.Server {
@@ -826,6 +827,6 @@ func provideServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
-		actorService, studioService, matchingService, duplicateService, shareServer, transcoder,
+		actorService, studioService, matchingService, duplicateService, markerService, shareServer, transcoder,
 	)
 }
