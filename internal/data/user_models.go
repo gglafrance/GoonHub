@@ -70,9 +70,11 @@ type UserSettings struct {
 	AdvancedMarkerFilters    bool                 `gorm:"not null;default:false" json:"advanced_marker_filters"`
 	DefaultMarkerView        string               `gorm:"size:10;not null;default:'grouped'" json:"default_marker_view"`
 	// PaginationPosition: where page controls are shown on paginated pages (top, bottom, both)
-	PaginationPosition string          `gorm:"size:10;not null;default:'bottom'" json:"pagination_position"`
-	SceneCardConfig    SceneCardConfig `gorm:"type:jsonb;not null" json:"scene_card_config"`
-	MaxItemsPerPage    int             `gorm:"-" json:"max_items_per_page"`
+	PaginationPosition string `gorm:"size:10;not null;default:'bottom'" json:"pagination_position"`
+	// DateFormat: how dates are displayed (auto = browser locale, or a pattern like DD/MM/YYYY)
+	DateFormat      string          `gorm:"size:20;not null;default:'auto'" json:"date_format"`
+	SceneCardConfig SceneCardConfig `gorm:"type:jsonb;not null" json:"scene_card_config"`
+	MaxItemsPerPage int             `gorm:"-" json:"max_items_per_page"`
 }
 
 // HomepageConfig represents the user's homepage layout configuration

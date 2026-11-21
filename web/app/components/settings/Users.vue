@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { AdminUser, RoleResponse, PermissionResponse } from '~/types/admin';
 
+const { formatDateTime } = useDateFormatter();
+
 const { fetchAdminUsers, fetchRoles, fetchPermissions, syncRolePermissions } = useApi();
 const { message, error, clearMessages } = useSettingsMessage();
 
@@ -115,17 +117,8 @@ const handleTogglePermission = async (role: RoleResponse, permId: number) => {
     }
 };
 
-const formatDate = (dateStr: string | null): string => {
-    if (!dateStr) return 'Never';
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    });
-};
+const formatDate = (dateStr: string | null): string =>
+    dateStr ? formatDateTime(dateStr) : 'Never';
 
 const roleBadgeClass = (role: string): string => {
     switch (role) {

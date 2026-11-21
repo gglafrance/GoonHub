@@ -31,6 +31,7 @@ const props = defineProps<{
 defineEmits<{ refresh: [] }>();
 
 const { formatSize } = useFormatter();
+const { formatDate } = useDateFormatter();
 const number = new Intl.NumberFormat();
 
 const PERIOD_LABELS: Record<StatsPayload['period'], { current: string; previous: string }> = {
@@ -121,7 +122,7 @@ const tiles = computed<Tile[]>(() => {
             label: 'Last O',
             value: p.last_jizz_at ? '' : '-',
             datetime: p.last_jizz_at ?? undefined,
-            sub: p.last_jizz_at ? new Date(p.last_jizz_at).toLocaleDateString() : 'No dated O yet',
+            sub: p.last_jizz_at ? formatDate(p.last_jizz_at) : 'No dated O yet',
             icon: 'heroicons:clock',
         },
         jizz_per_week: {

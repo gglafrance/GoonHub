@@ -16,6 +16,7 @@ interface JizzedResponse {
 const MAX_SHOWN = 20;
 
 const { fetchJizzedCount } = useApiScenes();
+const { formatDateTime } = useDateFormatter();
 
 const trigger = ref<HTMLElement | null>(null);
 const open = ref(false);
@@ -88,8 +89,7 @@ const undated = computed(() =>
     Math.max(0, (data.value?.count ?? 0) - (data.value?.history_total ?? 0)),
 );
 
-const formatAbsolute = (iso: string) =>
-    new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+const formatAbsolute = (iso: string) => formatDateTime(iso);
 
 onBeforeUnmount(() => {
     if (hideTimeout) clearTimeout(hideTimeout);

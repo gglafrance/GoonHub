@@ -152,12 +152,7 @@ watch(
                     </span>
                     <span v-if="resolved.scene.release_date" class="flex items-center gap-1.5">
                         <Icon name="heroicons:calendar" size="12" />
-                        <NuxtTime
-                            :datetime="resolved.scene.release_date"
-                            year="numeric"
-                            month="short"
-                            day="numeric"
-                        />
+                        <UiFormattedDate :datetime="resolved.scene.release_date" utc />
                     </span>
                 </div>
 

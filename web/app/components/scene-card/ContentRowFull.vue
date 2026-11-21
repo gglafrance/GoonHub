@@ -16,7 +16,7 @@ const metaValue = computed(() => {
         case 'file_size':
             return formatSize(props.scene.size);
         case 'added_at':
-            return null; // handled in template with NuxtTime
+            return null; // handled in template with UiFormattedDate
         case 'views':
             return props.scene.view_count != null ? `${props.scene.view_count} views` : '';
         case 'resolution':
@@ -91,7 +91,7 @@ const isMetaField = computed(() =>
 
     <!-- Simple meta fields -->
     <div v-else-if="isMetaField" class="text-dim flex items-center gap-0.5 font-mono text-[10px]">
-        <NuxtTime v-if="field === 'added_at'" :datetime="scene.created_at" format="short" />
+        <UiFormattedDate v-if="field === 'added_at'" :datetime="scene.created_at" />
         <template v-else-if="field === 'jizz_count'">
             <Icon name="fluent-emoji-high-contrast:sweat-droplets" size="11" />
             <span>{{ metaValue }}</span>

@@ -37,6 +37,7 @@ const emit = defineEmits<{
 }>();
 
 const apiPornDB = useApiPornDB();
+const { formatDate } = useDateFormatter();
 
 const {
     searchQuery,
@@ -84,13 +85,13 @@ const fieldDefinitions: {
         key: 'birthday',
         formKey: 'birthday',
         label: 'Birthday',
-        format: (val) => (val ? new Date(val as string).toLocaleDateString() : '-'),
+        format: (val) => formatDate(val as string, { utc: true }) || '-',
     },
     {
         key: 'deathday',
         formKey: 'date_of_death',
         label: 'Date of Death',
-        format: (val) => (val ? new Date(val as string).toLocaleDateString() : '-'),
+        format: (val) => formatDate(val as string, { utc: true }) || '-',
     },
     { key: 'astrology', formKey: 'astrology', label: 'Astrology' },
     { key: 'birthplace', formKey: 'birthplace', label: 'Birthplace' },

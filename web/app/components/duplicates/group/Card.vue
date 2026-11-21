@@ -103,7 +103,7 @@ const pendingDeletions = computed(() => props.group.members.filter((m) => m.dele
                             </span>
                         </div>
                         <div class="text-dim mt-0.5 text-[11px]">
-                            <NuxtTime :datetime="group.created_at" />
+                            <UiFormattedDate :datetime="group.created_at" />
                         </div>
                     </div>
                 </div>

@@ -2,6 +2,8 @@
 import type { Actor, UpdateActorInput } from '~/types/actor';
 import type { PornDBPerformer, PornDBPerformerDetails } from '~/types/porndb';
 
+const { formatDate } = useDateFormatter();
+
 const props = defineProps<{
     visible: boolean;
     actorName: string;
@@ -64,13 +66,13 @@ const fieldDefinitions: {
         key: 'birthday',
         actorKey: 'birthday',
         label: 'Birthday',
-        format: (val) => (val ? new Date(val as string).toLocaleDateString() : '-'),
+        format: (val) => formatDate(val as string, { utc: true }) || '-',
     },
     {
         key: 'deathday',
         actorKey: 'date_of_death',
         label: 'Date of Death',
-        format: (val) => (val ? new Date(val as string).toLocaleDateString() : '-'),
+        format: (val) => formatDate(val as string, { utc: true }) || '-',
     },
     { key: 'astrology', actorKey: 'astrology', label: 'Astrology' },
     { key: 'birthplace', actorKey: 'birthplace', label: 'Birthplace' },

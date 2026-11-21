@@ -526,7 +526,7 @@ definePageMeta({
                                 </span>
                                 <span class="flex items-center gap-1">
                                     <Icon name="heroicons:calendar" size="12" class="text-lava" />
-                                    <NuxtTime :datetime="scene.created_at" format="short" />
+                                    <UiFormattedDate :datetime="scene.created_at" />
                                 </span>
                             </div>
                         </div>

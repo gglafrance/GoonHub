@@ -339,7 +339,7 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                 >
                     <slot name="footer">
                         <span>{{ formatSize(scene.size) }}</span>
-                        <NuxtTime :datetime="scene.created_at" format="short" />
+                        <UiFormattedDate :datetime="scene.created_at" />
                     </slot>
                 </div>
             </div>

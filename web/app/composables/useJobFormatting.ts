@@ -2,6 +2,8 @@
  * Composable for job-related formatting utilities.
  */
 export const useJobFormatting = () => {
+    const { formatDateTime } = useDateFormatter();
+
     const formatDuration = (startedAt: string, completedAt?: string): string => {
         const start = new Date(startedAt).getTime();
         const end = completedAt ? new Date(completedAt).getTime() : Date.now();
@@ -15,16 +17,7 @@ export const useJobFormatting = () => {
         return `${minutes}m ${remainingSec}s`;
     };
 
-    const formatTime = (dateStr: string): string => {
-        const d = new Date(dateStr);
-        return d.toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-        });
-    };
+    const formatTime = (dateStr: string): string => formatDateTime(dateStr, { seconds: true });
 
     const statusClass = (status: string): string => {
         switch (status) {

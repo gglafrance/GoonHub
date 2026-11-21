@@ -2,6 +2,7 @@
 import type { WatchHistoryEntry, DateGroup, ChartActivityCount } from '~/types/watch';
 
 const { getUserWatchHistoryByDateRange, getUserWatchHistoryByTimeRange } = useApiScenes();
+const { formatDate } = useDateFormatter();
 
 useHead({ title: 'Watch History' });
 
@@ -48,8 +49,7 @@ const formatDateLabel = (dateKey: string) => {
     if (dateKey === todayKey) return 'Today';
     if (dateKey === yesterdayKey) return 'Yesterday';
 
-    const d = new Date(dateKey + 'T00:00:00');
-    return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    return formatDate(dateKey, { utc: true });
 };
 
 const dateGroups = computed<DateGroup[]>(() => {

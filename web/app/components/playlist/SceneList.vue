@@ -173,7 +173,7 @@ const moveScene = (index: number, direction: 'up' | 'down') => {
                         {{ entry.scene.title }}
                     </NuxtLink>
                     <div class="text-dim mt-0.5 font-mono text-[10px]">
-                        <NuxtTime :datetime="entry.added_at" format="short" />
+                        <UiFormattedDate :datetime="entry.added_at" />
                     </div>
                 </div>
 

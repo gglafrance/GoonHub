@@ -35,15 +35,10 @@ const props = defineProps<{
 defineEmits<{ refresh: [] }>();
 
 const { formatDuration, formatSize } = useFormatter();
+const { formatDate } = useDateFormatter();
 const linkComponent = resolveComponent('NuxtLink');
 const number = new Intl.NumberFormat();
-const dayFormat = new Intl.DateTimeFormat(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-});
-const formatDay = (day: string) => dayFormat.format(new Date(`${day}T00:00:00Z`));
+const formatDay = (day: string) => formatDate(day, { utc: true });
 
 const formatHours = (seconds: number) => {
     const hours = seconds / 3600;

@@ -288,7 +288,7 @@ When working on GoonHub, remember:
 - When adding new repository interface methods, regenerate mocks with `make mocks`
 - PASETO key must be exactly 32 bytes for v2 symmetric encryption
 - Admin routes require RBAC middleware with admin role check
-- Use <NuxtTime :datetime=".." /> for date display
+- Use `<UiFormattedDate :datetime=".." />` for absolute dates (follows the user date format setting; `utc` for calendar dates, `time` to add the time) and `<NuxtTime :datetime=".." relative />` for relative times. In scripts, use `useDateFormatter()` (`formatDate`, `formatDateTime`)
 - API composables are in `composables/api/` - prefer domain-specific imports (e.g., `useApiScenes()`) over unified `useApi()`
 - Component sub-directories follow pattern: `components/<feature>/<subfeature>/` auto-imports as `<FeatureSubfeatureComponent />`
 - Use typed errors from `internal/apperrors/` - check with `apperrors.IsNotFound()`, `apperrors.IsValidation()`, etc.
