@@ -215,6 +215,8 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		core.WithPaginationPosition(req.PaginationPosition),
 		core.WithDateFormat(req.DateFormat),
 		core.WithSceneListView(sceneListView),
+		core.WithGridDensity(req.GridDensity),
+		core.WithInfiniteScroll(req.InfiniteScroll),
 		core.WithPlayerGestures(req.PlayerGestures, req.GestureSeekStep),
 		core.WithReplayHeatmap(req.ShowReplayHeatmap, req.RecordReplayHeatmap),
 	)

@@ -83,6 +83,10 @@ type UserSettings struct {
 	ShowReplayHeatmap   bool            `gorm:"not null;default:true" json:"show_replay_heatmap"`
 	RecordReplayHeatmap bool            `gorm:"not null;default:true" json:"record_replay_heatmap"`
 	SceneCardConfig     SceneCardConfig `gorm:"type:jsonb;not null" json:"scene_card_config"`
+	// GridDensity: size of the cards in the scene grids (compact, comfortable, large)
+	GridDensity string `gorm:"size:12;not null;default:'comfortable'" json:"grid_density"`
+	// InfiniteScroll: scene list pages load the next page on scroll instead of page controls
+	InfiniteScroll bool `gorm:"not null;default:false" json:"infinite_scroll"`
 	// SceneListView: grid or table per scene list page, and the table columns
 	SceneListView   SceneListView `gorm:"type:jsonb;not null" json:"scene_list_view"`
 	MaxItemsPerPage int           `gorm:"-" json:"max_items_per_page"`

@@ -6,6 +6,28 @@ const { showSelector, maxLimit, updatePageSize } = usePageSize();
 const selectMode = ref(false);
 // Grid or table (table columns may need fields the current results lack)
 const { isTable } = useSceneListView('search', () => searchStore.search());
+
+// Infinite scroll instead of page controls (user setting)
+const settingsStore = useSettingsStore();
+const infiniteScroll = computed(() => settingsStore.infiniteScroll);
+const { restore: restoreScroll, keepPositionWhile } = useInfiniteScrollPosition();
+const hasMore = computed(
+    () => searchStore.loadedPages.last * searchStore.limit < searchStore.total,
+);
+// The search page watches the page: the next page is appended to the list
+const loadMore = () => {
+    if (searchStore.isLoading || searchStore.isLoadingMore) return;
+    searchStore.page = searchStore.loadedPages.last + 1;
+};
+const loadPrevious = () => keepPositionWhile(() => searchStore.loadPrevious());
+// Back on a scrolled list: where the user was, once it is rebuilt
+watch(
+    () => searchStore.isLoading,
+    (loading, was) => {
+        if (was && !loading) restoreScroll();
+    },
+);
+watch(infiniteScroll, () => searchStore.search());
 const scenesRef = computed(() => searchStore.scenes);
 const {
     hasSelection,
@@ -98,6 +120,7 @@ const handleBulkComplete = () => {
         <!-- Results Grid -->
         <template v-else-if="searchStore.scenes.length > 0">
             <Pagination
+                v-if="!infiniteScroll"
                 v-model="searchStore.page"
                 position="top"
                 :total="searchStore.total"
@@ -111,6 +134,13 @@ const handleBulkComplete = () => {
                         else searchStore.page = 1;
                     }
                 "
+            />
+
+            <SceneListLoadPrevious
+                v-if="infiniteScroll && searchStore.loadedPages.first > 1"
+                :first-page="searchStore.loadedPages.first"
+                :loading="searchStore.isLoadingMore"
+                @load-previous="loadPrevious"
             />
 
             <SceneCollection
@@ -128,7 +158,15 @@ const handleBulkComplete = () => {
                 @sort="searchStore.sort = $event"
             />
 
+            <SceneListInfiniteLoader
+                v-if="infiniteScroll"
+                :has-more="hasMore"
+                :loading="searchStore.isLoadingMore"
+                :total="searchStore.total"
+                @load-more="loadMore"
+            />
             <Pagination
+                v-else
                 v-model="searchStore.page"
                 :total="searchStore.total"
                 :limit="searchStore.limit"

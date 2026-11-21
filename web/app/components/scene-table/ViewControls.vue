@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { SceneListPage, SceneListViewMode, SceneTableColumn } from '~/types/settings';
 
-// Grid/table toggle of a scene list page, with the table column picker in table mode
+// Grid/table toggle of a scene list page, with the table column picker in table mode and the
+// display options
 const props = defineProps<{
     page: SceneListPage;
     /** Match the h-10 inputs of the actor/studio pages */
@@ -48,5 +49,7 @@ const options = computed<{ value: SceneListViewMode; label: string; icon: string
             </button>
         </div>
         <SceneTableColumnPicker v-if="isTable" :tall="tall" :hidden-columns="hiddenColumns" />
+        <!-- Card size and infinite scroll (the playlist list has neither) -->
+        <SceneTableDisplayMenu v-if="page !== 'playlist'" :tall="tall" />
     </div>
 </template>

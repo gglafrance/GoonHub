@@ -135,6 +135,7 @@ func (s *SettingsService) GetSettings(userID uint) (*data.UserSettings, error) {
 			DefaultMarkerView:      "grouped",
 			PaginationPosition:     "bottom",
 			DateFormat:             DefaultDateFormat,
+			GridDensity:            DefaultGridDensity,
 			PlayerGestures:         true,
 			GestureSeekStep:        DefaultGestureSeekStep,
 			ShowReplayHeatmap:      true,
@@ -442,6 +443,36 @@ func WithPaginationPosition(position string) SettingsOption {
 			return fmt.Errorf("invalid pagination position: %s", position)
 		}
 		settings.PaginationPosition = position
+		return nil
+	}
+}
+
+// DefaultGridDensity is the card size of the scene grids by default.
+const DefaultGridDensity = "comfortable"
+
+var allowedGridDensities = map[string]bool{"compact": true, DefaultGridDensity: true, "large": true}
+
+// WithGridDensity sets the card size of the scene grids (empty means comfortable).
+func WithGridDensity(density string) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if density == "" {
+			density = DefaultGridDensity
+		}
+		if !allowedGridDensities[density] {
+			return fmt.Errorf("invalid grid density: %s", density)
+		}
+		settings.GridDensity = density
+		return nil
+	}
+}
+
+// WithInfiniteScroll turns infinite scroll on or off on the scene list pages (nil keeps the
+// current value).
+func WithInfiniteScroll(enabled *bool) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if enabled != nil {
+			settings.InfiniteScroll = *enabled
+		}
 		return nil
 	}
 }

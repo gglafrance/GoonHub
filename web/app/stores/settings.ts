@@ -13,6 +13,7 @@ import type {
     SceneListPage,
     SceneListViewMode,
     SceneTableColumn,
+    GridDensity,
 } from '~/types/settings';
 import type { ParsingRulesSettings, ParsingPreset } from '~/types/parsing-rules';
 
@@ -58,6 +59,11 @@ export const useSettingsStore = defineStore(
             const format = settings.value?.date_format;
             return isDateFormat(format) ? format : DEFAULT_DATE_FORMAT;
         });
+        const gridDensity = computed<GridDensity>(() => {
+            const density = settings.value?.grid_density;
+            return density === 'compact' || density === 'large' ? density : 'comfortable';
+        });
+        const infiniteScroll = computed(() => settings.value?.infinite_scroll ?? false);
         const showReplayHeatmap = computed(() => settings.value?.show_replay_heatmap ?? true);
         const recordReplayHeatmap = computed(() => settings.value?.record_replay_heatmap ?? true);
         const videosPerPage = computed(() => settings.value?.videos_per_page ?? 20);
@@ -193,6 +199,26 @@ export const useSettingsStore = defineStore(
         const setSceneTableColumns = (columns: SceneTableColumn[]) =>
             saveSceneListView({ ...sceneListView.value, columns: [...columns] });
 
+        // Quick display toggles (next to the scene lists), saved right away
+        const saveDisplaySetting = async (
+            patch: Partial<Pick<UserSettings, 'grid_density' | 'infinite_scroll'>>,
+        ) => {
+            if (!settings.value) return;
+            Object.assign(settings.value, patch);
+            if (draft.value) Object.assign(draft.value, patch);
+            try {
+                await saveAllSettings();
+            } catch (e: unknown) {
+                console.error('Failed to save the display settings:', e);
+            }
+        };
+
+        const setGridDensity = (density: GridDensity) =>
+            saveDisplaySetting({ grid_density: density });
+
+        const setInfiniteScroll = (enabled: boolean) =>
+            saveDisplaySetting({ infinite_scroll: enabled });
+
         const hasUnsavedChanges = computed(() => {
             if (!draft.value || !settings.value) return false;
             return JSON.stringify(draft.value) !== JSON.stringify(settings.value);
@@ -305,6 +331,10 @@ export const useSettingsStore = defineStore(
             defaultMarkerView,
             paginationPosition,
             dateFormat,
+            gridDensity,
+            infiniteScroll,
+            setGridDensity,
+            setInfiniteScroll,
             showReplayHeatmap,
             recordReplayHeatmap,
             videosPerPage,
