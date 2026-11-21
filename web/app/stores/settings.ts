@@ -8,6 +8,7 @@ import type {
     SceneCardConfig,
     MarkerView,
     PaginationPosition,
+    DateFormat,
 } from '~/types/settings';
 import type { ParsingRulesSettings, ParsingPreset } from '~/types/parsing-rules';
 
@@ -44,6 +45,10 @@ export const useSettingsStore = defineStore(
         const paginationPosition = computed<PaginationPosition>(
             () => settings.value?.pagination_position ?? 'bottom',
         );
+        const dateFormat = computed<DateFormat>(() => {
+            const format = settings.value?.date_format;
+            return isDateFormat(format) ? format : DEFAULT_DATE_FORMAT;
+        });
         const videosPerPage = computed(() => settings.value?.videos_per_page ?? 20);
         const defaultSortOrder = computed<SortOrder>(
             () => settings.value?.default_sort_order ?? 'created_at_desc',
@@ -241,6 +246,7 @@ export const useSettingsStore = defineStore(
             advancedMarkerFilters,
             defaultMarkerView,
             paginationPosition,
+            dateFormat,
             videosPerPage,
             defaultSortOrder,
             defaultTagSort,

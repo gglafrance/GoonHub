@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { DLQEntry, DLQListResponse } from '~/types/jobs';
 
+const { formatDateTime } = useDateFormatter();
+
 const { fetchDLQ, retryFromDLQ, abandonDLQ } = useApi();
 
 const loading = ref(true);
@@ -92,15 +94,7 @@ const nextPage = () => {
     }
 };
 
-const formatTime = (dateStr: string): string => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    });
-};
+const formatTime = (dateStr: string): string => formatDateTime(dateStr);
 
 const statusClass = (status: string): string => {
     switch (status) {

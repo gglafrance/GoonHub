@@ -91,7 +91,7 @@ const { formatDuration } = useFormatter();
                 <Icon name="heroicons:user" size="14" />
                 {{ playlist.owner.username }}
             </span>
-            <NuxtTime :datetime="playlist.created_at" format="short" class="text-dim" />
+            <UiFormattedDate :datetime="playlist.created_at" class="text-dim" />
         </div>
 
         <!-- Tags -->

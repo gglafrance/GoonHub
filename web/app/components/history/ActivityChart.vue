@@ -85,10 +85,8 @@ const hoveredBar = computed(() => {
     return barData.value[hoveredIndex.value] || null;
 });
 
-const formatTooltipDate = (dateKey: string) => {
-    const d = new Date(dateKey + 'T00:00:00');
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-};
+const { formatDate } = useDateFormatter();
+const formatTooltipDate = (dateKey: string) => formatDate(dateKey, { utc: true });
 
 const handleBarHover = (index: number, event: MouseEvent) => {
     hoveredIndex.value = index;

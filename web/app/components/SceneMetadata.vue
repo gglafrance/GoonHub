@@ -133,12 +133,7 @@ const getResolutionLabel = (h?: number): string => {
                 <div class="flex items-center justify-between py-2.5">
                     <span class="text-dim text-[11px]">Added</span>
                     <span class="text-muted font-mono text-[11px]">
-                        <NuxtTime
-                            :datetime="scene.created_at"
-                            year="numeric"
-                            month="short"
-                            day="numeric"
-                        />
+                        <UiFormattedDate :datetime="scene.created_at" />
                     </span>
                 </div>
             </div>
@@ -251,12 +246,7 @@ const getResolutionLabel = (h?: number): string => {
                 <div v-if="scene.file_created_at" class="flex items-center justify-between py-2.5">
                     <span class="text-dim text-[11px]">File Date</span>
                     <span class="text-muted font-mono text-[11px]">
-                        <NuxtTime
-                            :datetime="scene.file_created_at"
-                            year="numeric"
-                            month="short"
-                            day="numeric"
-                        />
+                        <UiFormattedDate :datetime="scene.file_created_at" />
                     </span>
                 </div>
             </div>

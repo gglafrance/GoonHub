@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { StoragePath } from '~/types/storage';
 
+const { formatDate } = useDateFormatter();
+
 const { fetchStoragePaths, deleteStoragePath } = useApi();
 const { message, error, clearMessages } = useSettingsMessage();
 const { formatSize } = useFormatter();
@@ -61,14 +63,7 @@ const handleDelete = async (path: StoragePath) => {
     }
 };
 
-const formatDate = (dateStr: string): string => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-    });
-};
+const formatStorageDate = (dateStr: string): string => formatDate(dateStr);
 </script>
 
 <template>
@@ -150,7 +145,7 @@ const formatDate = (dateStr: string): string => {
                                     </span>
                                 </td>
                                 <td class="text-dim py-2.5 pr-4">
-                                    {{ formatDate(path.created_at) }}
+                                    {{ formatStorageDate(path.created_at) }}
                                 </td>
                                 <td class="py-2.5">
                                     <div class="flex gap-2">

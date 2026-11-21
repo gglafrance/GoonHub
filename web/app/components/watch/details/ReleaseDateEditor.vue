@@ -7,13 +7,15 @@ const emit = defineEmits<{
     save: [value: string | null];
 }>();
 
+const { formatDate } = useDateFormatter();
+
 const editing = ref(false);
 const editValue = ref('');
 const inputRef = ref<HTMLInputElement | null>(null);
 
 const displayDate = computed(() => {
     if (!props.releaseDate) return 'No release date';
-    return props.releaseDate.split('T')[0];
+    return formatDate(props.releaseDate.split('T')[0], { utc: true });
 });
 
 const startEditing = () => {

@@ -71,13 +71,11 @@ const unit = computed(() => UNITS[active.value]);
 // Dates are handled as UTC calendar days to avoid local DST shifts
 const parseDay = (day: string) => new Date(`${day}T00:00:00Z`);
 const formatDay = (d: Date) => d.toISOString().slice(0, 10);
-const longDate = new Intl.DateTimeFormat(undefined, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-});
+const { formatDate } = useDateFormatter();
+const weekdayFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short', timeZone: 'UTC' });
+const longDate = {
+    format: (d: Date) => `${weekdayFormat.format(d)} ${formatDate(d, { utc: true })}`,
+};
 
 interface Cell {
     day: string;

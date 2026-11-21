@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MarkerView, PaginationPosition } from '~/types/settings';
+import type { DateFormat, MarkerView, PaginationPosition } from '~/types/settings';
 
 const settingsStore = useSettingsStore();
 const { layout: keyboardLayout, setLayout: setKeyboardLayout } = useKeyboardLayout();
@@ -42,6 +42,25 @@ const paginationPositionOptions: { value: PaginationPosition; label: string }[] 
     { value: 'bottom', label: 'Bottom' },
     { value: 'both', label: 'Top & Bottom' },
 ];
+
+const appDateFormat = computed({
+    get: () => settingsStore.draft?.date_format ?? DEFAULT_DATE_FORMAT,
+    set: (v: DateFormat) => {
+        if (settingsStore.draft) settingsStore.draft.date_format = v;
+    },
+});
+
+// Example rendered with each format (today), so the choice is concrete
+const dateFormatOptions = computed(() => {
+    const today = new Date();
+    return DATE_FORMATS.map((value) => ({
+        value,
+        label:
+            value === 'auto'
+                ? `Browser default (${formatDateWith(today, 'auto')})`
+                : `${value} (${formatDateWith(today, value)})`,
+    }));
+});
 
 const appDefaultMarkerView = computed({
     get: () => settingsStore.draft?.default_marker_view ?? 'grouped',
@@ -123,6 +142,27 @@ const appShowPageSizeSelector = computed({
                         {{ opt.label }}
                     </button>
                 </div>
+            </div>
+
+            <!-- Date Format -->
+            <div class="flex items-center justify-between gap-4">
+                <div>
+                    <label for="date-format" class="text-sm font-medium text-white">
+                        Date Format
+                    </label>
+                    <p class="text-dim mt-0.5 text-xs">How dates are shown across the app</p>
+                </div>
+                <select
+                    id="date-format"
+                    v-model="appDateFormat"
+                    class="border-border bg-void/80 focus:border-lava/40 focus:ring-lava/20 shrink-0
+                        rounded-lg border px-3 py-2 text-xs text-white transition-all focus:ring-1
+                        focus:outline-none"
+                >
+                    <option v-for="opt in dateFormatOptions" :key="opt.value" :value="opt.value">
+                        {{ opt.label }}
+                    </option>
+                </select>
             </div>
 
             <!-- Keyboard Layout -->

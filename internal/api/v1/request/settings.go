@@ -121,5 +121,6 @@ type UpdateAllSettingsRequest struct {
 	AdvancedMarkerFilters    bool                         `json:"advanced_marker_filters"`
 	DefaultMarkerView        string                       `json:"default_marker_view"`
 	PaginationPosition       string                       `json:"pagination_position"`
+	DateFormat               string                       `json:"date_format"`
 	SceneCardConfig          UpdateSceneCardConfigRequest `json:"scene_card_config"`
 }

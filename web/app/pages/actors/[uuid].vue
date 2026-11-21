@@ -759,7 +759,7 @@ definePageMeta({
                                     <div v-if="actor.birthday" class="flex justify-between">
                                         <dt class="text-dim">Birthday</dt>
                                         <dd class="text-white">
-                                            {{ new Date(actor.birthday).toLocaleDateString() }}
+                                            <UiFormattedDate :datetime="actor.birthday" utc />
                                         </dd>
                                     </div>
                                     <div v-if="actor.birthplace" class="flex justify-between">
@@ -872,7 +872,7 @@ definePageMeta({
                             <div v-if="actor.birthday" class="flex justify-between">
                                 <dt class="text-dim">Birthday</dt>
                                 <dd class="text-white">
-                                    {{ new Date(actor.birthday).toLocaleDateString() }}
+                                    <UiFormattedDate :datetime="actor.birthday" utc />
                                 </dd>
                             </div>
                             <div v-if="actor.birthplace" class="flex justify-between">

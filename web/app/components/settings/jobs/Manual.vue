@@ -175,16 +175,7 @@ watch(
     },
 );
 
-const formatDateTime = (dateStr: string): string => {
-    const d = new Date(dateStr);
-    return d.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    });
-};
+const { formatDateTime } = useDateFormatter();
 
 const formatDuration = (start: string, end?: string): string => {
     const startDate = new Date(start);

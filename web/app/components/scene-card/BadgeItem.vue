@@ -125,7 +125,7 @@ const badge = computed(() => {
         :class="[badge.class, badge.round ? 'h-6 w-6 justify-center rounded-full !p-0' : '']"
     >
         <Icon v-if="badge.icon" :name="badge.icon" size="14" />
-        <NuxtTime v-if="badge.isDate" :datetime="scene.created_at" format="short" />
+        <UiFormattedDate v-if="badge.isDate" :datetime="scene.created_at" />
         <span v-else-if="badge.text">{{ badge.text }}</span>
     </div>
 </template>

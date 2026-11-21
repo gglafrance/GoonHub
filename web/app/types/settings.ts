@@ -1,5 +1,6 @@
 import type { HomepageConfig } from './homepage';
 import type { ParsingRulesSettings } from './parsing-rules';
+import type { DateFormat } from '~/utils/dateFormat';
 
 export interface SortPreferences {
     actors: string;
@@ -11,6 +12,7 @@ export interface SortPreferences {
 
 export type MarkerView = 'grouped' | 'all';
 export type PaginationPosition = 'top' | 'bottom' | 'both';
+export type { DateFormat };
 
 export interface UserSettings {
     id: number;
@@ -33,6 +35,7 @@ export interface UserSettings {
     advanced_marker_filters: boolean;
     default_marker_view: MarkerView;
     pagination_position: PaginationPosition;
+    date_format: DateFormat;
     scene_card_config: SceneCardConfig;
     max_items_per_page: number;
     created_at: string;

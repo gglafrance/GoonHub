@@ -133,6 +133,7 @@ func (s *SettingsService) GetSettings(userID uint) (*data.UserSettings, error) {
 			MarkerThumbnailCycling: true,
 			DefaultMarkerView:      "grouped",
 			PaginationPosition:     "bottom",
+			DateFormat:             DefaultDateFormat,
 			HomepageConfig:         data.DefaultHomepageConfig(),
 			SortPreferences:        data.DefaultSortPreferences(),
 			SceneCardConfig:        data.DefaultSceneCardConfig(),
@@ -351,6 +352,36 @@ func (s *SettingsService) UpdateParsingRules(userID uint, rules data.ParsingRule
 type SettingsOption func(settings *data.UserSettings) error
 
 var allowedPaginationPositions = map[string]bool{"top": true, "bottom": true, "both": true}
+
+// DefaultDateFormat follows the browser locale.
+const DefaultDateFormat = "auto"
+
+// AllowedDateFormats are the date display patterns a user can choose (rendered by the frontend).
+var AllowedDateFormats = []string{
+	DefaultDateFormat,
+	"DD/MM/YYYY",
+	"MM/DD/YYYY",
+	"YYYY-MM-DD",
+	"DD.MM.YYYY",
+	"D MMM YYYY",
+	"MMM D, YYYY",
+}
+
+// WithDateFormat sets how dates are displayed (empty means auto).
+func WithDateFormat(format string) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if format == "" {
+			format = DefaultDateFormat
+		}
+		for _, allowed := range AllowedDateFormats {
+			if format == allowed {
+				settings.DateFormat = format
+				return nil
+			}
+		}
+		return fmt.Errorf("invalid date format: %s", format)
+	}
+}
 
 // WithPaginationPosition sets where page controls are shown (top, bottom or both; empty means
 // bottom).
