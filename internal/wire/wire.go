@@ -60,6 +60,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Job & Processing Repositories
 		provideJobHistoryRepository,
 		providePoolConfigRepository,
+		provideJobScheduleRepository,
 		provideProcessingConfigRepository,
 		provideTriggerConfigRepository,
 		provideDLQRepository,
@@ -131,6 +132,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideSceneProcessingService,
 		provideJobHistoryService,
 		provideJobStatusService,
+		provideJobSchedulingService,
 		provideJobQueueFeeder,
 		provideTriggerScheduler,
 		provideRetryScheduler,
@@ -315,6 +317,10 @@ func provideJobHistoryRepository(db *gorm.DB) data.JobHistoryRepository {
 
 func providePoolConfigRepository(db *gorm.DB) data.PoolConfigRepository {
 	return data.NewPoolConfigRepository(db)
+}
+
+func provideJobScheduleRepository(db *gorm.DB) data.JobScheduleRepository {
+	return data.NewJobScheduleRepository(db)
 }
 
 func provideProcessingConfigRepository(db *gorm.DB) data.ProcessingConfigRepository {
@@ -507,8 +513,14 @@ func provideJobStatusService(jobHistoryService *core.JobHistoryService, processi
 	return core.NewJobStatusService(jobHistoryService, processingService, logger.Logger)
 }
 
-func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, markerService *core.MarkerService, processingService *core.SceneProcessingService, dupConfigRepo data.DuplicationConfigRepository, cfg *config.Config, logger *logging.Logger) *core.JobQueueFeeder {
-	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerService, markerService, processingService.GetPoolManager(), cfg.Duplication.Enabled, dupConfigRepo, logger.Logger)
+func provideJobSchedulingService(repo data.JobScheduleRepository, processingService *core.SceneProcessingService, jobHistoryRepo data.JobHistoryRepository, logger *logging.Logger) *core.JobSchedulingService {
+	return core.NewJobSchedulingService(repo, processingService.GetPoolManager(), jobHistoryRepo, logger.Logger)
+}
+
+func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, markerService *core.MarkerService, processingService *core.SceneProcessingService, dupConfigRepo data.DuplicationConfigRepository, schedulingService *core.JobSchedulingService, cfg *config.Config, logger *logging.Logger) *core.JobQueueFeeder {
+	feeder := core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerService, markerService, processingService.GetPoolManager(), cfg.Duplication.Enabled, dupConfigRepo, logger.Logger)
+	feeder.SetScheduler(schedulingService)
+	return feeder
 }
 
 func provideTriggerScheduler(triggerConfigRepo data.TriggerConfigRepository, sceneRepo data.SceneRepository, processingService *core.SceneProcessingService, logger *logging.Logger) *core.TriggerScheduler {
@@ -732,8 +744,8 @@ func provideJobHandler(jobHistoryService *core.JobHistoryService, processingServ
 	return handler.NewJobHandler(jobHistoryService, processingService)
 }
 
-func providePoolConfigHandler(processingService *core.SceneProcessingService, poolConfigRepo data.PoolConfigRepository) *handler.PoolConfigHandler {
-	return handler.NewPoolConfigHandler(processingService, poolConfigRepo)
+func providePoolConfigHandler(processingService *core.SceneProcessingService, poolConfigRepo data.PoolConfigRepository, schedulingService *core.JobSchedulingService) *handler.PoolConfigHandler {
+	return handler.NewPoolConfigHandler(processingService, poolConfigRepo, schedulingService)
 }
 
 func provideProcessingConfigHandler(processingService *core.SceneProcessingService, processingConfigRepo data.ProcessingConfigRepository, markerService *core.MarkerService) *handler.ProcessingConfigHandler {

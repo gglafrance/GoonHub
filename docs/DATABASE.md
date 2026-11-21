@@ -885,6 +885,55 @@ Per-phase retry policy configuration.
 
 ---
 
+### `job_schedule_config`
+
+Global job scheduling settings (singleton table). Scheduling only decides when pending jobs start; job creation is not affected.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | INTEGER | NO | 1 | Primary key (always 1) |
+| `timezone` | VARCHAR(64) | NO | 'UTC' | IANA timezone of the time windows and quiet hours |
+| `quiet_hours_start` | VARCHAR(5) | NO | '01:00' | Quiet hours start (`HH:MM`) |
+| `quiet_hours_end` | VARCHAR(5) | NO | '07:00' | Quiet hours end (`HH:MM`, before the start = crosses midnight) |
+| `max_concurrent_jobs` | INTEGER | NO | 0 | Maximum jobs running at once across all phases (0 = no limit) |
+| `new_scenes_first` | BOOLEAN | NO | false | Claim the jobs of recently created scenes first |
+| `new_scenes_window_hours` | INTEGER | NO | 24 | What "recently created" means (1-720 hours, on `scenes.created_at`) |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last update timestamp |
+
+**Constraints:**
+- CHECK `id = 1` (singleton enforcement)
+- CHECK `quiet_hours_start`, `quiet_hours_end` match `HH:MM` (00:00-23:59)
+- CHECK `max_concurrent_jobs >= 0`
+- CHECK `new_scenes_window_hours BETWEEN 1 AND 720`
+
+---
+
+### `job_phase_schedules`
+
+Per-phase job scheduling settings.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | SERIAL | NO | auto | Primary key |
+| `phase` | VARCHAR(20) | NO | - | Processing phase |
+| `priority` | INTEGER | NO | 0 | 0-100, higher gets the next free slot when `max_concurrent_jobs` is reached |
+| `window_enabled` | BOOLEAN | NO | false | Restrict the phase to its daily window |
+| `window_start` | VARCHAR(5) | NO | '01:00' | Window start (`HH:MM`) |
+| `window_end` | VARCHAR(5) | NO | '07:00' | Window end (`HH:MM`, before the start = crosses midnight) |
+| `quiet_workers` | INTEGER | NO | 0 | Pool size during the quiet hours (0 = the `pool_config` size) |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last update timestamp |
+
+**Constraints:**
+- UNIQUE on `phase`
+- CHECK `phase IN ('metadata', 'thumbnail', 'sprites', 'animated_thumbnails', 'fingerprint')`
+- CHECK `priority BETWEEN 0 AND 100`
+- CHECK `window_start`, `window_end` match `HH:MM`, and `window_start <> window_end`
+- CHECK `quiet_workers BETWEEN 0 AND 32`
+
+**Default Configuration:** no window, no quiet hours size; priorities metadata 50, thumbnail 40, animated_thumbnails 30, sprites 20, fingerprint 10.
+
+---
+
 ## Storage & Scanning
 
 ### `storage_paths`
@@ -1115,6 +1164,7 @@ Queries should filter `WHERE deleted_at IS NULL` unless specifically querying de
 Configuration tables use `id = 1` with CHECK constraint:
 - `pool_config`
 - `processing_config`
+- `job_schedule_config`
 - `app_settings`
 - `search_config`
 
@@ -1155,4 +1205,5 @@ The `job_history` table serves as a persistent job queue:
 1. Jobs created with `status = 'pending'`
 2. `JobQueueFeeder` claims jobs using `FOR UPDATE SKIP LOCKED`
 3. Unique index on `(scene_id, phase)` for active jobs prevents duplicates
-4. Priority ordering: `priority DESC, created_at ASC`
+4. Priority ordering: `priority DESC, created_at ASC`; with "new scenes first" (`job_schedule_config`), jobs of scenes created recently come right after the higher priorities: `priority DESC, (scene created recently) DESC, created_at ASC`
+5. A phase outside its time window (`job_phase_schedules`) claims nothing; its pending jobs stay pending and are not failed by the startup stuck-pending recovery
