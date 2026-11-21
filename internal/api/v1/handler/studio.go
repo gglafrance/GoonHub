@@ -6,7 +6,6 @@ import (
 	"goonhub/internal/api/v1/response"
 	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
-	"goonhub/internal/data"
 	"io"
 	"net/http"
 	"os"
@@ -46,26 +45,11 @@ func (h *StudioHandler) ListStudios(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":  toStudioListItems(studios),
+		"data":  toStudioListItems(studios, query),
 		"total": total,
 		"page":  page,
 		"limit": limit,
 	})
-}
-
-func toStudioListItems(studios []data.StudioWithCount) []response.StudioListItem {
-	items := make([]response.StudioListItem, len(studios))
-	for i, s := range studios {
-		items[i] = response.StudioListItem{
-			ID:         s.ID,
-			UUID:       s.UUID,
-			Name:       s.Name,
-			ShortName:  s.ShortName,
-			Logo:       s.Logo,
-			SceneCount: s.SceneCount,
-		}
-	}
-	return items
 }
 
 func (h *StudioHandler) GetStudioByUUID(c *gin.Context) {
@@ -132,6 +116,8 @@ func (h *StudioHandler) CreateStudio(c *gin.Context) {
 
 	input := core.CreateStudioInput{
 		Name:        req.Name,
+		Aliases:     req.Aliases,
+		Strict:      strictQuery(c),
 		ShortName:   req.ShortName,
 		URL:         req.URL,
 		Description: req.Description,
@@ -146,6 +132,9 @@ func (h *StudioHandler) CreateStudio(c *gin.Context) {
 
 	studio, err := h.Service.Create(input)
 	if err != nil {
+		if writeEntityConflict(c, err) {
+			return
+		}
 		if apperrors.IsValidation(err) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
@@ -173,6 +162,8 @@ func (h *StudioHandler) UpdateStudio(c *gin.Context) {
 
 	input := core.UpdateStudioInput{
 		Name:        req.Name,
+		Aliases:     req.Aliases,
+		Strict:      strictQuery(c),
 		ShortName:   req.ShortName,
 		URL:         req.URL,
 		Description: req.Description,
@@ -187,6 +178,9 @@ func (h *StudioHandler) UpdateStudio(c *gin.Context) {
 
 	studio, err := h.Service.Update(uint(id), input)
 	if err != nil {
+		if writeEntityConflict(c, err) {
+			return
+		}
 		if apperrors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Studio not found"})
 			return

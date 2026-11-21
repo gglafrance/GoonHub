@@ -13,7 +13,7 @@ interface ActorMatchResult {
  * Automatically matches performers to existing actors or creates new ones.
  */
 export function useSilentActorMatcher() {
-    const { fetchActors, createActor, fetchSceneActors, setSceneActors } = useApiActors();
+    const { resolveActor, createActor, fetchSceneActors, setSceneActors } = useApiActors();
     const { searchPornDBPerformers, getPornDBPerformer } = useApiPornDB();
 
     /**
@@ -21,8 +21,8 @@ export function useSilentActorMatcher() {
      * Links all matched/created actors to the scene.
      *
      * Pattern (like ActorMatchFlow.vue):
-     * 1. Search local actors by name
-     * 2. If exact match found, use existing actor
+     * 1. Resolve the name to a local actor (exact name or alias, case-insensitive)
+     * 2. If found, use the existing actor
      * 3. If no match, search PornDB performers by name
      * 4. Take the first search result, fetch full details by its ID
      * 5. Create actor with full details
@@ -61,30 +61,17 @@ export function useSilentActorMatcher() {
             const localActorsCacheKey = `local-actors:${nameLower}`;
 
             try {
-                // Step 1: Search for existing local actor by exact name (cached)
+                // Step 1: Resolve the name to an existing local actor, by exact name or alias (cached)
                 let localActors: Actor[];
                 if (cache?.has(localActorsCacheKey)) {
                     localActors = cache.get<Actor[]>(localActorsCacheKey) || [];
                 } else {
-                    const result = await fetchActors(1, 10, performer.name);
-                    localActors = result.data || [];
+                    const resolved = await resolveActor(performer.name);
+                    localActors = resolved ? [resolved.data] : [];
                     cache?.set(localActorsCacheKey, localActors);
                 }
 
-                // Find exact name match (case-insensitive) - also check aliases
-                const exactMatch = localActors.find((a) => {
-                    // Check name match
-                    if (a.name.toLowerCase() === performer.name.toLowerCase()) {
-                        return true;
-                    }
-                    // Check alias match
-                    if (a.aliases && a.aliases.length > 0) {
-                        return a.aliases.some(
-                            (alias) => alias.toLowerCase() === performer.name.toLowerCase(),
-                        );
-                    }
-                    return false;
-                });
+                const exactMatch = localActors[0];
 
                 if (exactMatch) {
                     if (!actorIds.includes(exactMatch.id)) {
@@ -123,6 +110,18 @@ export function useSilentActorMatcher() {
                             } else {
                                 details = await getPornDBPerformer(firstResult.id);
                                 cache?.set(porndbDetailsCacheKey, details);
+                            }
+
+                            // PornDB's name may differ from the scene's: it may be a local actor
+                            if (details.name.toLowerCase() !== nameLower) {
+                                const known = await resolveActor(details.name);
+                                if (known) {
+                                    cache?.set(localActorsCacheKey, [known.data]);
+                                    if (!actorIds.includes(known.data.id)) {
+                                        actorIds.push(known.data.id);
+                                    }
+                                    continue;
+                                }
                             }
 
                             const newActor = await createActor({

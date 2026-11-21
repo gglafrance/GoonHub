@@ -27,6 +27,7 @@ type ExplorerService struct {
 	metadataPath     string
 	searchService    *SearchService
 	fingerprintIndex SceneFingerprintIndex
+	studioResolver   StudioNameResolver
 	mediaGuard       *MediaFileGuard
 }
 
@@ -409,7 +410,8 @@ func (s *ExplorerService) BulkUpdateStudio(req BulkUpdateStudioRequest) (int, er
 		return 0, apperrors.NewValidationError("one or more scenes not found")
 	}
 
-	// Perform bulk update
+	// Perform bulk update (an alias becomes the studio's name)
+	req.Studio = canonicalStudioName(s.studioResolver, req.Studio)
 	if err := s.sceneRepo.BulkUpdateStudio(req.SceneIDs, req.Studio); err != nil {
 		return 0, apperrors.NewInternalError("failed to update studio", err)
 	}

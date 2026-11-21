@@ -38,6 +38,7 @@ type SceneService struct {
 	dlqRepo           data.DLQRepository
 	appSettingsRepo   data.AppSettingsRepository
 	fingerprintIndex  SceneFingerprintIndex
+	studioResolver    StudioNameResolver
 	mediaGuard        *MediaFileGuard
 }
 
@@ -240,6 +241,7 @@ func (s *SceneService) UpdateSceneDetails(id uint, title, description string, re
 }
 
 func (s *SceneService) UpdateSceneMetadata(id uint, title, description, studio string, releaseDate *time.Time, porndbSceneID string) (*data.Scene, error) {
+	studio = canonicalStudioName(s.studioResolver, studio)
 	if err := s.Repo.UpdateSceneMetadata(id, title, description, studio, releaseDate, porndbSceneID); err != nil {
 		return nil, fmt.Errorf("failed to update scene metadata: %w", err)
 	}

@@ -6,6 +6,7 @@ import (
 	"goonhub/internal/data"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -32,6 +33,7 @@ func (s *StudioService) SetIndexer(indexer SceneIndexer) {
 
 type CreateStudioInput struct {
 	Name        string
+	Aliases     []string
 	ShortName   string
 	URL         string
 	Description string
@@ -42,10 +44,15 @@ type CreateStudioInput struct {
 	PornDBID    string
 	ParentID    *uint
 	NetworkID   *uint
+	// Strict rejects (409, apperrors.EntityConflictError) a name or an alias already used
+	// by another studio as its name or alias. Without it, duplicate names are allowed (import
+	// clients rely on it) and aliases used by another studio are dropped.
+	Strict bool
 }
 
 type UpdateStudioInput struct {
 	Name        *string
+	Aliases     *[]string
 	ShortName   *string
 	URL         *string
 	Description *string
@@ -56,6 +63,8 @@ type UpdateStudioInput struct {
 	PornDBID    *string
 	ParentID    *uint
 	NetworkID   *uint
+	// Strict: see CreateStudioInput.Strict (the name is only checked when it changes).
+	Strict bool
 }
 
 func (s *StudioService) Create(input CreateStudioInput) (*data.Studio, error) {
@@ -65,10 +74,20 @@ func (s *StudioService) Create(input CreateStudioInput) (*data.Studio, error) {
 	if len(input.Name) > 255 {
 		return nil, apperrors.NewValidationErrorWithField("name", "studio name must be 255 characters or less")
 	}
+	if input.Strict {
+		if err := s.checkNameFree(0, input.Name); err != nil {
+			return nil, err
+		}
+	}
+	aliases, err := s.prepareAliases(0, input.Name, input.Aliases, input.Strict)
+	if err != nil {
+		return nil, err
+	}
 
 	studio := &data.Studio{
 		UUID:        uuid.New(),
 		Name:        input.Name,
+		Aliases:     pq.StringArray(aliases),
 		ShortName:   input.ShortName,
 		URL:         input.URL,
 		Description: input.Description,
@@ -121,15 +140,14 @@ func (s *StudioService) GetByUUID(uuid string) (*data.StudioWithCount, error) {
 	}, nil
 }
 
+// GetByName returns the studio whose name or one of whose aliases is name (exact match,
+// case-insensitive), see Resolve.
 func (s *StudioService) GetByName(name string) (*data.Studio, error) {
-	studio, err := s.studioRepo.GetByName(name)
+	res, err := s.Resolve(name)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.ErrStudioNotFoundByName(name)
-		}
-		return nil, apperrors.NewInternalError("failed to find studio", err)
+		return nil, err
 	}
-	return studio, nil
+	return res.Studio, nil
 }
 
 func (s *StudioService) Update(id uint, input UpdateStudioInput) (*data.Studio, error) {
@@ -141,6 +159,7 @@ func (s *StudioService) Update(id uint, input UpdateStudioInput) (*data.Studio, 
 		return nil, apperrors.NewInternalError("failed to find studio", err)
 	}
 
+	nameChanged := false
 	if input.Name != nil {
 		if *input.Name == "" {
 			return nil, apperrors.NewValidationErrorWithField("name", "studio name is required")
@@ -148,7 +167,27 @@ func (s *StudioService) Update(id uint, input UpdateStudioInput) (*data.Studio, 
 		if len(*input.Name) > 255 {
 			return nil, apperrors.NewValidationErrorWithField("name", "studio name must be 255 characters or less")
 		}
+		if studio.Name != *input.Name {
+			nameChanged = true
+			if input.Strict {
+				if err := s.checkNameFree(id, *input.Name); err != nil {
+					return nil, err
+				}
+			}
+		}
 		studio.Name = *input.Name
+	}
+	if input.Aliases != nil {
+		aliases, err := s.prepareAliases(id, studio.Name, *input.Aliases, input.Strict)
+		if err != nil {
+			return nil, err
+		}
+		studio.Aliases = pq.StringArray(aliases)
+	} else if nameChanged {
+		// the new name may be one of the aliases: it is no longer an alias
+		if aliases, err := NormalizeAliases(studio.Name, studio.Aliases); err == nil {
+			studio.Aliases = pq.StringArray(aliases)
+		}
 	}
 	if input.ShortName != nil {
 		studio.ShortName = *input.ShortName
@@ -310,14 +349,14 @@ func (s *StudioService) GetOrCreateByName(name string) (*data.Studio, error) {
 		return nil, apperrors.NewValidationErrorWithField("name", "studio name is required")
 	}
 
-	// Try to find existing studio
-	studio, err := s.studioRepo.GetByName(name)
+	// Try to find an existing studio by name or alias
+	studio, err := s.GetByName(name)
 	if err == nil {
 		return studio, nil
 	}
 
 	// If not found, create new studio
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if apperrors.IsNotFound(err) {
 		return s.Create(CreateStudioInput{Name: name})
 	}
 

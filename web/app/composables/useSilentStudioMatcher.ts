@@ -1,4 +1,4 @@
-import type { StudioListItem } from '~/types/studio';
+import type { Studio } from '~/types/studio';
 import type { PornDBSiteDetails } from '~/types/porndb';
 import type { BulkRequestCache } from './useBulkRequestCache';
 
@@ -13,7 +13,7 @@ interface StudioMatchResult {
  * Automatically matches site names to existing studios or creates new ones.
  */
 export function useSilentStudioMatcher() {
-    const { fetchStudios, createStudio, setSceneStudio } = useApiStudios();
+    const { resolveStudio, createStudio, setSceneStudio } = useApiStudios();
     const { searchPornDBSites, getPornDBSite } = useApiPornDB();
 
     /**
@@ -38,20 +38,17 @@ export function useSilentStudioMatcher() {
         const localStudiosCacheKey = `local-studios:${nameLower}`;
 
         try {
-            // Search for existing local studio by name (cached)
-            let localStudios: StudioListItem[];
+            // Resolve the site name to an existing local studio, by exact name or alias (cached)
+            let localStudios: Studio[];
             if (cache?.has(localStudiosCacheKey)) {
-                localStudios = cache.get<StudioListItem[]>(localStudiosCacheKey) || [];
+                localStudios = cache.get<Studio[]>(localStudiosCacheKey) || [];
             } else {
-                const result = await fetchStudios(1, 10, siteName);
-                localStudios = result.data || [];
+                const resolved = await resolveStudio(siteName);
+                localStudios = resolved ? [resolved.data] : [];
                 cache?.set(localStudiosCacheKey, localStudios);
             }
 
-            // Find exact name match (case-insensitive)
-            const exactMatch = localStudios.find(
-                (s) => s.name.toLowerCase() === siteName.toLowerCase(),
-            );
+            const exactMatch = localStudios[0];
 
             if (exactMatch) {
                 // Link existing studio to scene

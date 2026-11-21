@@ -92,7 +92,14 @@ const genderInfo = computed(() => {
                 {{ actor.name }}
             </h3>
             <p
-                v-if="actor.aliases?.length"
+                v-if="actor.matched_alias"
+                class="text-lava/80 mt-0.5 truncate text-[11px]"
+                :title="actor.aliases.join(', ')"
+            >
+                aka {{ actor.matched_alias }}
+            </p>
+            <p
+                v-else-if="actor.aliases?.length"
                 class="text-dim mt-0.5 truncate text-[11px]"
                 :title="actor.aliases.join(', ')"
             >

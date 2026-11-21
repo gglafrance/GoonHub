@@ -9,6 +9,7 @@ type SceneDocument struct {
 	Description      string   `json:"description"`
 	Studio           string   `json:"studio"`
 	Actors           []string `json:"actors"`
+	ActorAliases     []string `json:"actor_aliases"`
 	TagIDs           []uint   `json:"tag_ids"`
 	TagNames         []string `json:"tag_names"`
 	Duration         float64  `json:"duration"`

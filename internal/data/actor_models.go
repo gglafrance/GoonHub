@@ -39,6 +39,14 @@ type Actor struct {
 	SameSexOnly     bool       `gorm:"not null;default:false" json:"same_sex_only"`
 }
 
+// BeforeSave keeps aliases a non-NULL array (the column is NOT NULL)
+func (a *Actor) BeforeSave(tx *gorm.DB) error {
+	if a.Aliases == nil {
+		a.Aliases = pq.StringArray{}
+	}
+	return nil
+}
+
 // BeforeCreate generates a UUID if not set
 func (a *Actor) BeforeCreate(tx *gorm.DB) error {
 	if a.UUID == uuid.Nil {

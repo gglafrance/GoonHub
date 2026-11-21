@@ -29,7 +29,11 @@ export const useApiCore = () => {
 
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.error || 'Request failed');
+            // status and body let callers handle specific answers (e.g. 409 with the existing entity)
+            throw Object.assign(new Error(error.error || 'Request failed'), {
+                status: response.status,
+                body: error,
+            });
         }
 
         return response.json();

@@ -82,6 +82,21 @@ func (mr *MockStudioRepositoryMockRecorder) Delete(id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockStudioRepository)(nil).Delete), id)
 }
 
+// FindByNameOrAlias mocks base method.
+func (m *MockStudioRepository) FindByNameOrAlias(names []string, excludeID uint) ([]data.Studio, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByNameOrAlias", names, excludeID)
+	ret0, _ := ret[0].([]data.Studio)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindByNameOrAlias indicates an expected call of FindByNameOrAlias.
+func (mr *MockStudioRepositoryMockRecorder) FindByNameOrAlias(names, excludeID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByNameOrAlias", reflect.TypeOf((*MockStudioRepository)(nil).FindByNameOrAlias), names, excludeID)
+}
+
 // GetByID mocks base method.
 func (m *MockStudioRepository) GetByID(id uint) (*data.Studio, error) {
 	m.ctrl.T.Helper()
@@ -125,6 +140,21 @@ func (m *MockStudioRepository) GetByUUID(uuid string) (*data.Studio, error) {
 func (mr *MockStudioRepositoryMockRecorder) GetByUUID(uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByUUID", reflect.TypeOf((*MockStudioRepository)(nil).GetByUUID), uuid)
+}
+
+// GetMergePreview mocks base method.
+func (m *MockStudioRepository) GetMergePreview(targetID, sourceID uint) (*data.StudioMergeStats, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMergePreview", targetID, sourceID)
+	ret0, _ := ret[0].(*data.StudioMergeStats)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMergePreview indicates an expected call of GetMergePreview.
+func (mr *MockStudioRepositoryMockRecorder) GetMergePreview(targetID, sourceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMergePreview", reflect.TypeOf((*MockStudioRepository)(nil).GetMergePreview), targetID, sourceID)
 }
 
 // GetSceneCount mocks base method.
@@ -202,6 +232,22 @@ func (m *MockStudioRepository) List(page, limit int, sort string) ([]data.Studio
 func (mr *MockStudioRepositoryMockRecorder) List(page, limit, sort any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockStudioRepository)(nil).List), page, limit, sort)
+}
+
+// Merge mocks base method.
+func (m *MockStudioRepository) Merge(target, source *data.Studio) (*data.StudioMergeStats, []uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Merge", target, source)
+	ret0, _ := ret[0].(*data.StudioMergeStats)
+	ret1, _ := ret[1].([]uint)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// Merge indicates an expected call of Merge.
+func (mr *MockStudioRepositoryMockRecorder) Merge(target, source any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Merge", reflect.TypeOf((*MockStudioRepository)(nil).Merge), target, source)
 }
 
 // Search mocks base method.

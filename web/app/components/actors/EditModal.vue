@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Actor } from '~/types/actor';
+import type { EntityConflict } from '~/types/conflict';
 
 const props = defineProps<{
     visible: boolean;
@@ -49,6 +50,7 @@ const newAlias = ref('');
 
 const loading = ref(false);
 const error = ref('');
+const conflict = ref<EntityConflict<Actor> | null>(null);
 const imageFile = ref<File | null>(null);
 const imagePreview = ref<string | null>(null);
 
@@ -166,6 +168,7 @@ const handleImageChange = (event: Event) => {
 
 const handleSubmit = async () => {
     error.value = '';
+    conflict.value = null;
     loading.value = true;
 
     try {
@@ -180,20 +183,22 @@ const handleSubmit = async () => {
                 await api.uploadActorImage(props.actor.id, imageFile.value);
                 delete payload.image_url;
             }
-            await api.updateActor(props.actor.id, payload);
+            await api.updateActor(props.actor.id, payload, { strict: true });
             emit('updated');
         } else {
-            let newActor = await api.createActor(payload);
+            let newActor = await api.createActor(payload, { strict: true });
             if (imageFile.value && newActor.id) {
                 newActor = await api.uploadActorImage(newActor.id, imageFile.value);
             }
             emit('created', newActor);
         }
     } catch (e: unknown) {
-        error.value =
-            e instanceof Error
-                ? e.message
-                : `Failed to ${isEditMode.value ? 'update' : 'create'} actor`;
+        conflict.value = getEntityConflict<Actor>(e);
+        error.value = conflict.value
+            ? ''
+            : e instanceof Error
+              ? e.message
+              : `Failed to ${isEditMode.value ? 'update' : 'create'} actor`;
     } finally {
         loading.value = false;
     }
@@ -201,6 +206,7 @@ const handleSubmit = async () => {
 
 const handleClose = () => {
     error.value = '';
+    conflict.value = null;
     revokeBlobPreview();
     imageFile.value = null;
     emit('close');
@@ -236,6 +242,12 @@ const genderOptions = [
             @click.self="handleClose"
         >
             <div class="glass-panel border-border my-8 w-full max-w-2xl border p-6">
+                <AliasesConflictNotice
+                    v-if="conflict && currentView === 'form'"
+                    :conflict="conflict"
+                    kind="actor"
+                    class="mb-3"
+                />
                 <ActorsEditmodalFormView
                     v-if="currentView === 'form'"
                     :form="form"

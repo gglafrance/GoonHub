@@ -7,6 +7,8 @@ export interface ActorListItem {
     image_url: string;
     gender: string;
     scene_count: number;
+    // Alias that matched the search query when the name does not
+    matched_alias?: string;
 }
 
 // Full actor details for detail views
@@ -95,4 +97,24 @@ export interface UpdateActorInput {
     piercings?: string;
     fake_boobs?: boolean;
     same_sex_only?: boolean;
+}
+
+// Answer of GET /actors/resolve: exact name-or-alias match
+export interface ActorResolution {
+    data: Actor;
+    matched: 'name' | 'alias';
+    matched_alias: string;
+    candidates: number;
+}
+
+// What merging a source actor into a target actor moves
+export interface ActorMergePreview {
+    target: Actor;
+    source: Actor;
+    scenes: number;
+    shared_scenes: number;
+    ratings: number;
+    likes: number;
+    aliases_added: string[];
+    image_from_source: boolean;
 }

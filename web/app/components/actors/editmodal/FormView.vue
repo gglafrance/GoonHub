@@ -176,7 +176,7 @@ const emit = defineEmits<{
                             focus:ring-lava/20 flex-1 rounded-lg border px-3 py-2 text-sm text-white
                             transition-all focus:ring-1 focus:outline-none"
                         @input="emit('update:newAlias', ($event.target as HTMLInputElement).value)"
-                        @keyup.enter="emit('add-alias')"
+                        @keydown.enter.prevent="emit('add-alias')"
                     />
                     <button
                         type="button"

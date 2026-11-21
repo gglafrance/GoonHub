@@ -614,8 +614,10 @@ func buildSceneDocument(scene *data.Scene, tags []data.Tag, actors []data.Actor)
 	}
 
 	actorNames := make([]string, len(actors))
+	actorAliases := []string{}
 	for i, actor := range actors {
 		actorNames[i] = actor.Name
+		actorAliases = append(actorAliases, actor.Aliases...)
 	}
 
 	return meilisearch.SceneDocument{
@@ -626,6 +628,7 @@ func buildSceneDocument(scene *data.Scene, tags []data.Tag, actors []data.Actor)
 		Description:      scene.Description,
 		Studio:           scene.Studio,
 		Actors:           actorNames,
+		ActorAliases:     actorAliases,
 		TagIDs:           tagIDs,
 		TagNames:         tagNames,
 		Duration:         float64(scene.Duration),
