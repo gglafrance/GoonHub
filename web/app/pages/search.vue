@@ -42,6 +42,7 @@ const activeFilterCount = computed(() => {
     if (searchStore.minDuration > 0 || searchStore.maxDuration > 0) count++;
     if (searchStore.minSize > 0 || searchStore.maxSize > 0) count++;
     count += searchStore.activeStatusCount;
+    count += searchStore.selectedSourceSites.length;
     if (searchStore.minDate || searchStore.maxDate) count++;
     if (searchStore.resolution) count++;
     if (searchStore.liked) count++;
@@ -66,6 +67,9 @@ const syncFromUrl = () => {
         const v = q[k];
         searchStore.status[k] = v === 'true' ? true : v === 'false' ? false : null;
     }
+    searchStore.selectedSourceSites = q.source_site
+        ? (q.source_site as string).split(',').filter(Boolean)
+        : [];
     searchStore.minDate = (q.min_date as string) || '';
     searchStore.maxDate = (q.max_date as string) || '';
     searchStore.resolution = (q.resolution as string) || '';
@@ -102,6 +106,8 @@ const syncToUrl = () => {
         const v = searchStore.status[k];
         if (v !== null) query[k] = String(v);
     }
+    if (searchStore.selectedSourceSites.length > 0)
+        query.source_site = searchStore.selectedSourceSites.join(',');
     if (searchStore.minDate) query.min_date = searchStore.minDate;
     if (searchStore.maxDate) query.max_date = searchStore.maxDate;
     if (searchStore.resolution) query.resolution = searchStore.resolution;
@@ -154,6 +160,7 @@ watch(
         searchStore.minSize,
         searchStore.maxSize,
         JSON.stringify(searchStore.status),
+        searchStore.selectedSourceSites,
         searchStore.minDate,
         searchStore.maxDate,
         searchStore.resolution,
@@ -220,6 +227,7 @@ const loadSavedSearchFromUrl = async () => {
 
 onMounted(async () => {
     searchStore.loadFilterOptions();
+    searchStore.loadSourceSites();
     const loaded = await loadSavedSearchFromUrl();
     if (!loaded) {
         syncFromUrl();

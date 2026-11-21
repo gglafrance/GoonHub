@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import type { SceneListItem } from '~/types/scene';
 import type { StoragePathWithCount, FolderInfo, FolderContentsResponse } from '~/types/explorer';
+import type { LoadedPages, PageLoadPlan } from '~/utils/infinitePages';
 
 export interface Breadcrumb {
     name: string;
@@ -147,31 +148,62 @@ export const useExplorerStore = defineStore('explorer', () => {
         await loadFolderContents();
     };
 
-    const loadFolderContents = async () => {
-        if (!currentStoragePathID.value) return;
+    // Infinite scroll (user setting): pages in the list and what they were loaded for
+    const loadedPages = ref<LoadedPages>({ first: 0, last: 0 });
+    const isLoadingMore = ref(false);
+    let contentsRequest = 0;
 
-        isLoading.value = true;
+    const runFolderPlan = async (plan: PageLoadPlan) => {
+        if (!currentStoragePathID.value) return;
+        const storagePathID = currentStoragePathID.value;
+        const folderPath = currentPath.value;
+        const request = ++contentsRequest;
+        const partial = plan.mode !== 'replace';
+
+        if (partial) isLoadingMore.value = true;
+        else isLoading.value = true;
         error.value = null;
         try {
-            const response: FolderContentsResponse = await getFolderContents(
-                currentStoragePathID.value,
-                currentPath.value,
-                page.value,
-                limit.value,
+            const responses: FolderContentsResponse[] = await Promise.all(
+                plan.pages.map((p) => getFolderContents(storagePathID, folderPath, p, limit.value)),
             );
-
-            subfolders.value = response.subfolders;
-            scenes.value = response.scenes;
-            totalScenes.value = response.total_scenes;
+            // A newer load replaced this one
+            if (request !== contentsRequest) return;
+            const last = responses[responses.length - 1]!;
+            subfolders.value = last.subfolders;
+            scenes.value = mergePageItems(
+                scenes.value,
+                responses.flatMap((r) => r.scenes),
+                plan.mode,
+            );
+            totalScenes.value = last.total_scenes;
+            loadedPages.value = commitPageLoad(loadedPages.value, plan);
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : 'Unknown error';
-            if (message !== 'Unauthorized') {
+            if (message !== 'Unauthorized' && request === contentsRequest) {
                 error.value = message;
             }
         } finally {
-            isLoading.value = false;
+            if (request === contentsRequest) {
+                isLoading.value = false;
+                isLoadingMore.value = false;
+            }
         }
     };
+
+    const folderContext = () =>
+        JSON.stringify(['folder', currentStoragePathID.value, currentPath.value, limit.value]);
+
+    // Loads the current page (appended to the list when it is the next one with infinite scroll)
+    const loadFolderContents = () =>
+        runFolderPlan(
+            planPageLoad(
+                loadedPages.value,
+                page.value,
+                settingsStore.infiniteScroll,
+                folderContext(),
+            ),
+        );
 
     const setPage = async (newPage: number) => {
         page.value = newPage;
@@ -265,6 +297,62 @@ export const useExplorerStore = defineStore('explorer', () => {
     };
 
     // Search actions
+    const runSearchPlan = async (plan: PageLoadPlan) => {
+        if (!currentStoragePathID.value) return;
+        const request = ++contentsRequest;
+        const partial = plan.mode !== 'replace';
+        const criteria = {
+            storage_path_id: currentStoragePathID.value,
+            folder_path: currentPath.value,
+            recursive: false,
+            query: searchQuery.value,
+            tag_ids: searchTags.value,
+            actors: searchActors.value,
+            has_porndb_id: searchHasPornDBID.value ?? undefined,
+        };
+
+        if (partial) isLoadingMore.value = true;
+        else isSearching.value = true;
+        error.value = null;
+        try {
+            const responses = await Promise.all(
+                plan.pages.map((p) => searchInFolder({ ...criteria, page: p, limit: limit.value })),
+            );
+            if (request !== contentsRequest) return;
+            scenes.value = mergePageItems(
+                scenes.value,
+                responses.flatMap((r) => r.scenes),
+                plan.mode,
+            );
+            totalScenes.value = responses[responses.length - 1]?.total ?? 0;
+            // Hide subfolders during search
+            subfolders.value = [];
+            loadedPages.value = commitPageLoad(loadedPages.value, plan);
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'Unknown error';
+            if (message !== 'Unauthorized' && request === contentsRequest) {
+                error.value = message;
+            }
+        } finally {
+            if (request === contentsRequest) {
+                isSearching.value = false;
+                isLoadingMore.value = false;
+            }
+        }
+    };
+
+    const searchContext = () =>
+        JSON.stringify([
+            'search',
+            currentStoragePathID.value,
+            currentPath.value,
+            searchQuery.value,
+            searchTags.value,
+            searchActors.value,
+            searchHasPornDBID.value,
+            limit.value,
+        ]);
+
     const performSearch = async () => {
         if (!currentStoragePathID.value) return;
         if (!isSearchActive.value) {
@@ -272,33 +360,21 @@ export const useExplorerStore = defineStore('explorer', () => {
             await loadFolderContents();
             return;
         }
+        await runSearchPlan(
+            planPageLoad(
+                loadedPages.value,
+                page.value,
+                settingsStore.infiniteScroll,
+                searchContext(),
+            ),
+        );
+    };
 
-        isSearching.value = true;
-        error.value = null;
-        try {
-            const response = await searchInFolder({
-                storage_path_id: currentStoragePathID.value,
-                folder_path: currentPath.value,
-                recursive: false,
-                query: searchQuery.value,
-                tag_ids: searchTags.value,
-                actors: searchActors.value,
-                has_porndb_id: searchHasPornDBID.value ?? undefined,
-                page: page.value,
-                limit: limit.value,
-            });
-            scenes.value = response.scenes;
-            totalScenes.value = response.total;
-            // Hide subfolders during search
-            subfolders.value = [];
-        } catch (e: unknown) {
-            const message = e instanceof Error ? e.message : 'Unknown error';
-            if (message !== 'Unauthorized') {
-                error.value = message;
-            }
-        } finally {
-            isSearching.value = false;
-        }
+    // Infinite scroll opened on a later page: loads the page before the list
+    const loadPrevious = async () => {
+        const plan = planPreviousPage(loadedPages.value);
+        if (!plan) return;
+        await (isSearchActive.value ? runSearchPlan(plan) : runFolderPlan(plan));
     };
 
     const clearSearch = async () => {
@@ -339,6 +415,9 @@ export const useExplorerStore = defineStore('explorer', () => {
         scenes,
         totalScenes,
         page,
+        loadedPages,
+        isLoadingMore,
+        loadPrevious,
         limit,
         isLoading,
         error,

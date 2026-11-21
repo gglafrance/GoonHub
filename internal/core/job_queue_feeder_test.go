@@ -116,7 +116,9 @@ func TestSubmitJobToPool_AnimatedThumbnailsDurationZero(t *testing.T) {
 }
 
 func TestSubmitJobToPool_ThumbnailWithDuration(t *testing.T) {
-	feeder, _, _ := newTestFeeder(t)
+	feeder, _, sceneRepo := newTestFeeder(t)
+	// The worker may start the job before the pool stops; without ffmpeg it then fails.
+	sceneRepo.EXPECT().UpdateProcessingStatus(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 
 	// Start the pool so submissions work
 	feeder.poolManager.Start()
@@ -141,7 +143,9 @@ func TestSubmitJobToPool_ThumbnailWithDuration(t *testing.T) {
 }
 
 func TestSubmitJobToPool_SpritesWithDuration(t *testing.T) {
-	feeder, _, _ := newTestFeeder(t)
+	feeder, _, sceneRepo := newTestFeeder(t)
+	// The worker may start the job before the pool stops; without ffmpeg it then fails.
+	sceneRepo.EXPECT().UpdateProcessingStatus(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 
 	// Start the pool so submissions work
 	feeder.poolManager.Start()

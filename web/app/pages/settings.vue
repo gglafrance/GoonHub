@@ -516,6 +516,7 @@ definePageMeta({
                 <SettingsJobs v-if="activeTab === 'jobs'" :active-sub-tab="activeSubTab" />
                 <SettingsStorage v-if="activeTab === 'storage'" />
                 <SettingsDuplicates v-if="activeTab === 'duplicates'" />
+                <SettingsHealth v-if="activeTab === 'health'" />
                 <SettingsTrash v-if="activeTab === 'trash'" />
             </div>
         </main>

@@ -55,7 +55,11 @@ const handleRestore = async (scene: TrashedScene) => {
 };
 
 const handlePermanentDelete = async (scene: TrashedScene) => {
-    if (!confirm(`Permanently delete "${scene.title}"? This cannot be undone.`)) {
+    if (
+        !confirm(
+            `Permanently delete "${scene.title}"? This cannot be undone. Video files on read-only storage paths are kept.`,
+        )
+    ) {
         return;
     }
     clearMessages();
@@ -130,7 +134,7 @@ const shouldShowThumbnail = (scene: TrashedScene): boolean => {
                     <h3 class="text-sm font-semibold text-white">Trash</h3>
                     <p class="text-dim mt-0.5 text-[11px]">
                         Deleted scenes are kept for {{ retentionDays }} days before permanent
-                        deletion.
+                        deletion. Video files on read-only storage paths are never deleted.
                     </p>
                 </div>
                 <button
