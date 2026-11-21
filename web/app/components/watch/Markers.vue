@@ -13,7 +13,6 @@ const seekToTime = inject<(time: number) => void>('seekToTime');
 const playMarker =
     inject<(marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) => void>('playMarker');
 const refreshMarkers = inject<() => Promise<void>>('refreshMarkers');
-const pendingMarkerAdd = inject<Ref<boolean>>('pendingMarkerAdd');
 
 // Inject centralized watch page data
 const watchPageData = inject<WatchPageData>(WATCH_PAGE_DATA_KEY);
@@ -135,58 +134,14 @@ const handleSuggestionKeydown = (e: KeyboardEvent, isEdit: boolean) => {
     }
 };
 
-// Adds a marker to the page's list, kept in timestamp order like the API returns it
-const insertMarker = (marker: Marker) => {
-    if (!watchPageData) return;
-    const list = watchPageData.markers.value.filter((m) => m.id !== marker.id);
-    list.push(marker);
-    list.sort((a, b) => a.timestamp - b.timestamp || a.id - b.id);
-    watchPageData.markers.value = list;
-};
-
-// Marker thumbnails are made in the background after creation: poll the markers until the
-// new ones have theirs (or give up after a while, the marker works without it)
-const THUMBNAIL_POLL_INTERVAL_MS = 2000;
-const THUMBNAIL_POLL_MAX_ATTEMPTS = 20;
-const pendingThumbnailIds = new Set<number>();
-let thumbnailPollTimer: ReturnType<typeof setTimeout> | null = null;
-let thumbnailPollAttempts = 0;
-let unmounted = false;
-
-const hasThumbnail = (marker: Marker) =>
-    markerThumbnailType.value === 'animated'
-        ? !!marker.animated_thumbnail_path
-        : !!marker.thumbnail_path;
-
-const pollThumbnails = async () => {
-    thumbnailPollTimer = null;
-    await refreshMarkers?.();
-    if (unmounted) return;
-    for (const id of [...pendingThumbnailIds]) {
-        const marker = markers.value.find((m) => m.id === id);
-        if (!marker || hasThumbnail(marker)) pendingThumbnailIds.delete(id);
-    }
-    thumbnailPollAttempts++;
-    if (pendingThumbnailIds.size === 0 || thumbnailPollAttempts >= THUMBNAIL_POLL_MAX_ATTEMPTS) {
-        pendingThumbnailIds.clear();
-        return;
-    }
-    thumbnailPollTimer = setTimeout(pollThumbnails, THUMBNAIL_POLL_INTERVAL_MS);
-};
-
-const waitForThumbnail = (markerId: number) => {
-    pendingThumbnailIds.add(markerId);
-    thumbnailPollAttempts = 0;
-    if (!thumbnailPollTimer) {
-        thumbnailPollTimer = setTimeout(pollThumbnails, THUMBNAIL_POLL_INTERVAL_MS);
-    }
-};
-
-onBeforeUnmount(() => {
-    unmounted = true;
-    if (thumbnailPollTimer) clearTimeout(thumbnailPollTimer);
-    thumbnailPollTimer = null;
-    pendingThumbnailIds.clear();
+// New markers show at once; their thumbnails are made in the background and polled for
+const { insertMarker, waitForThumbnail } = useNewMarkers({
+    markers: watchPageData?.markers,
+    refresh: refreshMarkers,
+    hasThumbnail: (marker) =>
+        markerThumbnailType.value === 'animated'
+            ? !!marker.animated_thumbnail_path
+            : !!marker.thumbnail_path,
 });
 
 const handleAddMarker = async () => {
@@ -341,27 +296,7 @@ const getAnimatedUrl = (marker: Marker) => {
     return `/marker-thumbnails/${marker.id}/animated`;
 };
 
-// Watch for pending marker add trigger from parent (when M key is pressed globally)
-watch(
-    () => pendingMarkerAdd?.value,
-    (pending) => {
-        if (pending) {
-            handleAddMarker();
-            // Reset the trigger
-            if (pendingMarkerAdd) {
-                pendingMarkerAdd.value = false;
-            }
-        }
-    },
-);
-
 onMounted(async () => {
-    // Check if there's a pending marker add on mount (M was pressed before tab opened)
-    if (pendingMarkerAdd?.value) {
-        handleAddMarker();
-        pendingMarkerAdd.value = false;
-    }
-
     // Load marker thumbnail type from processing config
     try {
         const config = await fetchProcessingConfig();
@@ -397,16 +332,12 @@ onMounted(async () => {
                 class="bg-lava hover:bg-lava/80 disabled:bg-lava/50 flex items-center gap-1.5
                     rounded-lg px-3 py-2 text-xs font-medium text-white transition-colors
                     disabled:cursor-not-allowed"
-                title="Add marker at current time (M)"
+                title="Add marker at current time (M on the player: quick marker)"
                 @click="handleAddMarker"
             >
                 <Icon v-if="saving" name="svg-spinners:ring-resize" size="12" />
                 <Icon v-else name="heroicons:plus" size="12" />
                 Add Marker
-                <kbd
-                    class="ml-1 rounded bg-white/10 px-1.5 py-0.5 font-mono text-[10px] font-normal"
-                    >M</kbd
-                >
             </button>
         </div>
 

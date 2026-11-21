@@ -61,6 +61,7 @@ const playerRef = ref<{
     player?: any;
     vttCues?: VttCue[];
     playMarker?: (marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) => void;
+    playerEl?: HTMLElement | null;
 } | null>(null);
 const showResumePrompt = ref(false);
 const startTime = ref(0);
@@ -78,12 +79,16 @@ const forceAutoplay = ref(false);
 const thumbnailVersion = ref(0);
 const detailsRefreshKey = ref(0);
 
+// Quick marker dialog (M) open: the player shortcuts are off while its inputs are typed in
+const quickMarkerOpen = ref(false);
+
 // Keyboard shortcuts for scene player
 useScenePlayerShortcuts({
     player: computed(() => playerRef.value?.player ?? null),
     scene: scene,
     onTheaterModeToggle: () => settingsStore.toggleTheaterMode(),
     onABLoopToggle: () => playerRef.value?.abLoop?.toggle(),
+    suspended: quickMarkerOpen,
 });
 
 const isProcessing = computed(() => scene.value?.processing_status === 'pending');
@@ -250,7 +255,6 @@ const goBack = () => goBackToOrigin(playlistUuid.value ? `/playlists/${playlistU
 
 // Tab state for DetailTabs (allows switching tabs from keyboard shortcuts)
 const activeTab = ref<'jobs' | 'thumbnail' | 'details' | 'history' | 'markers'>('details');
-const pendingMarkerAdd = ref(false);
 
 provide('getPlayerTime', () => playerRef.value?.getCurrentTime() ?? 0);
 provide('thumbnailVersion', thumbnailVersion);
@@ -270,37 +274,9 @@ const handlePlayMarker = (marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) =
 };
 provide('playMarker', handlePlayMarker);
 provide('activeTab', activeTab);
-provide('pendingMarkerAdd', pendingMarkerAdd);
-
-// Handle 'M' key globally to add markers (even when Markers tab is not open)
-const handleMarkerShortcut = (e: KeyboardEvent) => {
-    const target = e.target as HTMLElement;
-    if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable ||
-        e.ctrlKey ||
-        e.metaKey ||
-        e.altKey
-    ) {
-        return;
-    }
-
-    if (e.key === 'm' || e.key === 'M') {
-        e.preventDefault();
-        // Switch to markers tab and trigger marker add
-        activeTab.value = 'markers';
-        pendingMarkerAdd.value = true;
-    }
-};
 
 onMounted(() => {
-    window.addEventListener('keydown', handleMarkerShortcut);
     loadPage();
-});
-
-onUnmounted(() => {
-    window.removeEventListener('keydown', handleMarkerShortcut);
 });
 
 watch(
@@ -518,6 +494,14 @@ definePageMeta({
                                     @ended="handlePlaylistSceneEnd"
                                     @next="handlePlaylistNext"
                                     @previous="handlePlaylistPrevious"
+                                />
+
+                                <!-- Quick marker (M), rendered inside the player element -->
+                                <WatchQuickMarker
+                                    :player="playerRef?.player"
+                                    :target="playerRef?.playerEl"
+                                    :scene-id="scene.id"
+                                    @open-change="quickMarkerOpen = $event"
                                 />
                             </div>
                         </div>

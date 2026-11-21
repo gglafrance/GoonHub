@@ -69,7 +69,7 @@ const playerSections = computed(() => [
     },
     {
         category: 'Markers',
-        items: [{ keys: ['M'], description: 'Add marker at current time' }],
+        items: [{ keys: ['M'], description: 'Quick marker: label, then sub-labels' }],
     },
     {
         category: 'Navigation',
