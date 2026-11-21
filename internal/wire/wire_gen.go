@@ -121,7 +121,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	studioInteractionHandler := provideStudioInteractionHandler(studioInteractionService, studioRepository)
 	searchHandler := provideSearchHandler(searchService, searchConfigRepository)
 	watchHistoryService := provideWatchHistoryService(watchHistoryRepository, sceneRepository, searchService, logger)
-	watchHistoryHandler := provideWatchHistoryHandler(watchHistoryService)
+	replayHeatmapRepository := provideReplayHeatmapRepository(db)
+	replayHeatmapService := provideReplayHeatmapService(replayHeatmapRepository, sceneRepository, userSettingsRepository, logger)
+	watchHistoryHandler := provideWatchHistoryHandler(watchHistoryService, replayHeatmapService)
 	storagePathRepository := provideStoragePathRepository(db)
 	storagePathService := provideStoragePathService(storagePathRepository, logger)
 	storagePathHandler := provideStoragePathHandler(storagePathService)
@@ -212,6 +214,10 @@ func provideStudioInteractionRepository(db *gorm.DB) data.StudioInteractionRepos
 
 func provideWatchHistoryRepository(db *gorm.DB) data.WatchHistoryRepository {
 	return data.NewWatchHistoryRepository(db)
+}
+
+func provideReplayHeatmapRepository(db *gorm.DB) data.ReplayHeatmapRepository {
+	return data.NewReplayHeatmapRepository(db)
 }
 
 func provideJobHistoryRepository(db *gorm.DB) data.JobHistoryRepository {
@@ -363,6 +369,10 @@ func provideSearchService(meiliClient *meilisearch.Client, sceneRepo data.SceneR
 
 func provideWatchHistoryService(repo data.WatchHistoryRepository, sceneRepo data.SceneRepository, searchService *core.SearchService, logger *logging.Logger) *core.WatchHistoryService {
 	return core.NewWatchHistoryService(repo, sceneRepo, searchService, logger.Logger)
+}
+
+func provideReplayHeatmapService(repo data.ReplayHeatmapRepository, sceneRepo data.SceneRepository, settingsRepo data.UserSettingsRepository, logger *logging.Logger) *core.ReplayHeatmapService {
+	return core.NewReplayHeatmapService(repo, sceneRepo, settingsRepo, logger.Logger)
 }
 
 func provideRelatedScenesService(
@@ -584,8 +594,8 @@ func provideSearchHandler(searchService *core.SearchService, searchConfigRepo da
 	return handler.NewSearchHandler(searchService, searchConfigRepo)
 }
 
-func provideWatchHistoryHandler(service *core.WatchHistoryService) *handler.WatchHistoryHandler {
-	return handler.NewWatchHistoryHandler(service)
+func provideWatchHistoryHandler(service *core.WatchHistoryService, heatmapService *core.ReplayHeatmapService) *handler.WatchHistoryHandler {
+	return handler.NewWatchHistoryHandler(service, heatmapService)
 }
 
 func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.SceneProcessingService) *handler.JobHandler {

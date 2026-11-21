@@ -122,5 +122,8 @@ type UpdateAllSettingsRequest struct {
 	DefaultMarkerView        string                       `json:"default_marker_view"`
 	PaginationPosition       string                       `json:"pagination_position"`
 	DateFormat               string                       `json:"date_format"`
-	SceneCardConfig          UpdateSceneCardConfigRequest `json:"scene_card_config"`
+	// Nil (field absent) keeps the current value: both settings are on by default
+	ShowReplayHeatmap   *bool                        `json:"show_replay_heatmap"`
+	RecordReplayHeatmap *bool                        `json:"record_replay_heatmap"`
+	SceneCardConfig     UpdateSceneCardConfigRequest `json:"scene_card_config"`
 }

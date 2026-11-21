@@ -62,6 +62,8 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					scenes.POST("/:id/watch", middleware.RequirePermission(rbacService, "scenes:view"), watchHistoryHandler.RecordWatch)
 					scenes.GET("/:id/resume", middleware.RequirePermission(rbacService, "scenes:view"), watchHistoryHandler.GetResumePosition)
 					scenes.GET("/:id/history", middleware.RequirePermission(rbacService, "scenes:view"), watchHistoryHandler.GetSceneHistory)
+					scenes.GET("/:id/heatmap", middleware.RequirePermission(rbacService, "scenes:view"), watchHistoryHandler.GetReplayHeatmap)
+					scenes.POST("/:id/heatmap", middleware.RequirePermission(rbacService, "scenes:view"), watchHistoryHandler.RecordReplayHeatmap)
 					scenes.GET("/:id/actors", middleware.RequirePermission(rbacService, "scenes:view"), actorHandler.GetSceneActors)
 					scenes.PUT("/:id/actors", middleware.RequirePermission(rbacService, "scenes:upload"), actorHandler.SetSceneActors)
 					scenes.GET("/:id/studio", middleware.RequirePermission(rbacService, "scenes:view"), studioHandler.GetSceneStudio)

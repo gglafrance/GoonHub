@@ -72,9 +72,13 @@ type UserSettings struct {
 	// PaginationPosition: where page controls are shown on paginated pages (top, bottom, both)
 	PaginationPosition string `gorm:"size:10;not null;default:'bottom'" json:"pagination_position"`
 	// DateFormat: how dates are displayed (auto = browser locale, or a pattern like DD/MM/YYYY)
-	DateFormat      string          `gorm:"size:20;not null;default:'auto'" json:"date_format"`
-	SceneCardConfig SceneCardConfig `gorm:"type:jsonb;not null" json:"scene_card_config"`
-	MaxItemsPerPage int             `gorm:"-" json:"max_items_per_page"`
+	DateFormat string `gorm:"size:20;not null;default:'auto'" json:"date_format"`
+	// ShowReplayHeatmap / RecordReplayHeatmap: "most replayed" heatmap above the player
+	// progress bar, and recording of the watched parts (both on by default)
+	ShowReplayHeatmap   bool            `gorm:"not null;default:true" json:"show_replay_heatmap"`
+	RecordReplayHeatmap bool            `gorm:"not null;default:true" json:"record_replay_heatmap"`
+	SceneCardConfig     SceneCardConfig `gorm:"type:jsonb;not null" json:"scene_card_config"`
+	MaxItemsPerPage     int             `gorm:"-" json:"max_items_per_page"`
 }
 
 // HomepageConfig represents the user's homepage layout configuration

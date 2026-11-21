@@ -388,6 +388,10 @@ const { hasRecordedView, setupTracking, cleanup } = useWatchTracking({
     player,
     scene: sceneRef,
 });
+const { setup: setupReplayHeatmap, cleanup: cleanupReplayHeatmap } = useReplayHeatmap({
+    player,
+    scene: sceneRef,
+});
 
 // Attempt autoplay, falling back to muted if browser blocks it.
 // Waits for canplay in Firefox which rejects play() on unbuffered media.
@@ -547,6 +551,7 @@ onMounted(async () => {
     player.value.ready(() => {
         setupThumbnailPreview();
         setupMarkerIndicators();
+        setupReplayHeatmap();
         if (vttUrl.value) {
             loadVttCues(vttUrl.value);
         }
@@ -719,6 +724,7 @@ onBeforeUnmount(() => {
     cleanup();
     cleanupThumbnailPreview();
     cleanupMarkerIndicators();
+    cleanupReplayHeatmap();
     if (player.value) {
         player.value.dispose();
     }
@@ -1276,6 +1282,37 @@ onBeforeUnmount(() => {
     font-size: 11px;
     font-family: 'JetBrains Mono', 'SF Mono', monospace;
     color: rgba(255, 255, 255, 0.5);
+}
+
+/* ========================================
+   REPLAY HEATMAP ("most replayed")
+   ======================================== */
+:deep(.vjs-replay-heatmap) {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    height: 22px;
+    pointer-events: none;
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
+    z-index: 1;
+}
+
+:deep(.vjs-progress-control:hover .vjs-replay-heatmap) {
+    opacity: 1;
+}
+
+:deep(.vjs-replay-heatmap svg) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+:deep(.vjs-replay-heatmap-line) {
+    stroke: rgba(255, 255, 255, 0.45);
+    stroke-width: 1px;
 }
 
 /* ========================================
