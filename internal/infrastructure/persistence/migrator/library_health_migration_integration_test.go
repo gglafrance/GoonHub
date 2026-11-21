@@ -14,12 +14,12 @@ import (
 // Integration test of migration 000083 (library health tables): up, down, up. It migrates the
 // database down and up again, so it needs a disposable database of its own:
 // GOONHUB_TEST_MIGRATION_POSTGRES_DSN.
-func TestMigration083LibraryHealth(t *testing.T) {
+func TestMigration077LibraryHealth(t *testing.T) {
 	dsn := os.Getenv("GOONHUB_TEST_MIGRATION_POSTGRES_DSN")
 	if dsn == "" {
 		t.Skip("GOONHUB_TEST_MIGRATION_POSTGRES_DSN not set")
 	}
-	const version = 83
+	const version = 77
 	source, err := iofs.New(migrations, "migrations")
 	if err != nil {
 		t.Fatalf("migration source: %v", err)
@@ -59,7 +59,7 @@ func TestMigration083LibraryHealth(t *testing.T) {
 
 	// The constraints reject unknown kinds and reasons
 	var sceneID, checkID int64
-	if err := db.QueryRow(`INSERT INTO scenes (title) VALUES ('migration 083 test') RETURNING id`).Scan(&sceneID); err != nil {
+	if err := db.QueryRow(`INSERT INTO scenes (title) VALUES ('migration 077 test') RETURNING id`).Scan(&sceneID); err != nil {
 		t.Fatalf("insert scene: %v", err)
 	}
 	t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM scenes WHERE id = $1`, sceneID) })

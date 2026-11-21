@@ -946,7 +946,7 @@ File scan operation records.
 
 ### `library_health_checks`
 
-Runs of the background tasks of the admin library health page (migration 083): the
+Runs of the background tasks of the admin library health page (migration 077): the
 missing-file check (`missing_files`, stats every active scene file) and the size fix
 (`fix_sizes`, re-reads from disk the size of scenes stored with size 0). Both only read the
 media files.
