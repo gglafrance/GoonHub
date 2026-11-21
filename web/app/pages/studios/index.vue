@@ -19,7 +19,9 @@ const studios = ref<StudioListItem[]>([]);
 const total = ref(0);
 const currentPage = useUrlPagination();
 const { limit, showSelector, maxLimit, updatePageSize } = usePageSize();
-const searchQuery = ref('');
+// Name search, kept in the URL (`q`) once typed (debounced), like the page and the sort
+const urlSearch = useUrlString('q');
+const searchQuery = ref(urlSearch.value);
 const sortOrder = useUrlSort(settingsStore.sortPreferences?.studios || 'name_asc');
 const isLoading = ref(false);
 const error = ref<string | null>(null);
@@ -74,12 +76,18 @@ watch(searchQuery, () => {
         clearTimeout(searchTimeout);
     }
     searchTimeout = setTimeout(() => {
+        urlSearch.value = searchQuery.value;
         if (currentPage.value === 1) {
             loadStudios(1);
         } else {
             currentPage.value = 1;
         }
     }, 300);
+});
+
+// Browser back/forward, links to this page
+watch(urlSearch, (value) => {
+    if (value !== searchQuery.value) searchQuery.value = value;
 });
 
 watch(sortOrder, () => {

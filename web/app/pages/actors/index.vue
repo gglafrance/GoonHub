@@ -19,9 +19,16 @@ const actors = ref<ActorListItem[]>([]);
 const total = ref(0);
 const currentPage = useUrlPagination();
 const { limit, showSelector, maxLimit, updatePageSize } = usePageSize();
-const searchQuery = ref('');
+// Name search, kept in the URL (`q`) once typed (debounced), like the page and the sort
+const urlSearch = useUrlString('q');
+const searchQuery = ref(urlSearch.value);
 const sortOrder = useUrlSort(settingsStore.sortPreferences?.actors || 'name_asc');
-const genderFilter = ref<string[]>(JSON.parse(localStorage.getItem('actorGenderFilter') || '[]'));
+// Gender filter: in the URL (`gender`); without it, the last one used on this device
+const genderFilter = useUrlList('gender');
+if (!useRoute().query.gender) {
+    const stored: unknown = JSON.parse(localStorage.getItem('actorGenderFilter') || '[]');
+    if (Array.isArray(stored) && stored.length > 0) genderFilter.value = stored.map(String);
+}
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 const showCreateModal = ref(false);
@@ -83,12 +90,18 @@ watch(searchQuery, () => {
         clearTimeout(searchTimeout);
     }
     searchTimeout = setTimeout(() => {
+        urlSearch.value = searchQuery.value;
         if (currentPage.value === 1) {
             loadActors(1);
         } else {
             currentPage.value = 1;
         }
     }, 300);
+});
+
+// Browser back/forward, links to this page
+watch(urlSearch, (value) => {
+    if (value !== searchQuery.value) searchQuery.value = value;
 });
 
 watch(sortOrder, () => {

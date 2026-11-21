@@ -1,5 +1,6 @@
 import type { SceneListItem, SceneFilterOptions } from '~/types/scene';
 import type { SavedSearchFilters } from '~/types/saved_search';
+import type { SearchUrlState } from '~/utils/searchUrlState';
 
 // Library status filters: null = any, true = yes, false = no
 export const SEARCH_STATUS_KEYS = [
@@ -114,49 +115,44 @@ export const useSearchStore = defineStore('search', () => {
 
     const generateSeed = () => Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
 
+    // Key and data version of the results held, so that coming back to the same search (Back
+    // from a scene) shows them at once and refreshes them in place instead of flashing a
+    // spinner; after an edit anywhere (data version changed) they are not shown again.
+    let resultsKey = '';
+    let resultsVersion = -1;
+    let requestSeq = 0;
+
     const search = async () => {
-        isLoading.value = true;
+        const params: Record<string, string | number | undefined> = {
+            page: page.value,
+            limit: limit.value,
+            ...getSearchParams(),
+        };
+        const key = JSON.stringify(params);
+        const version = currentDataVersion();
+        const sameResults = key === resultsKey && version === resultsVersion;
+        const seq = ++requestSeq;
+
+        if (!sameResults) isLoading.value = true;
         error.value = '';
 
         try {
-            const params: Record<string, string | number | undefined> = {
-                page: page.value,
-                limit: limit.value,
-            };
-
-            if (query.value) params.q = query.value;
-            if (selectedTags.value.length > 0) params.tags = selectedTags.value.join(',');
-            if (selectedActors.value.length > 0) params.actors = selectedActors.value.join(',');
-            if (studio.value) params.studio = studio.value;
-            if (minDuration.value > 0) params.min_duration = minDuration.value;
-            if (maxDuration.value > 0) params.max_duration = maxDuration.value;
-            if (minSize.value > 0) params.min_size = minSize.value;
-            if (maxSize.value > 0) params.max_size = maxSize.value;
-            Object.assign(params, statusParams());
-            if (minDate.value) params.min_date = minDate.value;
-            if (maxDate.value) params.max_date = maxDate.value;
-            if (resolution.value) params.resolution = resolution.value;
-            if (sort.value) params.sort = sort.value;
-            if (sort.value === 'random' && seed.value) params.seed = seed.value;
-            if (liked.value) params.liked = 'true';
-            if (minRating.value > 0) params.min_rating = minRating.value;
-            if (maxRating.value > 0) params.max_rating = maxRating.value;
-            if (minJizzCount.value > 0) params.min_jizz_count = minJizzCount.value;
-            if (maxJizzCount.value > 0) params.max_jizz_count = maxJizzCount.value;
-            if (selectedMarkerLabels.value.length > 0)
-                params.marker_labels = selectedMarkerLabels.value.join(',');
-            if (matchType.value !== 'broad') params.match_type = matchType.value;
-
             const result = await api.searchScenes(params);
+            // A newer search was started meanwhile: its results win
+            if (seq !== requestSeq) return;
             scenes.value = result.data;
             total.value = result.total;
             ratings.value = result.ratings || {};
             likes.value = result.likes || {};
             jizzCounts.value = result.jizz_counts || {};
+            resultsKey = key;
+            resultsVersion = version;
         } catch (e: unknown) {
+            if (seq !== requestSeq) return;
             error.value = e instanceof Error ? e.message : 'Search failed';
+            resultsKey = '';
         } finally {
-            isLoading.value = false;
+            if (seq === requestSeq) isLoading.value = false;
         }
     };
 
@@ -304,6 +300,66 @@ export const useSearchStore = defineStore('search', () => {
         return params;
     };
 
+    /** Search state kept in the URL (see utils/searchUrlState.ts). */
+    const getUrlState = (): SearchUrlState => ({
+        query: query.value,
+        selectedTags: selectedTags.value,
+        selectedActors: selectedActors.value,
+        studio: studio.value,
+        minDuration: minDuration.value,
+        maxDuration: maxDuration.value,
+        minSize: minSize.value,
+        maxSize: maxSize.value,
+        status: status.value,
+        minDate: minDate.value,
+        maxDate: maxDate.value,
+        resolution: resolution.value,
+        sort: sort.value,
+        seed: seed.value,
+        page: page.value,
+        liked: liked.value,
+        minRating: minRating.value,
+        maxRating: maxRating.value,
+        minJizzCount: minJizzCount.value,
+        maxJizzCount: maxJizzCount.value,
+        selectedMarkerLabels: selectedMarkerLabels.value,
+        matchType: matchType.value,
+    });
+
+    /**
+     * Applies the state read from the URL. Returns false when the URL had to be completed (a
+     * random sort without its seed gets one, so that Back brings the same order back).
+     */
+    const applyUrlState = (s: SearchUrlState): boolean => {
+        query.value = s.query;
+        selectedTags.value = s.selectedTags;
+        selectedActors.value = s.selectedActors;
+        studio.value = s.studio;
+        minDuration.value = s.minDuration;
+        maxDuration.value = s.maxDuration;
+        minSize.value = s.minSize;
+        maxSize.value = s.maxSize;
+        status.value = { ...s.status };
+        minDate.value = s.minDate;
+        maxDate.value = s.maxDate;
+        resolution.value = s.resolution;
+        sort.value = s.sort;
+        page.value = s.page;
+        liked.value = s.liked;
+        minRating.value = s.minRating;
+        maxRating.value = s.maxRating;
+        minJizzCount.value = s.minJizzCount;
+        maxJizzCount.value = s.maxJizzCount;
+        selectedMarkerLabels.value = s.selectedMarkerLabels;
+        matchType.value = s.matchType;
+        if (s.sort === 'random' && !s.seed) {
+            seed.value = generateSeed();
+            return false;
+        }
+        seed.value = s.seed;
+        return true;
+    };
+
     return {
         query,
         selectedTags,
@@ -339,6 +395,8 @@ export const useSearchStore = defineStore('search', () => {
         filterOptions,
         hasActiveFilters,
         getSearchParams,
+        getUrlState,
+        applyUrlState,
         search,
         reshuffle,
         loadFilterOptions,

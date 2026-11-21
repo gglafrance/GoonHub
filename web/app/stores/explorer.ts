@@ -44,6 +44,24 @@ export const useExplorerStore = defineStore('explorer', () => {
     const searchHasPornDBID = ref<boolean | null>(null);
     const isSearching = ref(false);
 
+    // View (folder, page, search) and data version of the contents held: coming back to the
+    // same view (Back from a scene) shows them at once and refreshes them in place, while the
+    // contents of another view, or loaded before an edit, are not shown again.
+    let contentsKey = '';
+    let contentsVersion = -1;
+    let requestSeq = 0;
+    const viewKey = () =>
+        JSON.stringify([
+            currentStoragePathID.value,
+            currentPath.value,
+            page.value,
+            limit.value,
+            searchQuery.value,
+            searchTags.value,
+            searchActors.value,
+            searchHasPornDBID.value,
+        ]);
+
     // Computed
     const currentStoragePath = computed(() => {
         if (!currentStoragePathID.value) return null;
@@ -150,6 +168,9 @@ export const useExplorerStore = defineStore('explorer', () => {
     const loadFolderContents = async () => {
         if (!currentStoragePathID.value) return;
 
+        const key = viewKey();
+        const version = currentDataVersion();
+        const seq = ++requestSeq;
         isLoading.value = true;
         error.value = null;
         try {
@@ -159,18 +180,35 @@ export const useExplorerStore = defineStore('explorer', () => {
                 page.value,
                 limit.value,
             );
+            if (seq !== requestSeq) return;
 
             subfolders.value = response.subfolders;
             scenes.value = response.scenes;
             totalScenes.value = response.total_scenes;
+            contentsKey = key;
+            contentsVersion = version;
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : 'Unknown error';
             if (message !== 'Unauthorized') {
                 error.value = message;
             }
         } finally {
-            isLoading.value = false;
+            if (seq === requestSeq) isLoading.value = false;
         }
+    };
+
+    /**
+     * Loads the current view (folder contents or search results). Contents already held for
+     * this exact view stay on screen while they refresh; others are cleared first.
+     */
+    const refresh = async () => {
+        if (viewKey() !== contentsKey || contentsVersion !== currentDataVersion()) {
+            subfolders.value = [];
+            scenes.value = [];
+            totalScenes.value = 0;
+        }
+        if (isSearchActive.value) await performSearch();
+        else await loadFolderContents();
     };
 
     const setPage = async (newPage: number) => {
@@ -273,6 +311,9 @@ export const useExplorerStore = defineStore('explorer', () => {
             return;
         }
 
+        const key = viewKey();
+        const version = currentDataVersion();
+        const seq = ++requestSeq;
         isSearching.value = true;
         error.value = null;
         try {
@@ -287,17 +328,20 @@ export const useExplorerStore = defineStore('explorer', () => {
                 page: page.value,
                 limit: limit.value,
             });
+            if (seq !== requestSeq) return;
             scenes.value = response.scenes;
             totalScenes.value = response.total;
             // Hide subfolders during search
             subfolders.value = [];
+            contentsKey = key;
+            contentsVersion = version;
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : 'Unknown error';
             if (message !== 'Unauthorized') {
                 error.value = message;
             }
         } finally {
-            isSearching.value = false;
+            if (seq === requestSeq) isSearching.value = false;
         }
     };
 
@@ -367,6 +411,7 @@ export const useExplorerStore = defineStore('explorer', () => {
         navigateUp,
         navigateToBreadcrumb,
         loadFolderContents,
+        refresh,
         setPage,
         toggleSceneSelection,
         selectAllOnPage,

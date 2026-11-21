@@ -20,7 +20,6 @@ const URL_KEYS: Record<(typeof LIST_KEYS)[number], string> = {
     tags: 'tags',
     actors: 'actors',
 };
-const FILTER_KEYS: string[] = ['ranges', ...Object.values(URL_KEYS), 'studio'];
 
 /**
  * Advanced filters of the marker pages (setting "Advanced Marker Filters"), synced with the URL.
@@ -32,7 +31,7 @@ const FILTER_KEYS: string[] = ['ranges', ...Object.values(URL_KEYS), 'studio'];
  */
 export function useMarkerFilters(sortBy: Ref<string>, withLabels = true) {
     const route = useRoute();
-    const router = useRouter();
+    const patchQuery = useUrlQueryPatch();
     const settingsStore = useSettingsStore();
     const { fetchFilterOptions } = useApiScenes();
 
@@ -52,7 +51,7 @@ export function useMarkerFilters(sortBy: Ref<string>, withLabels = true) {
         studio: typeof route.query.studio === 'string' ? route.query.studio : '',
     });
 
-    const newSeed = () => Math.floor(Math.random() * 2_000_000_000) + 1;
+    const newSeed = newRandomSeed;
     // Random sort seed, kept in the URL (`seed`) so that a reload keeps the same order
     const urlSeed = Number(route.query.seed);
     const seed = ref(Number.isInteger(urlSeed) && urlSeed > 0 ? urlSeed : newSeed());
@@ -115,26 +114,17 @@ export function useMarkerFilters(sortBy: Ref<string>, withLabels = true) {
         state.studio = values.studio ?? '';
     };
 
-    // Keep the URL in sync so that a filtered view survives a refresh or can be shared. The
-    // write is deferred so that it applies on top of concurrent sort/pagination URL updates.
+    // Keep the URL in sync so that a filtered view survives Back, a refresh or can be shared.
+    // The writes are merged with the concurrent sort/pagination URL updates.
     watch(
         () => ({ ...state }),
         () => {
-            setTimeout(() => {
-                const values: Record<string, string> = {};
-                if (state.rangesOnly) values.ranges = '1';
-                for (const key of LIST_KEYS) {
-                    if (state[key].length) values[URL_KEYS[key]] = state[key].join(',');
-                }
-                if (state.studio) values.studio = state.studio;
-                // Keep the other query params (page, sort...), replace the filter ones
-                const query = Object.fromEntries(
-                    Object.entries(router.currentRoute.value.query).filter(
-                        ([key]) => !FILTER_KEYS.includes(key),
-                    ),
-                );
-                router.replace({ query: { ...query, ...values } });
-            }, 0);
+            const values: Record<string, string | undefined> = {
+                ranges: state.rangesOnly ? '1' : undefined,
+                studio: state.studio || undefined,
+            };
+            for (const key of LIST_KEYS) values[URL_KEYS[key]] = state[key].join(',');
+            patchQuery(values);
         },
         { deep: true },
     );
@@ -143,20 +133,10 @@ export function useMarkerFilters(sortBy: Ref<string>, withLabels = true) {
         if (value === 'random' && previous !== 'random') seed.value = newSeed();
     });
 
-    // Seed in the URL only while the random sort is active (deferred like the filters above)
+    // Seed in the URL only while the random sort is active
     watch(
         [sortBy, seed],
-        () => {
-            setTimeout(() => {
-                const query = Object.fromEntries(
-                    Object.entries(router.currentRoute.value.query).filter(
-                        ([key]) => key !== 'seed',
-                    ),
-                );
-                if (sortBy.value === 'random') query.seed = String(seed.value);
-                router.replace({ query });
-            }, 0);
-        },
+        () => patchQuery({ seed: sortBy.value === 'random' ? String(seed.value) : undefined }),
         { immediate: true },
     );
 

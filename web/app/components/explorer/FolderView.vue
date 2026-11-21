@@ -9,13 +9,8 @@ defineEmits<{
     'update:selectMode': [value: boolean];
 }>();
 
-const route = useRoute();
-const router = useRouter();
 const explorerStore = useExplorerStore();
 const { showSelector, maxLimit, updatePageSize } = usePageSize();
-
-let isUpdatingUrl = false;
-let isSyncingFromUrl = false;
 
 // Folder delete modal state
 const showDeleteModal = ref(false);
@@ -32,50 +27,7 @@ const onFolderDeleted = async () => {
     await explorerStore.loadFolderContents();
 };
 
-// Sync URL when store page changes
-watch(
-    () => explorerStore.page,
-    (newPage) => {
-        if (isSyncingFromUrl) return;
-
-        const query = { ...route.query };
-        if (newPage === 1) {
-            delete query.page;
-        } else {
-            query.page = String(newPage);
-        }
-
-        isUpdatingUrl = true;
-        router.replace({ query }).finally(() => {
-            isUpdatingUrl = false;
-        });
-    },
-);
-
-// Handle browser back/forward navigation
-watch(
-    () => route.query.page,
-    () => {
-        if (isUpdatingUrl) return;
-
-        const urlPage = Number(route.query.page);
-        const targetPage = urlPage > 0 ? urlPage : 1;
-        if (explorerStore.page !== targetPage) {
-            isSyncingFromUrl = true;
-            explorerStore.page = targetPage;
-            nextTick(() => {
-                isSyncingFromUrl = false;
-            });
-
-            if (explorerStore.isSearchActive) {
-                explorerStore.performSearch();
-            } else {
-                explorerStore.loadFolderContents();
-            }
-        }
-    },
-);
-
+// The page and the search are kept in the URL by the explorer page
 const handlePageChange = async (page: number) => {
     explorerStore.page = page;
     if (explorerStore.isSearchActive) {

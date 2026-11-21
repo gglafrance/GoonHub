@@ -14,6 +14,9 @@ const isOwner = computed(
     () => !!authStore.user && store.currentPlaylist?.owner.id === authStore.user.id,
 );
 
+// Back to the playlists list with its filters and scroll position when coming from it
+const { backTo } = useNavOrigin();
+
 const showEditModal = ref(false);
 const showDeleteConfirm = ref(false);
 
@@ -141,14 +144,14 @@ const handleShuffle = () => {
 <template>
     <div class="mx-auto max-w-5xl px-4 py-6 sm:px-6">
         <!-- Back button -->
-        <NuxtLink
-            to="/playlists"
+        <button
             class="text-dim mb-4 inline-flex items-center gap-1 text-xs transition-colors
                 hover:text-white"
+            @click="backTo('/playlists')"
         >
             <Icon name="heroicons:arrow-left" size="14" />
             Back to Playlists
-        </NuxtLink>
+        </button>
 
         <!-- Loading -->
         <div v-if="store.isLoadingDetail" class="flex justify-center py-16">

@@ -99,6 +99,8 @@ export const useUploadStore = defineStore('upload', () => {
                     item.sceneId = response.id;
                     item.status = 'completed';
                     item.progress = 100;
+                    // New scene: lists kept in memory for Back are stale (not sent through fetch)
+                    useDataVersion().bump();
 
                     if (sceneStore.currentPage === 1) {
                         sceneStore.prependScene(response);

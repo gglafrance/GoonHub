@@ -36,12 +36,24 @@ if (authStore.user?.role !== 'admin') {
 const groups = ref<DuplicateGroup[]>([]);
 const stats = ref<DuplicateStats>({ unresolved: 0, resolved: 0, dismissed: 0, total: 0 });
 const loading = ref(true);
-const page = ref(1);
+// Page, status tab, sort and opened group live in the URL (Back, reload, shared links)
+const page = useUrlPagination();
 const limit = ref(20);
 const total = ref(0);
-const statusFilter = ref('');
-const sortBy = ref('newest');
-const expandedGroupId = ref<number | null>(null);
+const statusFilter = useUrlQueryRef('status', '', (raw) =>
+    ['unresolved', 'resolved', 'dismissed'].includes(raw) ? raw : undefined,
+);
+const sortBy = useUrlString('sort', 'newest');
+const expandedGroupParam = useUrlQueryRef('group', 0, (raw) => {
+    const n = Number(raw);
+    return Number.isInteger(n) && n > 0 ? n : undefined;
+});
+const expandedGroupId = computed<number | null>({
+    get: () => expandedGroupParam.value || null,
+    set: (id) => {
+        expandedGroupParam.value = id ?? 0;
+    },
+});
 const mergeMetadata = ref(true);
 
 // Bulk selection and actions

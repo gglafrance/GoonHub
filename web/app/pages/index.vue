@@ -15,7 +15,7 @@ useSeoMeta({
 const queryTab = () => (typeof route.query.tab === 'string' ? route.query.tab : undefined);
 
 onMounted(async () => {
-    await homepageStore.loadHomepage(queryTab());
+    await homepageStore.openHomepage(queryTab());
 });
 
 // Keep the active tab in the URL (shareable, survives a reload)

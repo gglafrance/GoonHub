@@ -19,14 +19,89 @@ useSeoMeta({
 
 const store = usePlaylistStore();
 const { showSelector, maxLimit, updatePageSize } = usePageSize();
+const route = useRoute();
+const patchQuery = useUrlQueryPatch();
 
 const showCreateModal = ref(false);
+
+// Filters, sort and page live in the URL (Back, reload and shared links restore them)
+const SORTS = PLAYLIST_SORT_OPTIONS.map((o) => o.value);
+const OWNERS: PlaylistOwnerFilter[] = ['me', 'all'];
+const VISIBILITIES: PlaylistVisibilityFilter[] = ['', 'public', 'private', 'unlisted'];
+
+/** Applies the URL to the store; returns whether the list changed. */
+const applyUrl = (): boolean => {
+    const q = route.query;
+    const next = {
+        owner: queryEnum(q.owner, OWNERS, 'me'),
+        visibility: queryEnum(q.visibility, VISIBILITIES, ''),
+        sort: queryEnum(q.sort, SORTS, 'created_at_desc'),
+        tags: queryList(q.tags)
+            .map(Number)
+            .filter((n) => Number.isInteger(n) && n > 0),
+        search: queryString(q.q),
+        page: queryPositiveInt(q.page, 1),
+    };
+    const changed =
+        next.owner !== store.ownerFilter ||
+        next.visibility !== store.visibilityFilter ||
+        next.sort !== store.sortOrder ||
+        next.tags.join(',') !== store.tagFilter.join(',') ||
+        next.search !== store.searchQuery ||
+        next.page !== store.currentPage;
+    store.ownerFilter = next.owner;
+    store.visibilityFilter = next.visibility;
+    store.sortOrder = next.sort;
+    store.tagFilter = next.tags;
+    store.searchQuery = next.search;
+    store.currentPage = next.page;
+    return changed;
+};
+
+// Before the filter watchers below, so that restoring the URL state does not reset the page
+let syncingFromUrl = false;
+applyUrl();
+const searchInput = ref(store.searchQuery);
+
+watch(
+    () => [
+        store.ownerFilter,
+        store.visibilityFilter,
+        store.sortOrder,
+        store.tagFilter.join(','),
+        store.searchQuery,
+        store.currentPage,
+    ],
+    () =>
+        patchQuery({
+            owner: unlessDefault(store.ownerFilter, 'me'),
+            visibility: store.visibilityFilter || undefined,
+            sort: unlessDefault(store.sortOrder, 'created_at_desc'),
+            tags: store.tagFilter.join(','),
+            q: store.searchQuery,
+            page: unlessDefault(store.currentPage, 1),
+        }),
+);
+
+// Links to /playlists while on it (header), browser back/forward
+watch(
+    () => route.query,
+    () => {
+        syncingFromUrl = true;
+        if (applyUrl()) {
+            searchInput.value = store.searchQuery;
+            store.loadPlaylists();
+        }
+        nextTick(() => {
+            syncingFromUrl = false;
+        });
+    },
+);
 
 onMounted(async () => {
     await store.loadPlaylists();
 });
 
-const searchInput = ref(store.searchQuery);
 let searchDebounce: ReturnType<typeof setTimeout> | null = null;
 
 watch(searchInput, (val) => {
@@ -45,6 +120,7 @@ watch(
         () => store.searchQuery,
     ],
     () => {
+        if (syncingFromUrl) return;
         store.currentPage = 1;
         store.loadPlaylists();
     },
@@ -53,6 +129,7 @@ watch(
 watch(
     () => store.currentPage,
     () => {
+        if (syncingFromUrl) return;
         store.loadPlaylists();
     },
 );
