@@ -63,7 +63,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	duplicationConfigRepository := provideDuplicationConfigRepository(db)
 	matchingService := provideMatchingService(client, sceneRepository, duplicateGroupRepository, duplicationConfigRepository, logger)
 	sceneFingerprintIndex := provideSceneFingerprintIndex(matchingService)
-	sceneService := provideSceneService(sceneRepository, configConfig, sceneProcessingService, eventBus, logger, jobHistoryRepository, dlqRepository, appSettingsRepository, sceneFingerprintIndex)
+	storagePathRepository := provideStoragePathRepository(db)
+	mediaFileGuard := provideMediaFileGuard(storagePathRepository, logger)
+	sceneService := provideSceneService(sceneRepository, configConfig, sceneProcessingService, eventBus, logger, jobHistoryRepository, dlqRepository, appSettingsRepository, sceneFingerprintIndex, mediaFileGuard)
 	tagService := provideTagService(tagRepository, sceneRepository, logger)
 	searchConfigRepository := provideSearchConfigRepository(db)
 	meilisearchClient, err := provideMeilisearchClient(configConfig, searchConfigRepository, logger)
@@ -122,14 +124,13 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	searchHandler := provideSearchHandler(searchService, searchConfigRepository)
 	watchHistoryService := provideWatchHistoryService(watchHistoryRepository, sceneRepository, searchService, logger)
 	watchHistoryHandler := provideWatchHistoryHandler(watchHistoryService)
-	storagePathRepository := provideStoragePathRepository(db)
 	storagePathService := provideStoragePathService(storagePathRepository, logger)
 	storagePathHandler := provideStoragePathHandler(storagePathService)
 	scanHistoryRepository := provideScanHistoryRepository(db)
 	scanService := provideScanService(storagePathService, sceneRepository, scanHistoryRepository, sceneProcessingService, eventBus, logger)
 	scanHandler := provideScanHandler(scanService)
 	explorerRepository := provideExplorerRepository(db)
-	explorerService := provideExplorerService(explorerRepository, storagePathRepository, sceneRepository, tagRepository, actorRepository, jobHistoryRepository, eventBus, logger, configConfig, sceneFingerprintIndex)
+	explorerService := provideExplorerService(explorerRepository, storagePathRepository, sceneRepository, tagRepository, actorRepository, jobHistoryRepository, eventBus, logger, configConfig, sceneFingerprintIndex, mediaFileGuard)
 	explorerHandler := provideExplorerHandler(explorerService)
 	pornDBService := providePornDBService(configConfig, logger)
 	pornDBHandler := providePornDBHandler(pornDBService)
@@ -329,8 +330,8 @@ func provideAdminService(userRepo data.UserRepository, roleRepo data.RoleReposit
 	return core.NewAdminService(userRepo, roleRepo, rbac, logger.Logger)
 }
 
-func provideSceneService(repo data.SceneRepository, cfg *config.Config, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger, jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, appSettingsRepo data.AppSettingsRepository, fingerprintIndex core.SceneFingerprintIndex) *core.SceneService {
-	return core.NewSceneService(repo, cfg.Processing.VideoDir, cfg.Processing.MetadataDir, processingService, eventBus, logger.Logger, jobHistoryRepo, dlqRepo, appSettingsRepo, fingerprintIndex)
+func provideSceneService(repo data.SceneRepository, cfg *config.Config, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger, jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, appSettingsRepo data.AppSettingsRepository, fingerprintIndex core.SceneFingerprintIndex, mediaGuard *core.MediaFileGuard) *core.SceneService {
+	return core.NewSceneService(repo, cfg.Processing.VideoDir, cfg.Processing.MetadataDir, processingService, eventBus, logger.Logger, jobHistoryRepo, dlqRepo, appSettingsRepo, fingerprintIndex, mediaGuard)
 }
 
 func provideTagService(tagRepo data.TagRepository, sceneRepo data.SceneRepository, logger *logging.Logger) *core.TagService {
@@ -409,6 +410,10 @@ func provideDLQService(dlqRepo data.DLQRepository, jobHistoryRepo data.JobHistor
 	return core.NewDLQService(dlqRepo, jobHistoryRepo, sceneRepo, eventBus, logger.Logger)
 }
 
+func provideMediaFileGuard(repo data.StoragePathRepository, logger *logging.Logger) *core.MediaFileGuard {
+	return core.NewMediaFileGuard(repo, logger.Logger)
+}
+
 func provideStoragePathService(repo data.StoragePathRepository, logger *logging.Logger) *core.StoragePathService {
 	return core.NewStoragePathService(repo, logger.Logger)
 }
@@ -417,8 +422,8 @@ func provideScanService(storagePathService *core.StoragePathService, sceneRepo d
 	return core.NewScanService(storagePathService, sceneRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
 }
 
-func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, jobHistoryRepo data.JobHistoryRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config, fingerprintIndex core.SceneFingerprintIndex) *core.ExplorerService {
-	return core.NewExplorerService(explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, jobHistoryRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir, fingerprintIndex)
+func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, jobHistoryRepo data.JobHistoryRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config, fingerprintIndex core.SceneFingerprintIndex, mediaGuard *core.MediaFileGuard) *core.ExplorerService {
+	return core.NewExplorerService(explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, jobHistoryRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir, fingerprintIndex, mediaGuard)
 }
 
 func providePornDBService(cfg *config.Config, logger *logging.Logger) *core.PornDBService {

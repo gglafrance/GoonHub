@@ -38,6 +38,7 @@ type SceneService struct {
 	dlqRepo           data.DLQRepository
 	appSettingsRepo   data.AppSettingsRepository
 	fingerprintIndex  SceneFingerprintIndex
+	mediaGuard        *MediaFileGuard
 }
 
 func NewSceneService(
@@ -51,6 +52,7 @@ func NewSceneService(
 	dlqRepo data.DLQRepository,
 	appSettingsRepo data.AppSettingsRepository,
 	fingerprintIndex SceneFingerprintIndex,
+	mediaGuard *MediaFileGuard,
 ) *SceneService {
 	// Ensure scene directory exists
 	if err := os.MkdirAll(scenePath, 0755); err != nil {
@@ -77,6 +79,7 @@ func NewSceneService(
 		dlqRepo:           dlqRepo,
 		appSettingsRepo:   appSettingsRepo,
 		fingerprintIndex:  fingerprintIndex,
+		mediaGuard:        mediaGuard,
 	}
 }
 
@@ -115,6 +118,11 @@ func (s *SceneService) UploadScene(file *multipart.FileHeader, title string) (*d
 	// Generate unique filename
 	uniqueName := fmt.Sprintf("%s_%s", uuid.New().String(), file.Filename)
 	storedPath := filepath.Join(s.ScenePath, uniqueName)
+
+	// Never write into a read-only storage path
+	if err := s.mediaGuard.CheckModifiable(nil, storedPath); err != nil {
+		return nil, err
+	}
 
 	// Save file
 	dst, err := os.Create(storedPath)
@@ -310,7 +318,7 @@ func (s *SceneService) DeleteScene(id uint) error {
 		}
 	}
 
-	os.Remove(scene.StoredPath)
+	s.mediaGuard.RemoveSceneFile(scene)
 
 	if scene.ThumbnailPath != "" {
 		os.Remove(scene.ThumbnailPath)
@@ -630,7 +638,8 @@ func (s *SceneService) RestoreSceneFromTrash(id uint) error {
 	return nil
 }
 
-// HardDeleteScene permanently deletes a scene and all associated files.
+// HardDeleteScene permanently deletes a scene and all associated files. The video file of a
+// scene under a read-only storage path is kept (only the scene row and generated files go).
 func (s *SceneService) HardDeleteScene(id uint) error {
 	// Delete DLQ entries for this scene
 	if s.dlqRepo != nil {
@@ -692,18 +701,11 @@ func (s *SceneService) HardDeleteScene(id uint) error {
 	return nil
 }
 
-// deleteSceneFiles deletes all files associated with a scene.
+// deleteSceneFiles deletes all files associated with a scene. The video file is kept when it
+// is under a read-only storage path; generated files are always deleted.
 func (s *SceneService) deleteSceneFiles(scene *data.Scene) {
-	// Delete video file
-	if scene.StoredPath != "" {
-		if err := os.Remove(scene.StoredPath); err != nil && !os.IsNotExist(err) {
-			s.logger.Warn("Failed to delete video file",
-				zap.Uint("scene_id", scene.ID),
-				zap.String("path", scene.StoredPath),
-				zap.Error(err),
-			)
-		}
-	}
+	// Delete video file (unless protected by a read-only storage path)
+	s.mediaGuard.RemoveSceneFile(scene)
 
 	// Delete thumbnails (sm and lg)
 	thumbnailDir := filepath.Join(s.MetadataPath, "thumbnails")
