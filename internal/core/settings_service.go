@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"goonhub/internal/data"
+	"slices"
 	"strings"
 
 	"go.uber.org/zap"
@@ -134,9 +135,15 @@ func (s *SettingsService) GetSettings(userID uint) (*data.UserSettings, error) {
 			DefaultMarkerView:      "grouped",
 			PaginationPosition:     "bottom",
 			DateFormat:             DefaultDateFormat,
+			GridDensity:            DefaultGridDensity,
+			PlayerGestures:         true,
+			GestureSeekStep:        DefaultGestureSeekStep,
+			ShowReplayHeatmap:      true,
+			RecordReplayHeatmap:    true,
 			HomepageConfig:         data.DefaultHomepageConfig(),
 			SortPreferences:        data.DefaultSortPreferences(),
 			SceneCardConfig:        data.DefaultSceneCardConfig(),
+			SceneListView:          data.DefaultSceneListView(),
 		}, nil
 	}
 	return settings, nil
@@ -383,6 +390,48 @@ func WithDateFormat(format string) SettingsOption {
 	}
 }
 
+// DefaultGestureSeekStep is the seek of a double-tap on the player sides, in seconds.
+const DefaultGestureSeekStep = 10
+
+// AllowedGestureSeekSteps are the double-tap seek steps a user can choose, in seconds.
+var AllowedGestureSeekSteps = []int{5, 10, 15, 30}
+
+// WithPlayerGestures turns the player touch gestures on or off and sets the double-tap seek step.
+// A nil enabled or a zero seek step keeps the current value, so that a client which does not know
+// these settings does not reset them.
+func WithPlayerGestures(enabled *bool, seekStep int) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if seekStep == 0 {
+			seekStep = settings.GestureSeekStep
+			if !slices.Contains(AllowedGestureSeekSteps, seekStep) {
+				seekStep = DefaultGestureSeekStep
+			}
+		}
+		if !slices.Contains(AllowedGestureSeekSteps, seekStep) {
+			return fmt.Errorf("invalid gesture seek step: %d", seekStep)
+		}
+		if enabled != nil {
+			settings.PlayerGestures = *enabled
+		}
+		settings.GestureSeekStep = seekStep
+		return nil
+	}
+}
+
+// WithReplayHeatmap sets whether the "most replayed" heatmap is shown on the player and
+// whether watched parts are recorded; nil keeps the current value (on for a new row).
+func WithReplayHeatmap(show, record *bool) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if show != nil {
+			settings.ShowReplayHeatmap = *show
+		}
+		if record != nil {
+			settings.RecordReplayHeatmap = *record
+		}
+		return nil
+	}
+}
+
 // WithPaginationPosition sets where page controls are shown (top, bottom or both; empty means
 // bottom).
 func WithPaginationPosition(position string) SettingsOption {
@@ -396,6 +445,85 @@ func WithPaginationPosition(position string) SettingsOption {
 		settings.PaginationPosition = position
 		return nil
 	}
+}
+
+// DefaultGridDensity is the card size of the scene grids by default.
+const DefaultGridDensity = "comfortable"
+
+var allowedGridDensities = map[string]bool{"compact": true, DefaultGridDensity: true, "large": true}
+
+// WithGridDensity sets the card size of the scene grids (empty means comfortable).
+func WithGridDensity(density string) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if density == "" {
+			density = DefaultGridDensity
+		}
+		if !allowedGridDensities[density] {
+			return fmt.Errorf("invalid grid density: %s", density)
+		}
+		settings.GridDensity = density
+		return nil
+	}
+}
+
+// WithInfiniteScroll turns infinite scroll on or off on the scene list pages (nil keeps the
+// current value).
+func WithInfiniteScroll(enabled *bool) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if enabled != nil {
+			settings.InfiniteScroll = *enabled
+		}
+		return nil
+	}
+}
+
+// SceneListPages are the page types whose scene list can be shown as a grid or a table.
+var SceneListPages = []string{"search", "actor", "studio", "playlist", "explorer"}
+
+// SceneTableColumns are the columns a scene table can show.
+var SceneTableColumns = []string{
+	"thumbnail", "title", "duration", "resolution", "file_size", "rating", "views",
+	"studio", "actors", "release_date", "added_at",
+}
+
+// WithSceneListView sets the grid/table view per page and the table columns. A nil view keeps
+// the current one (clients that do not know the setting).
+func WithSceneListView(view *data.SceneListView) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if view == nil {
+			return nil
+		}
+		validated, err := validateSceneListView(*view)
+		if err != nil {
+			return err
+		}
+		settings.SceneListView = validated
+		return nil
+	}
+}
+
+func validateSceneListView(view data.SceneListView) (data.SceneListView, error) {
+	out := data.SceneListView{Pages: map[string]string{}, Columns: []string{}}
+	for page, mode := range view.Pages {
+		if !slices.Contains(SceneListPages, page) {
+			return out, fmt.Errorf("invalid scene list page: %s", page)
+		}
+		if mode != data.SceneListViewGrid && mode != data.SceneListViewTable {
+			return out, fmt.Errorf("invalid scene list view for %s: %s", page, mode)
+		}
+		out.Pages[page] = mode
+	}
+	for _, col := range view.Columns {
+		if !slices.Contains(SceneTableColumns, col) {
+			return out, fmt.Errorf("invalid scene table column: %s", col)
+		}
+		if slices.Contains(out.Columns, col) {
+			return out, fmt.Errorf("duplicate scene table column: %s", col)
+		}
+		out.Columns = append(out.Columns, col)
+	}
+	out.Normalize()
+	return out, nil
 }
 
 func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, abLoopControls bool, markerLoop bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences, playlistAutoAdvance string, playlistCountdownSeconds int, showPageSizeSelector bool, advancedMarkerFilters bool, defaultMarkerView string, sceneCardConfig data.SceneCardConfig, opts ...SettingsOption) (*data.UserSettings, error) {
@@ -456,13 +584,20 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 	}
 
 	settings, err := s.settingsRepo.GetByUserID(userID)
+	created := false
 	if err != nil {
+		created = true
 		settings = &data.UserSettings{
-			UserID:          userID,
-			HomepageConfig:  data.DefaultHomepageConfig(),
-			ParsingRules:    data.DefaultParsingRulesSettings(),
-			SortPreferences: data.DefaultSortPreferences(),
-			SceneCardConfig: data.DefaultSceneCardConfig(),
+			UserID:              userID,
+			HomepageConfig:      data.DefaultHomepageConfig(),
+			ParsingRules:        data.DefaultParsingRulesSettings(),
+			SortPreferences:     data.DefaultSortPreferences(),
+			SceneCardConfig:     data.DefaultSceneCardConfig(),
+			PlayerGestures:      true,
+			GestureSeekStep:     DefaultGestureSeekStep,
+			ShowReplayHeatmap:   true,
+			RecordReplayHeatmap: true,
+			SceneListView:       data.DefaultSceneListView(),
 		}
 	}
 
@@ -493,6 +628,13 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 
 	if err := s.settingsRepo.Upsert(settings); err != nil {
 		return nil, fmt.Errorf("failed to update settings: %w", err)
+	}
+	// On insert GORM leaves out zero values of columns that have a default (a setting that is
+	// on by default but turned off here would be stored as on): write the new row once more.
+	if created && (!settings.ShowReplayHeatmap || !settings.RecordReplayHeatmap) {
+		if err := s.settingsRepo.Upsert(settings); err != nil {
+			return nil, fmt.Errorf("failed to update settings: %w", err)
+		}
 	}
 
 	return settings, nil

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import type { SceneListItem } from '~/types/scene';
 import type { StoragePathWithCount, FolderInfo, FolderContentsResponse } from '~/types/explorer';
+import type { LoadedPages, PageLoadPlan } from '~/utils/infinitePages';
 
 export interface Breadcrumb {
     name: string;
@@ -43,24 +44,6 @@ export const useExplorerStore = defineStore('explorer', () => {
     // null = no filter, true = has PornDB ID, false = missing PornDB ID
     const searchHasPornDBID = ref<boolean | null>(null);
     const isSearching = ref(false);
-
-    // View (folder, page, search) and data version of the contents held: coming back to the
-    // same view (Back from a scene) shows them at once and refreshes them in place, while the
-    // contents of another view, or loaded before an edit, are not shown again.
-    let contentsKey = '';
-    let contentsVersion = -1;
-    let requestSeq = 0;
-    const viewKey = () =>
-        JSON.stringify([
-            currentStoragePathID.value,
-            currentPath.value,
-            page.value,
-            limit.value,
-            searchQuery.value,
-            searchTags.value,
-            searchActors.value,
-            searchHasPornDBID.value,
-        ]);
 
     // Computed
     const currentStoragePath = computed(() => {
@@ -165,51 +148,71 @@ export const useExplorerStore = defineStore('explorer', () => {
         await loadFolderContents();
     };
 
-    const loadFolderContents = async () => {
-        if (!currentStoragePathID.value) return;
+    // Infinite scroll (user setting): pages in the list and what they were loaded for
+    const loadedPages = ref<LoadedPages>({ first: 0, last: 0 });
+    const isLoadingMore = ref(false);
+    let contentsRequest = 0;
 
-        const key = viewKey();
+    // Data version the list was (re)built at: contents loaded before an edit anywhere are not
+    // shown again on Back (see useDataVersion and refresh())
+    let loadedVersion = -1;
+
+    /** Runs a page plan; silent: refreshes the list in place, without the loading states. */
+    const runFolderPlan = async (plan: PageLoadPlan, silent = false) => {
+        if (!currentStoragePathID.value) return;
+        const storagePathID = currentStoragePathID.value;
+        const folderPath = currentPath.value;
+        const request = ++contentsRequest;
         const version = currentDataVersion();
-        const seq = ++requestSeq;
-        isLoading.value = true;
+        const partial = plan.mode !== 'replace';
+
+        if (!silent) {
+            if (partial) isLoadingMore.value = true;
+            else isLoading.value = true;
+        }
         error.value = null;
         try {
-            const response: FolderContentsResponse = await getFolderContents(
-                currentStoragePathID.value,
-                currentPath.value,
-                page.value,
-                limit.value,
+            const responses: FolderContentsResponse[] = await Promise.all(
+                plan.pages.map((p) => getFolderContents(storagePathID, folderPath, p, limit.value)),
             );
-            if (seq !== requestSeq) return;
-
-            subfolders.value = response.subfolders;
-            scenes.value = response.scenes;
-            totalScenes.value = response.total_scenes;
-            contentsKey = key;
-            contentsVersion = version;
+            // A newer load replaced this one
+            if (request !== contentsRequest) return;
+            const last = responses[responses.length - 1]!;
+            subfolders.value = last.subfolders;
+            scenes.value = mergePageItems(
+                scenes.value,
+                responses.flatMap((r) => r.scenes),
+                plan.mode,
+            );
+            totalScenes.value = last.total_scenes;
+            loadedPages.value = commitPageLoad(loadedPages.value, plan);
+            if (!partial) loadedVersion = version;
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : 'Unknown error';
-            if (message !== 'Unauthorized') {
+            if (message !== 'Unauthorized' && request === contentsRequest) {
                 error.value = message;
             }
         } finally {
-            if (seq === requestSeq) isLoading.value = false;
+            if (request === contentsRequest) {
+                isLoading.value = false;
+                isLoadingMore.value = false;
+            }
         }
     };
 
-    /**
-     * Loads the current view (folder contents or search results). Contents already held for
-     * this exact view stay on screen while they refresh; others are cleared first.
-     */
-    const refresh = async () => {
-        if (viewKey() !== contentsKey || contentsVersion !== currentDataVersion()) {
-            subfolders.value = [];
-            scenes.value = [];
-            totalScenes.value = 0;
-        }
-        if (isSearchActive.value) await performSearch();
-        else await loadFolderContents();
-    };
+    const folderContext = () =>
+        JSON.stringify(['folder', currentStoragePathID.value, currentPath.value, limit.value]);
+
+    // Loads the current page (appended to the list when it is the next one with infinite scroll)
+    const loadFolderContents = () =>
+        runFolderPlan(
+            planPageLoad(
+                loadedPages.value,
+                page.value,
+                settingsStore.infiniteScroll,
+                folderContext(),
+            ),
+        );
 
     const setPage = async (newPage: number) => {
         page.value = newPage;
@@ -303,6 +306,66 @@ export const useExplorerStore = defineStore('explorer', () => {
     };
 
     // Search actions
+    const runSearchPlan = async (plan: PageLoadPlan, silent = false) => {
+        if (!currentStoragePathID.value) return;
+        const request = ++contentsRequest;
+        const version = currentDataVersion();
+        const partial = plan.mode !== 'replace';
+        const criteria = {
+            storage_path_id: currentStoragePathID.value,
+            folder_path: currentPath.value,
+            recursive: false,
+            query: searchQuery.value,
+            tag_ids: searchTags.value,
+            actors: searchActors.value,
+            has_porndb_id: searchHasPornDBID.value ?? undefined,
+        };
+
+        if (!silent) {
+            if (partial) isLoadingMore.value = true;
+            else isSearching.value = true;
+        }
+        error.value = null;
+        try {
+            const responses = await Promise.all(
+                plan.pages.map((p) => searchInFolder({ ...criteria, page: p, limit: limit.value })),
+            );
+            if (request !== contentsRequest) return;
+            scenes.value = mergePageItems(
+                scenes.value,
+                responses.flatMap((r) => r.scenes),
+                plan.mode,
+            );
+            totalScenes.value = responses[responses.length - 1]?.total ?? 0;
+            // Hide subfolders during search
+            subfolders.value = [];
+            loadedPages.value = commitPageLoad(loadedPages.value, plan);
+            if (!partial) loadedVersion = version;
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'Unknown error';
+            if (message !== 'Unauthorized' && request === contentsRequest) {
+                error.value = message;
+            }
+        } finally {
+            if (request === contentsRequest) {
+                isSearching.value = false;
+                isLoadingMore.value = false;
+            }
+        }
+    };
+
+    const searchContext = () =>
+        JSON.stringify([
+            'search',
+            currentStoragePathID.value,
+            currentPath.value,
+            searchQuery.value,
+            searchTags.value,
+            searchActors.value,
+            searchHasPornDBID.value,
+            limit.value,
+        ]);
+
     const performSearch = async () => {
         if (!currentStoragePathID.value) return;
         if (!isSearchActive.value) {
@@ -310,39 +373,55 @@ export const useExplorerStore = defineStore('explorer', () => {
             await loadFolderContents();
             return;
         }
+        await runSearchPlan(
+            planPageLoad(
+                loadedPages.value,
+                page.value,
+                settingsStore.infiniteScroll,
+                searchContext(),
+            ),
+        );
+    };
 
-        const key = viewKey();
-        const version = currentDataVersion();
-        const seq = ++requestSeq;
-        isSearching.value = true;
-        error.value = null;
-        try {
-            const response = await searchInFolder({
-                storage_path_id: currentStoragePathID.value,
-                folder_path: currentPath.value,
-                recursive: false,
-                query: searchQuery.value,
-                tag_ids: searchTags.value,
-                actors: searchActors.value,
-                has_porndb_id: searchHasPornDBID.value ?? undefined,
-                page: page.value,
-                limit: limit.value,
-            });
-            if (seq !== requestSeq) return;
-            scenes.value = response.scenes;
-            totalScenes.value = response.total;
-            // Hide subfolders during search
-            subfolders.value = [];
-            contentsKey = key;
-            contentsVersion = version;
-        } catch (e: unknown) {
-            const message = e instanceof Error ? e.message : 'Unknown error';
-            if (message !== 'Unauthorized') {
-                error.value = message;
-            }
-        } finally {
-            if (seq === requestSeq) isSearching.value = false;
+    /**
+     * Loads the current view (folder contents or search results), as the explorer page does
+     * after reading the URL. The list already held for this exact view (Back from a scene: same
+     * folder, search and URL page, no edit since) stays on screen, with all its infinite scroll
+     * pages, and is refreshed in place; the contents of another view are cleared first.
+     */
+    const refresh = async () => {
+        const searching = isSearchActive.value;
+        const context = searching ? searchContext() : folderContext();
+        const held = loadedPages.value;
+        const sameView =
+            held.last > 0 &&
+            (held.context ?? '') === context &&
+            loadedVersion === currentDataVersion();
+        const infinite = settingsStore.infiniteScroll;
+        if (sameView && held.last === page.value && (infinite || held.first === held.last)) {
+            const pages: number[] = [];
+            for (let p = held.first; p <= held.last; p++) pages.push(p);
+            // A long scrolled list is kept as is (no edit since): refreshing it would be heavy
+            if (pages.length > INFINITE_REBUILD_PAGES) return;
+            const plan: PageLoadPlan = { pages, mode: 'replace', context };
+            await (searching ? runSearchPlan(plan, true) : runFolderPlan(plan, true));
+            return;
         }
+        if (!sameView) {
+            subfolders.value = [];
+            scenes.value = [];
+            totalScenes.value = 0;
+            loadedPages.value = { first: 0, last: 0 };
+        }
+        if (searching) await performSearch();
+        else await loadFolderContents();
+    };
+
+    // Infinite scroll opened on a later page: loads the page before the list
+    const loadPrevious = async () => {
+        const plan = planPreviousPage(loadedPages.value);
+        if (!plan) return;
+        await (isSearchActive.value ? runSearchPlan(plan) : runFolderPlan(plan));
     };
 
     const clearSearch = async () => {
@@ -383,6 +462,9 @@ export const useExplorerStore = defineStore('explorer', () => {
         scenes,
         totalScenes,
         page,
+        loadedPages,
+        isLoadingMore,
+        loadPrevious,
         limit,
         isLoading,
         error,

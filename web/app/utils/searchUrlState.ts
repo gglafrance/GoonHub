@@ -15,6 +15,8 @@ export interface SearchUrlState {
     minSize: number;
     maxSize: number;
     status: SearchStatus;
+    // Source sites (OR), URL key `source_site`
+    selectedSourceSites: string[];
     minDate: string;
     maxDate: string;
     resolution: string;
@@ -49,6 +51,7 @@ export function searchStateFromQuery(q: LocationQuery): SearchUrlState {
         minSize: num(q.min_size),
         maxSize: num(q.max_size),
         status,
+        selectedSourceSites: queryList(q.source_site),
         minDate: queryString(q.min_date),
         maxDate: queryString(q.max_date),
         resolution: queryString(q.resolution),
@@ -80,6 +83,7 @@ export function searchStateToQuery(s: SearchUrlState): Record<string, string> {
         const v = s.status[k];
         if (v !== null) query[k] = String(v);
     }
+    if (s.selectedSourceSites.length > 0) query.source_site = s.selectedSourceSites.join(',');
     if (s.minDate) query.min_date = s.minDate;
     if (s.maxDate) query.max_date = s.maxDate;
     if (s.resolution) query.resolution = s.resolution;

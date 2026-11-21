@@ -403,7 +403,7 @@ onMounted(() => {
                     dupConfig.deletion_delay_hours === 0
                         ? 'at the next cleanup'
                         : `after ${dupConfig.deletion_delay_hours} hours`
-                }}.
+                }}, except files on read-only storage paths, which are kept.
             </p>
         </UiConfirmModal>
 

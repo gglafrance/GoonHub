@@ -41,6 +41,7 @@ const activeFilterCount = computed(() => {
     if (searchStore.minDuration > 0 || searchStore.maxDuration > 0) count++;
     if (searchStore.minSize > 0 || searchStore.maxSize > 0) count++;
     count += searchStore.activeStatusCount;
+    count += searchStore.selectedSourceSites.length;
     if (searchStore.minDate || searchStore.maxDate) count++;
     if (searchStore.resolution) count++;
     if (searchStore.liked) count++;
@@ -50,8 +51,8 @@ const activeFilterCount = computed(() => {
     return count;
 });
 
-// The whole search (filters, sort, random seed, page) lives in the URL: Back, a reload or a
-// shared link restore it exactly. See utils/searchUrlState.ts for the mapping.
+// The whole search (filters, source sites, sort, random seed, page) lives in the URL: Back, a
+// reload or a shared link restore it exactly. See utils/searchUrlState.ts for the mapping.
 const syncFromUrl = (): boolean => {
     isSyncingFromUrl = true;
     const complete = searchStore.applyUrlState(searchStateFromQuery(route.query));
@@ -101,6 +102,7 @@ watch(
         searchStore.minSize,
         searchStore.maxSize,
         JSON.stringify(searchStore.status),
+        searchStore.selectedSourceSites,
         searchStore.minDate,
         searchStore.maxDate,
         searchStore.resolution,
@@ -133,9 +135,11 @@ watch(
 // Handle browser back/forward navigation
 watch(
     () => route.query,
-    () => {
+    async () => {
         // Skip if we're the ones updating the URL
         if (isUpdatingUrl) return;
+        // A saved search opened while already on this page (e.g. from the command palette)
+        if (route.query.saved && (await loadSavedSearchFromUrl())) return;
         if (!syncFromUrl()) syncToUrl();
         searchStore.search();
     },
@@ -165,6 +169,7 @@ const loadSavedSearchFromUrl = async () => {
 
 onMounted(async () => {
     searchStore.loadFilterOptions();
+    searchStore.loadSourceSites();
     const loaded = await loadSavedSearchFromUrl();
     if (!loaded) {
         if (!syncFromUrl()) syncToUrl();

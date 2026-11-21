@@ -15,6 +15,8 @@ type SavedSearchFilters struct {
 	HasActors    *bool    `json:"has_actors,omitempty"`
 	HasTags      *bool    `json:"has_tags,omitempty"`
 	HasStudio    *bool    `json:"has_studio,omitempty"`
+	SourceSites  []string `json:"source_sites,omitempty"` // normalized source sites (OR)
+	HasSource    *bool    `json:"has_source,omitempty"`
 	Watched      *bool    `json:"watched,omitempty"`
 	Rated        *bool    `json:"rated,omitempty"`
 	HasMarkers   *bool    `json:"has_markers,omitempty"`

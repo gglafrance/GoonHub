@@ -17,6 +17,9 @@ type SceneDocument struct {
 	CreatedAt        int64    `json:"created_at"`
 	ProcessingStatus string   `json:"processing_status"`
 	ViewCount        int      `json:"view_count"`
+	// SourceSite is the normalized site of the scene's source URL ("pornhub.com"), "" when
+	// the scene has no source. Always sent (never omitted) so that "no source" filters match.
+	SourceSite string `json:"source_site"`
 }
 
 // SearchParams contains parameters for searching scenes.
@@ -33,6 +36,10 @@ type SearchParams struct {
 	HasActors *bool
 	HasTags   *bool
 	HasStudio *bool
+	// SourceSites keeps scenes from one of these normalized sites (OR); HasSource filters on
+	// having a source URL at all (nil = any)
+	SourceSites []string
+	HasSource   *bool
 	// ExcludeSceneIDs removes scenes (negative user filters: unwatched, unrated...)
 	ExcludeSceneIDs  []uint
 	MinHeight        *int
@@ -53,4 +60,10 @@ type SearchParams struct {
 type SearchResult struct {
 	IDs        []uint
 	TotalCount int64
+}
+
+// FacetCount is one value of a facet with the number of matching documents.
+type FacetCount struct {
+	Value string
+	Count int64
 }

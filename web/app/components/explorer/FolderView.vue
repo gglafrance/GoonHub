@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FolderInfo } from '~/types/explorer';
+import type { SceneTableColumn } from '~/types/settings';
 
 defineProps<{
     selectMode?: boolean;
@@ -11,6 +12,9 @@ defineEmits<{
 
 const explorerStore = useExplorerStore();
 const { showSelector, maxLimit, updatePageSize } = usePageSize();
+// Grid or table. Folder listings have no user data (rating) nor actors, and keep their order.
+const { isTable } = useSceneListView('explorer');
+const hiddenTableColumns: SceneTableColumn[] = ['rating', 'actors'];
 
 // Folder delete modal state
 const showDeleteModal = ref(false);
@@ -36,6 +40,20 @@ const handlePageChange = async (page: number) => {
         await explorerStore.loadFolderContents();
     }
 };
+
+// Infinite scroll instead of page controls (user setting)
+const settingsStore = useSettingsStore();
+const infiniteScroll = computed(() => settingsStore.infiniteScroll);
+const { keepPositionWhile } = useInfiniteScrollPosition();
+const hasMore = computed(
+    () => explorerStore.loadedPages.last * explorerStore.limit < explorerStore.totalScenes,
+);
+const loadMore = () => {
+    if (explorerStore.isLoading || explorerStore.isSearching || explorerStore.isLoadingMore) return;
+    handlePageChange(explorerStore.loadedPages.last + 1);
+};
+const loadPrevious = () => keepPositionWhile(() => explorerStore.loadPrevious());
+watch(infiniteScroll, () => handlePageChange(explorerStore.page));
 
 const hasContent = computed(
     () => explorerStore.subfolders.length > 0 || explorerStore.scenes.length > 0,
@@ -106,6 +124,7 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
             <!-- Scenes -->
             <div v-if="explorerStore.scenes.length > 0">
                 <Pagination
+                    v-if="!infiniteScroll"
                     position="top"
                     :model-value="explorerStore.page"
                     :total="explorerStore.totalScenes"
@@ -123,33 +142,55 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
 
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <h3 class="text-dim text-xs font-medium tracking-wider uppercase">Scenes</h3>
-                    <SceneSelectionControls
-                        :select-mode="selectMode"
-                        :has-selection="explorerStore.hasSelection"
-                        :is-selecting-all="explorerStore.isSelectingAll"
-                        :all-page-scenes-selected="explorerStore.allPageScenesSelected"
-                        :all-scenes-selected="explorerStore.allFolderScenesSelected"
-                        :total-scenes="explorerStore.totalScenes"
-                        :show-recursive="explorerStore.subfolders.length > 0"
-                        :is-recursive-disabled="explorerStore.isSelectingAll"
-                        @update:select-mode="$emit('update:selectMode', $event)"
-                        @deselect-all="explorerStore.clearSelection()"
-                        @select-page="explorerStore.selectAllOnPage()"
-                        @select-all="explorerStore.selectAllInFolder()"
-                        @select-recursive="explorerStore.selectAllInFolderRecursive()"
-                    />
+                    <div class="flex items-center gap-3">
+                        <SceneSelectionControls
+                            :select-mode="selectMode"
+                            :has-selection="explorerStore.hasSelection"
+                            :is-selecting-all="explorerStore.isSelectingAll"
+                            :all-page-scenes-selected="explorerStore.allPageScenesSelected"
+                            :all-scenes-selected="explorerStore.allFolderScenesSelected"
+                            :total-scenes="explorerStore.totalScenes"
+                            :show-recursive="explorerStore.subfolders.length > 0"
+                            :is-recursive-disabled="explorerStore.isSelectingAll"
+                            @update:select-mode="$emit('update:selectMode', $event)"
+                            @deselect-all="explorerStore.clearSelection()"
+                            @select-page="explorerStore.selectAllOnPage()"
+                            @select-all="explorerStore.selectAllInFolder()"
+                            @select-recursive="explorerStore.selectAllInFolderRecursive()"
+                        />
+                        <SceneTableViewControls
+                            page="explorer"
+                            :hidden-columns="hiddenTableColumns"
+                        />
+                    </div>
                 </div>
 
-                <SelectableSceneGrid
-                    v-if="selectMode"
+                <SceneListLoadPrevious
+                    v-if="infiniteScroll && explorerStore.loadedPages.first > 1"
+                    :first-page="explorerStore.loadedPages.first"
+                    :loading="explorerStore.isLoadingMore"
+                    @load-previous="loadPrevious"
+                />
+
+                <SceneCollection
                     :scenes="explorerStore.scenes"
+                    :table="isTable"
+                    :select-mode="selectMode"
                     :is-scene-selected="explorerStore.isSceneSelected"
+                    :hidden-columns="hiddenTableColumns"
                     @toggle-selection="explorerStore.toggleSceneSelection"
                     @drag-select="(ids, additive) => explorerStore.dragSelect(ids, additive)"
                 />
-                <SceneGrid v-else :scenes="explorerStore.scenes" />
 
+                <SceneListInfiniteLoader
+                    v-if="infiniteScroll"
+                    :has-more="hasMore"
+                    :loading="explorerStore.isLoadingMore"
+                    :total="explorerStore.totalScenes"
+                    @load-more="loadMore"
+                />
                 <Pagination
+                    v-else
                     :model-value="explorerStore.page"
                     :total="explorerStore.totalScenes"
                     :limit="explorerStore.limit"

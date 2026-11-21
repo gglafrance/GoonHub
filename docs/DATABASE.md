@@ -118,13 +118,20 @@ Per-user application preferences.
 | `default_marker_view` | VARCHAR(10) | NO | 'grouped' | Initial view of the markers page (`grouped` or `all`) |
 | `advanced_marker_filters` | BOOLEAN | NO | false | Show the advanced filter panel (labels, scene tags/actors/studio, ranges only) on the marker pages |
 | `pagination_position` | VARCHAR(10) | NO | 'bottom' | Page controls position on paginated pages: `top`, `bottom` or `both` |
+| `grid_density` | VARCHAR(12) | NO | 'comfortable' | Card size of the scene grids (and actor/studio grids): `compact`, `comfortable` or `large` |
+| `infinite_scroll` | BOOLEAN | NO | false | Scene list pages (search, actor, studio, explorer) load the next page on scroll instead of showing page controls |
 | `date_format` | VARCHAR(20) | NO | 'auto' | Date display: `auto` (browser locale), `DD/MM/YYYY`, `MM/DD/YYYY`, `YYYY-MM-DD`, `DD.MM.YYYY`, `D MMM YYYY` or `MMM D, YYYY` |
+| `player_gestures` | BOOLEAN | NO | true | Touch gestures on the video player: double-tap seek, swipes (scrub, volume, brightness) and long-press 2x speed |
+| `gesture_seek_step` | INTEGER | NO | 10 | Seconds skipped by a double-tap on the sides of the player: 5, 10, 15 or 30 |
+| `show_replay_heatmap` | BOOLEAN | NO | true | Show the "most replayed" heatmap (from `user_scene_heatmaps`) above the player progress bar |
+| `record_replay_heatmap` | BOOLEAN | NO | true | Record which parts of a scene are watched into `user_scene_heatmaps` |
 | `marker_loop` | BOOLEAN | NO | false | Loop the marker range when clicking a marker that has an `end_timestamp` |
 | `videos_per_page` | INTEGER | NO | 20 | Grid pagination size |
 | `default_sort_order` | VARCHAR(50) | NO | 'created_at_desc' | Default sort order |
 | `default_tag_sort` | VARCHAR(10) | NO | 'az' | Tag sorting (az, za, count) |
 | `marker_thumbnail_cycling` | BOOLEAN | NO | true | Enable marker thumbnail cycling |
 | `homepage_config` | JSONB | NO | (see below) | Homepage section configuration |
+| `scene_list_view` | JSONB | NO | (see below) | Scene list display: `pages` maps a page type (`search`, `actor`, `studio`, `playlist`, `explorer`) to `grid` or `table` (missing = `grid`); `columns` are the visible table columns in order (`thumbnail`, `title`, `duration`, `resolution`, `file_size`, `rating`, `views`, `studio`, `actors`, `release_date`, `added_at`) |
 
 **Default `homepage_config`:**
 ```json
@@ -140,6 +147,14 @@ Per-user application preferences.
     "sort": "created_at_desc",
     "config": {}
   }]
+}
+```
+
+**Default `scene_list_view`:**
+```json
+{
+  "pages": {},
+  "columns": ["thumbnail", "title", "duration", "resolution", "file_size", "rating", "views", "studio", "actors", "added_at"]
 }
 ```
 
@@ -486,6 +501,27 @@ Watch history with position tracking for resume functionality.
 **Indexes:**
 - `idx_user_scene_watches_user_scene` on `(user_id, scene_id)`
 - `idx_user_scene_watches_user_date` on `(user_id, watched_at DESC)`
+
+---
+
+### `user_scene_heatmaps`
+
+"Most replayed" histogram per user and scene (migration 079). The scene is split into 100
+equal buckets; each element of `buckets` is the watched time in milliseconds that fell into
+that bucket, summed over every viewing. The player reports the ranges it actually played
+(seeking over a part does not count it) and the server adds their overlap with each bucket in
+a single upsert (element-wise sum, saturating at the INTEGER maximum). Bucket bounds use
+`scenes.duration`, or the player's duration while it is unknown.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `scene_id` | BIGINT | NO | - | FK to `scenes.id` (CASCADE) |
+| `buckets` | INTEGER[] | NO | - | Watched milliseconds per bucket (100 elements) |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Record creation timestamp |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last report |
+
+**Indexes:** primary key `(user_id, scene_id)`, `idx_user_scene_heatmaps_scene` on `scene_id`.
 
 ---
 
@@ -885,6 +921,55 @@ Per-phase retry policy configuration.
 
 ---
 
+### `job_schedule_config`
+
+Global job scheduling settings (singleton table). Scheduling only decides when pending jobs start; job creation is not affected.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | INTEGER | NO | 1 | Primary key (always 1) |
+| `timezone` | VARCHAR(64) | NO | 'UTC' | IANA timezone of the time windows and quiet hours |
+| `quiet_hours_start` | VARCHAR(5) | NO | '01:00' | Quiet hours start (`HH:MM`) |
+| `quiet_hours_end` | VARCHAR(5) | NO | '07:00' | Quiet hours end (`HH:MM`, before the start = crosses midnight) |
+| `max_concurrent_jobs` | INTEGER | NO | 0 | Maximum jobs running at once across all phases (0 = no limit) |
+| `new_scenes_first` | BOOLEAN | NO | false | Claim the jobs of recently created scenes first |
+| `new_scenes_window_hours` | INTEGER | NO | 24 | What "recently created" means (1-720 hours, on `scenes.created_at`) |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last update timestamp |
+
+**Constraints:**
+- CHECK `id = 1` (singleton enforcement)
+- CHECK `quiet_hours_start`, `quiet_hours_end` match `HH:MM` (00:00-23:59)
+- CHECK `max_concurrent_jobs >= 0`
+- CHECK `new_scenes_window_hours BETWEEN 1 AND 720`
+
+---
+
+### `job_phase_schedules`
+
+Per-phase job scheduling settings.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | SERIAL | NO | auto | Primary key |
+| `phase` | VARCHAR(20) | NO | - | Processing phase |
+| `priority` | INTEGER | NO | 0 | 0-100, higher gets the next free slot when `max_concurrent_jobs` is reached |
+| `window_enabled` | BOOLEAN | NO | false | Restrict the phase to its daily window |
+| `window_start` | VARCHAR(5) | NO | '01:00' | Window start (`HH:MM`) |
+| `window_end` | VARCHAR(5) | NO | '07:00' | Window end (`HH:MM`, before the start = crosses midnight) |
+| `quiet_workers` | INTEGER | NO | 0 | Pool size during the quiet hours (0 = the `pool_config` size) |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last update timestamp |
+
+**Constraints:**
+- UNIQUE on `phase`
+- CHECK `phase IN ('metadata', 'thumbnail', 'sprites', 'animated_thumbnails', 'fingerprint')`
+- CHECK `priority BETWEEN 0 AND 100`
+- CHECK `window_start`, `window_end` match `HH:MM`, and `window_start <> window_end`
+- CHECK `quiet_workers BETWEEN 0 AND 32`
+
+**Default Configuration:** no window, no quiet hours size; priorities metadata 50, thumbnail 40, animated_thumbnails 30, sprites 20, fingerprint 10.
+
+---
+
 ## Storage & Scanning
 
 ### `storage_paths`
@@ -897,8 +982,11 @@ Configured storage locations for video files.
 | `name` | VARCHAR(100) | NO | - | Display name |
 | `path` | VARCHAR(500) | NO | - | Filesystem path |
 | `is_default` | BOOLEAN | NO | false | Default storage flag |
+| `read_only` | BOOLEAN | NO | false | GoonHub never deletes, moves, renames or writes media files under this path (migration 075) |
 | `created_at` | TIMESTAMPTZ | NO | NOW() | Record creation timestamp |
 | `updated_at` | TIMESTAMPTZ | NO | NOW() | Last update timestamp |
+
+**Read-only paths:** a scene's file is protected when its `storage_path_id` points to a read-only path or when its `stored_path` lies under one (prefix check). Permanently deleting such a scene (trash, empty trash, explorer bulk delete, resolved duplicates) deletes the row and the generated files (thumbnails, sprites, VTT) but keeps the video file, so the next scan adds it again. Uploads into a read-only path are refused. The decision is made in one place, `core.MediaFileGuard`.
 
 **Indexes:**
 - `idx_storage_paths_single_default` UNIQUE on `is_default` WHERE is_default = TRUE
@@ -941,6 +1029,66 @@ File scan operation records.
 
 ---
 
+### `library_health_checks`
+
+Runs of the background tasks of the admin library health page (migration 077): the
+missing-file check (`missing_files`, stats every active scene file) and the size fix
+(`fix_sizes`, re-reads from disk the size of scenes stored with size 0). Both only read the
+media files.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `kind` | VARCHAR(30) | NO | - | `missing_files` or `fix_sizes` |
+| `status` | VARCHAR(20) | NO | 'running' | Task status |
+| `started_at` | TIMESTAMPTZ | NO | NOW() | Start timestamp |
+| `completed_at` | TIMESTAMPTZ | YES | NULL | End timestamp |
+| `total` | INT | NO | 0 | Scenes to look at |
+| `checked` | INT | NO | 0 | Scenes looked at so far |
+| `missing` | INT | NO | 0 | Files that do not exist |
+| `unreadable` | INT | NO | 0 | Files that could not be stat'ed (permission, I/O error, not a regular file) |
+| `fixed` | INT | NO | 0 | `fix_sizes`: scenes whose size was updated |
+| `unchanged` | INT | NO | 0 | `fix_sizes`: files found but still 0 bytes, or scene changed meanwhile |
+| `error_message` | TEXT | YES | NULL | Failure details |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Record creation timestamp |
+
+**Valid `status` values:** `running`, `completed`, `cancelled`, `failed` (a task left
+`running` by a restart is marked `failed` on startup)
+
+**Indexes:**
+- `idx_library_health_checks_kind_started` on `(kind, started_at DESC)`
+
+**Constraints:**
+- CHECK `kind IN ('missing_files', 'fix_sizes')`
+- CHECK `status IN ('running', 'completed', 'cancelled', 'failed')`
+
+---
+
+### `library_health_check_items`
+
+Files a missing-file check found missing or unreadable. Only the items of the latest
+completed check are kept: completing a check drops the items of the earlier ones, and a
+cancelled or failed check drops its own partial items. The health page only lists the items
+whose scene is still active and still at the checked path.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `check_id` | BIGINT | NO | - | FK to library_health_checks (CASCADE) |
+| `scene_id` | BIGINT | NO | - | FK to scenes (CASCADE) |
+| `stored_path` | TEXT | NO | - | Path that was checked |
+| `reason` | VARCHAR(20) | NO | - | `missing` or `unreadable` |
+| `detail` | TEXT | NO | '' | Error text for `unreadable` |
+
+**Indexes:**
+- `idx_library_health_check_items_check_reason` on `(check_id, reason, scene_id)`
+- `idx_library_health_check_items_scene_id` on `scene_id`
+
+**Constraints:**
+- CHECK `reason IN ('missing', 'unreadable')`
+
+---
+
 ## Application Settings
 
 ### `app_settings`
@@ -951,6 +1099,8 @@ Global application settings (singleton table).
 |--------|------|----------|---------|-------------|
 | `id` | INTEGER | NO | 1 | Primary key (always 1) |
 | `trash_retention_days` | INTEGER | NO | 7 | Days before trash auto-delete |
+| `serve_og_metadata` | BOOLEAN | NO | true | Serve OpenGraph tags to link preview crawlers |
+| `transcoding_enabled` | BOOLEAN | NO | true | Convert scenes browsers can't play (AVI, MKV, HEVC, ...) on the fly with ffmpeg (migration 076) |
 | `updated_at` | TIMESTAMPTZ | YES | NOW() | Last update timestamp |
 
 **Constraints:**
@@ -1115,6 +1265,7 @@ Queries should filter `WHERE deleted_at IS NULL` unless specifically querying de
 Configuration tables use `id = 1` with CHECK constraint:
 - `pool_config`
 - `processing_config`
+- `job_schedule_config`
 - `app_settings`
 - `search_config`
 
@@ -1155,4 +1306,5 @@ The `job_history` table serves as a persistent job queue:
 1. Jobs created with `status = 'pending'`
 2. `JobQueueFeeder` claims jobs using `FOR UPDATE SKIP LOCKED`
 3. Unique index on `(scene_id, phase)` for active jobs prevents duplicates
-4. Priority ordering: `priority DESC, created_at ASC`
+4. Priority ordering: `priority DESC, created_at ASC`; with "new scenes first" (`job_schedule_config`), jobs of scenes created recently come right after the higher priorities: `priority DESC, (scene created recently) DESC, created_at ASC`
+5. A phase outside its time window (`job_phase_schedules`) claims nothing; its pending jobs stay pending and are not failed by the startup stuck-pending recovery
