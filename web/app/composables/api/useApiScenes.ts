@@ -48,9 +48,10 @@ export const useApiScenes = () => {
             }
         }
 
+        // Scene list pages: card fields plus the scene table fields
         const settingsStore = useSettingsStore();
-        if (settingsStore.cardFieldsParam) {
-            params.set('card_fields', settingsStore.cardFieldsParam);
+        if (settingsStore.listFieldsParam) {
+            params.set('card_fields', settingsStore.listFieldsParam);
         }
 
         const response = await fetch(`/api/v1/scenes?${params}`, {

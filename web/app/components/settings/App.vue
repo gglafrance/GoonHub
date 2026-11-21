@@ -48,6 +48,7 @@ onMounted(() => {
 <template>
     <div class="space-y-6">
         <SettingsAppGeneral v-if="props.activeSubTab === 'general'" />
+        <SettingsAppDisplay v-if="props.activeSubTab === 'display'" />
         <SettingsAppSortDefaults v-if="props.activeSubTab === 'sort-defaults'" />
         <SettingsAppCardTemplate v-if="props.activeSubTab === 'card-template'" />
         <SettingsAppSearch v-if="props.activeSubTab === 'search'" />

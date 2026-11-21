@@ -11,6 +11,7 @@ const settingsStore = useSettingsStore();
 const studio = ref<Studio | null>(null);
 const scenes = ref<Scene[]>([]);
 const scenesTotal = ref(0);
+const scenesRatings = ref<Record<string, number>>({});
 const scenesPage = useUrlPagination();
 const scenesLimit = computed(() => settingsStore.videosPerPage);
 const isLoading = ref(true);
@@ -23,6 +24,14 @@ const showDeleteModal = ref(false);
 
 // Scene selection
 const selectMode = ref(false);
+
+// Grid or table (table columns may need fields the loaded scenes lack)
+const { isTable } = useSceneListView('studio', () => loadScenes(scenesPage.value));
+
+// Table header sort: the newest-first sort is the empty sort of this page
+const onTableSort = (value: string) => {
+    scenesSort.value = value === 'created_at_desc' ? '' : value;
+};
 const scenesRef = toRef(scenes);
 const {
     hasSelection,
@@ -252,9 +261,11 @@ const loadScenes = async (page: number) => {
             scenesSort.value || undefined,
             studio.value.name,
             scenesSort.value === 'random' ? scenesSeed.value : undefined,
+            settingsStore.listFieldsParam,
         );
         scenes.value = response.data;
         scenesTotal.value = response.total;
+        scenesRatings.value = response.ratings ?? {};
     } catch {
         // Ignore scene loading errors
     } finally {
@@ -785,6 +796,9 @@ definePageMeta({
                             @select-page="selectAllOnPage()"
                             @select-all="selectAllScenes()"
                         />
+
+                        <!-- Grid / table -->
+                        <SceneTableViewControls page="studio" tall />
                     </div>
 
                     <div v-if="isLoadingScenes" class="flex h-32 items-center justify-center">
@@ -808,14 +822,18 @@ definePageMeta({
                             :limit="scenesLimit"
                         />
 
-                        <SelectableSceneGrid
-                            v-if="selectMode"
+                        <SceneCollection
                             :scenes="scenes"
+                            :ratings="scenesRatings"
+                            :table="isTable"
+                            :select-mode="selectMode"
                             :is-scene-selected="isSceneSelected"
+                            :sort="scenesSort"
+                            default-sort="created_at_desc"
                             @toggle-selection="toggleSceneSelection"
                             @drag-select="(ids, additive) => dragSelect(ids, additive)"
+                            @sort="onTableSort"
                         />
-                        <SceneGrid v-else :scenes="scenes" />
                         <Pagination
                             v-model="scenesPage"
                             :total="scenesTotal"

@@ -11,6 +11,29 @@ export interface SortPreferences {
 }
 
 export type MarkerView = 'grouped' | 'all';
+
+// Scene list pages that can show their scenes as a grid of cards or as a table
+export type SceneListPage = 'search' | 'actor' | 'studio' | 'playlist' | 'explorer';
+export type SceneListViewMode = 'grid' | 'table';
+export type SceneTableColumn =
+    | 'thumbnail'
+    | 'title'
+    | 'duration'
+    | 'resolution'
+    | 'file_size'
+    | 'rating'
+    | 'views'
+    | 'studio'
+    | 'actors'
+    | 'release_date'
+    | 'added_at';
+
+export interface SceneListView {
+    // Missing page: grid
+    pages: Partial<Record<SceneListPage, SceneListViewMode>>;
+    // Visible table columns, in display order
+    columns: SceneTableColumn[];
+}
 export type PaginationPosition = 'top' | 'bottom' | 'both';
 export type { DateFormat };
 
@@ -37,6 +60,7 @@ export interface UserSettings {
     pagination_position: PaginationPosition;
     date_format: DateFormat;
     scene_card_config: SceneCardConfig;
+    scene_list_view: SceneListView;
     max_items_per_page: number;
     created_at: string;
     updated_at: string;

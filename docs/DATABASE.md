@@ -125,6 +125,7 @@ Per-user application preferences.
 | `default_tag_sort` | VARCHAR(10) | NO | 'az' | Tag sorting (az, za, count) |
 | `marker_thumbnail_cycling` | BOOLEAN | NO | true | Enable marker thumbnail cycling |
 | `homepage_config` | JSONB | NO | (see below) | Homepage section configuration |
+| `scene_list_view` | JSONB | NO | (see below) | Scene list display: `pages` maps a page type (`search`, `actor`, `studio`, `playlist`, `explorer`) to `grid` or `table` (missing = `grid`); `columns` are the visible table columns in order (`thumbnail`, `title`, `duration`, `resolution`, `file_size`, `rating`, `views`, `studio`, `actors`, `release_date`, `added_at`) |
 
 **Default `homepage_config`:**
 ```json
@@ -140,6 +141,14 @@ Per-user application preferences.
     "sort": "created_at_desc",
     "config": {}
   }]
+}
+```
+
+**Default `scene_list_view`:**
+```json
+{
+  "pages": {},
+  "columns": ["thumbnail", "title", "duration", "resolution", "file_size", "rating", "views", "studio", "actors", "added_at"]
 }
 ```
 

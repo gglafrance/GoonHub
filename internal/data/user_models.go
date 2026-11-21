@@ -74,7 +74,9 @@ type UserSettings struct {
 	// DateFormat: how dates are displayed (auto = browser locale, or a pattern like DD/MM/YYYY)
 	DateFormat      string          `gorm:"size:20;not null;default:'auto'" json:"date_format"`
 	SceneCardConfig SceneCardConfig `gorm:"type:jsonb;not null" json:"scene_card_config"`
-	MaxItemsPerPage int             `gorm:"-" json:"max_items_per_page"`
+	// SceneListView: grid or table per scene list page, and the table columns
+	SceneListView   SceneListView `gorm:"type:jsonb;not null" json:"scene_list_view"`
+	MaxItemsPerPage int           `gorm:"-" json:"max_items_per_page"`
 }
 
 // HomepageConfig represents the user's homepage layout configuration
@@ -393,6 +395,67 @@ func DefaultSceneCardConfig() SceneCardConfig {
 			{Type: "split", Left: "file_size", Right: "added_at"},
 		},
 	}
+}
+
+// Scene list view modes.
+const (
+	SceneListViewGrid  = "grid"
+	SceneListViewTable = "table"
+)
+
+// SceneListView is how the scene list pages display their scenes.
+type SceneListView struct {
+	// Pages maps a page type (search, actor, studio, playlist, explorer) to its view mode
+	// (grid or table). A missing page uses the grid.
+	Pages map[string]string `json:"pages"`
+	// Columns are the visible table columns, in display order.
+	Columns []string `json:"columns"`
+}
+
+// DefaultSceneListViewColumns are the table columns shown by default.
+func DefaultSceneListViewColumns() []string {
+	return []string{"thumbnail", "title", "duration", "resolution", "file_size", "rating", "views", "studio", "actors", "added_at"}
+}
+
+// DefaultSceneListView returns the default scene list view: grids everywhere.
+func DefaultSceneListView() SceneListView {
+	return SceneListView{Pages: map[string]string{}, Columns: DefaultSceneListViewColumns()}
+}
+
+// Normalize fills the missing parts with their defaults.
+func (v *SceneListView) Normalize() {
+	if v.Pages == nil {
+		v.Pages = map[string]string{}
+	}
+	if len(v.Columns) == 0 {
+		v.Columns = DefaultSceneListViewColumns()
+	}
+}
+
+// Value implements the driver.Valuer interface for JSONB storage
+func (v SceneListView) Value() (driver.Value, error) {
+	v.Normalize()
+	return json.Marshal(v)
+}
+
+// Scan implements the sql.Scanner interface for JSONB retrieval
+func (v *SceneListView) Scan(value any) error {
+	if value == nil {
+		*v = DefaultSceneListView()
+		return nil
+	}
+
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("failed to scan SceneListView: expected []byte")
+	}
+
+	*v = SceneListView{}
+	if err := json.Unmarshal(bytes, v); err != nil {
+		return err
+	}
+	v.Normalize()
+	return nil
 }
 
 // DefaultSortPreferences returns the default sort preferences

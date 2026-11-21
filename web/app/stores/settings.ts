@@ -9,6 +9,10 @@ import type {
     MarkerView,
     PaginationPosition,
     DateFormat,
+    SceneListView,
+    SceneListPage,
+    SceneListViewMode,
+    SceneTableColumn,
 } from '~/types/settings';
 import type { ParsingRulesSettings, ParsingPreset } from '~/types/parsing-rules';
 
@@ -137,6 +141,51 @@ export const useSettingsStore = defineStore(
             return fieldsSet.size > 0 ? [...fieldsSet].join(',') : '';
         });
 
+        const sceneListView = computed<SceneListView>(() => {
+            const view = settings.value?.scene_list_view;
+            return {
+                pages: view?.pages ?? {},
+                columns: view?.columns?.length ? view.columns : [...DEFAULT_SCENE_TABLE_COLUMNS],
+            };
+        });
+
+        const sceneListMode = (page: SceneListPage): SceneListViewMode =>
+            sceneListView.value.pages[page] ?? 'grid';
+
+        // card_fields of the scene list pages: the card fields, plus the fields of the visible
+        // table columns when a page shows a table
+        const listFieldsParam = computed(() => {
+            const fields = new Set(cardFieldsParam.value ? cardFieldsParam.value.split(',') : []);
+            const view = sceneListView.value;
+            if (Object.values(view.pages).includes('table')) {
+                for (const col of view.columns) {
+                    const field = sceneTableColumnDef(col)?.field;
+                    if (field) fields.add(field);
+                }
+            }
+            return [...fields].join(',');
+        });
+
+        // Saves a new scene list view right away (view toggles and column pickers)
+        const saveSceneListView = async (view: SceneListView) => {
+            if (!settings.value) return;
+            settings.value.scene_list_view = view;
+            if (draft.value) draft.value.scene_list_view = JSON.parse(JSON.stringify(view));
+            try {
+                await saveAllSettings();
+            } catch (e: unknown) {
+                console.error('Failed to save the scene list view:', e);
+            }
+        };
+
+        const setSceneListMode = (page: SceneListPage, mode: SceneListViewMode) => {
+            const view = sceneListView.value;
+            return saveSceneListView({ ...view, pages: { ...view.pages, [page]: mode } });
+        };
+
+        const setSceneTableColumns = (columns: SceneTableColumn[]) =>
+            saveSceneListView({ ...sceneListView.value, columns: [...columns] });
+
         const hasUnsavedChanges = computed(() => {
             if (!draft.value || !settings.value) return false;
             return JSON.stringify(draft.value) !== JSON.stringify(settings.value);
@@ -256,6 +305,11 @@ export const useSettingsStore = defineStore(
             maxItemsPerPage,
             sceneCardConfig,
             cardFieldsParam,
+            sceneListView,
+            sceneListMode,
+            listFieldsParam,
+            setSceneListMode,
+            setSceneTableColumns,
             hasUnsavedChanges,
             theaterMode,
             keyboardLayout,
