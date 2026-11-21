@@ -25,6 +25,14 @@ type Config struct {
 	Sharing      SharingConfig      `mapstructure:"sharing"`
 	Duplication  DuplicationConfig  `mapstructure:"duplication"`
 	ClickHouse   ClickHouseConfig   `mapstructure:"clickhouse"`
+	LibraryHealth LibraryHealthConfig `mapstructure:"library_health"`
+}
+
+// LibraryHealthConfig configures the background tasks of the library health page.
+type LibraryHealthConfig struct {
+	// StatConcurrency is the number of files stat'ed at once by the missing-file check and the
+	// fix-sizes task. Keep it low on NFS, where each stat is a network round trip.
+	StatConcurrency int `mapstructure:"stat_concurrency"`
 }
 
 type DuplicationConfig struct {
@@ -250,6 +258,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("sharing.base_url", "")
 	v.SetDefault("sharing.port", "")
 	v.SetDefault("duplication.enabled", false)
+	v.SetDefault("library_health.stat_concurrency", 8)
 	v.SetDefault("duplication.fingerprint_workers", 1)
 	v.SetDefault("duplication.fingerprint_timeout", 5*time.Minute)
 	v.SetDefault("duplication.audio_density_threshold", 0.50)

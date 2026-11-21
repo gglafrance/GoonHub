@@ -92,6 +92,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideDuplicateGroupRepository,
 		provideDuplicationConfigRepository,
 
+		// Library Health Repository
+		provideLibraryHealthRepository,
+
 		// Import Repository
 		provideImportRepository,
 
@@ -163,6 +166,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideMatchingService,
 		provideSceneFingerprintIndex,
 		provideDuplicateService,
+
+		// Library Health Service
+		provideLibraryHealthService,
 
 		// Import Service
 		provideImportService,
@@ -236,6 +242,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Duplicate Handler
 		provideDuplicateHandler,
+
+		// Library Health Handler
+		provideLibraryHealthHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -821,6 +830,26 @@ func provideShareHandler(shareService *core.ShareService, authService *core.Auth
 	return handler.NewShareHandler(shareService, authService, streamManager, cfg.Sharing.BaseURL)
 }
 
+// --- Library Health ---
+
+func provideLibraryHealthRepository(db *gorm.DB) data.LibraryHealthRepository {
+	return data.NewLibraryHealthRepository(db)
+}
+
+func provideLibraryHealthService(repo data.LibraryHealthRepository, sceneRepo data.SceneRepository, storagePathService *core.StoragePathService, processingService *core.SceneProcessingService, searchService *core.SearchService, cfg *config.Config, logger *logging.Logger) *core.LibraryHealthService {
+	svc := core.NewLibraryHealthService(repo, sceneRepo, storagePathService, processingService, cfg.LibraryHealth.StatConcurrency, logger.Logger)
+	if searchService != nil {
+		svc.SetIndexer(searchService)
+	}
+	// A task left running by a restart will never finish: mark it failed
+	svc.RecoverInterruptedChecks()
+	return svc
+}
+
+func provideLibraryHealthHandler(service *core.LibraryHealthService) *handler.LibraryHealthHandler {
+	return handler.NewLibraryHealthHandler(service)
+}
+
 func provideDuplicateHandler(duplicateService *core.DuplicateService, dupConfigRepo data.DuplicationConfigRepository) *handler.DuplicateHandler {
 	return handler.NewDuplicateHandler(duplicateService, dupConfigRepo)
 }
@@ -863,6 +892,7 @@ func provideRouter(
 	playlistHandler *handler.PlaylistHandler,
 	shareHandler *handler.ShareHandler,
 	duplicateHandler *handler.DuplicateHandler,
+	libraryHealthHandler *handler.LibraryHealthHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -875,7 +905,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, shareHandler, duplicateHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 

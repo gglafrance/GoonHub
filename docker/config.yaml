@@ -106,6 +106,9 @@ streaming:
   path_cache_ttl: 5m          # cache scene paths for 5 minutes
   path_cache_max_size: 10000  # max cached entries
 
+library_health:
+  stat_concurrency: 8         # files stat'ed at once by the health page checks (keep low on NFS)
+
 # Dedicated share server (optional)
 # Runs a second HTTP listener serving only share-related routes.
 # Expose on a separate public domain (e.g., share.your-domain.com) while
