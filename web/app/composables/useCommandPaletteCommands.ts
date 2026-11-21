@@ -99,6 +99,14 @@ export function useCommandPaletteCommands() {
                 keywords: ['watched', 'activity'],
             },
             {
+                id: 'page:/triage',
+                group: 'pages',
+                label: 'Triage',
+                icon: 'heroicons:bolt',
+                to: '/triage',
+                keywords: ['curate', 'review', 'organize', 'tag', 'rate'],
+            },
+            {
                 id: 'page:/duplicates',
                 group: 'pages',
                 label: 'Duplicates',

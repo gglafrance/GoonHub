@@ -1,6 +1,8 @@
 <script setup lang="ts">
 const props = defineProps<{
     visible: boolean;
+    // Lists the triage shortcuts first (opened from the triage page)
+    triageFirst?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -15,7 +17,17 @@ const paletteKeys = computed(() =>
     slashEnabled.value ? [`${modifierLabel.value} K`, '/'] : [`${modifierLabel.value} K`],
 );
 
-const shortcuts = computed(() => [
+const triageSection = computed(() => ({
+    category: 'Triage mode',
+    items: TRIAGE_SHORTCUTS.map((s) => ({ keys: s.keys, description: s.description })),
+}));
+
+const shortcuts = computed(() => {
+    const player = playerSections.value;
+    return props.triageFirst ? [triageSection.value, ...player] : [...player, triageSection.value];
+});
+
+const playerSections = computed(() => [
     {
         category: 'General',
         items: [{ keys: paletteKeys.value, description: 'Command palette' }],
@@ -118,7 +130,7 @@ onUnmounted(() => {
                             <div>
                                 <h2 class="text-sm font-semibold text-white">Keyboard Shortcuts</h2>
                                 <p class="text-dim text-[11px]">
-                                    App and scene player controls
+                                    App, scene player and triage controls
                                     <span class="text-lava ml-1 uppercase">{{ layout }}</span>
                                 </p>
                             </div>

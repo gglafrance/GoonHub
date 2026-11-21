@@ -37,6 +37,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 				auth := protected.Group("/auth")
 				{
 					auth.GET("/me", authHandler.Me)
+					auth.GET("/permissions", handler.MyPermissions(rbacService))
 					auth.POST("/logout", authHandler.Logout)
 				}
 
