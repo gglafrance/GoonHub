@@ -369,6 +369,12 @@ func BuildTranscodeArgs(input string, plan PlaybackPlan, start float64, s Transc
 
 	if plan.CopyAudio {
 		args = append(args, "-c:a", "copy")
+		if plan.AudioCodec == "aac" {
+			// ADTS AAC (MPEG-TS, HLS downloads) must be converted for the MP4 muxer, which
+			// otherwise stops after the first packets; AAC that is already in MP4 form passes
+			// through the filter unchanged
+			args = append(args, "-bsf:a", "aac_adtstoasc")
+		}
 	} else {
 		args = append(args, "-c:a", "aac", "-b:a", s.AudioBitrate, "-ac", "2")
 	}

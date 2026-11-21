@@ -159,6 +159,30 @@ func TestTranscodeFFmpeg_RemuxMKV(t *testing.T) {
 	}
 }
 
+// An HLS download saved with a .mkv name is really MPEG-TS with ADTS AAC: without the
+// aac_adtstoasc filter the MP4 muxer gave up after the first second, and the player looped
+// on that second.
+func TestTranscodeFFmpeg_RemuxADTSAudio(t *testing.T) {
+	requireFFmpeg(t)
+	input := makeClip(t, "playlist.mkv", 6, "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-f", "mpegts")
+	tc := NewTranscoder(config.TranscodeConfig{}, nil, zap.NewNop())
+	t.Cleanup(tc.Stop)
+
+	plan := DecidePlayback(input, "h264", "aac")
+	if plan.Mode != PlaybackRemux || !plan.CopyAudio {
+		t.Fatalf("expected a remux copying the audio, got %+v", plan)
+	}
+	res := probe(t, transcodeToFile(t, tc, input, plan, 0))
+	video, audio, _, _ := streamCodecs(res)
+	if video != "h264" || audio != "aac" {
+		t.Fatalf("got video %q audio %q", video, audio)
+	}
+	duration, err := strconv.ParseFloat(res.Format.Duration, 64)
+	if err != nil || duration < 5 {
+		t.Fatalf("the remux stopped early: duration %q", res.Format.Duration)
+	}
+}
+
 func TestTranscodeFFmpeg_RemuxKeyframeStart(t *testing.T) {
 	requireFFmpeg(t)
 	// One keyframe every 5 s

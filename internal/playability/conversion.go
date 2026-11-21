@@ -25,6 +25,10 @@ type Plan struct {
 	// re-encoded to H.264 / AAC). Meaningless for ModeDirect.
 	CopyVideo bool
 	CopyAudio bool
+	// AudioCodec is the normalized codec of the copied audio ("" when the audio is
+	// re-encoded). AAC from MPEG-TS/HLS sources is in ADTS form, which the MP4 muxer only
+	// takes through the aac_adtstoasc bitstream filter.
+	AudioCodec string
 	// Human readable list of what browsers can't play ("" for ModeDirect).
 	Reason string
 }
@@ -106,6 +110,9 @@ func Decide(path, videoCodec, audioCodec string) Plan {
 		CopyVideo: contains(mp4CopyVideoCodecs, video),
 		CopyAudio: contains(mp4CopyAudioCodecs, audio),
 		Reason:    "Not supported by browsers: " + strings.Join(problems, ", "),
+	}
+	if plan.CopyAudio {
+		plan.AudioCodec = audio
 	}
 	if plan.CopyVideo {
 		plan.Mode = ModeRemux

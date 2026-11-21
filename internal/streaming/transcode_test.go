@@ -115,6 +115,33 @@ func TestBuildTranscodeArgs_Remux(t *testing.T) {
 	}
 }
 
+func TestBuildTranscodeArgs_AACCopyBitstreamFilter(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		video      string
+		audio      string
+		wantFilter bool
+	}{
+		// AAC copied from MPEG-TS / HLS downloads is ADTS: the MP4 muxer needs aac_adtstoasc
+		{"aac copied", "/media/a.mkv", "h264", "aac", true},
+		{"mp3 copied", "/media/a.mkv", "h264", "mp3", false},
+		{"opus copied", "/media/a.mkv", "vp9", "opus", false},
+		{"audio re-encoded", "/media/a.mp4", "h264", "ac3", false},
+		{"full transcode", "/media/a.avi", "mpeg4", "mp3", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plan := DecidePlayback(tt.path, tt.video, tt.audio)
+			args := BuildTranscodeArgs(tt.path, plan, 0, defaultTestSettings())
+			got := argValue(args, "-bsf:a") == "aac_adtstoasc"
+			if got != tt.wantFilter {
+				t.Fatalf("aac_adtstoasc filter: got %v, want %v (%v)", got, tt.wantFilter, args)
+			}
+		})
+	}
+}
+
 func TestBuildTranscodeArgs_RemuxAudioEncode(t *testing.T) {
 	plan := DecidePlayback("/media/a.mp4", "h264", "ac3")
 	args := BuildTranscodeArgs("/media/a.mp4", plan, 10, defaultTestSettings())

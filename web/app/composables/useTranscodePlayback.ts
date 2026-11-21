@@ -9,6 +9,8 @@ const TRANSCODE_MIME = 'video/x-goonhub-transcode';
 
 // Seeks are debounced (scrubbing, repeated arrow keys) since each one restarts ffmpeg.
 const SEEK_DEBOUNCE_MS = 350;
+// A conversion that ends this many seconds before the end of the scene broke off
+const PREMATURE_END_MARGIN_S = 5;
 
 interface TranscodeSource {
     src: string;
@@ -294,8 +296,16 @@ export const useTranscodePlayback = (
         });
         // The element can't loop a stream that starts in the middle of the scene
         p.on('ended', () => {
-            if (!active.value || !options.loop() || !controller) return;
-            loadTranscode(0, true);
+            if (!active.value || !controller) return;
+            const reached = p.currentTime() ?? lastTime;
+            const duration = options.duration();
+            if (duration > 0 && reached < duration - PREMATURE_END_MARGIN_S) {
+                // The conversion stopped well before the end of the scene: ffmpeg failed
+                // on this file. Never loop on it (that restarted it forever).
+                conversionFailed(reached);
+                return;
+            }
+            if (options.loop()) loadTranscode(0, true);
         });
     };
 
@@ -333,6 +343,20 @@ export const useTranscodePlayback = (
         load('', start, play);
     };
 
+    // A conversion that broke off: a remux (streams copied) is tried once more as a full
+    // transcode from where it stopped; when that fails too, the failure is shown.
+    const conversionFailed = (at: number) => {
+        const p = player.value;
+        if (!p) return;
+        p.pause();
+        if (!forceTranscode && mode.value === 'remux') {
+            forceTranscode = true;
+            loadTranscode(at, true);
+            return;
+        }
+        notice.value = { kind: 'failed' };
+    };
+
     const diagnose = async (start: number, play: boolean) => {
         const url = controller ? transcodeUrl(controller.baseUrl, start) : '';
         let status = 0;
@@ -346,6 +370,9 @@ export const useTranscodePlayback = (
             notice.value = { kind: 'limit' };
         } else if (status === 403) {
             showDisabled(options.playback()?.reason);
+        } else if (status === 200 && !forceTranscode && mode.value === 'remux') {
+            // The copied streams can't be packaged: re-encode them instead
+            conversionFailed(start);
         } else if (status === 200 && Date.now() - lastAutoRetry > 15000) {
             // Transient failure (e.g. the browser lost the stream): start again where it was
             lastAutoRetry = Date.now();
