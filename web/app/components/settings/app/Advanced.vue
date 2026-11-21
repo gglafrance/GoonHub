@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const serveOGMetadata = defineModel<boolean>('serveOgMetadata', { required: true });
+const transcodingEnabled = defineModel<boolean>('transcodingEnabled', { required: true });
 </script>
 
 <template>
@@ -16,6 +17,17 @@ const serveOGMetadata = defineModel<boolean>('serveOgMetadata', { required: true
                 </p>
             </div>
             <UiToggle v-model="serveOGMetadata" />
+        </div>
+
+        <div class="border-border mt-4 flex items-center justify-between border-t pt-4">
+            <div>
+                <label class="text-sm font-medium text-white"> On-the-fly Transcoding </label>
+                <p class="text-dim mt-0.5 text-xs">
+                    Convert the formats browsers can't play (AVI, MPEG-2, MKV, HEVC, WMV...) while
+                    they are watched. Uses server CPU; when off, these scenes can only be downloaded
+                </p>
+            </div>
+            <UiToggle v-model="transcodingEnabled" />
         </div>
     </div>
 </template>

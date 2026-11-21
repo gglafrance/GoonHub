@@ -897,8 +897,11 @@ Configured storage locations for video files.
 | `name` | VARCHAR(100) | NO | - | Display name |
 | `path` | VARCHAR(500) | NO | - | Filesystem path |
 | `is_default` | BOOLEAN | NO | false | Default storage flag |
+| `read_only` | BOOLEAN | NO | false | GoonHub never deletes, moves, renames or writes media files under this path (migration 075) |
 | `created_at` | TIMESTAMPTZ | NO | NOW() | Record creation timestamp |
 | `updated_at` | TIMESTAMPTZ | NO | NOW() | Last update timestamp |
+
+**Read-only paths:** a scene's file is protected when its `storage_path_id` points to a read-only path or when its `stored_path` lies under one (prefix check). Permanently deleting such a scene (trash, empty trash, explorer bulk delete, resolved duplicates) deletes the row and the generated files (thumbnails, sprites, VTT) but keeps the video file, so the next scan adds it again. Uploads into a read-only path are refused. The decision is made in one place, `core.MediaFileGuard`.
 
 **Indexes:**
 - `idx_storage_paths_single_default` UNIQUE on `is_default` WHERE is_default = TRUE
@@ -1011,6 +1014,8 @@ Global application settings (singleton table).
 |--------|------|----------|---------|-------------|
 | `id` | INTEGER | NO | 1 | Primary key (always 1) |
 | `trash_retention_days` | INTEGER | NO | 7 | Days before trash auto-delete |
+| `serve_og_metadata` | BOOLEAN | NO | true | Serve OpenGraph tags to link preview crawlers |
+| `transcoding_enabled` | BOOLEAN | NO | true | Convert scenes browsers can't play (AVI, MKV, HEVC, ...) on the fly with ffmpeg (migration 076) |
 | `updated_at` | TIMESTAMPTZ | YES | NOW() | Last update timestamp |
 
 **Constraints:**

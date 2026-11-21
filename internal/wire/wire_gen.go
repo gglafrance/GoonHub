@@ -63,7 +63,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	duplicationConfigRepository := provideDuplicationConfigRepository(db)
 	matchingService := provideMatchingService(client, sceneRepository, duplicateGroupRepository, duplicationConfigRepository, logger)
 	sceneFingerprintIndex := provideSceneFingerprintIndex(matchingService)
-	sceneService := provideSceneService(sceneRepository, configConfig, sceneProcessingService, eventBus, logger, jobHistoryRepository, dlqRepository, appSettingsRepository, sceneFingerprintIndex)
+	storagePathRepository := provideStoragePathRepository(db)
+	mediaFileGuard := provideMediaFileGuard(storagePathRepository, logger)
+	sceneService := provideSceneService(sceneRepository, configConfig, sceneProcessingService, eventBus, logger, jobHistoryRepository, dlqRepository, appSettingsRepository, sceneFingerprintIndex, mediaFileGuard)
 	tagService := provideTagService(tagRepository, sceneRepository, logger)
 	searchConfigRepository := provideSearchConfigRepository(db)
 	meilisearchClient, err := provideMeilisearchClient(configConfig, searchConfigRepository, logger)
@@ -79,7 +81,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	watchHistoryRepository := provideWatchHistoryRepository(db)
 	relatedScenesService := provideRelatedScenesService(sceneRepository, tagRepository, actorRepository, studioRepository, actorInteractionRepository, studioInteractionRepository, watchHistoryRepository, logger)
 	manager := provideStreamManager(configConfig, sceneRepository, logger)
-	sceneHandler := provideSceneHandler(sceneService, sceneProcessingService, tagService, searchService, relatedScenesService, markerService, manager, interactionRepository, tagRepository, actorRepository, configConfig)
+	transcoder := provideTranscoder(configConfig, appSettingsRepository, logger)
+	sceneHandler := provideSceneHandler(sceneService, sceneProcessingService, tagService, searchService, relatedScenesService, markerService, manager, transcoder, interactionRepository, tagRepository, actorRepository, configConfig)
 	userRepository := provideUserRepository(db)
 	revokedTokenRepository := provideRevokedTokenRepository(db)
 	authService, err := provideAuthService(userRepository, revokedTokenRepository, configConfig, logger)
@@ -122,14 +125,13 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	searchHandler := provideSearchHandler(searchService, searchConfigRepository)
 	watchHistoryService := provideWatchHistoryService(watchHistoryRepository, sceneRepository, searchService, logger)
 	watchHistoryHandler := provideWatchHistoryHandler(watchHistoryService)
-	storagePathRepository := provideStoragePathRepository(db)
 	storagePathService := provideStoragePathService(storagePathRepository, logger)
 	storagePathHandler := provideStoragePathHandler(storagePathService)
 	scanHistoryRepository := provideScanHistoryRepository(db)
 	scanService := provideScanService(storagePathService, sceneRepository, scanHistoryRepository, sceneProcessingService, eventBus, logger)
 	scanHandler := provideScanHandler(scanService)
 	explorerRepository := provideExplorerRepository(db)
-	explorerService := provideExplorerService(explorerRepository, storagePathRepository, sceneRepository, tagRepository, actorRepository, jobHistoryRepository, eventBus, logger, configConfig, sceneFingerprintIndex)
+	explorerService := provideExplorerService(explorerRepository, storagePathRepository, sceneRepository, tagRepository, actorRepository, jobHistoryRepository, eventBus, logger, configConfig, sceneFingerprintIndex, mediaFileGuard)
 	explorerHandler := provideExplorerHandler(explorerService)
 	pornDBService := providePornDBService(configConfig, logger)
 	pornDBHandler := providePornDBHandler(pornDBService)
@@ -149,7 +151,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	playlistHandler := providePlaylistHandler(playlistService, configConfig)
 	shareLinkRepository := provideShareLinkRepository(db)
 	shareService := provideShareService(shareLinkRepository, sceneRepository, logger)
-	shareHandler := provideShareHandler(shareService, authService, manager, configConfig)
+	shareHandler := provideShareHandler(shareService, authService, manager, transcoder, configConfig)
 	duplicateHandler := provideDuplicateHandler(duplicateService, duplicationConfigRepository)
 	libraryHealthRepository := provideLibraryHealthRepository(db)
 	libraryHealthService := provideLibraryHealthService(libraryHealthRepository, sceneRepository, storagePathService, sceneProcessingService, searchService, configConfig, logger)
@@ -159,7 +161,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, authService, rbacService, ipRateLimiter, ogMiddleware)
 	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, markerService, sceneProcessingService, duplicationConfigRepository, configConfig, logger)
 	shareServer := provideShareServer(configConfig, shareHandler, ogMiddleware, logger)
-	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService, matchingService, duplicateService, shareServer)
+	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService, matchingService, duplicateService, shareServer, transcoder)
 	return serverServer, nil
 }
 
@@ -332,8 +334,8 @@ func provideAdminService(userRepo data.UserRepository, roleRepo data.RoleReposit
 	return core.NewAdminService(userRepo, roleRepo, rbac, logger.Logger)
 }
 
-func provideSceneService(repo data.SceneRepository, cfg *config.Config, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger, jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, appSettingsRepo data.AppSettingsRepository, fingerprintIndex core.SceneFingerprintIndex) *core.SceneService {
-	return core.NewSceneService(repo, cfg.Processing.VideoDir, cfg.Processing.MetadataDir, processingService, eventBus, logger.Logger, jobHistoryRepo, dlqRepo, appSettingsRepo, fingerprintIndex)
+func provideSceneService(repo data.SceneRepository, cfg *config.Config, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger, jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, appSettingsRepo data.AppSettingsRepository, fingerprintIndex core.SceneFingerprintIndex, mediaGuard *core.MediaFileGuard) *core.SceneService {
+	return core.NewSceneService(repo, cfg.Processing.VideoDir, cfg.Processing.MetadataDir, processingService, eventBus, logger.Logger, jobHistoryRepo, dlqRepo, appSettingsRepo, fingerprintIndex, mediaGuard)
 }
 
 func provideTagService(tagRepo data.TagRepository, sceneRepo data.SceneRepository, logger *logging.Logger) *core.TagService {
@@ -412,6 +414,10 @@ func provideDLQService(dlqRepo data.DLQRepository, jobHistoryRepo data.JobHistor
 	return core.NewDLQService(dlqRepo, jobHistoryRepo, sceneRepo, eventBus, logger.Logger)
 }
 
+func provideMediaFileGuard(repo data.StoragePathRepository, logger *logging.Logger) *core.MediaFileGuard {
+	return core.NewMediaFileGuard(repo, logger.Logger)
+}
+
 func provideStoragePathService(repo data.StoragePathRepository, logger *logging.Logger) *core.StoragePathService {
 	return core.NewStoragePathService(repo, logger.Logger)
 }
@@ -420,8 +426,8 @@ func provideScanService(storagePathService *core.StoragePathService, sceneRepo d
 	return core.NewScanService(storagePathService, sceneRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
 }
 
-func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, jobHistoryRepo data.JobHistoryRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config, fingerprintIndex core.SceneFingerprintIndex) *core.ExplorerService {
-	return core.NewExplorerService(explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, jobHistoryRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir, fingerprintIndex)
+func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, jobHistoryRepo data.JobHistoryRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config, fingerprintIndex core.SceneFingerprintIndex, mediaGuard *core.MediaFileGuard) *core.ExplorerService {
+	return core.NewExplorerService(explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, jobHistoryRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir, fingerprintIndex, mediaGuard)
 }
 
 func providePornDBService(cfg *config.Config, logger *logging.Logger) *core.PornDBService {
@@ -530,6 +536,10 @@ func provideStreamManager(cfg *config.Config, sceneRepo data.SceneRepository, lo
 	return streaming.NewManager(&cfg.Streaming, sceneRepo, logger.Logger)
 }
 
+func provideTranscoder(cfg *config.Config, appSettingsRepo data.AppSettingsRepository, logger *logging.Logger) *streaming.Transcoder {
+	return streaming.NewTranscoder(cfg.Streaming.Transcode, appSettingsRepo, logger.Logger)
+}
+
 func provideRateLimiter(cfg *config.Config) *middleware.IPRateLimiter {
 	rl := rate.Every(time.Minute / time.Duration(cfg.Auth.LoginRateLimit))
 	return middleware.NewIPRateLimiter(rl, cfg.Auth.LoginRateBurst)
@@ -555,8 +565,8 @@ func provideSettingsHandler(settingsService *core.SettingsService, cfg *config.C
 	return handler.NewSettingsHandler(settingsService, cfg.Pagination.MaxItemsPerPage)
 }
 
-func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, cfg *config.Config) *handler.SceneHandler {
-	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager, interactionRepo, tagRepo, actorRepo, cfg.Pagination.MaxItemsPerPage)
+func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, transcoder *streaming.Transcoder, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, cfg *config.Config) *handler.SceneHandler {
+	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager, transcoder, interactionRepo, tagRepo, actorRepo, cfg.Pagination.MaxItemsPerPage)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
@@ -676,8 +686,8 @@ func provideStreamStatsHandler(streamManager *streaming.Manager) *handler.Stream
 	return handler.NewStreamStatsHandler(streamManager)
 }
 
-func provideShareHandler(shareService *core.ShareService, authService *core.AuthService, streamManager *streaming.Manager, cfg *config.Config) *handler.ShareHandler {
-	return handler.NewShareHandler(shareService, authService, streamManager, cfg.Sharing.BaseURL)
+func provideShareHandler(shareService *core.ShareService, authService *core.AuthService, streamManager *streaming.Manager, transcoder *streaming.Transcoder, cfg *config.Config) *handler.ShareHandler {
+	return handler.NewShareHandler(shareService, authService, streamManager, transcoder, cfg.Sharing.BaseURL)
 }
 
 func provideLibraryHealthRepository(db *gorm.DB) data.LibraryHealthRepository {
@@ -788,11 +798,12 @@ func provideServer(
 	matchingService *core.MatchingService,
 	duplicateService *core.DuplicateService,
 	shareServer *server.ShareServer,
+	transcoder *streaming.Transcoder,
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
-		actorService, studioService, matchingService, duplicateService, shareServer,
+		actorService, studioService, matchingService, duplicateService, shareServer, transcoder,
 	)
 }

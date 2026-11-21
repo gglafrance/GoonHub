@@ -22,6 +22,8 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 			{
 				shares.GET("/:token", shareHandler.ResolveShareLink)
 				shares.GET("/:token/stream", shareHandler.StreamShareLink)
+				shares.GET("/:token/transcode", shareHandler.TranscodeShareLink)
+				shares.HEAD("/:token/transcode", shareHandler.TranscodeShareLink)
 			}
 
 			auth := v1.Group("/auth")
@@ -43,6 +45,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					scenes.POST("", middleware.RequirePermission(rbacService, "scenes:upload"), sceneHandler.UploadScene)
 					scenes.GET("", middleware.RequirePermission(rbacService, "scenes:view"), sceneHandler.ListScenes)
 					scenes.GET("/filters", middleware.RequirePermission(rbacService, "scenes:view"), sceneHandler.GetFilterOptions)
+					scenes.GET("/source-sites", middleware.RequirePermission(rbacService, "scenes:view"), sceneHandler.ListSourceSites)
 					scenes.GET("/:id", middleware.RequirePermission(rbacService, "scenes:view"), sceneHandler.GetScene)
 					scenes.GET("/:id/reprocess", middleware.RequirePermission(rbacService, "scenes:reprocess"), sceneHandler.ReprocessScene)
 					scenes.PUT("/:id/thumbnail", middleware.RequirePermission(rbacService, "scenes:upload"), sceneHandler.ExtractThumbnail)
@@ -304,4 +307,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 
 	// Public scene streaming endpoint (outside /api for better access)
 	r.GET("/api/v1/scenes/:id/stream", sceneHandler.StreamScene)
+	// Same access as the stream, for the files browsers can't play (HEAD: slot available?)
+	r.GET("/api/v1/scenes/:id/transcode", sceneHandler.TranscodeScene)
+	r.HEAD("/api/v1/scenes/:id/transcode", sceneHandler.TranscodeScene)
 }

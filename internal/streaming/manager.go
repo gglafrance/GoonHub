@@ -69,6 +69,19 @@ func (m *Manager) GetScenePath(sceneID uint) (string, error) {
 	return scene.StoredPath, nil
 }
 
+// GetScene loads a scene (not cached: the conversion needs its codecs and duration, and
+// is started far less often than the range requests of direct streams).
+func (m *Manager) GetScene(sceneID uint) (*data.Scene, error) {
+	scene, err := m.sceneRepo.GetByID(sceneID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get scene %d: %w", sceneID, err)
+	}
+	if scene == nil {
+		return nil, fmt.Errorf("scene %d not found", sceneID)
+	}
+	return scene, nil
+}
+
 // InvalidateScenePath removes a scene from the path cache.
 // Call this when a scene's stored path is updated.
 func (m *Manager) InvalidateScenePath(sceneID uint) {
