@@ -16,10 +16,10 @@ import (
 // JobQueueFeeder polls the database for pending jobs and feeds them to worker pools.
 // It acts as a bridge between the infinite-capacity DB queue and the bounded worker pool channels.
 type JobQueueFeeder struct {
-	repo              data.JobHistoryRepository
-	sceneRepo         data.SceneRepository
-	markerThumbGen    jobs.MarkerThumbnailGenerator
-	animatedThumbGen  jobs.AnimatedThumbnailGenerator
+	repo               data.JobHistoryRepository
+	sceneRepo          data.SceneRepository
+	markerThumbGen     jobs.MarkerThumbnailGenerator
+	animatedThumbGen   jobs.AnimatedThumbnailGenerator
 	poolManager        *processing.PoolManager
 	duplicationEnabled bool
 	dupConfigRepo      data.DuplicationConfigRepository
@@ -58,11 +58,11 @@ func NewJobQueueFeeder(
 		duplicationEnabled: duplicationEnabled,
 		dupConfigRepo:      dupConfigRepo,
 		logger:             logger.With(zap.String("component", "job_queue_feeder")),
-		pollInterval:     2 * time.Second,
-		batchSize:        50,
-		bufferMultiplier: 10, // Keep up to workerCount*10 jobs buffered per phase
-		orphanTimeout:    30 * time.Second,
-		stuckPendingTime: 10 * time.Minute,
+		pollInterval:       2 * time.Second,
+		batchSize:          50,
+		bufferMultiplier:   10, // Keep up to workerCount*10 jobs buffered per phase
+		orphanTimeout:      30 * time.Second,
+		stuckPendingTime:   10 * time.Minute,
 	}
 }
 
@@ -377,7 +377,7 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 				fpMode = dupCfg.FingerprintMode
 			}
 		}
-		job = jobs.NewFingerprintJobWithID(
+		fpJob := jobs.NewFingerprintJobWithID(
 			jobRecord.JobID,
 			jobRecord.SceneID,
 			scene.StoredPath,
@@ -385,6 +385,8 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 			fpMode,
 			f.logger,
 		)
+		fpJob.SetSceneDuration(scene.Duration)
+		job = fpJob
 		return f.poolManager.SubmitToFingerprintPool(job)
 	}
 

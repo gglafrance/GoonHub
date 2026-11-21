@@ -138,8 +138,12 @@ func (p *WorkerPool) executeJob(workerID int, job Job) (result JobResult) {
 	// Create execution context with optional timeout
 	var execCtx context.Context
 	var execCancel context.CancelFunc
-	if p.timeout > 0 {
-		execCtx, execCancel = context.WithTimeout(p.ctx, p.timeout)
+	timeout := p.timeout
+	if scaler, ok := job.(TimeoutScaler); ok && timeout > 0 {
+		timeout = scaler.JobTimeout(timeout)
+	}
+	if timeout > 0 {
+		execCtx, execCancel = context.WithTimeout(p.ctx, timeout)
 	} else {
 		execCtx, execCancel = context.WithCancel(p.ctx)
 	}
