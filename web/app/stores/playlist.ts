@@ -34,8 +34,15 @@ export const usePlaylistStore = defineStore('playlist', () => {
 
     const totalPages = computed(() => Math.ceil(total.value / limit.value));
 
+    // Params and data version of the list held: back on the same list (Back from a playlist or
+    // a scene), it stays on screen while it refreshes instead of flashing a spinner
+    let listKey = '';
+    let listVersion = -1;
+    let listSeq = 0;
+
     const loadPlaylists = async () => {
-        isLoading.value = true;
+        const version = currentDataVersion();
+        const seq = ++listSeq;
         error.value = '';
 
         try {
@@ -56,22 +63,39 @@ export const usePlaylistStore = defineStore('playlist', () => {
                 params.search = searchQuery.value;
             }
 
+            const key = JSON.stringify(params);
+            if (key !== listKey || version !== listVersion) isLoading.value = true;
             const result = await api.fetchPlaylists(params);
+            if (seq !== listSeq) return;
             playlists.value = result.data;
             total.value = result.pagination.total_items;
+            listKey = key;
+            listVersion = version;
         } catch (e: unknown) {
+            if (seq !== listSeq) return;
             error.value = e instanceof Error ? e.message : 'Failed to load playlists';
+            listKey = '';
         } finally {
-            isLoading.value = false;
+            if (seq === listSeq) isLoading.value = false;
         }
     };
 
+    let detailVersion = -1;
+
     const loadPlaylist = async (uuid: string) => {
-        isLoadingDetail.value = true;
+        const version = currentDataVersion();
+        // Same playlist already held and nothing edited since: refresh it in place
+        const held = currentPlaylist.value?.uuid === uuid && version === detailVersion;
+        if (!held) {
+            currentPlaylist.value = null;
+            isLoadingDetail.value = true;
+        }
         detailError.value = '';
 
         try {
-            currentPlaylist.value = await api.fetchPlaylist(uuid);
+            const result = await api.fetchPlaylist(uuid);
+            currentPlaylist.value = result;
+            detailVersion = version;
         } catch (e: unknown) {
             detailError.value = e instanceof Error ? e.message : 'Failed to load playlist';
         } finally {

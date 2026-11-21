@@ -2,7 +2,6 @@
 import type { MarkerWithScene, SavedMarkerFilterValues } from '~/types/marker';
 
 const route = useRoute();
-const router = useRouter();
 const { fetchMarkersByLabel } = useApiMarkers();
 const { fetchProcessingConfig } = useApiJobs();
 const { formatMarkerRange } = useFormatter();
@@ -117,9 +116,9 @@ watch(
     },
 );
 
-const goBack = () => {
-    router.push('/markers');
-};
+// Back to the list with its filters, page and scroll position when coming from it
+const { backTo } = useNavOrigin();
+const goBack = () => backTo('/markers');
 
 definePageMeta({
     middleware: ['auth'],
