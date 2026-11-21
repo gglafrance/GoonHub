@@ -26,6 +26,8 @@ export const useScenePlayerShortcuts = (options: Options) => {
 
     const handleKeydown = (e: KeyboardEvent) => {
         if (isInputElement(e.target as HTMLElement)) return;
+        // Ctrl/Cmd/Alt combinations belong to the browser and the app (Ctrl+K: command palette)
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
         if (!player.value) return;
 
         const p = player.value;

@@ -2,6 +2,7 @@ package meilisearch
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -10,6 +11,10 @@ import (
 	meili "github.com/meilisearch/meilisearch-go"
 	"go.uber.org/zap"
 )
+
+// maxValuesPerFacet bounds the values returned per facet (the source sites listed for the
+// filter UI). Meilisearch's default of 100 would hide sites on larger libraries.
+const maxValuesPerFacet = 1000
 
 // Client wraps the Meilisearch client with application-specific functionality.
 type Client struct {
@@ -91,6 +96,7 @@ func (c *Client) EnsureIndex() error {
 		"created_at",
 		"processing_status",
 		"id",
+		"source_site",
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update filterable attributes: %w", err)
@@ -112,6 +118,17 @@ func (c *Client) EnsureIndex() error {
 	}
 	if _, err := c.client.WaitForTask(sortableTask.TaskUID, meili.WaitParams{Context: ctx, Interval: 100 * time.Millisecond}); err != nil {
 		return fmt.Errorf("failed to wait for sortable attributes task: %w", err)
+	}
+
+	// Configure faceting (filterable attributes are facetable: source_site is listed by facet)
+	facetingTask, err := index.UpdateFaceting(&meili.Faceting{
+		MaxValuesPerFacet: maxValuesPerFacet,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update faceting settings: %w", err)
+	}
+	if _, err := c.client.WaitForTask(facetingTask.TaskUID, meili.WaitParams{Context: ctx, Interval: 100 * time.Millisecond}); err != nil {
+		return fmt.Errorf("failed to wait for faceting settings task: %w", err)
 	}
 
 	// Configure pagination (maxTotalHits)
@@ -280,6 +297,61 @@ func (c *Client) Search(params SearchParams) (*SearchResult, error) {
 	}, nil
 }
 
+// SourceSiteFacets returns the source sites of the indexed scenes with their scene counts,
+// from the source_site facet. Scenes without a source are left out.
+func (c *Client) SourceSiteFacets() ([]FacetCount, error) {
+	index := c.client.Index(c.indexName)
+	result, err := index.Search("", &meili.SearchRequest{
+		AttributesToRetrieve: []string{"id"},
+		Limit:                1, // only the facet distribution is used (0 means the default 20)
+		Facets:               []string{"source_site"},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("source site facet search failed: %w", err)
+	}
+	return parseFacetDistribution(result.FacetDistribution, "source_site"), nil
+}
+
+// parseFacetDistribution reads one facet of a search's facetDistribution
+// ({"facet": {"value": count}}), skipping empty values.
+func parseFacetDistribution(distribution interface{}, facet string) []FacetCount {
+	facets, ok := distribution.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	values, ok := facets[facet].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	counts := make([]FacetCount, 0, len(values))
+	for value, raw := range values {
+		if value == "" {
+			continue
+		}
+		var count int64
+		switch n := raw.(type) {
+		case float64:
+			count = int64(n)
+		case int64:
+			count = n
+		case int:
+			count = int64(n)
+		case json.Number:
+			parsed, err := n.Int64()
+			if err != nil {
+				continue
+			}
+			count = parsed
+		default:
+			continue
+		}
+		if count > 0 {
+			counts = append(counts, FacetCount{Value: value, Count: count})
+		}
+	}
+	return counts
+}
+
 // buildFilters constructs the filter string for Meilisearch.
 func (c *Client) buildFilters(params SearchParams) []string {
 	var filters []string
@@ -327,6 +399,25 @@ func (c *Client) buildFilters(params SearchParams) []string {
 			filters = append(filters, presence.field+" IS NOT EMPTY")
 		} else {
 			filters = append(filters, presence.field+" IS EMPTY")
+		}
+	}
+
+	// Source site (OR logic - from one of the specified sites)
+	if len(params.SourceSites) > 0 {
+		sites := make([]string, len(params.SourceSites))
+		for i, site := range params.SourceSites {
+			sites[i] = fmt.Sprintf("\"%s\"", escapeFilterValue(site))
+		}
+		filters = append(filters, "source_site IN ["+strings.Join(sites, ", ")+"]")
+	}
+
+	// Source presence. Documents indexed before source_site existed have no such attribute:
+	// they count as "no source" (IS NOT EMPTY alone would match a missing attribute).
+	if params.HasSource != nil {
+		if *params.HasSource {
+			filters = append(filters, "(source_site EXISTS AND source_site IS NOT EMPTY)")
+		} else {
+			filters = append(filters, "(source_site NOT EXISTS OR source_site IS EMPTY)")
 		}
 	}
 

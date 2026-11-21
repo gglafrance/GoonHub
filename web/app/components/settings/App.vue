@@ -12,6 +12,8 @@ const isAdmin = computed(() => authStore.user?.role === 'admin');
 const serveOGMetadata = ref(true);
 const originalServeOGMetadata = ref(true);
 const trashRetentionDays = ref(7);
+const transcodingEnabled = ref(true);
+const originalTranscodingEnabled = ref(true);
 
 const loadAppSettings = async () => {
     if (!isAdmin.value) return;
@@ -20,6 +22,8 @@ const loadAppSettings = async () => {
         serveOGMetadata.value = data.serve_og_metadata;
         originalServeOGMetadata.value = data.serve_og_metadata;
         trashRetentionDays.value = data.trash_retention_days;
+        transcodingEnabled.value = data.transcoding_enabled ?? true;
+        originalTranscodingEnabled.value = transcodingEnabled.value;
     } catch {
         // Silently fail - default values are already set
     }
@@ -27,15 +31,20 @@ const loadAppSettings = async () => {
 
 const hasUnsavedAppSettings = computed(() => {
     if (!isAdmin.value) return false;
-    return serveOGMetadata.value !== originalServeOGMetadata.value;
+    return (
+        serveOGMetadata.value !== originalServeOGMetadata.value ||
+        transcodingEnabled.value !== originalTranscodingEnabled.value
+    );
 });
 
 const saveAppSettings = async () => {
     await updateAppSettings({
         serve_og_metadata: serveOGMetadata.value,
         trash_retention_days: trashRetentionDays.value,
+        transcoding_enabled: transcodingEnabled.value,
     });
     originalServeOGMetadata.value = serveOGMetadata.value;
+    originalTranscodingEnabled.value = transcodingEnabled.value;
 };
 
 defineExpose({ hasUnsavedAppSettings, saveAppSettings });
@@ -48,12 +57,14 @@ onMounted(() => {
 <template>
     <div class="space-y-6">
         <SettingsAppGeneral v-if="props.activeSubTab === 'general'" />
+        <SettingsAppDisplay v-if="props.activeSubTab === 'display'" />
         <SettingsAppSortDefaults v-if="props.activeSubTab === 'sort-defaults'" />
         <SettingsAppCardTemplate v-if="props.activeSubTab === 'card-template'" />
         <SettingsAppSearch v-if="props.activeSubTab === 'search'" />
         <SettingsAppAdvanced
             v-if="props.activeSubTab === 'advanced'"
             v-model:serve-og-metadata="serveOGMetadata"
+            v-model:transcoding-enabled="transcodingEnabled"
         />
     </div>
 </template>

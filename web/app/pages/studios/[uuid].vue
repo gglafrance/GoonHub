@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Studio, UpdateStudioInput } from '~/types/studio';
-import type { Scene } from '~/types/scene';
+import type { Scene, SceneListResponse } from '~/types/scene';
+import type { LoadedPages, PageLoadPlan } from '~/utils/infinitePages';
 
 const route = useRoute();
 const router = useRouter();
@@ -11,6 +12,7 @@ const settingsStore = useSettingsStore();
 const studio = ref<Studio | null>(null);
 const scenes = ref<Scene[]>([]);
 const scenesTotal = ref(0);
+const scenesRatings = ref<Record<string, number>>({});
 const scenesPage = useUrlPagination();
 const scenesLimit = computed(() => settingsStore.videosPerPage);
 const isLoading = ref(true);
@@ -23,6 +25,14 @@ const showDeleteModal = ref(false);
 
 // Scene selection
 const selectMode = ref(false);
+
+// Grid or table (table columns may need fields the loaded scenes lack)
+const { isTable } = useSceneListView('studio', () => loadScenes(scenesPage.value));
+
+// Table header sort: the newest-first sort is the empty sort of this page
+const onTableSort = (value: string) => {
+    scenesSort.value = value === 'created_at_desc' ? '' : value;
+};
 const scenesRef = toRef(scenes);
 const {
     hasSelection,
@@ -240,27 +250,90 @@ async function onLikeClick() {
     }
 }
 
-const loadScenes = async (page: number) => {
+// Infinite scroll (user setting): pages in the list and the filters they were loaded with
+const loadedPages = ref<LoadedPages>({ first: 0, last: 0 });
+const isLoadingMoreScenes = ref(false);
+let scenesRequest = 0;
+
+const runScenesPlan = async (plan: PageLoadPlan) => {
     if (!studio.value) return;
+    const request = ++scenesRequest;
+    const partial = plan.mode !== 'replace';
     try {
-        isLoadingScenes.value = true;
-        const response = await api.fetchStudioScenes(
-            studioUuid.value,
-            page,
-            scenesLimit.value,
-            scenesQuery.value || undefined,
-            scenesSort.value || undefined,
-            studio.value.name,
-            scenesSort.value === 'random' ? scenesSeed.value : undefined,
+        if (partial) isLoadingMoreScenes.value = true;
+        else isLoadingScenes.value = true;
+        const name = studio.value.name;
+        const responses: SceneListResponse[] = await Promise.all(
+            plan.pages.map((p) =>
+                api.fetchStudioScenes(
+                    studioUuid.value,
+                    p,
+                    scenesLimit.value,
+                    scenesQuery.value || undefined,
+                    scenesSort.value || undefined,
+                    name,
+                    scenesSort.value === 'random' ? scenesSeed.value : undefined,
+                    settingsStore.listFieldsParam,
+                ),
+            ),
         );
-        scenes.value = response.data;
-        scenesTotal.value = response.total;
+        // A newer load replaced this one
+        if (request !== scenesRequest) return;
+        scenes.value = mergePageItems(
+            scenes.value,
+            responses.flatMap((r) => r.data as Scene[]),
+            plan.mode,
+        );
+        scenesTotal.value = responses[responses.length - 1]?.total ?? 0;
+        scenesRatings.value = Object.assign(
+            partial ? { ...scenesRatings.value } : {},
+            ...responses.map((r) => r.ratings ?? {}),
+        );
+        loadedPages.value = commitPageLoad(loadedPages.value, plan);
+        if (!partial) restoreScroll();
     } catch {
         // Ignore scene loading errors
     } finally {
-        isLoadingScenes.value = false;
+        if (request === scenesRequest) {
+            isLoadingScenes.value = false;
+            isLoadingMoreScenes.value = false;
+        }
     }
 };
+
+const scenesContext = () =>
+    JSON.stringify([
+        studioUuid.value,
+        scenesQuery.value,
+        scenesSort.value,
+        scenesSeed.value,
+        scenesLimit.value,
+    ]);
+
+// Loads a page (appended to the list when it is the next one with infinite scroll)
+const loadScenes = (page: number) =>
+    runScenesPlan(
+        planPageLoad(loadedPages.value, page, settingsStore.infiniteScroll, scenesContext()),
+    );
+
+const { restore: restoreScroll, keepPositionWhile } = useInfiniteScrollPosition();
+const hasMoreScenes = computed(
+    () => loadedPages.value.last * scenesLimit.value < scenesTotal.value,
+);
+// The page watcher loads it: the URL keeps the last loaded page
+const loadMoreScenes = () => {
+    if (isLoadingScenes.value || isLoadingMoreScenes.value) return;
+    scenesPage.value = loadedPages.value.last + 1;
+};
+const loadPreviousScenes = () =>
+    keepPositionWhile(async () => {
+        const plan = planPreviousPage(loadedPages.value);
+        if (plan) await runScenesPlan(plan);
+    });
+watch(
+    () => settingsStore.infiniteScroll,
+    () => loadScenes(scenesPage.value),
+);
 
 const onSearchInput = () => {
     if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
@@ -785,6 +858,9 @@ definePageMeta({
                             @select-page="selectAllOnPage()"
                             @select-all="selectAllScenes()"
                         />
+
+                        <!-- Grid / table -->
+                        <SceneTableViewControls page="studio" tall />
                     </div>
 
                     <div v-if="isLoadingScenes" class="flex h-32 items-center justify-center">
@@ -802,21 +878,40 @@ definePageMeta({
 
                     <div v-else>
                         <Pagination
+                            v-if="!settingsStore.infiniteScroll"
                             v-model="scenesPage"
                             position="top"
                             :total="scenesTotal"
                             :limit="scenesLimit"
                         />
+                        <SceneListLoadPrevious
+                            v-else-if="loadedPages.first > 1"
+                            :first-page="loadedPages.first"
+                            :loading="isLoadingMoreScenes"
+                            @load-previous="loadPreviousScenes"
+                        />
 
-                        <SelectableSceneGrid
-                            v-if="selectMode"
+                        <SceneCollection
                             :scenes="scenes"
+                            :ratings="scenesRatings"
+                            :table="isTable"
+                            :select-mode="selectMode"
                             :is-scene-selected="isSceneSelected"
+                            :sort="scenesSort"
+                            default-sort="created_at_desc"
                             @toggle-selection="toggleSceneSelection"
                             @drag-select="(ids, additive) => dragSelect(ids, additive)"
+                            @sort="onTableSort"
                         />
-                        <SceneGrid v-else :scenes="scenes" />
+                        <SceneListInfiniteLoader
+                            v-if="settingsStore.infiniteScroll"
+                            :has-more="hasMoreScenes"
+                            :loading="isLoadingMoreScenes"
+                            :total="scenesTotal"
+                            @load-more="loadMoreScenes"
+                        />
                         <Pagination
+                            v-else
                             v-model="scenesPage"
                             :total="scenesTotal"
                             :limit="scenesLimit"

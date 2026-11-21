@@ -44,6 +44,7 @@ export const useApi = () => {
         searchScenes: scenes.searchScenes,
         fetchAllSearchSceneIDs: scenes.fetchAllSearchSceneIDs,
         fetchFilterOptions: scenes.fetchFilterOptions,
+        fetchSourceSites: scenes.fetchSourceSites,
         fetchScene: scenes.fetchScene,
         updateSceneDetails: scenes.updateSceneDetails,
         extractThumbnail: scenes.extractThumbnail,

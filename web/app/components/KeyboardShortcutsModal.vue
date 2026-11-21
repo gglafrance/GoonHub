@@ -10,6 +10,12 @@ const emit = defineEmits<{
 }>();
 
 const { layout, displayKeys } = useKeyboardLayout();
+const { modifierLabel } = useCommandPalette();
+const slashEnabled = useCommandPaletteSlashEnabled();
+
+const paletteKeys = computed(() =>
+    slashEnabled.value ? [`${modifierLabel.value} K`, '/'] : [`${modifierLabel.value} K`],
+);
 
 const triageSection = computed(() => ({
     category: 'Triage mode',
@@ -22,6 +28,10 @@ const shortcuts = computed(() => {
 });
 
 const playerSections = computed(() => [
+    {
+        category: 'General',
+        items: [{ keys: paletteKeys.value, description: 'Command palette' }],
+    },
     {
         category: 'Playback',
         items: [
@@ -120,7 +130,7 @@ onUnmounted(() => {
                             <div>
                                 <h2 class="text-sm font-semibold text-white">Keyboard Shortcuts</h2>
                                 <p class="text-dim text-[11px]">
-                                    Scene player and triage controls
+                                    App, scene player and triage controls
                                     <span class="text-lava ml-1 uppercase">{{ layout }}</span>
                                 </p>
                             </div>

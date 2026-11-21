@@ -24,6 +24,9 @@ func Setup(r *gin.Engine, logger *logging.Logger, allowedOrigins []string, envir
 	// breaking seeking in Firefox)
 	r.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{
 		`/api/v1/scenes/\d+/stream`,
+		// On-the-fly conversion: streamed and flushed chunk by chunk
+		`/api/v1/scenes/\d+/transcode`,
+		`/api/v1/shares/[^/]+/transcode`,
 	})))
 
 	// Security Headers

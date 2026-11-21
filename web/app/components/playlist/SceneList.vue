@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import type { PlaylistSceneEntry } from '~/types/playlist';
+import type { SceneListItem } from '~/types/scene';
 
 const props = defineProps<{
     scenes: PlaylistSceneEntry[];
     isOwner: boolean;
+    playlistUuid: string;
 }>();
 
 const emit = defineEmits<{
@@ -14,6 +16,18 @@ const emit = defineEmits<{
 }>();
 
 const { formatDuration } = useFormatter();
+
+// List or table (Settings > table columns; no rating nor actors in playlists)
+const { isTable } = useSceneListView('playlist');
+const tableScenes = computed(() => props.scenes.map((s) => s.scene));
+const tableRowLink = (scene: SceneListItem, index: number) => ({
+    path: `/watch/${scene.id}`,
+    query: { playlist: props.playlistUuid, pos: String(index) },
+});
+
+const dragSelect = (ids: number[], additive: boolean) => {
+    selectedIds.value = new Set(additive ? [...selectedIds.value, ...ids] : ids);
+};
 
 const selectMode = ref(false);
 const selectedIds = ref<Set<number>>(new Set());
@@ -98,8 +112,55 @@ const moveScene = (index: number, direction: 'up' | 'down') => {
             </template>
         </div>
 
+        <!-- Scene table -->
+        <template v-if="isTable && scenes.length > 0">
+            <SceneTable
+                :scenes="tableScenes"
+                :hidden-columns="['rating', 'actors']"
+                :selectable="selectMode"
+                :is-scene-selected="(id: number) => selectedIds.has(id)"
+                :row-link="tableRowLink"
+                show-position
+                @toggle-selection="toggleSelect"
+                @drag-select="dragSelect"
+            >
+                <template v-if="isOwner && !selectMode" #actions="{ scene, index }">
+                    <div
+                        class="flex items-center justify-end gap-0.5 opacity-0 transition-opacity
+                            group-hover:opacity-100"
+                    >
+                        <button
+                            :disabled="index === 0"
+                            class="text-dim rounded p-1 transition-colors hover:text-white
+                                disabled:opacity-30"
+                            title="Move up"
+                            @click="moveScene(index, 'up')"
+                        >
+                            <Icon name="heroicons:chevron-up" size="14" />
+                        </button>
+                        <button
+                            :disabled="index === scenes.length - 1"
+                            class="text-dim rounded p-1 transition-colors hover:text-white
+                                disabled:opacity-30"
+                            title="Move down"
+                            @click="moveScene(index, 'down')"
+                        >
+                            <Icon name="heroicons:chevron-down" size="14" />
+                        </button>
+                        <button
+                            class="text-dim hover:text-lava rounded p-1 transition-colors"
+                            title="Remove from playlist"
+                            @click="emit('remove', scene.id)"
+                        >
+                            <Icon name="heroicons:x-mark" size="14" />
+                        </button>
+                    </div>
+                </template>
+            </SceneTable>
+        </template>
+
         <!-- Scene rows -->
-        <div class="space-y-1">
+        <div v-else class="space-y-1">
             <div
                 v-for="(entry, index) in scenes"
                 :key="entry.scene.id"

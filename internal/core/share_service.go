@@ -8,6 +8,7 @@ import (
 
 	"goonhub/internal/apperrors"
 	"goonhub/internal/data"
+	"goonhub/internal/streaming"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -24,6 +25,8 @@ type ShareSceneData struct {
 	Actors      []string   `json:"actors"`
 	CreatedAt   time.Time  `json:"created_at"`
 	ReleaseDate *time.Time `json:"release_date"`
+	// How the player can play the scene, set by the share handler
+	Playback *streaming.PlaybackInfo `json:"playback,omitempty"`
 }
 
 // ResolvedShareLink holds the resolved share link with scene data.

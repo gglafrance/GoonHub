@@ -1,5 +1,11 @@
-import type { SceneListItem, SceneFilterOptions } from '~/types/scene';
+import type {
+    SceneListItem,
+    SceneFilterOptions,
+    SceneListResponse,
+    SourceSiteOption,
+} from '~/types/scene';
 import type { SavedSearchFilters } from '~/types/saved_search';
+import type { LoadedPages, PageLoadPlan } from '~/utils/infinitePages';
 
 // Library status filters: null = any, true = yes, false = no
 export const SEARCH_STATUS_KEYS = [
@@ -9,6 +15,7 @@ export const SEARCH_STATUS_KEYS = [
     'has_actors',
     'has_tags',
     'has_studio',
+    'has_source',
 ] as const;
 export type SearchStatusKey = (typeof SEARCH_STATUS_KEYS)[number];
 export type SearchStatus = Record<SearchStatusKey, boolean | null>;
@@ -20,6 +27,7 @@ const emptyStatus = (): SearchStatus => ({
     has_actors: null,
     has_tags: null,
     has_studio: null,
+    has_source: null,
 });
 
 export const useSearchStore = defineStore('search', () => {
@@ -37,6 +45,8 @@ export const useSearchStore = defineStore('search', () => {
     const minSize = ref(0);
     const maxSize = ref(0);
     const status = ref<SearchStatus>(emptyStatus());
+    // Source sites (OR), normalized like the server does ("pornhub.com")
+    const selectedSourceSites = ref<string[]>([]);
     const activeStatusCount = computed(
         () => SEARCH_STATUS_KEYS.filter((k) => status.value[k] !== null).length,
     );
@@ -88,6 +98,9 @@ export const useSearchStore = defineStore('search', () => {
         types: [],
     });
 
+    // Sites scenes come from, with their scene counts (for the Source filter)
+    const sourceSites = ref<SourceSiteOption[]>([]);
+
     const hasActiveFilters = computed(() => {
         return (
             query.value !== '' ||
@@ -99,6 +112,7 @@ export const useSearchStore = defineStore('search', () => {
             minSize.value > 0 ||
             maxSize.value > 0 ||
             activeStatusCount.value > 0 ||
+            selectedSourceSites.value.length > 0 ||
             minDate.value !== '' ||
             maxDate.value !== '' ||
             resolution.value !== '' ||
@@ -114,50 +128,81 @@ export const useSearchStore = defineStore('search', () => {
 
     const generateSeed = () => Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
 
-    const search = async () => {
-        isLoading.value = true;
+    // Infinite scroll: the pages in the list and their filters (see utils/infinitePages)
+    const loadedPages = ref<LoadedPages>({ first: 0, last: 0 });
+    const isLoadingMore = ref(false);
+    let searchRequest = 0;
+
+    const mergeMaps = <T>(
+        current: Record<string, T>,
+        maps: (Record<string, T> | undefined)[],
+        partial: boolean,
+    ): Record<string, T> =>
+        Object.assign(partial ? { ...current } : {}, ...maps.map((m) => m ?? {}));
+
+    const runSearch = async (plan: PageLoadPlan) => {
+        const request = ++searchRequest;
+        const partial = plan.mode !== 'replace';
+        if (partial) isLoadingMore.value = true;
+        else isLoading.value = true;
         error.value = '';
 
         try {
-            const params: Record<string, string | number | undefined> = {
-                page: page.value,
-                limit: limit.value,
-            };
-
-            if (query.value) params.q = query.value;
-            if (selectedTags.value.length > 0) params.tags = selectedTags.value.join(',');
-            if (selectedActors.value.length > 0) params.actors = selectedActors.value.join(',');
-            if (studio.value) params.studio = studio.value;
-            if (minDuration.value > 0) params.min_duration = minDuration.value;
-            if (maxDuration.value > 0) params.max_duration = maxDuration.value;
-            if (minSize.value > 0) params.min_size = minSize.value;
-            if (maxSize.value > 0) params.max_size = maxSize.value;
-            Object.assign(params, statusParams());
-            if (minDate.value) params.min_date = minDate.value;
-            if (maxDate.value) params.max_date = maxDate.value;
-            if (resolution.value) params.resolution = resolution.value;
-            if (sort.value) params.sort = sort.value;
-            if (sort.value === 'random' && seed.value) params.seed = seed.value;
-            if (liked.value) params.liked = 'true';
-            if (minRating.value > 0) params.min_rating = minRating.value;
-            if (maxRating.value > 0) params.max_rating = maxRating.value;
-            if (minJizzCount.value > 0) params.min_jizz_count = minJizzCount.value;
-            if (maxJizzCount.value > 0) params.max_jizz_count = maxJizzCount.value;
-            if (selectedMarkerLabels.value.length > 0)
-                params.marker_labels = selectedMarkerLabels.value.join(',');
-            if (matchType.value !== 'broad') params.match_type = matchType.value;
-
-            const result = await api.searchScenes(params);
-            scenes.value = result.data;
-            total.value = result.total;
-            ratings.value = result.ratings || {};
-            likes.value = result.likes || {};
-            jizzCounts.value = result.jizz_counts || {};
+            const base = getSearchParams();
+            const results: SceneListResponse[] = await Promise.all(
+                plan.pages.map((p) => api.searchScenes({ ...base, page: p, limit: limit.value })),
+            );
+            // A newer search replaced this one
+            if (request !== searchRequest) return;
+            scenes.value = mergePageItems(
+                scenes.value,
+                results.flatMap((r) => r.data),
+                plan.mode,
+            );
+            total.value = results[results.length - 1]?.total ?? 0;
+            ratings.value = mergeMaps(
+                ratings.value,
+                results.map((r) => r.ratings),
+                partial,
+            );
+            likes.value = mergeMaps(
+                likes.value,
+                results.map((r) => r.likes),
+                partial,
+            );
+            jizzCounts.value = mergeMaps(
+                jizzCounts.value,
+                results.map((r) => r.jizz_counts),
+                partial,
+            );
+            loadedPages.value = commitPageLoad(loadedPages.value, plan);
         } catch (e: unknown) {
-            error.value = e instanceof Error ? e.message : 'Search failed';
+            if (request === searchRequest) {
+                error.value = e instanceof Error ? e.message : 'Search failed';
+            }
         } finally {
-            isLoading.value = false;
+            if (request === searchRequest) {
+                isLoading.value = false;
+                isLoadingMore.value = false;
+            }
         }
+    };
+
+    // Loads the current page (appended to the list when it is the next one with infinite scroll)
+    const search = () =>
+        runSearch(
+            planPageLoad(
+                loadedPages.value,
+                page.value,
+                settingsStore.infiniteScroll,
+                JSON.stringify({ ...getSearchParams(), limit: limit.value }),
+            ),
+        );
+
+    // Infinite scroll opened on a later page: loads the page before the list
+    const loadPrevious = async () => {
+        const plan = planPreviousPage(loadedPages.value);
+        if (plan) await runSearch(plan);
     };
 
     const reshuffle = () => {
@@ -181,6 +226,15 @@ export const useSearchStore = defineStore('search', () => {
         }
     };
 
+    const loadSourceSites = async () => {
+        try {
+            const result = await api.fetchSourceSites();
+            sourceSites.value = result.sites || [];
+        } catch (e: unknown) {
+            console.error('Failed to load source sites:', e);
+        }
+    };
+
     const resetFilters = () => {
         query.value = '';
         selectedTags.value = [];
@@ -191,6 +245,7 @@ export const useSearchStore = defineStore('search', () => {
         minSize.value = 0;
         maxSize.value = 0;
         status.value = emptyStatus();
+        selectedSourceSites.value = [];
         minDate.value = '';
         maxDate.value = '';
         resolution.value = '';
@@ -233,6 +288,8 @@ export const useSearchStore = defineStore('search', () => {
             const v = status.value[k];
             if (v !== null) filters[k] = v;
         }
+        if (selectedSourceSites.value.length > 0)
+            filters.source_sites = [...selectedSourceSites.value];
         if (minDate.value) filters.min_date = minDate.value;
         if (maxDate.value) filters.max_date = maxDate.value;
         if (liked.value) filters.liked = true;
@@ -264,6 +321,7 @@ export const useSearchStore = defineStore('search', () => {
             const v = filters[k];
             if (typeof v === 'boolean') status.value[k] = v;
         }
+        selectedSourceSites.value = filters.source_sites || [];
         minDate.value = filters.min_date || '';
         maxDate.value = filters.max_date || '';
         liked.value = filters.liked || false;
@@ -288,6 +346,8 @@ export const useSearchStore = defineStore('search', () => {
         if (minSize.value > 0) params.min_size = minSize.value;
         if (maxSize.value > 0) params.max_size = maxSize.value;
         Object.assign(params, statusParams());
+        if (selectedSourceSites.value.length > 0)
+            params.source_site = selectedSourceSites.value.join(',');
         if (minDate.value) params.min_date = minDate.value;
         if (maxDate.value) params.max_date = maxDate.value;
         if (resolution.value) params.resolution = resolution.value;
@@ -315,6 +375,8 @@ export const useSearchStore = defineStore('search', () => {
         maxSize,
         status,
         activeStatusCount,
+        selectedSourceSites,
+        sourceSites,
         minDate,
         maxDate,
         resolution,
@@ -332,6 +394,8 @@ export const useSearchStore = defineStore('search', () => {
         scenes,
         total,
         isLoading,
+        isLoadingMore,
+        loadedPages,
         error,
         ratings,
         likes,
@@ -340,8 +404,10 @@ export const useSearchStore = defineStore('search', () => {
         hasActiveFilters,
         getSearchParams,
         search,
+        loadPrevious,
         reshuffle,
         loadFilterOptions,
+        loadSourceSites,
         resetFilters,
         getCurrentFilters,
         loadFilters,

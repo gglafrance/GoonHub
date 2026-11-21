@@ -45,6 +45,9 @@ const resolutionOptions = [
             <!-- Studio -->
             <SearchFiltersFilterStudio />
 
+            <!-- Source site -->
+            <SearchFiltersFilterSource />
+
             <!-- Duration -->
             <SearchFiltersFilterDuration />
 

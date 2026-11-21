@@ -16,6 +16,7 @@ const { createStoragePath, updateStoragePath, validateStoragePath } = useApi();
 const name = ref('');
 const path = ref('');
 const isDefault = ref(false);
+const readOnly = ref(false);
 const loading = ref(false);
 const validating = ref(false);
 const error = ref('');
@@ -31,10 +32,12 @@ watch(
                 name.value = props.storagePath.name;
                 path.value = props.storagePath.path;
                 isDefault.value = props.storagePath.is_default;
+                readOnly.value = props.storagePath.read_only;
             } else {
                 name.value = '';
                 path.value = '';
                 isDefault.value = false;
+                readOnly.value = false;
             }
             error.value = '';
             validation.value = null;
@@ -64,9 +67,15 @@ const handleSubmit = async () => {
     loading.value = true;
     try {
         if (isEdit.value && props.storagePath) {
-            await updateStoragePath(props.storagePath.id, name.value, path.value, isDefault.value);
+            await updateStoragePath(
+                props.storagePath.id,
+                name.value,
+                path.value,
+                isDefault.value,
+                readOnly.value,
+            );
         } else {
-            await createStoragePath(name.value, path.value, isDefault.value);
+            await createStoragePath(name.value, path.value, isDefault.value, readOnly.value);
         }
         emit('saved');
     } catch (e: unknown) {
@@ -169,6 +178,20 @@ const handleClose = () => {
                         </label>
                         <p class="text-dim mt-1 pl-6 text-[11px]">
                             New uploads will be stored in the default path
+                        </p>
+                    </div>
+                    <div class="border-border rounded-lg border px-3 py-2.5">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-1.5">
+                                <Icon name="heroicons:lock-closed" size="13" class="text-dim" />
+                                <span class="text-xs text-white">Read-only</span>
+                            </div>
+                            <UiToggle v-model="readOnly" />
+                        </div>
+                        <p class="text-dim mt-1 text-[11px]">
+                            GoonHub never deletes, moves, renames or writes files in this path. Use
+                            it for libraries managed by another app. Deleting a scene permanently
+                            only removes it from GoonHub, and the next scan adds it back.
                         </p>
                     </div>
                     <div class="flex justify-end gap-2 pt-2">
