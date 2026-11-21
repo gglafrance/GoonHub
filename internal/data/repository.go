@@ -33,14 +33,23 @@ type RevokedTokenRepository interface {
 }
 
 type SceneSearchParams struct {
-	Page             int
-	Limit            int
-	Query            string
-	TagIDs           []uint
-	Actors           []string
-	Studio           string
-	MinDuration      int
-	MaxDuration      int
+	Page        int
+	Limit       int
+	Query       string
+	TagIDs      []uint
+	Actors      []string
+	Studio      string
+	MinDuration int
+	MaxDuration int
+	MinSizeMB   int // file size filter, megabytes (0 = no bound)
+	MaxSizeMB   int
+	// Library status filters (nil = any): metadata presence, and per-user state
+	HasActors        *bool
+	HasTags          *bool
+	HasStudio        *bool
+	Watched          *bool // the user has watched the scene
+	Rated            *bool // the user has rated the scene
+	HasMarkers       *bool // the user has markers on the scene
 	MinDate          *time.Time
 	MaxDate          *time.Time
 	MinHeight        int

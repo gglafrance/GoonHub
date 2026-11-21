@@ -11,12 +11,21 @@ type SetRatingRequest struct {
 }
 
 type SearchScenesRequest struct {
-	Query        string  `form:"q"`
-	Tags         string  `form:"tags"`
-	Actors       string  `form:"actors"`
-	Studio       string  `form:"studio"`
-	MinDuration  int     `form:"min_duration"`
-	MaxDuration  int     `form:"max_duration"`
+	Query       string `form:"q"`
+	Tags        string `form:"tags"`
+	Actors      string `form:"actors"`
+	Studio      string `form:"studio"`
+	MinDuration int    `form:"min_duration"`
+	MaxDuration int    `form:"max_duration"`
+	MinSize     int    `form:"min_size"` // megabytes
+	MaxSize     int    `form:"max_size"` // megabytes
+	// Library status filters (true / false, absent = any)
+	HasActors    *bool   `form:"has_actors"`
+	HasTags      *bool   `form:"has_tags"`
+	HasStudio    *bool   `form:"has_studio"`
+	Watched      *bool   `form:"watched"`
+	Rated        *bool   `form:"rated"`
+	HasMarkers   *bool   `form:"has_markers"`
 	MinDate      string  `form:"min_date"`
 	MaxDate      string  `form:"max_date"`
 	Resolution   string  `form:"resolution"`
@@ -30,7 +39,7 @@ type SearchScenesRequest struct {
 	MaxJizzCount int     `form:"max_jizz_count"`
 	MatchType    string  `form:"match_type"`
 	MarkerLabels string  `form:"marker_labels"` // Comma-separated list of marker labels
-	Seed         int64   `form:"seed"`           // Random shuffle seed (0 = auto-generate)
+	Seed         int64   `form:"seed"`          // Random shuffle seed (0 = auto-generate)
 }
 
 type ApplySceneMetadataRequest struct {

@@ -158,6 +158,21 @@ func (mr *MockInteractionRepositoryMockRecorder) GetLikesBySceneIDs(userID, scen
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLikesBySceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetLikesBySceneIDs), userID, sceneIDs)
 }
 
+// GetMarkedSceneIDs mocks base method.
+func (m *MockInteractionRepository) GetMarkedSceneIDs(userID uint) ([]uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMarkedSceneIDs", userID)
+	ret0, _ := ret[0].([]uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMarkedSceneIDs indicates an expected call of GetMarkedSceneIDs.
+func (mr *MockInteractionRepositoryMockRecorder) GetMarkedSceneIDs(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMarkedSceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetMarkedSceneIDs), userID)
+}
+
 // GetRatedSceneIDs mocks base method.
 func (m *MockInteractionRepository) GetRatedSceneIDs(userID uint, minRating, maxRating float64) ([]uint, error) {
 	m.ctrl.T.Helper()
@@ -201,6 +216,21 @@ func (m *MockInteractionRepository) GetRatingsBySceneIDs(userID uint, sceneIDs [
 func (mr *MockInteractionRepositoryMockRecorder) GetRatingsBySceneIDs(userID, sceneIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRatingsBySceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetRatingsBySceneIDs), userID, sceneIDs)
+}
+
+// GetWatchedSceneIDs mocks base method.
+func (m *MockInteractionRepository) GetWatchedSceneIDs(userID uint) ([]uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWatchedSceneIDs", userID)
+	ret0, _ := ret[0].([]uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWatchedSceneIDs indicates an expected call of GetWatchedSceneIDs.
+func (mr *MockInteractionRepositoryMockRecorder) GetWatchedSceneIDs(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWatchedSceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetWatchedSceneIDs), userID)
 }
 
 // IncrementJizzed mocks base method.
