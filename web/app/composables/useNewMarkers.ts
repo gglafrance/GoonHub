@@ -9,7 +9,8 @@ interface Options {
     // List of the watch page (timeline and Markers tab)
     markers: Ref<Marker[]> | undefined;
     refresh: (() => Promise<void>) | undefined;
-    // Whether a marker has the thumbnail that is waited for (default: the static one)
+    // Whether a marker has the thumbnail that is waited for (default: either type, the
+    // server only makes the one it is configured for)
     hasThumbnail?: (marker: Marker) => boolean;
 }
 
@@ -25,7 +26,9 @@ export const useNewMarkers = ({ markers, refresh, hasThumbnail }: Options) => {
     let unmounted = false;
 
     const thumbnailReady = (marker: Marker) =>
-        hasThumbnail ? hasThumbnail(marker) : !!marker.thumbnail_path;
+        hasThumbnail
+            ? hasThumbnail(marker)
+            : !!(marker.thumbnail_path || marker.animated_thumbnail_path);
 
     // Adds a marker to the page's list, kept in timestamp order like the API returns it
     const insertMarker = (marker: Marker) => {
