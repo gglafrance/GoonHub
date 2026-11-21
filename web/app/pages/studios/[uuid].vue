@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Studio, UpdateStudioInput } from '~/types/studio';
-import type { Scene } from '~/types/scene';
+import type { Scene, SceneListResponse } from '~/types/scene';
+import type { LoadedPages, PageLoadPlan } from '~/utils/infinitePages';
 
 const route = useRoute();
 const router = useRouter();
@@ -249,29 +250,90 @@ async function onLikeClick() {
     }
 }
 
-const loadScenes = async (page: number) => {
+// Infinite scroll (user setting): pages in the list and the filters they were loaded with
+const loadedPages = ref<LoadedPages>({ first: 0, last: 0 });
+const isLoadingMoreScenes = ref(false);
+let scenesRequest = 0;
+
+const runScenesPlan = async (plan: PageLoadPlan) => {
     if (!studio.value) return;
+    const request = ++scenesRequest;
+    const partial = plan.mode !== 'replace';
     try {
-        isLoadingScenes.value = true;
-        const response = await api.fetchStudioScenes(
-            studioUuid.value,
-            page,
-            scenesLimit.value,
-            scenesQuery.value || undefined,
-            scenesSort.value || undefined,
-            studio.value.name,
-            scenesSort.value === 'random' ? scenesSeed.value : undefined,
-            settingsStore.listFieldsParam,
+        if (partial) isLoadingMoreScenes.value = true;
+        else isLoadingScenes.value = true;
+        const name = studio.value.name;
+        const responses: SceneListResponse[] = await Promise.all(
+            plan.pages.map((p) =>
+                api.fetchStudioScenes(
+                    studioUuid.value,
+                    p,
+                    scenesLimit.value,
+                    scenesQuery.value || undefined,
+                    scenesSort.value || undefined,
+                    name,
+                    scenesSort.value === 'random' ? scenesSeed.value : undefined,
+                    settingsStore.listFieldsParam,
+                ),
+            ),
         );
-        scenes.value = response.data;
-        scenesTotal.value = response.total;
-        scenesRatings.value = response.ratings ?? {};
+        // A newer load replaced this one
+        if (request !== scenesRequest) return;
+        scenes.value = mergePageItems(
+            scenes.value,
+            responses.flatMap((r) => r.data as Scene[]),
+            plan.mode,
+        );
+        scenesTotal.value = responses[responses.length - 1]?.total ?? 0;
+        scenesRatings.value = Object.assign(
+            partial ? { ...scenesRatings.value } : {},
+            ...responses.map((r) => r.ratings ?? {}),
+        );
+        loadedPages.value = commitPageLoad(loadedPages.value, plan);
+        if (!partial) restoreScroll();
     } catch {
         // Ignore scene loading errors
     } finally {
-        isLoadingScenes.value = false;
+        if (request === scenesRequest) {
+            isLoadingScenes.value = false;
+            isLoadingMoreScenes.value = false;
+        }
     }
 };
+
+const scenesContext = () =>
+    JSON.stringify([
+        studioUuid.value,
+        scenesQuery.value,
+        scenesSort.value,
+        scenesSeed.value,
+        scenesLimit.value,
+    ]);
+
+// Loads a page (appended to the list when it is the next one with infinite scroll)
+const loadScenes = (page: number) =>
+    runScenesPlan(
+        planPageLoad(loadedPages.value, page, settingsStore.infiniteScroll, scenesContext()),
+    );
+
+const { restore: restoreScroll, keepPositionWhile } = useInfiniteScrollPosition();
+const hasMoreScenes = computed(
+    () => loadedPages.value.last * scenesLimit.value < scenesTotal.value,
+);
+// The page watcher loads it: the URL keeps the last loaded page
+const loadMoreScenes = () => {
+    if (isLoadingScenes.value || isLoadingMoreScenes.value) return;
+    scenesPage.value = loadedPages.value.last + 1;
+};
+const loadPreviousScenes = () =>
+    keepPositionWhile(async () => {
+        const plan = planPreviousPage(loadedPages.value);
+        if (plan) await runScenesPlan(plan);
+    });
+watch(
+    () => settingsStore.infiniteScroll,
+    () => loadScenes(scenesPage.value),
+);
 
 const onSearchInput = () => {
     if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
@@ -816,10 +878,17 @@ definePageMeta({
 
                     <div v-else>
                         <Pagination
+                            v-if="!settingsStore.infiniteScroll"
                             v-model="scenesPage"
                             position="top"
                             :total="scenesTotal"
                             :limit="scenesLimit"
+                        />
+                        <SceneListLoadPrevious
+                            v-else-if="loadedPages.first > 1"
+                            :first-page="loadedPages.first"
+                            :loading="isLoadingMoreScenes"
+                            @load-previous="loadPreviousScenes"
                         />
 
                         <SceneCollection
@@ -834,7 +903,15 @@ definePageMeta({
                             @drag-select="(ids, additive) => dragSelect(ids, additive)"
                             @sort="onTableSort"
                         />
+                        <SceneListInfiniteLoader
+                            v-if="settingsStore.infiniteScroll"
+                            :has-more="hasMoreScenes"
+                            :loading="isLoadingMoreScenes"
+                            :total="scenesTotal"
+                            @load-more="loadMoreScenes"
+                        />
                         <Pagination
+                            v-else
                             v-model="scenesPage"
                             :total="scenesTotal"
                             :limit="scenesLimit"

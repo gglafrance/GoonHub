@@ -118,6 +118,8 @@ Per-user application preferences.
 | `default_marker_view` | VARCHAR(10) | NO | 'grouped' | Initial view of the markers page (`grouped` or `all`) |
 | `advanced_marker_filters` | BOOLEAN | NO | false | Show the advanced filter panel (labels, scene tags/actors/studio, ranges only) on the marker pages |
 | `pagination_position` | VARCHAR(10) | NO | 'bottom' | Page controls position on paginated pages: `top`, `bottom` or `both` |
+| `grid_density` | VARCHAR(12) | NO | 'comfortable' | Card size of the scene grids (and actor/studio grids): `compact`, `comfortable` or `large` |
+| `infinite_scroll` | BOOLEAN | NO | false | Scene list pages (search, actor, studio, explorer) load the next page on scroll instead of showing page controls |
 | `date_format` | VARCHAR(20) | NO | 'auto' | Date display: `auto` (browser locale), `DD/MM/YYYY`, `MM/DD/YYYY`, `YYYY-MM-DD`, `DD.MM.YYYY`, `D MMM YYYY` or `MMM D, YYYY` |
 | `marker_loop` | BOOLEAN | NO | false | Loop the marker range when clicking a marker that has an `end_timestamp` |
 | `videos_per_page` | INTEGER | NO | 20 | Grid pagination size |

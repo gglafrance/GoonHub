@@ -123,6 +123,9 @@ type UpdateAllSettingsRequest struct {
 	PaginationPosition       string                       `json:"pagination_position"`
 	DateFormat               string                       `json:"date_format"`
 	SceneCardConfig          UpdateSceneCardConfigRequest `json:"scene_card_config"`
+	GridDensity              string                       `json:"grid_density"`
+	// InfiniteScroll: nil keeps the current value
+	InfiniteScroll *bool `json:"infinite_scroll"`
 	// SceneListView: nil keeps the current value
 	SceneListView *SceneListViewRequest `json:"scene_list_view"`
 }

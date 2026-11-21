@@ -89,6 +89,27 @@ const handlePageChange = async (page: number) => {
     }
 };
 
+// Infinite scroll instead of page controls (user setting)
+const settingsStore = useSettingsStore();
+const infiniteScroll = computed(() => settingsStore.infiniteScroll);
+const { restore: restoreScroll, keepPositionWhile } = useInfiniteScrollPosition();
+const hasMore = computed(
+    () => explorerStore.loadedPages.last * explorerStore.limit < explorerStore.totalScenes,
+);
+const loadMore = () => {
+    if (explorerStore.isLoading || explorerStore.isSearching || explorerStore.isLoadingMore) return;
+    handlePageChange(explorerStore.loadedPages.last + 1);
+};
+const loadPrevious = () => keepPositionWhile(() => explorerStore.loadPrevious());
+// Back on a scrolled folder: where the user was, once the list is rebuilt
+watch(
+    () => explorerStore.isLoading || explorerStore.isSearching,
+    (loading, was) => {
+        if (was && !loading) restoreScroll();
+    },
+);
+watch(infiniteScroll, () => handlePageChange(explorerStore.page));
+
 const hasContent = computed(
     () => explorerStore.subfolders.length > 0 || explorerStore.scenes.length > 0,
 );
@@ -158,6 +179,7 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
             <!-- Scenes -->
             <div v-if="explorerStore.scenes.length > 0">
                 <Pagination
+                    v-if="!infiniteScroll"
                     position="top"
                     :model-value="explorerStore.page"
                     :total="explorerStore.totalScenes"
@@ -198,6 +220,13 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
                     </div>
                 </div>
 
+                <SceneListLoadPrevious
+                    v-if="infiniteScroll && explorerStore.loadedPages.first > 1"
+                    :first-page="explorerStore.loadedPages.first"
+                    :loading="explorerStore.isLoadingMore"
+                    @load-previous="loadPrevious"
+                />
+
                 <SceneCollection
                     :scenes="explorerStore.scenes"
                     :table="isTable"
@@ -208,7 +237,15 @@ const showSearch = computed(() => hasContent.value || explorerStore.isSearchActi
                     @drag-select="(ids, additive) => explorerStore.dragSelect(ids, additive)"
                 />
 
+                <SceneListInfiniteLoader
+                    v-if="infiniteScroll"
+                    :has-more="hasMore"
+                    :loading="explorerStore.isLoadingMore"
+                    :total="explorerStore.totalScenes"
+                    @load-more="loadMore"
+                />
                 <Pagination
+                    v-else
                     :model-value="explorerStore.page"
                     :total="explorerStore.totalScenes"
                     :limit="explorerStore.limit"

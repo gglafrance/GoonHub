@@ -74,6 +74,10 @@ type UserSettings struct {
 	// DateFormat: how dates are displayed (auto = browser locale, or a pattern like DD/MM/YYYY)
 	DateFormat      string          `gorm:"size:20;not null;default:'auto'" json:"date_format"`
 	SceneCardConfig SceneCardConfig `gorm:"type:jsonb;not null" json:"scene_card_config"`
+	// GridDensity: size of the cards in the scene grids (compact, comfortable, large)
+	GridDensity string `gorm:"size:12;not null;default:'comfortable'" json:"grid_density"`
+	// InfiniteScroll: scene list pages load the next page on scroll instead of page controls
+	InfiniteScroll bool `gorm:"not null;default:false" json:"infinite_scroll"`
 	// SceneListView: grid or table per scene list page, and the table columns
 	SceneListView   SceneListView `gorm:"type:jsonb;not null" json:"scene_list_view"`
 	MaxItemsPerPage int           `gorm:"-" json:"max_items_per_page"`
