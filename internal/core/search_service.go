@@ -538,6 +538,8 @@ func (s *SearchService) buildMeiliParams(params data.SceneSearchParams, preFilte
 	meiliParams.HasActors = params.HasActors
 	meiliParams.HasTags = params.HasTags
 	meiliParams.HasStudio = params.HasStudio
+	meiliParams.SourceSites = params.SourceSites
+	meiliParams.HasSource = params.HasSource
 	if params.MinSizeMB > 0 {
 		minSize := int64(params.MinSizeMB) * bytesPerMB
 		meiliParams.MinSize = &minSize
@@ -632,6 +634,7 @@ func buildSceneDocument(scene *data.Scene, tags []data.Tag, actors []data.Actor)
 		CreatedAt:        scene.CreatedAt.Unix(),
 		ProcessingStatus: scene.ProcessingStatus,
 		ViewCount:        int(scene.ViewCount),
+		SourceSite:       SourceSiteFromURL(scene.SourceURL),
 	}
 }
 
@@ -770,6 +773,42 @@ func (s *SearchService) ReindexAll() error {
 
 	s.logger.Info("full reindex completed", zap.Int("total_scenes", len(scenes)))
 	return nil
+}
+
+// SourceSiteCount is a source site with the number of scenes that come from it.
+type SourceSiteCount struct {
+	Site  string
+	Count int64
+}
+
+// GetSourceSites lists the source sites of the library with their scene counts, most scenes
+// first (then by name). It reads the Meilisearch source_site facet: scenes indexed before
+// source sites existed are missing until a full reindex.
+func (s *SearchService) GetSourceSites() ([]SourceSiteCount, error) {
+	if s.meiliClient == nil {
+		return nil, fmt.Errorf("meilisearch is not configured")
+	}
+	facets, err := s.meiliClient.SourceSiteFacets()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get source site facets: %w", err)
+	}
+	return sortSourceSiteCounts(facets), nil
+}
+
+// sortSourceSiteCounts converts facet counts to source site counts, most scenes first, ties
+// by site name.
+func sortSourceSiteCounts(facets []meilisearch.FacetCount) []SourceSiteCount {
+	sites := make([]SourceSiteCount, len(facets))
+	for i, f := range facets {
+		sites[i] = SourceSiteCount{Site: f.Value, Count: f.Count}
+	}
+	sort.Slice(sites, func(i, j int) bool {
+		if sites[i].Count != sites[j].Count {
+			return sites[i].Count > sites[j].Count
+		}
+		return sites[i].Site < sites[j].Site
+	})
+	return sites
 }
 
 // UpdateMaxTotalHits updates the Meilisearch pagination maxTotalHits setting.

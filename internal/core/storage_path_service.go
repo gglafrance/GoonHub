@@ -65,7 +65,9 @@ func (s *StoragePathService) GetDefault() (*data.StoragePath, error) {
 	return s.repo.GetDefault()
 }
 
-func (s *StoragePathService) Create(name, path string, isDefault bool) (*data.StoragePath, error) {
+// Create adds a storage path. With readOnly, GoonHub never deletes, moves, renames or writes
+// media files under it.
+func (s *StoragePathService) Create(name, path string, isDefault, readOnly bool) (*data.StoragePath, error) {
 	// Validate path exists and is accessible
 	if err := s.ValidatePath(path); err != nil {
 		return nil, err
@@ -91,6 +93,7 @@ func (s *StoragePathService) Create(name, path string, isDefault bool) (*data.St
 		Name:      name,
 		Path:      path,
 		IsDefault: isDefault,
+		ReadOnly:  readOnly,
 	}
 
 	if err := s.repo.Create(storagePath); err != nil {
@@ -102,12 +105,14 @@ func (s *StoragePathService) Create(name, path string, isDefault bool) (*data.St
 		zap.String("name", name),
 		zap.String("path", path),
 		zap.Bool("is_default", isDefault),
+		zap.Bool("read_only", readOnly),
 	)
 
 	return storagePath, nil
 }
 
-func (s *StoragePathService) Update(id uint, name, path string, isDefault bool) (*data.StoragePath, error) {
+// Update changes a storage path. A nil readOnly keeps the current read-only flag.
+func (s *StoragePathService) Update(id uint, name, path string, isDefault bool, readOnly *bool) (*data.StoragePath, error) {
 	existing, err := s.repo.GetByID(id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get storage path: %w", err)
@@ -142,6 +147,9 @@ func (s *StoragePathService) Update(id uint, name, path string, isDefault bool) 
 	existing.Name = name
 	existing.Path = path
 	existing.IsDefault = isDefault
+	if readOnly != nil {
+		existing.ReadOnly = *readOnly
+	}
 
 	if err := s.repo.Update(existing); err != nil {
 		return nil, fmt.Errorf("failed to update storage path: %w", err)
@@ -152,6 +160,7 @@ func (s *StoragePathService) Update(id uint, name, path string, isDefault bool) 
 		zap.String("name", name),
 		zap.String("path", path),
 		zap.Bool("is_default", isDefault),
+		zap.Bool("read_only", existing.ReadOnly),
 	)
 
 	return existing, nil

@@ -1,6 +1,9 @@
 package meilisearch
 
 import (
+	"encoding/json"
+	"reflect"
+	"sort"
 	"testing"
 
 	"go.uber.org/zap"
@@ -78,6 +81,39 @@ func TestClient_buildFilters(t *testing.T) {
 			},
 			expectedLen:    2,
 			expectContains: []string{"height >= 720", "height <= 1080"},
+		},
+		{
+			name:           "one source site",
+			params:         SearchParams{SourceSites: []string{"pornhub.com"}},
+			expectedLen:    1,
+			expectContains: []string{`source_site IN ["pornhub.com"]`},
+		},
+		{
+			name:           "source sites are OR-ed and escaped",
+			params:         SearchParams{SourceSites: []string{"pornhub.com", `we"ird.com`}},
+			expectedLen:    1,
+			expectContains: []string{`source_site IN ["pornhub.com", "we\"ird.com"]`},
+		},
+		{
+			name:           "has a source",
+			params:         SearchParams{HasSource: boolPtr(true)},
+			expectedLen:    1,
+			expectContains: []string{"(source_site EXISTS AND source_site IS NOT EMPTY)"},
+		},
+		{
+			name:           "no source",
+			params:         SearchParams{HasSource: boolPtr(false)},
+			expectedLen:    1,
+			expectContains: []string{"(source_site NOT EXISTS OR source_site IS EMPTY)"},
+		},
+		{
+			name:        "source sites with has source",
+			params:      SearchParams{SourceSites: []string{"xvideos.com"}, HasSource: boolPtr(true)},
+			expectedLen: 2,
+			expectContains: []string{
+				`source_site IN ["xvideos.com"]`,
+				"(source_site EXISTS AND source_site IS NOT EMPTY)",
+			},
 		},
 		{
 			name: "scene IDs filter",
@@ -230,3 +266,27 @@ func TestBuildSort_Fields(t *testing.T) {
 }
 
 func boolPtr(v bool) *bool { return &v }
+
+func TestParseFacetDistribution(t *testing.T) {
+	distribution := map[string]interface{}{
+		"source_site": map[string]interface{}{
+			"pornhub.com": float64(12),
+			"xvideos.com": json.Number("3"),
+			"":            float64(40), // scenes without a source
+			"zero.com":    float64(0),
+		},
+		"studio": map[string]interface{}{"x": float64(1)},
+	}
+	got := parseFacetDistribution(distribution, "source_site")
+	sort.Slice(got, func(i, j int) bool { return got[i].Value < got[j].Value })
+	want := []FacetCount{{Value: "pornhub.com", Count: 12}, {Value: "xvideos.com", Count: 3}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseFacetDistribution = %#v, want %#v", got, want)
+	}
+
+	for _, bad := range []interface{}{nil, "x", map[string]interface{}{}, map[string]interface{}{"source_site": 3}} {
+		if got := parseFacetDistribution(bad, "source_site"); len(got) != 0 {
+			t.Fatalf("parseFacetDistribution(%#v) = %#v, want nothing", bad, got)
+		}
+	}
+}

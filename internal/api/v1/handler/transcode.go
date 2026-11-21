@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"goonhub/internal/data"
+	"goonhub/internal/api/v1/response"
 	"goonhub/internal/streaming"
 
 	"github.com/gin-gonic/gin"
@@ -27,7 +27,7 @@ const (
 
 // sceneDetailResponse is a scene with what the player needs to know to play it.
 type sceneDetailResponse struct {
-	*data.Scene
+	response.SceneDetail
 	Playback streaming.PlaybackInfo `json:"playback"`
 }
 

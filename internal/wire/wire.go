@@ -138,6 +138,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Storage & Scan Services
 		provideStoragePathService,
+		provideMediaFileGuard,
 		provideScanService,
 		provideExplorerService,
 
@@ -441,8 +442,8 @@ func provideAdminService(userRepo data.UserRepository, roleRepo data.RoleReposit
 
 // --- Scene & Content Services ---
 
-func provideSceneService(repo data.SceneRepository, cfg *config.Config, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger, jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, appSettingsRepo data.AppSettingsRepository, fingerprintIndex core.SceneFingerprintIndex) *core.SceneService {
-	return core.NewSceneService(repo, cfg.Processing.VideoDir, cfg.Processing.MetadataDir, processingService, eventBus, logger.Logger, jobHistoryRepo, dlqRepo, appSettingsRepo, fingerprintIndex)
+func provideSceneService(repo data.SceneRepository, cfg *config.Config, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger, jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, appSettingsRepo data.AppSettingsRepository, fingerprintIndex core.SceneFingerprintIndex, mediaGuard *core.MediaFileGuard) *core.SceneService {
+	return core.NewSceneService(repo, cfg.Processing.VideoDir, cfg.Processing.MetadataDir, processingService, eventBus, logger.Logger, jobHistoryRepo, dlqRepo, appSettingsRepo, fingerprintIndex, mediaGuard)
 }
 
 func provideTagService(tagRepo data.TagRepository, sceneRepo data.SceneRepository, logger *logging.Logger) *core.TagService {
@@ -526,6 +527,10 @@ func provideDLQService(dlqRepo data.DLQRepository, jobHistoryRepo data.JobHistor
 
 // --- Storage & Scan Services ---
 
+func provideMediaFileGuard(repo data.StoragePathRepository, logger *logging.Logger) *core.MediaFileGuard {
+	return core.NewMediaFileGuard(repo, logger.Logger)
+}
+
 func provideStoragePathService(repo data.StoragePathRepository, logger *logging.Logger) *core.StoragePathService {
 	return core.NewStoragePathService(repo, logger.Logger)
 }
@@ -534,8 +539,8 @@ func provideScanService(storagePathService *core.StoragePathService, sceneRepo d
 	return core.NewScanService(storagePathService, sceneRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
 }
 
-func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, jobHistoryRepo data.JobHistoryRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config, fingerprintIndex core.SceneFingerprintIndex) *core.ExplorerService {
-	return core.NewExplorerService(explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, jobHistoryRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir, fingerprintIndex)
+func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, jobHistoryRepo data.JobHistoryRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config, fingerprintIndex core.SceneFingerprintIndex, mediaGuard *core.MediaFileGuard) *core.ExplorerService {
+	return core.NewExplorerService(explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, jobHistoryRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir, fingerprintIndex, mediaGuard)
 }
 
 // --- External API Services ---

@@ -42,7 +42,11 @@ const emit = defineEmits<{
             </button>
         </div>
         <div class="flex items-center gap-2">
-            <span v-if="deletionEnabled" class="text-lava/80 text-[10px]">
+            <span
+                v-if="deletionEnabled"
+                class="text-lava/80 text-[10px]"
+                title="Video files on read-only storage paths are kept"
+            >
                 Files not kept are deleted
                 {{ deletionDelayHours === 0 ? 'right away' : `after ${deletionDelayHours}h` }}
             </span>

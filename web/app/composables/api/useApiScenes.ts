@@ -1,3 +1,5 @@
+import type { SourceSiteOption } from '~/types/scene';
+
 /**
  * Scene-related API operations: CRUD, search, streaming, filters, interactions.
  */
@@ -94,6 +96,15 @@ export const useApiScenes = () => {
 
     const fetchFilterOptions = async () => {
         const response = await fetch('/api/v1/scenes/filters', {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    // Sites scenes come from, with their scene counts, most scenes first
+    const fetchSourceSites = async (): Promise<{ sites: SourceSiteOption[] }> => {
+        const response = await fetch('/api/v1/scenes/source-sites', {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
@@ -331,6 +342,7 @@ export const useApiScenes = () => {
         searchScenes,
         fetchAllSearchSceneIDs,
         fetchFilterOptions,
+        fetchSourceSites,
         fetchScene,
         updateSceneDetails,
         extractThumbnail,
