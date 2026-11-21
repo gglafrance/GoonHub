@@ -2,7 +2,6 @@
 const authStore = useAuthStore();
 const showShortcuts = ref(false);
 const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
-const { enabled: hoverAudioEnabled, toggle: toggleHoverAudio } = useHoverAudio();
 </script>
 
 <template>
@@ -78,30 +77,7 @@ const { enabled: hoverAudioEnabled, toggle: toggleHoverAudio } = useHoverAudio()
                             />
                         </button>
 
-                        <button
-                            class="border-border flex h-7 w-7 items-center justify-center rounded-md
-                                border transition-all"
-                            :class="
-                                hoverAudioEnabled
-                                    ? 'border-lava/30 text-lava'
-                                    : 'text-dim hover:border-lava/30 hover:text-lava'
-                            "
-                            :title="
-                                hoverAudioEnabled
-                                    ? 'Mute preview sound on hover'
-                                    : 'Play preview sound on hover'
-                            "
-                            @click="toggleHoverAudio"
-                        >
-                            <Icon
-                                :name="
-                                    hoverAudioEnabled
-                                        ? 'heroicons:speaker-wave'
-                                        : 'heroicons:speaker-x-mark'
-                                "
-                                size="16"
-                            />
-                        </button>
+                        <HeaderHoverAudioControl />
 
                         <HeaderJobStatus />
 
