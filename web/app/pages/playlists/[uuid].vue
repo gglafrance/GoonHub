@@ -207,12 +207,23 @@ const handleShuffle = () => {
                     <Icon name="heroicons:arrows-right-left" size="14" />
                     Shuffle
                 </button>
+
+                <!-- List / table -->
+                <SceneTableViewControls
+                    v-if="store.currentPlaylist.scenes.length > 0"
+                    class="ml-auto"
+                    page="playlist"
+                    grid-label="List"
+                    grid-icon="heroicons:list-bullet"
+                    :hidden-columns="['rating', 'actors']"
+                />
             </div>
 
             <!-- Scene list -->
             <PlaylistSceneList
                 :scenes="store.currentPlaylist.scenes"
                 :is-owner="isOwner"
+                :playlist-uuid="uuid"
                 @remove="handleRemoveScene"
                 @remove-many="handleRemoveScenes"
                 @reorder="handleReorder"

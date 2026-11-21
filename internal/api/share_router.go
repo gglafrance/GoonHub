@@ -42,6 +42,7 @@ func NewShareRouter(cfg *config.Config, shareHandler *handler.ShareHandler, ogMi
 
 	r.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{
 		`/api/v1/shares/.*/stream`,
+		`/api/v1/shares/.*/transcode`,
 	})))
 
 	r.Use(middleware.SecurityHeaders(cfg.Environment))
@@ -88,6 +89,8 @@ func NewShareRouter(cfg *config.Config, shareHandler *handler.ShareHandler, ogMi
 	{
 		shares.GET("/:token", shareHandler.ResolveShareLink)
 		shares.GET("/:token/stream", shareHandler.StreamShareLink)
+		shares.GET("/:token/transcode", shareHandler.TranscodeShareLink)
+		shares.HEAD("/:token/transcode", shareHandler.TranscodeShareLink)
 	}
 
 	// SPA fallback for /share/* paths only

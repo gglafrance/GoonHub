@@ -3,6 +3,7 @@ type JobsSubTabType =
     | 'manual'
     | 'history'
     | 'workers'
+    | 'scheduling'
     | 'processing'
     | 'triggers'
     | 'retry'
@@ -20,6 +21,9 @@ const props = defineProps<{
 
         <!-- Workers sub-tab -->
         <SettingsJobsWorkers v-if="props.activeSubTab === 'workers'" />
+
+        <!-- Scheduling sub-tab -->
+        <SettingsJobsScheduling v-if="props.activeSubTab === 'scheduling'" />
 
         <!-- Processing sub-tab -->
         <SettingsJobsProcessing v-if="props.activeSubTab === 'processing'" />

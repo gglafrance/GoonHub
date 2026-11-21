@@ -9,6 +9,11 @@ import type {
     MarkerView,
     PaginationPosition,
     DateFormat,
+    SceneListView,
+    SceneListPage,
+    SceneListViewMode,
+    SceneTableColumn,
+    GridDensity,
 } from '~/types/settings';
 import type { ParsingRulesSettings, ParsingPreset } from '~/types/parsing-rules';
 
@@ -36,6 +41,11 @@ export const useSettingsStore = defineStore(
         const loop = computed(() => settings.value?.loop ?? false);
         const abLoopControls = computed(() => settings.value?.ab_loop_controls ?? false);
         const markerLoop = computed(() => settings.value?.marker_loop ?? false);
+        // Touch gestures on the player (on by default, also for share pages without settings)
+        const playerGestures = computed(() => settings.value?.player_gestures ?? true);
+        const gestureSeekStep = computed(() =>
+            normalizeGestureSeekStep(settings.value?.gesture_seek_step),
+        );
         const advancedMarkerFilters = computed(
             () => settings.value?.advanced_marker_filters ?? false,
         );
@@ -49,6 +59,13 @@ export const useSettingsStore = defineStore(
             const format = settings.value?.date_format;
             return isDateFormat(format) ? format : DEFAULT_DATE_FORMAT;
         });
+        const gridDensity = computed<GridDensity>(() => {
+            const density = settings.value?.grid_density;
+            return density === 'compact' || density === 'large' ? density : 'comfortable';
+        });
+        const infiniteScroll = computed(() => settings.value?.infinite_scroll ?? false);
+        const showReplayHeatmap = computed(() => settings.value?.show_replay_heatmap ?? true);
+        const recordReplayHeatmap = computed(() => settings.value?.record_replay_heatmap ?? true);
         const videosPerPage = computed(() => settings.value?.videos_per_page ?? 20);
         const defaultSortOrder = computed<SortOrder>(
             () => settings.value?.default_sort_order ?? 'created_at_desc',
@@ -136,6 +153,71 @@ export const useSettingsStore = defineStore(
 
             return fieldsSet.size > 0 ? [...fieldsSet].join(',') : '';
         });
+
+        const sceneListView = computed<SceneListView>(() => {
+            const view = settings.value?.scene_list_view;
+            return {
+                pages: view?.pages ?? {},
+                columns: view?.columns?.length ? view.columns : [...DEFAULT_SCENE_TABLE_COLUMNS],
+            };
+        });
+
+        const sceneListMode = (page: SceneListPage): SceneListViewMode =>
+            sceneListView.value.pages[page] ?? 'grid';
+
+        // card_fields of the scene list pages: the card fields, plus the fields of the visible
+        // table columns when a page shows a table
+        const listFieldsParam = computed(() => {
+            const fields = new Set(cardFieldsParam.value ? cardFieldsParam.value.split(',') : []);
+            const view = sceneListView.value;
+            if (Object.values(view.pages).includes('table')) {
+                for (const col of view.columns) {
+                    const field = sceneTableColumnDef(col)?.field;
+                    if (field) fields.add(field);
+                }
+            }
+            return [...fields].join(',');
+        });
+
+        // Saves a new scene list view right away (view toggles and column pickers)
+        const saveSceneListView = async (view: SceneListView) => {
+            if (!settings.value) return;
+            settings.value.scene_list_view = view;
+            if (draft.value) draft.value.scene_list_view = JSON.parse(JSON.stringify(view));
+            try {
+                await saveAllSettings();
+            } catch (e: unknown) {
+                console.error('Failed to save the scene list view:', e);
+            }
+        };
+
+        const setSceneListMode = (page: SceneListPage, mode: SceneListViewMode) => {
+            const view = sceneListView.value;
+            return saveSceneListView({ ...view, pages: { ...view.pages, [page]: mode } });
+        };
+
+        const setSceneTableColumns = (columns: SceneTableColumn[]) =>
+            saveSceneListView({ ...sceneListView.value, columns: [...columns] });
+
+        // Quick display toggles (next to the scene lists), saved right away
+        const saveDisplaySetting = async (
+            patch: Partial<Pick<UserSettings, 'grid_density' | 'infinite_scroll'>>,
+        ) => {
+            if (!settings.value) return;
+            Object.assign(settings.value, patch);
+            if (draft.value) Object.assign(draft.value, patch);
+            try {
+                await saveAllSettings();
+            } catch (e: unknown) {
+                console.error('Failed to save the display settings:', e);
+            }
+        };
+
+        const setGridDensity = (density: GridDensity) =>
+            saveDisplaySetting({ grid_density: density });
+
+        const setInfiniteScroll = (enabled: boolean) =>
+            saveDisplaySetting({ infinite_scroll: enabled });
 
         const hasUnsavedChanges = computed(() => {
             if (!draft.value || !settings.value) return false;
@@ -243,10 +325,18 @@ export const useSettingsStore = defineStore(
             loop,
             abLoopControls,
             markerLoop,
+            playerGestures,
+            gestureSeekStep,
             advancedMarkerFilters,
             defaultMarkerView,
             paginationPosition,
             dateFormat,
+            gridDensity,
+            infiniteScroll,
+            setGridDensity,
+            setInfiniteScroll,
+            showReplayHeatmap,
+            recordReplayHeatmap,
             videosPerPage,
             defaultSortOrder,
             defaultTagSort,
@@ -256,6 +346,11 @@ export const useSettingsStore = defineStore(
             maxItemsPerPage,
             sceneCardConfig,
             cardFieldsParam,
+            sceneListView,
+            sceneListMode,
+            listFieldsParam,
+            setSceneListMode,
+            setSceneTableColumns,
             hasUnsavedChanges,
             theaterMode,
             keyboardLayout,

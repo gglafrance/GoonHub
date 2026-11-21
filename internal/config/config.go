@@ -25,6 +25,14 @@ type Config struct {
 	Sharing      SharingConfig      `mapstructure:"sharing"`
 	Duplication  DuplicationConfig  `mapstructure:"duplication"`
 	ClickHouse   ClickHouseConfig   `mapstructure:"clickhouse"`
+	LibraryHealth LibraryHealthConfig `mapstructure:"library_health"`
+}
+
+// LibraryHealthConfig configures the background tasks of the library health page.
+type LibraryHealthConfig struct {
+	// StatConcurrency is the number of files stat'ed at once by the missing-file check and the
+	// fix-sizes task. Keep it low on NFS, where each stat is a network round trip.
+	StatConcurrency int `mapstructure:"stat_concurrency"`
 }
 
 type DuplicationConfig struct {
@@ -64,6 +72,29 @@ type StreamingConfig struct {
 	BufferSize       int           `mapstructure:"buffer_size"`
 	PathCacheTTL     time.Duration `mapstructure:"path_cache_ttl"`
 	PathCacheMaxSize int           `mapstructure:"path_cache_max_size"`
+	// On-the-fly conversion of files browsers can't play (see streaming.Transcoder).
+	Transcode TranscodeConfig `mapstructure:"transcode"`
+}
+
+// TranscodeConfig limits and tunes the on-the-fly conversion (CPU ffmpeg, H.264 + AAC in
+// fragmented MP4) of scenes browsers can't play. It can be turned off at runtime with the
+// transcoding_enabled app setting.
+type TranscodeConfig struct {
+	// Maximum number of ffmpeg conversions running at the same time (one per viewer).
+	MaxConcurrent int `mapstructure:"max_concurrent"`
+	// libx264 preset (ultrafast ... veryslow).
+	Preset string `mapstructure:"preset"`
+	// libx264 constant rate factor (0-51, lower is better quality).
+	CRF int `mapstructure:"crf"`
+	// Downscale videos larger than this (height of landscape videos, width of portrait
+	// ones). 0 keeps the original size.
+	MaxHeight int `mapstructure:"max_height"`
+	// AAC bitrate of re-encoded audio, e.g. "160k".
+	AudioBitrate string `mapstructure:"audio_bitrate"`
+	// ffmpeg threads per conversion, 0 lets ffmpeg decide.
+	Threads int `mapstructure:"threads"`
+	// Seconds between keyframes of re-encoded video (one MP4 fragment per keyframe).
+	KeyframeInterval int `mapstructure:"keyframe_interval"`
 }
 
 type PornDBConfig struct {
@@ -250,6 +281,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("sharing.base_url", "")
 	v.SetDefault("sharing.port", "")
 	v.SetDefault("duplication.enabled", false)
+	v.SetDefault("library_health.stat_concurrency", 8)
 	v.SetDefault("duplication.fingerprint_workers", 1)
 	v.SetDefault("duplication.fingerprint_timeout", 5*time.Minute)
 	v.SetDefault("duplication.audio_density_threshold", 0.50)
@@ -270,6 +302,13 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("streaming.buffer_size", 262144)       // 256KB (8x default 32KB)
 	v.SetDefault("streaming.path_cache_ttl", 5*time.Minute)
 	v.SetDefault("streaming.path_cache_max_size", 10000)
+	v.SetDefault("streaming.transcode.max_concurrent", 4)
+	v.SetDefault("streaming.transcode.preset", "veryfast")
+	v.SetDefault("streaming.transcode.crf", 23)
+	v.SetDefault("streaming.transcode.max_height", 1080)
+	v.SetDefault("streaming.transcode.audio_bitrate", "160k")
+	v.SetDefault("streaming.transcode.threads", 0)
+	v.SetDefault("streaming.transcode.keyframe_interval", 2)
 
 	// Environment variables
 	v.SetEnvPrefix("GOONHUB")

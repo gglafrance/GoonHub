@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"goonhub/internal/data"
+	"sort"
 	"sync"
 
 	"go.uber.org/zap"
@@ -38,6 +39,23 @@ func (s *RBACService) HasPermission(role, permission string) bool {
 		return false
 	}
 	return perms[permission]
+}
+
+// PermissionsForRole returns the permission names granted to a role, sorted by name.
+// An unknown role has no permission (empty, non-nil slice).
+func (s *RBACService) PermissionsForRole(role string) []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	perms := s.cache[role]
+	out := make([]string, 0, len(perms))
+	for name, granted := range perms {
+		if granted {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (s *RBACService) RefreshCache() error {

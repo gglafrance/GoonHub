@@ -16,6 +16,7 @@ mocks: setup-test
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_permission_repository.go -package=mocks goonhub/internal/data PermissionRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_job_history_repository.go -package=mocks goonhub/internal/data JobHistoryRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_pool_config_repository.go -package=mocks goonhub/internal/data PoolConfigRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_job_schedule_repository.go -package=mocks goonhub/internal/data JobScheduleRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_processing_config_repository.go -package=mocks goonhub/internal/data ProcessingConfigRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_trigger_config_repository.go -package=mocks goonhub/internal/data TriggerConfigRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_tag_repository.go -package=mocks goonhub/internal/data TagRepository
@@ -37,6 +38,8 @@ mocks: setup-test
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_duplication_config_repository.go -package=mocks goonhub/internal/data DuplicationConfigRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_import_repository.go -package=mocks goonhub/internal/data ImportRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_saved_marker_filter_repository.go -package=mocks goonhub/internal/data SavedMarkerFilterRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_replay_heatmap_repository.go -package=mocks goonhub/internal/data ReplayHeatmapRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_library_health_repository.go -package=mocks goonhub/internal/data LibraryHealthRepository
 
 test: mocks
 	go test ./...

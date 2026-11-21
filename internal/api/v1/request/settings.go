@@ -122,5 +122,22 @@ type UpdateAllSettingsRequest struct {
 	DefaultMarkerView        string                       `json:"default_marker_view"`
 	PaginationPosition       string                       `json:"pagination_position"`
 	DateFormat               string                       `json:"date_format"`
-	SceneCardConfig          UpdateSceneCardConfigRequest `json:"scene_card_config"`
+	// PlayerGestures and GestureSeekStep keep their current value when omitted (nil / 0)
+	PlayerGestures  *bool `json:"player_gestures"`
+	GestureSeekStep int   `json:"gesture_seek_step"`
+	// Nil (field absent) keeps the current value: both settings are on by default
+	ShowReplayHeatmap   *bool                        `json:"show_replay_heatmap"`
+	RecordReplayHeatmap *bool                        `json:"record_replay_heatmap"`
+	SceneCardConfig     UpdateSceneCardConfigRequest `json:"scene_card_config"`
+	GridDensity         string                       `json:"grid_density"`
+	// InfiniteScroll: nil keeps the current value
+	InfiniteScroll *bool `json:"infinite_scroll"`
+	// SceneListView: nil keeps the current value
+	SceneListView *SceneListViewRequest `json:"scene_list_view"`
+}
+
+// SceneListViewRequest is the grid/table view per scene list page and the table columns.
+type SceneListViewRequest struct {
+	Pages   map[string]string `json:"pages"`
+	Columns []string          `json:"columns"`
 }

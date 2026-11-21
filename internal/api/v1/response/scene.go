@@ -31,6 +31,8 @@ type SceneListItem struct {
 	Studio      *string  `json:"studio,omitempty"`
 	Tags        []string `json:"tags,omitempty"`
 	Actors      []string `json:"actors,omitempty"`
+	// ReleaseDate is included with the release_date card field (null when unknown)
+	ReleaseDate *time.Time `json:"release_date,omitempty"`
 	// Markers of the current user, included together with tags
 	Markers []SceneCardMarker `json:"markers,omitempty"`
 }
@@ -65,12 +67,17 @@ type CardFields struct {
 	Rating      bool
 	Liked       bool
 	JizzCount   bool
+	ReleaseDate bool
 }
+
+// SceneModelFields are the optional fields read from the scene row itself (no extra query),
+// included by the list endpoints without card_fields support (explorer, playlists).
+var SceneModelFields = CardFields{Views: true, Resolution: true, Studio: true, ReleaseDate: true}
 
 // HasAny returns true if any field is requested.
 func (f CardFields) HasAny() bool {
 	return f.Views || f.Resolution || f.FrameRate || f.Description ||
-		f.Studio || f.Tags || f.Actors || f.Rating || f.Liked || f.JizzCount
+		f.Studio || f.Tags || f.Actors || f.Rating || f.Liked || f.JizzCount || f.ReleaseDate
 }
 
 // ParseCardFields parses a comma-separated string of field names into CardFields.
@@ -101,6 +108,8 @@ func ParseCardFields(raw string) CardFields {
 			f.Liked = true
 		case "jizz_count":
 			f.JizzCount = true
+		case "release_date":
+			f.ReleaseDate = true
 		}
 	}
 	return f
@@ -157,6 +166,9 @@ func ToSceneListItemWithFields(v data.Scene, fields CardFields) SceneListItem {
 	if fields.Studio {
 		s := v.Studio
 		item.Studio = &s
+	}
+	if fields.ReleaseDate {
+		item.ReleaseDate = v.ReleaseDate
 	}
 	// Tags and Actors are loaded from join tables by the handler,
 	// not from the scene model columns (which may be empty).

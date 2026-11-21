@@ -8,6 +8,7 @@ import (
 	"goonhub/internal/core"
 	"goonhub/internal/data"
 	"goonhub/internal/infrastructure/logging"
+	"goonhub/internal/streaming"
 	"net/http"
 	"os"
 	"os/signal"
@@ -39,6 +40,7 @@ type Server struct {
 	matchingService   *core.MatchingService
 	duplicateService  *core.DuplicateService
 	shareServer       *ShareServer
+	transcoder        *streaming.Transcoder
 	srv               *http.Server
 }
 
@@ -64,6 +66,7 @@ func NewHTTPServer(
 	matchingService *core.MatchingService,
 	duplicateService *core.DuplicateService,
 	shareServer *ShareServer,
+	transcoder *streaming.Transcoder,
 ) *Server {
 	return &Server{
 		router:            router,
@@ -87,6 +90,7 @@ func NewHTTPServer(
 		matchingService:   matchingService,
 		duplicateService:  duplicateService,
 		shareServer:       shareServer,
+		transcoder:        transcoder,
 	}
 }
 
@@ -336,6 +340,11 @@ func (s *Server) Start() error {
 
 	if s.jobHistoryService != nil {
 		s.jobHistoryService.StopCleanupTicker()
+	}
+
+	// Kill the on-the-fly conversions: their streams would hold the HTTP shutdown
+	if s.transcoder != nil {
+		s.transcoder.Stop()
 	}
 
 	// Shutdown HTTP servers with remaining graceful timeout

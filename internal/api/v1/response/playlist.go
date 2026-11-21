@@ -116,7 +116,7 @@ func NewPlaylistDetailResponse(detail *core.PlaylistDetail) PlaylistDetailRespon
 	for i, entry := range detail.Scenes {
 		scenes[i] = PlaylistSceneEntryResponse{
 			Position: entry.Position,
-			Scene:    ToSceneListItem(entry.Scene),
+			Scene:    ToSceneListItemWithFields(entry.Scene, SceneModelFields),
 			AddedAt:  entry.AddedAt,
 		}
 	}

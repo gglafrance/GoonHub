@@ -12,7 +12,7 @@ import (
 )
 
 // aliasesMigration is the version of the migration that adds studios.aliases.
-const aliasesMigration = 81
+const aliasesMigration = 83
 
 // Integration test of the migration of studio aliases (and actors.aliases NOT NULL, the merge
 // permissions): up, down, up. It needs a disposable database of its own:

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 const authStore = useAuthStore();
-const showShortcuts = ref(false);
+const { shortcutsVisible, open: openPalette, modifierLabel } = useCommandPalette();
+const setShortcutsVisible = (value: boolean) => {
+    shortcutsVisible.value = value;
+};
 const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
 </script>
 
@@ -23,6 +26,32 @@ const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
                     </NuxtLink>
 
                     <div v-if="authStore.isAuthenticated" class="flex items-center gap-2 sm:gap-3">
+                        <!-- Command palette: compact search field on desktop, icon on mobile -->
+                        <button
+                            class="border-border bg-panel/60 text-dim hover:border-lava/30 group
+                                flex h-7 w-7 items-center justify-center gap-2 rounded-md border
+                                transition-all hover:text-white sm:w-56 sm:justify-start sm:px-2
+                                lg:w-64"
+                            :title="`Search and commands (${modifierLabel}+K)`"
+                            aria-label="Open the command palette"
+                            @click="openPalette()"
+                        >
+                            <Icon
+                                name="heroicons:magnifying-glass"
+                                size="14"
+                                class="group-hover:text-lava shrink-0 transition-colors"
+                            />
+                            <span class="hidden flex-1 truncate text-left text-[11px] sm:inline">
+                                Search or jump to...
+                            </span>
+                            <kbd
+                                class="border-border bg-surface hidden shrink-0 items-center gap-0.5
+                                    rounded border px-1 py-px font-mono text-[10px] sm:inline-flex"
+                            >
+                                {{ modifierLabel }} K
+                            </kbd>
+                        </button>
+
                         <div class="flex items-center gap-2">
                             <div
                                 class="border-border bg-panel flex h-7 w-7 items-center
@@ -55,7 +84,7 @@ const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
                                 hidden h-7 w-7 items-center justify-center rounded-md border
                                 transition-all sm:flex"
                             title="Keyboard shortcuts"
-                            @click="showShortcuts = true"
+                            @click="setShortcutsVisible(true)"
                         >
                             <Icon name="heroicons:command-line" size="16" />
                         </button>
@@ -134,6 +163,18 @@ const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
                             class="sm:!h-3.5 sm:!w-3.5"
                         />
                         <span class="hidden sm:inline">Search</span>
+                    </NuxtLink>
+
+                    <NuxtLink
+                        to="/triage"
+                        class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
+                            text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
+                            sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
+                        active-class="!text-lava bg-lava/10"
+                        title="Triage"
+                    >
+                        <Icon name="heroicons:bolt" size="18" class="sm:!h-3.5 sm:!w-3.5" />
+                        <span class="hidden sm:inline">Triage</span>
                     </NuxtLink>
 
                     <NuxtLink
@@ -233,6 +274,9 @@ const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
         </nav>
 
         <!-- Keyboard Shortcuts Modal -->
-        <KeyboardShortcutsModal :visible="showShortcuts" @close="showShortcuts = false" />
+        <KeyboardShortcutsModal :visible="shortcutsVisible" @close="setShortcutsVisible(false)" />
+
+        <!-- Command palette (Ctrl/Cmd+K) -->
+        <CommandPalette v-if="authStore.isAuthenticated" />
     </div>
 </template>

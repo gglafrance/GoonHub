@@ -71,18 +71,18 @@ func (mr *MockJobHistoryRepositoryMockRecorder) CancelPendingJobsForScene(sceneI
 }
 
 // ClaimPendingJobs mocks base method.
-func (m *MockJobHistoryRepository) ClaimPendingJobs(phase string, limit int) ([]data.JobHistory, error) {
+func (m *MockJobHistoryRepository) ClaimPendingJobs(phase string, limit int, opts data.ClaimOptions) ([]data.JobHistory, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ClaimPendingJobs", phase, limit)
+	ret := m.ctrl.Call(m, "ClaimPendingJobs", phase, limit, opts)
 	ret0, _ := ret[0].([]data.JobHistory)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ClaimPendingJobs indicates an expected call of ClaimPendingJobs.
-func (mr *MockJobHistoryRepositoryMockRecorder) ClaimPendingJobs(phase, limit any) *gomock.Call {
+func (mr *MockJobHistoryRepositoryMockRecorder) ClaimPendingJobs(phase, limit, opts any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimPendingJobs", reflect.TypeOf((*MockJobHistoryRepository)(nil).ClaimPendingJobs), phase, limit)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimPendingJobs", reflect.TypeOf((*MockJobHistoryRepository)(nil).ClaimPendingJobs), phase, limit, opts)
 }
 
 // CountPendingByPhase mocks base method.
@@ -352,18 +352,18 @@ func (mr *MockJobHistoryRepositoryMockRecorder) MarkRunningAsInterrupted() *gomo
 }
 
 // MarkStuckPendingJobsAsFailed mocks base method.
-func (m *MockJobHistoryRepository) MarkStuckPendingJobsAsFailed(olderThan time.Duration) (int64, error) {
+func (m *MockJobHistoryRepository) MarkStuckPendingJobsAsFailed(olderThan time.Duration, excludePhases []string) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MarkStuckPendingJobsAsFailed", olderThan)
+	ret := m.ctrl.Call(m, "MarkStuckPendingJobsAsFailed", olderThan, excludePhases)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // MarkStuckPendingJobsAsFailed indicates an expected call of MarkStuckPendingJobsAsFailed.
-func (mr *MockJobHistoryRepositoryMockRecorder) MarkStuckPendingJobsAsFailed(olderThan any) *gomock.Call {
+func (mr *MockJobHistoryRepositoryMockRecorder) MarkStuckPendingJobsAsFailed(olderThan, excludePhases any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkStuckPendingJobsAsFailed", reflect.TypeOf((*MockJobHistoryRepository)(nil).MarkStuckPendingJobsAsFailed), olderThan)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkStuckPendingJobsAsFailed", reflect.TypeOf((*MockJobHistoryRepository)(nil).MarkStuckPendingJobsAsFailed), olderThan, excludePhases)
 }
 
 // ResetJobsToPending mocks base method.

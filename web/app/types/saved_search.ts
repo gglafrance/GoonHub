@@ -17,6 +17,9 @@ export interface SavedSearchFilters {
     has_actors?: boolean;
     has_tags?: boolean;
     has_studio?: boolean;
+    has_source?: boolean;
+    // normalized source sites (OR)
+    source_sites?: string[];
     min_date?: string;
     max_date?: string;
     liked?: boolean;

@@ -28,6 +28,7 @@ type ExplorerService struct {
 	searchService    *SearchService
 	fingerprintIndex SceneFingerprintIndex
 	studioResolver   StudioNameResolver
+	mediaGuard       *MediaFileGuard
 }
 
 // NewExplorerService creates a new ExplorerService
@@ -42,6 +43,7 @@ func NewExplorerService(
 	logger *zap.Logger,
 	metadataPath string,
 	fingerprintIndex SceneFingerprintIndex,
+	mediaGuard *MediaFileGuard,
 ) *ExplorerService {
 	return &ExplorerService{
 		explorerRepo:     explorerRepo,
@@ -54,6 +56,7 @@ func NewExplorerService(
 		logger:           logger,
 		metadataPath:     metadataPath,
 		fingerprintIndex: fingerprintIndex,
+		mediaGuard:       mediaGuard,
 	}
 }
 
@@ -443,7 +446,8 @@ func (s *ExplorerService) BulkUpdateStudio(req BulkUpdateStudioRequest) (int, er
 
 // BulkDeleteScenes deletes multiple scenes.
 // If permanent is false, scenes are moved to trash (files preserved).
-// If permanent is true, scenes are hard deleted (files removed).
+// If permanent is true, scenes are hard deleted (files removed, except video files under a
+// read-only storage path, which are kept).
 func (s *ExplorerService) BulkDeleteScenes(sceneIDs []uint, permanent bool) (int, error) {
 	if len(sceneIDs) == 0 {
 		return 0, apperrors.NewValidationError("at least one scene ID is required")
@@ -538,18 +542,11 @@ func (s *ExplorerService) BulkDeleteScenes(sceneIDs []uint, permanent bool) (int
 	return deleted, nil
 }
 
-// deleteSceneFiles removes all physical files associated with a scene
+// deleteSceneFiles removes all physical files associated with a scene. The video file is kept
+// when it is under a read-only storage path; generated files are always removed.
 func (s *ExplorerService) deleteSceneFiles(scene *data.Scene) {
-	// Remove scene file
-	if scene.StoredPath != "" {
-		if err := os.Remove(scene.StoredPath); err != nil && !os.IsNotExist(err) {
-			s.logger.Warn("Failed to delete scene file",
-				zap.Uint("id", scene.ID),
-				zap.String("path", scene.StoredPath),
-				zap.Error(err),
-			)
-		}
-	}
+	// Remove scene file (unless protected by a read-only storage path)
+	s.mediaGuard.RemoveSceneFile(scene)
 
 	// Remove thumbnail
 	if scene.ThumbnailPath != "" {

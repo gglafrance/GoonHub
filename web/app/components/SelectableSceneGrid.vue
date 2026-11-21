@@ -15,6 +15,7 @@ const emit = defineEmits<{
 }>();
 
 const gridRef = ref<HTMLElement | null>(null);
+const { sceneGridClass, sceneGridStyle } = useGridDensity();
 
 const { isDragging, selectionRect, dragSelectedIds } = useDragSelect({
     containerRef: gridRef,
@@ -27,8 +28,9 @@ const { isDragging, selectionRect, dragSelectedIds } = useDragSelect({
 <template>
     <div
         ref="gridRef"
-        class="c_grid grid grid-cols-2 justify-center gap-2 sm:gap-3"
-        :class="{ 'select-none': isDragging }"
+        class="c_grid grid justify-center"
+        :class="[sceneGridClass, { 'select-none': isDragging }]"
+        :style="sceneGridStyle"
     >
         <SceneCard
             v-for="scene in scenes"
@@ -64,7 +66,7 @@ const { isDragging, selectionRect, dragSelectedIds } = useDragSelect({
 <style scoped>
 .c_grid {
     @media (width >= 40rem /* 640px */) {
-        grid-template-columns: repeat(auto-fill, 320px);
+        grid-template-columns: repeat(auto-fill, var(--scene-card-width, 320px));
     }
 }
 </style>
