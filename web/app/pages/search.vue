@@ -193,9 +193,11 @@ watch(
 // Handle browser back/forward navigation
 watch(
     () => route.query,
-    () => {
+    async () => {
         // Skip if we're the ones updating the URL
         if (isUpdatingUrl) return;
+        // A saved search opened while already on this page (e.g. from the command palette)
+        if (route.query.saved && (await loadSavedSearchFromUrl())) return;
         syncFromUrl();
         searchStore.search();
     },
