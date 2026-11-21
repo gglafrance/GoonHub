@@ -438,3 +438,31 @@ func (mr *MockMarkerRepositoryMockRecorder) Update(marker any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockMarkerRepository)(nil).Update), marker)
 }
+
+// UpdateAnimatedThumbnailPath mocks base method.
+func (m *MockMarkerRepository) UpdateAnimatedThumbnailPath(id uint, path string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAnimatedThumbnailPath", id, path)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateAnimatedThumbnailPath indicates an expected call of UpdateAnimatedThumbnailPath.
+func (mr *MockMarkerRepositoryMockRecorder) UpdateAnimatedThumbnailPath(id, path any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAnimatedThumbnailPath", reflect.TypeOf((*MockMarkerRepository)(nil).UpdateAnimatedThumbnailPath), id, path)
+}
+
+// UpdateThumbnailPath mocks base method.
+func (m *MockMarkerRepository) UpdateThumbnailPath(id uint, path string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateThumbnailPath", id, path)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateThumbnailPath indicates an expected call of UpdateThumbnailPath.
+func (mr *MockMarkerRepositoryMockRecorder) UpdateThumbnailPath(id, path any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateThumbnailPath", reflect.TypeOf((*MockMarkerRepository)(nil).UpdateThumbnailPath), id, path)
+}
