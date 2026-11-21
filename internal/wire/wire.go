@@ -169,6 +169,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Streaming Manager
 		provideStreamManager,
+		provideTranscoder,
 
 		// ============================================================
 		// API LAYER - MIDDLEWARE
@@ -653,6 +654,10 @@ func provideStreamManager(cfg *config.Config, sceneRepo data.SceneRepository, lo
 	return streaming.NewManager(&cfg.Streaming, sceneRepo, logger.Logger)
 }
 
+func provideTranscoder(cfg *config.Config, appSettingsRepo data.AppSettingsRepository, logger *logging.Logger) *streaming.Transcoder {
+	return streaming.NewTranscoder(cfg.Streaming.Transcode, appSettingsRepo, logger.Logger)
+}
+
 // ============================================================================
 // API MIDDLEWARE PROVIDERS
 // ============================================================================
@@ -690,8 +695,8 @@ func provideSettingsHandler(settingsService *core.SettingsService, cfg *config.C
 
 // --- Scene & Content Handlers ---
 
-func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, cfg *config.Config) *handler.SceneHandler {
-	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager, interactionRepo, tagRepo, actorRepo, cfg.Pagination.MaxItemsPerPage)
+func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, transcoder *streaming.Transcoder, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, cfg *config.Config) *handler.SceneHandler {
+	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager, transcoder, interactionRepo, tagRepo, actorRepo, cfg.Pagination.MaxItemsPerPage)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
@@ -817,8 +822,8 @@ func provideStreamStatsHandler(streamManager *streaming.Manager) *handler.Stream
 	return handler.NewStreamStatsHandler(streamManager)
 }
 
-func provideShareHandler(shareService *core.ShareService, authService *core.AuthService, streamManager *streaming.Manager, cfg *config.Config) *handler.ShareHandler {
-	return handler.NewShareHandler(shareService, authService, streamManager, cfg.Sharing.BaseURL)
+func provideShareHandler(shareService *core.ShareService, authService *core.AuthService, streamManager *streaming.Manager, transcoder *streaming.Transcoder, cfg *config.Config) *handler.ShareHandler {
+	return handler.NewShareHandler(shareService, authService, streamManager, transcoder, cfg.Sharing.BaseURL)
 }
 
 func provideDuplicateHandler(duplicateService *core.DuplicateService, dupConfigRepo data.DuplicationConfigRepository) *handler.DuplicateHandler {
@@ -914,11 +919,12 @@ func provideServer(
 	matchingService *core.MatchingService,
 	duplicateService *core.DuplicateService,
 	shareServer *server.ShareServer,
+	transcoder *streaming.Transcoder,
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
-		actorService, studioService, matchingService, duplicateService, shareServer,
+		actorService, studioService, matchingService, duplicateService, shareServer, transcoder,
 	)
 }

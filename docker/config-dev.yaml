@@ -100,6 +100,17 @@ streaming:
   buffer_size: 262144                 # 256KB buffer for streaming
   path_cache_ttl: 5m                  # cache scene paths for 5 minutes
   path_cache_max_size: 10000          # max cached entries
+  # On-the-fly conversion of the files browsers can't play (AVI, MPEG-2, MKV, HEVC, WMV...)
+  # into H.264 + AAC fragmented MP4 (CPU ffmpeg). H.264/AAC in another container is only
+  # remuxed. Admins can turn it off in Settings > App > Advanced.
+  transcode:
+    max_concurrent: 4         # ffmpeg conversions at the same time (one per viewer)
+    preset: veryfast          # libx264 preset
+    crf: 23                   # libx264 quality (lower is better, 18-28 is sensible)
+    max_height: 1080          # downscale above 1080p (smaller side), 0 keeps the size
+    audio_bitrate: 160k       # AAC bitrate of re-encoded audio
+    threads: 0                # ffmpeg threads per conversion, 0 = auto
+    keyframe_interval: 2      # seconds between keyframes (MP4 fragment length)
 
 # Dedicated share server (optional)
 # Runs a second HTTP listener serving only share-related routes.

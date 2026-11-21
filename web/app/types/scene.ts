@@ -55,6 +55,27 @@ export interface Scene extends SceneListItem {
     porndb_scene_id?: string;
     origin?: string;
     type?: string;
+    // how the player can play the file (scene detail endpoint only)
+    playback?: ScenePlayback;
+}
+
+// direct: the browser plays the original; remux: the original streams are copied into an MP4
+// on the fly; transcode: the video is re-encoded on the fly (H.264 + AAC)
+export type ScenePlaybackMode = 'direct' | 'remux' | 'transcode';
+
+export interface ScenePlayback {
+    mode: ScenePlaybackMode;
+    // what browsers can't play ('' or absent for direct)
+    reason?: string;
+    // false: the admin turned on-the-fly transcoding off, only direct scenes play
+    transcode_enabled: boolean;
+}
+
+// Why the player can't play a scene: disabled (conversion turned off), limit (all conversion
+// slots in use), failed (conversion error)
+export interface PlaybackNotice {
+    kind: 'disabled' | 'limit' | 'failed';
+    reason?: string;
 }
 
 export interface SceneListResponse {

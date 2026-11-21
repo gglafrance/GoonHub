@@ -951,6 +951,8 @@ Global application settings (singleton table).
 |--------|------|----------|---------|-------------|
 | `id` | INTEGER | NO | 1 | Primary key (always 1) |
 | `trash_retention_days` | INTEGER | NO | 7 | Days before trash auto-delete |
+| `serve_og_metadata` | BOOLEAN | NO | true | Serve OpenGraph tags to link preview crawlers |
+| `transcoding_enabled` | BOOLEAN | NO | true | Convert scenes browsers can't play (AVI, MKV, HEVC, ...) on the fly with ffmpeg (migration 076) |
 | `updated_at` | TIMESTAMPTZ | YES | NOW() | Last update timestamp |
 
 **Constraints:**
