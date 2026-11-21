@@ -37,6 +37,7 @@ type Server struct {
 	actorService      *core.ActorService
 	studioService     *core.StudioService
 	matchingService   *core.MatchingService
+	duplicateService  *core.DuplicateService
 	shareServer       *ShareServer
 	srv               *http.Server
 }
@@ -61,6 +62,7 @@ func NewHTTPServer(
 	actorService *core.ActorService,
 	studioService *core.StudioService,
 	matchingService *core.MatchingService,
+	duplicateService *core.DuplicateService,
 	shareServer *ShareServer,
 ) *Server {
 	return &Server{
@@ -83,6 +85,7 @@ func NewHTTPServer(
 		actorService:      actorService,
 		studioService:     studioService,
 		matchingService:   matchingService,
+		duplicateService:  duplicateService,
 		shareServer:       shareServer,
 	}
 }
@@ -157,6 +160,11 @@ func (s *Server) Start() error {
 
 	if s.triggerScheduler != nil {
 		s.triggerScheduler.Start()
+	}
+
+	// Apply the scheduled deletions of resolved duplicates
+	if s.duplicateService != nil {
+		s.duplicateService.StartDeletionCleanupTicker()
 	}
 
 	// Wire up retry scheduler and DLQ service to processing service
@@ -244,6 +252,10 @@ func (s *Server) Start() error {
 	if s.triggerScheduler != nil {
 		s.triggerScheduler.Stop()
 		s.logger.Info("Trigger scheduler stopped")
+	}
+
+	if s.duplicateService != nil {
+		s.duplicateService.StopDeletionCleanupTicker()
 	}
 
 	if s.retryScheduler != nil {

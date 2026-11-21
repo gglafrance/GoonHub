@@ -42,6 +42,21 @@ func (repo *memoryDuplicateGroups) RunInTransaction(fn func(data.DuplicateGroupR
 	return nil
 }
 
+func (repo *memoryDuplicateGroups) FillMemberSegment(member *data.DuplicateGroupMember) error {
+	group, ok := repo.groups[member.GroupID]
+	if !ok {
+		return nil
+	}
+	for i := range group.Members {
+		m := &group.Members[i]
+		if m.SceneID == member.SceneID && m.MatchStart == nil {
+			m.MatchStart, m.MatchEnd = member.MatchStart, member.MatchEnd
+			m.RefSceneID, m.RefStart, m.RefEnd = member.RefSceneID, member.RefStart, member.RefEnd
+		}
+	}
+	return nil
+}
+
 func (repo *memoryDuplicateGroups) GetGroupsBySceneIDs(ids []uint) (map[uint]uint, error) {
 	if !repo.transaction {
 		return nil, errors.New("membership lookup must use the transaction")
@@ -262,5 +277,28 @@ func TestReopenedGroupDoesNotChooseTrashedBestScene(t *testing.T) {
 	}
 	if group.BestSceneID == nil || *group.BestSceneID != 30 {
 		t.Fatalf("expected live scene 30 as best, got %v", group.BestSceneID)
+	}
+}
+
+func TestProcessMatchesBackfillsMissingSegments(t *testing.T) {
+	// An older group whose members have no matching segment yet
+	svc, repo := newMatchingTestService(t, matchingTestGroup(7, "unresolved", 10, 20))
+	matches := []matching.MatchResult{
+		{SceneID: 20, ConfidenceScore: 0.9, MatchType: "visual", QueryStart: 5, QueryEnd: 14, Delta: 3},
+	}
+	if err := svc.ProcessMatches(10, matches); err != nil {
+		t.Fatal(err)
+	}
+	segments := map[uint]data.DuplicateGroupMember{}
+	for _, m := range repo.groups[7].Members {
+		segments[m.SceneID] = m
+	}
+	query, matched := segments[10], segments[20]
+	// Visual positions are 2 s apart: query 10..30 s, matched scene shifted by 3 frames (6 s)
+	if query.MatchStart == nil || *query.MatchStart != 10 || *query.MatchEnd != 30 || *query.RefSceneID != 20 {
+		t.Fatalf("query segment not filled: %+v", query)
+	}
+	if matched.MatchStart == nil || *matched.MatchStart != 16 || *matched.MatchEnd != 36 || *matched.RefSceneID != 10 {
+		t.Fatalf("matched segment not filled: %+v", matched)
 	}
 }

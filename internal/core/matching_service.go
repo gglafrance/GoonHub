@@ -231,24 +231,28 @@ func (ms *MatchingService) createNewGroupTx(txRepo data.DuplicateGroupRepository
 		return fmt.Errorf("failed to create duplicate group: %w", err)
 	}
 
-	// Add the query scene as a member
-	if err := txRepo.AddMember(&data.DuplicateGroupMember{
+	// Add the query scene as a member (its segment is the one of its best match)
+	queryMember := &data.DuplicateGroupMember{
 		GroupID:         group.ID,
 		SceneID:         sceneID,
 		ConfidenceScore: 1.0, // Self-match is 100%
 		MatchType:       matches[0].MatchType,
-	}); err != nil {
+	}
+	setMemberSegment(queryMember, bestMatchOf(matches), sceneID, true)
+	if err := txRepo.AddMember(queryMember); err != nil {
 		return fmt.Errorf("failed to add query scene to group: %w", err)
 	}
 
 	// Add matched scenes
 	for _, m := range matches {
-		if err := txRepo.AddMember(&data.DuplicateGroupMember{
+		member := &data.DuplicateGroupMember{
 			GroupID:         group.ID,
 			SceneID:         m.SceneID,
 			ConfidenceScore: m.ConfidenceScore,
 			MatchType:       m.MatchType,
-		}); err != nil {
+		}
+		setMemberSegment(member, m, sceneID, false)
+		if err := txRepo.AddMember(member); err != nil {
 			return fmt.Errorf("failed to add matched scene %d to group: %w", m.SceneID, err)
 		}
 	}
@@ -292,16 +296,30 @@ func (ms *MatchingService) addToGroupTx(txRepo data.DuplicateGroupRepository, gr
 			if existingID != groupID {
 				return fmt.Errorf("scene %d still belongs to group %d", id, existingID)
 			}
+			// Known member: record its matching segment if it has none yet (older groups)
+			match := matchMap[id]
+			if id == sceneID {
+				match = bestMatch
+			}
+			segment := &data.DuplicateGroupMember{GroupID: groupID, SceneID: id}
+			setMemberSegment(segment, match, sceneID, id == sceneID)
+			if segment.MatchStart != nil {
+				if err := txRepo.FillMemberSegment(segment); err != nil {
+					return fmt.Errorf("failed to record matching segment of scene %d: %w", id, err)
+				}
+			}
 			continue
 		}
 		match := matchMap[id]
 		if id == sceneID {
 			match = bestMatch
 		}
-		if err := txRepo.AddMember(&data.DuplicateGroupMember{
+		member := &data.DuplicateGroupMember{
 			GroupID: groupID, SceneID: id,
 			ConfidenceScore: match.ConfidenceScore, MatchType: match.MatchType,
-		}); err != nil {
+		}
+		setMemberSegment(member, match, sceneID, id == sceneID)
+		if err := txRepo.AddMember(member); err != nil {
 			return fmt.Errorf("failed to add scene %d to group: %w", id, err)
 		}
 	}
@@ -317,8 +335,13 @@ func (ms *MatchingService) autoScoreBestTx(txRepo data.DuplicateGroupRepository,
 		return fmt.Errorf("failed to get group members for scoring: %w", err)
 	}
 
-	var bestSceneID uint
-	var bestScore int64
+	criteria := DefaultBestCriteria
+	if ms.dupConfigRepo != nil {
+		if cfg, err := ms.dupConfigRepo.Get(); err == nil {
+			criteria = bestCriteriaFromConfig(cfg)
+		}
+	}
+	var best *data.Scene
 	for _, member := range group.Members {
 		scene, err := ms.sceneRepo.GetByIDIncludingTrashed(member.SceneID)
 		if err != nil {
@@ -327,11 +350,13 @@ func (ms *MatchingService) autoScoreBestTx(txRepo data.DuplicateGroupRepository,
 		if scene.TrashedAt != nil {
 			continue
 		}
-		score := scoreScene(scene)
-		if bestSceneID == 0 || score > bestScore {
-			bestScore = score
-			bestSceneID = member.SceneID
+		if best == nil || betterSceneBy(scene, best, criteria) {
+			best = scene
 		}
+	}
+	var bestSceneID uint
+	if best != nil {
+		bestSceneID = best.ID
 	}
 	if bestSceneID > 0 {
 		if err := txRepo.SetBestScene(groupID, bestSceneID); err != nil {
@@ -341,24 +366,51 @@ func (ms *MatchingService) autoScoreBestTx(txRepo data.DuplicateGroupRepository,
 	return nil
 }
 
-// scoreScene computes a quality score for a scene.
-func scoreScene(scene *data.Scene) int64 {
-	score := int64(scene.Duration) * 1000
-	score += int64(scene.Width) * int64(scene.Height)
+// Fingerprint position durations, used to convert matched segments to seconds.
+const (
+	// chromaprint raw fingerprint: one item every 4096/3 samples at 11025 Hz
+	audioFingerprintStepSeconds = 4096.0 / 3.0 / 11025.0
+	// visual dHash: one frame every 2 seconds (fps=1/2, see pkg/dhash)
+	visualFingerprintStepSeconds = 2.0
+)
 
-	// Codec ranking
-	switch scene.VideoCodec {
-	case "av1":
-		score += 3_000_000
-	case "hevc", "h265":
-		score += 2_000_000
-	case "h264":
-		score += 1_000_000
+// bestMatchOf returns the match with the highest confidence.
+func bestMatchOf(matches []matching.MatchResult) matching.MatchResult {
+	var best matching.MatchResult
+	for _, m := range matches {
+		if m.ConfidenceScore > best.ConfidenceScore {
+			best = m
+		}
 	}
+	return best
+}
 
-	score += int64(scene.BitRate) / 1000
+// setMemberSegment stores on a group member its matching segment (seconds) and the
+// corresponding segment of the other scene. forQuery is true for the query scene itself:
+// its segment is the query side of the match, and the reference is the matched scene.
+func setMemberSegment(member *data.DuplicateGroupMember, m matching.MatchResult, querySceneID uint, forQuery bool) {
+	if m.SceneID == 0 || m.QueryEnd < m.QueryStart {
+		return
+	}
+	step := audioFingerprintStepSeconds
+	if m.MatchType == "visual" {
+		step = visualFingerprintStepSeconds
+	}
+	queryStart := float64(m.QueryStart) * step
+	queryEnd := float64(m.QueryEnd+1) * step
+	otherStart := max(0, float64(m.QueryStart+m.Delta)*step)
+	otherEnd := max(0, float64(m.QueryEnd+1+m.Delta)*step)
 
-	return score
+	refID := querySceneID
+	if forQuery {
+		refID = m.SceneID
+		member.MatchStart, member.MatchEnd = &queryStart, &queryEnd
+		member.RefStart, member.RefEnd = &otherStart, &otherEnd
+	} else {
+		member.MatchStart, member.MatchEnd = &otherStart, &otherEnd
+		member.RefStart, member.RefEnd = &queryStart, &queryEnd
+	}
+	member.RefSceneID = &refID
 }
 
 // RemoveSceneFromIndex removes all fingerprint data for a scene from ClickHouse

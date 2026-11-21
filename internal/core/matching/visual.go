@@ -49,6 +49,8 @@ func FindVisualMatches(
 		queryPositions map[int]struct{}
 		minQuery       int
 		maxQuery       int
+		deltaSum       int
+		deltaCount     int
 	}
 	sceneBins := make(map[uint]map[int]*binData)
 
@@ -115,6 +117,8 @@ func FindVisualMatches(
 						sceneBins[candidate.SceneID][binKey] = bd
 					}
 					bd.queryPositions[qi.frameOffset] = struct{}{}
+					bd.deltaSum += delta
+					bd.deltaCount++
 					if qi.frameOffset < bd.minQuery {
 						bd.minQuery = qi.frameOffset
 					}
@@ -131,6 +135,7 @@ func FindVisualMatches(
 	var results []MatchResult
 	for sceneID, bins := range sceneBins {
 		var bestScore float64
+		var bestBin *binData
 		matched := false
 
 		for _, bd := range bins {
@@ -155,6 +160,7 @@ func FindVisualMatches(
 
 			if score >= densityThreshold && score > bestScore {
 				bestScore = score
+				bestBin = bd
 				matched = true
 			}
 		}
@@ -164,6 +170,9 @@ func FindVisualMatches(
 				SceneID:         sceneID,
 				ConfidenceScore: bestScore,
 				MatchType:       "visual",
+				QueryStart:      bestBin.minQuery,
+				QueryEnd:        bestBin.maxQuery,
+				Delta:           bestBin.deltaSum / max(bestBin.deltaCount, 1),
 			})
 		}
 	}

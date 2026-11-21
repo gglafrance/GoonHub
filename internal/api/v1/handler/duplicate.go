@@ -6,6 +6,7 @@ import (
 	"goonhub/internal/data"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -103,6 +104,10 @@ func (h *DuplicateHandler) GetConfig(c *gin.Context) {
 			VisualMinSpan:           30,
 			DeltaTolerance:          2,
 			FingerprintMode:         "audio_only",
+			DeleteResolvedFiles:     false,
+			DeletionDelayHours:      defaultDeletionDelayHours,
+			BestSelectionCriteria:   core.DefaultBestCriteria,
+			AvailableBestCriteria:   core.AllBestCriteria,
 		})
 		return
 	}
@@ -110,6 +115,10 @@ func (h *DuplicateHandler) GetConfig(c *gin.Context) {
 	fpMode := cfg.FingerprintMode
 	if fpMode == "" {
 		fpMode = "audio_only"
+	}
+	criteria, err := core.ParseBestCriteria(cfg.BestSelectionCriteria)
+	if err != nil {
+		criteria = core.DefaultBestCriteria
 	}
 
 	response.OK(c, response.DuplicationConfigResponse{
@@ -122,6 +131,10 @@ func (h *DuplicateHandler) GetConfig(c *gin.Context) {
 		VisualMinSpan:           cfg.VisualMinSpan,
 		DeltaTolerance:          cfg.DeltaTolerance,
 		FingerprintMode:         fpMode,
+		DeleteResolvedFiles:     cfg.DeleteResolvedFiles,
+		DeletionDelayHours:      cfg.DeletionDelayHours,
+		BestSelectionCriteria:   criteria,
+		AvailableBestCriteria:   core.AllBestCriteria,
 	})
 }
 
@@ -142,6 +155,15 @@ func (h *DuplicateHandler) UpdateConfig(c *gin.Context) {
 		response.BadRequest(c, "fingerprint_mode must be 'audio_only' or 'dual'")
 		return
 	}
+	if req.DeletionDelayHours < 0 || req.DeletionDelayHours > maxDeletionDelayHours {
+		response.BadRequest(c, "deletion_delay_hours must be between 0 and 8760")
+		return
+	}
+	criteria, err := core.ParseBestCriteria(strings.Join(req.BestSelectionCriteria, ","))
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
 
 	record := &data.DuplicationConfigRecord{
 		AudioDensityThreshold:   req.AudioDensityThreshold,
@@ -153,6 +175,9 @@ func (h *DuplicateHandler) UpdateConfig(c *gin.Context) {
 		VisualMinSpan:           req.VisualMinSpan,
 		DeltaTolerance:          req.DeltaTolerance,
 		FingerprintMode:         fpMode,
+		DeleteResolvedFiles:     req.DeleteResolvedFiles,
+		DeletionDelayHours:      req.DeletionDelayHours,
+		BestSelectionCriteria:   strings.Join(criteria, ","),
 	}
 
 	if err := h.dupConfigRepo.Upsert(record); err != nil {
@@ -161,7 +186,82 @@ func (h *DuplicateHandler) UpdateConfig(c *gin.Context) {
 	}
 
 	req.FingerprintMode = fpMode
+	req.BestSelectionCriteria = criteria
+	req.AvailableBestCriteria = core.AllBestCriteria
 	response.OK(c, req)
+}
+
+const (
+	defaultDeletionDelayHours = 72
+	maxDeletionDelayHours     = 8760 // one year
+	maxBulkDuplicateGroups    = 500
+)
+
+type groupIDsRequest struct {
+	GroupIDs []uint `json:"group_ids" binding:"required,min=1"`
+}
+
+type bulkResolveRequest struct {
+	GroupIDs      []uint `json:"group_ids" binding:"required,min=1"`
+	AutoSelect    bool   `json:"auto_select"`
+	MergeMetadata bool   `json:"merge_metadata"`
+}
+
+// AutoSelectBest marks the best variant (resolution, then duration, bitrate, smallest size)
+// in each given unresolved group.
+func (h *DuplicateHandler) AutoSelectBest(c *gin.Context) {
+	var req groupIDsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "group_ids is required")
+		return
+	}
+	if len(req.GroupIDs) > maxBulkDuplicateGroups {
+		response.BadRequest(c, "too many groups (max 500)")
+		return
+	}
+	selected, err := h.duplicateService.AutoSelectBest(req.GroupIDs)
+	if err != nil {
+		response.InternalError(c, "Failed to auto-select best scenes: "+err.Error())
+		return
+	}
+	response.OK(c, gin.H{"selected": selected})
+}
+
+// ResolveBulk resolves several groups at once (optionally auto-selecting the best variant).
+func (h *DuplicateHandler) ResolveBulk(c *gin.Context) {
+	var req bulkResolveRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "group_ids is required")
+		return
+	}
+	if len(req.GroupIDs) > maxBulkDuplicateGroups {
+		response.BadRequest(c, "too many groups (max 500)")
+		return
+	}
+	response.OK(c, h.duplicateService.ResolveGroups(req.GroupIDs, req.AutoSelect, req.MergeMetadata))
+}
+
+type cancelDeletionRequest struct {
+	SceneID uint `json:"scene_id" binding:"required"`
+}
+
+// CancelDeletion cancels the scheduled deletion of a scene not kept at resolution.
+func (h *DuplicateHandler) CancelDeletion(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+	var req cancelDeletionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "scene_id is required")
+		return
+	}
+	if err := h.duplicateService.CancelDeletion(uint(id), req.SceneID); err != nil {
+		response.InternalError(c, "Failed to cancel deletion")
+		return
+	}
+	response.OK(c, gin.H{"message": "Deletion cancelled"})
 }
 
 type resolveGroupRequest struct {

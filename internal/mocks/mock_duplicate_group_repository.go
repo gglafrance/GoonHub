@@ -98,6 +98,20 @@ func (mr *MockDuplicateGroupRepositoryMockRecorder) Delete(id any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockDuplicateGroupRepository)(nil).Delete), id)
 }
 
+// FillMemberSegment mocks base method.
+func (m *MockDuplicateGroupRepository) FillMemberSegment(member *data.DuplicateGroupMember) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FillMemberSegment", member)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// FillMemberSegment indicates an expected call of FillMemberSegment.
+func (mr *MockDuplicateGroupRepositoryMockRecorder) FillMemberSegment(member any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FillMemberSegment", reflect.TypeOf((*MockDuplicateGroupRepository)(nil).FillMemberSegment), member)
+}
+
 // GetByID mocks base method.
 func (m *MockDuplicateGroupRepository) GetByID(id uint) (*data.DuplicateGroup, error) {
 	m.ctrl.T.Helper()
@@ -174,6 +188,21 @@ func (mr *MockDuplicateGroupRepositoryMockRecorder) List(page, limit, status any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockDuplicateGroupRepository)(nil).List), page, limit, status)
 }
 
+// ListMembersDueForDeletion mocks base method.
+func (m *MockDuplicateGroupRepository) ListMembersDueForDeletion(now time.Time, limit int) ([]data.DuplicateGroupMember, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListMembersDueForDeletion", now, limit)
+	ret0, _ := ret[0].([]data.DuplicateGroupMember)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListMembersDueForDeletion indicates an expected call of ListMembersDueForDeletion.
+func (mr *MockDuplicateGroupRepositoryMockRecorder) ListMembersDueForDeletion(now, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMembersDueForDeletion", reflect.TypeOf((*MockDuplicateGroupRepository)(nil).ListMembersDueForDeletion), now, limit)
+}
+
 // ListWithMembers mocks base method.
 func (m *MockDuplicateGroupRepository) ListWithMembers(page, limit int, status string) ([]data.DuplicateGroup, int64, error) {
 	m.ctrl.T.Helper()
@@ -244,6 +273,20 @@ func (m *MockDuplicateGroupRepository) SetBestScene(id, sceneID uint) error {
 func (mr *MockDuplicateGroupRepositoryMockRecorder) SetBestScene(id, sceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBestScene", reflect.TypeOf((*MockDuplicateGroupRepository)(nil).SetBestScene), id, sceneID)
+}
+
+// SetMemberDeleteAfter mocks base method.
+func (m *MockDuplicateGroupRepository) SetMemberDeleteAfter(groupID uint, sceneIDs []uint, deleteAfter *time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMemberDeleteAfter", groupID, sceneIDs, deleteAfter)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetMemberDeleteAfter indicates an expected call of SetMemberDeleteAfter.
+func (mr *MockDuplicateGroupRepositoryMockRecorder) SetMemberDeleteAfter(groupID, sceneIDs, deleteAfter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMemberDeleteAfter", reflect.TypeOf((*MockDuplicateGroupRepository)(nil).SetMemberDeleteAfter), groupID, sceneIDs, deleteAfter)
 }
 
 // UpdateMemberBest mocks base method.
