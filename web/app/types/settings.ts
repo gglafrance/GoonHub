@@ -69,6 +69,7 @@ export interface UserSettings {
     scene_list_view: SceneListView;
     grid_density: GridDensity;
     infinite_scroll: boolean;
+    show_scrubber: boolean;
     max_items_per_page: number;
     created_at: string;
     updated_at: string;

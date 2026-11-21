@@ -66,6 +66,8 @@ export const useSettingsStore = defineStore(
         const infiniteScroll = computed(() => settings.value?.infinite_scroll ?? false);
         const showReplayHeatmap = computed(() => settings.value?.show_replay_heatmap ?? true);
         const recordReplayHeatmap = computed(() => settings.value?.record_replay_heatmap ?? true);
+        // Thumbnail scrubber strip under the player (off by default)
+        const showScrubber = computed(() => settings.value?.show_scrubber ?? false);
         const videosPerPage = computed(() => settings.value?.videos_per_page ?? 20);
         const defaultSortOrder = computed<SortOrder>(
             () => settings.value?.default_sort_order ?? 'created_at_desc',
@@ -202,7 +204,9 @@ export const useSettingsStore = defineStore(
 
         // Quick display toggles (next to the scene lists), saved right away
         const saveDisplaySetting = async (
-            patch: Partial<Pick<UserSettings, 'grid_density' | 'infinite_scroll'>>,
+            patch: Partial<
+                Pick<UserSettings, 'grid_density' | 'infinite_scroll' | 'show_scrubber'>
+            >,
         ) => {
             if (!settings.value) return;
             Object.assign(settings.value, patch);
@@ -219,6 +223,10 @@ export const useSettingsStore = defineStore(
 
         const setInfiniteScroll = (enabled: boolean) =>
             saveDisplaySetting({ infinite_scroll: enabled });
+
+        // Show/hide toggle of the scrubber on the watch page
+        const setShowScrubber = (enabled: boolean) =>
+            saveDisplaySetting({ show_scrubber: enabled });
 
         const hasUnsavedChanges = computed(() => {
             if (!draft.value || !settings.value) return false;
@@ -338,6 +346,8 @@ export const useSettingsStore = defineStore(
             setInfiniteScroll,
             showReplayHeatmap,
             recordReplayHeatmap,
+            showScrubber,
+            setShowScrubber,
             videosPerPage,
             defaultSortOrder,
             defaultTagSort,

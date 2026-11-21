@@ -259,15 +259,16 @@ provide('seekToTime', (time: number) => {
     startTime.value = time;
     showResumePrompt.value = false;
 });
-// Plays a marker from the markers tab, looping its range when the setting is on
-provide('playMarker', (marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) => {
+// Plays a marker (markers tab, scrubber strip), looping its range when the setting is on
+const handlePlayMarker = (marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) => {
     showResumePrompt.value = false;
     if (playerRef.value?.playMarker) {
         playerRef.value.playMarker(marker);
     } else {
         startTime.value = marker.timestamp;
     }
-});
+};
+provide('playMarker', handlePlayMarker);
 provide('activeTab', activeTab);
 provide('pendingMarkerAdd', pendingMarkerAdd);
 
@@ -510,6 +511,7 @@ definePageMeta({
                                     :playlist-mode="isPlaylistMode"
                                     :has-next="playlistPlayer.hasNext.value"
                                     :has-previous="playlistPlayer.hasPrevious.value"
+                                    scrubber-toggle
                                     @play="isScenePlaying = true"
                                     @pause="isScenePlaying = false"
                                     @error="playerError = $event"
@@ -519,6 +521,18 @@ definePageMeta({
                                 />
                             </div>
                         </div>
+
+                        <!-- Thumbnail scrubber (Settings > Player, or the player button) -->
+                        <WatchScrubber
+                            v-if="settingsStore.showScrubber"
+                            :player="playerRef?.player ?? null"
+                            :cues="playerRef?.vttCues ?? []"
+                            :markers="markers"
+                            :has-sprites="!!scene.vtt_path"
+                            @seek="showResumePrompt = false"
+                            @play-marker="handlePlayMarker"
+                            @hide="settingsStore.setShowScrubber(false)"
+                        />
 
                         <!-- Mobile Metadata -->
                         <div class="block xl:hidden">
