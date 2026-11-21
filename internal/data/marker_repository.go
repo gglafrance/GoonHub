@@ -13,6 +13,9 @@ type MarkerRepository interface {
 	GetByUserAndScene(userID, sceneID uint) ([]UserSceneMarker, error)
 	CountByUserAndScene(userID, sceneID uint) (int64, error)
 	Update(marker *UserSceneMarker) error
+	// UpdateThumbnailPath / UpdateAnimatedThumbnailPath set only that column
+	UpdateThumbnailPath(id uint, path string) error
+	UpdateAnimatedThumbnailPath(id uint, path string) error
 	Delete(id uint) error
 	GetLabelSuggestionsForUser(userID uint, limit int) ([]MarkerLabelSuggestion, error)
 	GetLabelGroupsForUser(userID uint, offset, limit int, opts MarkerListOptions) ([]MarkerLabelGroup, int64, error)
@@ -96,6 +99,14 @@ func (r *MarkerRepositoryImpl) CountByUserAndScene(userID, sceneID uint) (int64,
 
 func (r *MarkerRepositoryImpl) Update(marker *UserSceneMarker) error {
 	return r.DB.Save(marker).Error
+}
+
+func (r *MarkerRepositoryImpl) UpdateThumbnailPath(id uint, path string) error {
+	return r.DB.Model(&UserSceneMarker{}).Where("id = ?", id).Update("thumbnail_path", path).Error
+}
+
+func (r *MarkerRepositoryImpl) UpdateAnimatedThumbnailPath(id uint, path string) error {
+	return r.DB.Model(&UserSceneMarker{}).Where("id = ?", id).Update("animated_thumbnail_path", path).Error
 }
 
 func (r *MarkerRepositoryImpl) Delete(id uint) error {

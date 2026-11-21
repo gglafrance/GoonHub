@@ -176,6 +176,7 @@ type ProcessingConfig struct {
 	AnimatedThumbnailsTimeout  time.Duration `mapstructure:"animated_thumbnails_timeout"`   // timeout for animated thumbnail jobs
 	MarkerThumbnailType            string        `mapstructure:"marker_thumbnail_type"`             // "static" or "animated"
 	MarkerAnimatedDuration         int           `mapstructure:"marker_animated_duration"`          // animated clip duration in seconds (3-15)
+	MarkerThumbnailWorkers         int           `mapstructure:"marker_thumbnail_workers"`          // background marker thumbnail workers (default 2)
 	ScenePreviewEnabled            bool          `mapstructure:"scene_preview_enabled"`             // enable scene preview video generation
 	ScenePreviewSegments           int           `mapstructure:"scene_preview_segments"`            // number of segments to sample (2-24)
 	ScenePreviewSegmentDuration    float64       `mapstructure:"scene_preview_segment_duration"`    // duration of each segment in seconds (0.75-30.0)
