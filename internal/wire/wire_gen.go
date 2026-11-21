@@ -138,7 +138,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	savedSearchHandler := provideSavedSearchHandler(savedSearchService)
 	playlistRepository := providePlaylistRepository(db)
 	playlistService := providePlaylistService(playlistRepository, sceneRepository, tagRepository, logger)
-	homepageService := provideHomepageService(settingsService, searchService, savedSearchService, playlistService, watchHistoryRepository, interactionRepository, sceneRepository, tagRepository, actorRepository, studioRepository, logger)
+	duplicateService := provideDuplicateService(duplicateGroupRepository, sceneRepository, tagRepository, actorRepository, markerRepository, interactionRepository, sceneService, duplicationConfigRepository, logger)
+	homepageService := provideHomepageService(settingsService, searchService, savedSearchService, playlistService, watchHistoryRepository, interactionRepository, sceneRepository, tagRepository, actorRepository, studioRepository, db, markerRepository, relatedScenesService, jobHistoryRepository, duplicateService, storagePathRepository, logger)
 	homepageHandler := provideHomepageHandler(homepageService)
 	markerHandler := provideMarkerHandler(markerService, db, configConfig, logger)
 	importRepository := provideImportRepository(db)
@@ -149,7 +150,6 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	shareLinkRepository := provideShareLinkRepository(db)
 	shareService := provideShareService(shareLinkRepository, sceneRepository, logger)
 	shareHandler := provideShareHandler(shareService, authService, manager, configConfig)
-	duplicateService := provideDuplicateService(duplicateGroupRepository, sceneRepository, tagRepository, actorRepository, markerRepository, interactionRepository, sceneService, duplicationConfigRepository, logger)
 	duplicateHandler := provideDuplicateHandler(duplicateService, duplicationConfigRepository)
 	ipRateLimiter := provideRateLimiter(configConfig)
 	ogMiddleware := provideOGMiddleware(sceneRepository, actorRepository, studioRepository, playlistRepository, shareLinkRepository, appSettingsRepository, logger)
@@ -440,9 +440,15 @@ func provideHomepageService(
 	tagRepo data.TagRepository,
 	actorRepo data.ActorRepository,
 	studioRepo data.StudioRepository,
+	db *gorm.DB,
+	markerRepo data.MarkerRepository,
+	relatedScenesService *core.RelatedScenesService,
+	jobHistoryRepo data.JobHistoryRepository,
+	duplicateService *core.DuplicateService,
+	storagePathRepo data.StoragePathRepository,
 	logger *logging.Logger,
 ) *core.HomepageService {
-	return core.NewHomepageService(
+	svc := core.NewHomepageService(
 		settingsService,
 		searchService,
 		savedSearchService,
@@ -455,6 +461,15 @@ func provideHomepageService(
 		studioRepo,
 		logger.Logger,
 	)
+	svc.SetWidgetDeps(core.HomepageWidgetDeps{
+		DB:            db,
+		Markers:       markerRepo,
+		RelatedScenes: relatedScenesService,
+		JobHistory:    jobHistoryRepo,
+		Duplicates:    duplicateService,
+		StoragePaths:  storagePathRepo,
+	})
+	return svc
 }
 
 func provideMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {

@@ -82,9 +82,9 @@ func (h *SettingsHandler) ChangeUsername(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Username changed successfully"})
 }
 
-func (h *SettingsHandler) convertRequestToConfig(req request.UpdateHomepageConfigRequest) data.HomepageConfig {
-	sections := make([]data.HomepageSection, len(req.Sections))
-	for i, s := range req.Sections {
+func convertHomepageSections(req []request.HomepageSectionRequest) []data.HomepageSection {
+	sections := make([]data.HomepageSection, len(req))
+	for i, s := range req {
 		sections[i] = data.HomepageSection{
 			ID:      s.ID,
 			Type:    s.Type,
@@ -96,9 +96,25 @@ func (h *SettingsHandler) convertRequestToConfig(req request.UpdateHomepageConfi
 			Config:  s.Config,
 		}
 	}
+	return sections
+}
+
+func (h *SettingsHandler) convertRequestToConfig(req request.UpdateHomepageConfigRequest) data.HomepageConfig {
+	tabs := make([]data.HomepageTab, len(req.Tabs))
+	for i, t := range req.Tabs {
+		tabs[i] = data.HomepageTab{
+			ID:       t.ID,
+			Name:     t.Name,
+			Icon:     t.Icon,
+			Sections: convertHomepageSections(t.Sections),
+		}
+	}
 	return data.HomepageConfig{
-		ShowUpload: req.ShowUpload,
-		Sections:   sections,
+		ShowUpload:   req.ShowUpload,
+		Sections:     convertHomepageSections(req.Sections),
+		Tabs:         tabs,
+		DefaultTabID: req.DefaultTabID,
+		OpenOn:       req.OpenOn,
 	}
 }
 
