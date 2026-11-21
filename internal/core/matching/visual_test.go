@@ -405,11 +405,13 @@ func TestFindVisualMatches_ChunkPartitioning(t *testing.T) {
 					tt.chunkIdx, expectedChunks[tt.chunkIdx], extracted)
 			}
 
-			// Create enough query hashes for minFrames
+			// Create enough query hashes for minFrames. Frames differ in another chunk (identical
+			// frames are ignored as static) but share the chunk under test.
 			numFrames := 10
+			otherChunk := (tt.chunkIdx + 1) % 4
 			queryHashes := make([]uint64, numFrames)
 			for i := range queryHashes {
-				queryHashes[i] = hash
+				queryHashes[i] = hash ^ (uint64(i+1) << (otherChunk * 16))
 			}
 
 			candidateSceneID := uint(100 + tt.chunkIdx)
@@ -424,7 +426,7 @@ func TestFindVisualMatches_ChunkPartitioning(t *testing.T) {
 					VisualHit{
 						SceneID:     candidateSceneID,
 						FrameOffset: uint32(frameIdx),
-						FullHash:    hash,
+						FullHash:    queryHashes[frameIdx],
 					},
 				)
 			}
@@ -487,5 +489,25 @@ func TestFindVisualMatches_MinSpan(t *testing.T) {
 	}
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result with minSpan=8 (span=10), got %d", len(results))
+	}
+}
+
+func TestFindVisualMatches_StaticFramesAreIgnored(t *testing.T) {
+	// A black screen gives the same dHash on every frame.
+	black := buildHash(0, 0, 0, 0)
+	queryHashes := make([]uint64, 50)
+	for i := range queryHashes {
+		queryHashes[i] = black
+	}
+	candidate := make([]uint64, 50)
+	copy(candidate, queryHashes)
+	lookup := hitsByChunkIdxForScene(2, candidate, 0)
+
+	results, err := FindVisualMatches(1, queryHashes, makeLookupFn(lookup), 0, 5, 0.5, 2, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("static frames must not match, got %+v", results)
 	}
 }
