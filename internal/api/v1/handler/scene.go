@@ -98,20 +98,9 @@ var resolutionToHeight = map[string][2]int{
 	"360p":  {0, 479},
 }
 
-func (h *SceneHandler) ListScenes(c *gin.Context) {
-	var req request.SearchScenesRequest
-	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
-		return
-	}
-
-	req.Page, req.Limit = clampPagination(req.Page, req.Limit, 20, h.MaxItemsPerPage)
-
-	var userID uint
-	if payload, err := middleware.GetUserFromContext(c); err == nil {
-		userID = payload.UserID
-	}
-
+// searchParamsFromRequest maps the scene search query to search parameters, except tags
+// (resolved to IDs by the handler).
+func searchParamsFromRequest(req *request.SearchScenesRequest, userID uint) data.SceneSearchParams {
 	// Map frontend match_type to Meilisearch matching strategy
 	var matchingStrategy string
 	switch req.MatchType {
@@ -135,6 +124,8 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		HasActors:        req.HasActors,
 		HasTags:          req.HasTags,
 		HasStudio:        req.HasStudio,
+		SourceSites:      core.ParseSourceSites(req.SourceSite),
+		HasSource:        req.HasSource,
 		Watched:          req.Watched,
 		Rated:            req.Rated,
 		HasMarkers:       req.HasMarkers,
@@ -147,18 +138,6 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		MaxJizzCount:     req.MaxJizzCount,
 		MatchingStrategy: matchingStrategy,
 		Seed:             req.Seed,
-	}
-
-	if req.Tags != "" {
-		tagNames := strings.Split(req.Tags, ",")
-		tags, err := h.TagService.GetTagsByNames(tagNames)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resolve tags"})
-			return
-		}
-		for _, tag := range tags {
-			params.TagIDs = append(params.TagIDs, tag.ID)
-		}
 	}
 
 	if req.Actors != "" {
@@ -187,6 +166,37 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		if heights, ok := resolutionToHeight[req.Resolution]; ok {
 			params.MinHeight = heights[0]
 			params.MaxHeight = heights[1]
+		}
+	}
+
+	return params
+}
+
+func (h *SceneHandler) ListScenes(c *gin.Context) {
+	var req request.SearchScenesRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
+		return
+	}
+
+	req.Page, req.Limit = clampPagination(req.Page, req.Limit, 20, h.MaxItemsPerPage)
+
+	var userID uint
+	if payload, err := middleware.GetUserFromContext(c); err == nil {
+		userID = payload.UserID
+	}
+
+	params := searchParamsFromRequest(&req, userID)
+
+	if req.Tags != "" {
+		tagNames := strings.Split(req.Tags, ",")
+		tags, err := h.TagService.GetTagsByNames(tagNames)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resolve tags"})
+			return
+		}
+		for _, tag := range tags {
+			params.TagIDs = append(params.TagIDs, tag.ID)
 		}
 	}
 
@@ -397,7 +407,22 @@ func (h *SceneHandler) GetScene(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, scene)
+	c.JSON(http.StatusOK, response.NewSceneDetail(scene))
+}
+
+// ListSourceSites lists the sites scenes come from with their scene counts, for the search
+// filters. GET /scenes/source-sites
+func (h *SceneHandler) ListSourceSites(c *gin.Context) {
+	if h.SearchService == nil {
+		response.Error(c, apperrors.NewInternalError("search is not configured", nil))
+		return
+	}
+	sites, err := h.SearchService.GetSourceSites()
+	if err != nil {
+		response.Error(c, apperrors.NewInternalError("failed to list source sites", err))
+		return
+	}
+	response.OK(c, response.ToSourceSiteList(sites))
 }
 
 func (h *SceneHandler) StreamScene(c *gin.Context) {
@@ -553,7 +578,7 @@ func (h *SceneHandler) UpdateSceneDetails(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, scene)
+	c.JSON(http.StatusOK, response.NewSceneDetail(scene))
 }
 
 func (h *SceneHandler) UploadThumbnail(c *gin.Context) {

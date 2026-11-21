@@ -274,6 +274,16 @@ func (s *SceneService) UpdateSceneSourceURL(id uint, sourceURL string) (*data.Sc
 	if err != nil {
 		return nil, apperrors.NewInternalError("failed to get scene", err)
 	}
+
+	// The search index holds the source site
+	if s.indexer != nil {
+		if err := s.indexer.UpdateSceneIndex(scene); err != nil {
+			s.logger.Warn("Failed to update scene in search index",
+				zap.Uint("scene_id", id),
+				zap.Error(err),
+			)
+		}
+	}
 	return scene, nil
 }
 

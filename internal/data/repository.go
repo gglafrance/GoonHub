@@ -47,9 +47,11 @@ type SceneSearchParams struct {
 	HasActors        *bool
 	HasTags          *bool
 	HasStudio        *bool
-	Watched          *bool // the user has watched the scene
-	Rated            *bool // the user has rated the scene
-	HasMarkers       *bool // the user has markers on the scene
+	SourceSites      []string // normalized source sites, OR ("pornhub.com"); see core.NormalizeSourceSite
+	HasSource        *bool    // the scene has a source URL
+	Watched          *bool    // the user has watched the scene
+	Rated            *bool    // the user has rated the scene
+	HasMarkers       *bool    // the user has markers on the scene
 	MinDate          *time.Time
 	MaxDate          *time.Time
 	MinHeight        int
