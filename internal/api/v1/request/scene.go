@@ -4,6 +4,8 @@ type UpdateSceneDetailsRequest struct {
 	Title       string  `json:"title"`
 	Description string  `json:"description"`
 	ReleaseDate *string `json:"release_date,omitempty"`
+	// SourceURL: absent leaves the source as it is, "" clears it
+	SourceURL *string `json:"source_url,omitempty"`
 }
 
 type SetRatingRequest struct {
@@ -51,6 +53,8 @@ type ApplySceneMetadataRequest struct {
 	TagNames      []string `json:"tag_names,omitempty"`
 	ReleaseDate   *string  `json:"release_date,omitempty"`
 	PornDBSceneID *string  `json:"porndb_scene_id,omitempty"`
+	// SourceURL: absent leaves the source as it is, "" clears it
+	SourceURL *string `json:"source_url,omitempty"`
 }
 
 type DeleteSceneRequest struct {

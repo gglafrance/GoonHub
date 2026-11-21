@@ -177,6 +177,7 @@ func toImportSceneInput(req request.ImportSceneRequest) core.ImportSceneInput {
 		VideoCodec:       req.VideoCodec,
 		AudioCodec:       req.AudioCodec,
 		Description:      req.Description,
+		SourceURL:        req.SourceURL,
 		ReleaseDate:      req.ReleaseDate,
 		StudioID:         req.StudioID,
 		StoragePathID:    req.StoragePathID,

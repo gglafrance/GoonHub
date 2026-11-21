@@ -93,6 +93,31 @@ async function saveDescription(description: string) {
     await saveDetails(scene.value.title || '', description);
 }
 
+async function saveSourceUrl(sourceUrl: string) {
+    if (!scene?.value) return;
+
+    saving.value = true;
+    error.value = null;
+
+    try {
+        const updated = await updateSceneDetails(
+            scene.value.id,
+            scene.value.title,
+            scene.value.description || '',
+            undefined,
+            sourceUrl,
+        );
+        if (scene.value) {
+            scene.value.source_url = updated.source_url;
+        }
+        showSavedIndicator();
+    } catch (err: unknown) {
+        error.value = err instanceof Error ? err.message : 'Failed to save the source';
+    } finally {
+        saving.value = false;
+    }
+}
+
 async function saveReleaseDate(releaseDate: string | null) {
     if (!scene?.value) return;
 
@@ -178,6 +203,12 @@ function handleSceneDeleted() {
                     <WatchDetailsDescriptionEditor
                         :description="scene?.description || ''"
                         @save="saveDescription"
+                    />
+
+                    <!-- Source -->
+                    <WatchDetailsSourceEditor
+                        :source-url="scene?.source_url || ''"
+                        @save="saveSourceUrl"
                     />
                 </div>
             </div>

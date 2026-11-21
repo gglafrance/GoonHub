@@ -529,6 +529,13 @@ func (h *SceneHandler) UpdateSceneDetails(c *gin.Context) {
 		}
 	}
 
+	if req.SourceURL != nil {
+		if _, err := core.NormalizeSourceURL(*req.SourceURL); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
 	scene, err := h.Service.UpdateSceneDetails(uint(id), req.Title, req.Description, releaseDate)
 	if err != nil {
 		if apperrors.IsNotFound(err) {
@@ -537,6 +544,13 @@ func (h *SceneHandler) UpdateSceneDetails(c *gin.Context) {
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update scene details"})
 		return
+	}
+
+	if req.SourceURL != nil {
+		if scene, err = h.Service.UpdateSceneSourceURL(uint(id), *req.SourceURL); err != nil {
+			response.Error(c, err)
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, scene)
@@ -637,10 +651,24 @@ func (h *SceneHandler) ApplySceneMetadata(c *gin.Context) {
 		porndbSceneID = *req.PornDBSceneID
 	}
 
+	if req.SourceURL != nil {
+		if _, err := core.NormalizeSourceURL(*req.SourceURL); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
 	updatedScene, err := h.Service.UpdateSceneMetadata(uint(id), title, description, studio, releaseDate, porndbSceneID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update scene metadata"})
 		return
+	}
+
+	if req.SourceURL != nil {
+		if updatedScene, err = h.Service.UpdateSceneSourceURL(uint(id), *req.SourceURL); err != nil {
+			response.Error(c, err)
+			return
+		}
 	}
 
 	// Import thumbnail from URL if provided

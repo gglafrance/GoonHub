@@ -109,6 +109,7 @@ type Scene struct {
 	StudioID         *uint          `json:"studio_id"`
 	ReleaseDate      *time.Time     `json:"release_date" gorm:"type:date"`
 	PornDBSceneID    string         `json:"porndb_scene_id" gorm:"column:porndb_scene_id"`
+	SourceURL        string         `json:"source_url" gorm:"column:source_url"`
 	Origin           string         `json:"origin" gorm:"size:100"`
 	Type             string         `json:"type" gorm:"size:50"`
 	PreviewVideoPath string         `json:"preview_video_path"`

@@ -659,6 +659,17 @@ func (ds *DuplicateService) mergeMetadata(bestSceneID uint, otherSceneIDs []uint
 			}
 		}
 	}
+	// Same for the source URL: the first other scene that has one gives it.
+	if bestScene.SourceURL == "" {
+		for _, sid := range otherSceneIDs {
+			if other := sceneMap[sid]; other.SourceURL != "" {
+				if err := ds.sceneRepo.UpdateSourceURL(bestSceneID, other.SourceURL); err != nil {
+					return fmt.Errorf("failed to copy source url from scene %d: %w", sid, err)
+				}
+				break
+			}
+		}
+	}
 
 	if ds.markerRepo != nil {
 		for _, sid := range otherSceneIDs {

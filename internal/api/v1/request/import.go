@@ -15,6 +15,7 @@ type ImportSceneRequest struct {
 	VideoCodec       string  `json:"video_codec"`
 	AudioCodec       string  `json:"audio_codec"`
 	Description      *string `json:"description,omitempty"`
+	SourceURL        *string `json:"source_url,omitempty"`
 	ReleaseDate      *string `json:"release_date,omitempty"`
 	StudioID         *uint   `json:"studio_id,omitempty"`
 	StoragePathID    *uint   `json:"storage_path_id,omitempty"`

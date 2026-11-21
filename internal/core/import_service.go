@@ -42,6 +42,7 @@ var ImportFeatures = []string{
 	"scene_summary",
 	"jizz_history",
 	"skip_index",
+	"source_url",
 }
 
 var importColorPattern = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
@@ -92,6 +93,7 @@ type ImportSceneInput struct {
 	VideoCodec       string
 	AudioCodec       string
 	Description      *string
+	SourceURL        *string
 	ReleaseDate      *string
 	StudioID         *uint
 	StoragePathID    *uint
@@ -225,6 +227,7 @@ type preparedScene struct {
 	tagNames         []string
 	actorIDs         []uint
 	actorNames       []string
+	sourceURL        *string
 	interactions     *preparedInteractions
 }
 
@@ -350,6 +353,13 @@ func (s *ImportService) prepareScene(userID uint, in ImportSceneInput) (*prepare
 	}
 	if in.ViewCount != nil && *in.ViewCount < 0 {
 		return nil, apperrors.NewValidationErrorWithField("view_count", "view_count must be >= 0")
+	}
+	if in.SourceURL != nil {
+		sourceURL, err := NormalizeSourceURL(*in.SourceURL)
+		if err != nil {
+			return nil, err
+		}
+		p.sourceURL = &sourceURL
 	}
 
 	var err error
@@ -587,6 +597,9 @@ func (s *ImportService) buildNewScene(in ImportSceneInput, p *preparedScene) *da
 	if in.Description != nil {
 		scene.Description = *in.Description
 	}
+	if p.sourceURL != nil {
+		scene.SourceURL = *p.sourceURL
+	}
 	if in.ViewCount != nil {
 		scene.ViewCount = *in.ViewCount
 	}
@@ -612,6 +625,9 @@ func (s *ImportService) buildUpdateFields(in ImportSceneInput, p *preparedScene)
 
 	if in.Description != nil {
 		fields["description"] = *in.Description
+	}
+	if p.sourceURL != nil {
+		fields["source_url"] = *p.sourceURL
 	}
 	if p.releaseDate != nil {
 		fields["release_date"] = *p.releaseDate

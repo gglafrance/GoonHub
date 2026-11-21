@@ -67,6 +67,7 @@ Main content table storing video/scene metadata and processing state. Originally
 | `origin` | VARCHAR(100) | YES | NULL | Content origin (upload, scan, import) |
 | `type` | VARCHAR(50) | YES | NULL | Content type classification |
 | `porndb_scene_id` | TEXT | NO | '' | PornDB external scene ID |
+| `source_url` | TEXT | NO | '' | Web page the scene comes from (http/https; '' = unknown). Migration 074 moved descriptions that were only a URL here |
 | `processing_status` | VARCHAR(50) | YES | 'pending' | Processing pipeline status |
 | `processing_error` | TEXT | YES | NULL | Last processing error message |
 | `is_corrupted` | BOOLEAN | NO | FALSE | Video file failed integrity check |

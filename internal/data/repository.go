@@ -113,6 +113,7 @@ type SceneRepository interface {
 	Delete(id uint) error
 	UpdateDetails(id uint, title, description string, releaseDate *time.Time) error
 	UpdateSceneMetadata(id uint, title, description, studio string, releaseDate *time.Time, porndbSceneID string) error
+	UpdateSourceURL(id uint, sourceURL string) error
 	ExistsByStoredPath(path string) (bool, error)
 	GetByStoredPath(path string) (*Scene, error)
 	MarkAsMissing(id uint) error
@@ -360,6 +361,10 @@ func (r *SceneRepositoryImpl) UpdateSceneMetadata(id uint, title, description, s
 		updates["release_date"] = releaseDate
 	}
 	return r.DB.Model(&Scene{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (r *SceneRepositoryImpl) UpdateSourceURL(id uint, sourceURL string) error {
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Update("source_url", sourceURL).Error
 }
 
 func (r *SceneRepositoryImpl) GetDistinctStudios() ([]string, error) {

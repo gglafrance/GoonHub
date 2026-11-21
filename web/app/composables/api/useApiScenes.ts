@@ -109,15 +109,20 @@ export const useApiScenes = () => {
         return handleResponse(response);
     };
 
+    // sourceUrl: undefined leaves the source as it is, '' clears it
     const updateSceneDetails = async (
         sceneId: number,
         title: string,
         description: string,
         releaseDate?: string | null,
+        sourceUrl?: string,
     ) => {
         const payload: Record<string, unknown> = { title, description };
         if (releaseDate !== undefined) {
             payload.release_date = releaseDate;
+        }
+        if (sourceUrl !== undefined) {
+            payload.source_url = sourceUrl;
         }
         const response = await fetch(`/api/v1/scenes/${sceneId}/details`, {
             method: 'PUT',
