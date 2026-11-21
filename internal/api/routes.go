@@ -43,6 +43,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					scenes.POST("", middleware.RequirePermission(rbacService, "scenes:upload"), sceneHandler.UploadScene)
 					scenes.GET("", middleware.RequirePermission(rbacService, "scenes:view"), sceneHandler.ListScenes)
 					scenes.GET("/filters", middleware.RequirePermission(rbacService, "scenes:view"), sceneHandler.GetFilterOptions)
+					scenes.GET("/source-sites", middleware.RequirePermission(rbacService, "scenes:view"), sceneHandler.ListSourceSites)
 					scenes.GET("/:id", middleware.RequirePermission(rbacService, "scenes:view"), sceneHandler.GetScene)
 					scenes.GET("/:id/reprocess", middleware.RequirePermission(rbacService, "scenes:reprocess"), sceneHandler.ReprocessScene)
 					scenes.PUT("/:id/thumbnail", middleware.RequirePermission(rbacService, "scenes:upload"), sceneHandler.ExtractThumbnail)

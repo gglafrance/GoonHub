@@ -25,6 +25,8 @@ type SearchScenesRequest struct {
 	HasActors    *bool   `form:"has_actors"`
 	HasTags      *bool   `form:"has_tags"`
 	HasStudio    *bool   `form:"has_studio"`
+	SourceSite   string  `form:"source_site"` // comma-separated source sites (OR), e.g. "pornhub.com,xvideos.com"
+	HasSource    *bool   `form:"has_source"`
 	Watched      *bool   `form:"watched"`
 	Rated        *bool   `form:"rated"`
 	HasMarkers   *bool   `form:"has_markers"`

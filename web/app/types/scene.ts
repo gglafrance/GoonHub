@@ -42,6 +42,8 @@ export interface Scene extends SceneListItem {
     description?: string;
     // the web page the scene comes from ('' or absent: unknown)
     source_url?: string;
+    // site of the source URL, normalized by the server ("pornhub.com"; '' without a source)
+    source_site?: string;
     studio?: string;
     tags?: string[];
     actors?: string[];
@@ -85,6 +87,9 @@ export interface SceneSearchParams {
     has_actors?: boolean;
     has_tags?: boolean;
     has_studio?: boolean;
+    // comma-separated source sites (OR), and source presence
+    source_site?: string;
+    has_source?: boolean;
     min_date?: string;
     max_date?: string;
     resolution?: string;
@@ -109,6 +114,12 @@ export interface TagOption {
 
 export interface MarkerLabelOption {
     label: string;
+    count: number;
+}
+
+// A site scenes come from, with its scene count (GET /scenes/source-sites)
+export interface SourceSiteOption {
+    site: string;
     count: number;
 }
 
