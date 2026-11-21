@@ -12,6 +12,12 @@ interface TheaterModeButtonInstance {
     _onToggle: (() => void) | null;
 }
 
+// Scrubber toggle button interface for type safety
+interface ScrubberToggleButtonInstance {
+    setActive: (active: boolean) => void;
+    _onToggle: (() => void) | null;
+}
+
 // Playlist button interface for type safety
 interface PlaylistButtonInstance {
     setDisabled: (disabled: boolean) => void;
@@ -77,6 +83,42 @@ if (ButtonClass) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     videojs.registerComponent('TheaterModeButton', TheaterModeButton as any);
+
+    // Shows or hides the thumbnail scrubber strip under the player (watch page)
+    class ScrubberToggleButton extends ButtonClass {
+        public _onToggle: (() => void) | null = null;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        constructor(player: Player, options?: any) {
+            super(player, options);
+            this._onToggle = options?.onToggle ?? null;
+            this.setActive(options?.active ?? false);
+            const el = this.el();
+            if (el) {
+                el.insertAdjacentHTML(
+                    'beforeend',
+                    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="vjs-scrubber-icon" aria-hidden="true"><rect x="2" y="7" width="20" height="10" rx="1.5"/><path d="M8.5 7v10M15.5 7v10M12 3v3M12 18v3"/></svg>`,
+                );
+            }
+        }
+
+        buildCSSClass() {
+            return `vjs-scrubber-toggle-control ${super.buildCSSClass()}`;
+        }
+
+        handleClick() {
+            if (this._onToggle) this._onToggle();
+        }
+
+        setActive(active: boolean) {
+            this.controlText(active ? 'Hide Thumbnail Scrubber' : 'Show Thumbnail Scrubber');
+            const el = this.el();
+            if (el) el.classList.toggle('vjs-scrubber-toggle-active', active);
+        }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    videojs.registerComponent('ScrubberToggleButton', ScrubberToggleButton as any);
 
     // Playlist previous button
     class PlaylistPrevButton extends ButtonClass {
@@ -315,6 +357,8 @@ const props = defineProps<{
     transcodeUrl?: string;
     // Scene duration in seconds when no scene is passed (shown for converted streams)
     durationHint?: number;
+    // Control bar button that shows/hides the thumbnail scrubber (saved in the user settings)
+    scrubberToggle?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -331,6 +375,7 @@ const videoElement = ref<HTMLVideoElement>();
 const player = shallowRef<Player | null>(null);
 const settingsStore = useSettingsStore();
 const theaterModeButton = shallowRef<TheaterModeButtonInstance | null>(null);
+const scrubberToggleBtn = shallowRef<ScrubberToggleButtonInstance | null>(null);
 const playlistPrevBtn = shallowRef<PlaylistButtonInstance | null>(null);
 const playlistNextBtn = shallowRef<PlaylistButtonInstance | null>(null);
 const abLoopStartBtn = shallowRef<ABLoopTimeButtonInstance | null>(null);
@@ -500,6 +545,7 @@ onMounted(async () => {
                     ? ['ABLoopStartButton', 'ABLoopEndButton', 'ABLoopToggleButton']
                     : []),
                 ...(pipSupported ? ['pictureInPictureToggle'] : []),
+                ...(props.scrubberToggle ? ['ScrubberToggleButton'] : []),
                 'TheaterModeButton',
                 'fullscreenToggle',
             ],
@@ -519,6 +565,17 @@ onMounted(async () => {
             btn.setTheaterMode(settingsStore.theaterMode);
             btn._onToggle = () => {
                 settingsStore.toggleTheaterMode();
+            };
+        }
+
+        const scrubberBtn = controlBar.getChild('ScrubberToggleButton') as unknown as
+            | ScrubberToggleButtonInstance
+            | undefined;
+        if (scrubberBtn) {
+            scrubberToggleBtn.value = scrubberBtn;
+            scrubberBtn.setActive(settingsStore.showScrubber);
+            scrubberBtn._onToggle = () => {
+                settingsStore.setShowScrubber(!settingsStore.showScrubber);
             };
         }
 
@@ -691,7 +748,9 @@ watch(
     },
 );
 
-watch(vttUrl, (newVttUrl) => {
+watch(vttUrl, (newVttUrl, oldVttUrl) => {
+    // The thumbnails of another scene must not show meanwhile (scrubber, gestures)
+    if (newVttUrl?.split('?')[0] !== oldVttUrl?.split('?')[0]) vttCues.value = [];
     if (newVttUrl) {
         loadVttCues(newVttUrl);
     }
@@ -739,6 +798,11 @@ watch(
             theaterModeButton.value.setTheaterMode(isTheaterMode);
         }
     },
+);
+
+watch(
+    () => settingsStore.showScrubber,
+    (shown) => scrubberToggleBtn.value?.setActive(shown),
 );
 
 // Sync AB loop button states
@@ -1202,6 +1266,29 @@ onBeforeUnmount(() => {
 :deep(.vjs-theater-mode-control:hover) {
     color: #ff4d4d;
     background: rgba(255, 77, 77, 0.12);
+}
+
+:deep(.vjs-scrubber-toggle-control) {
+    display: flex;
+    width: 36px;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+:deep(.vjs-scrubber-toggle-control .vjs-scrubber-icon) {
+    width: 15px;
+    height: 15px;
+}
+
+:deep(.vjs-scrubber-toggle-control:hover) {
+    color: #ff4d4d;
+    background: rgba(255, 77, 77, 0.12);
+}
+
+:deep(.vjs-scrubber-toggle-control.vjs-scrubber-toggle-active) {
+    color: #ff4d4d;
 }
 
 :deep(.vjs-fullscreen-control:hover) {

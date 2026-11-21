@@ -432,6 +432,17 @@ func WithReplayHeatmap(show, record *bool) SettingsOption {
 	}
 }
 
+// WithScrubber sets whether the thumbnail scrubber strip is shown under the player on the watch
+// page; nil keeps the current value (off for a new row).
+func WithScrubber(show *bool) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if show != nil {
+			settings.ShowScrubber = *show
+		}
+		return nil
+	}
+}
+
 // WithPaginationPosition sets where page controls are shown (top, bottom or both; empty means
 // bottom).
 func WithPaginationPosition(position string) SettingsOption {

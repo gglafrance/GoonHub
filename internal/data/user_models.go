@@ -88,8 +88,10 @@ type UserSettings struct {
 	// InfiniteScroll: scene list pages load the next page on scroll instead of page controls
 	InfiniteScroll bool `gorm:"not null;default:false" json:"infinite_scroll"`
 	// SceneListView: grid or table per scene list page, and the table columns
-	SceneListView   SceneListView `gorm:"type:jsonb;not null" json:"scene_list_view"`
-	MaxItemsPerPage int           `gorm:"-" json:"max_items_per_page"`
+	SceneListView SceneListView `gorm:"type:jsonb;not null" json:"scene_list_view"`
+	// ShowScrubber: strip of the scene thumbnails under the player on the watch page (off by default)
+	ShowScrubber    bool `gorm:"not null;default:false" json:"show_scrubber"`
+	MaxItemsPerPage int  `gorm:"-" json:"max_items_per_page"`
 }
 
 // HomepageConfig represents the user's homepage layout configuration
