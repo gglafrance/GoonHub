@@ -209,6 +209,8 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					admin.GET("/jobs", jobHandler.ListJobs)
 					admin.GET("/pool-config", poolConfigHandler.GetPoolConfig)
 					admin.PUT("/pool-config", poolConfigHandler.UpdatePoolConfig)
+					admin.GET("/job-schedule", poolConfigHandler.GetJobSchedule)
+					admin.PUT("/job-schedule", poolConfigHandler.UpdateJobSchedule)
 					admin.GET("/processing-config", processingConfigHandler.GetProcessingConfig)
 					admin.PUT("/processing-config", processingConfigHandler.UpdateProcessingConfig)
 					admin.GET("/trigger-config", triggerConfigHandler.GetTriggerConfig)

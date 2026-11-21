@@ -26,6 +26,62 @@ export interface PoolConfig {
     duplication_enabled: boolean;
 }
 
+export type SchedulablePhase =
+    | 'metadata'
+    | 'thumbnail'
+    | 'sprites'
+    | 'animated_thumbnails'
+    | 'fingerprint';
+
+export interface PhaseScheduleConfig {
+    phase: SchedulablePhase;
+    priority: number;
+    window_enabled: boolean;
+    window_start: string;
+    window_end: string;
+    quiet_workers: number;
+}
+
+export interface JobScheduleConfig {
+    timezone: string;
+    quiet_hours_start: string;
+    quiet_hours_end: string;
+    max_concurrent_jobs: number;
+    new_scenes_first: boolean;
+    new_scenes_window_hours: number;
+    phases: PhaseScheduleConfig[];
+}
+
+export interface PhaseScheduleState {
+    phase: SchedulablePhase;
+    priority: number;
+    state: 'running' | 'paused';
+    next_change?: string;
+    workers: number;
+    configured_workers: number;
+    quiet_workers: number;
+    worker_mode: 'day' | 'quiet';
+    pending: number;
+    queued: number;
+    running: number;
+}
+
+export interface JobScheduleStatus {
+    now: string;
+    timezone: string;
+    quiet_hours: boolean;
+    quiet_hours_next_change: string;
+    max_concurrent_jobs: number;
+    running_jobs: number;
+    new_scene_since?: string;
+    phases: PhaseScheduleState[];
+}
+
+export interface JobScheduleResponse {
+    config: JobScheduleConfig;
+    status: JobScheduleStatus;
+}
+
 export interface ProcessingConfig {
     max_frame_dimension_sm: number;
     max_frame_dimension_lg: number;

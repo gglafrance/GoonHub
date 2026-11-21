@@ -100,7 +100,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	adminService := provideAdminService(userRepository, roleRepository, rbacService, logger)
 	adminHandler := provideAdminHandler(adminService, rbacService, sceneService, appSettingsRepository)
 	jobHandler := provideJobHandler(jobHistoryService, sceneProcessingService)
-	poolConfigHandler := providePoolConfigHandler(sceneProcessingService, poolConfigRepository)
+	jobScheduleRepository := provideJobScheduleRepository(db)
+	jobSchedulingService := provideJobSchedulingService(jobScheduleRepository, sceneProcessingService, jobHistoryRepository, logger)
+	poolConfigHandler := providePoolConfigHandler(sceneProcessingService, poolConfigRepository, jobSchedulingService)
 	processingConfigHandler := provideProcessingConfigHandler(sceneProcessingService, processingConfigRepository, markerService)
 	triggerScheduler := provideTriggerScheduler(triggerConfigRepository, sceneRepository, sceneProcessingService, logger)
 	triggerConfigHandler := provideTriggerConfigHandler(triggerConfigRepository, sceneProcessingService, triggerScheduler)
@@ -159,7 +161,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	ipRateLimiter := provideRateLimiter(configConfig)
 	ogMiddleware := provideOGMiddleware(sceneRepository, actorRepository, studioRepository, playlistRepository, shareLinkRepository, appSettingsRepository, logger)
 	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, authService, rbacService, ipRateLimiter, ogMiddleware)
-	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, markerService, sceneProcessingService, duplicationConfigRepository, configConfig, logger)
+	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, markerService, sceneProcessingService, duplicationConfigRepository, jobSchedulingService, configConfig, logger)
 	shareServer := provideShareServer(configConfig, shareHandler, ogMiddleware, logger)
 	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService, matchingService, duplicateService, shareServer, transcoder)
 	return serverServer, nil
@@ -225,6 +227,10 @@ func provideJobHistoryRepository(db *gorm.DB) data.JobHistoryRepository {
 
 func providePoolConfigRepository(db *gorm.DB) data.PoolConfigRepository {
 	return data.NewPoolConfigRepository(db)
+}
+
+func provideJobScheduleRepository(db *gorm.DB) data.JobScheduleRepository {
+	return data.NewJobScheduleRepository(db)
 }
 
 func provideProcessingConfigRepository(db *gorm.DB) data.ProcessingConfigRepository {
@@ -398,8 +404,14 @@ func provideJobStatusService(jobHistoryService *core.JobHistoryService, processi
 	return core.NewJobStatusService(jobHistoryService, processingService, logger.Logger)
 }
 
-func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, markerService *core.MarkerService, processingService *core.SceneProcessingService, dupConfigRepo data.DuplicationConfigRepository, cfg *config.Config, logger *logging.Logger) *core.JobQueueFeeder {
-	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerService, markerService, processingService.GetPoolManager(), cfg.Duplication.Enabled, dupConfigRepo, logger.Logger)
+func provideJobSchedulingService(repo data.JobScheduleRepository, processingService *core.SceneProcessingService, jobHistoryRepo data.JobHistoryRepository, logger *logging.Logger) *core.JobSchedulingService {
+	return core.NewJobSchedulingService(repo, processingService.GetPoolManager(), jobHistoryRepo, logger.Logger)
+}
+
+func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, markerService *core.MarkerService, processingService *core.SceneProcessingService, dupConfigRepo data.DuplicationConfigRepository, schedulingService *core.JobSchedulingService, cfg *config.Config, logger *logging.Logger) *core.JobQueueFeeder {
+	feeder := core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerService, markerService, processingService.GetPoolManager(), cfg.Duplication.Enabled, dupConfigRepo, logger.Logger)
+	feeder.SetScheduler(schedulingService)
+	return feeder
 }
 
 func provideTriggerScheduler(triggerConfigRepo data.TriggerConfigRepository, sceneRepo data.SceneRepository, processingService *core.SceneProcessingService, logger *logging.Logger) *core.TriggerScheduler {
@@ -605,8 +617,8 @@ func provideJobHandler(jobHistoryService *core.JobHistoryService, processingServ
 	return handler.NewJobHandler(jobHistoryService, processingService)
 }
 
-func providePoolConfigHandler(processingService *core.SceneProcessingService, poolConfigRepo data.PoolConfigRepository) *handler.PoolConfigHandler {
-	return handler.NewPoolConfigHandler(processingService, poolConfigRepo)
+func providePoolConfigHandler(processingService *core.SceneProcessingService, poolConfigRepo data.PoolConfigRepository, schedulingService *core.JobSchedulingService) *handler.PoolConfigHandler {
+	return handler.NewPoolConfigHandler(processingService, poolConfigRepo, schedulingService)
 }
 
 func provideProcessingConfigHandler(processingService *core.SceneProcessingService, processingConfigRepo data.ProcessingConfigRepository, markerService *core.MarkerService) *handler.ProcessingConfigHandler {

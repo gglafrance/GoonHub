@@ -32,6 +32,12 @@ type PoolManager struct {
 
 	// onJobExecuting is called when a worker picks up a job for execution
 	onJobExecuting func(jobID string)
+
+	// Job scheduling: configured pool sizes (pool_config), per-phase worker overrides set by
+	// the scheduler (quiet hours), and the limiter shared by all pools (global cap).
+	baseWorkers     map[string]int
+	workerOverrides map[string]int
+	slotLimiter     *jobs.SlotLimiter
 }
 
 // NewPoolManager creates a new PoolManager with the given configuration
@@ -224,6 +230,22 @@ func NewPoolManager(
 		}
 	}
 
+	// One limiter shared by all pools enforces the optional global cap on running jobs.
+	slotLimiter := jobs.NewSlotLimiter(0)
+	baseWorkers := map[string]int{
+		"metadata":            metadataWorkers,
+		"thumbnail":           thumbnailWorkers,
+		"sprites":             spritesWorkers,
+		"animated_thumbnails": animatedThumbnailsWorkers,
+	}
+	for _, pool := range []*jobs.WorkerPool{metadataPool, thumbnailPool, spritesPool, animatedThumbnailsPool} {
+		pool.SetSlotLimiter(slotLimiter)
+	}
+	if fingerprintPool != nil {
+		fingerprintPool.SetSlotLimiter(slotLimiter)
+		baseWorkers["fingerprint"] = fingerprintPool.ActiveWorkers()
+	}
+
 	// Create output directories
 	createDirIfNotExists(cfg.SpriteDir, logger)
 	createDirIfNotExists(cfg.VttDir, logger)
@@ -241,6 +263,9 @@ func NewPoolManager(
 		config:                 cfg,
 		qualityConfig:          qualityConfig,
 		logger:                 logger,
+		baseWorkers:            baseWorkers,
+		workerOverrides:        map[string]int{},
+		slotLimiter:            slotLimiter,
 	}
 }
 
@@ -431,7 +456,7 @@ func (pm *PoolManager) migrateOldThumbnails() {
 	}
 }
 
-// GetPoolConfig returns the current pool configuration
+// GetPoolConfig returns the effective pool sizes (including the scheduler overrides).
 func (pm *PoolManager) GetPoolConfig() PoolConfig {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
@@ -446,6 +471,21 @@ func (pm *PoolManager) GetPoolConfig() PoolConfig {
 		cfg.FingerprintWorkers = pm.fingerprintPool.ActiveWorkers()
 	}
 	return cfg
+}
+
+// GetBasePoolConfig returns the configured pool sizes (pool_config), without the scheduler
+// overrides applied during quiet hours.
+func (pm *PoolManager) GetBasePoolConfig() PoolConfig {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	return PoolConfig{
+		MetadataWorkers:           pm.baseWorkers["metadata"],
+		ThumbnailWorkers:          pm.baseWorkers["thumbnail"],
+		SpritesWorkers:            pm.baseWorkers["sprites"],
+		AnimatedThumbnailsWorkers: pm.baseWorkers["animated_thumbnails"],
+		FingerprintWorkers:        pm.baseWorkers["fingerprint"],
+		DuplicationEnabled:        pm.duplicationEnabled,
+	}
 }
 
 // GetQueueStatus returns the current queue status
@@ -569,94 +609,118 @@ func (pm *PoolManager) UpdatePoolConfig(cfg PoolConfig) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
-	const queueBufferSize = 1000
-
-	// Resize metadata pool if needed
-	if cfg.MetadataWorkers != pm.metadataPool.ActiveWorkers() {
-		newPool := jobs.NewWorkerPool(cfg.MetadataWorkers, queueBufferSize)
-		newPool.SetLogger(pm.logger.With(zap.String("pool", "metadata")))
-		newPool.SetOnJobExecuting(pm.onJobExecuting)
-		newPool.Start()
-		if pm.resultHandler != nil {
-			go pm.resultHandler(newPool)
-		}
-
-		oldPool := pm.metadataPool
-		pm.metadataPool = newPool
-		oldPool.Stop()
-
-		pm.logger.Info("Resized metadata pool", zap.Int("workers", cfg.MetadataWorkers))
+	pm.baseWorkers["metadata"] = cfg.MetadataWorkers
+	pm.baseWorkers["thumbnail"] = cfg.ThumbnailWorkers
+	pm.baseWorkers["sprites"] = cfg.SpritesWorkers
+	pm.baseWorkers["animated_thumbnails"] = cfg.AnimatedThumbnailsWorkers
+	if pm.fingerprintPool != nil {
+		pm.baseWorkers["fingerprint"] = cfg.FingerprintWorkers
 	}
-
-	// Resize thumbnail pool if needed
-	if cfg.ThumbnailWorkers != pm.thumbnailPool.ActiveWorkers() {
-		newPool := jobs.NewWorkerPool(cfg.ThumbnailWorkers, queueBufferSize)
-		newPool.SetLogger(pm.logger.With(zap.String("pool", "thumbnail")))
-		newPool.SetOnJobExecuting(pm.onJobExecuting)
-		newPool.Start()
-		if pm.resultHandler != nil {
-			go pm.resultHandler(newPool)
-		}
-
-		oldPool := pm.thumbnailPool
-		pm.thumbnailPool = newPool
-		oldPool.Stop()
-
-		pm.logger.Info("Resized thumbnail pool", zap.Int("workers", cfg.ThumbnailWorkers))
-	}
-
-	// Resize sprites pool if needed
-	if cfg.SpritesWorkers != pm.spritesPool.ActiveWorkers() {
-		newPool := jobs.NewWorkerPool(cfg.SpritesWorkers, queueBufferSize)
-		newPool.SetLogger(pm.logger.With(zap.String("pool", "sprites")))
-		newPool.SetOnJobExecuting(pm.onJobExecuting)
-		newPool.Start()
-		if pm.resultHandler != nil {
-			go pm.resultHandler(newPool)
-		}
-
-		oldPool := pm.spritesPool
-		pm.spritesPool = newPool
-		oldPool.Stop()
-
-		pm.logger.Info("Resized sprites pool", zap.Int("workers", cfg.SpritesWorkers))
-	}
-
-	// Resize animated thumbnails pool if needed
-	if cfg.AnimatedThumbnailsWorkers != pm.animatedThumbnailsPool.ActiveWorkers() {
-		newPool := jobs.NewWorkerPool(cfg.AnimatedThumbnailsWorkers, queueBufferSize)
-		newPool.SetLogger(pm.logger.With(zap.String("pool", "animated_thumbnails")))
-		newPool.SetOnJobExecuting(pm.onJobExecuting)
-		newPool.Start()
-		if pm.resultHandler != nil {
-			go pm.resultHandler(newPool)
-		}
-
-		oldPool := pm.animatedThumbnailsPool
-		pm.animatedThumbnailsPool = newPool
-		oldPool.Stop()
-
-		pm.logger.Info("Resized animated thumbnails pool", zap.Int("workers", cfg.AnimatedThumbnailsWorkers))
-	}
-
-	// Resize fingerprint pool if needed (only if duplication is enabled)
-	if pm.fingerprintPool != nil && cfg.FingerprintWorkers != pm.fingerprintPool.ActiveWorkers() {
-		newPool := jobs.NewWorkerPool(cfg.FingerprintWorkers, queueBufferSize)
-		newPool.SetLogger(pm.logger.With(zap.String("pool", "fingerprint")))
-		newPool.SetOnJobExecuting(pm.onJobExecuting)
-		newPool.Start()
-		if pm.resultHandler != nil {
-			go pm.resultHandler(newPool)
-		}
-
-		oldPool := pm.fingerprintPool
-		pm.fingerprintPool = newPool
-		oldPool.Stop()
-
-		pm.logger.Info("Resized fingerprint pool", zap.Int("workers", cfg.FingerprintWorkers))
-	}
+	pm.applyWorkersLocked()
 
 	return nil
+}
+
+// poolForPhaseLocked returns the pool of a phase (nil when unknown or disabled).
+func (pm *PoolManager) poolForPhaseLocked(phase string) *jobs.WorkerPool {
+	switch phase {
+	case "metadata":
+		return pm.metadataPool
+	case "thumbnail":
+		return pm.thumbnailPool
+	case "sprites":
+		return pm.spritesPool
+	case "animated_thumbnails":
+		return pm.animatedThumbnailsPool
+	case "fingerprint":
+		return pm.fingerprintPool
+	}
+	return nil
+}
+
+// applyWorkersLocked resizes each pool to its effective size: the scheduler override when set,
+// the configured size otherwise. Resizing never interrupts running jobs.
+func (pm *PoolManager) applyWorkersLocked() {
+	for phase, base := range pm.baseWorkers {
+		pool := pm.poolForPhaseLocked(phase)
+		if pool == nil {
+			continue
+		}
+		target := base
+		if override := pm.workerOverrides[phase]; override > 0 {
+			target = override
+		}
+		if target < 1 {
+			target = 1
+		}
+		if pool.ActiveWorkers() != target {
+			pool.Resize(target)
+			pm.logger.Info("Resized worker pool",
+				zap.String("phase", phase),
+				zap.Int("workers", target),
+				zap.Int("configured_workers", base),
+			)
+		}
+	}
+}
+
+// ScheduleSettings is what the job scheduler applies to the pools.
+type ScheduleSettings struct {
+	// WorkerOverrides replaces the configured pool size of a phase (0 or absent = configured size).
+	WorkerOverrides map[string]int
+	// Priorities orders the phases when they wait for a slot of the global cap (higher first).
+	Priorities map[string]int
+	// MaxConcurrentJobs caps the jobs running at the same time across all pools (0 = no cap).
+	MaxConcurrentJobs int
+}
+
+// ApplySchedule applies the scheduler settings. It is idempotent: pools are only resized when
+// their size changes, and running jobs are never interrupted.
+func (pm *PoolManager) ApplySchedule(settings ScheduleSettings) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	overrides := make(map[string]int, len(settings.WorkerOverrides))
+	for phase, n := range settings.WorkerOverrides {
+		if n > 0 {
+			overrides[phase] = n
+		}
+	}
+	pm.workerOverrides = overrides
+	pm.applyWorkersLocked()
+
+	for phase := range pm.baseWorkers {
+		if pool := pm.poolForPhaseLocked(phase); pool != nil {
+			pool.SetSlotPriority(settings.Priorities[phase])
+		}
+	}
+
+	if pm.slotLimiter.Limit() != settings.MaxConcurrentJobs {
+		pm.slotLimiter.SetLimit(settings.MaxConcurrentJobs)
+		pm.logger.Info("Set global limit on running jobs", zap.Int("max_concurrent_jobs", settings.MaxConcurrentJobs))
+	}
+}
+
+// MaxConcurrentJobs returns the global cap on running jobs (0 = no cap).
+func (pm *PoolManager) MaxConcurrentJobs() int {
+	return pm.slotLimiter.Limit()
+}
+
+// RunningJobCount returns the number of jobs executing across all pools.
+func (pm *PoolManager) RunningJobCount() int {
+	return pm.slotLimiter.InUse()
+}
+
+// DrainQueued takes back the jobs of a phase still waiting in its pool queue (claimed but not
+// started) and returns their IDs. Running jobs are not affected.
+func (pm *PoolManager) DrainQueued(phase string) []string {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	pool := pm.poolForPhaseLocked(phase)
+	if pool == nil {
+		return nil
+	}
+	return pool.DrainQueued()
 }
 
 // CancelJob cancels a running job by its ID. It searches all pools.

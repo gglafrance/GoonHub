@@ -69,6 +69,7 @@ const tabConfig: TabConfig[] = [
             { id: 'manual', label: 'Manual' },
             { id: 'history', label: 'History' },
             { id: 'workers', label: 'Workers' },
+            { id: 'scheduling', label: 'Scheduling' },
             { id: 'processing', label: 'Processing' },
             { id: 'triggers', label: 'Triggers' },
             { id: 'retry', label: 'Retry' },
