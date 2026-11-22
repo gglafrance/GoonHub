@@ -158,8 +158,14 @@ onUnmounted(() => window.removeEventListener('keydown', handleEscape));
                         </div>
                         <div class="mt-1.5 flex items-start justify-between gap-2 text-[11px]">
                             <div class="min-w-0">
-                                <div class="truncate text-white" :title="side.member.file_name">
-                                    #{{ side.member.scene_id }} {{ side.member.title }}
+                                <div class="flex min-w-0 items-center gap-1.5">
+                                    <DuplicatesRelationBadge :member="side.member" />
+                                    <span
+                                        class="truncate text-white"
+                                        :title="side.member.file_name"
+                                    >
+                                        #{{ side.member.scene_id }} {{ side.member.title }}
+                                    </span>
                                 </div>
                                 <div class="text-dim font-mono text-[10px]">
                                     {{ side.member.width }}x{{ side.member.height }} ·

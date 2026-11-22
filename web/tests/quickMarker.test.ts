@@ -7,7 +7,11 @@ import {
     chipsInclude,
     findQuickMarkerTag,
     formatQuickMarkerTime,
+    isQuickMarkerEndKey,
     isQuickMarkerKey,
+    pickQuickMarkerEndTarget,
+    quickMarkerEndTimestamp,
+    quickMarkerEndToastMessage,
     quickMarkerMatchRank,
     quickMarkerTimestamp,
     quickMarkerToastMessage,
@@ -16,6 +20,7 @@ import {
     removeLastQuickMarkerChip,
     resolveQuickMarkerLabel,
     stepQuickMarkerHighlight,
+    validateQuickMarkerEnd,
     type QuickMarkerChip,
 } from '../app/utils/quickMarker';
 
@@ -229,5 +234,98 @@ describe('isQuickMarkerKey', () => {
         expect(isQuickMarkerKey(key({ target: { tagName: 'DIV', isContentEditable: true } }))).toBe(
             false,
         );
+    });
+});
+
+describe('isQuickMarkerEndKey', () => {
+    const key = (over: Partial<Parameters<typeof isQuickMarkerEndKey>[0]> = {}) => ({
+        key: 'M',
+        ctrlKey: false,
+        metaKey: false,
+        altKey: false,
+        shiftKey: true,
+        target: { tagName: 'BODY' },
+        ...over,
+    });
+    test('Shift+M sets the end (caps lock too)', () => {
+        expect(isQuickMarkerEndKey(key())).toBe(true);
+        expect(isQuickMarkerEndKey(key({ key: 'm' }))).toBe(true);
+        // M alone stays the quick marker
+        expect(isQuickMarkerKey(key())).toBe(false);
+    });
+    test('M alone, other modifiers, repeats and handled events do not', () => {
+        expect(isQuickMarkerEndKey(key({ shiftKey: false, key: 'm' }))).toBe(false);
+        expect(isQuickMarkerEndKey(key({ ctrlKey: true }))).toBe(false);
+        expect(isQuickMarkerEndKey(key({ metaKey: true }))).toBe(false);
+        expect(isQuickMarkerEndKey(key({ altKey: true }))).toBe(false);
+        expect(isQuickMarkerEndKey(key({ repeat: true }))).toBe(false);
+        expect(isQuickMarkerEndKey(key({ defaultPrevented: true }))).toBe(false);
+        expect(isQuickMarkerEndKey(key({ key: 'N' }))).toBe(false);
+    });
+    test('typing in a field does not', () => {
+        expect(isQuickMarkerEndKey(key({ target: { tagName: 'INPUT' } }))).toBe(false);
+        expect(
+            isQuickMarkerEndKey(key({ target: { tagName: 'DIV', isContentEditable: true } })),
+        ).toBe(false);
+    });
+});
+
+describe('pickQuickMarkerEndTarget', () => {
+    const markers = [
+        { id: 1, timestamp: 10, label: 'Intro' },
+        { id: 2, timestamp: 60, label: 'Kiss', end_timestamp: 90 },
+        { id: 5, timestamp: 120, label: 'Cowgirl' },
+        { id: 4, timestamp: 120, label: 'Blowjob' },
+        { id: 3, timestamp: 300, label: 'Outro' },
+    ];
+    test('the last quick marker of the visit comes first', () => {
+        expect(pickQuickMarkerEndTarget(markers, 200, 1)?.id).toBe(1);
+        // Even when it starts after the current time (the validation refuses it)
+        expect(pickQuickMarkerEndTarget(markers, 200, 3)?.id).toBe(3);
+    });
+    test('else the latest start before the current time', () => {
+        expect(pickQuickMarkerEndTarget(markers, 100)?.id).toBe(2);
+        expect(pickQuickMarkerEndTarget(markers, 61)?.id).toBe(2);
+        // A marker starting right at the current time can't end there
+        expect(pickQuickMarkerEndTarget(markers, 60)?.id).toBe(1);
+        // Same start: the newest one
+        expect(pickQuickMarkerEndTarget(markers, 200)?.id).toBe(5);
+    });
+    test('a deleted last quick marker falls back to the latest start', () => {
+        expect(pickQuickMarkerEndTarget(markers, 100, 42)?.id).toBe(2);
+    });
+    test('none before the current time', () => {
+        expect(pickQuickMarkerEndTarget(markers, 10)).toBeNull();
+        expect(pickQuickMarkerEndTarget([], 100)).toBeNull();
+    });
+});
+
+describe('quick marker end', () => {
+    test('end timestamp: whole seconds, within the scene duration', () => {
+        expect(quickMarkerEndTimestamp(790.8)).toBe(790);
+        expect(quickMarkerEndTimestamp(790.8, 1200)).toBe(790);
+        expect(quickMarkerEndTimestamp(1200.6, 1200)).toBe(1200);
+        expect(quickMarkerEndTimestamp(1300, 1200.9)).toBe(1200);
+        expect(quickMarkerEndTimestamp(50, 0)).toBe(50);
+        expect(quickMarkerEndTimestamp(Number.NaN, 1200)).toBe(0);
+    });
+    test('the end must come after the start', () => {
+        const marker = { id: 1, timestamp: 754, label: 'Kiss' };
+        expect(validateQuickMarkerEnd(marker, 790)).toBeNull();
+        expect(validateQuickMarkerEnd(marker, 755)).toBeNull();
+        expect(validateQuickMarkerEnd(marker, 754)).toBe(
+            'Seek past the marker start (12:34) to set its end',
+        );
+        expect(validateQuickMarkerEnd(marker, 700)).not.toBeNull();
+        expect(validateQuickMarkerEnd(null, 700)).toBe('No marker before the current time');
+    });
+    test('setting it again moves the end', () => {
+        const marker = { id: 1, timestamp: 754, end_timestamp: 790, label: 'Kiss' };
+        expect(validateQuickMarkerEnd(marker, 760)).toBeNull();
+        expect(validateQuickMarkerEnd(marker, 900)).toBeNull();
+    });
+    test('toast message', () => {
+        expect(quickMarkerEndToastMessage(754, 790, 'Kiss')).toBe('End set: 12:34 - 13:10 Kiss');
+        expect(quickMarkerEndToastMessage(754, 790, ' ')).toBe('End set: 12:34 - 13:10');
     });
 });

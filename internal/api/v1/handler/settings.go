@@ -179,13 +179,7 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 
 	homepageConfig := h.convertRequestToConfig(req.HomepageConfig)
 	parsingRules := h.convertRequestToParsingRules(req.ParsingRules)
-	sortPrefs := data.SortPreferences{
-		Actors:       req.SortPreferences.Actors,
-		Studios:      req.SortPreferences.Studios,
-		Markers:      req.SortPreferences.Markers,
-		ActorScenes:  req.SortPreferences.ActorScenes,
-		StudioScenes: req.SortPreferences.StudioScenes,
-	}
+	sortPrefs := convertSortPreferences(req.SortPreferences)
 	sceneCardConfig := h.convertRequestToSceneCardConfig(req.SceneCardConfig)
 	var sceneListView *data.SceneListView
 	if req.SceneListView != nil {
@@ -228,6 +222,112 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 
 	settings.MaxItemsPerPage = h.MaxItemsPerPage
 	c.JSON(http.StatusOK, settings)
+}
+
+// PatchSettings updates only the settings present in the body (PATCH /settings) and returns
+// all the settings, like UpdateAllSettings.
+func (h *SettingsHandler) PatchSettings(c *gin.Context) {
+	userPayload, err := middleware.GetUserFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	req, err := request.DecodePatchSettingsRequest(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	settings, err := h.SettingsService.UpdateSettings(userPayload.UserID, h.patchOptions(req)...)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	settings.MaxItemsPerPage = h.MaxItemsPerPage
+	c.JSON(http.StatusOK, settings)
+}
+
+// patchOptions maps the fields present in a PATCH body to the settings options, which validate
+// them with the same rules as PUT.
+func (h *SettingsHandler) patchOptions(req *request.PatchSettingsRequest) []core.SettingsOption {
+	var opts []core.SettingsOption
+	addBool := func(v *bool, with func(bool) core.SettingsOption) {
+		if v != nil {
+			opts = append(opts, with(*v))
+		}
+	}
+	addString := func(v *string, with func(string) core.SettingsOption) {
+		if v != nil {
+			opts = append(opts, with(*v))
+		}
+	}
+	addInt := func(v *int, with func(int) core.SettingsOption) {
+		if v != nil {
+			opts = append(opts, with(*v))
+		}
+	}
+
+	addBool(req.Autoplay, core.WithAutoplay)
+	addInt(req.DefaultVolume, core.WithDefaultVolume)
+	addBool(req.Loop, core.WithLoop)
+	addBool(req.AbLoopControls, core.WithAbLoopControls)
+	addBool(req.MarkerLoop, core.WithMarkerLoop)
+	if req.VideosPerPage != nil {
+		// Cap videos per page to admin-configured maximum
+		opts = append(opts, core.WithVideosPerPage(min(*req.VideosPerPage, h.MaxItemsPerPage)))
+	}
+	addString(req.DefaultSortOrder, core.WithDefaultSortOrder)
+	addString(req.DefaultTagSort, core.WithDefaultTagSort)
+	addBool(req.MarkerThumbnailCycling, core.WithMarkerThumbnailCycling)
+	if req.HomepageConfig != nil {
+		opts = append(opts, h.SettingsService.WithHomepageConfig(h.convertRequestToConfig(*req.HomepageConfig)))
+	}
+	if req.ParsingRules != nil {
+		opts = append(opts, h.SettingsService.WithParsingRules(h.convertRequestToParsingRules(*req.ParsingRules)))
+	}
+	if req.SortPreferences != nil {
+		opts = append(opts, core.WithSortPreferences(convertSortPreferences(*req.SortPreferences)))
+	}
+	addString(req.PlaylistAutoAdvance, core.WithPlaylistAutoAdvance)
+	addInt(req.PlaylistCountdownSeconds, core.WithPlaylistCountdownSeconds)
+	addBool(req.ShowPageSizeSelector, core.WithShowPageSizeSelector)
+	addBool(req.AdvancedMarkerFilters, core.WithAdvancedMarkerFilters)
+	addString(req.DefaultMarkerView, core.WithDefaultMarkerView)
+	addString(req.PaginationPosition, core.WithPaginationPosition)
+	addString(req.DateFormat, core.WithDateFormat)
+	if req.PlayerGestures != nil {
+		opts = append(opts, core.WithPlayerGestures(req.PlayerGestures, 0))
+	}
+	addInt(req.GestureSeekStep, core.WithGestureSeekStep)
+	if req.ShowReplayHeatmap != nil || req.RecordReplayHeatmap != nil {
+		opts = append(opts, core.WithReplayHeatmap(req.ShowReplayHeatmap, req.RecordReplayHeatmap))
+	}
+	if req.SceneCardConfig != nil {
+		opts = append(opts, h.SettingsService.WithSceneCardConfig(h.convertRequestToSceneCardConfig(*req.SceneCardConfig)))
+	}
+	addString(req.GridDensity, core.WithGridDensity)
+	if req.InfiniteScroll != nil {
+		opts = append(opts, core.WithInfiniteScroll(req.InfiniteScroll))
+	}
+	if req.SceneListView != nil {
+		opts = append(opts, core.WithSceneListView(&data.SceneListView{Pages: req.SceneListView.Pages, Columns: req.SceneListView.Columns}))
+	}
+	if req.ShowScrubber != nil {
+		opts = append(opts, core.WithScrubber(req.ShowScrubber))
+	}
+	return opts
+}
+
+func convertSortPreferences(req request.UpdateSortPreferencesRequest) data.SortPreferences {
+	return data.SortPreferences{
+		Actors:       req.Actors,
+		Studios:      req.Studios,
+		Markers:      req.Markers,
+		ActorScenes:  req.ActorScenes,
+		StudioScenes: req.StudioScenes,
+	}
 }
 
 func (h *SettingsHandler) convertRequestToParsingRules(req request.UpdateParsingRulesRequest) data.ParsingRulesSettings {

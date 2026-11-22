@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"goonhub/internal/api/v1/response"
 	"goonhub/internal/api/v1/validators"
@@ -16,16 +17,19 @@ import (
 type JobHandler struct {
 	jobHistoryService *core.JobHistoryService
 	processingService *core.SceneProcessingService
+	jobQueueFeeder    *core.JobQueueFeeder
 }
 
 // NewJobHandler creates a new JobHandler
 func NewJobHandler(
 	jobHistoryService *core.JobHistoryService,
 	processingService *core.SceneProcessingService,
+	jobQueueFeeder *core.JobQueueFeeder,
 ) *JobHandler {
 	return &JobHandler{
 		jobHistoryService: jobHistoryService,
 		processingService: processingService,
+		jobQueueFeeder:    jobQueueFeeder,
 	}
 }
 
@@ -300,5 +304,73 @@ func (h *JobHandler) ClearFailed(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": fmt.Sprintf("Cleared %d failed jobs", deleted),
 		"deleted": deleted,
+	})
+}
+
+// cancelBulkRequest is the body of POST /admin/jobs/cancel-bulk.
+type cancelBulkRequest struct {
+	Phase          string `json:"phase"`
+	IncludeRunning bool   `json:"include_running"`
+}
+
+// CancelBulk cancels every pending and queued job of a phase ("all" for every phase), and its
+// running jobs with include_running.
+// POST /api/v1/admin/jobs/cancel-bulk
+func (h *JobHandler) CancelBulk(c *gin.Context) {
+	var req cancelBulkRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+	if _, err := core.ResolveBulkCancelPhases(req.Phase); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	result, err := h.jobQueueFeeder.CancelBulk(req.Phase, req.IncludeRunning)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	total := result.PendingCancelled + int64(result.QueuedSkipped) + int64(result.RunningCancelled)
+	c.JSON(http.StatusOK, gin.H{
+		"message":           fmt.Sprintf("Cancelled %d jobs", total),
+		"phases":            result.Phases,
+		"pending_cancelled": result.PendingCancelled,
+		"queued_skipped":    result.QueuedSkipped,
+		"running_cancelled": result.RunningCancelled,
+		"include_running":   result.IncludeRunning,
+	})
+}
+
+// GetHistoryPurge returns the job history purge settings, the number of rows a purge would
+// delete now and the last purge run.
+// GET /api/v1/admin/jobs/history-purge
+func (h *JobHandler) GetHistoryPurge(c *gin.Context) {
+	preview, err := h.jobHistoryService.PreviewPurge()
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"settings": h.jobHistoryService.GetPurgeSettings(),
+		"preview":  preview,
+		"last_run": h.jobHistoryService.LastPurge(),
+	})
+}
+
+// PurgeHistory purges the old finished jobs now.
+// POST /api/v1/admin/jobs/history-purge
+func (h *JobHandler) PurgeHistory(c *gin.Context) {
+	// Not tied to the request: a closed tab must not stop the purge halfway.
+	result, err := h.jobHistoryService.PurgeHistory(context.Background(), core.HistoryPurgeManual)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("Purged %d job history records", result.Total),
+		"result":  result,
 	})
 }

@@ -538,9 +538,10 @@ func provideJobSchedulingService(repo data.JobScheduleRepository, processingServ
 	return core.NewJobSchedulingService(repo, processingService.GetPoolManager(), jobHistoryRepo, logger.Logger)
 }
 
-func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, markerService *core.MarkerService, processingService *core.SceneProcessingService, dupConfigRepo data.DuplicationConfigRepository, schedulingService *core.JobSchedulingService, cfg *config.Config, logger *logging.Logger) *core.JobQueueFeeder {
+func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, markerService *core.MarkerService, processingService *core.SceneProcessingService, dupConfigRepo data.DuplicationConfigRepository, schedulingService *core.JobSchedulingService, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.JobQueueFeeder {
 	feeder := core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerService, markerService, processingService.GetPoolManager(), cfg.Duplication.Enabled, dupConfigRepo, logger.Logger)
 	feeder.SetScheduler(schedulingService)
+	feeder.SetEventBus(eventBus)
 	return feeder
 }
 
@@ -691,7 +692,16 @@ func provideStreamManager(cfg *config.Config, sceneRepo data.SceneRepository, lo
 }
 
 func provideTranscoder(cfg *config.Config, appSettingsRepo data.AppSettingsRepository, logger *logging.Logger) *streaming.Transcoder {
-	return streaming.NewTranscoder(cfg.Streaming.Transcode, appSettingsRepo, logger.Logger)
+	transcoder := streaming.NewTranscoder(cfg.Streaming.Transcode, appSettingsRepo, logger.Logger)
+	cache, err := streaming.NewTranscodeCache(cfg.Streaming.Transcode.Cache, logger.Logger)
+	if err != nil {
+		// Conversions still work, each one running ffmpeg as before
+		logger.Error(fmt.Sprintf("transcode cache disabled: %v", err))
+	} else if cache != nil {
+		transcoder.SetCache(cache)
+		cache.Start()
+	}
+	return transcoder
 }
 
 // ============================================================================
@@ -769,8 +779,8 @@ func provideWatchHistoryHandler(service *core.WatchHistoryService, heatmapServic
 
 // --- Job & Processing Handlers ---
 
-func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.SceneProcessingService) *handler.JobHandler {
-	return handler.NewJobHandler(jobHistoryService, processingService)
+func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.SceneProcessingService, jobQueueFeeder *core.JobQueueFeeder) *handler.JobHandler {
+	return handler.NewJobHandler(jobHistoryService, processingService, jobQueueFeeder)
 }
 
 func providePoolConfigHandler(processingService *core.SceneProcessingService, poolConfigRepo data.PoolConfigRepository, schedulingService *core.JobSchedulingService) *handler.PoolConfigHandler {

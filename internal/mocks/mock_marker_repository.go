@@ -340,10 +340,10 @@ func (mr *MockMarkerRepositoryMockRecorder) GetMarkersByLabelForUser(userID, lab
 }
 
 // GetRandomThumbnailsForLabels mocks base method.
-func (m *MockMarkerRepository) GetRandomThumbnailsForLabels(userID uint, labels []string, perLabel int, opts data.MarkerListOptions) (map[string][]uint, error) {
+func (m *MockMarkerRepository) GetRandomThumbnailsForLabels(userID uint, labels []string, perLabel int, opts data.MarkerListOptions) (map[string][]data.MarkerThumbnailRef, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetRandomThumbnailsForLabels", userID, labels, perLabel, opts)
-	ret0, _ := ret[0].(map[string][]uint)
+	ret0, _ := ret[0].(map[string][]data.MarkerThumbnailRef)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

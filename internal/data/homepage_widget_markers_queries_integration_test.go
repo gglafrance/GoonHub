@@ -53,6 +53,9 @@ func TestHomepageWidgetMarkerQueries(t *testing.T) {
 		if len(got) != 3 || got[0].ID != markers[2].ID || got[0].SceneTitle != "Visible" {
 			t.Fatalf("unexpected markers: %+v", got)
 		}
+		if got[0].UpdatedAt.IsZero() {
+			t.Fatal("widget markers miss updated_at (thumbnail version)")
+		}
 	})
 	t.Run("labels, ranges and flags", func(t *testing.T) {
 		got, err := ListWidgetMarkers(db, f.user.ID, WidgetMarkerQuery{Labels: []string{"Kiss"}, RangesOnly: true, Order: "random", Limit: 10})
@@ -70,6 +73,9 @@ func TestHomepageWidgetMarkerQueries(t *testing.T) {
 		}
 		if len(tiles) != 2 || tiles[0].Label != "Kiss" || tiles[0].Count != 2 || tiles[0].CoverMarkerID == nil || *tiles[0].CoverMarkerID != markers[0].ID {
 			t.Fatalf("unexpected label tiles: %+v", tiles)
+		}
+		if v := tiles[0].CoverMarkerVersion; v == nil || *v != MarkerThumbnailVersion(markers[0].UpdatedAt) {
+			t.Fatalf("cover marker version = %v, want %d", v, MarkerThumbnailVersion(markers[0].UpdatedAt))
 		}
 		ordered, err := ListMarkerLabelTiles(db, f.user.ID, []string{"Cum", "Kiss"}, 10)
 		if err != nil {

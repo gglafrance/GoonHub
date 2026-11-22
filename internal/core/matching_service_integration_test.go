@@ -64,6 +64,7 @@ func matchingPostgresTestDB(t *testing.T) *gorm.DB {
 		"000062_unique_scene_in_duplicate_group.up.sql",
 		"000066_duplicate_match_segments_and_deletion.up.sql",
 		"000067_add_best_selection_criteria.up.sql",
+		"000085_duplicate_member_relation.up.sql",
 	} {
 		sql, err := os.ReadFile(filepath.Join("..", "infrastructure", "persistence", "migrator", "migrations", name))
 		if err != nil {
