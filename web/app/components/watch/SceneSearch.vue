@@ -132,6 +132,7 @@ async function searchScenes() {
                 studio: props.scene.studio || null,
                 thumbnail_path: '',
                 duration: props.scene.duration || 0,
+                size: 0, // Not used for confidence
             };
 
             const resultsWithConfidence: SearchResultWithConfidence[] = results.map(
