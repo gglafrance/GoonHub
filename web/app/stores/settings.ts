@@ -146,12 +146,13 @@ export const useSettingsStore = defineStore(
             // Scan content rows
             for (const row of config.content_rows) {
                 if (row.type === 'full' && row.field) {
-                    if (contentFieldMap[row.field]) fieldsSet.add(contentFieldMap[row.field]);
+                    const field = contentFieldMap[row.field];
+                    if (field) fieldsSet.add(field);
                 } else if (row.type === 'split') {
-                    if (row.left && contentFieldMap[row.left])
-                        fieldsSet.add(contentFieldMap[row.left]);
-                    if (row.right && contentFieldMap[row.right])
-                        fieldsSet.add(contentFieldMap[row.right]);
+                    const left = row.left ? contentFieldMap[row.left] : undefined;
+                    if (left) fieldsSet.add(left);
+                    const right = row.right ? contentFieldMap[row.right] : undefined;
+                    if (right) fieldsSet.add(right);
                 }
             }
 

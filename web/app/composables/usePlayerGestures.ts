@@ -156,7 +156,8 @@ export function usePlayerGestures(options: Options) {
     function onTouchStart(e: TouchEvent) {
         lastTouchAt = performance.now();
         const p = player.value;
-        if (!enabled.value || !p || !rootEl || !p.hasStarted()) return;
+        // hasStarted_ is what the getter form hasStarted() returns (missing from the typings)
+        if (!enabled.value || !p || !rootEl || !p.hasStarted_) return;
         if (e.touches.length > 1) {
             cancelTouch();
             return;

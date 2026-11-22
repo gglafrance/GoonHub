@@ -17,7 +17,11 @@ export function seededShuffle(length: number, seed: number): number[] {
     const indices = Array.from({ length }, (_, i) => i);
     for (let i = indices.length - 1; i > 0; i--) {
         const j = Math.floor(rng() * (i + 1));
-        [indices[i], indices[j]] = [indices[j], indices[i]];
+        const a = indices[i];
+        const b = indices[j];
+        if (a === undefined || b === undefined) continue;
+        indices[i] = b;
+        indices[j] = a;
     }
     return indices;
 }
@@ -49,18 +53,21 @@ export const usePlaylistPlayer = () => {
     const currentScene = computed<PlaylistSceneEntry | null>(() => {
         if (!playlist.value || effectiveOrder.value.length === 0) return null;
         const idx = effectiveOrder.value[currentIndex.value];
+        if (idx === undefined) return null;
         return playlist.value.scenes[idx] ?? null;
     });
 
     const nextScene = computed<PlaylistSceneEntry | null>(() => {
         if (!playlist.value || currentIndex.value >= effectiveOrder.value.length - 1) return null;
         const idx = effectiveOrder.value[currentIndex.value + 1];
+        if (idx === undefined) return null;
         return playlist.value.scenes[idx] ?? null;
     });
 
     const previousScene = computed<PlaylistSceneEntry | null>(() => {
         if (!playlist.value || currentIndex.value <= 0) return null;
         const idx = effectiveOrder.value[currentIndex.value - 1];
+        if (idx === undefined) return null;
         return playlist.value.scenes[idx] ?? null;
     });
 

@@ -4,6 +4,7 @@ import type {
     HistoryPurgeResult,
     JobHistory,
     JobListResponse,
+    PoolConfig,
 } from '~/types/jobs';
 import type { Scene } from '~/types/scene';
 
@@ -16,7 +17,14 @@ const route = useRoute();
 const loading = ref(false);
 const historyJobs = ref<JobHistory[]>([]);
 const activeJobs = ref<JobHistory[]>([]);
-const poolConfig = ref({ metadata_workers: 0, thumbnail_workers: 0, sprites_workers: 0 });
+const poolConfig = ref<PoolConfig>({
+    metadata_workers: 0,
+    thumbnail_workers: 0,
+    sprites_workers: 0,
+    animated_thumbnails_workers: 0,
+    fingerprint_workers: 0,
+    duplication_enabled: false,
+});
 const error = ref('');
 const message = ref('');
 const statusFilter = ref('');

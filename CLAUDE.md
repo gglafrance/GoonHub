@@ -47,6 +47,12 @@ bun run build
 
 # Linter checks
 bun run lint
+
+# Type checks (vue-tsc on the Nuxt tsconfigs, needs .nuxt: run after bun install)
+bun run typecheck
+
+# Unit tests (bun test)
+bun run test
 ```
 
 ### Testing (Go Backend)
@@ -260,6 +266,7 @@ Config loaded via Viper: YAML file path set by `GOONHUB_CONFIG` env var. All con
 - **No manual imports for auto-imported APIs:** Never import `ref`, `computed`, `watch`, `onMounted` from Vue, or stores/composables — Nuxt auto-imports them. Only use explicit `import type` for TypeScript types from `~/types/`.
 - **Data loading with `v-if` tabs:** Components rendered with `v-if` mount fresh each time the tab activates — use `onMounted` to load data (no watcher needed on the parent).
 - **Watchers for store sync:** When form fields mirror store state, use `watch(() => store.state, syncFn)` + `onMounted(syncFn)` to keep local refs in sync.
+- **Type checks must pass:** run `bun run typecheck` (vue-tsc) after frontend changes, it must pass with 0 errors. Type template refs to components with `ref<InstanceType<typeof Comp> | null>(null)` (`import type Comp from '~/components/Comp.vue'`) and what they `defineExpose()`; no `any`, `@ts-ignore` or `@ts-expect-error` to silence an error.
 
 ### Frontend Aesthetics
 

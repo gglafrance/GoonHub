@@ -1,3 +1,4 @@
+import type { ShallowRef } from 'vue';
 import type videojs from 'video.js';
 
 type Player = ReturnType<typeof videojs>;

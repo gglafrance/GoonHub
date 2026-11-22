@@ -49,7 +49,7 @@ const sceneForSearch = computed(() => {
     return {
         ...scene.value,
         actors: watchPageData?.actors.value.map((a) => a.name) || [],
-        studio: watchPageData?.studio.value?.name || null,
+        studio: watchPageData?.studio.value?.name || undefined,
     };
 });
 

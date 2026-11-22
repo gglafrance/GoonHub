@@ -3,6 +3,7 @@ import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import type { Scene, ScenePlayback } from '~/types/scene';
 import type { Marker } from '~/types/marker';
+import type { LocationQuery } from 'vue-router';
 
 type Player = ReturnType<typeof videojs>;
 
@@ -458,7 +459,7 @@ let pageRoute = snapshotRoute();
 
 // From the picture-in-picture window back to the tab: reopen this page at the current time
 const returnToScene = (time: number) => {
-    const query = { ...pageRoute.query, t: String(Math.floor(time)) };
+    const query: LocationQuery = { ...pageRoute.query, t: String(Math.floor(time)) };
     delete query.end;
     navigateTo({ path: pageRoute.path, query });
 };
