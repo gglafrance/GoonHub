@@ -31,12 +31,7 @@ function cycleSortMode() {
 }
 
 const filteredTags = computed(() => {
-    let tags = [...props.tags];
-
-    if (searchQuery.value) {
-        const q = searchQuery.value.toLowerCase();
-        tags = tags.filter((t) => t.name.toLowerCase().includes(q));
-    }
+    const tags = [...props.tags];
 
     switch (sortMode.value) {
         case 'az':
@@ -53,7 +48,8 @@ const filteredTags = computed(() => {
             break;
     }
 
-    return tags;
+    // typed text: the tags starting with it first ("Sho" -> "Shower" before "Cumshot")
+    return rankByMatch(tags, searchQuery.value, (t) => t.name);
 });
 
 const dropdownStyle = ref<{ top: string; left: string }>({ top: '0px', left: '0px' });
