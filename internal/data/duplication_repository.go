@@ -21,6 +21,11 @@ type DuplicateGroupRepository interface {
 	RemoveMember(groupID, sceneID uint) error
 	GetGroupBySceneID(sceneID uint) (*DuplicateGroup, error)
 	GetGroupsBySceneIDs(sceneIDs []uint) (map[uint]uint, error)
+	// ListSceneGroupMembers returns the members of the duplicate group of a scene, that scene
+	// included, with their scene card data and the group status (empty when the scene is in no
+	// group). Deleted scenes are left out, and so are trashed ones other than sceneID unless
+	// includeTrashed.
+	ListSceneGroupMembers(sceneID uint, includeTrashed bool) ([]DuplicateMemberScene, error)
 	MergeGroups(targetID uint, sourceIDs []uint) error
 	UpdateSceneCount(id uint) error
 	CountByStatus() (map[string]int64, error)
@@ -261,6 +266,23 @@ func (r *DuplicateGroupRepositoryImpl) GetGroupsBySceneIDs(sceneIDs []uint) (map
 		result[m.SceneID] = m.GroupID
 	}
 	return result, nil
+}
+
+func (r *DuplicateGroupRepositoryImpl) ListSceneGroupMembers(sceneID uint, includeTrashed bool) ([]DuplicateMemberScene, error) {
+	var rows []DuplicateMemberScene
+	query := r.DB.Table("duplicate_group_members AS m").
+		Select(`m.group_id, g.status AS group_status, m.scene_id, m.is_best, m.confidence_score,
+			m.match_type, m.match_start, m.match_end, m.ref_scene_id, m.ref_start, m.ref_end,
+			m.relation, s.title, s.duration, s.width, s.height, s.size, s.thumbnail_path,
+			s.trashed_at`).
+		Joins("JOIN duplicate_group_members cur ON cur.group_id = m.group_id AND cur.scene_id = ?", sceneID).
+		Joins("JOIN duplicate_groups g ON g.id = m.group_id").
+		Joins("JOIN scenes s ON s.id = m.scene_id AND s.deleted_at IS NULL")
+	if !includeTrashed {
+		query = query.Where("m.scene_id = ? OR s.trashed_at IS NULL", sceneID)
+	}
+	err := query.Order("m.confidence_score DESC, m.scene_id ASC").Scan(&rows).Error
+	return rows, err
 }
 
 func (r *DuplicateGroupRepositoryImpl) MergeGroups(targetID uint, sourceIDs []uint) error {

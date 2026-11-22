@@ -79,6 +79,30 @@ type DuplicateMemberRelationInput struct {
 	RefDuration int // duration of the reference scene (seconds), 0 when unknown
 }
 
+// DuplicateMemberScene is a group member with the status of its group and the card data of its
+// scene (ListSceneGroupMembers).
+type DuplicateMemberScene struct {
+	GroupID         uint
+	GroupStatus     string
+	SceneID         uint
+	IsBest          bool
+	ConfidenceScore float64
+	MatchType       string
+	MatchStart      *float64
+	MatchEnd        *float64
+	RefSceneID      *uint
+	RefStart        *float64
+	RefEnd          *float64
+	Relation        string
+	Title           string
+	Duration        int
+	Width           int
+	Height          int
+	Size            int64
+	ThumbnailPath   string
+	TrashedAt       *time.Time
+}
+
 type DuplicationConfigRecord struct {
 	ID                      int     `gorm:"primaryKey" json:"id"`
 	AudioDensityThreshold   float64 `gorm:"column:audio_density_threshold" json:"audio_density_threshold"`

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/response"
 	"goonhub/internal/core"
 	"goonhub/internal/data"
@@ -339,4 +340,25 @@ func (h *DuplicateHandler) SetBest(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Best scene updated"})
+}
+
+// GetSimilarScenes lists the scenes sharing the duplicate group (fingerprint match) of a
+// scene, for the watch page. Admins also get the trashed ones, flagged.
+// GET /scenes/:id/similar
+func (h *DuplicateHandler) GetSimilarScenes(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid scene ID")
+		return
+	}
+	includeTrashed := false
+	if user, uErr := middleware.GetUserFromContext(c); uErr == nil {
+		includeTrashed = user.Role == "admin"
+	}
+	result, err := h.duplicateService.GetSimilarScenes(uint(id), includeTrashed)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, result)
 }

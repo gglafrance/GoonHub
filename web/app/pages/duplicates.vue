@@ -287,7 +287,13 @@ const visiblePages = computed(() => {
 });
 
 onMounted(() => {
-    Promise.all([loadGroups(), loadStats()]);
+    // A group opened from a link (e.g. the watch page's Similar tab) may not be on this page
+    const linkedGroupId = expandedGroupId.value;
+    Promise.all([loadGroups(), loadStats()]).then(() => {
+        if (linkedGroupId && expandedGroupId.value === linkedGroupId) {
+            openSkippedGroup(linkedGroupId);
+        }
+    });
     getConfig()
         .then((cfg: DuplicationConfig) => (dupConfig.value = cfg))
         .catch(() => {});
