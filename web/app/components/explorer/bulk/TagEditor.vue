@@ -44,9 +44,8 @@ const modeOptions = [
 const resolvedCount = computed(() => props.selectionCount ?? explorerStore.selectionCount);
 
 const filteredTags = computed(() => {
-    if (!searchQuery.value.trim()) return allTags.value;
-    const q = searchQuery.value.toLowerCase();
-    return allTags.value.filter((t) => t.name.toLowerCase().includes(q));
+    // the tags starting with the typed text first
+    return rankByMatch(allTags.value, searchQuery.value, (t) => t.name);
 });
 
 watch(
