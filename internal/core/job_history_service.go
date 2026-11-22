@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"goonhub/internal/apperrors"
@@ -13,34 +14,25 @@ import (
 
 type JobHistoryService struct {
 	repo              data.JobHistoryRepository
-	retention         time.Duration
-	retentionStr      string
+	purge             HistoryPurgeSettings
 	logger            *zap.Logger
 	cancel            context.CancelFunc
 	retryScheduler    *RetryScheduler
 	processingService *SceneProcessingService
+	now               func() time.Time
+
+	purgeMu   sync.Mutex // one purge at a time (ticker or "purge now")
+	lastMu    sync.RWMutex
+	lastPurge *HistoryPurgeResult
 }
 
 func NewJobHistoryService(repo data.JobHistoryRepository, cfg config.ProcessingConfig, logger *zap.Logger) *JobHistoryService {
-	retention, err := config.ParseRetentionDuration(cfg.JobHistoryRetention)
-	if err != nil {
-		logger.Warn("Failed to parse job_history_retention, using default 7d",
-			zap.String("value", cfg.JobHistoryRetention),
-			zap.Error(err),
-		)
-		retention = 7 * 24 * time.Hour
-	}
-
-	retentionStr := cfg.JobHistoryRetention
-	if retentionStr == "" {
-		retentionStr = "7d"
-	}
-
+	logger = logger.With(zap.String("component", "job_history"))
 	return &JobHistoryService{
-		repo:         repo,
-		retention:    retention,
-		retentionStr: retentionStr,
-		logger:       logger.With(zap.String("component", "job_history")),
+		repo:   repo,
+		purge:  newHistoryPurgeSettings(cfg, logger),
+		logger: logger,
+		now:    time.Now,
 	}
 }
 
@@ -107,50 +99,6 @@ func (s *JobHistoryService) RecordJobTimedOut(jobID string) {
 	}
 }
 
-func (s *JobHistoryService) StartCleanupTicker() {
-	ctx, cancel := context.WithCancel(context.Background())
-	s.cancel = cancel
-
-	// Run cleanup immediately on startup
-	s.Cleanup()
-
-	go func() {
-		ticker := time.NewTicker(1 * time.Hour)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				s.Cleanup()
-			}
-		}
-	}()
-
-	s.logger.Info("Job history cleanup ticker started",
-		zap.Duration("retention", s.retention),
-	)
-}
-
-func (s *JobHistoryService) StopCleanupTicker() {
-	if s.cancel != nil {
-		s.cancel()
-		s.logger.Info("Job history cleanup ticker stopped")
-	}
-}
-
-func (s *JobHistoryService) Cleanup() {
-	before := time.Now().Add(-s.retention)
-	deleted, err := s.repo.DeleteOlderThan(before)
-	if err != nil {
-		s.logger.Error("Failed to cleanup job history", zap.Error(err))
-		return
-	}
-	if deleted > 0 {
-		s.logger.Info("Cleaned up old job history records", zap.Int64("deleted", deleted))
-	}
-}
-
 func (s *JobHistoryService) ListJobs(page, limit int, status string) ([]data.JobHistory, int64, error) {
 	return s.repo.ListAll(page, limit, status)
 }
@@ -159,8 +107,9 @@ func (s *JobHistoryService) ListActiveJobs() ([]data.JobHistory, error) {
 	return s.repo.ListActive()
 }
 
+// GetRetention returns the retention of completed and cancelled jobs, as configured (e.g. "30d").
 func (s *JobHistoryService) GetRetention() string {
-	return s.retentionStr
+	return s.purge.CompletedRetention
 }
 
 // SetRetryScheduler sets the retry scheduler for handling failed jobs.

@@ -723,6 +723,19 @@ func (pm *PoolManager) DrainQueued(phase string) []string {
 	return pool.DrainQueued()
 }
 
+// CancelRegistered cancels the jobs of a phase taken from its queue but not started yet and,
+// with includeExecuting, its running jobs. Returns how many waiting and running jobs were
+// cancelled. Queued jobs are not affected: take them out with DrainQueued first.
+func (pm *PoolManager) CancelRegistered(phase string, includeExecuting bool) (waiting, executing int) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	pool := pm.poolForPhaseLocked(phase)
+	if pool == nil {
+		return 0, 0
+	}
+	return pool.CancelRegistered(includeExecuting)
+}
+
 // CancelJob cancels a running job by its ID. It searches all pools.
 func (pm *PoolManager) CancelJob(jobID string) error {
 	pm.mu.RLock()

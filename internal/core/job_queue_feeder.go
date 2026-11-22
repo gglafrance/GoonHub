@@ -53,6 +53,11 @@ type JobQueueFeeder struct {
 	pausedMu     sync.Mutex
 	pausedPhases map[string]bool
 
+	// feedLocks serializes, per phase, a feed (claim then submit) with a bulk cancel, so that no
+	// job is claimed while the pending jobs of the phase are being cancelled.
+	feedLocks map[string]*sync.Mutex
+	eventBus  *EventBus
+
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -85,6 +90,7 @@ func NewJobQueueFeeder(
 		stuckPendingTime:   10 * time.Minute,
 		now:                time.Now,
 		pausedPhases:       map[string]bool{},
+		feedLocks:          newFeedLocks(),
 	}
 }
 
@@ -270,6 +276,10 @@ func (f *JobQueueFeeder) setPhasePaused(phase string, paused bool, next time.Tim
 
 // feedPhase checks if the worker pool has capacity and claims pending jobs
 func (f *JobQueueFeeder) feedPhase(phase string) {
+	lock := f.feedLock(phase)
+	lock.Lock()
+	defer lock.Unlock()
+
 	var claimOpts data.ClaimOptions
 	if plan := f.currentPlan(); plan != nil {
 		pp := plan.Phase(phase)

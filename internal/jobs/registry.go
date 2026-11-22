@@ -107,3 +107,19 @@ func (r *JobRegistry) Count() int {
 func scenePhaseKey(sceneID uint, phase string) string {
 	return fmt.Sprintf("%d:%s", sceneID, phase)
 }
+
+// Snapshot returns the registered jobs, split between the jobs a worker is executing and the
+// others (waiting in the queue, or taken by a worker that has not started them yet).
+func (r *JobRegistry) Snapshot() (waiting, executing []Job) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for id, job := range r.byID {
+		if r.executing[id] {
+			executing = append(executing, job)
+		} else {
+			waiting = append(waiting, job)
+		}
+	}
+	return waiting, executing
+}
