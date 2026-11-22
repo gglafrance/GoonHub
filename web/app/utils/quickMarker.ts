@@ -1,7 +1,8 @@
 // Pure helpers of the quick marker (M on the watch page: label, then sub-labels; Shift+M: end
-// of the marker). They take plain values so that they can be unit tested without a DOM
-// (web/tests/quickMarker.test.ts).
+// of the marker; Alt+M: its start). They take plain values so that they can be unit tested
+// without a DOM (web/tests/quickMarker.test.ts).
 import { normalizeForMatch } from './fuzzy';
+import { formatMarkerTime } from './markerTime';
 
 /** Suggestions shown under the label and sub-label inputs. */
 export const QUICK_MARKER_SUGGESTION_LIMIT = 8;
@@ -183,12 +184,7 @@ export function quickMarkerTimestamp(time: number | null | undefined): number {
 
 /** Player time as shown on the markers: "mm:ss", or "h:mm:ss" past an hour. */
 export function formatQuickMarkerTime(seconds: number): string {
-    const total = quickMarkerTimestamp(seconds);
-    const h = Math.floor(total / 3600);
-    const m = Math.floor((total % 3600) / 60);
-    const s = total % 60;
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+    return formatMarkerTime(quickMarkerTimestamp(seconds));
 }
 
 /** Confirmation shown once the marker is saved. */
@@ -310,4 +306,53 @@ export function validateQuickMarkerEnd(
 export function quickMarkerEndToastMessage(start: number, end: number, label: string): string {
     const range = `${formatQuickMarkerTime(start)} - ${formatQuickMarkerTime(end)}`;
     return label.trim() ? `End set: ${range} ${label.trim()}` : `End set: ${range}`;
+}
+
+/**
+ * Whether a keydown sets the start of a marker: Alt+M (Option+M on macOS, which reports the
+ * character it would type, "µ"), outside of a text field.
+ */
+export function isQuickMarkerStartKey(e: KeyLike): boolean {
+    const key = e.key.toLowerCase();
+    if ((key !== 'm' && key !== 'µ') || !e.altKey) return false;
+    if (e.ctrlKey || e.metaKey || e.shiftKey || e.repeat || e.defaultPrevented) return false;
+    return !isTypingTarget(e.target);
+}
+
+/**
+ * Marker whose start Alt+M sets: the same one as Shift+M (the last quick marker of the visit,
+ * else the one with the latest start before the current time), so that both keys adjust the
+ * range of the same marker.
+ */
+export function pickQuickMarkerStartTarget<T extends QuickMarkerEndCandidate>(
+    markers: T[],
+    start: number,
+    lastQuickMarkerId?: number | null,
+): T | null {
+    return pickQuickMarkerEndTarget(markers, start, lastQuickMarkerId);
+}
+
+/** Why the start can't be set (null when it can): it must come before the marker's end. */
+export function validateQuickMarkerStart(
+    marker: QuickMarkerEndCandidate | null,
+    start: number,
+): string | null {
+    if (!marker) return 'No marker before the current time';
+    if (marker.end_timestamp != null && start >= marker.end_timestamp) {
+        return `Seek before the marker end (${formatQuickMarkerTime(marker.end_timestamp)}) to set its start`;
+    }
+    return null;
+}
+
+/** Confirmation shown once the start is set, e.g. "Start set: 12:30 - 13:10 Kiss". */
+export function quickMarkerStartToastMessage(
+    start: number,
+    end: number | null | undefined,
+    label: string,
+): string {
+    const range =
+        end != null && end > start
+            ? `${formatQuickMarkerTime(start)} - ${formatQuickMarkerTime(end)}`
+            : formatQuickMarkerTime(start);
+    return label.trim() ? `Start set: ${range} ${label.trim()}` : `Start set: ${range}`;
 }

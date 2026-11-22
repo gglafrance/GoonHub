@@ -7,8 +7,8 @@ import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 type Player = ReturnType<typeof videojs>;
 
 // Quick marker of the watch page (M): pauses at the current time, asks for the label, then the
-// sub-labels, and saves the marker. Shift+M sets the end of that marker (or of the last one
-// started before the current time). Teleported into the video.js element (like the gesture
+// sub-labels, and saves the marker. Shift+M sets the end of that marker, Alt+M its start (or
+// those of the last one started before the current time). Teleported into the video.js element (like the gesture
 // overlay) so that it also works in fullscreen.
 const props = defineProps<{
     player: Player | null | undefined;
@@ -43,7 +43,7 @@ const { insertMarker, waitForThumbnail, applyMarkerUpdate } = useNewMarkers({
     refresh: watchPageData?.refreshMarkers,
 });
 
-// Last marker made with the quick marker during this visit of the scene (Shift+M target)
+// Last marker made with the quick marker during this visit of the scene (Shift+M, Alt+M target)
 const lastQuickMarkerId = ref<number | null>(null);
 
 const qm = useQuickMarker({
@@ -59,12 +59,13 @@ const qm = useQuickMarker({
 });
 const { isOpen, step, time, label, lastLabel, chips, saving, error } = qm;
 
-const quickEnd = useQuickMarkerEnd({
+const quickRange = useQuickMarkerRange({
     player: () => props.player,
     sceneId: () => props.sceneId,
     duration: () => watchPageData?.scene.value?.duration,
     markers: () => watchPageData?.markers.value ?? [],
     lastQuickMarkerId: () => lastQuickMarkerId.value,
+    insertMarker,
     applyMarkerUpdate,
     notify: showToast,
 });
@@ -84,7 +85,12 @@ const onWindowKeydown = (e: KeyboardEvent) => {
     if (isOpen.value || !props.player || !props.target) return;
     if (isQuickMarkerEndKey(e)) {
         e.preventDefault();
-        void quickEnd.setEnd();
+        void quickRange.setEnd();
+        return;
+    }
+    if (isQuickMarkerStartKey(e)) {
+        e.preventDefault();
+        void quickRange.setStart();
         return;
     }
     if (!isQuickMarkerKey(e)) return;
