@@ -10,6 +10,7 @@
  * Child components inject data instead of fetching independently,
  * eliminating network congestion and ensuring predictable load order.
  */
+import type { CardSidecarMaps } from '~/utils/cardSidecars';
 import type { Scene, SceneListItem } from '~/types/scene';
 import type { Marker } from '~/types/marker';
 import type { Studio } from '~/types/studio';
@@ -44,6 +45,8 @@ export interface WatchPageData {
 
     // Below fold
     relatedScenes: Ref<SceneListItem[]>;
+    // the user's interactions with the related scenes, for their card badges
+    relatedSidecars: Ref<CardSidecarMaps>;
     // Scenes sharing the duplicate group (fingerprint match) of this one (Similar tab)
     similar: Ref<SimilarScenesResponse | null>;
     pornDBConfigured: Ref<boolean>;
@@ -100,6 +103,7 @@ export function useWatchPageData(sceneId: Ref<number>): WatchPageData {
 
     // Below fold
     const relatedScenes = ref<SceneListItem[]>([]);
+    const relatedSidecars = ref<CardSidecarMaps>(emptyCardSidecars());
     const similar = ref<SimilarScenesResponse | null>(null);
     const pornDBConfigured = ref(false);
 
@@ -213,6 +217,7 @@ export function useWatchPageData(sceneId: Ref<number>): WatchPageData {
         const relatedPromise = fetchRelatedScenes(sceneId.value, RELATED_LIMIT)
             .then((res) => {
                 relatedScenes.value = res.data || [];
+                relatedSidecars.value = mergeCardSidecars(emptyCardSidecars(), [res], false);
             })
             .catch(() => {
                 // Silent fail
@@ -254,6 +259,7 @@ export function useWatchPageData(sceneId: Ref<number>): WatchPageData {
         tags.value = [];
         actors.value = [];
         relatedScenes.value = [];
+        relatedSidecars.value = emptyCardSidecars();
         similar.value = null;
         pornDBConfigured.value = false;
 
@@ -356,6 +362,7 @@ export function useWatchPageData(sceneId: Ref<number>): WatchPageData {
         tags,
         actors,
         relatedScenes,
+        relatedSidecars,
         similar,
         pornDBConfigured,
 

@@ -344,6 +344,11 @@ export const useApiScenes = () => {
 
     const fetchRelatedScenes = async (sceneId: number, limit = 12) => {
         const params = new URLSearchParams({ limit: limit.toString() });
+        // what the user's card template shows (tags, actors, rating, likes...), like the lists
+        const settingsStore = useSettingsStore();
+        if (settingsStore.cardFieldsParam) {
+            params.set('card_fields', settingsStore.cardFieldsParam);
+        }
         const response = await fetch(`/api/v1/scenes/${sceneId}/related?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
