@@ -80,7 +80,8 @@ type StreamingConfig struct {
 // fragmented MP4) of scenes browsers can't play. It can be turned off at runtime with the
 // transcoding_enabled app setting.
 type TranscodeConfig struct {
-	// Maximum number of ffmpeg conversions running at the same time (one per viewer).
+	// Maximum number of ffmpeg conversions running at the same time (one per viewer without
+	// the cache; with it, viewers of a part already converted or being converted need none).
 	MaxConcurrent int `mapstructure:"max_concurrent"`
 	// libx264 preset (ultrafast ... veryslow).
 	Preset string `mapstructure:"preset"`
@@ -95,6 +96,29 @@ type TranscodeConfig struct {
 	Threads int `mapstructure:"threads"`
 	// Seconds between keyframes of re-encoded video (one MP4 fragment per keyframe).
 	KeyframeInterval int `mapstructure:"keyframe_interval"`
+	// Cache of the converted output (see streaming.TranscodeCache).
+	Cache TranscodeCacheConfig `mapstructure:"cache"`
+}
+
+// TranscodeCacheConfig keeps what on-the-fly conversions produced so that a replay, a seek
+// back or a second viewer of the same part does not run ffmpeg again. The directory holds
+// only GoonHub's own output: never point it at a media folder.
+type TranscodeCacheConfig struct {
+	Enabled bool `mapstructure:"enabled"`
+	// Directory of the cached conversions (created if missing).
+	Dir string `mapstructure:"dir"`
+	// Total size above which the least recently used conversions are removed.
+	MaxSizeGB float64 `mapstructure:"max_size_gb"`
+	// Conversions not used for this long are removed.
+	MaxAge time.Duration `mapstructure:"max_age"`
+	// How often the size and age limits are applied (also done at startup).
+	CleanupInterval time.Duration `mapstructure:"cleanup_interval"`
+	// How far (in video time) a conversion may run ahead of its furthest viewer.
+	ReadAhead time.Duration `mapstructure:"read_ahead"`
+	// How long a conversion nobody watches anymore keeps running (a viewer seeking back
+	// into it, or coming back, picks it up again) before ffmpeg is stopped. An idle
+	// conversion is stopped at once when its slot is needed by another one.
+	IdleTimeout time.Duration `mapstructure:"idle_timeout"`
 }
 
 type PornDBConfig struct {
@@ -183,7 +207,10 @@ type ProcessingConfig struct {
 	ScenePreviewDir                string        `mapstructure:"scene_preview_dir"`                 // directory for scene preview videos
 	MarkerPreviewCRF               int           `mapstructure:"marker_preview_crf"`                // CRF for marker animated thumbnails (18-40)
 	ScenePreviewCRF                int           `mapstructure:"scene_preview_crf"`                 // CRF for scene preview videos (18-40)
-	JobHistoryRetention            string        `mapstructure:"job_history_retention"`             // duration string e.g. "7d", "24h"
+	JobHistoryRetention            string        `mapstructure:"job_history_retention"`             // completed/cancelled jobs kept this long, e.g. "30d", "24h" ("0" = never purged)
+	JobHistoryFailedRetention      string        `mapstructure:"job_history_failed_retention"`      // failed/timed out jobs kept this long, e.g. "90d" ("0" = never purged)
+	JobHistoryPurgeInterval        time.Duration `mapstructure:"job_history_purge_interval"`        // how often the job history purge runs
+	JobHistoryPurgeBatchSize       int           `mapstructure:"job_history_purge_batch_size"`      // rows deleted per statement by the purge
 	MetadataTimeout            time.Duration `mapstructure:"metadata_timeout"`              // timeout for metadata extraction jobs
 	ThumbnailTimeout           time.Duration `mapstructure:"thumbnail_timeout"`             // timeout for thumbnail extraction jobs
 	SpritesTimeout             time.Duration `mapstructure:"sprites_timeout"`               // timeout for sprite sheet generation jobs
@@ -257,7 +284,10 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("processing.scene_preview_dir", "./data/metadata/scene-previews")
 	v.SetDefault("processing.marker_preview_crf", 32)
 	v.SetDefault("processing.scene_preview_crf", 27)
-	v.SetDefault("processing.job_history_retention", "7d")
+	v.SetDefault("processing.job_history_retention", "30d")
+	v.SetDefault("processing.job_history_failed_retention", "90d")
+	v.SetDefault("processing.job_history_purge_interval", time.Hour)
+	v.SetDefault("processing.job_history_purge_batch_size", 5000)
 	v.SetDefault("processing.metadata_timeout", 5*time.Minute)
 	v.SetDefault("processing.thumbnail_timeout", 2*time.Minute)
 	v.SetDefault("processing.sprites_timeout", 30*time.Minute)
@@ -310,6 +340,13 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("streaming.transcode.audio_bitrate", "160k")
 	v.SetDefault("streaming.transcode.threads", 0)
 	v.SetDefault("streaming.transcode.keyframe_interval", 2)
+	v.SetDefault("streaming.transcode.cache.enabled", true)
+	v.SetDefault("streaming.transcode.cache.dir", "./data/transcode-cache")
+	v.SetDefault("streaming.transcode.cache.max_size_gb", 20)
+	v.SetDefault("streaming.transcode.cache.max_age", 24*time.Hour)
+	v.SetDefault("streaming.transcode.cache.cleanup_interval", 10*time.Minute)
+	v.SetDefault("streaming.transcode.cache.read_ahead", 60*time.Second)
+	v.SetDefault("streaming.transcode.cache.idle_timeout", 30*time.Second)
 
 	// Environment variables
 	v.SetEnvPrefix("GOONHUB")

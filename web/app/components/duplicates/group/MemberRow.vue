@@ -83,7 +83,10 @@ const hasSegment = computed(
         <td class="px-3 py-2.5 text-white">{{ formatBitRate(member.bit_rate) }}</td>
         <td class="px-3 py-2.5 text-white">{{ formatSize(member.size) }}</td>
         <td class="px-3 py-2.5">
-            <div class="text-dim">{{ (member.confidence_score * 100).toFixed(0) }}%</div>
+            <div class="flex items-center gap-1.5">
+                <DuplicatesRelationBadge :member="member" />
+                <span class="text-dim">{{ (member.confidence_score * 100).toFixed(0) }}%</span>
+            </div>
             <button
                 v-if="hasSegment"
                 class="text-lava/80 hover:text-lava font-mono text-[10px] transition-colors"

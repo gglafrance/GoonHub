@@ -7,7 +7,8 @@ import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 type Player = ReturnType<typeof videojs>;
 
 // Quick marker of the watch page (M): pauses at the current time, asks for the label, then the
-// sub-labels, and saves the marker. Teleported into the video.js element (like the gesture
+// sub-labels, and saves the marker. Shift+M sets the end of that marker (or of the last one
+// started before the current time). Teleported into the video.js element (like the gesture
 // overlay) so that it also works in fullscreen.
 const props = defineProps<{
     player: Player | null | undefined;
@@ -21,12 +22,13 @@ const emit = defineEmits<{
     saved: [marker: Marker];
 }>();
 
-const toast = ref<{ id: number; message: string } | null>(null);
+type ToastKind = 'success' | 'error';
+const toast = ref<{ id: number; message: string; kind: ToastKind } | null>(null);
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
-const showToast = (message: string) => {
+const showToast = (message: string, kind: ToastKind = 'success') => {
     if (toastTimer) clearTimeout(toastTimer);
-    toast.value = { id: Date.now(), message };
+    toast.value = { id: Date.now(), message, kind };
     toastTimer = setTimeout(() => {
         toast.value = null;
         toastTimer = null;
@@ -36,10 +38,13 @@ const showToast = (message: string) => {
 // The new marker shows at once on the timeline and in the Markers tab; its thumbnail is made
 // in the background
 const watchPageData = inject<WatchPageData | undefined>(WATCH_PAGE_DATA_KEY, undefined);
-const { insertMarker, waitForThumbnail } = useNewMarkers({
+const { insertMarker, waitForThumbnail, applyMarkerUpdate } = useNewMarkers({
     markers: watchPageData?.markers,
     refresh: watchPageData?.refreshMarkers,
 });
+
+// Last marker made with the quick marker during this visit of the scene (Shift+M target)
+const lastQuickMarkerId = ref<number | null>(null);
 
 const qm = useQuickMarker({
     player: () => props.player,
@@ -47,11 +52,22 @@ const qm = useQuickMarker({
     onSaved: (marker, label, time) => {
         insertMarker(marker);
         waitForThumbnail(marker.id);
+        lastQuickMarkerId.value = marker.id;
         showToast(quickMarkerToastMessage(time, label));
         emit('saved', marker);
     },
 });
 const { isOpen, step, time, label, lastLabel, chips, saving, error } = qm;
+
+const quickEnd = useQuickMarkerEnd({
+    player: () => props.player,
+    sceneId: () => props.sceneId,
+    duration: () => watchPageData?.scene.value?.duration,
+    markers: () => watchPageData?.markers.value ?? [],
+    lastQuickMarkerId: () => lastQuickMarkerId.value,
+    applyMarkerUpdate,
+    notify: showToast,
+});
 
 watch(isOpen, (open) => emit('openChange', open));
 
@@ -60,11 +76,17 @@ watch(
     () => props.sceneId,
     () => {
         if (isOpen.value) qm.abandon();
+        lastQuickMarkerId.value = null;
     },
 );
 
 const onWindowKeydown = (e: KeyboardEvent) => {
     if (isOpen.value || !props.player || !props.target) return;
+    if (isQuickMarkerEndKey(e)) {
+        e.preventDefault();
+        void quickEnd.setEnd();
+        return;
+    }
     if (!isQuickMarkerKey(e)) return;
     // Also keeps the "m" out of the label input focused right after
     e.preventDefault();
@@ -187,8 +209,20 @@ onBeforeUnmount(() => {
         </div>
 
         <Transition name="qm-toast">
-            <div v-if="toast" :key="toast.id" class="qm-toast" aria-live="polite">
-                <Icon name="heroicons:check" size="12" class="text-emerald shrink-0" />
+            <div
+                v-if="toast"
+                :key="toast.id"
+                class="qm-toast"
+                :class="{ 'qm-toast-error': toast.kind === 'error' }"
+                :aria-live="toast.kind === 'error' ? 'assertive' : 'polite'"
+            >
+                <Icon
+                    v-if="toast.kind === 'error'"
+                    name="heroicons:exclamation-triangle"
+                    size="12"
+                    class="text-lava shrink-0"
+                />
+                <Icon v-else name="heroicons:check" size="12" class="text-emerald shrink-0" />
                 <span class="truncate">{{ toast.message }}</span>
             </div>
         </Transition>
@@ -255,6 +289,10 @@ onBeforeUnmount(() => {
     font-family: 'Inter', system-ui, sans-serif;
     font-size: 11px;
     pointer-events: none;
+}
+
+.qm-toast-error {
+    border-color: rgba(255, 77, 77, 0.35);
 }
 
 .qm-toast-enter-active,

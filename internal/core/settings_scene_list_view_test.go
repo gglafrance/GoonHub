@@ -117,8 +117,8 @@ func TestUpdateAllSettings_SceneListView(t *testing.T) {
 }
 
 func TestUpdateAllSettings_InvalidSceneListView(t *testing.T) {
-	svc, settingsRepo, _ := newTestSettingsService(t)
-	settingsRepo.EXPECT().GetByUserID(uint(1)).Return(&data.UserSettings{UserID: 1}, nil)
+	// Invalid values are rejected before the settings are read
+	svc, _, _ := newTestSettingsService(t)
 
 	autoplay, volume, loop, alc, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs, spss, scc := validAllSettingsArgs()
 	view := &data.SceneListView{Pages: map[string]string{"search": "mosaic"}}

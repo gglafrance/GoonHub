@@ -93,14 +93,16 @@ type ProbeFunc func(ctx context.Context, args []string) ([]byte, error)
 type RunFunc func(ctx context.Context, args []string, stdout io.Writer, buf []byte) error
 
 // Transcoder converts scenes browsers can't play into a fragmented MP4 stream, with a
-// bounded number of concurrent ffmpeg processes. Each conversion runs in the goroutine of
-// the HTTP request that asked for it and ends with it.
+// bounded number of concurrent ffmpeg processes. Without cache, each conversion runs in the
+// goroutine of the HTTP request that asked for it and ends with it. With the cache (see
+// TranscodeCache), conversions write to the cache and the requests read from it.
 type Transcoder struct {
 	settings    TranscodeSettings
 	appSettings data.AppSettingsRepository
 	logger      *zap.Logger
 	run         RunFunc
 	probe       ProbeFunc
+	cache       *TranscodeCache
 
 	mu       sync.Mutex
 	active   int
@@ -114,6 +116,13 @@ type Transcoder struct {
 type transcodeSession struct {
 	cancel context.CancelFunc
 	done   chan struct{}
+}
+
+// BeginSession starts a stream of key (one viewer of one scene) without reserving a
+// conversion slot (cached streams: the conversions they read hold the slots). A running
+// stream with the same key is cancelled first, as in Acquire.
+func (t *Transcoder) BeginSession(parent context.Context, key string) (*TranscodeLease, error) {
+	return t.acquire(parent, key, false)
 }
 
 // TranscodeLease is a reserved conversion slot. Release it when the stream ends.
@@ -180,6 +189,10 @@ func (t *Transcoder) PlaybackInfo(scene *data.Scene) PlaybackInfo {
 // with the same key is cancelled first, so a viewer seeking replaces its own conversion
 // instead of using a second slot. Returns ErrTranscodeLimit when all slots are in use.
 func (t *Transcoder) Acquire(parent context.Context, key string) (*TranscodeLease, error) {
+	return t.acquire(parent, key, true)
+}
+
+func (t *Transcoder) acquire(parent context.Context, key string, slot bool) (*TranscodeLease, error) {
 	t.mu.Lock()
 	if old := t.sessions[key]; old != nil {
 		old.cancel()
@@ -197,21 +210,25 @@ func (t *Transcoder) Acquire(parent context.Context, key string) (*TranscodeLeas
 	if t.stopped {
 		return nil, ErrTranscoderStopped
 	}
-	if t.active >= t.settings.MaxConcurrent {
+	if slot && t.active >= t.settings.MaxConcurrent {
 		return nil, ErrTranscodeLimit
 	}
 
 	ctx, cancel := context.WithCancel(parent)
 	stopOnShutdown := context.AfterFunc(t.baseCtx, cancel)
 	session := &transcodeSession{cancel: cancel, done: make(chan struct{})}
-	t.active++
+	if slot {
+		t.active++
+	}
 	t.sessions[key] = session
 
 	release := sync.OnceFunc(func() {
 		stopOnShutdown()
 		cancel()
 		t.mu.Lock()
-		t.active--
+		if slot {
+			t.active--
+		}
 		if t.sessions[key] == session {
 			delete(t.sessions, key)
 		}
@@ -221,14 +238,17 @@ func (t *Transcoder) Acquire(parent context.Context, key string) (*TranscodeLeas
 	return &TranscodeLease{ctx: ctx, release: release}, nil
 }
 
-// Available tells whether Acquire(key) would currently get a slot.
+// Available tells whether a new conversion for key would currently get a slot: a free one,
+// the one of the viewer's own stream (replaced), or one of an idle cached conversion.
 func (t *Transcoder) Available(key string) bool {
 	t.mu.Lock()
-	defer t.mu.Unlock()
 	if t.stopped {
+		t.mu.Unlock()
 		return false
 	}
-	return t.active < t.settings.MaxConcurrent || t.sessions[key] != nil
+	ok := t.active < t.settings.MaxConcurrent || t.sessions[key] != nil
+	t.mu.Unlock()
+	return ok || (t.cache != nil && t.cache.hasIdleProducer())
 }
 
 // TranscodeStats is the current slot usage.
@@ -250,6 +270,9 @@ func (t *Transcoder) Stop() {
 	t.stopped = true
 	t.mu.Unlock()
 	t.stop()
+	if t.cache != nil {
+		t.cache.Stop()
+	}
 }
 
 // How far before the requested start KeyframeStart looks for a keyframe.
@@ -359,8 +382,11 @@ func BuildTranscodeArgs(input string, plan PlaybackPlan, start float64, s Transc
 			"-crf", strconv.Itoa(s.CRF),
 			"-pix_fmt", "yuv420p",
 			"-profile:v", "high",
-			// Regular keyframes: one fragment per keyframe, so the stream starts quickly
+			// Regular keyframes only (no extra ones on scene cuts): one fragment per
+			// keyframe, so the stream starts quickly, and conversions started on the
+			// keyframe grid have the same fragments (the cache joins them)
 			"-force_key_frames", fmt.Sprintf("expr:gte(t,n_forced*%d)", s.KeyframeInterval),
+			"-sc_threshold", "0",
 		)
 		if s.Threads > 0 {
 			args = append(args, "-threads", strconv.Itoa(s.Threads))
@@ -377,6 +403,12 @@ func BuildTranscodeArgs(input string, plan PlaybackPlan, start float64, s Transc
 		}
 	} else {
 		args = append(args, "-c:a", "aac", "-b:a", s.AudioBitrate, "-ac", "2")
+	}
+	if start > 0 && plan.CopyAudio && !plan.CopyVideo {
+		// The copied audio is not cut at the seek point like the re-encoded video: it
+		// would start at the keyframe before it (up to several seconds earlier), with the
+		// first video frame held meanwhile. Drop what comes before the start.
+		args = append(args, "-ss", "0")
 	}
 
 	return append(args,

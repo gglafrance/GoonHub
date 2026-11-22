@@ -522,3 +522,29 @@ func (p *WorkerPool) drainBuffer() []string {
 		}
 	}
 }
+
+// CancelRegistered cancels the jobs of the pool that are registered but not executing (taken from
+// the queue by a worker still waiting for a slot of the global cap) and, with includeExecuting,
+// the jobs being executed. A cancelled job that has not started returns right away when a worker
+// runs it, and its result goes through the usual cancelled path. Call DrainQueued first to take
+// the queued jobs out instead. Returns the number of waiting and executing jobs cancelled.
+func (p *WorkerPool) CancelRegistered(includeExecuting bool) (waiting, executing int) {
+	waitingJobs, executingJobs := p.registry.Snapshot()
+	for _, job := range waitingJobs {
+		job.Cancel()
+	}
+	waiting = len(waitingJobs)
+	if includeExecuting {
+		for _, job := range executingJobs {
+			job.Cancel()
+		}
+		executing = len(executingJobs)
+	}
+	if waiting > 0 || executing > 0 {
+		p.logger.Info("Cancelled registered jobs",
+			zap.Int("waiting", waiting),
+			zap.Int("executing", executing),
+		)
+	}
+	return waiting, executing
+}

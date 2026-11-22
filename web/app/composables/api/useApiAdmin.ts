@@ -1,5 +1,7 @@
+import type { TranscodeCacheClearResponse, TranscodeCacheStats } from '~/types/admin';
+
 /**
- * Admin API operations: users, roles, permissions management, trash.
+ * Admin API operations: users, roles, permissions management, trash, transcode cache.
  */
 export const useApiAdmin = () => {
     const { fetchOptions, getAuthHeaders, handleResponse, handleResponseWithNoContent } =
@@ -174,6 +176,24 @@ export const useApiAdmin = () => {
         return handleResponse(response);
     };
 
+    // Cache of the on-the-fly conversions
+    const getTranscodeCache = async (): Promise<TranscodeCacheStats> => {
+        const response = await fetch('/api/v1/admin/transcode-cache', {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const clearTranscodeCache = async (): Promise<TranscodeCacheClearResponse> => {
+        const response = await fetch('/api/v1/admin/transcode-cache', {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
     return {
         fetchAdminUsers,
         createUser,
@@ -193,5 +213,7 @@ export const useApiAdmin = () => {
         emptyTrash,
         getAppSettings,
         updateAppSettings,
+        getTranscodeCache,
+        clearTranscodeCache,
     };
 };

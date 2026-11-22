@@ -21,7 +21,11 @@ const emit = defineEmits<{
     'update:mergeMetadata': [value: boolean];
 }>();
 
+const { kindLabel, kindTitle, kindClass } = useDuplicateRelation();
+
 const unresolved = computed(() => props.group.status === 'unresolved');
+// Only groups of identical scenes are handled by the automatic actions
+const identical = computed(() => props.group.kind === 'identical');
 const pendingDeletions = computed(() => props.group.members.filter((m) => m.delete_after).length);
 </script>
 
@@ -96,6 +100,13 @@ const pendingDeletions = computed(() => props.group.members.filter((m) => m.dele
                                 {{ group.members[0].match_type }}
                             </span>
                             <span
+                                class="rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+                                :class="kindClass(group.kind)"
+                                :title="kindTitle(group.kind)"
+                            >
+                                {{ kindLabel(group.kind) }}
+                            </span>
+                            <span
                                 v-if="pendingDeletions"
                                 class="bg-lava/10 text-lava rounded-full px-1.5 py-0.5 text-[9px]"
                             >
@@ -147,8 +158,26 @@ const pendingDeletions = computed(() => props.group.members.filter((m) => m.dele
             </div>
 
             <div
+                v-if="unresolved && !identical"
+                class="border-border text-dim flex items-start gap-1.5 border-t px-4 pt-3
+                    text-[11px]"
+            >
+                <Icon
+                    name="heroicons:shield-exclamation"
+                    size="14"
+                    class="text-lava mt-px shrink-0"
+                />
+                <span>
+                    Not all scenes are identical (a clip and the longer scene containing it, a
+                    partial or an unverified match), so auto-select and auto-resolve skip this
+                    group. Resolving it keeps the selected scene and moves every other scene to the
+                    trash.
+                </span>
+            </div>
+            <div
                 v-if="unresolved"
-                class="border-border flex flex-wrap items-center justify-between gap-2 border-t p-4"
+                class="border-border flex flex-wrap items-center justify-between gap-2 p-4"
+                :class="{ 'border-t': identical }"
             >
                 <label class="text-dim flex items-center gap-2 text-[11px]">
                     <input
@@ -168,8 +197,14 @@ const pendingDeletions = computed(() => props.group.members.filter((m) => m.dele
                     <button
                         class="border-border text-dim hover:border-emerald/40 hover:text-emerald
                             flex items-center gap-1 rounded-md border px-3 py-1.5 text-[11px]
-                            font-medium transition-all"
-                        title="Select the best variant with the configured criteria"
+                            font-medium transition-all disabled:pointer-events-none
+                            disabled:opacity-40"
+                        :disabled="!identical"
+                        :title="
+                            identical
+                                ? 'Select the best variant with the configured criteria'
+                                : 'Only for groups of identical scenes: pick the scene to keep by hand'
+                        "
                         @click="emit('autoSelect')"
                     >
                         <Icon name="heroicons:sparkles" size="12" />

@@ -1,4 +1,11 @@
-import type { JobScheduleConfig, JobScheduleResponse } from '~/types/jobs';
+import type {
+    BulkCancelPhase,
+    BulkCancelResponse,
+    HistoryPurgeInfo,
+    HistoryPurgeResponse,
+    JobScheduleConfig,
+    JobScheduleResponse,
+} from '~/types/jobs';
 
 /**
  * Job-related API operations: history, pool config, processing config, triggers, scheduling.
@@ -216,6 +223,35 @@ export const useApiJobs = () => {
         return handleResponse(response);
     };
 
+    const cancelJobsBulk = async (
+        phase: BulkCancelPhase,
+        includeRunning: boolean,
+    ): Promise<BulkCancelResponse> => {
+        const response = await fetch('/api/v1/admin/jobs/cancel-bulk', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ phase, include_running: includeRunning }),
+        });
+        return handleResponse(response);
+    };
+
+    const fetchHistoryPurge = async (): Promise<HistoryPurgeInfo> => {
+        const response = await fetch('/api/v1/admin/jobs/history-purge', {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const purgeHistory = async (): Promise<HistoryPurgeResponse> => {
+        const response = await fetch('/api/v1/admin/jobs/history-purge', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
     return {
         fetchJobs,
         fetchPoolConfig,
@@ -236,5 +272,8 @@ export const useApiJobs = () => {
         retryAllFailed,
         retryBatchJobs,
         clearFailedJobs,
+        cancelJobsBulk,
+        fetchHistoryPurge,
+        purgeHistory,
     };
 };

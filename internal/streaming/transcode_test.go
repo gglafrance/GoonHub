@@ -373,3 +373,42 @@ func TestKeyframeStart_Fallbacks(t *testing.T) {
 		t.Fatalf("start 0: got %v", got)
 	}
 }
+
+func TestBuildTranscodeArgs_RegularKeyframesOnly(t *testing.T) {
+	args := BuildTranscodeArgs("/media/a.avi", FullTranscodePlan(), 10, defaultTestSettings())
+	if argValue(args, "-sc_threshold") != "0" {
+		t.Fatalf("scene cut keyframes must be off (fragments on the keyframe grid): %v", args)
+	}
+}
+
+func TestBuildTranscodeArgs_CopiedAudioCutAtStart(t *testing.T) {
+	// HEVC video re-encoded, AAC copied: the copy is cut at the start on the output side
+	plan := DecidePlayback("/media/a.mkv", "hevc", "aac")
+	if !plan.CopyAudio || plan.CopyVideo {
+		t.Fatalf("plan %+v", plan)
+	}
+	args := BuildTranscodeArgs("/media/a.mkv", plan, 30, defaultTestSettings())
+	in := slices.Index(args, "-i")
+	var ss []int
+	for i, a := range args {
+		if a == "-ss" {
+			ss = append(ss, i)
+		}
+	}
+	if len(ss) != 2 || ss[0] > in || ss[1] < in || args[ss[1]+1] != "0" {
+		t.Fatalf("expected -ss before the input and -ss 0 after it: %v", args)
+	}
+	for _, other := range []struct {
+		plan  PlaybackPlan
+		start float64
+	}{
+		{plan, 0},
+		{FullTranscodePlan(), 30},
+		{DecidePlayback("/media/a.mkv", "h264", "aac"), 30},
+	} {
+		args := BuildTranscodeArgs("/media/a.mkv", other.plan, other.start, defaultTestSettings())
+		if n := slices.Index(args, "-i"); slices.Contains(args[n:], "-ss") {
+			t.Fatalf("no output -ss for %+v from %v: %v", other.plan, other.start, args)
+		}
+	}
+}

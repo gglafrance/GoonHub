@@ -77,7 +77,10 @@ processing:
   grid_cols: 12
   grid_rows: 8
   sprites_concurrency: 4              # Use 4 cores for local dev
-  job_history_retention: "7d"
+  job_history_retention: "30d"          # completed and cancelled jobs ("0" = keep forever)
+  job_history_failed_retention: "90d"   # failed and timed out jobs ("0" = keep forever)
+  job_history_purge_interval: 1h
+  job_history_purge_batch_size: 5000
   metadata_timeout: 5m
   thumbnail_timeout: 2m
   sprites_timeout: 30m
@@ -104,13 +107,24 @@ streaming:
   # into H.264 + AAC fragmented MP4 (CPU ffmpeg). H.264/AAC in another container is only
   # remuxed. Admins can turn it off in Settings > App > Advanced.
   transcode:
-    max_concurrent: 4         # ffmpeg conversions at the same time (one per viewer)
+    max_concurrent: 4         # ffmpeg conversions at the same time (viewers of cached parts need none)
     preset: veryfast          # libx264 preset
     crf: 23                   # libx264 quality (lower is better, 18-28 is sensible)
     max_height: 1080          # downscale above 1080p (smaller side), 0 keeps the size
     audio_bitrate: 160k       # AAC bitrate of re-encoded audio
     threads: 0                # ffmpeg threads per conversion, 0 = auto
     keyframe_interval: 2      # seconds between keyframes (MP4 fragment length)
+    # Converted output kept on disk: replays, seeks back and other viewers of a part
+    # already converted don't run ffmpeg again. Its own directory in GoonHub's data (never
+    # a media folder: it deletes the files it wrote there).
+    cache:
+      enabled: true
+      dir: ./data/transcode-cache
+      max_size_gb: 20         # least recently used conversions are removed above this
+      max_age: 24h            # conversions unused for this long are removed
+      cleanup_interval: 10m   # also done at startup
+      read_ahead: 60s         # how far a conversion may run ahead of its viewer
+      idle_timeout: 30s       # a conversion nobody watches stops after this (or when its slot is needed)
 
 # Dedicated share server (optional)
 # Runs a second HTTP listener serving only share-related routes.

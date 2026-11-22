@@ -18,7 +18,9 @@ const tileLink = (tile: WidgetTile) =>
         : `/markers/${encodeURIComponent(tile.key)}`;
 
 const coverUrl = (tile: WidgetTile) => {
-    if (tile.cover_marker_id) return `/marker-thumbnails/${tile.cover_marker_id}`;
+    if (tile.cover_marker_id) {
+        return markerThumbnailUrl(tile.cover_marker_id, tile.cover_marker_version);
+    }
     if (tile.cover_scene_id) return `/thumbnails/${tile.cover_scene_id}?size=sm`;
     return null;
 };

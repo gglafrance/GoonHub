@@ -68,7 +68,8 @@ func serveTranscode(c *gin.Context, tc *streaming.Transcoder, sm *streaming.Mana
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get scene"})
 		return
 	}
-	if _, err := os.Stat(scene.StoredPath); err != nil {
+	fileInfo, err := os.Stat(scene.StoredPath)
+	if err != nil {
 		if os.IsNotExist(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Scene file not found"})
 			return
@@ -88,17 +89,33 @@ func serveTranscode(c *gin.Context, tc *streaming.Transcoder, sm *streaming.Mana
 	logger := tc.Logger()
 	clientIP := c.ClientIP()
 	sessionKey := transcodeSessionKey(clientIP, c.Query("sid"), sceneID)
+	src := streaming.TranscodeSource{
+		SceneID: sceneID,
+		Path:    scene.StoredPath,
+		Size:    fileInfo.Size(),
+		ModTime: fileInfo.ModTime(),
+		Plan:    plan,
+	}
 
 	if c.Request.Method == http.MethodHead {
-		if !tc.Available(sessionKey) {
+		// Served from the cache, or from a conversion already running: no slot needed
+		realStart, cached, shared := tc.CacheProbe(src, start)
+		if !cached && !shared && !tc.Available(sessionKey) {
 			c.Header("Retry-After", "10")
 			c.Status(http.StatusServiceUnavailable)
 			return
 		}
-		// A stream copy starts at the keyframe before the requested position: tell the
-		// player where, so that it asks for exactly that start and shows the right time
-		if plan.CopyVideo {
+		switch {
+		case cached:
+			// The cached stream starts on the fragment holding the position
+			start = realStart
+		case plan.CopyVideo:
+			// A stream copy starts at the keyframe before the requested position: tell
+			// the player where, so that it asks for exactly that start and shows the
+			// right time
 			start = tc.KeyframeStart(c.Request.Context(), scene.StoredPath, start)
+		default:
+			start = tc.AlignStart(plan, start)
 		}
 		c.Header("Content-Type", "video/mp4")
 		c.Header("Cache-Control", "no-store")
@@ -118,16 +135,15 @@ func serveTranscode(c *gin.Context, tc *streaming.Transcoder, sm *streaming.Mana
 	}
 	defer sm.Limiter().Release(clientIP, sceneID)
 
+	if tc.CacheEnabled() {
+		serveCachedTranscode(c, tc, src, sessionKey, start)
+		return
+	}
+
 	lease, err := tc.Acquire(c.Request.Context(), sessionKey)
 	if err != nil {
 		if errors.Is(err, streaming.ErrTranscodeLimit) || errors.Is(err, streaming.ErrTranscoderStopped) {
-			stats := tc.Stats()
-			c.Header("Retry-After", "10")
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"error": "All on-the-fly conversion slots are in use (" + strconv.Itoa(stats.Active) + "/" +
-					strconv.Itoa(stats.MaxConcurrent) + "), try again in a moment",
-				"code": codeTranscodeLimit,
-			})
+			transcodeLimitReached(c, tc)
 			return
 		}
 		// Client gone while waiting for its previous stream to end
@@ -168,6 +184,76 @@ func serveTranscode(c *gin.Context, tc *streaming.Transcoder, sm *streaming.Mana
 			})
 		}
 	}
+}
+
+// serveCachedTranscode streams the conversion through the cache: from what earlier
+// conversions left, from a conversion already running for another viewer, or from a new
+// one (which holds the slot, not the request).
+func serveCachedTranscode(c *gin.Context, tc *streaming.Transcoder, src streaming.TranscodeSource, sessionKey string, start float64) {
+	logger := tc.Logger()
+	session, err := tc.BeginSession(c.Request.Context(), sessionKey)
+	if err != nil {
+		if errors.Is(err, streaming.ErrTranscoderStopped) {
+			transcodeLimitReached(c, tc)
+		}
+		// Otherwise the client went away while its previous stream was ending
+		return
+	}
+	defer session.Release()
+
+	stream, err := tc.OpenCached(session.Context(), src, start)
+	if err != nil {
+		switch {
+		case errors.Is(err, streaming.ErrTranscodeLimit) || errors.Is(err, streaming.ErrTranscoderStopped):
+			transcodeLimitReached(c, tc)
+		case session.Context().Err() != nil:
+			// client gone, or replaced by its own next stream
+		default:
+			logger.Warn("On-the-fly transcode failed", zap.Uint("scene_id", src.SceneID), zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "The conversion of this scene failed",
+				"code":  codeTranscodeFailed,
+			})
+		}
+		return
+	}
+	defer stream.Close()
+
+	c.Header("Content-Type", "video/mp4")
+	c.Header("Cache-Control", "no-store")
+	c.Header("Accept-Ranges", "none")
+	c.Header("X-Transcode-Mode", string(src.Plan.Mode))
+	c.Header("X-Transcode-Start", strconv.FormatFloat(stream.Start(), 'f', 3, 64))
+
+	out := &streamWriter{w: c.Writer}
+	_, err = stream.WriteTo(out)
+	hits, joins := stream.Stats()
+	fields := []zap.Field{
+		zap.Uint("scene_id", src.SceneID),
+		zap.Float64("start", stream.Start()),
+		zap.Int64("bytes", out.written),
+		zap.Int("cached_fragments", hits),
+		zap.Int("joins", joins),
+	}
+	switch {
+	case err == nil:
+		logger.Debug("On-the-fly transcode stream ended", fields...)
+	case session.Context().Err() != nil:
+		logger.Debug("On-the-fly transcode stream stopped", fields...)
+	default:
+		logger.Warn("On-the-fly transcode stream broke off", append(fields, zap.Error(err))...)
+	}
+}
+
+// transcodeLimitReached answers 503 when all conversion slots are in use.
+func transcodeLimitReached(c *gin.Context, tc *streaming.Transcoder) {
+	stats := tc.Stats()
+	c.Header("Retry-After", "10")
+	c.JSON(http.StatusServiceUnavailable, gin.H{
+		"error": "All on-the-fly conversion slots are in use (" + strconv.Itoa(stats.Active) + "/" +
+			strconv.Itoa(stats.MaxConcurrent) + "), try again in a moment",
+		"code": codeTranscodeLimit,
+	})
 }
 
 // setDownloadDisposition makes the original file an attachment with its file name when
@@ -217,4 +303,32 @@ func (s *streamWriter) Write(p []byte) (int, error) {
 	}
 	s.w.Flush()
 	return n, nil
+}
+
+// transcodeCacheClearResponse tells what clearing the cache removed.
+type transcodeCacheClearResponse struct {
+	Removed      int   `json:"removed"`
+	RemovedBytes int64 `json:"removed_bytes"`
+	streaming.TranscodeCacheStats
+}
+
+// GetTranscodeCache returns the size of the on-the-fly conversion cache (admin).
+// GET /admin/transcode-cache
+func (h *SceneHandler) GetTranscodeCache(c *gin.Context) {
+	if h.Transcoder == nil {
+		response.OK(c, streaming.TranscodeCacheStats{})
+		return
+	}
+	response.OK(c, h.Transcoder.CacheStats())
+}
+
+// ClearTranscodeCache removes every cached conversion (admin); conversions being watched
+// are removed when their viewers leave. DELETE /admin/transcode-cache
+func (h *SceneHandler) ClearTranscodeCache(c *gin.Context) {
+	resp := transcodeCacheClearResponse{}
+	if h.Transcoder != nil {
+		resp.Removed, resp.RemovedBytes = h.Transcoder.ClearCache()
+		resp.TranscodeCacheStats = h.Transcoder.CacheStats()
+	}
+	response.OK(c, resp)
 }
