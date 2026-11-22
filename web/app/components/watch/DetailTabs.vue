@@ -28,8 +28,9 @@ const tabComponentMap: Record<TabType, Component> = {
 
 const currentComponent = computed(() => tabComponentMap[activeTab.value]);
 
-// The Similar tab (scenes matching this one by fingerprint) only shows when there are some
 const watchPageData = inject<WatchPageData | undefined>(WATCH_PAGE_DATA_KEY, undefined);
+
+// The Similar tab (scenes matching this one by fingerprint) only shows when there are some
 const similarCount = computed(() => watchPageData?.similar.value?.scenes.length ?? 0);
 watch(
     () => [similarCount.value, watchPageData?.loading.related] as const,
@@ -39,6 +40,9 @@ watch(
         }
     },
 );
+
+// Markers tab label with the scene's marker count, live as markers are added or removed
+const markersTabLabel = computed(() => markerTabLabel(watchPageData?.markers.value.length ?? 0));
 </script>
 
 <template>
@@ -98,7 +102,7 @@ watch(
                 ]"
                 @click="activeTab = 'markers'"
             >
-                Markers
+                {{ markersTabLabel }}
             </button>
             <button
                 v-if="similarCount > 0"
