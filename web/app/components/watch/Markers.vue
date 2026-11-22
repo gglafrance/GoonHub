@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Marker, MarkerLabelSuggestion } from '~/types/marker';
 import type { MarkerTimeField } from '~/utils/markerTime';
+import type { MarkerListSort } from '~/utils/markerList';
 import type { WatchPageData } from '~/composables/useWatchPageData';
 import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
@@ -23,6 +24,16 @@ const sceneId = computed(() => parseInt(route.params.id as string));
 // Use centralized data for markers and loading state
 const loading = computed(() => watchPageData?.loading.player ?? true);
 const markers = computed(() => watchPageData?.markers.value ?? []);
+// List order (by time or grouped by label), remembered in this browser
+const listSort = ref<MarkerListSort>('time');
+const markerGroups = computed(() => markerListGroups(markers.value, listSort.value));
+watch(listSort, (value) => {
+    try {
+        localStorage.setItem(MARKER_LIST_SORT_STORAGE_KEY, value);
+    } catch {
+        // Storage unavailable (private mode): the choice lasts for the page only
+    }
+});
 // Scene duration in seconds: the API refuses a marker time past it
 const sceneDuration = computed(() => watchPageData?.scene.value?.duration ?? null);
 
@@ -379,6 +390,11 @@ const getAnimatedUrl = (marker: Marker) => {
 };
 
 onMounted(async () => {
+    try {
+        listSort.value = parseMarkerListSort(localStorage.getItem(MARKER_LIST_SORT_STORAGE_KEY));
+    } catch {
+        // Storage unavailable: keep the time order
+    }
     // Load marker thumbnail type from processing config
     try {
         const config = await fetchProcessingConfig();
@@ -443,201 +459,233 @@ onMounted(async () => {
             No markers yet. Add one to bookmark a moment.
         </div>
 
-        <!-- Markers Grid -->
-        <div v-else class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            <div
-                v-for="marker in markers"
-                :key="marker.id"
-                class="border-border bg-surface group relative overflow-hidden rounded-lg border
-                    transition-all hover:border-white/20"
-            >
-                <!-- Thumbnail / Placeholder, with the start and end (click to edit) -->
-                <div class="relative">
-                    <button
-                        class="relative aspect-video w-full cursor-pointer overflow-hidden
-                            bg-black/40"
-                        :title="
-                            markerHasRange(marker)
-                                ? `Play ${formatMarkerRange(marker.timestamp, marker.end_timestamp)}`
-                                : `Seek to ${formatMarkerTime(marker.timestamp)}`
-                        "
-                        @click="handleSeekToMarker(marker)"
+        <!-- Markers Grid: one headerless group by time, or one group per label -->
+        <div v-else class="space-y-4">
+            <WatchMarkersSortToggle v-model="listSort" class="w-fit" />
+            <section v-for="group in markerGroups" :key="group.key">
+                <div v-if="listSort === 'label'" class="mb-2 flex items-center gap-2 text-[11px]">
+                    <span
+                        :class="group.label ? 'font-medium text-white' : 'text-dim italic'"
+                        class="max-w-[70%] truncate"
+                        :title="group.label ?? undefined"
                     >
-                        <MarkersTagsBadge :tags="marker.tags" :label="marker.label" />
-                        <!-- Animated Thumbnail -->
-                        <video
-                            v-if="markerThumbnailType === 'animated' && getAnimatedUrl(marker)"
-                            :ref="(el) => observe(el as HTMLVideoElement)"
-                            :src="getAnimatedUrl(marker)!"
-                            muted
-                            loop
-                            playsinline
-                            preload="none"
-                            class="h-full w-full object-contain transition-transform duration-200
-                                group-hover:scale-105"
-                        />
-                        <!-- Static Thumbnail Image -->
-                        <img
-                            v-else-if="getThumbnailUrl(marker)"
-                            :src="getThumbnailUrl(marker)!"
-                            :alt="marker.label || 'Marker thumbnail'"
-                            class="h-full w-full object-cover transition-transform duration-200
-                                group-hover:scale-105"
-                        />
-                        <!-- Placeholder when no thumbnail -->
-                        <div
-                            v-else
-                            class="flex h-full w-full items-center justify-center bg-linear-to-br
-                                from-white/5 to-transparent"
-                        >
-                            <Icon name="heroicons:photo" size="24" class="text-dim/40" />
-                        </div>
-
-                        <!-- Play Icon on Hover -->
-                        <div
-                            class="bg-lava/25 absolute inset-0 flex items-center justify-center
-                                opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-                        >
-                            <Icon name="heroicons:play-solid" size="28" class="text-white" />
-                        </div>
-                    </button>
-                    <WatchMarkersTimeBadge
-                        :marker="marker"
-                        :editing="editingTime?.id === marker.id ? editingTime.field : null"
-                        @edit="startEditingTime(marker, $event)"
-                    />
+                        {{ group.label ?? 'No label' }}
+                    </span>
+                    <span
+                        class="border-border text-dim rounded-full border px-1.5 font-mono
+                            text-[10px] leading-4"
+                    >
+                        {{ group.markers.length }}
+                    </span>
+                    <div class="bg-border h-px flex-1" />
                 </div>
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                    <div
+                        v-for="marker in group.markers"
+                        :key="marker.id"
+                        class="border-border bg-surface group relative overflow-hidden rounded-lg
+                            border transition-all hover:border-white/20"
+                    >
+                        <!-- Thumbnail / Placeholder, with the start and end (click to edit) -->
+                        <div class="relative">
+                            <button
+                                class="relative aspect-video w-full cursor-pointer overflow-hidden
+                                    bg-black/40"
+                                :title="
+                                    markerHasRange(marker)
+                                        ? `Play ${formatMarkerRange(marker.timestamp, marker.end_timestamp)}`
+                                        : `Seek to ${formatMarkerTime(marker.timestamp)}`
+                                "
+                                @click="handleSeekToMarker(marker)"
+                            >
+                                <MarkersTagsBadge :tags="marker.tags" :label="marker.label" />
+                                <!-- Animated Thumbnail -->
+                                <video
+                                    v-if="
+                                        markerThumbnailType === 'animated' && getAnimatedUrl(marker)
+                                    "
+                                    :ref="(el) => observe(el as HTMLVideoElement)"
+                                    :src="getAnimatedUrl(marker)!"
+                                    muted
+                                    loop
+                                    playsinline
+                                    preload="none"
+                                    class="h-full w-full object-contain transition-transform
+                                        duration-200 group-hover:scale-105"
+                                />
+                                <!-- Static Thumbnail Image -->
+                                <img
+                                    v-else-if="getThumbnailUrl(marker)"
+                                    :src="getThumbnailUrl(marker)!"
+                                    :alt="marker.label || 'Marker thumbnail'"
+                                    class="h-full w-full object-cover transition-transform
+                                        duration-200 group-hover:scale-105"
+                                />
+                                <!-- Placeholder when no thumbnail -->
+                                <div
+                                    v-else
+                                    class="flex h-full w-full items-center justify-center
+                                        bg-linear-to-br from-white/5 to-transparent"
+                                >
+                                    <Icon name="heroicons:photo" size="24" class="text-dim/40" />
+                                </div>
 
-                <!-- Typed start or end -->
-                <WatchMarkersTimeEditor
-                    v-if="editingTime?.id === marker.id"
-                    :key="`${marker.id}-${editingTime.field}`"
-                    :field="editingTime.field"
-                    :marker="marker"
-                    :duration="sceneDuration"
-                    :saving="timeSaving"
-                    :server-error="timeError"
-                    @save="handleSaveTime(marker, editingTime.field, $event)"
-                    @cancel="cancelEditingTime"
-                />
-
-                <!-- Label & Actions -->
-                <div class="flex items-center gap-2 p-2 py-0.5">
-                    <!-- Label (editable) -->
-                    <div class="min-w-0 flex-1">
-                        <template v-if="editingMarkerId === marker.id">
-                            <div class="flex items-center gap-1">
-                                <div class="min-w-0 flex-1">
-                                    <input
-                                        ref="editInputRef"
-                                        v-model="editingLabel"
-                                        type="text"
-                                        maxlength="100"
-                                        class="border-border bg-panel w-full rounded-md border px-2
-                                            py-1 text-[11px] text-white focus:border-white/20
-                                            focus:outline-none"
-                                        @focus="handleEditFocus"
-                                        @blur="handleEditBlur(marker)"
-                                        @keydown="handleSuggestionKeydown($event, true)"
-                                        @keyup.enter="
-                                            selectedSuggestionIndex < 0 && handleSaveEdit(marker)
-                                        "
-                                        @keyup.escape="cancelEditing"
+                                <!-- Play Icon on Hover -->
+                                <div
+                                    class="bg-lava/25 absolute inset-0 flex items-center
+                                        justify-center opacity-0 transition-opacity duration-200
+                                        group-hover:opacity-100"
+                                >
+                                    <Icon
+                                        name="heroicons:play-solid"
+                                        size="28"
+                                        class="text-white"
                                     />
                                 </div>
-                                <button
-                                    class="text-emerald hover:bg-emerald/10 shrink-0 rounded p-1
-                                        transition-colors"
-                                    title="Save"
-                                    @click="handleSaveEdit(marker)"
-                                >
-                                    <Icon name="heroicons:check" size="12" />
-                                </button>
-                                <button
-                                    class="text-dim hover:bg-surface-hover shrink-0 rounded p-1
-                                        transition-colors"
-                                    title="Cancel"
-                                    @click="cancelEditing"
-                                >
-                                    <Icon name="heroicons:x-mark" size="12" />
-                                </button>
+                            </button>
+                            <WatchMarkersTimeBadge
+                                :marker="marker"
+                                :editing="editingTime?.id === marker.id ? editingTime.field : null"
+                                @edit="startEditingTime(marker, $event)"
+                            />
+                        </div>
+
+                        <!-- Typed start or end -->
+                        <WatchMarkersTimeEditor
+                            v-if="editingTime?.id === marker.id"
+                            :key="`${marker.id}-${editingTime.field}`"
+                            :field="editingTime.field"
+                            :marker="marker"
+                            :duration="sceneDuration"
+                            :saving="timeSaving"
+                            :server-error="timeError"
+                            @save="handleSaveTime(marker, editingTime.field, $event)"
+                            @cancel="cancelEditingTime"
+                        />
+
+                        <!-- Label & Actions -->
+                        <div class="flex items-center gap-2 p-2 py-0.5">
+                            <!-- Label (editable) -->
+                            <div class="min-w-0 flex-1">
+                                <template v-if="editingMarkerId === marker.id">
+                                    <div class="flex items-center gap-1">
+                                        <div class="min-w-0 flex-1">
+                                            <input
+                                                ref="editInputRef"
+                                                v-model="editingLabel"
+                                                type="text"
+                                                maxlength="100"
+                                                class="border-border bg-panel w-full rounded-md
+                                                    border px-2 py-1 text-[11px] text-white
+                                                    focus:border-white/20 focus:outline-none"
+                                                @focus="handleEditFocus"
+                                                @blur="handleEditBlur(marker)"
+                                                @keydown="handleSuggestionKeydown($event, true)"
+                                                @keyup.enter="
+                                                    selectedSuggestionIndex < 0 &&
+                                                    handleSaveEdit(marker)
+                                                "
+                                                @keyup.escape="cancelEditing"
+                                            />
+                                        </div>
+                                        <button
+                                            class="text-emerald hover:bg-emerald/10 shrink-0 rounded
+                                                p-1 transition-colors"
+                                            title="Save"
+                                            @click="handleSaveEdit(marker)"
+                                        >
+                                            <Icon name="heroicons:check" size="12" />
+                                        </button>
+                                        <button
+                                            class="text-dim hover:bg-surface-hover shrink-0 rounded
+                                                p-1 transition-colors"
+                                            title="Cancel"
+                                            @click="cancelEditing"
+                                        >
+                                            <Icon name="heroicons:x-mark" size="12" />
+                                        </button>
+                                    </div>
+                                </template>
+                                <template v-else>
+                                    <span
+                                        v-if="marker.label"
+                                        class="text-dim line-clamp-1 cursor-pointer text-[11px]
+                                            transition-colors hover:text-white"
+                                        :title="marker.label"
+                                        @click="startEditing(marker, $event)"
+                                    >
+                                        {{ marker.label }}
+                                    </span>
+                                    <span
+                                        v-else
+                                        class="text-dim/50 cursor-pointer text-[11px] italic
+                                            transition-colors hover:text-white/50"
+                                        @click="startEditing(marker, $event)"
+                                    >
+                                        No label
+                                    </span>
+                                </template>
                             </div>
-                        </template>
-                        <template v-else>
-                            <span
-                                v-if="marker.label"
-                                class="text-dim line-clamp-1 cursor-pointer text-[11px]
-                                    transition-colors hover:text-white"
-                                :title="marker.label"
-                                @click="startEditing(marker, $event)"
+
+                            <!-- Range end: clear / set at current time -->
+                            <button
+                                v-if="editingMarkerId !== marker.id && markerHasRange(marker)"
+                                class="text-dim hover:bg-surface-hover flex shrink-0 items-center
+                                    justify-center rounded p-1.5 opacity-0 transition-all
+                                    group-hover:opacity-100 hover:text-white"
+                                title="Remove end (point marker)"
+                                @click="handleClearEnd(marker, $event)"
                             >
-                                {{ marker.label }}
-                            </span>
-                            <span
-                                v-else
-                                class="text-dim/50 cursor-pointer text-[11px] italic
-                                    transition-colors hover:text-white/50"
-                                @click="startEditing(marker, $event)"
+                                <Icon name="heroicons:arrows-pointing-in" size="12" />
+                            </button>
+                            <!-- Start: set at current time (next to the end) -->
+                            <button
+                                v-if="editingMarkerId !== marker.id"
+                                class="text-dim hover:bg-surface-hover flex shrink-0 items-center
+                                    justify-center rounded p-1.5 opacity-0 transition-all
+                                    group-hover:opacity-100 hover:text-white"
+                                title="Move start to current time"
+                                aria-label="Set start"
+                                @click="handleSetStart(marker, $event)"
                             >
-                                No label
-                            </span>
-                        </template>
+                                <Icon name="heroicons:arrow-left-start-on-rectangle" size="12" />
+                            </button>
+                            <button
+                                v-if="editingMarkerId !== marker.id"
+                                class="text-dim hover:bg-surface-hover flex shrink-0 items-center
+                                    justify-center rounded p-1.5 opacity-0 transition-all
+                                    group-hover:opacity-100 hover:text-white"
+                                :title="
+                                    markerHasRange(marker)
+                                        ? 'Move end to current time'
+                                        : 'Set end at current time (range marker)'
+                                "
+                                @click="handleSetEnd(marker, $event)"
+                            >
+                                <Icon name="heroicons:arrow-right-end-on-rectangle" size="12" />
+                            </button>
+
+                            <!-- Delete Button -->
+                            <button
+                                v-if="editingMarkerId !== marker.id"
+                                class="text-dim hover:text-lava hover:bg-lava/10 flex shrink-0
+                                    items-center justify-center rounded p-1.5 opacity-0
+                                    transition-all group-hover:opacity-100"
+                                title="Delete marker"
+                                @click="handleDeleteClick(marker, $event)"
+                            >
+                                <Icon name="heroicons:trash" size="12" />
+                            </button>
+                        </div>
+
+                        <!-- Tags -->
+                        <MarkersMarkerTagEditor
+                            :marker-id="marker.id"
+                            :initial-tags="marker.tags"
+                        />
                     </div>
-
-                    <!-- Range end: clear / set at current time -->
-                    <button
-                        v-if="editingMarkerId !== marker.id && markerHasRange(marker)"
-                        class="text-dim hover:bg-surface-hover flex shrink-0 items-center
-                            justify-center rounded p-1.5 opacity-0 transition-all
-                            group-hover:opacity-100 hover:text-white"
-                        title="Remove end (point marker)"
-                        @click="handleClearEnd(marker, $event)"
-                    >
-                        <Icon name="heroicons:arrows-pointing-in" size="12" />
-                    </button>
-                    <!-- Start: set at current time (next to the end) -->
-                    <button
-                        v-if="editingMarkerId !== marker.id"
-                        class="text-dim hover:bg-surface-hover flex shrink-0 items-center
-                            justify-center rounded p-1.5 opacity-0 transition-all
-                            group-hover:opacity-100 hover:text-white"
-                        title="Move start to current time"
-                        aria-label="Set start"
-                        @click="handleSetStart(marker, $event)"
-                    >
-                        <Icon name="heroicons:arrow-left-start-on-rectangle" size="12" />
-                    </button>
-                    <button
-                        v-if="editingMarkerId !== marker.id"
-                        class="text-dim hover:bg-surface-hover flex shrink-0 items-center
-                            justify-center rounded p-1.5 opacity-0 transition-all
-                            group-hover:opacity-100 hover:text-white"
-                        :title="
-                            markerHasRange(marker)
-                                ? 'Move end to current time'
-                                : 'Set end at current time (range marker)'
-                        "
-                        @click="handleSetEnd(marker, $event)"
-                    >
-                        <Icon name="heroicons:arrow-right-end-on-rectangle" size="12" />
-                    </button>
-
-                    <!-- Delete Button -->
-                    <button
-                        v-if="editingMarkerId !== marker.id"
-                        class="text-dim hover:text-lava hover:bg-lava/10 flex shrink-0 items-center
-                            justify-center rounded p-1.5 opacity-0 transition-all
-                            group-hover:opacity-100"
-                        title="Delete marker"
-                        @click="handleDeleteClick(marker, $event)"
-                    >
-                        <Icon name="heroicons:trash" size="12" />
-                    </button>
                 </div>
-
-                <!-- Tags -->
-                <MarkersMarkerTagEditor :marker-id="marker.id" :initial-tags="marker.tags" />
-            </div>
+            </section>
         </div>
 
         <!-- Marker count -->

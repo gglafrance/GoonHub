@@ -5,6 +5,8 @@ import WatchThumbnail from './Thumbnail.vue';
 import WatchJobs from './Jobs.vue';
 import WatchHistory from './History.vue';
 import WatchMarkers from './Markers.vue';
+import type { WatchPageData } from '~/composables/useWatchPageData';
+import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
 type TabType = 'jobs' | 'thumbnail' | 'details' | 'history' | 'markers';
 
@@ -23,6 +25,10 @@ const tabComponentMap: Record<TabType, Component> = {
 };
 
 const currentComponent = computed(() => tabComponentMap[activeTab.value]);
+
+// Markers tab label with the scene's marker count, live as markers are added or removed
+const watchPageData = inject<WatchPageData | undefined>(WATCH_PAGE_DATA_KEY, undefined);
+const markersTabLabel = computed(() => markerTabLabel(watchPageData?.markers.value.length ?? 0));
 </script>
 
 <template>
@@ -82,7 +88,7 @@ const currentComponent = computed(() => tabComponentMap[activeTab.value]);
                 ]"
                 @click="activeTab = 'markers'"
             >
-                Markers
+                {{ markersTabLabel }}
             </button>
         </div>
 
