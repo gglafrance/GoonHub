@@ -53,14 +53,33 @@ const toggleSelectMode = () => {
     }
 };
 
-const toggleSelect = (sceneId: number) => {
-    const next = new Set(selectedIds.value);
-    if (next.has(sceneId)) {
-        next.delete(sceneId);
-    } else {
-        next.add(sceneId);
-    }
-    selectedIds.value = next;
+// Last toggled scene: a shift-click selects from it to the clicked scene
+let selectionAnchor: number | null = null;
+const toggleSelect = (sceneId: number, range = false) => {
+    selectedIds.value = toggleSceneInSelection(
+        selectedIds.value,
+        props.scenes.map((s) => s.scene.id),
+        sceneId,
+        selectionAnchor,
+        range,
+    );
+    selectionAnchor = sceneId;
+};
+
+// A row's hover checkbox (owner) turns select mode on, Escape clears the selection
+useCardSelectMode(
+    selectMode,
+    computed(() => selectedIds.value.size > 0),
+    () => {
+        selectedIds.value = new Set();
+        selectionAnchor = null;
+    },
+);
+
+const onHoverCheckbox = (event: MouseEvent, sceneId: number) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleSelect(sceneId, event.shiftKey);
 };
 
 const toggleAll = () => {
@@ -184,7 +203,7 @@ const moveScene = (index: number, direction: 'up' | 'down') => {
                 :class="
                     selectMode && selectedIds.has(entry.scene.id) ? 'border-lava/40 bg-lava/5' : ''
                 "
-                @click="selectMode ? toggleSelect(entry.scene.id) : undefined"
+                @click="selectMode ? toggleSelect(entry.scene.id, $event.shiftKey) : undefined"
             >
                 <!-- Checkbox (select mode) or Position number -->
                 <div v-if="selectMode" class="flex w-6 shrink-0 items-center justify-center">
@@ -205,9 +224,27 @@ const moveScene = (index: number, direction: 'up' | 'down') => {
                         />
                     </div>
                 </div>
-                <span v-else class="text-dim w-6 shrink-0 text-center font-mono text-[11px]">
-                    {{ index + 1 }}
-                </span>
+                <div v-else class="relative flex w-6 shrink-0 items-center justify-center">
+                    <span
+                        class="text-dim font-mono text-[11px] transition-opacity"
+                        :class="isOwner ? 'group-hover:opacity-0' : ''"
+                    >
+                        {{ index + 1 }}
+                    </span>
+                    <!-- Hover checkbox (pointer devices): starts a selection with this scene -->
+                    <button
+                        v-if="isOwner"
+                        type="button"
+                        class="border-border bg-void pointer-events-none absolute flex h-4 w-4
+                            items-center justify-center rounded border opacity-0 transition-all
+                            group-hover:pointer-events-auto group-hover:opacity-100
+                            hover:border-white/50 focus-visible:pointer-events-auto
+                            focus-visible:opacity-100"
+                        aria-label="Select scene"
+                        @mousedown="$event.shiftKey && $event.preventDefault()"
+                        @click="onHoverCheckbox($event, entry.scene.id)"
+                    />
+                </div>
 
                 <!-- Thumbnail -->
                 <NuxtLink

@@ -25,7 +25,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     sort: [value: string];
-    toggleSelection: [sceneId: number];
+    // range: shift-click, select from the last toggled scene to this one
+    toggleSelection: [sceneId: number, range: boolean];
     dragSelect: [sceneIds: number[], additive: boolean];
 }>();
 
@@ -70,7 +71,7 @@ const onRowClick = (event: MouseEvent, scene: SceneListItem) => {
     if (!props.selectable) return;
     event.preventDefault();
     event.stopPropagation();
-    emit('toggleSelection', scene.id);
+    emit('toggleSelection', scene.id, event.shiftKey);
 };
 
 // Drag selection, only in select mode

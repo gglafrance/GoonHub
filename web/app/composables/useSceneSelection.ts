@@ -3,6 +3,8 @@ import type { SceneListItem } from '~/types/scene';
 export function useSceneSelection(pageScenes: Ref<SceneListItem[]> | ComputedRef<SceneListItem[]>) {
     const selectedSceneIDs = ref<Set<number>>(new Set());
     const isSelectingAll = ref(false);
+    // Last toggled scene: a shift-click selects from it to the clicked scene
+    let anchorId: number | null = null;
 
     const hasSelection = computed(() => selectedSceneIDs.value.size > 0);
     const selectionCount = computed(() => selectedSceneIDs.value.size);
@@ -13,14 +15,16 @@ export function useSceneSelection(pageScenes: Ref<SceneListItem[]> | ComputedRef
         return scenes.every((s) => selectedSceneIDs.value.has(s.id));
     });
 
-    const toggleSceneSelection = (sceneId: number) => {
-        const next = new Set(selectedSceneIDs.value);
-        if (next.has(sceneId)) {
-            next.delete(sceneId);
-        } else {
-            next.add(sceneId);
-        }
-        selectedSceneIDs.value = next;
+    const toggleSceneSelection = (sceneId: number, range = false) => {
+        const ids = toValue(pageScenes).map((s) => s.id);
+        selectedSceneIDs.value = toggleSceneInSelection(
+            selectedSceneIDs.value,
+            ids,
+            sceneId,
+            anchorId,
+            range,
+        );
+        anchorId = sceneId;
     };
 
     const selectAllOnPage = () => {
@@ -37,6 +41,7 @@ export function useSceneSelection(pageScenes: Ref<SceneListItem[]> | ComputedRef
 
     const clearSelection = () => {
         selectedSceneIDs.value = new Set();
+        anchorId = null;
     };
 
     const dragSelect = (ids: number[], additive: boolean) => {
