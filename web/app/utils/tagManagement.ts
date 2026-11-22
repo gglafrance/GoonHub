@@ -36,6 +36,32 @@ export function parseHexColor(input: string): string | null {
     return `#${value.toUpperCase()}`;
 }
 
+/** Length limit of a tag name, in bytes like the backend (tags.name is VARCHAR(100)). */
+export const TAG_NAME_MAX_LENGTH = 100;
+
+export type TagRenameCheck =
+    | { kind: 'unchanged' }
+    | { kind: 'invalid'; error: string }
+    | { kind: 'ok'; name: string };
+
+/**
+ * Checks a new name typed for a tag named current: nothing to save when it is the same once
+ * trimmed, an error when it is empty or too long, otherwise the trimmed name to send. A
+ * different case of the current name is a valid rename.
+ */
+export function checkTagRename(input: string, current: string): TagRenameCheck {
+    const name = input.trim();
+    if (name === current) return { kind: 'unchanged' };
+    if (!name) return { kind: 'invalid', error: 'The tag name cannot be empty' };
+    if (new TextEncoder().encode(name).length > TAG_NAME_MAX_LENGTH) {
+        return {
+            kind: 'invalid',
+            error: `The tag name must be ${TAG_NAME_MAX_LENGTH} characters or less`,
+        };
+    }
+    return { kind: 'ok', name };
+}
+
 interface MergeCandidate {
     id: number;
     name: string;

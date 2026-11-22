@@ -12,6 +12,20 @@ import (
 
 var colorRegex = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
 
+// maxTagNameLength is the length limit of a tag name (bytes, tags.name is VARCHAR(100)).
+const maxTagNameLength = 100
+
+// validateTagName checks a tag name on creation and rename.
+func validateTagName(name string) error {
+	if name == "" {
+		return apperrors.NewValidationErrorWithField("name", "tag name is required")
+	}
+	if len(name) > maxTagNameLength {
+		return apperrors.NewValidationErrorWithField("name", "tag name must be 100 characters or less")
+	}
+	return nil
+}
+
 type TagService struct {
 	tagRepo   data.TagRepository
 	sceneRepo data.SceneRepository
@@ -37,11 +51,8 @@ func (s *TagService) ListTags() ([]data.TagWithCount, error) {
 }
 
 func (s *TagService) CreateTag(name, color string) (*data.Tag, error) {
-	if name == "" {
-		return nil, apperrors.NewValidationErrorWithField("name", "tag name is required")
-	}
-	if len(name) > 100 {
-		return nil, apperrors.NewValidationErrorWithField("name", "tag name must be 100 characters or less")
+	if err := validateTagName(name); err != nil {
+		return nil, err
 	}
 
 	if color == "" {

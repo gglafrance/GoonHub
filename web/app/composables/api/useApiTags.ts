@@ -30,14 +30,20 @@ export const useApiTags = () => {
         return handleResponse(response);
     };
 
-    const updateTagColor = async (id: number, color: string) => {
+    /**
+     * Renames a tag and/or changes its color. A name used by another tag (also ignoring case
+     * and extra spaces) answers 409 with that tag in `existing` (see getEntityConflict).
+     */
+    const updateTag = async (id: number, fields: { name?: string; color?: string }) => {
         const response = await fetch(`/api/v1/tags/${id}`, {
             method: 'PUT',
             headers: getAuthHeaders(),
-            body: JSON.stringify({ color }),
+            body: JSON.stringify(fields),
         });
         return handleResponse(response);
     };
+
+    const updateTagColor = (id: number, color: string) => updateTag(id, { color });
 
     const fetchDuplicateTags = async () => {
         const response = await fetch('/api/v1/tags/duplicates', {
@@ -78,6 +84,7 @@ export const useApiTags = () => {
         fetchTags,
         createTag,
         deleteTag,
+        updateTag,
         updateTagColor,
         fetchDuplicateTags,
         mergeTags,

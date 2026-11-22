@@ -153,13 +153,13 @@ func TestUpdateTagColor(t *testing.T) {
 	svc, tagRepo, _ := newTestTagService(t)
 
 	for _, bad := range []string{"", "red", "#FFF", "#GGGGGG", "FF4D4D", "#FF4D4D0"} {
-		if _, err := svc.UpdateTagColor(1, bad); !apperrors.IsValidation(err) {
+		if _, err := svc.UpdateTag(1, TagUpdate{Color: ptr(bad)}); !apperrors.IsValidation(err) {
 			t.Errorf("color %q: want a validation error, got %v", bad, err)
 		}
 	}
 
 	tagRepo.EXPECT().GetByID(uint(9)).Return(nil, gorm.ErrRecordNotFound)
-	if _, err := svc.UpdateTagColor(9, "#FF4D4D"); !apperrors.IsNotFound(err) {
+	if _, err := svc.UpdateTag(9, TagUpdate{Color: ptr("#FF4D4D")}); !apperrors.IsNotFound(err) {
 		t.Fatalf("unknown tag: want not found, got %v", err)
 	}
 
@@ -170,7 +170,7 @@ func TestUpdateTagColor(t *testing.T) {
 		}
 		return nil
 	})
-	tag, err := svc.UpdateTagColor(1, "#ff4d4d")
+	tag, err := svc.UpdateTag(1, TagUpdate{Color: ptr("#ff4d4d")})
 	if err != nil || tag.Color != "#FF4D4D" {
 		t.Fatalf("updated tag = %+v, %v", tag, err)
 	}

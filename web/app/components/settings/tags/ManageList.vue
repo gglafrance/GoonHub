@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { Tag } from '~/types/tag';
 
-// List of all tags: search, color change, delete, and a selection to merge several tags.
+// List of all tags: search, rename, color change, delete, and a selection to merge several
+// tags.
 const props = defineProps<{
     tags: Tag[];
     loading: boolean;
@@ -11,6 +12,9 @@ const emit = defineEmits<{
     delete: [tag: Tag];
     color: [tag: Tag, color: string];
     merge: [ids: number[]];
+    renamed: [tag: Tag];
+    // rename refused because target already has the name: merge source into it instead
+    mergeInto: [source: Tag, target: Tag];
 }>();
 
 const query = ref('');
@@ -125,9 +129,11 @@ defineExpose({ clearSelection });
                     :color="tag.color"
                     @select="(c) => emit('color', tag, c)"
                 />
-                <span class="flex-1 truncate text-xs whitespace-pre text-white">{{
-                    tag.name
-                }}</span>
+                <SettingsTagsNameEditor
+                    :tag="tag"
+                    @renamed="(t) => emit('renamed', t)"
+                    @merge-into="(target) => emit('mergeInto', tag, target)"
+                />
                 <span class="text-dim text-[11px]">{{ plural(tag.scene_count, 'scene') }}</span>
                 <button
                     class="text-dim flex items-center justify-center opacity-0 transition-all

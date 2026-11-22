@@ -261,6 +261,22 @@ func (mr *MockTagRepositoryMockRecorder) MergeTags(target, sources, dryRun any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MergeTags", reflect.TypeOf((*MockTagRepository)(nil).MergeTags), target, sources, dryRun)
 }
 
+// RenameTag mocks base method.
+func (m *MockTagRepository) RenameTag(tag data.Tag, oldName string) (int64, []uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RenameTag", tag, oldName)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].([]uint)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// RenameTag indicates an expected call of RenameTag.
+func (mr *MockTagRepositoryMockRecorder) RenameTag(tag, oldName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenameTag", reflect.TypeOf((*MockTagRepository)(nil).RenameTag), tag, oldName)
+}
+
 // SetSceneTags mocks base method.
 func (m *MockTagRepository) SetSceneTags(sceneID uint, tagIDs []uint) error {
 	m.ctrl.T.Helper()
