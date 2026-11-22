@@ -5,6 +5,7 @@ import (
 	"goonhub/internal/data"
 	"slices"
 	"strings"
+	"sync"
 
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -107,6 +108,8 @@ type SettingsService struct {
 	settingsRepo data.UserSettingsRepository
 	userRepo     data.UserRepository
 	logger       *zap.Logger
+	// writeMu serializes the read-modify-write updates of the settings rows
+	writeMu sync.Mutex
 }
 
 func NewSettingsService(settingsRepo data.UserSettingsRepository, userRepo data.UserRepository, logger *zap.Logger) *SettingsService {
@@ -121,30 +124,7 @@ func (s *SettingsService) GetSettings(userID uint) (*data.UserSettings, error) {
 	settings, err := s.settingsRepo.GetByUserID(userID)
 	if err != nil {
 		// Return defaults if no row exists
-		return &data.UserSettings{
-			UserID:                 userID,
-			Autoplay:               false,
-			DefaultVolume:          100,
-			Loop:                   false,
-			AbLoopControls:         false,
-			MarkerLoop:             false,
-			VideosPerPage:          20,
-			DefaultSortOrder:       "created_at_desc",
-			DefaultTagSort:         "az",
-			MarkerThumbnailCycling: true,
-			DefaultMarkerView:      "grouped",
-			PaginationPosition:     "bottom",
-			DateFormat:             DefaultDateFormat,
-			GridDensity:            DefaultGridDensity,
-			PlayerGestures:         true,
-			GestureSeekStep:        DefaultGestureSeekStep,
-			ShowReplayHeatmap:      true,
-			RecordReplayHeatmap:    true,
-			HomepageConfig:         data.DefaultHomepageConfig(),
-			SortPreferences:        data.DefaultSortPreferences(),
-			SceneCardConfig:        data.DefaultSceneCardConfig(),
-			SceneListView:          data.DefaultSceneListView(),
-		}, nil
+		return defaultUserSettings(userID), nil
 	}
 	return settings, nil
 }
@@ -162,6 +142,9 @@ func (s *SettingsService) UpdateHomepageConfig(userID uint, config data.Homepage
 	if err := s.validateHomepageConfig(&config); err != nil {
 		return nil, err
 	}
+
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
 
 	settings, err := s.settingsRepo.GetByUserID(userID)
 	if err != nil {
@@ -337,6 +320,9 @@ func (s *SettingsService) UpdateParsingRules(userID uint, rules data.ParsingRule
 		return nil, err
 	}
 
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
 	settings, err := s.settingsRepo.GetByUserID(userID)
 	if err != nil {
 		settings = &data.UserSettings{
@@ -355,7 +341,10 @@ func (s *SettingsService) UpdateParsingRules(userID uint, rules data.ParsingRule
 	return settings, nil
 }
 
-// SettingsOption applies (and validates) an additional setting in UpdateAllSettings.
+// SettingsOption applies (and validates) a setting in UpdateSettings and UpdateAllSettings.
+// An option is applied twice (a validation dry run on the defaults, then the real update): it
+// must not modify the values it captured, and only depend on the current settings to keep a
+// value.
 type SettingsOption func(settings *data.UserSettings) error
 
 var allowedPaginationPositions = map[string]bool{"top": true, "bottom": true, "both": true}
@@ -377,16 +366,17 @@ var AllowedDateFormats = []string{
 // WithDateFormat sets how dates are displayed (empty means auto).
 func WithDateFormat(format string) SettingsOption {
 	return func(settings *data.UserSettings) error {
-		if format == "" {
-			format = DefaultDateFormat
+		value := format
+		if value == "" {
+			value = DefaultDateFormat
 		}
 		for _, allowed := range AllowedDateFormats {
-			if format == allowed {
-				settings.DateFormat = format
+			if value == allowed {
+				settings.DateFormat = value
 				return nil
 			}
 		}
-		return fmt.Errorf("invalid date format: %s", format)
+		return fmt.Errorf("invalid date format: %s", value)
 	}
 }
 
@@ -401,19 +391,20 @@ var AllowedGestureSeekSteps = []int{5, 10, 15, 30}
 // these settings does not reset them.
 func WithPlayerGestures(enabled *bool, seekStep int) SettingsOption {
 	return func(settings *data.UserSettings) error {
-		if seekStep == 0 {
-			seekStep = settings.GestureSeekStep
-			if !slices.Contains(AllowedGestureSeekSteps, seekStep) {
-				seekStep = DefaultGestureSeekStep
+		step := seekStep
+		if step == 0 {
+			step = settings.GestureSeekStep
+			if !slices.Contains(AllowedGestureSeekSteps, step) {
+				step = DefaultGestureSeekStep
 			}
 		}
-		if !slices.Contains(AllowedGestureSeekSteps, seekStep) {
-			return fmt.Errorf("invalid gesture seek step: %d", seekStep)
+		if !slices.Contains(AllowedGestureSeekSteps, step) {
+			return fmt.Errorf("invalid gesture seek step: %d", step)
 		}
 		if enabled != nil {
 			settings.PlayerGestures = *enabled
 		}
-		settings.GestureSeekStep = seekStep
+		settings.GestureSeekStep = step
 		return nil
 	}
 }
@@ -447,13 +438,14 @@ func WithScrubber(show *bool) SettingsOption {
 // bottom).
 func WithPaginationPosition(position string) SettingsOption {
 	return func(settings *data.UserSettings) error {
-		if position == "" {
-			position = "bottom"
+		value := position
+		if value == "" {
+			value = "bottom"
 		}
-		if !allowedPaginationPositions[position] {
-			return fmt.Errorf("invalid pagination position: %s", position)
+		if !allowedPaginationPositions[value] {
+			return fmt.Errorf("invalid pagination position: %s", value)
 		}
-		settings.PaginationPosition = position
+		settings.PaginationPosition = value
 		return nil
 	}
 }
@@ -466,13 +458,14 @@ var allowedGridDensities = map[string]bool{"compact": true, DefaultGridDensity: 
 // WithGridDensity sets the card size of the scene grids (empty means comfortable).
 func WithGridDensity(density string) SettingsOption {
 	return func(settings *data.UserSettings) error {
-		if density == "" {
-			density = DefaultGridDensity
+		value := density
+		if value == "" {
+			value = DefaultGridDensity
 		}
-		if !allowedGridDensities[density] {
-			return fmt.Errorf("invalid grid density: %s", density)
+		if !allowedGridDensities[value] {
+			return fmt.Errorf("invalid grid density: %s", value)
 		}
-		settings.GridDensity = density
+		settings.GridDensity = value
 		return nil
 	}
 }
@@ -537,99 +530,265 @@ func validateSceneListView(view data.SceneListView) (data.SceneListView, error) 
 	return out, nil
 }
 
+// WithAutoplay sets whether scenes start playing on their own.
+func WithAutoplay(enabled bool) SettingsOption {
+	return withBool(func(s *data.UserSettings) *bool { return &s.Autoplay }, enabled)
+}
+
+// WithLoop sets whether the player loops the scene.
+func WithLoop(enabled bool) SettingsOption {
+	return withBool(func(s *data.UserSettings) *bool { return &s.Loop }, enabled)
+}
+
+// WithAbLoopControls shows or hides the A-B loop controls of the player.
+func WithAbLoopControls(enabled bool) SettingsOption {
+	return withBool(func(s *data.UserSettings) *bool { return &s.AbLoopControls }, enabled)
+}
+
+// WithMarkerLoop sets whether playing a marker loops it.
+func WithMarkerLoop(enabled bool) SettingsOption {
+	return withBool(func(s *data.UserSettings) *bool { return &s.MarkerLoop }, enabled)
+}
+
+// WithMarkerThumbnailCycling sets whether marker thumbnails cycle on hover.
+func WithMarkerThumbnailCycling(enabled bool) SettingsOption {
+	return withBool(func(s *data.UserSettings) *bool { return &s.MarkerThumbnailCycling }, enabled)
+}
+
+// WithShowPageSizeSelector shows or hides the page size selector of the paginated pages.
+func WithShowPageSizeSelector(enabled bool) SettingsOption {
+	return withBool(func(s *data.UserSettings) *bool { return &s.ShowPageSizeSelector }, enabled)
+}
+
+// WithAdvancedMarkerFilters shows or hides the advanced filters of the markers page.
+func WithAdvancedMarkerFilters(enabled bool) SettingsOption {
+	return withBool(func(s *data.UserSettings) *bool { return &s.AdvancedMarkerFilters }, enabled)
+}
+
+func withBool(field func(*data.UserSettings) *bool, value bool) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		*field(settings) = value
+		return nil
+	}
+}
+
+// WithDefaultVolume sets the initial player volume (0 to 100).
+func WithDefaultVolume(volume int) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if volume < 0 || volume > 100 {
+			return fmt.Errorf("volume must be between 0 and 100")
+		}
+		settings.DefaultVolume = volume
+		return nil
+	}
+}
+
+// WithVideosPerPage sets the page size of the paginated pages (at least 1; the handler caps it
+// to the admin maximum).
+func WithVideosPerPage(videosPerPage int) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if videosPerPage < 1 {
+			return fmt.Errorf("videos per page must be at least 1")
+		}
+		settings.VideosPerPage = videosPerPage
+		return nil
+	}
+}
+
+// WithDefaultSortOrder sets the default sort order of the scene lists.
+func WithDefaultSortOrder(sortOrder string) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if !allowedSortOrders[sortOrder] {
+			return fmt.Errorf("invalid sort order: %s", sortOrder)
+		}
+		settings.DefaultSortOrder = sortOrder
+		return nil
+	}
+}
+
+// WithDefaultTagSort sets the default sort of the tag lists.
+func WithDefaultTagSort(tagSort string) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if !allowedTagSorts[tagSort] {
+			return fmt.Errorf("invalid tag sort: %s", tagSort)
+		}
+		settings.DefaultTagSort = tagSort
+		return nil
+	}
+}
+
+// WithSortPreferences replaces the default sorts of the actor, studio and marker pages.
+func WithSortPreferences(prefs data.SortPreferences) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if !allowedActorSorts[prefs.Actors] {
+			return fmt.Errorf("invalid actors sort: %s", prefs.Actors)
+		}
+		if !allowedStudioSorts[prefs.Studios] {
+			return fmt.Errorf("invalid studios sort: %s", prefs.Studios)
+		}
+		if !allowedMarkerSorts[prefs.Markers] {
+			return fmt.Errorf("invalid markers sort: %s", prefs.Markers)
+		}
+		if !allowedEntitySceneSorts[prefs.ActorScenes] {
+			return fmt.Errorf("invalid actor_scenes sort: %s", prefs.ActorScenes)
+		}
+		if !allowedEntitySceneSorts[prefs.StudioScenes] {
+			return fmt.Errorf("invalid studio_scenes sort: %s", prefs.StudioScenes)
+		}
+		settings.SortPreferences = prefs
+		return nil
+	}
+}
+
+// WithHomepageConfig replaces the homepage layout (tabs and sections).
+func (s *SettingsService) WithHomepageConfig(config data.HomepageConfig) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		value := config
+		if err := s.validateHomepageConfig(&value); err != nil {
+			return err
+		}
+		settings.HomepageConfig = value
+		return nil
+	}
+}
+
+// WithParsingRules replaces the title parsing presets.
+func (s *SettingsService) WithParsingRules(rules data.ParsingRulesSettings) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		value := rules
+		if err := s.validateParsingRules(&value); err != nil {
+			return err
+		}
+		settings.ParsingRules = value
+		return nil
+	}
+}
+
+// WithSceneCardConfig replaces the scene card template (badges and content rows).
+func (s *SettingsService) WithSceneCardConfig(config data.SceneCardConfig) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		value := config
+		if err := s.validateSceneCardConfig(&value); err != nil {
+			return err
+		}
+		settings.SceneCardConfig = value
+		return nil
+	}
+}
+
+// WithDefaultMarkerView sets the default view of the markers page (empty means grouped).
+func WithDefaultMarkerView(view string) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		value := view
+		if value == "" {
+			value = "grouped"
+		}
+		if !allowedMarkerViews[value] {
+			return fmt.Errorf("invalid default marker view: %s", value)
+		}
+		settings.DefaultMarkerView = value
+		return nil
+	}
+}
+
+// WithPlaylistAutoAdvance sets what happens at the end of a playlist scene (empty means
+// countdown).
+func WithPlaylistAutoAdvance(mode string) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		value := mode
+		if value == "" {
+			value = "countdown"
+		}
+		if !allowedPlaylistAutoAdvance[value] {
+			return fmt.Errorf("invalid playlist auto advance: %s", value)
+		}
+		settings.PlaylistAutoAdvance = value
+		return nil
+	}
+}
+
+// WithPlaylistCountdownSeconds sets the countdown before the next playlist scene (3 to 15
+// seconds, 0 means 5).
+func WithPlaylistCountdownSeconds(seconds int) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		value := seconds
+		if value == 0 {
+			value = 5
+		}
+		if value < 3 || value > 15 {
+			return fmt.Errorf("playlist countdown seconds must be between 3 and 15")
+		}
+		settings.PlaylistCountdownSeconds = value
+		return nil
+	}
+}
+
+// WithGestureSeekStep sets the double-tap seek step of the player (one of
+// AllowedGestureSeekSteps; unlike WithPlayerGestures, 0 is rejected).
+func WithGestureSeekStep(seekStep int) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if !slices.Contains(AllowedGestureSeekSteps, seekStep) {
+			return fmt.Errorf("invalid gesture seek step: %d", seekStep)
+		}
+		settings.GestureSeekStep = seekStep
+		return nil
+	}
+}
+
+// UpdateAllSettings replaces all the settings of the user (PUT /settings). The positional values
+// are always applied; the options add the settings that older clients may leave out.
 func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume int, loop bool, abLoopControls bool, markerLoop bool, videosPerPage int, sortOrder string, tagSort string, markerThumbnailCycling bool, homepageConfig data.HomepageConfig, parsingRules data.ParsingRulesSettings, sortPrefs data.SortPreferences, playlistAutoAdvance string, playlistCountdownSeconds int, showPageSizeSelector bool, advancedMarkerFilters bool, defaultMarkerView string, sceneCardConfig data.SceneCardConfig, opts ...SettingsOption) (*data.UserSettings, error) {
-	if volume < 0 || volume > 100 {
-		return nil, fmt.Errorf("volume must be between 0 and 100")
+	// Validated in this order, so that the first error stays the same as before
+	all := []SettingsOption{
+		WithDefaultVolume(volume),
+		WithVideosPerPage(videosPerPage),
+		WithDefaultSortOrder(sortOrder),
+		WithDefaultTagSort(tagSort),
+		WithSortPreferences(sortPrefs),
+		s.WithHomepageConfig(homepageConfig),
+		s.WithParsingRules(parsingRules),
+		s.WithSceneCardConfig(sceneCardConfig),
+		WithDefaultMarkerView(defaultMarkerView),
+		WithPlaylistAutoAdvance(playlistAutoAdvance),
+		WithPlaylistCountdownSeconds(playlistCountdownSeconds),
+		WithAutoplay(autoplay),
+		WithLoop(loop),
+		WithAbLoopControls(abLoopControls),
+		WithMarkerLoop(markerLoop),
+		WithMarkerThumbnailCycling(markerThumbnailCycling),
+		WithShowPageSizeSelector(showPageSizeSelector),
+		WithAdvancedMarkerFilters(advancedMarkerFilters),
 	}
-	if videosPerPage < 1 {
-		return nil, fmt.Errorf("videos per page must be at least 1")
+	return s.UpdateSettings(userID, append(all, opts...)...)
+}
+
+// UpdateSettings applies the given settings to the stored ones of the user (PATCH /settings):
+// the settings without an option keep their value. A user without a settings row starts from
+// the defaults. Every option is validated before the settings are read, so an invalid value
+// leaves them untouched.
+func (s *SettingsService) UpdateSettings(userID uint, opts ...SettingsOption) (*data.UserSettings, error) {
+	if len(opts) == 0 {
+		return nil, fmt.Errorf("no settings to update")
 	}
-	if !allowedSortOrders[sortOrder] {
-		return nil, fmt.Errorf("invalid sort order: %s", sortOrder)
-	}
-	if !allowedTagSorts[tagSort] {
-		return nil, fmt.Errorf("invalid tag sort: %s", tagSort)
-	}
-	if !allowedActorSorts[sortPrefs.Actors] {
-		return nil, fmt.Errorf("invalid actors sort: %s", sortPrefs.Actors)
-	}
-	if !allowedStudioSorts[sortPrefs.Studios] {
-		return nil, fmt.Errorf("invalid studios sort: %s", sortPrefs.Studios)
-	}
-	if !allowedMarkerSorts[sortPrefs.Markers] {
-		return nil, fmt.Errorf("invalid markers sort: %s", sortPrefs.Markers)
-	}
-	if !allowedEntitySceneSorts[sortPrefs.ActorScenes] {
-		return nil, fmt.Errorf("invalid actor_scenes sort: %s", sortPrefs.ActorScenes)
-	}
-	if !allowedEntitySceneSorts[sortPrefs.StudioScenes] {
-		return nil, fmt.Errorf("invalid studio_scenes sort: %s", sortPrefs.StudioScenes)
-	}
-	if err := s.validateHomepageConfig(&homepageConfig); err != nil {
-		return nil, err
-	}
-	if err := s.validateParsingRules(&parsingRules); err != nil {
-		return nil, err
-	}
-	if err := s.validateSceneCardConfig(&sceneCardConfig); err != nil {
-		return nil, err
-	}
-	if playlistAutoAdvance == "" {
-		playlistAutoAdvance = "countdown"
-	}
-	if defaultMarkerView == "" {
-		defaultMarkerView = "grouped"
-	}
-	if !allowedMarkerViews[defaultMarkerView] {
-		return nil, fmt.Errorf("invalid default marker view: %s", defaultMarkerView)
-	}
-	if !allowedPlaylistAutoAdvance[playlistAutoAdvance] {
-		return nil, fmt.Errorf("invalid playlist auto advance: %s", playlistAutoAdvance)
-	}
-	if playlistCountdownSeconds < 3 || playlistCountdownSeconds > 15 {
-		if playlistCountdownSeconds == 0 {
-			playlistCountdownSeconds = 5
-		} else {
-			return nil, fmt.Errorf("playlist countdown seconds must be between 3 and 15")
+	// Dry run on the defaults: the options only depend on the current value to keep it
+	probe := newSettingsRow(userID)
+	for _, opt := range opts {
+		if err := opt(probe); err != nil {
+			return nil, err
 		}
 	}
+
+	// Serializes the read-modify-write of the settings rows (two quick saves of different
+	// settings must not overwrite each other)
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
 
 	settings, err := s.settingsRepo.GetByUserID(userID)
 	created := false
 	if err != nil {
 		created = true
-		settings = &data.UserSettings{
-			UserID:              userID,
-			HomepageConfig:      data.DefaultHomepageConfig(),
-			ParsingRules:        data.DefaultParsingRulesSettings(),
-			SortPreferences:     data.DefaultSortPreferences(),
-			SceneCardConfig:     data.DefaultSceneCardConfig(),
-			PlayerGestures:      true,
-			GestureSeekStep:     DefaultGestureSeekStep,
-			ShowReplayHeatmap:   true,
-			RecordReplayHeatmap: true,
-			SceneListView:       data.DefaultSceneListView(),
-		}
+		settings = newSettingsRow(userID)
 	}
-
-	settings.Autoplay = autoplay
-	settings.DefaultVolume = volume
-	settings.Loop = loop
-	settings.AbLoopControls = abLoopControls
-	settings.MarkerLoop = markerLoop
-	settings.VideosPerPage = videosPerPage
-	settings.DefaultSortOrder = sortOrder
-	settings.DefaultTagSort = tagSort
-	settings.MarkerThumbnailCycling = markerThumbnailCycling
-	settings.HomepageConfig = homepageConfig
-	settings.ParsingRules = parsingRules
-	settings.SortPreferences = sortPrefs
-	settings.PlaylistAutoAdvance = playlistAutoAdvance
-	settings.PlaylistCountdownSeconds = playlistCountdownSeconds
-	settings.ShowPageSizeSelector = showPageSizeSelector
-	settings.AdvancedMarkerFilters = advancedMarkerFilters
-	settings.DefaultMarkerView = defaultMarkerView
-	settings.SceneCardConfig = sceneCardConfig
 
 	for _, opt := range opts {
 		if err := opt(settings); err != nil {
@@ -637,18 +796,67 @@ func (s *SettingsService) UpdateAllSettings(userID uint, autoplay bool, volume i
 		}
 	}
 
+	intended := *settings
 	if err := s.settingsRepo.Upsert(settings); err != nil {
 		return nil, fmt.Errorf("failed to update settings: %w", err)
 	}
-	// On insert GORM leaves out zero values of columns that have a default (a setting that is
-	// on by default but turned off here would be stored as on): write the new row once more.
-	if created && (!settings.ShowReplayHeatmap || !settings.RecordReplayHeatmap) {
+	// On insert GORM leaves out zero values of columns that have a default and reads the column
+	// defaults back into the struct (a setting that is on by default but turned off here would be
+	// stored as on): write the new row once more with the intended values.
+	if created && hasZeroedDefaults(&intended) {
+		intended.ID, intended.CreatedAt, intended.UpdatedAt = settings.ID, settings.CreatedAt, settings.UpdatedAt
+		*settings = intended
 		if err := s.settingsRepo.Upsert(settings); err != nil {
 			return nil, fmt.Errorf("failed to update settings: %w", err)
 		}
 	}
 
 	return settings, nil
+}
+
+// hasZeroedDefaults reports whether a setting whose column has a non-zero default is set to
+// its zero value (GORM does not write those on insert).
+func hasZeroedDefaults(settings *data.UserSettings) bool {
+	return !settings.ShowReplayHeatmap || !settings.RecordReplayHeatmap ||
+		!settings.MarkerThumbnailCycling || settings.DefaultVolume == 0
+}
+
+// defaultUserSettings are the settings of a user without a settings row.
+func defaultUserSettings(userID uint) *data.UserSettings {
+	return &data.UserSettings{
+		UserID:                 userID,
+		Autoplay:               false,
+		DefaultVolume:          100,
+		Loop:                   false,
+		AbLoopControls:         false,
+		MarkerLoop:             false,
+		VideosPerPage:          20,
+		DefaultSortOrder:       "created_at_desc",
+		DefaultTagSort:         "az",
+		MarkerThumbnailCycling: true,
+		DefaultMarkerView:      "grouped",
+		PaginationPosition:     "bottom",
+		DateFormat:             DefaultDateFormat,
+		GridDensity:            DefaultGridDensity,
+		PlayerGestures:         true,
+		GestureSeekStep:        DefaultGestureSeekStep,
+		ShowReplayHeatmap:      true,
+		RecordReplayHeatmap:    true,
+		HomepageConfig:         data.DefaultHomepageConfig(),
+		SortPreferences:        data.DefaultSortPreferences(),
+		SceneCardConfig:        data.DefaultSceneCardConfig(),
+		SceneListView:          data.DefaultSceneListView(),
+	}
+}
+
+// newSettingsRow is the row created for a user on the first settings update: the defaults,
+// with the playlist and parsing defaults that the row stores.
+func newSettingsRow(userID uint) *data.UserSettings {
+	settings := defaultUserSettings(userID)
+	settings.ParsingRules = data.DefaultParsingRulesSettings()
+	settings.PlaylistAutoAdvance = "countdown"
+	settings.PlaylistCountdownSeconds = 5
+	return settings
 }
 
 var allowedRuleTypes = map[string]bool{

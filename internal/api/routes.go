@@ -143,6 +143,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 				{
 					settings.GET("", settingsHandler.GetSettings)
 					settings.PUT("", settingsHandler.UpdateAllSettings)
+					settings.PATCH("", settingsHandler.PatchSettings)
 					settings.PUT("/password", settingsHandler.ChangePassword)
 					settings.PUT("/username", settingsHandler.ChangeUsername)
 					settings.GET("/parsing-rules", settingsHandler.GetParsingRules)
@@ -230,6 +231,9 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					admin.POST("/jobs/retry-all-failed", jobHandler.RetryAllFailed)
 					admin.POST("/jobs/retry-batch", jobHandler.RetryBatch)
 					admin.DELETE("/jobs/failed", jobHandler.ClearFailed)
+					admin.POST("/jobs/cancel-bulk", jobHandler.CancelBulk)
+					admin.GET("/jobs/history-purge", jobHandler.GetHistoryPurge)
+					admin.POST("/jobs/history-purge", jobHandler.PurgeHistory)
 					admin.POST("/jobs/:id/cancel", jobHandler.CancelJob)
 					admin.POST("/jobs/:id/retry", jobHandler.RetryJob)
 					admin.GET("/jobs/recent-failed", jobHandler.ListRecentFailed)

@@ -14,7 +14,9 @@ type JobHistoryRepository interface {
 	ListAll(page, limit int, status string) ([]JobHistory, int64, error)
 	ListRecentFailed(limit int, since time.Duration) ([]JobHistory, error)
 	ListActive() ([]JobHistory, error)
-	DeleteOlderThan(before time.Time) (int64, error)
+	// History purge (finished jobs only, never pending/running)
+	PurgeFinishedBatch(statuses []string, before time.Time, limit int) (int64, error)
+	CountPurgeable(statuses []string, before time.Time) (map[string]int64, error)
 	UpdateProgress(jobID string, progress int) error
 	UpdateRetryInfo(jobID string, retryCount, maxRetries int, nextRetryAt *time.Time) error
 	GetRetryableJobs() ([]JobHistory, error)
@@ -38,6 +40,10 @@ type JobHistoryRepository interface {
 	// Scene-specific methods
 	CancelPendingJobsForScene(sceneID uint) (int64, error)
 	CancelPendingJob(jobID string) error
+
+	// Bulk cancellation
+	CancelPendingJobsByPhases(phases []string, reason string) (int64, error)
+	CancelClaimedJobs(jobIDs []string, reason string) (int64, error)
 
 	// Job execution tracking
 	UpdateStartedAt(jobID string, startedAt time.Time) error
@@ -130,11 +136,6 @@ func (r *JobHistoryRepositoryImpl) ListActive() ([]JobHistory, error) {
 		return nil, err
 	}
 	return records, nil
-}
-
-func (r *JobHistoryRepositoryImpl) DeleteOlderThan(before time.Time) (int64, error) {
-	result := r.DB.Where("started_at < ? AND status != ?", before, "running").Delete(&JobHistory{})
-	return result.RowsAffected, result.Error
 }
 
 func (r *JobHistoryRepositoryImpl) UpdateProgress(jobID string, progress int) error {
@@ -462,4 +463,109 @@ func (r *JobHistoryRepositoryImpl) GetFailedJobs() ([]JobHistory, error) {
 func (r *JobHistoryRepositoryImpl) DeleteByStatus(status string) (int64, error) {
 	result := r.DB.Where("status = ?", status).Delete(&JobHistory{})
 	return result.RowsAffected, result.Error
+}
+
+// PurgeableStatuses are the finished job statuses the history purge may delete. Pending and
+// running jobs are the job queue itself and are never purged.
+var PurgeableStatuses = map[string]bool{
+	JobStatusCompleted: true,
+	JobStatusCancelled: true,
+	JobStatusFailed:    true,
+	JobStatusTimedOut:  true,
+}
+
+// purgeableScope restricts a query to finished jobs of the given statuses started before a date.
+// Failed jobs with a retry still scheduled are kept: the retry scheduler reads them.
+func purgeableScope(db *gorm.DB, statuses []string, before time.Time) (*gorm.DB, error) {
+	if len(statuses) == 0 {
+		return nil, fmt.Errorf("no status to purge")
+	}
+	for _, st := range statuses {
+		if !PurgeableStatuses[st] {
+			return nil, fmt.Errorf("status %q cannot be purged", st)
+		}
+	}
+	return db.Model(&JobHistory{}).
+		Where("status IN ? AND started_at < ?", statuses, before).
+		Where("NOT (status = ? AND is_retryable AND next_retry_at IS NOT NULL)", JobStatusFailed), nil
+}
+
+// PurgeFinishedBatch deletes up to limit finished jobs of the given statuses started before the
+// given date, in one statement, and returns the number of deleted rows. Call it in a loop until
+// it returns less than limit: small batches keep the locks short on a large table.
+func (r *JobHistoryRepositoryImpl) PurgeFinishedBatch(statuses []string, before time.Time, limit int) (int64, error) {
+	if limit <= 0 {
+		return 0, fmt.Errorf("purge batch size must be positive")
+	}
+	scope, err := purgeableScope(r.DB, statuses, before)
+	if err != nil {
+		return 0, err
+	}
+	ids := scope.Select("id").Limit(limit)
+	result := r.DB.Where("id IN (?)", ids).Delete(&JobHistory{})
+	return result.RowsAffected, result.Error
+}
+
+// CountPurgeable counts per status the finished jobs PurgeFinishedBatch would delete.
+func (r *JobHistoryRepositoryImpl) CountPurgeable(statuses []string, before time.Time) (map[string]int64, error) {
+	scope, err := purgeableScope(r.DB, statuses, before)
+	if err != nil {
+		return nil, err
+	}
+	var counts []struct {
+		Status string
+		Count  int64
+	}
+	if err := scope.Select("status, COUNT(*) AS count").Group("status").Scan(&counts).Error; err != nil {
+		return nil, err
+	}
+	result := make(map[string]int64, len(counts))
+	for _, c := range counts {
+		result[c.Status] = c.Count
+	}
+	return result, nil
+}
+
+// CancelPendingJobsByPhases cancels every pending job of the given phases in a single UPDATE and
+// returns the number of cancelled jobs. Rows being claimed by the feeder at the same time are
+// re-checked by PostgreSQL after their lock is released: they are running by then and skipped.
+func (r *JobHistoryRepositoryImpl) CancelPendingJobsByPhases(phases []string, reason string) (int64, error) {
+	if len(phases) == 0 {
+		return 0, nil
+	}
+	result := r.DB.Model(&JobHistory{}).
+		Where("status = ? AND phase IN ?", JobStatusPending, phases).
+		Updates(map[string]any{
+			"status":        JobStatusCancelled,
+			"error_message": reason,
+			"completed_at":  time.Now(),
+			"is_retryable":  false,
+		})
+	return result.RowsAffected, result.Error
+}
+
+// cancelClaimedChunk bounds the number of IDs per UPDATE statement.
+const cancelClaimedChunk = 1000
+
+// CancelClaimedJobs cancels jobs claimed by the feeder but never started (their row is
+// 'running' while they wait in a worker pool queue). Rows in any other state are left alone.
+func (r *JobHistoryRepositoryImpl) CancelClaimedJobs(jobIDs []string, reason string) (int64, error) {
+	var total int64
+	now := time.Now()
+	for start := 0; start < len(jobIDs); start += cancelClaimedChunk {
+		end := min(start+cancelClaimedChunk, len(jobIDs))
+		result := r.DB.Model(&JobHistory{}).
+			Where("job_id IN ? AND status = ?", jobIDs[start:end], JobStatusRunning).
+			Updates(map[string]any{
+				"status":        JobStatusCancelled,
+				"error_message": reason,
+				"completed_at":  now,
+				"is_retryable":  false,
+			})
+		if result.Error != nil {
+			return total, result.Error
+		}
+		total += result.RowsAffected
+	}
+	return total, nil
 }

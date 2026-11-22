@@ -1,5 +1,6 @@
-// Pure helpers of the quick marker (M on the watch page: label, then sub-labels). They take
-// plain values so that they can be unit tested without a DOM (web/tests/quickMarker.test.ts).
+// Pure helpers of the quick marker (M on the watch page: label, then sub-labels; Shift+M: end
+// of the marker). They take plain values so that they can be unit tested without a DOM
+// (web/tests/quickMarker.test.ts).
 import { normalizeForMatch } from './fuzzy';
 
 /** Suggestions shown under the label and sub-label inputs. */
@@ -236,4 +237,77 @@ export function isQuickMarkerKey(e: KeyLike): boolean {
         return false;
     }
     return !isTypingTarget(e.target);
+}
+
+/** Whether a keydown sets the end of a marker: Shift+M, outside of a text field. */
+export function isQuickMarkerEndKey(e: KeyLike): boolean {
+    if (e.key.toLowerCase() !== 'm' || !e.shiftKey) return false;
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || e.defaultPrevented) return false;
+    return !isTypingTarget(e.target);
+}
+
+/** What the quick marker end (Shift+M) needs of a marker. */
+export interface QuickMarkerEndCandidate {
+    id: number;
+    timestamp: number;
+    end_timestamp?: number | null;
+    label: string;
+}
+
+/**
+ * Marker whose end Shift+M sets: the last one made with the quick marker during this visit of
+ * the scene (while it still exists), else the one with the latest start before `end` (the
+ * newest one when several start at the same time). Null when there is none.
+ */
+export function pickQuickMarkerEndTarget<T extends QuickMarkerEndCandidate>(
+    markers: T[],
+    end: number,
+    lastQuickMarkerId?: number | null,
+): T | null {
+    if (lastQuickMarkerId != null) {
+        const last = markers.find((m) => m.id === lastQuickMarkerId);
+        if (last) return last;
+    }
+    let best: T | null = null;
+    for (const m of markers) {
+        if (m.timestamp >= end) continue;
+        if (
+            !best ||
+            m.timestamp > best.timestamp ||
+            (m.timestamp === best.timestamp && m.id > best.id)
+        ) {
+            best = m;
+        }
+    }
+    return best;
+}
+
+/**
+ * Marker end (whole seconds) of a player time, kept within the scene duration when it is
+ * known (the API refuses an end past it).
+ */
+export function quickMarkerEndTimestamp(
+    time: number | null | undefined,
+    duration?: number | null,
+): number {
+    const end = quickMarkerTimestamp(time);
+    return duration != null && duration > 0 ? Math.min(end, Math.floor(duration)) : end;
+}
+
+/** Why the end can't be set (null when it can): it must come after the marker's start. */
+export function validateQuickMarkerEnd(
+    marker: QuickMarkerEndCandidate | null,
+    end: number,
+): string | null {
+    if (!marker) return 'No marker before the current time';
+    if (end <= marker.timestamp) {
+        return `Seek past the marker start (${formatQuickMarkerTime(marker.timestamp)}) to set its end`;
+    }
+    return null;
+}
+
+/** Confirmation shown once the end is set, e.g. "End set: 12:34 - 13:10 Kiss". */
+export function quickMarkerEndToastMessage(start: number, end: number, label: string): string {
+    const range = `${formatQuickMarkerTime(start)} - ${formatQuickMarkerTime(end)}`;
+    return label.trim() ? `End set: ${range} ${label.trim()}` : `End set: ${range}`;
 }

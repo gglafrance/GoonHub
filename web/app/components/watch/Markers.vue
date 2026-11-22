@@ -134,8 +134,9 @@ const handleSuggestionKeydown = (e: KeyboardEvent, isEdit: boolean) => {
     }
 };
 
-// New markers show at once; their thumbnails are made in the background and polled for
-const { insertMarker, waitForThumbnail } = useNewMarkers({
+// New and edited markers show at once; their thumbnails are made in the background (remade
+// when a marker moves) and polled for
+const { insertMarker, waitForThumbnail, applyMarkerUpdate } = useNewMarkers({
     markers: watchPageData?.markers,
     refresh: refreshMarkers,
     hasThumbnail: (marker) =>
@@ -218,9 +219,10 @@ const handleSaveEdit = async (marker: Marker) => {
 
     error.value = null;
     try {
-        await updateMarker(sceneId.value, marker.id, {
+        const updated = await updateMarker(sceneId.value, marker.id, {
             label: editingLabel.value.trim(),
         });
+        applyMarkerUpdate(marker, updated);
         cancelEditing();
         // Refresh parent markers for timeline indicators
         refreshMarkers?.();
@@ -239,7 +241,8 @@ const handleSetEnd = async (marker: Marker, event: Event) => {
     }
     error.value = null;
     try {
-        await updateMarker(sceneId.value, marker.id, { end_timestamp: end });
+        const updated = await updateMarker(sceneId.value, marker.id, { end_timestamp: end });
+        applyMarkerUpdate(marker, updated);
         refreshMarkers?.();
     } catch (e) {
         error.value = e instanceof Error ? e.message : 'Failed to set marker end';
@@ -250,7 +253,10 @@ const handleClearEnd = async (marker: Marker, event: Event) => {
     event.stopPropagation();
     error.value = null;
     try {
-        await updateMarker(sceneId.value, marker.id, { clear_end_timestamp: true });
+        const updated = await updateMarker(sceneId.value, marker.id, {
+            clear_end_timestamp: true,
+        });
+        applyMarkerUpdate(marker, updated);
         refreshMarkers?.();
     } catch (e) {
         error.value = e instanceof Error ? e.message : 'Failed to clear marker end';
@@ -288,12 +294,12 @@ const confirmDelete = async () => {
 
 const getThumbnailUrl = (marker: Marker) => {
     if (!marker.thumbnail_path) return null;
-    return `/marker-thumbnails/${marker.id}`;
+    return markerThumbnailUrl(marker.id, marker.updated_at);
 };
 
 const getAnimatedUrl = (marker: Marker) => {
     if (!marker.animated_thumbnail_path) return null;
-    return `/marker-thumbnails/${marker.id}/animated`;
+    return markerThumbnailUrl(marker.id, marker.updated_at, true);
 };
 
 onMounted(async () => {
