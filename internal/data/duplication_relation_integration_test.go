@@ -7,7 +7,7 @@ import (
 	"github.com/lib/pq"
 )
 
-// Integration test of the duplicate relation queries (migration 000086): the kind filter of
+// Integration test of the duplicate relation queries (migration 000085): the kind filter of
 // ListWithMembers, the relation written by FillMemberSegment and the startup backfill queries.
 // Runs on the disposable import test database (GOONHUB_TEST_IMPORT_POSTGRES_DSN).
 func TestDuplicateGroupRepositoryRelations(t *testing.T) {

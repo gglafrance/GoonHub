@@ -1151,7 +1151,7 @@ fingerprints themselves live in ClickHouse. A scene belongs to at most one group
 | `match_start`, `match_end` | REAL | YES | NULL | Matching segment in this scene, seconds (migration 066) |
 | `ref_scene_id` | BIGINT | YES | NULL | FK to scenes (SET NULL): the scene this member was matched against |
 | `ref_start`, `ref_end` | REAL | YES | NULL | Corresponding segment in `ref_scene_id`, seconds |
-| `relation` | VARCHAR(10) | NO | 'unknown' | Relation to `ref_scene_id` (migration 086, see below) |
+| `relation` | VARCHAR(10) | NO | 'unknown' | Relation to `ref_scene_id` (migration 085, see below) |
 | `delete_after` | TIMESTAMPTZ | YES | NULL | Scheduled permanent deletion of a scene not kept at resolution |
 | `created_at` | TIMESTAMPTZ | NO | NOW() | Record creation timestamp |
 
@@ -1162,7 +1162,7 @@ outros, trimmed ends). Values: `identical` (both scenes mostly covered), `contai
 is mostly covered, the reference is not: this scene is a clip of it), `contains` (the reference
 is mostly covered, this scene is not: e.g. a compilation), `partial` (neither) and `unknown` (no
 segment, a missing duration or an empty segment). It is written with the segment at fingerprint
-time; rows that have a segment but are still `unknown` (recorded before migration 086, or whose
+time; rows that have a segment but are still `unknown` (recorded before migration 085, or whose
 durations were missing) are classified by the application at startup.
 
 **Group kind (computed, not stored):** `identical` when every member is identical, else

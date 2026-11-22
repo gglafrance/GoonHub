@@ -11,11 +11,11 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// Integration test of migration 000086 (duplicate_group_members.relation): existing members
+// Integration test of migration 000085 (duplicate_group_members.relation): existing members
 // start as unknown, the CHECK constraint holds, and down then up again works. It migrates the
 // database down and up again, so it needs a disposable database of its own:
 // GOONHUB_TEST_MIGRATION_POSTGRES_DSN.
-func TestMigration086DuplicateMemberRelation(t *testing.T) {
+func TestMigration085DuplicateMemberRelation(t *testing.T) {
 	dsn := os.Getenv("GOONHUB_TEST_MIGRATION_POSTGRES_DSN")
 	if dsn == "" {
 		t.Skip("GOONHUB_TEST_MIGRATION_POSTGRES_DSN not set")
@@ -24,8 +24,8 @@ func TestMigration086DuplicateMemberRelation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("migration source: %v", err)
 	}
-	// The migration before 086, whatever its number
-	const relationVersion = 86
+	// The migration before 085, whatever its number
+	const relationVersion = 85
 	prev, err := source.Prev(relationVersion)
 	if err != nil {
 		t.Fatalf("previous migration: %v", err)
@@ -52,7 +52,7 @@ func TestMigration086DuplicateMemberRelation(t *testing.T) {
 		title    string
 		duration int
 		id       *int64
-	}{{"migration 086 clip", 1642, &clip}, {"migration 086 compilation", 5627, &comp}} {
+	}{{"migration 085 clip", 1642, &clip}, {"migration 085 compilation", 5627, &comp}} {
 		if err := db.QueryRow(`INSERT INTO scenes (title, duration) VALUES ($1, $2) RETURNING id`, s.title, s.duration).Scan(s.id); err != nil {
 			t.Fatalf("insert scene: %v", err)
 		}
