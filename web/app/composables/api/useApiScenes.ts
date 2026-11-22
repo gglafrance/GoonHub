@@ -1,5 +1,6 @@
 import type { ReplayHeatmap, ReplayHeatmapRecordResult } from '~/types/watch';
 import type { SourceSiteOption } from '~/types/scene';
+import type { SimilarScenesResponse } from '~/types/duplicates';
 
 /**
  * Scene-related API operations: CRUD, search, streaming, filters, interactions.
@@ -350,6 +351,15 @@ export const useApiScenes = () => {
         return handleResponse(response);
     };
 
+    // Scenes sharing the duplicate group (fingerprint match) of a scene
+    const fetchSimilarScenes = async (sceneId: number): Promise<SimilarScenesResponse> => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/similar`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
     const deleteScene = async (sceneId: number, permanent = false) => {
         const response = await fetch(`/api/v1/scenes/${sceneId}`, {
             method: 'DELETE',
@@ -393,6 +403,7 @@ export const useApiScenes = () => {
         getUserWatchHistoryByTimeRange,
         getDailyActivity,
         fetchRelatedScenes,
+        fetchSimilarScenes,
         deleteScene,
     };
 };

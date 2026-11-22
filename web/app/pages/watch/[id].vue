@@ -248,7 +248,9 @@ const backLabel = computed(() => {
 const goBack = () => goBackToOrigin(playlistUuid.value ? `/playlists/${playlistUuid.value}` : '/');
 
 // Tab state for DetailTabs (allows switching tabs from keyboard shortcuts)
-const activeTab = ref<'jobs' | 'thumbnail' | 'details' | 'history' | 'markers'>('details');
+const activeTab = ref<'jobs' | 'thumbnail' | 'details' | 'history' | 'markers' | 'similar'>(
+    'details',
+);
 
 provide('getPlayerTime', () => playerRef.value?.getCurrentTime() ?? 0);
 provide('thumbnailVersion', thumbnailVersion);

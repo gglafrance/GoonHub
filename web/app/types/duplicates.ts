@@ -87,3 +87,42 @@ export interface DuplicationConfig {
     best_selection_criteria: string[];
     available_best_criteria?: string[];
 }
+
+// Matching part of the current scene and of a similar one (seconds): this scene from
+// this_start to this_end matches the other one from other_start to other_end
+export interface SimilarSegment {
+    this_start: number;
+    this_end: number;
+    other_start: number;
+    other_end: number;
+}
+
+// A scene sharing the duplicate group (fingerprint match) of the watched scene
+export interface SimilarScene {
+    id: number;
+    title: string;
+    duration: number;
+    width: number;
+    height: number;
+    size: number;
+    thumbnail_path: string;
+    // Only admins get trashed scenes
+    is_trashed: boolean;
+    is_best: boolean;
+    confidence_score: number;
+    match_type: 'audio' | 'visual';
+    // Relation of this scene to relation_ref_scene_id: when that is the watched scene,
+    // contained = a clip of it, contains = contains it; else as stored, to another scene
+    // (null when that scene is not visible)
+    relation: DuplicateRelation;
+    relation_ref_scene_id: number | null;
+    segment: SimilarSegment | null;
+}
+
+// GET /scenes/:id/similar
+export interface SimilarScenesResponse {
+    scene_id: number;
+    group_id: number | null;
+    group_status?: DuplicateGroup['status'];
+    scenes: SimilarScene[];
+}
