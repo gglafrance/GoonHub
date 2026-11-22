@@ -143,6 +143,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 				{
 					settings.GET("", settingsHandler.GetSettings)
 					settings.PUT("", settingsHandler.UpdateAllSettings)
+					settings.PATCH("", settingsHandler.PatchSettings)
 					settings.PUT("/password", settingsHandler.ChangePassword)
 					settings.PUT("/username", settingsHandler.ChangeUsername)
 					settings.GET("/parsing-rules", settingsHandler.GetParsingRules)
