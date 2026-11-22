@@ -1052,8 +1052,11 @@ func (s *SettingsService) validateSceneCardConfig(config *data.SceneCardConfig) 
 		if !allowedBadgeDirections[zone.Direction] {
 			return fmt.Errorf("badge zone %s: invalid direction '%s'", zoneNames[i], zone.Direction)
 		}
-		if len(zone.Items) > 5 {
-			return fmt.Errorf("badge zone %s: maximum of 5 items allowed", zoneNames[i])
+		if len(zone.Items) > data.MaxBadgeZoneItems {
+			return fmt.Errorf("badge zone %s: maximum of %d items allowed", zoneNames[i], data.MaxBadgeZoneItems)
+		}
+		if zone.Columns < 0 || zone.Columns > data.MaxBadgeZoneColumns {
+			return fmt.Errorf("badge zone %s: columns must be between 1 and %d, or left out", zoneNames[i], data.MaxBadgeZoneColumns)
 		}
 		for _, item := range zone.Items {
 			if !allowedBadgeFields[item] {

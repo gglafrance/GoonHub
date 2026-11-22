@@ -43,21 +43,6 @@ const config = computed<SceneCardConfig>({
     },
 });
 
-const badgeFields = [
-    { value: 'liked', label: 'Liked' },
-    { value: 'rating', label: 'Rating' },
-    { value: 'duration', label: 'Duration' },
-    { value: 'resolution', label: 'Resolution' },
-    { value: 'views', label: 'Views' },
-    { value: 'jizz_count', label: 'Jizz Count' },
-    { value: 'watched', label: 'Watched' },
-    { value: 'file_size', label: 'File Size' },
-    { value: 'added_at', label: 'Date Added' },
-    { value: 'frame_rate', label: 'Frame Rate' },
-    { value: 'tags', label: 'Tags & Markers & Actors' },
-    { value: 'actors', label: 'Actors' },
-];
-
 const contentFields = [
     { value: 'file_size', label: 'File Size', fullOnly: false, hasMode: false },
     { value: 'added_at', label: 'Date Added', fullOnly: false, hasMode: false },
@@ -86,54 +71,10 @@ const zoneLabels: Record<string, string> = {
 // Selected zone for editing
 const selectedZone = ref<(typeof zoneNames)[number] | null>(null);
 
-function getZone(name: (typeof zoneNames)[number]): BadgeZone {
-    return config.value.badges[name];
-}
-
 function updateZone(name: (typeof zoneNames)[number], zone: BadgeZone) {
     const newConfig = JSON.parse(JSON.stringify(config.value)) as SceneCardConfig;
     newConfig.badges[name] = zone;
     config.value = newConfig;
-}
-
-function addBadgeToZone(zoneName: (typeof zoneNames)[number], field: string) {
-    const zone = getZone(zoneName);
-    if (zone.items.includes(field)) return;
-    updateZone(zoneName, { ...zone, items: [...zone.items, field] });
-}
-
-function removeBadgeFromZone(zoneName: (typeof zoneNames)[number], idx: number) {
-    const zone = getZone(zoneName);
-    const items = [...zone.items];
-    items.splice(idx, 1);
-    updateZone(zoneName, { ...zone, items });
-}
-
-function moveBadge(zoneName: (typeof zoneNames)[number], idx: number, dir: -1 | 1) {
-    const zone = getZone(zoneName);
-    const items = [...zone.items];
-    const newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= items.length) return;
-    const moved = items[idx];
-    const other = items[newIdx];
-    if (moved === undefined || other === undefined) return;
-    items[idx] = other;
-    items[newIdx] = moved;
-    updateZone(zoneName, { ...zone, items });
-}
-
-function toggleDirection(zoneName: (typeof zoneNames)[number]) {
-    const zone = getZone(zoneName);
-    updateZone(zoneName, {
-        ...zone,
-        direction: zone.direction === 'vertical' ? 'horizontal' : 'vertical',
-    });
-}
-
-// Available badge fields not used in the selected zone
-function availableBadgeFields(zoneName: (typeof zoneNames)[number]) {
-    const zone = getZone(zoneName);
-    return badgeFields.filter((f) => !zone.items.includes(f.value));
 }
 
 // Content rows
@@ -171,14 +112,6 @@ function updateContentRow(idx: number, row: ContentRow) {
     newConfig.content_rows[idx] = row;
     config.value = newConfig;
 }
-
-function fieldLabel(value: string): string {
-    return (
-        contentFields.find((f) => f.value === value)?.label ||
-        badgeFields.find((f) => f.value === value)?.label ||
-        value
-    );
-}
 </script>
 
 <template>
@@ -206,126 +139,20 @@ function fieldLabel(value: string): string {
         <div>
             <h4 class="mb-3 text-xs font-semibold text-white">Thumbnail Badges</h4>
             <p class="text-dim mb-3 text-[11px]">
-                Configure which badges appear on each corner of the thumbnail overlay.
+                Configure which badges appear on each corner of the thumbnail overlay. Set columns
+                to lay a corner out as a grid of several rows and columns.
             </p>
 
             <div class="grid grid-cols-2 gap-3">
-                <div
+                <SettingsAppCardTemplateBadgeZoneEditor
                     v-for="zoneName in zoneNames"
                     :key="zoneName"
-                    class="border-border rounded-lg border p-3 transition-all"
-                    :class="
-                        selectedZone === zoneName
-                            ? 'border-lava/40 bg-lava/5'
-                            : 'hover:border-border-hover'
-                    "
-                >
-                    <div class="mb-2 flex items-center justify-between">
-                        <span class="text-[11px] font-medium text-white">
-                            {{ zoneLabels[zoneName] }}
-                        </span>
-                        <button
-                            class="text-dim hover:text-lava text-[10px] transition-colors"
-                            @click="selectedZone = selectedZone === zoneName ? null : zoneName"
-                        >
-                            {{ selectedZone === zoneName ? 'Close' : 'Edit' }}
-                        </button>
-                    </div>
-
-                    <!-- Badge items preview -->
-                    <div class="flex flex-wrap gap-1">
-                        <span
-                            v-for="item in getZone(zoneName).items"
-                            :key="item"
-                            class="border-border bg-void/50 rounded border px-1.5 py-0.5 text-[9px]
-                                text-white/70"
-                        >
-                            {{ fieldLabel(item) }}
-                        </span>
-                        <span
-                            v-if="getZone(zoneName).items.length === 0"
-                            class="text-dim text-[9px]"
-                        >
-                            Empty
-                        </span>
-                    </div>
-
-                    <!-- Direction toggle -->
-                    <button
-                        class="text-dim mt-2 flex items-center gap-1 text-[10px] transition-colors
-                            hover:text-white"
-                        @click="toggleDirection(zoneName)"
-                    >
-                        <Icon
-                            :name="
-                                getZone(zoneName).direction === 'vertical'
-                                    ? 'heroicons:arrows-up-down'
-                                    : 'heroicons:arrows-right-left'
-                            "
-                            size="12"
-                        />
-                        {{ getZone(zoneName).direction }}
-                    </button>
-
-                    <!-- Expanded edit panel -->
-                    <div
-                        v-if="selectedZone === zoneName"
-                        class="border-border mt-3 space-y-2 border-t pt-3"
-                    >
-                        <!-- Current items with reorder/remove -->
-                        <div
-                            v-for="(item, idx) in getZone(zoneName).items"
-                            :key="item"
-                            class="flex items-center gap-2"
-                        >
-                            <span class="text-[10px] text-white/80">{{ fieldLabel(item) }}</span>
-                            <div class="ml-auto flex gap-1">
-                                <button
-                                    :disabled="idx === 0"
-                                    class="text-dim hover:text-white disabled:opacity-30"
-                                    @click="moveBadge(zoneName, idx, -1)"
-                                >
-                                    <Icon name="heroicons:chevron-up" size="12" />
-                                </button>
-                                <button
-                                    :disabled="idx === getZone(zoneName).items.length - 1"
-                                    class="text-dim hover:text-white disabled:opacity-30"
-                                    @click="moveBadge(zoneName, idx, 1)"
-                                >
-                                    <Icon name="heroicons:chevron-down" size="12" />
-                                </button>
-                                <button
-                                    class="text-dim hover:text-lava"
-                                    @click="removeBadgeFromZone(zoneName, idx)"
-                                >
-                                    <Icon name="heroicons:x-mark" size="12" />
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Add badge dropdown -->
-                        <select
-                            v-if="availableBadgeFields(zoneName).length > 0"
-                            class="border-border bg-void/80 w-full rounded border px-2 py-1
-                                text-[10px] text-white"
-                            @change="
-                                (e) => {
-                                    addBadgeToZone(zoneName, (e.target as HTMLSelectElement).value);
-                                    (e.target as HTMLSelectElement).value = '';
-                                }
-                            "
-                        >
-                            <option value="">Add badge...</option>
-                            <option
-                                v-for="f in availableBadgeFields(zoneName)"
-                                :key="f.value"
-                                :value="f.value"
-                            >
-                                {{ f.label }}
-                            </option>
-                        </select>
-                    </div>
-                </div>
+                    :zone="config.badges[zoneName]"
+                    :label="zoneLabels[zoneName] ?? zoneName"
+                    :open="selectedZone === zoneName"
+                    @update:zone="(zone) => updateZone(zoneName, zone)"
+                    @toggle="selectedZone = selectedZone === zoneName ? null : zoneName"
+                />
             </div>
         </div>
 

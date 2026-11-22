@@ -243,10 +243,11 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                 <div
                     class="absolute top-1.5 left-1.5 z-20 transition-transform"
                     :class="selectable ? 'mt-6' : hoverSelect ? 'group-hover:translate-y-6' : ''"
+                    :style="badgeZoneBoxStyle(cardConfig.badges, 'top_left')"
                 >
                     <SceneCardBadgeZone
-                        :items="cardConfig.badges.top_left.items"
-                        :direction="cardConfig.badges.top_left.direction"
+                        :zone="cardConfig.badges.top_left"
+                        corner="top_left"
                         :scene="scene"
                         :liked="liked"
                         :rating="rating"
@@ -255,10 +256,13 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                     />
                 </div>
 
-                <div class="absolute top-1.5 right-1.5 z-20">
+                <div
+                    class="absolute top-1.5 right-1.5 z-20"
+                    :style="badgeZoneBoxStyle(cardConfig.badges, 'top_right')"
+                >
                     <SceneCardBadgeZone
-                        :items="cardConfig.badges.top_right.items"
-                        :direction="cardConfig.badges.top_right.direction"
+                        :zone="cardConfig.badges.top_right"
+                        corner="top_right"
                         :scene="scene"
                         :liked="liked"
                         :rating="rating"
@@ -270,10 +274,11 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                 <div
                     class="absolute left-1.5 z-20"
                     :class="hasProgress ? 'bottom-3' : 'bottom-1.5'"
+                    :style="badgeZoneBoxStyle(cardConfig.badges, 'bottom_left')"
                 >
                     <SceneCardBadgeZone
-                        :items="cardConfig.badges.bottom_left.items"
-                        :direction="cardConfig.badges.bottom_left.direction"
+                        :zone="cardConfig.badges.bottom_left"
+                        corner="bottom_left"
                         :scene="scene"
                         :liked="liked"
                         :rating="rating"
@@ -285,10 +290,11 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                 <div
                     class="absolute right-1.5 z-20"
                     :class="hasProgress ? 'bottom-3' : 'bottom-1.5'"
+                    :style="badgeZoneBoxStyle(cardConfig.badges, 'bottom_right')"
                 >
                     <SceneCardBadgeZone
-                        :items="cardConfig.badges.bottom_right.items"
-                        :direction="cardConfig.badges.bottom_right.direction"
+                        :zone="cardConfig.badges.bottom_right"
+                        corner="bottom_right"
                         :scene="scene"
                         :liked="liked"
                         :rating="rating"
