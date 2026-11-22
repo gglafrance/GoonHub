@@ -130,10 +130,13 @@ func (h *TagHandler) SetSceneTags(c *gin.Context) {
 }
 
 type updateTagRequest struct {
-	Color string `json:"color" binding:"required"`
+	Name  *string `json:"name"`
+	Color *string `json:"color"`
 }
 
-// UpdateTag changes a tag's color (PUT /tags/:id, body {color}).
+// UpdateTag renames a tag and/or changes its color (PUT /tags/:id, body {name?, color?}).
+// A name used by another tag (also ignoring case and extra spaces) answers 409 with that
+// tag in "existing", to merge into it instead.
 func (h *TagHandler) UpdateTag(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -142,11 +145,14 @@ func (h *TagHandler) UpdateTag(c *gin.Context) {
 	}
 	var req updateTagRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Color is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
-	tag, err := h.Service.UpdateTagColor(uint(id), req.Color)
+	tag, err := h.Service.UpdateTag(uint(id), core.TagUpdate{Name: req.Name, Color: req.Color})
 	if err != nil {
+		if writeEntityConflict(c, err) {
+			return
+		}
 		response.Error(c, err)
 		return
 	}

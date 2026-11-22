@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+    checkTagRename,
     defaultMergeTarget,
     filterTagsByName,
     mergeSourceIds,
@@ -70,5 +71,31 @@ describe('plural', () => {
         expect(plural(1, 'scene')).toBe('1 scene');
         expect(plural(0, 'scene')).toBe('0 scenes');
         expect(plural(3, 'tag')).toBe('3 tags');
+    });
+});
+
+describe('checkTagRename', () => {
+    test('nothing to save for the same name once trimmed', () => {
+        expect(checkTagRename('Anal', 'Anal')).toEqual({ kind: 'unchanged' });
+        expect(checkTagRename('  Anal ', 'Anal')).toEqual({ kind: 'unchanged' });
+    });
+
+    test('a different case of the current name is a rename', () => {
+        expect(checkTagRename('Cumshot', 'cumshot')).toEqual({ kind: 'ok', name: 'Cumshot' });
+    });
+
+    test('trims the new name', () => {
+        expect(checkTagRename('  Big Tits  ', 'big tits')).toEqual({
+            kind: 'ok',
+            name: 'Big Tits',
+        });
+    });
+
+    test('rejects an empty or too long name', () => {
+        expect(checkTagRename('   ', 'Anal').kind).toBe('invalid');
+        expect(checkTagRename('a'.repeat(101), 'Anal').kind).toBe('invalid');
+        expect(checkTagRename('a'.repeat(100), 'Anal').kind).toBe('ok');
+        // the limit counts bytes, like the backend
+        expect(checkTagRename('é'.repeat(51), 'Anal').kind).toBe('invalid');
     });
 });

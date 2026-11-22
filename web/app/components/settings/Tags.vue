@@ -89,6 +89,16 @@ async function handleColor(tag: Tag, color: string) {
     }
 }
 
+function onRenamed(tag: Tag) {
+    clearMessages();
+    const previous = tags.value.find((t) => t.id === tag.id);
+    tags.value = tags.value.map((t) => (t.id === tag.id ? { ...t, ...tag } : t));
+    message.value = previous
+        ? `Tag "${previous.name}" renamed to "${tag.name}"`
+        : `Tag renamed to "${tag.name}"`;
+    refreshDuplicates();
+}
+
 function openMerge(candidateIds: number[], targetId: number | null = null) {
     clearMessages();
     merge.value = { candidateIds, targetId };
@@ -155,6 +165,8 @@ async function onMerged(res: TagMergeResult) {
             @delete="handleDelete"
             @color="handleColor"
             @merge="openMerge"
+            @renamed="onRenamed"
+            @merge-into="(source, target) => openMerge([source.id, target.id], target.id)"
         />
 
         <SettingsTagsMergeModal
