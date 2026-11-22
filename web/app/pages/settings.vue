@@ -55,7 +55,7 @@ async function handleGlobalSave() {
     saveError.value = '';
     isSaving.value = true;
     try {
-        await settingsStore.saveAllSettings();
+        await settingsStore.saveDraft();
         if (settingsAppRef.value?.hasUnsavedAppSettings) {
             await settingsAppRef.value.saveAppSettings();
         }
