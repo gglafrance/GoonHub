@@ -6,6 +6,8 @@ const { fetchMarkersByLabel } = useApiMarkers();
 const { fetchProcessingConfig } = useApiJobs();
 const { formatMarkerRange } = useFormatter();
 const { observe } = useAnimatedMarkerPreview();
+const { sceneGridClass, sceneGridStyle } = useGridDensity();
+const { containerClass } = useContentWidth();
 
 // Marker thumbnail type (static or animated)
 const markerThumbnailType = ref('static');
@@ -127,7 +129,7 @@ definePageMeta({
 
 <template>
     <div class="min-h-screen px-4 py-6 sm:px-5">
-        <div class="mx-auto max-w-415">
+        <div :class="containerClass">
             <!-- Back Button -->
             <button
                 class="text-dim hover:text-lava mb-4 flex items-center gap-1 text-sm
@@ -222,13 +224,17 @@ definePageMeta({
                     "
                 />
 
-                <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                <div
+                    class="scene-grid grid justify-center"
+                    :class="sceneGridClass"
+                    :style="sceneGridStyle"
+                >
                     <NuxtLink
                         v-for="marker in markers"
                         :key="marker.id"
                         :to="markerWatchUrl(marker)"
-                        class="group relative block max-w-[320px] overflow-hidden rounded-lg
-                            transition-transform duration-200"
+                        class="group relative block overflow-hidden rounded-lg transition-transform
+                            duration-200"
                     >
                         <!-- Thumbnail -->
                         <div class="relative aspect-video w-full overflow-hidden bg-black/40">

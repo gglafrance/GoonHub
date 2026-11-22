@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SavedSearch, SavedSearchFilters } from '~/types/saved_search';
 
+const { containerClass } = useContentWidth();
 const searchStore = useSearchStore();
 const route = useRoute();
 const router = useRouter();
@@ -190,7 +191,7 @@ const handleSearchSaved = (_search: SavedSearch) => {
 </script>
 
 <template>
-    <div class="mx-auto max-w-415 px-4 py-4 sm:py-6">
+    <div class="px-4 py-4 sm:py-6" :class="containerClass">
         <div class="mb-4 flex items-center gap-2 sm:mb-5 sm:gap-3">
             <div class="min-w-0 flex-1">
                 <SearchBar />

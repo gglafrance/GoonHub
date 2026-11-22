@@ -93,7 +93,10 @@ type UserSettings struct {
 	ShowScrubber bool `gorm:"not null;default:false" json:"show_scrubber"`
 	// ScrubberMode: how the scrubber strip behaves, free (scrolled on its own, click to seek) or
 	// centered (like Stash: the centre line is the playback position, moving the strip seeks)
-	ScrubberMode    string `gorm:"size:10;not null;default:'free'" json:"scrubber_mode"`
+	ScrubberMode string `gorm:"size:10;not null;default:'free'" json:"scrubber_mode"`
+	// ContentWidth: maximum width of the scene list pages, default (today's width), wide or full
+	// (edge to edge); the grids get more columns when it is wider
+	ContentWidth    string `gorm:"size:10;not null;default:'default'" json:"content_width"`
 	MaxItemsPerPage int    `gorm:"-" json:"max_items_per_page"`
 }
 

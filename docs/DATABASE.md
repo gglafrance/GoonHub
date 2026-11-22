@@ -120,6 +120,7 @@ Per-user application preferences.
 | `advanced_marker_filters` | BOOLEAN | NO | false | Show the advanced filter panel (labels, scene tags/actors/studio, ranges only) on the marker pages |
 | `pagination_position` | VARCHAR(10) | NO | 'bottom' | Page controls position on paginated pages: `top`, `bottom` or `both` |
 | `grid_density` | VARCHAR(12) | NO | 'comfortable' | Card size of the scene grids (and actor/studio grids): `compact`, `comfortable` or `large` |
+| `content_width` | VARCHAR(10) | NO | 'default' | Maximum width of the scene list pages (search, actor, studio, explorer, history, markers): `default` (usual width), `wide` or `full` (edge to edge); the grids add columns as it grows (migration 087) |
 | `infinite_scroll` | BOOLEAN | NO | false | Scene list pages (search, actor, studio, explorer) load the next page on scroll instead of showing page controls |
 | `date_format` | VARCHAR(20) | NO | 'auto' | Date display: `auto` (browser locale), `DD/MM/YYYY`, `MM/DD/YYYY`, `YYYY-MM-DD`, `DD.MM.YYYY`, `D MMM YYYY` or `MMM D, YYYY` |
 | `player_gestures` | BOOLEAN | NO | true | Touch gestures on the video player: double-tap seek, swipes (scrub, volume, brightness) and long-press 2x speed |
@@ -164,6 +165,7 @@ Per-user application preferences.
 **Constraints:**
 - `uni_user_settings_user_id` UNIQUE on `user_id`
 - CHECK `chk_user_settings_scrubber_mode`: `scrubber_mode IN ('free', 'centered')`
+- CHECK `chk_user_settings_content_width`: `content_width IN ('default', 'wide', 'full')`
 - FK to `users(id)` ON DELETE CASCADE
 
 ---

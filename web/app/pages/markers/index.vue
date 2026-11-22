@@ -14,6 +14,8 @@ const { fetchLabelGroups, fetchAllMarkers } = useApiMarkers();
 const { fetchProcessingConfig } = useApiJobs();
 const { formatMarkerRange } = useFormatter();
 const { observe } = useAnimatedMarkerPreview();
+const { sceneGridClass, sceneGridStyle } = useGridDensity();
+const { containerClass } = useContentWidth();
 const settingsStore = useSettingsStore();
 
 // Marker thumbnail type (static or animated)
@@ -234,7 +236,7 @@ definePageMeta({
 
 <template>
     <div class="min-h-screen px-4 py-6 sm:px-5">
-        <div class="mx-auto max-w-415">
+        <div :class="containerClass">
             <!-- Header -->
             <div class="mb-6">
                 <div class="flex items-center justify-between">
@@ -447,13 +449,15 @@ definePageMeta({
                     />
 
                     <div
-                        class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+                        class="scene-grid grid justify-center"
+                        :class="sceneGridClass"
+                        :style="sceneGridStyle"
                     >
                         <NuxtLink
                             v-for="marker in allMarkers"
                             :key="marker.id"
                             :to="markerWatchUrl(marker)"
-                            class="group relative block max-w-[320px] overflow-hidden rounded-lg
+                            class="group relative block overflow-hidden rounded-lg
                                 transition-transform duration-200"
                         >
                             <!-- Thumbnail -->

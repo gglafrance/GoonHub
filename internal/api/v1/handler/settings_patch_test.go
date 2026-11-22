@@ -73,6 +73,7 @@ func existingSettings() *data.UserSettings {
 		SceneListView:            data.DefaultSceneListView(),
 		ShowScrubber:             true,
 		ScrubberMode:             "free",
+		ContentWidth:             "wide",
 	}
 }
 
@@ -160,6 +161,7 @@ func TestPatchSettings_EveryField(t *testing.T) {
 			}},
 		{`{"show_scrubber": false}`, func(s *data.UserSettings) bool { return !s.ShowScrubber }},
 		{`{"scrubber_mode": "centered"}`, func(s *data.UserSettings) bool { return s.ScrubberMode == "centered" && s.ShowScrubber }},
+		{`{"content_width": "full"}`, func(s *data.UserSettings) bool { return s.ContentWidth == "full" && s.GridDensity == "large" }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.body, func(t *testing.T) {
@@ -205,6 +207,8 @@ func TestPatchSettings_Rejected(t *testing.T) {
 		{"scrubber mode", `{"scrubber_mode": "stash"}`},
 		{"empty scrubber mode", `{"scrubber_mode": ""}`},
 		{"scrubber mode as bool", `{"scrubber_mode": true}`},
+		{"content width", `{"content_width": "huge"}`},
+		{"empty content width", `{"content_width": ""}`},
 		{"scene list view", `{"scene_list_view": {"pages": {"search": "mosaic"}, "columns": []}}`},
 		{"incomplete nested", `{"sort_preferences": {"actors": "name_desc"}}`},
 		{"homepage section type", `{"homepage_config": {"show_upload": true, "tabs": [{"id": "a", "name": "A", "sections": [{"id": "s", "type": "bogus", "title": "T", "limit": 5}]}], "default_tab_id": "a", "open_on": "last"}}`},
@@ -287,7 +291,7 @@ func TestUpdateAllSettings_PutUnchanged(t *testing.T) {
 			t.Fatalf("full body not applied: %+v", saved)
 		}
 		// Optional fields of PUT left out keep their value
-		if !saved.ShowScrubber || !saved.InfiniteScroll || saved.GestureSeekStep != 15 || !saved.PlayerGestures || saved.ScrubberMode != "free" {
+		if !saved.ShowScrubber || !saved.InfiniteScroll || saved.GestureSeekStep != 15 || !saved.PlayerGestures || saved.ScrubberMode != "free" || saved.ContentWidth != "wide" {
 			t.Fatalf("optional fields reset: %+v", saved)
 		}
 	})
@@ -340,6 +344,36 @@ func TestUpdateAllSettings_ScrubberMode(t *testing.T) {
 	t.Run("invalid", func(t *testing.T) {
 		r, _ := newSettingsTestRouter(t)
 		w := doSettingsRequest(r, http.MethodPut, withMode(`"stash"`))
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+}
+
+// content_width through PUT: set when sent, kept when left out (fullPutBody), validated.
+func TestUpdateAllSettings_ContentWidth(t *testing.T) {
+	withWidth := func(width string) string {
+		return strings.Replace(fullPutBody, `"grid_density": "comfortable"`, `"grid_density": "comfortable", "content_width": `+width, 1)
+	}
+	t.Run("set", func(t *testing.T) {
+		r, settingsRepo := newSettingsTestRouter(t)
+		settingsRepo.EXPECT().GetByUserID(uint(1)).Return(existingSettings(), nil)
+		var saved *data.UserSettings
+		settingsRepo.EXPECT().Upsert(gomock.Any()).DoAndReturn(func(s *data.UserSettings) error {
+			saved = s
+			return nil
+		})
+		w := doSettingsRequest(r, http.MethodPut, withWidth(`"full"`))
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		if saved.ContentWidth != "full" || !strings.Contains(w.Body.String(), `"content_width":"full"`) {
+			t.Fatalf("width not applied: %+v / %s", saved, w.Body.String())
+		}
+	})
+	t.Run("invalid", func(t *testing.T) {
+		r, _ := newSettingsTestRouter(t)
+		w := doSettingsRequest(r, http.MethodPut, withWidth(`"huge"`))
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 		}

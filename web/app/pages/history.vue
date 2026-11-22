@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { WatchHistoryEntry, DateGroup, ChartActivityCount } from '~/types/watch';
 
+const { containerClass } = useContentWidth();
 const { getUserWatchHistoryByDateRange, getUserWatchHistoryByTimeRange } = useApiScenes();
 const { formatDate } = useDateFormatter();
 
@@ -148,7 +149,7 @@ definePageMeta({
 
 <template>
     <div class="min-h-screen px-4 py-6 sm:px-5">
-        <div class="mx-auto max-w-415">
+        <div :class="containerClass">
             <!-- Header -->
             <div class="mb-6 flex items-center justify-between">
                 <div class="flex items-center gap-3">

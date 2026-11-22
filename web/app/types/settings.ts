@@ -40,6 +40,8 @@ export type GridDensity = 'compact' | 'comfortable' | 'large';
 // Thumbnail scrubber: free (scrolls on its own, click to seek) or centered (like Stash: the centre
 // line is the playback position, dragging or wheeling the strip seeks the video)
 export type ScrubberMode = 'free' | 'centered';
+// Maximum width of the scene list pages: default (usual width), wide, or full (edge to edge)
+export type ContentWidth = 'default' | 'wide' | 'full';
 export type { DateFormat };
 
 export interface UserSettings {
@@ -74,6 +76,7 @@ export interface UserSettings {
     infinite_scroll: boolean;
     show_scrubber: boolean;
     scrubber_mode: ScrubberMode;
+    content_width: ContentWidth;
     max_items_per_page: number;
     created_at: string;
     updated_at: string;

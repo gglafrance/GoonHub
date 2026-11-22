@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type {
+    ContentWidth,
     GridDensity,
     SceneListPage,
     SceneListViewMode,
@@ -18,6 +19,13 @@ const appGridDensity = computed({
     get: () => settingsStore.draft?.grid_density ?? 'comfortable',
     set: (v: GridDensity) => {
         if (settingsStore.draft) settingsStore.draft.grid_density = v;
+    },
+});
+
+const appContentWidth = computed({
+    get: () => normalizeContentWidth(settingsStore.draft?.content_width),
+    set: (v: ContentWidth) => {
+        if (settingsStore.draft) settingsStore.draft.content_width = v;
     },
 });
 
@@ -108,6 +116,34 @@ const toggleColumn = (id: SceneTableColumn) => {
                             "
                             :title="opt.hint"
                             @click="appGridDensity = opt.value"
+                        >
+                            {{ opt.label }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Content width -->
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <label class="text-sm font-medium text-white"> Content Width </label>
+                        <p class="text-dim mt-0.5 text-xs">
+                            Width of the scene list pages (search, actor, studio, explorer, history,
+                            markers). Wider pages fit more columns at every card size
+                        </p>
+                    </div>
+                    <div class="flex shrink-0 gap-1">
+                        <button
+                            v-for="opt in CONTENT_WIDTH_OPTIONS"
+                            :key="opt.value"
+                            class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-all"
+                            :class="
+                                appContentWidth === opt.value
+                                    ? 'border-lava bg-lava/10 text-lava'
+                                    : `border-border text-muted hover:border-border-hover
+                                        hover:text-white`
+                            "
+                            :title="opt.hint"
+                            @click="appContentWidth = opt.value"
                         >
                             {{ opt.label }}
                         </button>
