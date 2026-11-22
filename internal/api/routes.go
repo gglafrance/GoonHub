@@ -310,6 +310,8 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					admin.POST("/duplicates/:id/resolve", duplicateHandler.ResolveGroup)
 					admin.POST("/duplicates/:id/dismiss", duplicateHandler.DismissGroup)
 					admin.PUT("/duplicates/:id/best", duplicateHandler.SetBest)
+					// Fold duplicate markers (e.g. left by earlier merges), dry run by default
+					admin.POST("/markers/deduplicate", markerHandler.DeduplicateMarkers)
 
 					// Library health (media files are only read: stat, never written)
 					admin.GET("/library-health", libraryHealthHandler.GetSummary)

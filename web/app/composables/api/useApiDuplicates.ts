@@ -1,4 +1,4 @@
-import type { AutoSelectResult, BulkResolveResult } from '~/types/duplicates';
+import type { AutoSelectResult, BulkResolveResult, ResolveGroupResult } from '~/types/duplicates';
 
 export const useApiDuplicates = () => {
     const { fetchOptions, getAuthHeaders, handleResponse } = useApiCore();
@@ -38,7 +38,11 @@ export const useApiDuplicates = () => {
         return handleResponse(response);
     };
 
-    const resolveGroup = async (id: number, bestSceneId: number, mergeMetadata: boolean) => {
+    const resolveGroup = async (
+        id: number,
+        bestSceneId: number,
+        mergeMetadata: boolean,
+    ): Promise<ResolveGroupResult> => {
         const response = await fetch(`/api/v1/admin/duplicates/${id}/resolve`, {
             ...fetchOptions(),
             method: 'POST',

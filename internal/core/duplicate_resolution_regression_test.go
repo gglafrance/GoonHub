@@ -49,7 +49,7 @@ func TestResolveGroupPropagatesFailures(t *testing.T) {
 					}
 				}
 			}
-			if err := svc.ResolveGroup(1, 10, failure == "metadata"); !errors.Is(err, cause) {
+			if _, err := svc.ResolveGroup(1, 10, failure == "metadata"); !errors.Is(err, cause) {
 				t.Fatalf("expected underlying failure, got %v", err)
 			}
 		})
@@ -99,7 +99,7 @@ func TestResolveGroupUsesTrashLifecycle(t *testing.T) {
 			groups.EXPECT().SetBestScene(uint(1), uint(10)).Return(nil)
 			groups.EXPECT().UpdateStatus(uint(1), "resolved", gomock.Any()).Return(nil)
 
-			if err := svc.ResolveGroup(1, 10, false); err != nil {
+			if _, err := svc.ResolveGroup(1, 10, false); err != nil {
 				t.Fatal(err)
 			}
 			if !slices.Equal(indexer.deletedIDs, []uint{20, 30}) {
@@ -173,14 +173,14 @@ func TestMergeMetadataPropagatesFailures(t *testing.T) {
 				scenes.EXPECT().GetByIDsIncludingTrashed([]uint{10, 20}).Return([]data.Scene{{ID: 10}, other}, nil)
 				if failure == "markers" {
 					svc.markerRepo = markers
-					markers.EXPECT().ReassignMarkersToScene(uint(20), uint(10)).Return(cause)
+					markers.EXPECT().GetAllByScene(uint(20)).Return(nil, cause)
 				}
 				if failure == "interactions" {
 					svc.interactionRepo = interactions
 					interactions.EXPECT().ReassignInteractionsToScene(uint(20), uint(10)).Return(cause)
 				}
 			}
-			if err := svc.mergeMetadata(10, []uint{20}); !errors.Is(err, cause) {
+			if _, err := svc.mergeMetadata(nil, 10, []uint{20}); !errors.Is(err, cause) {
 				t.Fatalf("expected underlying metadata failure, got %v", err)
 			}
 		})

@@ -1,6 +1,7 @@
 package data
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -53,8 +54,15 @@ type MarkerRepository interface {
 	// Search filter methods
 	GetSceneIDsByLabels(userID uint, labels []string) ([]uint, error)
 
-	// Reassignment methods (for duplicate resolution)
-	ReassignMarkersToScene(fromSceneID, toSceneID uint) error
+	// Duplicate resolution: markers moved to the kept scene, and duplicate markers folded
+	// MoveMarkers sets the scene and times of markers, in one transaction (their tags follow).
+	MoveMarkers(moves []MarkerMove) error
+	// ApplyMarkerDedup folds duplicate markers into the kept one of each merge, in one
+	// transaction (see MarkerDedupMerge).
+	ApplyMarkerDedup(merges []MarkerDedupMerge) error
+	// ListSceneIDsWithNearbyMarkers returns, in ascending order, the scenes (not deleted)
+	// where a user has two markers whose starts are at most toleranceSeconds apart.
+	ListSceneIDsWithNearbyMarkers(toleranceSeconds int) ([]uint, error)
 }
 
 type MarkerRepositoryImpl struct {
@@ -751,11 +759,74 @@ func (r *MarkerRepositoryImpl) GetSceneIDsByLabels(userID uint, labels []string)
 	return sceneIDs, nil
 }
 
-// ReassignMarkersToScene moves all markers from one scene to another
-func (r *MarkerRepositoryImpl) ReassignMarkersToScene(fromSceneID, toSceneID uint) error {
-	return r.DB.Model(&UserSceneMarker{}).
-		Where("scene_id = ?", fromSceneID).
-		Update("scene_id", toSceneID).Error
+// MoveMarkers sets the scene and times of markers, in one transaction. marker_tags reference
+// the marker, so its tags follow; updated_at moves, which versions the thumbnail URLs.
+func (r *MarkerRepositoryImpl) MoveMarkers(moves []MarkerMove) error {
+	if len(moves) == 0 {
+		return nil
+	}
+	now := time.Now()
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		for _, m := range moves {
+			res := tx.Model(&UserSceneMarker{}).Where("id = ?", m.ID).Updates(map[string]any{
+				"scene_id":      m.SceneID,
+				"timestamp":     m.Timestamp,
+				"end_timestamp": m.EndTimestamp,
+				"updated_at":    now,
+			})
+			if res.Error != nil {
+				return fmt.Errorf("failed to move marker %d: %w", m.ID, res.Error)
+			}
+		}
+		return nil
+	})
+}
+
+// ApplyMarkerDedup folds duplicate markers, in one transaction: each kept marker gets the
+// merge's label (when set) and tags (existing ones kept as they are), then the other markers
+// are deleted (their marker_tags go with them, ON DELETE CASCADE).
+func (r *MarkerRepositoryImpl) ApplyMarkerDedup(merges []MarkerDedupMerge) error {
+	if len(merges) == 0 {
+		return nil
+	}
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		for _, m := range merges {
+			if m.Label != nil {
+				if err := tx.Model(&UserSceneMarker{}).Where("id = ?", m.KeepID).
+					Update("label", *m.Label).Error; err != nil {
+					return fmt.Errorf("failed to set label of marker %d: %w", m.KeepID, err)
+				}
+			}
+			if len(m.AddTags) > 0 {
+				tags := make([]MarkerTag, len(m.AddTags))
+				for i, t := range m.AddTags {
+					tags[i] = MarkerTag{MarkerID: m.KeepID, TagID: t.TagID, IsFromLabel: t.IsFromLabel}
+				}
+				if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&tags).Error; err != nil {
+					return fmt.Errorf("failed to add tags to marker %d: %w", m.KeepID, err)
+				}
+			}
+			if len(m.RemoveIDs) > 0 {
+				if err := tx.Where("id IN ?", m.RemoveIDs).Delete(&UserSceneMarker{}).Error; err != nil {
+					return fmt.Errorf("failed to delete duplicates of marker %d: %w", m.KeepID, err)
+				}
+			}
+		}
+		return nil
+	})
+}
+
+// ListSceneIDsWithNearbyMarkers returns the scenes (not deleted) where a user has two markers
+// whose starts are at most toleranceSeconds apart: the candidates for marker deduplication.
+func (r *MarkerRepositoryImpl) ListSceneIDsWithNearbyMarkers(toleranceSeconds int) ([]uint, error) {
+	var ids []uint
+	err := r.DB.Raw(`SELECT DISTINCT a.scene_id
+		FROM user_scene_markers a
+		JOIN user_scene_markers b ON b.scene_id = a.scene_id AND b.user_id = a.user_id
+			AND b.id > a.id AND ABS(b.timestamp - a.timestamp) <= ?
+		JOIN scenes s ON s.id = a.scene_id AND s.deleted_at IS NULL
+		ORDER BY a.scene_id`, toleranceSeconds).Scan(&ids).Error
+	return ids, err
 }
 
 // Ensure MarkerRepositoryImpl implements MarkerRepository

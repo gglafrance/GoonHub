@@ -54,10 +54,27 @@ export interface DuplicateSkippedGroup {
     members: { scene_id: number; relation: DuplicateRelation; ref_scene_id?: number }[];
 }
 
+// What happened to the markers of the trashed scenes when a group was resolved with metadata
+// merge: moved to the kept scene (shifted: with their times changed by the offset between the
+// scenes), deleted there as duplicates of another marker, or left on the trashed scene
+// (outside the part matching the kept scene)
+export interface MarkerMergeSummary {
+    moved: number;
+    shifted: number;
+    deduplicated: number;
+    left_behind: number;
+}
+
+export interface ResolveGroupResult {
+    message: string;
+    markers: MarkerMergeSummary;
+}
+
 export interface BulkResolveResult {
     resolved: number[];
     failed: { group_id: number; error: string }[];
     skipped: DuplicateSkippedGroup[];
+    markers: MarkerMergeSummary;
 }
 
 export interface AutoSelectResult {

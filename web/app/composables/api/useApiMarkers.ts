@@ -19,6 +19,8 @@ import type {
     PaginatedResponse,
     SavedMarkerFilter,
     SavedMarkerFilterValues,
+    MarkerDedupResult,
+    MarkerDedupScope,
 } from '~/types/marker';
 import type { Tag } from '~/types/tag';
 
@@ -231,7 +233,22 @@ export const useApiMarkers = () => {
         return handleResponseWithNoContent(response);
     };
 
+    // Admin: folds duplicate markers (dry run unless dryRun is false)
+    const deduplicateMarkers = async (
+        scope: MarkerDedupScope,
+        dryRun: boolean,
+    ): Promise<MarkerDedupResult> => {
+        const response = await fetch('/api/v1/admin/markers/deduplicate', {
+            ...fetchOptions(),
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ ...scope, dry_run: dryRun }),
+        });
+        return handleResponse(response);
+    };
+
     return {
+        deduplicateMarkers,
         fetchSavedMarkerFilters,
         createSavedMarkerFilter,
         updateSavedMarkerFilter,
