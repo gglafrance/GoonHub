@@ -218,6 +218,21 @@ func (mr *MockDuplicateGroupRepositoryMockRecorder) ListMembersForRelationBackfi
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMembersForRelationBackfill", reflect.TypeOf((*MockDuplicateGroupRepository)(nil).ListMembersForRelationBackfill), afterID, limit)
 }
 
+// ListSceneGroupMembers mocks base method.
+func (m *MockDuplicateGroupRepository) ListSceneGroupMembers(sceneID uint, includeTrashed bool) ([]data.DuplicateMemberScene, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListSceneGroupMembers", sceneID, includeTrashed)
+	ret0, _ := ret[0].([]data.DuplicateMemberScene)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListSceneGroupMembers indicates an expected call of ListSceneGroupMembers.
+func (mr *MockDuplicateGroupRepositoryMockRecorder) ListSceneGroupMembers(sceneID, includeTrashed any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSceneGroupMembers", reflect.TypeOf((*MockDuplicateGroupRepository)(nil).ListSceneGroupMembers), sceneID, includeTrashed)
+}
+
 // ListWithMembers mocks base method.
 func (m *MockDuplicateGroupRepository) ListWithMembers(page, limit int, status, kind string) ([]data.DuplicateGroup, int64, error) {
 	m.ctrl.T.Helper()

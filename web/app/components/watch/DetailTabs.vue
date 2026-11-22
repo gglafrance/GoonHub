@@ -5,8 +5,11 @@ import WatchThumbnail from './Thumbnail.vue';
 import WatchJobs from './Jobs.vue';
 import WatchHistory from './History.vue';
 import WatchMarkers from './Markers.vue';
+import WatchSimilar from './Similar.vue';
+import type { WatchPageData } from '~/composables/useWatchPageData';
+import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
-type TabType = 'jobs' | 'thumbnail' | 'details' | 'history' | 'markers';
+type TabType = 'jobs' | 'thumbnail' | 'details' | 'history' | 'markers' | 'similar';
 
 // Inject activeTab from parent (watch page) or use local state
 const injectedActiveTab = inject<Ref<TabType> | undefined>('activeTab', undefined);
@@ -20,9 +23,22 @@ const tabComponentMap: Record<TabType, Component> = {
     jobs: WatchJobs,
     history: WatchHistory,
     markers: WatchMarkers,
+    similar: WatchSimilar,
 };
 
 const currentComponent = computed(() => tabComponentMap[activeTab.value]);
+
+// The Similar tab (scenes matching this one by fingerprint) only shows when there are some
+const watchPageData = inject<WatchPageData | undefined>(WATCH_PAGE_DATA_KEY, undefined);
+const similarCount = computed(() => watchPageData?.similar.value?.scenes.length ?? 0);
+watch(
+    () => [similarCount.value, watchPageData?.loading.related] as const,
+    ([count, loadingSimilar]) => {
+        if (activeTab.value === 'similar' && count === 0 && !loadingSimilar) {
+            activeTab.value = 'details';
+        }
+    },
+);
 </script>
 
 <template>
@@ -83,6 +99,19 @@ const currentComponent = computed(() => tabComponentMap[activeTab.value]);
                 @click="activeTab = 'markers'"
             >
                 Markers
+            </button>
+            <button
+                v-if="similarCount > 0"
+                :class="[
+                    'border-b-2 px-3 pb-2.5 text-[11px] font-medium transition-colors',
+                    activeTab === 'similar'
+                        ? 'border-lava text-white'
+                        : 'text-dim border-transparent hover:text-white',
+                ]"
+                title="Scenes matching this one by audio or visual fingerprint"
+                @click="activeTab = 'similar'"
+            >
+                Similar ({{ similarCount }})
             </button>
         </div>
 
