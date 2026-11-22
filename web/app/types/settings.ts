@@ -122,6 +122,9 @@ export interface TagSettings {
 export interface BadgeZone {
     items: string[];
     direction: 'vertical' | 'horizontal';
+    // Grid of 1 to 4 columns, filled row by row (horizontal) or column by column (vertical).
+    // Absent: one column (vertical) or one row (horizontal), the original layout.
+    columns?: number;
 }
 
 export interface BadgeZones {

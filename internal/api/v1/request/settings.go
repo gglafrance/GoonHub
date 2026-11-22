@@ -90,6 +90,8 @@ type UpdateBadgeZonesRequest struct {
 type BadgeZoneRequest struct {
 	Items     []string `json:"items"`
 	Direction string   `json:"direction"`
+	// Columns is optional: absent or 0 keeps the one column / one row layout
+	Columns int `json:"columns,omitempty"`
 }
 
 type ContentRowRequest struct {

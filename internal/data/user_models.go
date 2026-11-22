@@ -349,7 +349,17 @@ type BadgeZones struct {
 type BadgeZone struct {
 	Items     []string `json:"items"`
 	Direction string   `json:"direction"`
+	// Columns lays the items out in a grid of that many columns (1 to MaxBadgeZoneColumns),
+	// filled row by row (horizontal) or column by column (vertical). 0 (absent) keeps the
+	// original layout: one column (vertical) or one row (horizontal).
+	Columns int `json:"columns,omitempty"`
 }
+
+// Limits of a badge zone of the scene card template.
+const (
+	MaxBadgeZoneItems   = 12
+	MaxBadgeZoneColumns = 4
+)
 
 // ContentRow represents a single content row below the title
 type ContentRow struct {

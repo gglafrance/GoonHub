@@ -379,3 +379,70 @@ func TestUpdateAllSettings_ContentWidth(t *testing.T) {
 		}
 	})
 }
+
+// columns of the card badge zones through PUT and PATCH: stored and returned when sent, absent
+// in the old shape, bounds checked.
+func TestSettings_CardZoneColumns(t *testing.T) {
+	const gridZone = `"top_left": {"items": ["rating", "liked", "views", "resolution", "duration", "watched"], "direction": "horizontal", "columns": 2}`
+	const oldZone = `"top_left": {"items": [], "direction": "vertical"}`
+	cardConfig := func(topLeft string) string {
+		return `{"badges": {` + topLeft + `, "top_right": {"items": [], "direction": "vertical"}, "bottom_left": {"items": [], "direction": "vertical"}, ` +
+			`"bottom_right": {"items": ["duration"], "direction": "horizontal"}}, "content_rows": []}`
+	}
+	putBody := func(topLeft string) string {
+		return strings.Replace(fullPutBody, `"top_left": {"items": [], "direction": "vertical"}`, topLeft, 1)
+	}
+	patchBody := func(topLeft string) string { return `{"scene_card_config": ` + cardConfig(topLeft) + `}` }
+
+	for _, method := range []string{http.MethodPut, http.MethodPatch} {
+		body := putBody
+		if method == http.MethodPatch {
+			body = patchBody
+		}
+		t.Run(method+" grid", func(t *testing.T) {
+			r, settingsRepo := newSettingsTestRouter(t)
+			settingsRepo.EXPECT().GetByUserID(uint(1)).Return(existingSettings(), nil)
+			var saved *data.UserSettings
+			settingsRepo.EXPECT().Upsert(gomock.Any()).DoAndReturn(func(s *data.UserSettings) error {
+				saved = s
+				return nil
+			})
+			w := doSettingsRequest(r, method, body(gridZone))
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+			}
+			zone := saved.SceneCardConfig.Badges.TopLeft
+			if zone.Columns != 2 || len(zone.Items) != 6 || saved.SceneCardConfig.Badges.TopRight.Columns != 0 {
+				t.Fatalf("grid not applied: %+v", saved.SceneCardConfig.Badges)
+			}
+			if !strings.Contains(w.Body.String(), `"direction":"horizontal","columns":2}`) {
+				t.Fatalf("columns not returned: %s", w.Body.String())
+			}
+		})
+		t.Run(method+" old shape", func(t *testing.T) {
+			r, settingsRepo := newSettingsTestRouter(t)
+			settingsRepo.EXPECT().GetByUserID(uint(1)).Return(existingSettings(), nil)
+			settingsRepo.EXPECT().Upsert(gomock.Any()).Return(nil)
+			w := doSettingsRequest(r, method, body(oldZone))
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+			}
+			if body := w.Body.String(); strings.Contains(body, `"vertical","columns"`) || strings.Contains(body, `"horizontal","columns"`) {
+				t.Fatalf("old shape should not gain a columns key: %s", w.Body.String())
+			}
+		})
+		for _, bad := range []string{
+			`"top_left": {"items": ["rating"], "direction": "vertical", "columns": 5}`,
+			`"top_left": {"items": ["rating"], "direction": "vertical", "columns": -1}`,
+			`"top_left": {"items": ["liked", "rating", "duration", "resolution", "views", "jizz_count", "watched", "file_size", "added_at", "frame_rate", "tags", "actors", "rating"], "direction": "vertical", "columns": 4}`,
+		} {
+			t.Run(method+" rejected", func(t *testing.T) {
+				r, _ := newSettingsTestRouter(t)
+				w := doSettingsRequest(r, method, body(bad))
+				if w.Code != http.StatusBadRequest {
+					t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+				}
+			})
+		}
+	}
+}

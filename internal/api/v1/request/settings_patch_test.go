@@ -37,6 +37,10 @@ func TestDecodePatchSettingsRequest_Valid(t *testing.T) {
 		{"card config", `{"scene_card_config": ` + validCardConfig + `}`, func(r *PatchSettingsRequest) bool {
 			return r.SceneCardConfig != nil && r.SceneCardConfig.Badges.BottomRight.Direction == "horizontal"
 		}},
+		{"card config with columns", `{"scene_card_config": {"badges": {"top_left": {"items": ["rating", "liked", "views"], "direction": "horizontal", "columns": 2},` +
+			`"top_right": {}, "bottom_left": {}, "bottom_right": {}}, "content_rows": []}}`, func(r *PatchSettingsRequest) bool {
+			return r.SceneCardConfig != nil && r.SceneCardConfig.Badges.TopLeft.Columns == 2 && r.SceneCardConfig.Badges.TopRight.Columns == 0
+		}},
 		{"homepage", `{"homepage_config": ` + validHomepage + `}`, func(r *PatchSettingsRequest) bool {
 			return r.HomepageConfig != nil && len(r.HomepageConfig.Tabs) == 1 && r.HomepageConfig.Tabs[0].Sections[0].Limit == 12
 		}},
@@ -87,6 +91,7 @@ func TestDecodePatchSettingsRequest_Invalid(t *testing.T) {
 		{"incomplete card config", `{"scene_card_config": {"badges": {}, "content_rows": []}}`, `scene_card_config.badges: missing field "top_left"`},
 		{"card config without rows", `{"scene_card_config": {"badges": {"top_left":{},"top_right":{},"bottom_left":{},"bottom_right":{}}}}`, `missing field "content_rows"`},
 		{"null badges", `{"scene_card_config": {"badges": null, "content_rows": []}}`, `"badges" cannot be null`},
+		{"card columns as string", `{"scene_card_config": {"badges": {"top_left":{"columns":"2"},"top_right":{},"bottom_left":{},"bottom_right":{}}, "content_rows": []}}`, `invalid value`},
 		{"incomplete homepage", `{"homepage_config": {"tabs": []}}`, `homepage_config: missing field "show_upload"`},
 		{"homepage tab name too long", `{"homepage_config": {"show_upload":true,"tabs":[{"id":"t","name":"` + strings.Repeat("x", 41) + `","sections":[]}],"default_tab_id":"t","open_on":"last"}}`, "invalid request body"},
 		{"homepage section limit", `{"homepage_config": {"show_upload":true,"tabs":[{"id":"t","name":"T","sections":[{"id":"s","type":"latest","title":"L","limit":0}]}],"default_tab_id":"t","open_on":"last"}}`, "invalid request body"},

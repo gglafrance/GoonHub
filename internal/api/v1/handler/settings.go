@@ -382,7 +382,7 @@ func (h *SettingsHandler) convertRequestToSceneCardConfig(req request.UpdateScen
 		if direction == "" {
 			direction = "vertical"
 		}
-		return data.BadgeZone{Items: items, Direction: direction}
+		return data.BadgeZone{Items: items, Direction: direction, Columns: z.Columns}
 	}
 
 	rows := make([]data.ContentRow, len(req.ContentRows))
