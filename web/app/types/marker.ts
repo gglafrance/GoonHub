@@ -121,3 +121,37 @@ export interface LabelTagsResponse {
 export interface MarkerTagsResponse {
     tags: MarkerTagInfo[];
 }
+
+// Deduplication of markers (admin maintenance, POST /admin/markers/deduplicate): per user, the
+// markers with the same label (or none) whose starts are a couple of seconds apart are folded
+// into one, which gets the tags of the others
+export interface MarkerDedupMarker {
+    id: number;
+    timestamp: number;
+    end_timestamp?: number;
+    label: string;
+}
+
+export interface MarkerDedupMerge {
+    scene_id: number;
+    user_id: number;
+    kept: MarkerDedupMarker;
+    // Label of the kept marker after the merge
+    label: string;
+    removed: MarkerDedupMarker[];
+    added_tag_ids: number[];
+}
+
+export interface MarkerDedupResult {
+    dry_run: boolean;
+    scenes_scanned: number;
+    scenes: number;
+    groups: number;
+    removed: number;
+    // At most 200 sets (truncated then); the counts cover all of them
+    merges: MarkerDedupMerge[];
+    truncated: boolean;
+}
+
+// Scenes to deduplicate: some of them, or every scene
+export type MarkerDedupScope = { scene_ids: number[] } | { all: true };

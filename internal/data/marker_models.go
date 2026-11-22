@@ -100,3 +100,27 @@ type MarkerTagInfo struct {
 	Color       string `json:"color"`
 	IsFromLabel bool   `json:"is_from_label"`
 }
+
+// MarkerMove sets the scene and times of a marker: a marker of a duplicate moved to the kept
+// scene of its group, its times shifted to where the same moment is in that scene.
+type MarkerMove struct {
+	ID           uint
+	SceneID      uint
+	Timestamp    int
+	EndTimestamp *int
+}
+
+// MarkerDedupTag is a tag added to the kept marker of a MarkerDedupMerge.
+type MarkerDedupTag struct {
+	TagID       uint
+	IsFromLabel bool
+}
+
+// MarkerDedupMerge folds duplicate markers of a user into one: the KeepID marker gets Label
+// (when not nil) and the AddTags it lacks, and the RemoveIDs markers are deleted.
+type MarkerDedupMerge struct {
+	KeepID    uint
+	Label     *string
+	AddTags   []MarkerDedupTag
+	RemoveIDs []uint
+}

@@ -67,6 +67,22 @@ type BulkResolveResult struct {
 	Failed   []BulkResolveFailure `json:"failed"`
 	// Skipped lists the groups left untouched because not all their scenes are identical
 	Skipped []DuplicateSkippedGroup `json:"skipped"`
+	// Markers sums what happened to the markers of the resolved groups
+	Markers MarkerMergeSummary `json:"markers"`
+}
+
+// ResolveGroupResult is the outcome of ResolveGroup.
+type ResolveGroupResult struct {
+	// Markers tells what happened to the markers of the trashed scenes (all zero without
+	// metadata merge)
+	Markers MarkerMergeSummary `json:"markers"`
+}
+
+// duplicateMarkerHelper is what resolution needs from the marker service: folding the
+// duplicate markers of the kept scene and remaking the thumbnails of the moved markers.
+type duplicateMarkerHelper interface {
+	DeduplicateMarkers(sceneIDs []uint, dryRun bool) (*MarkerDedupResult, error)
+	QueueMarkerThumbnails(markerIDs []uint)
 }
 
 // AutoSelectResult is the outcome of AutoSelectBest.
@@ -96,6 +112,7 @@ type DuplicateService struct {
 	interactionRepo data.InteractionRepository
 	sceneService    *SceneService
 	configRepo      data.DuplicationConfigRepository
+	markerHelper    duplicateMarkerHelper
 	logger          *zap.Logger
 	cancelCleanup   context.CancelFunc
 }
@@ -112,6 +129,12 @@ const relationBackfillBatch = 500
 // SetConfigRepo provides the duplication config (deletion of the scenes not kept at resolution).
 func (ds *DuplicateService) SetConfigRepo(repo data.DuplicationConfigRepository) {
 	ds.configRepo = repo
+}
+
+// SetMarkerService provides the marker service: after markers are moved to the kept scene,
+// their duplicates are folded and their thumbnails remade. Without it, markers are only moved.
+func (ds *DuplicateService) SetMarkerService(ms duplicateMarkerHelper) {
+	ds.markerHelper = ms
 }
 
 // NewDuplicateService creates a new DuplicateService
@@ -213,11 +236,14 @@ func (ds *DuplicateService) ScoreBestVariant(groupID uint) (uint, error) {
 	return bestSceneID, nil
 }
 
-// ResolveGroup resolves a duplicate group: keeps the best variant, trashes others
-func (ds *DuplicateService) ResolveGroup(groupID, bestSceneID uint, mergeMetadata bool) error {
+// ResolveGroup resolves a duplicate group: keeps the best variant, trashes others. With
+// mergeMetadata, the others' metadata is merged into the kept scene first, their markers moved
+// to it with the offset between the scenes (see MarkerMergeSummary for what is reported).
+func (ds *DuplicateService) ResolveGroup(groupID, bestSceneID uint, mergeMetadata bool) (ResolveGroupResult, error) {
+	var result ResolveGroupResult
 	group, err := ds.groupRepo.GetByIDWithMembers(groupID)
 	if err != nil {
-		return fmt.Errorf("failed to get group: %w", err)
+		return result, fmt.Errorf("failed to get group: %w", err)
 	}
 
 	// Validate bestSceneID is a member
@@ -231,45 +257,47 @@ func (ds *DuplicateService) ResolveGroup(groupID, bestSceneID uint, mergeMetadat
 		}
 	}
 	if !found {
-		return fmt.Errorf("scene %d is not a member of group %d", bestSceneID, groupID)
+		return result, fmt.Errorf("scene %d is not a member of group %d", bestSceneID, groupID)
 	}
 
 	// Merge metadata if requested
 	if mergeMetadata && len(otherSceneIDs) > 0 {
-		if err := ds.mergeMetadata(bestSceneID, otherSceneIDs); err != nil {
-			return fmt.Errorf("failed to merge metadata into scene %d: %w", bestSceneID, err)
+		markers, err := ds.mergeMetadata(group, bestSceneID, otherSceneIDs)
+		if err != nil {
+			return result, fmt.Errorf("failed to merge metadata into scene %d: %w", bestSceneID, err)
 		}
+		result.Markers = markers
 	}
 
 	// Update is_best flags
 	for _, m := range group.Members {
 		isBest := m.SceneID == bestSceneID
 		if err := ds.groupRepo.UpdateMemberBest(groupID, m.SceneID, isBest); err != nil {
-			return fmt.Errorf("failed to update best flag for scene %d: %w", m.SceneID, err)
+			return result, fmt.Errorf("failed to update best flag for scene %d: %w", m.SceneID, err)
 		}
 	}
 
 	// Trash non-best scenes
 	for _, sid := range otherSceneIDs {
 		if _, err := ds.sceneService.MoveSceneToTrash(sid); err != nil {
-			return fmt.Errorf("failed to trash scene %d: %w", sid, err)
+			return result, fmt.Errorf("failed to trash scene %d: %w", sid, err)
 		}
 	}
 
 	// Schedule the permanent deletion of the trashed scenes when configured
 	if deleteAfter := ds.scheduledDeletionTime(); deleteAfter != nil && len(otherSceneIDs) > 0 {
 		if err := ds.groupRepo.SetMemberDeleteAfter(groupID, otherSceneIDs, deleteAfter); err != nil {
-			return fmt.Errorf("failed to schedule deletion of resolved duplicates: %w", err)
+			return result, fmt.Errorf("failed to schedule deletion of resolved duplicates: %w", err)
 		}
 	}
 
 	// Update group status
 	now := time.Now()
 	if err := ds.groupRepo.SetBestScene(groupID, bestSceneID); err != nil {
-		return fmt.Errorf("failed to set best scene: %w", err)
+		return result, fmt.Errorf("failed to set best scene: %w", err)
 	}
 	if err := ds.groupRepo.UpdateStatus(groupID, "resolved", &now); err != nil {
-		return fmt.Errorf("failed to update group status: %w", err)
+		return result, fmt.Errorf("failed to update group status: %w", err)
 	}
 
 	ds.logger.Info("Resolved duplicate group",
@@ -278,7 +306,7 @@ func (ds *DuplicateService) ResolveGroup(groupID, bestSceneID uint, mergeMetadat
 		zap.Int("trashed_count", len(otherSceneIDs)),
 	)
 
-	return nil
+	return result, nil
 }
 
 // DismissGroup marks a group as dismissed (no action taken)
@@ -434,11 +462,13 @@ func (ds *DuplicateService) ResolveGroups(groupIDs []uint, autoSelect, mergeMeta
 			fail(groupID, err)
 			continue
 		}
-		if err := ds.ResolveGroup(groupID, bestID, mergeMetadata); err != nil {
+		resolved, err := ds.ResolveGroup(groupID, bestID, mergeMetadata)
+		if err != nil {
 			fail(groupID, err)
 			continue
 		}
 		result.Resolved = append(result.Resolved, groupID)
+		result.Markers.Add(resolved.Markers)
 	}
 	ds.logger.Info("Bulk resolved duplicate groups",
 		zap.Int("resolved", len(result.Resolved)),
@@ -651,14 +681,15 @@ func (ds *DuplicateService) enrichGroup(group *data.DuplicateGroup) (*DuplicateG
 	}, nil
 }
 
-// mergeMetadata merges tags, actors, view counts, studio, markers, and interactions
-// from other scenes into the best scene
-func (ds *DuplicateService) mergeMetadata(bestSceneID uint, otherSceneIDs []uint) error {
+// mergeMetadata merges tags, actors, studio, source URL, markers and interactions from other
+// scenes into the best scene. group gives the matching segments the markers are shifted with.
+func (ds *DuplicateService) mergeMetadata(group *data.DuplicateGroup, bestSceneID uint, otherSceneIDs []uint) (MarkerMergeSummary, error) {
+	var markers MarkerMergeSummary
 	// Merge tags.
 	if ds.tagRepo != nil {
 		bestTags, err := ds.tagRepo.GetSceneTags(bestSceneID)
 		if err != nil {
-			return fmt.Errorf("failed to get tags for scene %d: %w", bestSceneID, err)
+			return markers, fmt.Errorf("failed to get tags for scene %d: %w", bestSceneID, err)
 		}
 		bestTagIDs := make(map[uint]bool)
 		for _, tag := range bestTags {
@@ -667,7 +698,7 @@ func (ds *DuplicateService) mergeMetadata(bestSceneID uint, otherSceneIDs []uint
 		for _, sid := range otherSceneIDs {
 			tags, err := ds.tagRepo.GetSceneTags(sid)
 			if err != nil {
-				return fmt.Errorf("failed to get tags for scene %d: %w", sid, err)
+				return markers, fmt.Errorf("failed to get tags for scene %d: %w", sid, err)
 			}
 			var newTagIDs []uint
 			for _, tag := range tags {
@@ -678,7 +709,7 @@ func (ds *DuplicateService) mergeMetadata(bestSceneID uint, otherSceneIDs []uint
 			}
 			if len(newTagIDs) > 0 {
 				if err := ds.tagRepo.BulkAddTagsToScenes([]uint{bestSceneID}, newTagIDs); err != nil {
-					return fmt.Errorf("failed to merge tags from scene %d: %w", sid, err)
+					return markers, fmt.Errorf("failed to merge tags from scene %d: %w", sid, err)
 				}
 			}
 		}
@@ -688,7 +719,7 @@ func (ds *DuplicateService) mergeMetadata(bestSceneID uint, otherSceneIDs []uint
 	if ds.actorRepo != nil {
 		bestActors, err := ds.actorRepo.GetSceneActors(bestSceneID)
 		if err != nil {
-			return fmt.Errorf("failed to get actors for scene %d: %w", bestSceneID, err)
+			return markers, fmt.Errorf("failed to get actors for scene %d: %w", bestSceneID, err)
 		}
 		bestActorIDs := make(map[uint]bool)
 		for _, actor := range bestActors {
@@ -697,7 +728,7 @@ func (ds *DuplicateService) mergeMetadata(bestSceneID uint, otherSceneIDs []uint
 		for _, sid := range otherSceneIDs {
 			actors, err := ds.actorRepo.GetSceneActors(sid)
 			if err != nil {
-				return fmt.Errorf("failed to get actors for scene %d: %w", sid, err)
+				return markers, fmt.Errorf("failed to get actors for scene %d: %w", sid, err)
 			}
 			var newActorIDs []uint
 			for _, actor := range actors {
@@ -708,7 +739,7 @@ func (ds *DuplicateService) mergeMetadata(bestSceneID uint, otherSceneIDs []uint
 			}
 			if len(newActorIDs) > 0 {
 				if err := ds.actorRepo.BulkAddActorsToScenes([]uint{bestSceneID}, newActorIDs); err != nil {
-					return fmt.Errorf("failed to merge actors from scene %d: %w", sid, err)
+					return markers, fmt.Errorf("failed to merge actors from scene %d: %w", sid, err)
 				}
 			}
 		}
@@ -718,7 +749,7 @@ func (ds *DuplicateService) mergeMetadata(bestSceneID uint, otherSceneIDs []uint
 	allIDs := append([]uint{bestSceneID}, otherSceneIDs...)
 	scenes, err := ds.sceneRepo.GetByIDsIncludingTrashed(allIDs)
 	if err != nil {
-		return fmt.Errorf("failed to fetch scenes for metadata merge: %w", err)
+		return markers, fmt.Errorf("failed to fetch scenes for metadata merge: %w", err)
 	}
 	sceneMap := make(map[uint]data.Scene, len(scenes))
 	for _, scene := range scenes {
@@ -726,11 +757,11 @@ func (ds *DuplicateService) mergeMetadata(bestSceneID uint, otherSceneIDs []uint
 	}
 	bestScene, ok := sceneMap[bestSceneID]
 	if !ok {
-		return fmt.Errorf("best scene %d not found", bestSceneID)
+		return markers, fmt.Errorf("best scene %d not found", bestSceneID)
 	}
 	for _, sid := range otherSceneIDs {
 		if _, ok := sceneMap[sid]; !ok {
-			return fmt.Errorf("source scene %d not found", sid)
+			return markers, fmt.Errorf("source scene %d not found", sid)
 		}
 	}
 	if bestScene.StudioID == nil {
@@ -738,7 +769,7 @@ func (ds *DuplicateService) mergeMetadata(bestSceneID uint, otherSceneIDs []uint
 			other := sceneMap[sid]
 			if other.StudioID != nil {
 				if err := ds.sceneRepo.UpdateSceneMetadata(bestSceneID, bestScene.Title, bestScene.Description, other.Studio, bestScene.ReleaseDate, bestScene.PornDBSceneID); err != nil {
-					return fmt.Errorf("failed to copy studio from scene %d: %w", sid, err)
+					return markers, fmt.Errorf("failed to copy studio from scene %d: %w", sid, err)
 				}
 				break
 			}
@@ -749,24 +780,21 @@ func (ds *DuplicateService) mergeMetadata(bestSceneID uint, otherSceneIDs []uint
 		for _, sid := range otherSceneIDs {
 			if other := sceneMap[sid]; other.SourceURL != "" {
 				if err := ds.sceneRepo.UpdateSourceURL(bestSceneID, other.SourceURL); err != nil {
-					return fmt.Errorf("failed to copy source url from scene %d: %w", sid, err)
+					return markers, fmt.Errorf("failed to copy source url from scene %d: %w", sid, err)
 				}
 				break
 			}
 		}
 	}
 
-	if ds.markerRepo != nil {
-		for _, sid := range otherSceneIDs {
-			if err := ds.markerRepo.ReassignMarkersToScene(sid, bestSceneID); err != nil {
-				return fmt.Errorf("failed to reassign markers from scene %d: %w", sid, err)
-			}
-		}
+	markers, err = ds.mergeMarkers(group, bestSceneID, otherSceneIDs, sceneMap)
+	if err != nil {
+		return markers, err
 	}
 	if ds.interactionRepo != nil {
 		for _, sid := range otherSceneIDs {
 			if err := ds.interactionRepo.ReassignInteractionsToScene(sid, bestSceneID); err != nil {
-				return fmt.Errorf("failed to reassign interactions from scene %d: %w", sid, err)
+				return markers, fmt.Errorf("failed to reassign interactions from scene %d: %w", sid, err)
 			}
 		}
 	}
@@ -774,6 +802,81 @@ func (ds *DuplicateService) mergeMetadata(bestSceneID uint, otherSceneIDs []uint
 	ds.logger.Info("Merged metadata into best scene",
 		zap.Uint("best_scene_id", bestSceneID),
 		zap.Int("source_count", len(otherSceneIDs)),
+		zap.Int("markers_moved", markers.Moved),
+		zap.Int("markers_left_behind", markers.LeftBehind),
 	)
-	return nil
+	return markers, nil
+}
+
+// mergeMarkers moves every user's markers of the other scenes to the kept one, their times
+// shifted by the offset between the scenes (markerShift.place). Markers that can't be placed
+// stay on their (trashed) scene, so restoring it brings them back: they are counted and
+// logged. Marker tags follow their marker. Then the duplicates this creates on the kept scene
+// are folded, and the moved markers whose time changed get a new thumbnail.
+func (ds *DuplicateService) mergeMarkers(group *data.DuplicateGroup, keptID uint, otherIDs []uint, scenes map[uint]data.Scene) (MarkerMergeSummary, error) {
+	var summary MarkerMergeSummary
+	if ds.markerRepo == nil {
+		return summary, nil
+	}
+	var moves []data.MarkerMove
+	var retimed []uint
+	for _, sid := range otherIDs {
+		markers, err := ds.markerRepo.GetAllByScene(sid)
+		if err != nil {
+			return summary, fmt.Errorf("failed to get markers of scene %d: %w", sid, err)
+		}
+		if len(markers) == 0 {
+			continue
+		}
+		shift := markerShiftBetween(group, keptID, sid, scenes)
+		var leftIDs []uint
+		var leftLabels, reasons []string
+		for _, m := range markers {
+			p := shift.place(m.Timestamp, m.EndTimestamp)
+			if !p.keep {
+				leftIDs = append(leftIDs, m.ID)
+				leftLabels = append(leftLabels, m.Label)
+				reasons = append(reasons, p.reason)
+				continue
+			}
+			moves = append(moves, data.MarkerMove{ID: m.ID, SceneID: keptID, Timestamp: p.timestamp, EndTimestamp: p.end})
+			if p.shifted {
+				summary.Shifted++
+			}
+			if p.timestamp != m.Timestamp {
+				retimed = append(retimed, m.ID)
+			}
+		}
+		if len(leftIDs) > 0 {
+			summary.LeftBehind += len(leftIDs)
+			ds.logger.Info("Markers left on the trashed duplicate, they can't be placed in the kept scene",
+				zap.Uint("trashed_scene_id", sid),
+				zap.Uint("kept_scene_id", keptID),
+				zap.Uints("marker_ids", leftIDs),
+				zap.Strings("labels", leftLabels),
+				zap.Strings("reasons", reasons),
+			)
+		}
+	}
+	if len(moves) == 0 {
+		return summary, nil
+	}
+	if err := ds.markerRepo.MoveMarkers(moves); err != nil {
+		return summary, fmt.Errorf("failed to move markers to scene %d: %w", keptID, err)
+	}
+	summary.Moved = len(moves)
+
+	if ds.markerHelper != nil {
+		// Folding duplicates is a cleanup: on failure they stay, for the maintenance action
+		dedup, err := ds.markerHelper.DeduplicateMarkers([]uint{keptID}, false)
+		if err != nil {
+			ds.logger.Warn("Failed to deduplicate markers of the kept scene", zap.Uint("scene_id", keptID), zap.Error(err))
+		} else if dedup != nil {
+			summary.Deduplicated = dedup.Removed
+		}
+		if len(retimed) > 0 {
+			ds.markerHelper.QueueMarkerThumbnails(retimed)
+		}
+	}
+	return summary, nil
 }

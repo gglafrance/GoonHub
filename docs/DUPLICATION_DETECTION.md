@@ -670,9 +670,31 @@ type DuplicateService struct {
    - Collect all unique tags from all duplicate scenes.
    - Collect all unique actors from all duplicate scenes.
    - Add any missing tags/actors to the best scene.
+   - Move every user's markers to the best scene, shifted by the offset between the scenes (see
+     "Marker merge" below), then fold the duplicate markers this creates.
 3. Update `is_best` flags on all members.
 4. Move all non-best scenes to trash via `sceneRepo.MoveToTrash()`.
 5. Set group status to `"resolved"` with a `resolved_at` timestamp.
+
+**Marker merge** (`core/marker_merge.go`, `DuplicateService.mergeMarkers`): a time `t` in a
+trashed scene becomes `t - other_start + this_start` in the kept scene, using the segment mapped
+between both scenes by `similarMatch` (direct, inverted, or through a shared reference):
+
+- no segment: identical pairs (the pair's relation, or every member of the group identical) keep
+  the same times; other pairs can't place their markers;
+- start inside the matching part (1 s tolerance at the edges): shifted, an end past the matching
+  part clamped to it (to the kept scene's duration for identical pairs);
+- start outside: kept only for identical pairs, when the shifted time is inside the kept scene.
+
+Markers that can't be placed stay on the trashed scene (restoring it brings them back): they
+are counted (`left_behind`) and logged with their IDs and labels. Marker tags follow their
+marker; moved markers whose time changed get new thumbnails. Then the kept scene's markers are
+deduplicated per user (`planMarkerDedup`): same label (case and spacing aside, or one without
+label) and starts at most 2 s apart (`markerDuplicateToleranceSeconds`). The one with an end,
+else with more tags, else the earliest created, is kept with the tags of the others (and their
+label when it has none); the others are deleted. A failing deduplication is logged and does
+not fail the resolution. The response of the resolve endpoints carries
+`markers: {moved, shifted, deduplicated, left_behind}`.
 
 Every metadata, best-member, and trash operation must succeed before resolution is reported. A failure returns an error without marking the group resolved, so the operation can be retried. Earlier successful operations may already have been applied; metadata merging and trash updates support retry.
 
@@ -802,7 +824,8 @@ All endpoints are admin-only (require RBAC admin role), registered under `/api/v
 | GET | `/duplicates/config` | `GetConfig` | Returns current matching thresholds (defaults if no DB record). |
 | PUT | `/duplicates/config` | `UpdateConfig` | Updates matching thresholds. Body: `DuplicationConfigResponse`. |
 | GET | `/duplicates/:id` | `GetGroup` | Single group with full member scene details. |
-| POST | `/duplicates/:id/resolve` | `ResolveGroup` | Body: `{best_scene_id: uint, merge_metadata: bool}`. Keeps best, trashes others. |
+| POST | `/duplicates/:id/resolve` | `ResolveGroup` | Body: `{best_scene_id: uint, merge_metadata: bool}`. Keeps best, trashes others. Returns `{message, markers: {moved, shifted, deduplicated, left_behind}}`. |
+| POST | `/markers/deduplicate` | `MarkerHandler.DeduplicateMarkers` | Body: `{scene_ids: uint[]}` or `{all: true}`, `dry_run` (default true). Folds duplicate markers (e.g. left by earlier merges); returns `{dry_run, scenes_scanned, scenes, groups, removed, merges[], truncated}`. |
 | POST | `/duplicates/:id/dismiss` | `DismissGroup` | Sets status to "dismissed". |
 | PUT | `/duplicates/:id/best` | `SetBest` | Body: `{scene_id: uint}`. Changes best variant. |
 

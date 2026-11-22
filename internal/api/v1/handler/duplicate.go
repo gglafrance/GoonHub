@@ -292,12 +292,14 @@ func (h *DuplicateHandler) ResolveGroup(c *gin.Context) {
 		return
 	}
 
-	if err := h.duplicateService.ResolveGroup(uint(id), req.BestSceneID, req.MergeMetadata); err != nil {
+	result, err := h.duplicateService.ResolveGroup(uint(id), req.BestSceneID, req.MergeMetadata)
+	if err != nil {
 		response.InternalError(c, "Failed to resolve group: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Group resolved"})
+	// markers: moved / shifted / deduplicated / left_behind (zero without merge_metadata)
+	c.JSON(http.StatusOK, gin.H{"message": "Group resolved", "markers": result.Markers})
 }
 
 // DismissGroup dismisses a duplicate group
