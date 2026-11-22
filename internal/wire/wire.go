@@ -691,7 +691,16 @@ func provideStreamManager(cfg *config.Config, sceneRepo data.SceneRepository, lo
 }
 
 func provideTranscoder(cfg *config.Config, appSettingsRepo data.AppSettingsRepository, logger *logging.Logger) *streaming.Transcoder {
-	return streaming.NewTranscoder(cfg.Streaming.Transcode, appSettingsRepo, logger.Logger)
+	transcoder := streaming.NewTranscoder(cfg.Streaming.Transcode, appSettingsRepo, logger.Logger)
+	cache, err := streaming.NewTranscodeCache(cfg.Streaming.Transcode.Cache, logger.Logger)
+	if err != nil {
+		// Conversions still work, each one running ffmpeg as before
+		logger.Error(fmt.Sprintf("transcode cache disabled: %v", err))
+	} else if cache != nil {
+		transcoder.SetCache(cache)
+		cache.Start()
+	}
+	return transcoder
 }
 
 // ============================================================================

@@ -226,6 +226,8 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					admin.PUT("/trigger-config", triggerConfigHandler.UpdateTriggerConfig)
 					admin.POST("/scenes/:id/process/:phase", jobHandler.TriggerPhase)
 					admin.PUT("/scenes/:id/scene-metadata", sceneHandler.ApplySceneMetadata)
+					admin.GET("/transcode-cache", sceneHandler.GetTranscodeCache)
+					admin.DELETE("/transcode-cache", sceneHandler.ClearTranscodeCache)
 					admin.POST("/jobs/bulk", jobHandler.TriggerBulkPhase)
 					admin.POST("/jobs/retry-all-failed", jobHandler.RetryAllFailed)
 					admin.POST("/jobs/retry-batch", jobHandler.RetryBatch)
