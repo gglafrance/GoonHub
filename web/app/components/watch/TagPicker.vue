@@ -58,6 +58,22 @@ const filteredTags = computed(() => {
 
 const dropdownStyle = ref<{ top: string; left: string }>({ top: '0px', left: '0px' });
 const dropdownRef = ref<HTMLElement | null>(null);
+const searchInputRef = ref<HTMLInputElement | null>(null);
+
+// Keyboard: Enter adds the first tag that matches, Escape closes
+function onSearchKeydown(event: KeyboardEvent) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        const first = filteredTags.value[0];
+        if (first) {
+            emit('select', first.id);
+            searchQuery.value = ''; // the picker stays open: ready for the next tag
+        }
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        emit('close');
+    }
+}
 let clickTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function updatePosition() {
@@ -86,6 +102,8 @@ watch(
     (open) => {
         if (open) {
             updatePosition();
+            // ready to type: the search field gets the focus as the picker opens
+            nextTick(() => searchInputRef.value?.focus());
             clickTimeout = setTimeout(() => document.addEventListener('click', onClickOutside), 0);
             window.addEventListener('scroll', updatePosition, true);
         } else {
@@ -121,12 +139,14 @@ onBeforeUnmount(() => {
             <!-- Search + Sort header -->
             <div class="border-border/50 flex items-center gap-1 border-b px-2 py-1.5">
                 <input
+                    ref="searchInputRef"
                     v-model="searchQuery"
                     type="text"
                     placeholder="Search tags..."
                     class="min-w-0 flex-1 bg-transparent text-[11px] text-white/80
                         placeholder-white/30 outline-none"
                     @click.stop
+                    @keydown="onSearchKeydown"
                 />
                 <button
                     class="text-dim shrink-0 rounded px-1.5 py-0.5 text-[9px] transition-colors
