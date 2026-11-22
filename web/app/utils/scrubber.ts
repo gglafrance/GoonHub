@@ -2,6 +2,8 @@
 // and composables/useScrubberScroll.ts). They take plain numbers so that they can be unit tested
 // without a DOM (web/tests/scrubber.test.ts).
 
+import type { ScrubberMode } from '~/types/settings';
+
 // Height of a thumbnail of the strip, in CSS pixels (the width follows the sprite aspect ratio)
 export const SCRUBBER_TILE_HEIGHT = 64;
 // Thumbnails rendered on each side of the visible ones
@@ -247,4 +249,102 @@ export function layoutChips(
 // Estimated width of a marker chip with this label (no DOM measuring), in px.
 export function markerChipWidth(label: string, maxWidth = 140): number {
     return Math.min(maxWidth, 18 + Math.max(1, label.length) * 5.6);
+}
+
+// ---- Centered mode (like Stash): the centre line of the strip is the playback position, and
+// moving the strip seeks the video. Offsets are in content pixels, as for timeToOffset.
+
+// Seeks of a drag closer than this to the previous one are skipped (s)
+export const SCRUBBER_SEEK_MIN_DELTA = 0.02;
+// A seek that has not finished after this long does not hold the next one back (ms)
+export const SCRUBBER_SEEK_MAX_WAIT_MS = 250;
+// Moving the strip stops this far before the end of the scene, so that a drag does not end it (s)
+export const SCRUBBER_END_MARGIN = 0.1;
+// A wheel scroll is over once no wheel event came for this long: the precise seek follows (ms)
+export const SCRUBBER_WHEEL_IDLE_MS = 180;
+
+export function normalizeScrubberMode(mode: unknown): ScrubberMode {
+    return mode === 'centered' ? 'centered' : 'free';
+}
+
+// Centre offset clamped to the strip content: from the start of the first thumbnail to the end
+// of the last one.
+export function clampCenterOffset(offset: number, contentWidth: number): number {
+    if (!Number.isFinite(offset)) return 0;
+    return clamp(offset, 0, Math.max(0, contentWidth));
+}
+
+// Translation of the content that puts `offset` under the centre line of a view `viewWidth` wide.
+export function centeredTranslate(offset: number, viewWidth: number): number {
+    return Math.max(0, viewWidth) / 2 - offset;
+}
+
+// Left edge, in content pixels, of the visible part of the content (negative before the start
+// of the strip), for visibleTileRange.
+export function centeredViewLeft(offset: number, viewWidth: number): number {
+    return offset - Math.max(0, viewWidth) / 2;
+}
+
+// Centre offset while dragging: the content follows the pointer (moving it right goes back in
+// time), clamped to the content.
+export function dragCenterOffset(
+    startOffset: number,
+    startX: number,
+    x: number,
+    contentWidth: number,
+): number {
+    return clampCenterOffset(startOffset - (x - startX), contentWidth);
+}
+
+// Scene time under the centre line: the linear time/position mapping of the thumbnails, kept
+// inside the scene (0 to a hair before the end; a duration of 0 is unknown: the cues bound it).
+export function centerTime(
+    cues: readonly ScrubberCue[],
+    offset: number,
+    tileWidth: number,
+    duration: number,
+    endMargin = SCRUBBER_END_MARGIN,
+): number {
+    const time = offsetToTime(cues, clampCenterOffset(offset, cues.length * tileWidth), tileWidth);
+    const max = duration > 0 ? Math.max(0, duration - endMargin) : Infinity;
+    return clamp(time, 0, max);
+}
+
+// Centre offset showing `time` (inverse of centerTime).
+export function centerOffsetForTime(
+    cues: readonly ScrubberCue[],
+    time: number,
+    tileWidth: number,
+): number {
+    return clampCenterOffset(timeToOffset(cues, time, tileWidth), cues.length * tileWidth);
+}
+
+// Whether a drag sends a seek to `target` now: not when it is (almost) where the last seek went,
+// and not while the previous seek is still running (the frames would pile up), unless that one
+// has been running for too long. lastIssued is NaN when nothing was sent yet.
+export function shouldIssueSeek(
+    target: number,
+    lastIssued: number,
+    seeking: boolean,
+    sinceLastIssueMs: number,
+    minDelta = SCRUBBER_SEEK_MIN_DELTA,
+    maxWaitMs = SCRUBBER_SEEK_MAX_WAIT_MS,
+): boolean {
+    if (!Number.isFinite(target)) return false;
+    if (Number.isFinite(lastIssued) && Math.abs(target - lastIssued) < minDelta) return false;
+    return !seeking || sinceLastIssueMs >= maxWaitMs;
+}
+
+// Whether the end of a drag still needs a precise seek: the last seek was a fast (keyframe)
+// one, went somewhere else, or there was none.
+export function needsFinalSeek(target: number, lastIssued: number, lastWasFast: boolean): boolean {
+    if (!Number.isFinite(target)) return false;
+    return lastWasFast || !Number.isFinite(lastIssued) || Math.abs(target - lastIssued) > 1e-3;
+}
+
+// Clock of the centre line: m:ss.t (tenths), or h:mm:ss.t from one hour.
+export function formatScrubberPreciseTime(seconds: number): string {
+    const value = Math.max(0, Number.isFinite(seconds) ? seconds : 0);
+    const tenths = Math.floor(value * 10) % 10;
+    return `${formatScrubberTime(value)}.${tenths}`;
 }

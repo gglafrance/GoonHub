@@ -507,6 +507,7 @@ definePageMeta({
                             :cues="playerRef?.vttCues ?? []"
                             :markers="markers"
                             :has-sprites="!!scene.vtt_path"
+                            :direct-stream="!playerRef?.transcodeActive"
                             @seek="showResumePrompt = false"
                             @play-marker="handlePlayMarker"
                             @hide="settingsStore.setShowScrubber(false)"

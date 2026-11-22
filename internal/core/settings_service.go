@@ -434,6 +434,31 @@ func WithScrubber(show *bool) SettingsOption {
 	}
 }
 
+// Modes of the thumbnail scrubber strip: free scrolls on its own (click to seek, follows
+// playback), centered keeps the playback position under the centre line and seeks when the
+// strip is moved (like Stash).
+const (
+	ScrubberModeFree     = "free"
+	ScrubberModeCentered = "centered"
+)
+
+var allowedScrubberModes = map[string]bool{ScrubberModeFree: true, ScrubberModeCentered: true}
+
+// WithScrubberMode sets the mode of the thumbnail scrubber strip; nil keeps the current value
+// (free for a new row).
+func WithScrubberMode(mode *string) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if mode == nil {
+			return nil
+		}
+		if !allowedScrubberModes[*mode] {
+			return fmt.Errorf("invalid scrubber mode: %q", *mode)
+		}
+		settings.ScrubberMode = *mode
+		return nil
+	}
+}
+
 // WithPaginationPosition sets where page controls are shown (top, bottom or both; empty means
 // bottom).
 func WithPaginationPosition(position string) SettingsOption {
@@ -838,6 +863,7 @@ func defaultUserSettings(userID uint) *data.UserSettings {
 		PaginationPosition:     "bottom",
 		DateFormat:             DefaultDateFormat,
 		GridDensity:            DefaultGridDensity,
+		ScrubberMode:           ScrubberModeFree,
 		PlayerGestures:         true,
 		GestureSeekStep:        DefaultGestureSeekStep,
 		ShowReplayHeatmap:      true,

@@ -49,6 +49,7 @@ type PatchSettingsRequest struct {
 	InfiniteScroll           *bool                         `json:"infinite_scroll"`
 	SceneListView            *SceneListViewRequest         `json:"scene_list_view"`
 	ShowScrubber             *bool                         `json:"show_scrubber"`
+	ScrubberMode             *string                       `json:"scrubber_mode"`
 }
 
 // requiredKeys lists the keys a nested object must contain, and the requirements of its own

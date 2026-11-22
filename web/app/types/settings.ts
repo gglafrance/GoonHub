@@ -37,6 +37,9 @@ export interface SceneListView {
 export type PaginationPosition = 'top' | 'bottom' | 'both';
 // Card size of the scene grids (and actor/studio grids)
 export type GridDensity = 'compact' | 'comfortable' | 'large';
+// Thumbnail scrubber: free (scrolls on its own, click to seek) or centered (like Stash: the centre
+// line is the playback position, dragging or wheeling the strip seeks the video)
+export type ScrubberMode = 'free' | 'centered';
 export type { DateFormat };
 
 export interface UserSettings {
@@ -70,6 +73,7 @@ export interface UserSettings {
     grid_density: GridDensity;
     infinite_scroll: boolean;
     show_scrubber: boolean;
+    scrubber_mode: ScrubberMode;
     max_items_per_page: number;
     created_at: string;
     updated_at: string;

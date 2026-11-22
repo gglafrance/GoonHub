@@ -72,6 +72,7 @@ func existingSettings() *data.UserSettings {
 		InfiniteScroll:           true,
 		SceneListView:            data.DefaultSceneListView(),
 		ShowScrubber:             true,
+		ScrubberMode:             "free",
 	}
 }
 
@@ -158,6 +159,7 @@ func TestPatchSettings_EveryField(t *testing.T) {
 				return s.SceneListView.Pages["actor"] == "table" && len(s.SceneListView.Columns) == 2
 			}},
 		{`{"show_scrubber": false}`, func(s *data.UserSettings) bool { return !s.ShowScrubber }},
+		{`{"scrubber_mode": "centered"}`, func(s *data.UserSettings) bool { return s.ScrubberMode == "centered" && s.ShowScrubber }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.body, func(t *testing.T) {
@@ -200,6 +202,9 @@ func TestPatchSettings_Rejected(t *testing.T) {
 		{"date format", `{"date_format": "YYYY"}`},
 		{"gesture step", `{"gesture_seek_step": 0}`},
 		{"grid density", `{"grid_density": "tiny"}`},
+		{"scrubber mode", `{"scrubber_mode": "stash"}`},
+		{"empty scrubber mode", `{"scrubber_mode": ""}`},
+		{"scrubber mode as bool", `{"scrubber_mode": true}`},
 		{"scene list view", `{"scene_list_view": {"pages": {"search": "mosaic"}, "columns": []}}`},
 		{"incomplete nested", `{"sort_preferences": {"actors": "name_desc"}}`},
 		{"homepage section type", `{"homepage_config": {"show_upload": true, "tabs": [{"id": "a", "name": "A", "sections": [{"id": "s", "type": "bogus", "title": "T", "limit": 5}]}], "default_tab_id": "a", "open_on": "last"}}`},
@@ -282,7 +287,7 @@ func TestUpdateAllSettings_PutUnchanged(t *testing.T) {
 			t.Fatalf("full body not applied: %+v", saved)
 		}
 		// Optional fields of PUT left out keep their value
-		if !saved.ShowScrubber || !saved.InfiniteScroll || saved.GestureSeekStep != 15 || !saved.PlayerGestures {
+		if !saved.ShowScrubber || !saved.InfiniteScroll || saved.GestureSeekStep != 15 || !saved.PlayerGestures || saved.ScrubberMode != "free" {
 			t.Fatalf("optional fields reset: %+v", saved)
 		}
 	})
@@ -307,6 +312,36 @@ func TestUpdateAllSettings_PutUnchanged(t *testing.T) {
 		w := doSettingsRequest(r, http.MethodPut, strings.Replace(fullPutBody, `"autoplay": true`, `"autoplay": true, "colour": "red"`, 1))
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+}
+
+// scrubber_mode through PUT: set when sent, kept when left out (fullPutBody), validated.
+func TestUpdateAllSettings_ScrubberMode(t *testing.T) {
+	withMode := func(mode string) string {
+		return strings.Replace(fullPutBody, `"grid_density": "comfortable"`, `"grid_density": "comfortable", "scrubber_mode": `+mode, 1)
+	}
+	t.Run("set", func(t *testing.T) {
+		r, settingsRepo := newSettingsTestRouter(t)
+		settingsRepo.EXPECT().GetByUserID(uint(1)).Return(existingSettings(), nil)
+		var saved *data.UserSettings
+		settingsRepo.EXPECT().Upsert(gomock.Any()).DoAndReturn(func(s *data.UserSettings) error {
+			saved = s
+			return nil
+		})
+		w := doSettingsRequest(r, http.MethodPut, withMode(`"centered"`))
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		if saved.ScrubberMode != "centered" || !strings.Contains(w.Body.String(), `"scrubber_mode":"centered"`) {
+			t.Fatalf("mode not applied: %+v / %s", saved, w.Body.String())
+		}
+	})
+	t.Run("invalid", func(t *testing.T) {
+		r, _ := newSettingsTestRouter(t)
+		w := doSettingsRequest(r, http.MethodPut, withMode(`"stash"`))
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 		}
 	})
 }
