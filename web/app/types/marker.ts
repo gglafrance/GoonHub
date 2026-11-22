@@ -68,6 +68,8 @@ export interface MarkerLabelGroup {
     count: number;
     thumbnail_marker_id: number;
     thumbnail_marker_ids: number[];
+    // Thumbnail version (Unix ms) of each marker of thumbnail_marker_ids, by marker ID
+    thumbnail_versions?: Record<number, number>;
 }
 
 export interface MarkerWithScene extends Marker {
