@@ -523,3 +523,32 @@ func TestBulkUpdateStudio_ClearStudio(t *testing.T) {
 		t.Fatalf("expected 1 updated, got %d", updated)
 	}
 }
+
+// =============================================================================
+// GetScenesMatchInfo Tests
+// =============================================================================
+
+func TestGetScenesMatchInfo_IncludesSize(t *testing.T) {
+	svc, _, _, sceneRepo, _, actorRepo, _ := newTestExplorerService(t)
+
+	ids := []uint{1, 2}
+	sceneRepo.EXPECT().GetByIDs(ids).Return([]data.Scene{
+		{ID: 1, Title: "A", Size: 1_500_000_000},
+		{ID: 2, Title: "B"}, // size unknown
+	}, nil)
+	actorRepo.EXPECT().GetSceneActorsMultiple(ids).Return(map[uint][]data.Actor{}, nil)
+
+	infos, err := svc.GetScenesMatchInfo(ids)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if len(infos) != 2 {
+		t.Fatalf("expected 2 scenes, got %d", len(infos))
+	}
+	if infos[0].Size != 1_500_000_000 {
+		t.Fatalf("expected size 1500000000 for scene 1, got %d", infos[0].Size)
+	}
+	if infos[1].Size != 0 {
+		t.Fatalf("expected size 0 for scene 2, got %d", infos[1].Size)
+	}
+}

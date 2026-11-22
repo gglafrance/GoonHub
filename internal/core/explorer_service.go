@@ -622,6 +622,8 @@ type SceneMatchInfo struct {
 	Studio           *string  `json:"studio"`
 	ThumbnailPath    string   `json:"thumbnail_path"`
 	Duration         int      `json:"duration"`
+	// Size is the file size in bytes (0 when unknown), summed by the bulk toolbar
+	Size int64 `json:"size"`
 }
 
 // GetScenesMatchInfo returns minimal scene data needed for bulk PornDB matching
@@ -674,6 +676,7 @@ func (s *ExplorerService) GetScenesMatchInfo(sceneIDs []uint) ([]SceneMatchInfo,
 			Studio:           studio,
 			ThumbnailPath:    scene.ThumbnailPath,
 			Duration:         scene.Duration,
+			Size:             scene.Size,
 		})
 	}
 
