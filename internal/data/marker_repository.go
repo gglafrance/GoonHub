@@ -2,6 +2,7 @@ package data
 
 import (
 	"strconv"
+	"time"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -13,7 +14,8 @@ type MarkerRepository interface {
 	GetByUserAndScene(userID, sceneID uint) ([]UserSceneMarker, error)
 	CountByUserAndScene(userID, sceneID uint) (int64, error)
 	Update(marker *UserSceneMarker) error
-	// UpdateThumbnailPath / UpdateAnimatedThumbnailPath set only that column
+	// UpdateThumbnailPath / UpdateAnimatedThumbnailPath set only that column (and updated_at,
+	// which versions the thumbnail URLs)
 	UpdateThumbnailPath(id uint, path string) error
 	UpdateAnimatedThumbnailPath(id uint, path string) error
 	Delete(id uint) error
@@ -36,7 +38,7 @@ type MarkerRepository interface {
 	GetMarkerIDsByLabel(userID uint, label string) ([]uint, error)
 
 	// Thumbnail methods
-	GetRandomThumbnailsForLabels(userID uint, labels []string, perLabel int, opts MarkerListOptions) (map[string][]uint, error)
+	GetRandomThumbnailsForLabels(userID uint, labels []string, perLabel int, opts MarkerListOptions) (map[string][]MarkerThumbnailRef, error)
 	// GetByUserAndScenes returns the user's markers of several scenes, ordered by timestamp.
 	GetByUserAndScenes(userID uint, sceneIDs []uint) ([]UserSceneMarker, error)
 
@@ -102,11 +104,18 @@ func (r *MarkerRepositoryImpl) Update(marker *UserSceneMarker) error {
 }
 
 func (r *MarkerRepositoryImpl) UpdateThumbnailPath(id uint, path string) error {
-	return r.DB.Model(&UserSceneMarker{}).Where("id = ?", id).Update("thumbnail_path", path).Error
+	return r.updateThumbnailColumn(id, "thumbnail_path", path)
 }
 
 func (r *MarkerRepositoryImpl) UpdateAnimatedThumbnailPath(id uint, path string) error {
-	return r.DB.Model(&UserSceneMarker{}).Where("id = ?", id).Update("animated_thumbnail_path", path).Error
+	return r.updateThumbnailColumn(id, "animated_thumbnail_path", path)
+}
+
+// updateThumbnailColumn sets a thumbnail path and bumps updated_at explicitly: the thumbnail
+// URLs are versioned by updated_at, and the file is rewritten under the same name.
+func (r *MarkerRepositoryImpl) updateThumbnailColumn(id uint, column, path string) error {
+	return r.DB.Model(&UserSceneMarker{}).Where("id = ?", id).
+		Updates(map[string]any{column: path, "updated_at": time.Now()}).Error
 }
 
 func (r *MarkerRepositoryImpl) Delete(id uint) error {
@@ -657,14 +666,15 @@ func (r *MarkerRepositoryImpl) GetMarkerIDsByLabel(userID uint, label string) ([
 }
 
 // GetRandomThumbnailsForLabels returns random marker IDs with thumbnails for each label
-func (r *MarkerRepositoryImpl) GetRandomThumbnailsForLabels(userID uint, labels []string, perLabel int, opts MarkerListOptions) (map[string][]uint, error) {
+func (r *MarkerRepositoryImpl) GetRandomThumbnailsForLabels(userID uint, labels []string, perLabel int, opts MarkerListOptions) (map[string][]MarkerThumbnailRef, error) {
 	if len(labels) == 0 {
-		return make(map[string][]uint), nil
+		return make(map[string][]MarkerThumbnailRef), nil
 	}
 
 	type result struct {
-		Label string
-		ID    uint
+		Label     string
+		ID        uint
+		UpdatedAt time.Time
 	}
 
 	filter, filterArgs := markerFilterSQL(opts, "um", false)
@@ -673,8 +683,8 @@ func (r *MarkerRepositoryImpl) GetRandomThumbnailsForLabels(userID uint, labels 
 
 	var results []result
 	err := r.DB.Raw(`
-		SELECT label, id FROM (
-			SELECT um.label, um.id, ROW_NUMBER() OVER (PARTITION BY um.label ORDER BY RANDOM()) as rn
+		SELECT label, id, updated_at FROM (
+			SELECT um.label, um.id, um.updated_at, ROW_NUMBER() OVER (PARTITION BY um.label ORDER BY RANDOM()) as rn
 			FROM user_scene_markers um
 			WHERE um.user_id = ? AND um.label IN ? AND um.thumbnail_path != '' AND um.thumbnail_path IS NOT NULL`+filter+`
 		) sub WHERE rn <= ?
@@ -683,9 +693,9 @@ func (r *MarkerRepositoryImpl) GetRandomThumbnailsForLabels(userID uint, labels 
 		return nil, err
 	}
 
-	thumbnails := make(map[string][]uint)
+	thumbnails := make(map[string][]MarkerThumbnailRef)
 	for _, r := range results {
-		thumbnails[r.Label] = append(thumbnails[r.Label], r.ID)
+		thumbnails[r.Label] = append(thumbnails[r.Label], MarkerThumbnailRef{ID: r.ID, UpdatedAt: r.UpdatedAt})
 	}
 
 	return thumbnails, nil

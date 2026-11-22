@@ -493,8 +493,9 @@ func TestMergeMetadata_Studio(t *testing.T) {
 func TestAutoSelectBest_SkipsTrashedAndResolved(t *testing.T) {
 	svc, groupRepo, sceneRepo, _, _, _, _ := newTestDuplicateService(t)
 	trashedAt := time.Now()
+	identical := data.DuplicateRelationIdentical
 	group := &data.DuplicateGroup{ID: 1, Status: "unresolved", Members: []data.DuplicateGroupMember{
-		{GroupID: 1, SceneID: 10}, {GroupID: 1, SceneID: 20}, {GroupID: 1, SceneID: 30},
+		{GroupID: 1, SceneID: 10, Relation: identical}, {GroupID: 1, SceneID: 20, Relation: identical}, {GroupID: 1, SceneID: 30, Relation: identical},
 	}}
 	resolved := &data.DuplicateGroup{ID: 2, Status: "resolved"}
 
@@ -510,12 +511,12 @@ func TestAutoSelectBest_SkipsTrashedAndResolved(t *testing.T) {
 	groupRepo.EXPECT().SetBestScene(uint(1), uint(30)).Return(nil)
 	groupRepo.EXPECT().GetByIDWithMembers(uint(2)).Return(resolved, nil)
 
-	selected, err := svc.AutoSelectBest([]uint{1, 2})
+	result, err := svc.AutoSelectBest([]uint{1, 2})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(selected) != 1 || selected[1] != 30 {
-		t.Fatalf("unexpected selection: %v", selected)
+	if len(result.Selected) != 1 || result.Selected[1] != 30 || len(result.Skipped) != 0 {
+		t.Fatalf("unexpected selection: %+v", result)
 	}
 }
 

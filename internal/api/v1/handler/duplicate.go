@@ -36,8 +36,14 @@ func (h *DuplicateHandler) ListGroups(c *gin.Context) {
 
 	status := c.Query("status")
 	sortBy := c.DefaultQuery("sort_by", "newest")
+	// kind: identical, containment, partial or unverified (empty: all groups)
+	kind := c.Query("kind")
+	if kind != "" && !core.IsValidDuplicateKind(kind) {
+		response.BadRequest(c, "kind must be one of identical, containment, partial, unverified")
+		return
+	}
 
-	groups, total, err := h.duplicateService.ListGroups(page, limit, status, sortBy)
+	groups, total, err := h.duplicateService.ListGroups(page, limit, status, kind, sortBy)
 	if err != nil {
 		response.InternalError(c, "Failed to list duplicate groups")
 		return
@@ -208,7 +214,8 @@ type bulkResolveRequest struct {
 }
 
 // AutoSelectBest marks the best variant (resolution, then duration, bitrate, smallest size)
-// in each given unresolved group.
+// in each given unresolved group. Groups whose scenes are not all identical are skipped and
+// listed in "skipped" with the reason.
 func (h *DuplicateHandler) AutoSelectBest(c *gin.Context) {
 	var req groupIDsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -219,15 +226,16 @@ func (h *DuplicateHandler) AutoSelectBest(c *gin.Context) {
 		response.BadRequest(c, "too many groups (max 500)")
 		return
 	}
-	selected, err := h.duplicateService.AutoSelectBest(req.GroupIDs)
+	result, err := h.duplicateService.AutoSelectBest(req.GroupIDs)
 	if err != nil {
 		response.InternalError(c, "Failed to auto-select best scenes: "+err.Error())
 		return
 	}
-	response.OK(c, gin.H{"selected": selected})
+	response.OK(c, result)
 }
 
 // ResolveBulk resolves several groups at once (optionally auto-selecting the best variant).
+// Groups whose scenes are not all identical are skipped and listed in "skipped".
 func (h *DuplicateHandler) ResolveBulk(c *gin.Context) {
 	var req bulkResolveRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

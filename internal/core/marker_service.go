@@ -484,10 +484,12 @@ func (s *MarkerService) GetLabelGroups(userID uint, page, limit int, opts data.M
 			s.logger.Warn("failed to get thumbnail IDs for labels", zap.Uint("userID", userID), zap.Error(err))
 		} else {
 			for i := range groups {
-				if ids, ok := thumbnails[groups[i].Label]; ok {
-					groups[i].ThumbnailMarkerIDs = ids
-				} else {
-					groups[i].ThumbnailMarkerIDs = []uint{}
+				refs := thumbnails[groups[i].Label]
+				groups[i].ThumbnailMarkerIDs = make([]uint, len(refs))
+				groups[i].ThumbnailVersions = make(map[uint]int64, len(refs))
+				for j, ref := range refs {
+					groups[i].ThumbnailMarkerIDs[j] = ref.ID
+					groups[i].ThumbnailVersions[ref.ID] = data.MarkerThumbnailVersion(ref.UpdatedAt)
 				}
 			}
 		}

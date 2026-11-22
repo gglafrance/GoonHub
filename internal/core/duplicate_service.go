@@ -12,14 +12,17 @@ import (
 
 // DuplicateGroupWithScenes represents a duplicate group with full scene details for API responses
 type DuplicateGroupWithScenes struct {
-	ID          uint                         `json:"id"`
-	Status      string                       `json:"status"`
-	SceneCount  int                          `json:"scene_count"`
-	BestSceneID *uint                        `json:"best_scene_id"`
-	Members     []DuplicateGroupMemberDetail `json:"members"`
-	CreatedAt   time.Time                    `json:"created_at"`
-	UpdatedAt   time.Time                    `json:"updated_at"`
-	ResolvedAt  *time.Time                   `json:"resolved_at,omitempty"`
+	ID          uint   `json:"id"`
+	Status      string `json:"status"`
+	SceneCount  int    `json:"scene_count"`
+	BestSceneID *uint  `json:"best_scene_id"`
+	// Kind summarizes the members' relations (data.DuplicateKind*): only identical groups are
+	// resolved automatically
+	Kind       string                       `json:"kind"`
+	Members    []DuplicateGroupMemberDetail `json:"members"`
+	CreatedAt  time.Time                    `json:"created_at"`
+	UpdatedAt  time.Time                    `json:"updated_at"`
+	ResolvedAt *time.Time                   `json:"resolved_at,omitempty"`
 }
 
 // DuplicateGroupMemberDetail includes full scene data for a group member
@@ -46,6 +49,8 @@ type DuplicateGroupMemberDetail struct {
 	RefSceneID *uint    `json:"ref_scene_id,omitempty"`
 	RefStart   *float64 `json:"ref_start,omitempty"`
 	RefEnd     *float64 `json:"ref_end,omitempty"`
+	// Relation to RefSceneID (data.DuplicateRelation*)
+	Relation string `json:"relation"`
 	// DeleteAfter is when the scene (not kept at resolution) will be permanently deleted
 	DeleteAfter *time.Time `json:"delete_after,omitempty"`
 }
@@ -60,6 +65,17 @@ type BulkResolveFailure struct {
 type BulkResolveResult struct {
 	Resolved []uint               `json:"resolved"`
 	Failed   []BulkResolveFailure `json:"failed"`
+	// Skipped lists the groups left untouched because not all their scenes are identical
+	Skipped []DuplicateSkippedGroup `json:"skipped"`
+}
+
+// AutoSelectResult is the outcome of AutoSelectBest.
+type AutoSelectResult struct {
+	// Selected maps group ID -> scene ID selected as best
+	Selected map[uint]uint `json:"selected"`
+	// Skipped lists the groups whose best variant was left unchanged because not all their
+	// scenes are identical
+	Skipped []DuplicateSkippedGroup `json:"skipped"`
 }
 
 // DuplicateStats holds stats by status
@@ -90,6 +106,9 @@ const deletionCleanupInterval = 10 * time.Minute
 // deletionCleanupBatch caps the deletions applied per cleanup run.
 const deletionCleanupBatch = 200
 
+// relationBackfillBatch is how many members are classified per query by BackfillMemberRelations.
+const relationBackfillBatch = 500
+
 // SetConfigRepo provides the duplication config (deletion of the scenes not kept at resolution).
 func (ds *DuplicateService) SetConfigRepo(repo data.DuplicationConfigRepository) {
 	ds.configRepo = repo
@@ -118,9 +137,10 @@ func NewDuplicateService(
 	}
 }
 
-// ListGroups returns paginated duplicate groups with member details
-func (ds *DuplicateService) ListGroups(page, limit int, status, sortBy string) ([]DuplicateGroupWithScenes, int64, error) {
-	groups, total, err := ds.groupRepo.ListWithMembers(page, limit, status)
+// ListGroups returns paginated duplicate groups with member details, optionally filtered by
+// status and by kind (data.DuplicateKind*)
+func (ds *DuplicateService) ListGroups(page, limit int, status, kind, sortBy string) ([]DuplicateGroupWithScenes, int64, error) {
+	groups, total, err := ds.groupRepo.ListWithMembers(page, limit, status, kind)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list groups: %w", err)
 	}
@@ -355,34 +375,41 @@ func (ds *DuplicateService) bestMemberScene(group *data.DuplicateGroup) (uint, e
 
 // AutoSelectBest marks, in each unresolved group, the best variant according to the configured
 // criteria (default: highest resolution, then longest duration, then highest bitrate, then
-// smallest file). Returns group ID -> scene ID.
-func (ds *DuplicateService) AutoSelectBest(groupIDs []uint) (map[uint]uint, error) {
-	selected := make(map[uint]uint, len(groupIDs))
+// smallest file). Groups whose scenes are not all identical (a clip and the compilation that
+// contains it, partial or unverified matches) are skipped and reported: picking a best variant
+// there would mark scenes with different content for deletion.
+func (ds *DuplicateService) AutoSelectBest(groupIDs []uint) (AutoSelectResult, error) {
+	result := AutoSelectResult{Selected: make(map[uint]uint, len(groupIDs)), Skipped: []DuplicateSkippedGroup{}}
 	for _, groupID := range groupIDs {
 		group, err := ds.groupRepo.GetByIDWithMembers(groupID)
 		if err != nil {
-			return selected, fmt.Errorf("failed to get group %d: %w", groupID, err)
+			return result, fmt.Errorf("failed to get group %d: %w", groupID, err)
 		}
 		if group.Status != "unresolved" {
 			continue
 		}
+		if blocker := automaticResolutionBlocker(group); blocker != nil {
+			result.Skipped = append(result.Skipped, *blocker)
+			continue
+		}
 		bestID, err := ds.bestMemberScene(group)
 		if err != nil {
-			return selected, err
+			return result, err
 		}
 		if err := ds.SetBest(groupID, bestID); err != nil {
-			return selected, err
+			return result, err
 		}
-		selected[groupID] = bestID
+		result.Selected[groupID] = bestID
 	}
-	return selected, nil
+	return result, nil
 }
 
 // ResolveGroups resolves several unresolved groups. With autoSelect the best variant is chosen
 // automatically, otherwise the group's current best (or the automatic choice when none is set).
-// A failing group does not stop the others.
+// Groups whose scenes are not all identical are skipped and reported (they can still be
+// resolved one by one with ResolveGroup). A failing group does not stop the others.
 func (ds *DuplicateService) ResolveGroups(groupIDs []uint, autoSelect, mergeMetadata bool) BulkResolveResult {
-	result := BulkResolveResult{Resolved: []uint{}, Failed: []BulkResolveFailure{}}
+	result := BulkResolveResult{Resolved: []uint{}, Failed: []BulkResolveFailure{}, Skipped: []DuplicateSkippedGroup{}}
 	fail := func(groupID uint, err error) {
 		result.Failed = append(result.Failed, BulkResolveFailure{GroupID: groupID, Error: err.Error()})
 	}
@@ -394,6 +421,10 @@ func (ds *DuplicateService) ResolveGroups(groupIDs []uint, autoSelect, mergeMeta
 		}
 		if group.Status != "unresolved" {
 			fail(groupID, fmt.Errorf("group is %s", group.Status))
+			continue
+		}
+		if blocker := automaticResolutionBlocker(group); blocker != nil {
+			result.Skipped = append(result.Skipped, *blocker)
 			continue
 		}
 		var bestID uint
@@ -412,8 +443,55 @@ func (ds *DuplicateService) ResolveGroups(groupIDs []uint, autoSelect, mergeMeta
 	ds.logger.Info("Bulk resolved duplicate groups",
 		zap.Int("resolved", len(result.Resolved)),
 		zap.Int("failed", len(result.Failed)),
+		zap.Int("skipped", len(result.Skipped)),
 	)
 	return result
+}
+
+// BackfillMemberRelations classifies the members that have a matching segment but no relation
+// yet (groups recorded before relations existed, or whose durations were missing). Returns how
+// many members got a relation.
+func (ds *DuplicateService) BackfillMemberRelations() (int, error) {
+	classified := 0
+	var afterID uint
+	for {
+		rows, err := ds.groupRepo.ListMembersForRelationBackfill(afterID, relationBackfillBatch)
+		if err != nil {
+			return classified, fmt.Errorf("failed to list members to classify: %w", err)
+		}
+		for _, row := range rows {
+			afterID = row.ID
+			relation := ClassifyDuplicateRelation(DuplicateRelationInput{
+				MatchStart: row.MatchStart, MatchEnd: row.MatchEnd,
+				RefStart: row.RefStart, RefEnd: row.RefEnd,
+				Duration: row.Duration, RefDuration: row.RefDuration,
+			})
+			if relation == data.DuplicateRelationUnknown {
+				continue
+			}
+			if err := ds.groupRepo.SetMemberRelation(row.ID, relation); err != nil {
+				return classified, fmt.Errorf("failed to store relation of member %d: %w", row.ID, err)
+			}
+			classified++
+		}
+		if len(rows) < relationBackfillBatch {
+			return classified, nil
+		}
+	}
+}
+
+// StartRelationBackfill runs BackfillMemberRelations once in the background.
+func (ds *DuplicateService) StartRelationBackfill() {
+	go func() {
+		classified, err := ds.BackfillMemberRelations()
+		if err != nil {
+			ds.logger.Warn("Duplicate relation backfill failed", zap.Int("classified", classified), zap.Error(err))
+			return
+		}
+		if classified > 0 {
+			ds.logger.Info("Classified duplicate group members", zap.Int("classified", classified))
+		}
+	}()
 }
 
 // CancelDeletion cancels the scheduled deletion of a scene not kept at resolution.
@@ -496,6 +574,7 @@ func (ds *DuplicateService) enrichGroup(group *data.DuplicateGroup) (*DuplicateG
 			Status:      group.Status,
 			SceneCount:  group.SceneCount,
 			BestSceneID: group.BestSceneID,
+			Kind:        DuplicateGroupKind(nil),
 			Members:     []DuplicateGroupMemberDetail{},
 			CreatedAt:   group.CreatedAt,
 			UpdatedAt:   group.UpdatedAt,
@@ -520,6 +599,10 @@ func (ds *DuplicateService) enrichGroup(group *data.DuplicateGroup) (*DuplicateG
 	}
 
 	members := make([]DuplicateGroupMemberDetail, 0, len(group.Members))
+	relations := make([]string, len(group.Members))
+	for i, m := range group.Members {
+		relations[i] = m.Relation
+	}
 	for _, m := range group.Members {
 		scene, ok := sceneMap[m.SceneID]
 		if !ok {
@@ -550,6 +633,7 @@ func (ds *DuplicateService) enrichGroup(group *data.DuplicateGroup) (*DuplicateG
 			RefSceneID:      m.RefSceneID,
 			RefStart:        m.RefStart,
 			RefEnd:          m.RefEnd,
+			Relation:        data.DuplicateRelationOrUnknown(m.Relation),
 			DeleteAfter:     m.DeleteAfter,
 		})
 	}
@@ -559,6 +643,7 @@ func (ds *DuplicateService) enrichGroup(group *data.DuplicateGroup) (*DuplicateG
 		Status:      group.Status,
 		SceneCount:  group.SceneCount,
 		BestSceneID: group.BestSceneID,
+		Kind:        DuplicateGroupKind(relations),
 		Members:     members,
 		CreatedAt:   group.CreatedAt,
 		UpdatedAt:   group.UpdatedAt,

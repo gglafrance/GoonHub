@@ -10,6 +10,8 @@ export interface WidgetMarker {
     end_timestamp?: number | null;
     has_thumbnail: boolean;
     has_animated: boolean;
+    // Versions the thumbnail URLs (markerThumbnailUrl)
+    updated_at?: string;
     // Marker tags (label tag included)
     tags?: { id: number; name: string; color: string; is_from_label: boolean }[];
 }
@@ -26,6 +28,8 @@ export interface WidgetTile {
     color?: string;
     count: number;
     cover_marker_id?: number;
+    // Thumbnail version (Unix ms) of the cover marker
+    cover_marker_version?: number;
     cover_scene_id?: number;
 }
 

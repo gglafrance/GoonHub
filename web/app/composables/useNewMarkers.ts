@@ -1,7 +1,8 @@
 import type { Marker } from '~/types/marker';
 
-// Marker thumbnails are made in the background after creation: poll the markers until the
-// new ones have theirs (or give up after a while, the marker works without it)
+// Marker thumbnails are made in the background after creation, and remade (same file name, new
+// version) when a marker moves: poll the markers until they have theirs (or give up after a
+// while, the marker works without it)
 const THUMBNAIL_POLL_INTERVAL_MS = 2000;
 const THUMBNAIL_POLL_MAX_ATTEMPTS = 20;
 
@@ -15,12 +16,13 @@ interface Options {
 }
 
 /**
- * Shows markers created on the watch page at once (optimistic insert into the page's list),
- * then refetches the list until their thumbnails exist. Shared by the Markers tab and the
- * quick marker.
+ * Shows markers created or edited on the watch page at once (optimistic update of the page's
+ * list), then refetches the list until their thumbnails exist (or, for a moved marker, until
+ * the new one is written). Shared by the Markers tab and the quick marker.
  */
 export const useNewMarkers = ({ markers, refresh, hasThumbnail }: Options) => {
-    const pendingThumbnailIds = new Set<number>();
+    // Markers waited for, with the thumbnail version to move past (null: any thumbnail)
+    const pendingThumbnails = new Map<number, string | null>();
     let thumbnailPollTimer: ReturnType<typeof setTimeout> | null = null;
     let thumbnailPollAttempts = 0;
     let unmounted = false;
@@ -30,7 +32,8 @@ export const useNewMarkers = ({ markers, refresh, hasThumbnail }: Options) => {
             ? hasThumbnail(marker)
             : !!(marker.thumbnail_path || marker.animated_thumbnail_path);
 
-    // Adds a marker to the page's list, kept in timestamp order like the API returns it
+    // Adds (or replaces) a marker in the page's list, kept in timestamp order like the API
+    // returns it
     const insertMarker = (marker: Marker) => {
         if (!markers) return;
         const list = markers.value.filter((m) => m.id !== marker.id);
@@ -43,35 +46,47 @@ export const useNewMarkers = ({ markers, refresh, hasThumbnail }: Options) => {
         thumbnailPollTimer = null;
         await refresh?.();
         if (unmounted) return;
-        for (const id of [...pendingThumbnailIds]) {
+        for (const [id, since] of [...pendingThumbnails]) {
             const marker = markers?.value.find((m) => m.id === id);
-            if (!marker || thumbnailReady(marker)) pendingThumbnailIds.delete(id);
+            if (
+                !marker ||
+                (thumbnailReady(marker) &&
+                    (since == null || markerThumbnailVersionChanged(since, marker.updated_at)))
+            ) {
+                pendingThumbnails.delete(id);
+            }
         }
         thumbnailPollAttempts++;
-        if (
-            pendingThumbnailIds.size === 0 ||
-            thumbnailPollAttempts >= THUMBNAIL_POLL_MAX_ATTEMPTS
-        ) {
-            pendingThumbnailIds.clear();
+        if (pendingThumbnails.size === 0 || thumbnailPollAttempts >= THUMBNAIL_POLL_MAX_ATTEMPTS) {
+            pendingThumbnails.clear();
             return;
         }
         thumbnailPollTimer = setTimeout(pollThumbnails, THUMBNAIL_POLL_INTERVAL_MS);
     };
 
-    const waitForThumbnail = (markerId: number) => {
-        pendingThumbnailIds.add(markerId);
+    // Refetches until the marker has a thumbnail; with `since` (the marker's updated_at once
+    // moved), until a thumbnail newer than that is written
+    const waitForThumbnail = (markerId: number, since: string | null = null) => {
+        pendingThumbnails.set(markerId, since);
         thumbnailPollAttempts = 0;
         if (!thumbnailPollTimer) {
             thumbnailPollTimer = setTimeout(pollThumbnails, THUMBNAIL_POLL_INTERVAL_MS);
         }
     };
 
+    // Shows an edited marker at once (the PUT response has no tags: the listed ones are kept),
+    // and waits for its new thumbnail when it moved (the server remakes it in the background)
+    const applyMarkerUpdate = (before: Marker, after: Marker) => {
+        insertMarker({ ...before, ...after, tags: after.tags ?? before.tags });
+        if (after.timestamp !== before.timestamp) waitForThumbnail(after.id, after.updated_at);
+    };
+
     onBeforeUnmount(() => {
         unmounted = true;
         if (thumbnailPollTimer) clearTimeout(thumbnailPollTimer);
         thumbnailPollTimer = null;
-        pendingThumbnailIds.clear();
+        pendingThumbnails.clear();
     });
 
-    return { insertMarker, waitForThumbnail };
+    return { insertMarker, waitForThumbnail, applyMarkerUpdate };
 };

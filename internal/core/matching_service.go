@@ -172,6 +172,8 @@ func (ms *MatchingService) ProcessMatches(sceneID uint, matches []matching.Match
 		matches = append(matches, matchMap[id])
 	}
 	sceneIDs := append([]uint{sceneID}, matchedIDs...)
+	// Every segment written below refers to scenes of this set (query and matched scenes)
+	durations := ms.sceneDurations(sceneIDs)
 
 	ms.processLock.Lock()
 	defer ms.processLock.Unlock()
@@ -186,7 +188,7 @@ func (ms *MatchingService) ProcessMatches(sceneID uint, matches []matching.Match
 			groupSet[groupID] = true
 		}
 		if len(groupSet) == 0 {
-			return ms.createNewGroupTx(txRepo, sceneID, matches)
+			return ms.createNewGroupTx(txRepo, sceneID, matches, durations)
 		}
 
 		groupIDs := make([]uint, 0, len(groupSet))
@@ -210,7 +212,7 @@ func (ms *MatchingService) ProcessMatches(sceneID uint, matches []matching.Match
 				return fmt.Errorf("failed to merge groups: %w", err)
 			}
 		}
-		if err := ms.addToGroupTx(txRepo, targetID, sceneID, matchMap); err != nil {
+		if err := ms.addToGroupTx(txRepo, targetID, sceneID, matchMap, durations); err != nil {
 			return err
 		}
 		if target.Status != "unresolved" {
@@ -222,7 +224,23 @@ func (ms *MatchingService) ProcessMatches(sceneID uint, matches []matching.Match
 	})
 }
 
-func (ms *MatchingService) createNewGroupTx(txRepo data.DuplicateGroupRepository, sceneID uint, matches []matching.MatchResult) error {
+// sceneDurations returns the durations (seconds) of the given scenes, used to classify the
+// relation of group members. On failure the relations stay unknown (and so not safe for
+// automatic resolution) until the next startup backfill.
+func (ms *MatchingService) sceneDurations(sceneIDs []uint) map[uint]int {
+	durations := make(map[uint]int, len(sceneIDs))
+	scenes, err := ms.sceneRepo.GetByIDsIncludingTrashed(sceneIDs)
+	if err != nil {
+		ms.logger.Warn("Failed to load scene durations, duplicate relations left unknown", zap.Error(err))
+		return durations
+	}
+	for _, scene := range scenes {
+		durations[scene.ID] = scene.Duration
+	}
+	return durations
+}
+
+func (ms *MatchingService) createNewGroupTx(txRepo data.DuplicateGroupRepository, sceneID uint, matches []matching.MatchResult, durations map[uint]int) error {
 	group := &data.DuplicateGroup{
 		Status:     "unresolved",
 		SceneCount: len(matches) + 1,
@@ -239,6 +257,7 @@ func (ms *MatchingService) createNewGroupTx(txRepo data.DuplicateGroupRepository
 		MatchType:       matches[0].MatchType,
 	}
 	setMemberSegment(queryMember, bestMatchOf(matches), sceneID, true)
+	queryMember.Relation = relationOfMember(queryMember, durations)
 	if err := txRepo.AddMember(queryMember); err != nil {
 		return fmt.Errorf("failed to add query scene to group: %w", err)
 	}
@@ -252,6 +271,7 @@ func (ms *MatchingService) createNewGroupTx(txRepo data.DuplicateGroupRepository
 			MatchType:       m.MatchType,
 		}
 		setMemberSegment(member, m, sceneID, false)
+		member.Relation = relationOfMember(member, durations)
 		if err := txRepo.AddMember(member); err != nil {
 			return fmt.Errorf("failed to add matched scene %d to group: %w", m.SceneID, err)
 		}
@@ -270,7 +290,7 @@ func (ms *MatchingService) createNewGroupTx(txRepo data.DuplicateGroupRepository
 	return nil
 }
 
-func (ms *MatchingService) addToGroupTx(txRepo data.DuplicateGroupRepository, groupID uint, sceneID uint, matchMap map[uint]matching.MatchResult) error {
+func (ms *MatchingService) addToGroupTx(txRepo data.DuplicateGroupRepository, groupID uint, sceneID uint, matchMap map[uint]matching.MatchResult, durations map[uint]int) error {
 	sceneIDs := make([]uint, 0, len(matchMap)+1)
 	sceneIDs = append(sceneIDs, sceneID)
 	for id := range matchMap {
@@ -303,6 +323,7 @@ func (ms *MatchingService) addToGroupTx(txRepo data.DuplicateGroupRepository, gr
 			}
 			segment := &data.DuplicateGroupMember{GroupID: groupID, SceneID: id}
 			setMemberSegment(segment, match, sceneID, id == sceneID)
+			segment.Relation = relationOfMember(segment, durations)
 			if segment.MatchStart != nil {
 				if err := txRepo.FillMemberSegment(segment); err != nil {
 					return fmt.Errorf("failed to record matching segment of scene %d: %w", id, err)
@@ -319,6 +340,7 @@ func (ms *MatchingService) addToGroupTx(txRepo data.DuplicateGroupRepository, gr
 			ConfidenceScore: match.ConfidenceScore, MatchType: match.MatchType,
 		}
 		setMemberSegment(member, match, sceneID, id == sceneID)
+		member.Relation = relationOfMember(member, durations)
 		if err := txRepo.AddMember(member); err != nil {
 			return fmt.Errorf("failed to add scene %d to group: %w", id, err)
 		}

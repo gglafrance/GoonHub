@@ -82,7 +82,10 @@ processing:
   grid_cols: 12
   grid_rows: 8
   sprites_concurrency: 0      # 0 = auto (based on CPU cores)
-  job_history_retention: "7d"
+  job_history_retention: "30d"          # completed and cancelled jobs ("0" = keep forever)
+  job_history_failed_retention: "90d"   # failed and timed out jobs ("0" = keep forever)
+  job_history_purge_interval: 1h
+  job_history_purge_batch_size: 5000
   metadata_timeout: 5m
   thumbnail_timeout: 2m
   sprites_timeout: 30m

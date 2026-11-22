@@ -207,7 +207,10 @@ type ProcessingConfig struct {
 	ScenePreviewDir                string        `mapstructure:"scene_preview_dir"`                 // directory for scene preview videos
 	MarkerPreviewCRF               int           `mapstructure:"marker_preview_crf"`                // CRF for marker animated thumbnails (18-40)
 	ScenePreviewCRF                int           `mapstructure:"scene_preview_crf"`                 // CRF for scene preview videos (18-40)
-	JobHistoryRetention            string        `mapstructure:"job_history_retention"`             // duration string e.g. "7d", "24h"
+	JobHistoryRetention            string        `mapstructure:"job_history_retention"`             // completed/cancelled jobs kept this long, e.g. "30d", "24h" ("0" = never purged)
+	JobHistoryFailedRetention      string        `mapstructure:"job_history_failed_retention"`      // failed/timed out jobs kept this long, e.g. "90d" ("0" = never purged)
+	JobHistoryPurgeInterval        time.Duration `mapstructure:"job_history_purge_interval"`        // how often the job history purge runs
+	JobHistoryPurgeBatchSize       int           `mapstructure:"job_history_purge_batch_size"`      // rows deleted per statement by the purge
 	MetadataTimeout            time.Duration `mapstructure:"metadata_timeout"`              // timeout for metadata extraction jobs
 	ThumbnailTimeout           time.Duration `mapstructure:"thumbnail_timeout"`             // timeout for thumbnail extraction jobs
 	SpritesTimeout             time.Duration `mapstructure:"sprites_timeout"`               // timeout for sprite sheet generation jobs
@@ -281,7 +284,10 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("processing.scene_preview_dir", "./data/metadata/scene-previews")
 	v.SetDefault("processing.marker_preview_crf", 32)
 	v.SetDefault("processing.scene_preview_crf", 27)
-	v.SetDefault("processing.job_history_retention", "7d")
+	v.SetDefault("processing.job_history_retention", "30d")
+	v.SetDefault("processing.job_history_failed_retention", "90d")
+	v.SetDefault("processing.job_history_purge_interval", time.Hour)
+	v.SetDefault("processing.job_history_purge_batch_size", 5000)
 	v.SetDefault("processing.metadata_timeout", 5*time.Minute)
 	v.SetDefault("processing.thumbnail_timeout", 2*time.Minute)
 	v.SetDefault("processing.sprites_timeout", 30*time.Minute)

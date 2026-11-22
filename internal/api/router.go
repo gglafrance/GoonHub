@@ -124,10 +124,7 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, sceneHandler *handler
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid marker ID"})
 			return
 		}
-		path := filepath.Join(cfg.Processing.MarkerThumbnailDir, fmt.Sprintf("marker_%s.webp", id))
-		c.Header("Content-Type", "image/webp")
-		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
-		c.File(path)
+		serveMarkerThumbnail(c, filepath.Join(cfg.Processing.MarkerThumbnailDir, fmt.Sprintf("marker_%s.webp", id)), "image/webp")
 	})
 
 	// Serve Animated Marker Thumbnails (MP4 clips)
@@ -137,10 +134,7 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, sceneHandler *handler
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid marker ID"})
 			return
 		}
-		path := filepath.Join(cfg.Processing.MarkerThumbnailDir, fmt.Sprintf("marker_%s.mp4", id))
-		c.Header("Content-Type", "video/mp4")
-		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
-		c.File(path)
+		serveMarkerThumbnail(c, filepath.Join(cfg.Processing.MarkerThumbnailDir, fmt.Sprintf("marker_%s.mp4", id)), "video/mp4")
 	})
 
 	// Serve Scene Preview Videos (MP4 clips for hover preview)

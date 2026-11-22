@@ -213,3 +213,61 @@ export interface JobStatusData {
     active_jobs: ActiveJobInfo[];
     more_count: number;
 }
+
+export type BulkCancelPhase =
+    | 'all'
+    | 'metadata'
+    | 'thumbnail'
+    | 'sprites'
+    | 'animated_thumbnails'
+    | 'fingerprint';
+
+export interface BulkCancelResponse {
+    message: string;
+    phases: string[];
+    pending_cancelled: number;
+    queued_skipped: number;
+    running_cancelled: number;
+    include_running: boolean;
+}
+
+export interface HistoryPurgeSettings {
+    completed_retention: string;
+    failed_retention: string;
+    completed_enabled: boolean;
+    failed_enabled: boolean;
+    interval: string;
+    batch_size: number;
+}
+
+export interface HistoryPurgePreview {
+    completed: number;
+    cancelled: number;
+    failed: number;
+    timed_out: number;
+    total: number;
+    completed_before?: string;
+    failed_before?: string;
+}
+
+export interface HistoryPurgeResult {
+    trigger: 'scheduled' | 'manual';
+    completed_deleted: number;
+    failed_deleted: number;
+    total: number;
+    batches: number;
+    started_at: string;
+    duration_ms: number;
+    error?: string;
+}
+
+export interface HistoryPurgeInfo {
+    settings: HistoryPurgeSettings;
+    preview: HistoryPurgePreview;
+    last_run: HistoryPurgeResult | null;
+}
+
+export interface HistoryPurgeResponse {
+    message: string;
+    result: HistoryPurgeResult;
+}

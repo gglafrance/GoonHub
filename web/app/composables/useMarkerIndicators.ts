@@ -104,7 +104,7 @@ export function useMarkerIndicators(
         // Thumbnail (or placeholder)
         if (marker.thumbnail_path) {
             const img = document.createElement('img');
-            img.src = `/marker-thumbnails/${marker.id}`;
+            img.src = markerThumbnailUrl(marker.id, marker.updated_at);
             img.alt = marker.label || 'Marker';
             img.className = 'vjs-marker-tooltip-img';
             tooltip.appendChild(img);

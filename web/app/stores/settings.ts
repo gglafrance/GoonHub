@@ -16,6 +16,7 @@ import type {
     GridDensity,
 } from '~/types/settings';
 import type { ParsingRulesSettings, ParsingPreset } from '~/types/parsing-rules';
+import type { SettingsPatch } from '~/utils/settingsPatch';
 
 export const useSettingsStore = defineStore(
     'settings',
@@ -31,7 +32,7 @@ export const useSettingsStore = defineStore(
 
         const {
             fetchSettings: apiFetchSettings,
-            updateAllSettings: apiUpdateAllSettings,
+            patchSettings: apiPatchSettings,
             getParsingRules: apiGetParsingRules,
             updateParsingRules: apiUpdateParsingRules,
         } = useApi();
@@ -184,11 +185,8 @@ export const useSettingsStore = defineStore(
 
         // Saves a new scene list view right away (view toggles and column pickers)
         const saveSceneListView = async (view: SceneListView) => {
-            if (!settings.value) return;
-            settings.value.scene_list_view = view;
-            if (draft.value) draft.value.scene_list_view = JSON.parse(JSON.stringify(view));
             try {
-                await saveAllSettings();
+                await saveSettingsNow({ scene_list_view: view });
             } catch (e: unknown) {
                 console.error('Failed to save the scene list view:', e);
             }
@@ -208,11 +206,8 @@ export const useSettingsStore = defineStore(
                 Pick<UserSettings, 'grid_density' | 'infinite_scroll' | 'show_scrubber'>
             >,
         ) => {
-            if (!settings.value) return;
-            Object.assign(settings.value, patch);
-            if (draft.value) Object.assign(draft.value, patch);
             try {
-                await saveAllSettings();
+                await saveSettingsNow(patch);
             } catch (e: unknown) {
                 console.error('Failed to save the display settings:', e);
             }
@@ -230,7 +225,7 @@ export const useSettingsStore = defineStore(
 
         const hasUnsavedChanges = computed(() => {
             if (!draft.value || !settings.value) return false;
-            return JSON.stringify(draft.value) !== JSON.stringify(settings.value);
+            return !isEmptySettingsPatch(diffSettings(settings.value, draft.value));
         });
 
         function initDraft() {
@@ -260,12 +255,16 @@ export const useSettingsStore = defineStore(
             }
         };
 
-        const saveAllSettings = async () => {
-            if (!draft.value) return;
+        // Saves the Settings page draft: only the settings that differ from the loaded ones are
+        // sent, so that settings changed meanwhile elsewhere (another tab or device) are kept
+        const saveDraft = async () => {
+            if (!draft.value || !settings.value) return;
+            const patch = diffSettings(settings.value, draft.value);
+            if (isEmptySettingsPatch(patch)) return;
             isLoading.value = true;
             error.value = null;
             try {
-                const data: UserSettings = await apiUpdateAllSettings(draft.value);
+                const data: UserSettings = await apiPatchSettings(patch);
                 settings.value = data;
                 initDraft();
             } catch (e: unknown) {
@@ -275,6 +274,21 @@ export const useSettingsStore = defineStore(
             } finally {
                 isLoading.value = false;
             }
+        };
+
+        // Saves some settings right away (quick toggles next to the lists and on the player),
+        // without the other unsaved changes of the Settings page draft, which are kept
+        const saveSettingsNow = async (patch: SettingsPatch) => {
+            if (!settings.value) return;
+            const body = JSON.parse(JSON.stringify(patch)) as SettingsPatch;
+            // The UI follows right away
+            Object.assign(settings.value, JSON.parse(JSON.stringify(body)));
+            if (draft.value) Object.assign(draft.value, JSON.parse(JSON.stringify(body)));
+            const data: UserSettings = await apiPatchSettings(body);
+            const pending =
+                draft.value && settings.value ? diffSettings(settings.value, draft.value) : {};
+            settings.value = data;
+            draft.value = rebaseDraft(data, pending);
         };
 
         const toggleTheaterMode = () => {
@@ -369,7 +383,8 @@ export const useSettingsStore = defineStore(
             parsingRulesLoading,
             activePreset,
             loadSettings,
-            saveAllSettings,
+            saveDraft,
+            saveSettingsNow,
             initDraft,
             discardDraft,
             toggleTheaterMode,
