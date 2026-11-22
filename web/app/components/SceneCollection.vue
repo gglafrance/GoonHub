@@ -2,7 +2,8 @@
 import type { SceneListItem } from '~/types/scene';
 import type { SceneTableColumn } from '~/types/settings';
 
-// The scenes of a list page: cards (selectable or not) or a table, per the page view setting
+// The scenes of a list page: selectable cards or a table, per the page view setting. The cards
+// stay mounted when select mode toggles (their hover checkbox turns it on).
 defineProps<{
     scenes: SceneListItem[];
     ratings?: Record<string, number>;
@@ -19,7 +20,8 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-    toggleSelection: [sceneId: number];
+    // range: shift-click, select from the last toggled scene to this one
+    toggleSelection: [sceneId: number, range: boolean];
     dragSelect: [sceneIds: number[], additive: boolean];
     sort: [value: string];
 }>();
@@ -36,26 +38,19 @@ const emit = defineEmits<{
         :selectable="selectMode"
         :is-scene-selected="isSceneSelected"
         @sort="emit('sort', $event)"
-        @toggle-selection="emit('toggleSelection', $event)"
+        @toggle-selection="(id, range) => emit('toggleSelection', id, range)"
         @drag-select="(ids, additive) => emit('dragSelect', ids, additive)"
     />
     <SelectableSceneGrid
-        v-else-if="selectMode"
-        :scenes="scenes"
-        :ratings="ratings"
-        :likes="likes"
-        :jizz-counts="jizzCounts"
-        :watched="watched"
-        :is-scene-selected="isSceneSelected"
-        @toggle-selection="emit('toggleSelection', $event)"
-        @drag-select="(ids, additive) => emit('dragSelect', ids, additive)"
-    />
-    <SceneGrid
         v-else
         :scenes="scenes"
         :ratings="ratings"
         :likes="likes"
         :jizz-counts="jizzCounts"
         :watched="watched"
+        :is-scene-selected="isSceneSelected"
+        :select-mode="!!selectMode"
+        @toggle-selection="(id, range) => emit('toggleSelection', id, range)"
+        @drag-select="(ids, additive) => emit('dragSelect', ids, additive)"
     />
 </template>

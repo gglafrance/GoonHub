@@ -11,7 +11,10 @@ const props = defineProps<{
     rating?: number;
     liked?: boolean;
     jizzCount?: number;
+    // Select mode: the checkbox is shown and a click on the card toggles the scene
     selectable?: boolean;
+    // Outside select mode, the checkbox shows on hover (pointer devices only) to start a selection
+    hoverSelect?: boolean;
     selected?: boolean;
     configOverride?: SceneCardConfig;
     // Card template editor preview: the card and its links do not navigate
@@ -19,7 +22,8 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    toggleSelection: [sceneId: number];
+    // range: shift-click, select from the last toggled scene to this one
+    toggleSelection: [sceneId: number, range: boolean];
 }>();
 
 defineSlots<{
@@ -30,10 +34,15 @@ const { formatSize } = useFormatter();
 const settingsStore = useSettingsStore();
 const cardConfig = computed(() => props.configOverride ?? settingsStore.sceneCardConfig);
 
-const handleCheckboxClick = (event: Event) => {
+const handleCheckboxClick = (event: MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    emit('toggleSelection', props.scene.id);
+    emit('toggleSelection', props.scene.id, event.shiftKey);
+};
+
+// A shift-click would also extend the page's text selection
+const handleCheckboxMousedown = (event: MouseEvent) => {
+    if (event.shiftKey) event.preventDefault();
 };
 
 provideSceneCardPreview(!!props.preview);
@@ -48,7 +57,7 @@ const handleCardClick = (event: MouseEvent) => {
     if (props.selectable) {
         event.preventDefault();
         event.stopPropagation();
-        emit('toggleSelection', props.scene.id);
+        emit('toggleSelection', props.scene.id, event.shiftKey);
     }
 };
 
@@ -128,15 +137,24 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
     <div class="group relative" @click.capture="handleCardClick">
         <!-- Selection Checkbox -->
         <button
-            v-if="selectable"
+            v-if="selectable || hoverSelect"
+            type="button"
             class="absolute top-2 left-2 z-30 flex h-5 w-5 items-center justify-center rounded
                 border transition-all"
-            :class="
+            :class="[
                 selected
                     ? 'bg-lava border-lava text-white'
-                    : `bg-void/60 border-white/30 text-transparent group-hover:text-white/50
-                        hover:border-white/50`
-            "
+                    : `bg-void/60 border-white/30 text-transparent backdrop-blur-sm
+                        group-hover:text-white/50 hover:border-white/50`,
+                selectable
+                    ? ''
+                    : `pointer-events-none opacity-0 group-hover:pointer-events-auto
+                        group-hover:opacity-100 focus-visible:pointer-events-auto
+                        focus-visible:opacity-100`,
+            ]"
+            :aria-label="selected ? 'Deselect scene' : 'Select scene'"
+            :aria-pressed="!!selected"
+            @mousedown="handleCheckboxMousedown"
             @click="handleCheckboxClick"
         >
             <Icon name="heroicons:check" size="12" />
@@ -222,7 +240,10 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                 />
 
                 <!-- Badge zones -->
-                <div class="absolute top-1.5 left-1.5 z-20" :class="selectable ? 'mt-6' : ''">
+                <div
+                    class="absolute top-1.5 left-1.5 z-20 transition-transform"
+                    :class="selectable ? 'mt-6' : hoverSelect ? 'group-hover:translate-y-6' : ''"
+                >
                     <SceneCardBadgeZone
                         :items="cardConfig.badges.top_left.items"
                         :direction="cardConfig.badges.top_left.direction"

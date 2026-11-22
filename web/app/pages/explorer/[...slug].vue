@@ -23,6 +23,13 @@ const selectMode = ref(false);
 watch(selectMode, (on) => {
     if (!on) explorerStore.clearSelection();
 });
+// A card's hover checkbox turns select mode on (Escape is bound below)
+useCardSelectMode(
+    selectMode,
+    computed(() => explorerStore.hasSelection),
+    () => explorerStore.clearSelection(),
+    { escape: false },
+);
 
 // Reference to bulk toolbar for triggering delete modal
 const bulkToolbarRef = ref<{ showDeleteModal: Ref<boolean> } | null>(null);
