@@ -850,6 +850,8 @@ defineExpose({
     playMarker,
     // video.js root element: overlays teleported into it also show in fullscreen
     playerEl,
+    // the scene is converted or remuxed on the fly (its seeks reload the stream)
+    transcodeActive,
 });
 
 onBeforeUnmount(() => {

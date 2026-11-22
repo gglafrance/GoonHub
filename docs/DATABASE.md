@@ -127,6 +127,7 @@ Per-user application preferences.
 | `show_replay_heatmap` | BOOLEAN | NO | true | Show the "most replayed" heatmap (from `user_scene_heatmaps`) above the player progress bar |
 | `record_replay_heatmap` | BOOLEAN | NO | true | Record which parts of a scene are watched into `user_scene_heatmaps` |
 | `show_scrubber` | BOOLEAN | NO | false | Show the thumbnail scrubber strip (sprite sheet thumbnails and markers, drag or wheel to scroll, click to seek) under the player on the watch page (migration 084) |
+| `scrubber_mode` | VARCHAR(10) | NO | 'free' | Behaviour of the scrubber strip: `free` (scrolled on its own, click to seek, follows playback) or `centered` (like Stash: the centre line is the playback position, dragging or wheeling the strip seeks the video) (migration 086) |
 | `marker_loop` | BOOLEAN | NO | false | Loop the marker range when clicking a marker that has an `end_timestamp` |
 | `videos_per_page` | INTEGER | NO | 20 | Grid pagination size |
 | `default_sort_order` | VARCHAR(50) | NO | 'created_at_desc' | Default sort order |
@@ -162,6 +163,7 @@ Per-user application preferences.
 
 **Constraints:**
 - `uni_user_settings_user_id` UNIQUE on `user_id`
+- CHECK `chk_user_settings_scrubber_mode`: `scrubber_mode IN ('free', 'centered')`
 - FK to `users(id)` ON DELETE CASCADE
 
 ---

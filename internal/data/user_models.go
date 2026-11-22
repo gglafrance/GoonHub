@@ -90,8 +90,11 @@ type UserSettings struct {
 	// SceneListView: grid or table per scene list page, and the table columns
 	SceneListView SceneListView `gorm:"type:jsonb;not null" json:"scene_list_view"`
 	// ShowScrubber: strip of the scene thumbnails under the player on the watch page (off by default)
-	ShowScrubber    bool `gorm:"not null;default:false" json:"show_scrubber"`
-	MaxItemsPerPage int  `gorm:"-" json:"max_items_per_page"`
+	ShowScrubber bool `gorm:"not null;default:false" json:"show_scrubber"`
+	// ScrubberMode: how the scrubber strip behaves, free (scrolled on its own, click to seek) or
+	// centered (like Stash: the centre line is the playback position, moving the strip seeks)
+	ScrubberMode    string `gorm:"size:10;not null;default:'free'" json:"scrubber_mode"`
+	MaxItemsPerPage int    `gorm:"-" json:"max_items_per_page"`
 }
 
 // HomepageConfig represents the user's homepage layout configuration

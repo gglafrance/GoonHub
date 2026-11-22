@@ -214,6 +214,7 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		core.WithPlayerGestures(req.PlayerGestures, req.GestureSeekStep),
 		core.WithReplayHeatmap(req.ShowReplayHeatmap, req.RecordReplayHeatmap),
 		core.WithScrubber(req.ShowScrubber),
+		core.WithScrubberMode(req.ScrubberMode),
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -316,6 +317,9 @@ func (h *SettingsHandler) patchOptions(req *request.PatchSettingsRequest) []core
 	}
 	if req.ShowScrubber != nil {
 		opts = append(opts, core.WithScrubber(req.ShowScrubber))
+	}
+	if req.ScrubberMode != nil {
+		opts = append(opts, core.WithScrubberMode(req.ScrubberMode))
 	}
 	return opts
 }

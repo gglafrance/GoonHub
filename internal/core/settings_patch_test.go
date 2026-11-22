@@ -45,17 +45,20 @@ func storedSettings() *data.UserSettings {
 		InfiniteScroll:           true,
 		SceneListView:            data.SceneListView{Pages: map[string]string{"search": "table"}, Columns: []string{"title", "duration"}},
 		ShowScrubber:             true,
+		ScrubberMode:             "centered",
 	}
 }
 
 func TestUpdateSettings_AbsentFieldsUntouched(t *testing.T) {
 	off, on := false, true
+	free := ScrubberModeFree
 	tests := []struct {
 		name   string
 		opt    SettingsOption
 		change func(s *data.UserSettings)
 	}{
 		{"scrubber", WithScrubber(&off), func(s *data.UserSettings) { s.ShowScrubber = false }},
+		{"scrubber mode", WithScrubberMode(&free), func(s *data.UserSettings) { s.ScrubberMode = "free" }},
 		{"infinite scroll", WithInfiniteScroll(&off), func(s *data.UserSettings) { s.InfiniteScroll = false }},
 		{"grid density", WithGridDensity("large"), func(s *data.UserSettings) { s.GridDensity = "large" }},
 		{"volume to zero", WithDefaultVolume(0), func(s *data.UserSettings) { s.DefaultVolume = 0 }},
@@ -140,6 +143,8 @@ func TestUpdateSettings_InvalidValueLeavesSettingsUntouched(t *testing.T) {
 		{"gesture step zero", WithGestureSeekStep(0)},
 		{"date format", WithDateFormat("YY")},
 		{"grid density", WithGridDensity("huge")},
+		{"scrubber mode", WithScrubberMode(ptr("stash"))},
+		{"empty scrubber mode", WithScrubberMode(ptr(""))},
 		{"pagination", WithPaginationPosition("left")},
 		{"scene list view", WithSceneListView(&data.SceneListView{Pages: map[string]string{"search": "mosaic"}})},
 		{"card config", (&SettingsService{}).WithSceneCardConfig(data.SceneCardConfig{})},

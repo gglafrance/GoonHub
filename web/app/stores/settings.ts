@@ -14,6 +14,7 @@ import type {
     SceneListViewMode,
     SceneTableColumn,
     GridDensity,
+    ScrubberMode,
 } from '~/types/settings';
 import type { ParsingRulesSettings, ParsingPreset } from '~/types/parsing-rules';
 import type { SettingsPatch } from '~/utils/settingsPatch';
@@ -69,6 +70,10 @@ export const useSettingsStore = defineStore(
         const recordReplayHeatmap = computed(() => settings.value?.record_replay_heatmap ?? true);
         // Thumbnail scrubber strip under the player (off by default)
         const showScrubber = computed(() => settings.value?.show_scrubber ?? false);
+        // Its mode: free (default) or centered on the playback position like Stash
+        const scrubberMode = computed<ScrubberMode>(() =>
+            normalizeScrubberMode(settings.value?.scrubber_mode),
+        );
         const videosPerPage = computed(() => settings.value?.videos_per_page ?? 20);
         const defaultSortOrder = computed<SortOrder>(
             () => settings.value?.default_sort_order ?? 'created_at_desc',
@@ -204,7 +209,10 @@ export const useSettingsStore = defineStore(
         // Quick display toggles (next to the scene lists), saved right away
         const saveDisplaySetting = async (
             patch: Partial<
-                Pick<UserSettings, 'grid_density' | 'infinite_scroll' | 'show_scrubber'>
+                Pick<
+                    UserSettings,
+                    'grid_density' | 'infinite_scroll' | 'show_scrubber' | 'scrubber_mode'
+                >
             >,
         ) => {
             try {
@@ -223,6 +231,9 @@ export const useSettingsStore = defineStore(
         // Show/hide toggle of the scrubber on the watch page
         const setShowScrubber = (enabled: boolean) =>
             saveDisplaySetting({ show_scrubber: enabled });
+
+        // Mode switch in the header of the scrubber
+        const setScrubberMode = (mode: ScrubberMode) => saveDisplaySetting({ scrubber_mode: mode });
 
         const hasUnsavedChanges = computed(() => {
             if (!draft.value || !settings.value) return false;
@@ -363,6 +374,8 @@ export const useSettingsStore = defineStore(
             recordReplayHeatmap,
             showScrubber,
             setShowScrubber,
+            scrubberMode,
+            setScrubberMode,
             videosPerPage,
             defaultSortOrder,
             defaultTagSort,
