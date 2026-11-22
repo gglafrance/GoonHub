@@ -205,6 +205,7 @@ type ProcessingConfig struct {
 	ScenePreviewSegments           int           `mapstructure:"scene_preview_segments"`            // number of segments to sample (2-24)
 	ScenePreviewSegmentDuration    float64       `mapstructure:"scene_preview_segment_duration"`    // duration of each segment in seconds (0.75-30.0)
 	ScenePreviewDir                string        `mapstructure:"scene_preview_dir"`                 // directory for scene preview videos
+	StagingDir                     string        `mapstructure:"staging_dir"`                       // job outputs before their commit ("" = "staging" next to sprite_dir)
 	MarkerPreviewCRF               int           `mapstructure:"marker_preview_crf"`                // CRF for marker animated thumbnails (18-40)
 	ScenePreviewCRF                int           `mapstructure:"scene_preview_crf"`                 // CRF for scene preview videos (18-40)
 	JobHistoryRetention            string        `mapstructure:"job_history_retention"`             // completed/cancelled jobs kept this long, e.g. "30d", "24h" ("0" = never purged)
@@ -282,6 +283,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("processing.scene_preview_segments", 12)
 	v.SetDefault("processing.scene_preview_segment_duration", 1.0)
 	v.SetDefault("processing.scene_preview_dir", "./data/metadata/scene-previews")
+	v.SetDefault("processing.staging_dir", "")
 	v.SetDefault("processing.marker_preview_crf", 32)
 	v.SetDefault("processing.scene_preview_crf", 27)
 	v.SetDefault("processing.job_history_retention", "30d")

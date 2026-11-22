@@ -39,6 +39,15 @@ func GetMetadata(videoPath string) (*VideoMetadata, error) {
 }
 
 func GetMetadataWithContext(ctx context.Context, videoPath string) (*VideoMetadata, error) {
+	return GetMetadataWithBinary(ctx, FFprobePath(), videoPath)
+}
+
+// GetMetadataWithBinary probes videoPath (a local path or an http(s) URL) with the given
+// ffprobe binary.
+func GetMetadataWithBinary(ctx context.Context, ffprobeBin, videoPath string) (*VideoMetadata, error) {
+	if ffprobeBin == "" {
+		ffprobeBin = FFprobePath()
+	}
 	args := []string{
 		"-v", "quiet",
 		"-print_format", "json",
@@ -47,7 +56,7 @@ func GetMetadataWithContext(ctx context.Context, videoPath string) (*VideoMetada
 		videoPath,
 	}
 
-	cmd := exec.CommandContext(ctx, FFprobePath(), args...)
+	cmd := exec.CommandContext(ctx, ffprobeBin, args...)
 	output, err := cmd.Output()
 	if err != nil {
 		if ctx.Err() != nil {

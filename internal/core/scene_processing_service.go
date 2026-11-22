@@ -137,6 +137,7 @@ func NewSceneProcessingService(
 ) *SceneProcessingService {
 	// Create pool manager
 	poolManager := processing.NewPoolManager(cfg, logger, poolConfigRepo, processingConfigRepo, duplicationCfg)
+	poolManager.SetFingerprintCommitter(jobs.NewFingerprintCommitter(repo, logger))
 
 	// Create phase tracker
 	phaseTracker := processing.NewPhaseTracker(triggerConfigRepo, poolManager.IsDuplicationEnabled())

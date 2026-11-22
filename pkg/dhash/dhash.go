@@ -23,18 +23,34 @@ func ExtractDHashes(videoPath string) ([]uint64, error) {
 // within 1-5 bits (mean < 1 bit) of the full decode, well under the matching Hamming
 // tolerance, so these hashes stay comparable with the ones already indexed.
 func ExtractDHashesWithContext(ctx context.Context, videoPath string) ([]uint64, error) {
-	args := []string{
+	return RunFFmpeg(ctx, "ffmpeg", DefaultArgs(videoPath))
+}
+
+// Filter is the video filter that turns the video into 9x8 grayscale frames, one every 2 s.
+const Filter = "fps=1/2,scale=9:8,format=gray"
+
+// DefaultArgs returns the ffmpeg arguments ExtractDHashesWithContext runs: software decode,
+// 9x8 grayscale raw frames on stdout.
+func DefaultArgs(videoPath string) []string {
+	return []string{
 		"-nostdin",
 		"-skip_loop_filter", "all",
 		"-skip_frame", "noref",
 		"-i", videoPath,
 		"-an", "-sn", "-dn",
-		"-vf", "fps=1/2,scale=9:8,format=gray",
+		"-vf", Filter,
 		"-f", "rawvideo",
 		"pipe:1",
 	}
+}
 
-	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+// RunFFmpeg runs ffmpegBin with args, which must write 9x8 grayscale raw frames to stdout
+// (pipe:1), and returns one dHash per frame.
+func RunFFmpeg(ctx context.Context, ffmpegBin string, args []string) ([]uint64, error) {
+	if ffmpegBin == "" {
+		ffmpegBin = "ffmpeg"
+	}
+	cmd := exec.CommandContext(ctx, ffmpegBin, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)

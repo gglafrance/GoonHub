@@ -484,6 +484,7 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 			f.sceneRepo,
 			f.logger,
 		)
+		spritesJob.SetStagingRoot(jobs.StagingRoot(cfg.StagingDir, cfg.SpriteDir))
 		spritesJob.SetProgressCallback(func(jobID string, progress int) {
 			if err := f.repo.UpdateProgress(jobID, progress); err != nil {
 				f.logger.Warn("Failed to update sprite job progress",
@@ -496,14 +497,15 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 		if scene.Duration == 0 {
 			return fmt.Errorf("scene duration is 0: metadata not yet extracted")
 		}
-		job = jobs.NewAnimatedThumbnailJobWithID(
+		animatedJob := jobs.NewAnimatedThumbnailJobWithID(
 			jobRecord.JobID,
 			jobRecord.SceneID,
 			jobRecord.ForceTarget,
 			f.animatedThumbGen,
 			f.logger,
 		)
-		return f.poolManager.SubmitToAnimatedThumbnailsPool(job)
+		animatedJob.SetStagingRoot(jobs.StagingRoot(cfg.StagingDir, cfg.SpriteDir))
+		return f.poolManager.SubmitToAnimatedThumbnailsPool(animatedJob)
 
 	case "fingerprint":
 		if scene.Duration == 0 {
@@ -524,6 +526,7 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 			f.logger,
 		)
 		fpJob.SetSceneDuration(scene.Duration)
+		fpJob.SetCommitter(f.poolManager.FingerprintCommitter())
 		job = fpJob
 		return f.poolManager.SubmitToFingerprintPool(job)
 	}
