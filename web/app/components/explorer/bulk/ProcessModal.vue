@@ -27,6 +27,7 @@ const phases = ref({
     thumbnail: false,
     sprites: false,
     animated_thumbnails: false,
+    fingerprint: false,
 });
 
 const results = ref<Record<string, BulkJobResponse | null>>({
@@ -34,6 +35,7 @@ const results = ref<Record<string, BulkJobResponse | null>>({
     thumbnail: null,
     sprites: null,
     animated_thumbnails: null,
+    fingerprint: null,
 });
 
 const hasResults = computed(() => Object.values(results.value).some((r) => r !== null));
@@ -82,7 +84,13 @@ function onKeydown(e: KeyboardEvent) {
 const handleSubmit = async () => {
     loading.value = true;
     error.value = null;
-    results.value = { metadata: null, thumbnail: null, sprites: null, animated_thumbnails: null };
+    results.value = {
+        metadata: null,
+        thumbnail: null,
+        sprites: null,
+        animated_thumbnails: null,
+        fingerprint: null,
+    };
 
     const sceneIds = resolvedSceneIds.value;
 

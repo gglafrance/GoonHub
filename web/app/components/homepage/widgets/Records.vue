@@ -99,7 +99,7 @@ const items = computed<RecordItem[]>(() => {
             key: 'first_jizz',
             label: 'First O',
             icon: 'heroicons:sparkles',
-            value: dayFormat.format(new Date(p.first_jizz)),
+            value: formatDay(p.first_jizz),
             detail: `${number.format(p.dated_jizz_total)} dated O since`,
         });
     }
@@ -153,7 +153,7 @@ const items = computed<RecordItem[]>(() => {
             key: 'first_view',
             label: 'First view',
             icon: 'heroicons:flag',
-            value: dayFormat.format(new Date(p.first_view)),
+            value: formatDay(p.first_view),
             detail: `${number.format(p.total_views)} views since`,
         });
     }

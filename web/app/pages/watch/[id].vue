@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { VttCue } from '~/composables/useVttParser';
 import type { Marker } from '~/types/marker';
+import type ScenePlayer from '~/components/ScenePlayer.vue';
 import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
 const route = useRoute();
@@ -55,14 +56,7 @@ watch(
 );
 
 const playerError = ref<unknown>(null);
-const playerRef = ref<{
-    getCurrentTime: () => number;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    player?: any;
-    vttCues?: VttCue[];
-    playMarker?: (marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) => void;
-    playerEl?: HTMLElement | null;
-} | null>(null);
+const playerRef = ref<InstanceType<typeof ScenePlayer> | null>(null);
 const showResumePrompt = ref(false);
 const startTime = ref(0);
 // Marker range to loop, from the ?t=&end= query (links from the markers pages)

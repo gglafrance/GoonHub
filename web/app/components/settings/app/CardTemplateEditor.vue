@@ -13,6 +13,7 @@ const sampleScene: SceneListItem = {
     thumbnail_path: '',
     preview_video_path: '',
     processing_status: 'completed',
+    is_corrupted: false,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     view_count: 42,
@@ -113,7 +114,11 @@ function moveBadge(zoneName: (typeof zoneNames)[number], idx: number, dir: -1 | 
     const items = [...zone.items];
     const newIdx = idx + dir;
     if (newIdx < 0 || newIdx >= items.length) return;
-    [items[idx], items[newIdx]] = [items[newIdx], items[idx]];
+    const moved = items[idx];
+    const other = items[newIdx];
+    if (moved === undefined || other === undefined) return;
+    items[idx] = other;
+    items[newIdx] = moved;
     updateZone(zoneName, { ...zone, items });
 }
 
@@ -151,11 +156,13 @@ function removeContentRow(idx: number) {
 function moveContentRow(idx: number, dir: -1 | 1) {
     const newConfig = JSON.parse(JSON.stringify(config.value)) as SceneCardConfig;
     const newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= newConfig.content_rows.length) return;
-    [newConfig.content_rows[idx], newConfig.content_rows[newIdx]] = [
-        newConfig.content_rows[newIdx],
-        newConfig.content_rows[idx],
-    ];
+    const rows = newConfig.content_rows;
+    if (newIdx < 0 || newIdx >= rows.length) return;
+    const moved = rows[idx];
+    const other = rows[newIdx];
+    if (moved === undefined || other === undefined) return;
+    rows[idx] = other;
+    rows[newIdx] = moved;
     config.value = newConfig;
 }
 

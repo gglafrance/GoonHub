@@ -10,6 +10,7 @@
         "postinstall": "nuxt prepare",
         "lint": "eslint .",
         "test": "bun test tests",
+        "typecheck": "vue-tsc -b --noEmit",
         "lint:fix": "eslint . --fix",
         "prettier": "prettier --write --cache ."
     },
@@ -38,6 +39,7 @@
     "devDependencies": {
         "@pinia-plugin-persistedstate/nuxt": "^1.2.1",
         "@vite-pwa/nuxt": "^1.1.0",
-        "typescript": "^5.9.3"
+        "typescript": "^5.9.3",
+        "vue-tsc": "^3.3.14"
     }
 }
