@@ -12,7 +12,9 @@ type DuplicateGroupRepository interface {
 	GetByID(id uint) (*DuplicateGroup, error)
 	GetByIDWithMembers(id uint) (*DuplicateGroup, error)
 	List(page, limit int, status string) ([]DuplicateGroup, int64, error)
-	ListWithMembers(page, limit int, status string) ([]DuplicateGroup, int64, error)
+	// ListWithMembers lists groups with their members, optionally filtered by status and by
+	// kind (DuplicateKind*, derived from the members' relations).
+	ListWithMembers(page, limit int, status, kind string) ([]DuplicateGroup, int64, error)
 	UpdateStatus(id uint, status string, resolvedAt *time.Time) error
 	SetBestScene(id uint, sceneID uint) error
 	AddMember(member *DuplicateGroupMember) error
@@ -24,8 +26,13 @@ type DuplicateGroupRepository interface {
 	CountByStatus() (map[string]int64, error)
 	Delete(id uint) error
 	UpdateMemberBest(groupID uint, sceneID uint, isBest bool) error
-	// FillMemberSegment stores the matching segment of a member that has none yet.
+	// FillMemberSegment stores the matching segment (and its relation) of a member that has none yet.
 	FillMemberSegment(member *DuplicateGroupMember) error
+	// ListMembersForRelationBackfill returns, by ascending ID after afterID, the members that
+	// have a segment but no relation yet, with the durations of their scene and reference.
+	ListMembersForRelationBackfill(afterID uint, limit int) ([]DuplicateMemberRelationInput, error)
+	// SetMemberRelation stores the relation of a member to its reference.
+	SetMemberRelation(memberID uint, relation string) error
 	// SetMemberDeleteAfter schedules (or cancels, with nil) the deletion of group members.
 	SetMemberDeleteAfter(groupID uint, sceneIDs []uint, deleteAfter *time.Time) error
 	// ListMembersDueForDeletion returns members whose scheduled deletion time has passed.
@@ -89,7 +96,7 @@ func (r *DuplicateGroupRepositoryImpl) List(page, limit int, status string) ([]D
 	return groups, total, nil
 }
 
-func (r *DuplicateGroupRepositoryImpl) ListWithMembers(page, limit int, status string) ([]DuplicateGroup, int64, error) {
+func (r *DuplicateGroupRepositoryImpl) ListWithMembers(page, limit int, status, kind string) ([]DuplicateGroup, int64, error) {
 	var groups []DuplicateGroup
 	var total int64
 	offset := (page - 1) * limit
@@ -98,6 +105,7 @@ func (r *DuplicateGroupRepositoryImpl) ListWithMembers(page, limit int, status s
 	if status != "" {
 		countQuery = countQuery.Where("status = ?", status)
 	}
+	countQuery = whereDuplicateKind(countQuery, kind)
 
 	if err := countQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -107,12 +115,42 @@ func (r *DuplicateGroupRepositoryImpl) ListWithMembers(page, limit int, status s
 	if status != "" {
 		findQuery = findQuery.Where("status = ?", status)
 	}
+	findQuery = whereDuplicateKind(findQuery, kind)
 
 	if err := findQuery.Limit(limit).Offset(offset).Order("created_at DESC").Find(&groups).Error; err != nil {
 		return nil, 0, err
 	}
 
 	return groups, total, nil
+}
+
+// Subqueries on the members of the listed group, for whereDuplicateKind
+const (
+	duplicateGroupHasMembers    = "EXISTS (SELECT 1 FROM duplicate_group_members dm WHERE dm.group_id = duplicate_groups.id)"
+	duplicateGroupHasRelation   = "EXISTS (SELECT 1 FROM duplicate_group_members dm WHERE dm.group_id = duplicate_groups.id AND dm.relation IN ?)"
+	duplicateGroupLacksRelation = "NOT " + duplicateGroupHasRelation
+)
+
+// whereDuplicateKind keeps the groups of the given kind, with the same precedence as
+// core.DuplicateGroupKind (containment, then partial, then unverified, else identical).
+// An empty or unknown kind keeps every group.
+func whereDuplicateKind(query *gorm.DB, kind string) *gorm.DB {
+	containment := []string{DuplicateRelationContained, DuplicateRelationContains}
+	switch kind {
+	case DuplicateKindIdentical:
+		return query.Where(duplicateGroupHasMembers).
+			Where(duplicateGroupLacksRelation, append(containment, DuplicateRelationPartial, DuplicateRelationUnknown))
+	case DuplicateKindContainment:
+		return query.Where(duplicateGroupHasRelation, containment)
+	case DuplicateKindPartial:
+		return query.Where(duplicateGroupHasRelation, []string{DuplicateRelationPartial}).
+			Where(duplicateGroupLacksRelation, containment)
+	case DuplicateKindUnverified:
+		return query.Where(duplicateGroupHasRelation, []string{DuplicateRelationUnknown}).
+			Where(duplicateGroupLacksRelation, append(containment, DuplicateRelationPartial))
+	default:
+		return query
+	}
 }
 
 func (r *DuplicateGroupRepositoryImpl) UpdateStatus(id uint, status string, resolvedAt *time.Time) error {
@@ -141,7 +179,36 @@ func (r *DuplicateGroupRepositoryImpl) FillMemberSegment(member *DuplicateGroupM
 			"ref_scene_id": member.RefSceneID,
 			"ref_start":    member.RefStart,
 			"ref_end":      member.RefEnd,
+			"relation":     DuplicateRelationOrUnknown(member.Relation),
 		}).Error
+}
+
+// DuplicateRelationOrUnknown maps an unset relation to DuplicateRelationUnknown.
+func DuplicateRelationOrUnknown(relation string) string {
+	if relation == "" {
+		return DuplicateRelationUnknown
+	}
+	return relation
+}
+
+func (r *DuplicateGroupRepositoryImpl) ListMembersForRelationBackfill(afterID uint, limit int) ([]DuplicateMemberRelationInput, error) {
+	var rows []DuplicateMemberRelationInput
+	err := r.DB.Table("duplicate_group_members AS m").
+		Select(`m.id, m.match_start, m.match_end, m.ref_start, m.ref_end,
+			COALESCE(s.duration, 0) AS duration, COALESCE(ref.duration, 0) AS ref_duration`).
+		Joins("LEFT JOIN scenes s ON s.id = m.scene_id").
+		Joins("LEFT JOIN scenes ref ON ref.id = m.ref_scene_id").
+		Where("m.relation = ? AND m.match_start IS NOT NULL AND m.id > ?", DuplicateRelationUnknown, afterID).
+		Order("m.id ASC").
+		Limit(limit).
+		Scan(&rows).Error
+	return rows, err
+}
+
+func (r *DuplicateGroupRepositoryImpl) SetMemberRelation(memberID uint, relation string) error {
+	return r.DB.Model(&DuplicateGroupMember{}).
+		Where("id = ?", memberID).
+		Update("relation", DuplicateRelationOrUnknown(relation)).Error
 }
 
 func (r *DuplicateGroupRepositoryImpl) SetMemberDeleteAfter(groupID uint, sceneIDs []uint, deleteAfter *time.Time) error {

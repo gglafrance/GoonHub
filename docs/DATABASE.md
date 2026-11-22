@@ -17,9 +17,10 @@ This document provides a comprehensive reference of the GoonHub database schema.
 5. [User Interactions](#user-interactions)
 6. [Job System](#job-system)
 7. [Storage & Scanning](#storage--scanning)
-8. [Application Settings](#application-settings)
-9. [Entity Relationship Diagram](#entity-relationship-diagram)
-10. [Key Patterns & Conventions](#key-patterns--conventions)
+8. [Duplicate Detection](#duplicate-detection)
+9. [Application Settings](#application-settings)
+10. [Entity Relationship Diagram](#entity-relationship-diagram)
+11. [Key Patterns & Conventions](#key-patterns--conventions)
 
 ---
 
@@ -1112,6 +1113,73 @@ whose scene is still active and still at the checked path.
 
 **Constraints:**
 - CHECK `reason IN ('missing', 'unreadable')`
+
+---
+
+## Duplicate Detection
+
+Scenes whose audio (chromaprint) or visual (dHash) fingerprints match are grouped; the
+fingerprints themselves live in ClickHouse. A scene belongs to at most one group.
+
+### `duplicate_groups`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `status` | VARCHAR(20) | NO | 'unresolved' | `unresolved`, `resolved` or `dismissed` |
+| `scene_count` | INTEGER | NO | 0 | Number of members |
+| `best_scene_id` | BIGINT | YES | NULL | FK to scenes (SET NULL): the variant kept at resolution |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Record creation timestamp |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last update timestamp |
+| `resolved_at` | TIMESTAMPTZ | YES | NULL | When the group was resolved |
+
+**Indexes:**
+- `idx_duplicate_groups_status` on `status`
+
+---
+
+### `duplicate_group_members`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `group_id` | BIGINT | NO | - | FK to duplicate_groups (CASCADE) |
+| `scene_id` | BIGINT | NO | - | FK to scenes (CASCADE) |
+| `is_best` | BOOLEAN | NO | false | Member chosen as the variant to keep |
+| `confidence_score` | DOUBLE PRECISION | NO | 0 | Match confidence |
+| `match_type` | VARCHAR(10) | NO | 'audio' | `audio` or `visual` |
+| `match_start`, `match_end` | REAL | YES | NULL | Matching segment in this scene, seconds (migration 066) |
+| `ref_scene_id` | BIGINT | YES | NULL | FK to scenes (SET NULL): the scene this member was matched against |
+| `ref_start`, `ref_end` | REAL | YES | NULL | Corresponding segment in `ref_scene_id`, seconds |
+| `relation` | VARCHAR(10) | NO | 'unknown' | Relation to `ref_scene_id` (migration 086, see below) |
+| `delete_after` | TIMESTAMPTZ | YES | NULL | Scheduled permanent deletion of a scene not kept at resolution |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Record creation timestamp |
+
+**Relation (`relation`):** derived from the two segments and the scene durations by
+`core.ClassifyDuplicateRelation`. A scene is "mostly covered" by the match when the match spans
+at least 90 % of it, or leaves at most 45 s of it out while spanning at least 75 % (intros,
+outros, trimmed ends). Values: `identical` (both scenes mostly covered), `contained` (this scene
+is mostly covered, the reference is not: this scene is a clip of it), `contains` (the reference
+is mostly covered, this scene is not: e.g. a compilation), `partial` (neither) and `unknown` (no
+segment, a missing duration or an empty segment). It is written with the segment at fingerprint
+time; rows that have a segment but are still `unknown` (recorded before migration 086, or whose
+durations were missing) are classified by the application at startup.
+
+**Group kind (computed, not stored):** `identical` when every member is identical, else
+`containment` when a member is `contained`/`contains`, else `partial`, else `unverified`. Only
+`identical` groups are resolved by the automatic actions (auto-select best, bulk auto-resolve);
+the others are resolved by hand.
+
+**Indexes:**
+- `idx_duplicate_group_members_unique_scene` UNIQUE on `scene_id` (one group per scene)
+- `idx_duplicate_group_members_group_id` on `group_id`
+- `idx_duplicate_group_members_scene_id` on `scene_id`
+- `idx_duplicate_group_members_delete_after` on `delete_after` WHERE delete_after IS NOT NULL
+- `idx_duplicate_group_members_group_relation` on `(group_id, relation)`
+
+**Constraints:**
+- UNIQUE on `(group_id, scene_id)`
+- CHECK `relation IN ('identical', 'contained', 'contains', 'partial', 'unknown')`
 
 ---
 

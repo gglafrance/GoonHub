@@ -1,11 +1,19 @@
-import type { BulkResolveResult } from '~/types/duplicates';
+import type { AutoSelectResult, BulkResolveResult } from '~/types/duplicates';
 
 export const useApiDuplicates = () => {
     const { fetchOptions, getAuthHeaders, handleResponse } = useApiCore();
 
-    const listGroups = async (page: number, limit: number, status?: string, sortBy?: string) => {
+    // kind: identical, containment, partial or unverified (empty: every group)
+    const listGroups = async (
+        page: number,
+        limit: number,
+        status?: string,
+        sortBy?: string,
+        kind?: string,
+    ) => {
         const params = new URLSearchParams({ page: String(page), limit: String(limit) });
         if (status) params.set('status', status);
+        if (kind) params.set('kind', kind);
         if (sortBy) params.set('sort_by', sortBy);
         const response = await fetch(`/api/v1/admin/duplicates?${params}`, {
             ...fetchOptions(),
@@ -59,9 +67,7 @@ export const useApiDuplicates = () => {
         return handleResponse(response);
     };
 
-    const autoSelectBest = async (
-        groupIds: number[],
-    ): Promise<{ selected: Record<string, number> }> => {
+    const autoSelectBest = async (groupIds: number[]): Promise<AutoSelectResult> => {
         const response = await fetch('/api/v1/admin/duplicates/auto-select', {
             ...fetchOptions(),
             method: 'POST',
