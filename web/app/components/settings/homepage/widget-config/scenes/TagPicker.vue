@@ -22,11 +22,9 @@ const selected = computed<string[]>(() =>
 );
 
 const suggestions = computed(() => {
-    const q = query.value.trim().toLowerCase();
-    return allTags.value
-        .filter((t) => !selected.value.includes(t.name))
-        .filter((t) => !q || t.name.toLowerCase().includes(q))
-        .slice(0, 12);
+    const unselected = allTags.value.filter((t) => !selected.value.includes(t.name));
+    // the tags starting with the typed text first
+    return rankByMatch(unselected, query.value, (t) => t.name).slice(0, 12);
 });
 
 const setTags = (tags: string[]) => {
