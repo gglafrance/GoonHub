@@ -166,6 +166,9 @@ export const useSettingsStore = defineStore(
                 }
             }
 
+            // the "Tags & Markers & Actors" field shows the actors too
+            if (fieldsSet.has('tags')) fieldsSet.add('actors');
+
             return fieldsSet.size > 0 ? [...fieldsSet].join(',') : '';
         });
 

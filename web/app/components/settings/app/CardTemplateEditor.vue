@@ -54,7 +54,7 @@ const badgeFields = [
     { value: 'file_size', label: 'File Size' },
     { value: 'added_at', label: 'Date Added' },
     { value: 'frame_rate', label: 'Frame Rate' },
-    { value: 'tags', label: 'Tags & Markers' },
+    { value: 'tags', label: 'Tags & Markers & Actors' },
     { value: 'actors', label: 'Actors' },
 ];
 
@@ -67,7 +67,7 @@ const contentFields = [
     { value: 'jizz_count', label: 'Jizz Count', fullOnly: false, hasMode: false },
     { value: 'rating', label: 'Rating', fullOnly: false, hasMode: false },
     { value: 'description', label: 'Description', fullOnly: true, hasMode: false },
-    { value: 'tags', label: 'Tags & Markers', fullOnly: false, hasMode: true },
+    { value: 'tags', label: 'Tags & Markers & Actors', fullOnly: false, hasMode: true },
     { value: 'actors', label: 'Actors', fullOnly: false, hasMode: true },
     { value: 'studio', label: 'Studio', fullOnly: true, hasMode: false },
 ];
