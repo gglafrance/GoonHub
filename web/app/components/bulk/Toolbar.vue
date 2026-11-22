@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import type { SceneSizeCache } from '~/utils/selectionSize';
+
 const props = defineProps<{
     sceneIds: number[];
     selectionCount: number;
+    // Scenes loaded on the page: their sizes give the selection total without waiting
+    scenes?: readonly { id: number; size?: number | null }[];
 }>();
 
 const emit = defineEmits<{
@@ -10,6 +14,7 @@ const emit = defineEmits<{
 }>();
 
 const { getScenesMatchInfo } = useApiExplorer();
+const { formatSize } = useFormatter();
 const { containerClass } = useContentWidth();
 
 const showTagEditor = ref(false);
@@ -27,22 +32,55 @@ defineExpose({
 const allScenesMatched = ref(false);
 const checkingMatchStatus = ref(false);
 
+// Size of each scene seen (cards of the pages browsed, then the match-info response, which
+// covers selected scenes not loaded on the client, e.g. "select all" across pages)
+const sizeCache: SceneSizeCache = new Map();
+const sizeVersion = ref(0);
+const rememberSizes = (scenes: readonly { id: number; size?: number | null }[]) => {
+    if (rememberSceneSizes(sizeCache, scenes)) sizeVersion.value++;
+};
+
+watch(
+    () => props.scenes,
+    (scenes) => {
+        if (scenes) rememberSizes(scenes);
+    },
+    { immediate: true },
+);
+
+const selectionSize = computed(() => {
+    void sizeVersion.value;
+    return selectionSizeLabel(
+        summarizeSelectionSize(props.sceneIds, sizeCache),
+        formatSize,
+        checkingMatchStatus.value,
+    );
+});
+
+// Only the latest request updates the state (the selection may change while one runs)
+let matchInfoRequest = 0;
+
 watch(
     () => props.sceneIds,
     async (ids) => {
+        const request = ++matchInfoRequest;
         if (ids.length === 0) {
             allScenesMatched.value = false;
+            checkingMatchStatus.value = false;
             return;
         }
 
         checkingMatchStatus.value = true;
         try {
             const { scenes } = await getScenesMatchInfo([...ids]);
+            // Sizes stay valid whichever request they come from
+            rememberSizes(scenes);
+            if (request !== matchInfoRequest) return;
             allScenesMatched.value = scenes.every((s) => s.porndb_scene_id !== null);
         } catch {
-            allScenesMatched.value = false;
+            if (request === matchInfoRequest) allScenesMatched.value = false;
         } finally {
-            checkingMatchStatus.value = false;
+            if (request === matchInfoRequest) checkingMatchStatus.value = false;
         }
     },
     { immediate: true },
@@ -77,6 +115,23 @@ const handlePornDBMatchComplete = () => {
                     <span class="text-sm font-medium text-white">
                         {{ selectionCount }} selected
                     </span>
+                    <span
+                        v-if="selectionSize"
+                        class="text-dim flex items-center gap-1.5 text-xs"
+                        title="Total disk size of the selection"
+                    >
+                        <span class="text-white/20">&middot;</span>
+                        <span class="font-mono text-white/80">{{ selectionSize.size }}</span>
+                        <span v-if="selectionSize.note" class="text-[11px]">
+                            ({{ selectionSize.note }})
+                        </span>
+                    </span>
+                    <Icon
+                        v-else-if="checkingMatchStatus"
+                        name="svg-spinners:90-ring-with-bg"
+                        size="12"
+                        class="text-dim"
+                    />
                 </div>
 
                 <!-- Actions -->

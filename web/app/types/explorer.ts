@@ -118,6 +118,8 @@ export interface SceneMatchInfo {
     studio: string | null;
     thumbnail_path: string;
     duration: number;
+    // File size in bytes (0 when unknown)
+    size: number;
 }
 
 export interface ScenesMatchInfoResponse {

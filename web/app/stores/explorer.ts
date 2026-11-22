@@ -231,14 +231,17 @@ export const useExplorerStore = defineStore('explorer', () => {
     };
 
     // Selection actions
-    const toggleSceneSelection = (sceneID: number) => {
-        if (selectedSceneIDs.value.has(sceneID)) {
-            selectedSceneIDs.value.delete(sceneID);
-        } else {
-            selectedSceneIDs.value.add(sceneID);
-        }
-        // Trigger reactivity
-        selectedSceneIDs.value = new Set(selectedSceneIDs.value);
+    // Last toggled scene: a shift-click selects from it to the clicked scene
+    let selectionAnchorID: number | null = null;
+    const toggleSceneSelection = (sceneID: number, range = false) => {
+        selectedSceneIDs.value = toggleSceneInSelection(
+            selectedSceneIDs.value,
+            scenes.value.map((s) => s.id),
+            sceneID,
+            selectionAnchorID,
+            range,
+        );
+        selectionAnchorID = sceneID;
     };
 
     const selectAllOnPage = () => {
@@ -314,6 +317,7 @@ export const useExplorerStore = defineStore('explorer', () => {
     const clearSelection = () => {
         selectedSceneIDs.value = new Set();
         allFolderSceneIDs.value = [];
+        selectionAnchorID = null;
     };
 
     // Search actions

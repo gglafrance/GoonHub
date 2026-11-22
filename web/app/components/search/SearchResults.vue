@@ -56,6 +56,8 @@ watch(filterSignature, () => clearSelection());
 watch(selectMode, (on) => {
     if (!on) clearSelection();
 });
+// A card's hover checkbox turns select mode on, Escape clears the selection
+useCardSelectMode(selectMode, hasSelection, clearSelection);
 
 const handleBulkComplete = () => {
     clearSelection();
@@ -199,6 +201,7 @@ const handleBulkComplete = () => {
             v-if="hasSelection"
             :scene-ids="getSelectedSceneIDs()"
             :selection-count="selectionCount"
+            :scenes="scenesRef"
             @clear-selection="clearSelection()"
             @complete="handleBulkComplete"
         />

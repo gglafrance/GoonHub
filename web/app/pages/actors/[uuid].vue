@@ -71,6 +71,8 @@ const selectAllScenes = async () => {
 watch(selectMode, (on) => {
     if (!on) clearSelection();
 });
+// A card's hover checkbox turns select mode on, Escape clears the selection
+useCardSelectMode(selectMode, hasSelection, clearSelection);
 
 const handleBulkComplete = () => {
     clearSelection();
@@ -1182,6 +1184,7 @@ definePageMeta({
                         v-if="hasSelection"
                         :scene-ids="getSelectedSceneIDs()"
                         :selection-count="selectionCount"
+                        :scenes="scenes"
                         @clear-selection="clearSelection()"
                         @complete="handleBulkComplete"
                     />
