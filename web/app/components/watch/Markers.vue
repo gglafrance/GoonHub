@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import type { Marker, MarkerLabelSuggestion } from '~/types/marker';
+import type { MarkerTimeField } from '~/utils/markerTime';
 import type { WatchPageData } from '~/composables/useWatchPageData';
 import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
 const route = useRoute();
 const { createMarker, updateMarker, deleteMarker, fetchLabelSuggestions } = useApiMarkers();
 const { fetchProcessingConfig } = useApiJobs();
-const { formatDuration, formatMarkerRange } = useFormatter();
+const { formatMarkerRange } = useFormatter();
 const { observe } = useAnimatedMarkerPreview();
 const getPlayerTime = inject<() => number>('getPlayerTime');
 const seekToTime = inject<(time: number) => void>('seekToTime');
@@ -22,6 +23,8 @@ const sceneId = computed(() => parseInt(route.params.id as string));
 // Use centralized data for markers and loading state
 const loading = computed(() => watchPageData?.loading.player ?? true);
 const markers = computed(() => watchPageData?.markers.value ?? []);
+// Scene duration in seconds: the API refuses a marker time past it
+const sceneDuration = computed(() => watchPageData?.scene.value?.duration ?? null);
 
 const newMarkerLabel = ref('');
 const saving = ref(false);
@@ -145,6 +148,53 @@ const { insertMarker, waitForThumbnail, applyMarkerUpdate } = useNewMarkers({
             : !!marker.thumbnail_path,
 });
 
+// Start and end changes move the marker at once (list, timeline, scrubber) and are put back if
+// the API refuses them
+const { update: updateMarkerTimes } = useMarkerTimeUpdate({
+    sceneId: () => sceneId.value,
+    insertMarker,
+    applyMarkerUpdate,
+});
+
+// Time typed on a card (click on its start or end)
+const editingTime = ref<{ id: number; field: MarkerTimeField } | null>(null);
+const timeSaving = ref(false);
+const timeError = ref<string | null>(null);
+
+const startEditingTime = (marker: Marker, field: MarkerTimeField) => {
+    editingTime.value = { id: marker.id, field };
+    timeError.value = null;
+};
+
+const cancelEditingTime = () => {
+    editingTime.value = null;
+    timeError.value = null;
+};
+
+const handleSaveTime = async (marker: Marker, field: MarkerTimeField, seconds: number) => {
+    const current = field === 'start' ? marker.timestamp : marker.end_timestamp;
+    if (seconds === current) {
+        cancelEditingTime();
+        return;
+    }
+    timeSaving.value = true;
+    timeError.value = null;
+    const result = await updateMarkerTimes(
+        marker,
+        field === 'start' ? { timestamp: seconds } : { end_timestamp: seconds },
+        field === 'start' ? 'Failed to set the marker start' : 'Failed to set the marker end',
+    );
+    timeSaving.value = false;
+    if (result.ok) {
+        if (editingTime.value?.id === marker.id) cancelEditingTime();
+    } else if (!('stale' in result)) {
+        timeError.value = result.error;
+    }
+};
+
+// Player time as a marker time (same time source as M, the stream offset included)
+const playerMarkerTime = () => quickMarkerTimestamp(getPlayerTime?.() ?? 0);
+
 const handleAddMarker = async () => {
     if (saving.value) return;
 
@@ -231,36 +281,62 @@ const handleSaveEdit = async (marker: Marker) => {
     }
 };
 
+// Sets the start of the marker to the current player time
+const handleSetStart = async (marker: Marker, event: Event) => {
+    event.stopPropagation();
+    const start = playerMarkerTime();
+    if (marker.end_timestamp != null && start >= marker.end_timestamp) {
+        error.value = 'Seek before the marker end to set its start';
+        return;
+    }
+    const invalid = validateMarkerStart(start, marker.end_timestamp, sceneDuration.value);
+    if (invalid) {
+        error.value = invalid;
+        return;
+    }
+    error.value = null;
+    const result = await updateMarkerTimes(
+        marker,
+        { timestamp: start },
+        'Failed to set the marker start',
+    );
+    if (!result.ok && !('stale' in result)) error.value = result.error;
+};
+
 // Sets the end of the marker range to the current player time
 const handleSetEnd = async (marker: Marker, event: Event) => {
     event.stopPropagation();
-    const end = Math.floor(getPlayerTime?.() ?? 0);
+    const end = playerMarkerTime();
     if (end <= marker.timestamp) {
         error.value = 'Seek past the marker start to set its end';
         return;
     }
-    error.value = null;
-    try {
-        const updated = await updateMarker(sceneId.value, marker.id, { end_timestamp: end });
-        applyMarkerUpdate(marker, updated);
-        refreshMarkers?.();
-    } catch (e) {
-        error.value = e instanceof Error ? e.message : 'Failed to set marker end';
+    const invalid = validateMarkerEnd(marker.timestamp, end, sceneDuration.value);
+    if (invalid) {
+        error.value = invalid;
+        return;
     }
+    error.value = null;
+    const result = await updateMarkerTimes(
+        marker,
+        { end_timestamp: end },
+        'Failed to set the marker end',
+    );
+    if (!result.ok && !('stale' in result)) error.value = result.error;
 };
 
 const handleClearEnd = async (marker: Marker, event: Event) => {
     event.stopPropagation();
     error.value = null;
-    try {
-        const updated = await updateMarker(sceneId.value, marker.id, {
-            clear_end_timestamp: true,
-        });
-        applyMarkerUpdate(marker, updated);
-        refreshMarkers?.();
-    } catch (e) {
-        error.value = e instanceof Error ? e.message : 'Failed to clear marker end';
+    if (editingTime.value?.id === marker.id && editingTime.value.field === 'end') {
+        cancelEditingTime();
     }
+    const result = await updateMarkerTimes(
+        marker,
+        { clear_end_timestamp: true },
+        'Failed to clear the marker end',
+    );
+    if (!result.ok && !('stale' in result)) error.value = result.error;
 };
 
 const handleDeleteClick = (marker: Marker, event: Event) => {
@@ -375,62 +451,75 @@ onMounted(async () => {
                 class="border-border bg-surface group relative overflow-hidden rounded-lg border
                     transition-all hover:border-white/20"
             >
-                <!-- Thumbnail / Placeholder -->
-                <button
-                    class="relative aspect-video w-full cursor-pointer overflow-hidden bg-black/40"
-                    :title="
-                        markerHasRange(marker)
-                            ? `Play ${formatMarkerRange(marker.timestamp, marker.end_timestamp)}`
-                            : `Seek to ${formatDuration(marker.timestamp)}`
-                    "
-                    @click="handleSeekToMarker(marker)"
-                >
-                    <MarkersTagsBadge :tags="marker.tags" :label="marker.label" />
-                    <!-- Animated Thumbnail -->
-                    <video
-                        v-if="markerThumbnailType === 'animated' && getAnimatedUrl(marker)"
-                        :ref="(el) => observe(el as HTMLVideoElement)"
-                        :src="getAnimatedUrl(marker)!"
-                        muted
-                        loop
-                        playsinline
-                        preload="none"
-                        class="h-full w-full object-contain transition-transform duration-200
-                            group-hover:scale-105"
-                    />
-                    <!-- Static Thumbnail Image -->
-                    <img
-                        v-else-if="getThumbnailUrl(marker)"
-                        :src="getThumbnailUrl(marker)!"
-                        :alt="marker.label || 'Marker thumbnail'"
-                        class="h-full w-full object-cover transition-transform duration-200
-                            group-hover:scale-105"
-                    />
-                    <!-- Placeholder when no thumbnail -->
-                    <div
-                        v-else
-                        class="flex h-full w-full items-center justify-center bg-linear-to-br
-                            from-white/5 to-transparent"
+                <!-- Thumbnail / Placeholder, with the start and end (click to edit) -->
+                <div class="relative">
+                    <button
+                        class="relative aspect-video w-full cursor-pointer overflow-hidden
+                            bg-black/40"
+                        :title="
+                            markerHasRange(marker)
+                                ? `Play ${formatMarkerRange(marker.timestamp, marker.end_timestamp)}`
+                                : `Seek to ${formatMarkerTime(marker.timestamp)}`
+                        "
+                        @click="handleSeekToMarker(marker)"
                     >
-                        <Icon name="heroicons:photo" size="24" class="text-dim/40" />
-                    </div>
+                        <MarkersTagsBadge :tags="marker.tags" :label="marker.label" />
+                        <!-- Animated Thumbnail -->
+                        <video
+                            v-if="markerThumbnailType === 'animated' && getAnimatedUrl(marker)"
+                            :ref="(el) => observe(el as HTMLVideoElement)"
+                            :src="getAnimatedUrl(marker)!"
+                            muted
+                            loop
+                            playsinline
+                            preload="none"
+                            class="h-full w-full object-contain transition-transform duration-200
+                                group-hover:scale-105"
+                        />
+                        <!-- Static Thumbnail Image -->
+                        <img
+                            v-else-if="getThumbnailUrl(marker)"
+                            :src="getThumbnailUrl(marker)!"
+                            :alt="marker.label || 'Marker thumbnail'"
+                            class="h-full w-full object-cover transition-transform duration-200
+                                group-hover:scale-105"
+                        />
+                        <!-- Placeholder when no thumbnail -->
+                        <div
+                            v-else
+                            class="flex h-full w-full items-center justify-center bg-linear-to-br
+                                from-white/5 to-transparent"
+                        >
+                            <Icon name="heroicons:photo" size="24" class="text-dim/40" />
+                        </div>
 
-                    <!-- Timestamp Badge Overlay (bottom-right) -->
-                    <div
-                        class="absolute right-2 bottom-2 rounded bg-black/70 px-1.5 py-0.5 font-mono
-                            text-[10px] text-white backdrop-blur-sm"
-                    >
-                        {{ formatMarkerRange(marker.timestamp, marker.end_timestamp) }}
-                    </div>
+                        <!-- Play Icon on Hover -->
+                        <div
+                            class="bg-lava/25 absolute inset-0 flex items-center justify-center
+                                opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                        >
+                            <Icon name="heroicons:play-solid" size="28" class="text-white" />
+                        </div>
+                    </button>
+                    <WatchMarkersTimeBadge
+                        :marker="marker"
+                        :editing="editingTime?.id === marker.id ? editingTime.field : null"
+                        @edit="startEditingTime(marker, $event)"
+                    />
+                </div>
 
-                    <!-- Play Icon on Hover -->
-                    <div
-                        class="bg-lava/25 absolute inset-0 flex items-center justify-center
-                            opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-                    >
-                        <Icon name="heroicons:play-solid" size="28" class="text-white" />
-                    </div>
-                </button>
+                <!-- Typed start or end -->
+                <WatchMarkersTimeEditor
+                    v-if="editingTime?.id === marker.id"
+                    :key="`${marker.id}-${editingTime.field}`"
+                    :field="editingTime.field"
+                    :marker="marker"
+                    :duration="sceneDuration"
+                    :saving="timeSaving"
+                    :server-error="timeError"
+                    @save="handleSaveTime(marker, editingTime.field, $event)"
+                    @cancel="cancelEditingTime"
+                />
 
                 <!-- Label & Actions -->
                 <div class="flex items-center gap-2 p-2 py-0.5">
@@ -495,7 +584,7 @@ onMounted(async () => {
                         </template>
                     </div>
 
-                    <!-- Range end: set at current time / clear -->
+                    <!-- Range end: clear / set at current time -->
                     <button
                         v-if="editingMarkerId !== marker.id && markerHasRange(marker)"
                         class="text-dim hover:bg-surface-hover flex shrink-0 items-center
@@ -505,6 +594,18 @@ onMounted(async () => {
                         @click="handleClearEnd(marker, $event)"
                     >
                         <Icon name="heroicons:arrows-pointing-in" size="12" />
+                    </button>
+                    <!-- Start: set at current time (next to the end) -->
+                    <button
+                        v-if="editingMarkerId !== marker.id"
+                        class="text-dim hover:bg-surface-hover flex shrink-0 items-center
+                            justify-center rounded p-1.5 opacity-0 transition-all
+                            group-hover:opacity-100 hover:text-white"
+                        title="Move start to current time"
+                        aria-label="Set start"
+                        @click="handleSetStart(marker, $event)"
+                    >
+                        <Icon name="heroicons:arrow-left-start-on-rectangle" size="12" />
                     </button>
                     <button
                         v-if="editingMarkerId !== marker.id"

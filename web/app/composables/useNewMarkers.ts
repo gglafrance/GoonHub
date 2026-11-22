@@ -23,6 +23,10 @@ interface Options {
 export const useNewMarkers = ({ markers, refresh, hasThumbnail }: Options) => {
     // Markers waited for, with the thumbnail version to move past (null: any thumbnail)
     const pendingThumbnails = new Map<number, string | null>();
+    // Thumbnail version shown while a moved marker's new thumbnail is made: the server deletes
+    // the old file at once, so the new version has no image until then (a broken image), while
+    // the browser still has the old version cached
+    const heldVersions = new Map<number, string>();
     let thumbnailPollTimer: ReturnType<typeof setTimeout> | null = null;
     let thumbnailPollAttempts = 0;
     let unmounted = false;
@@ -46,6 +50,7 @@ export const useNewMarkers = ({ markers, refresh, hasThumbnail }: Options) => {
         thumbnailPollTimer = null;
         await refresh?.();
         if (unmounted) return;
+        const held = new Map<number, string>();
         for (const [id, since] of [...pendingThumbnails]) {
             const marker = markers?.value.find((m) => m.id === id);
             if (
@@ -54,11 +59,20 @@ export const useNewMarkers = ({ markers, refresh, hasThumbnail }: Options) => {
                     (since == null || markerThumbnailVersionChanged(since, marker.updated_at)))
             ) {
                 pendingThumbnails.delete(id);
+                heldVersions.delete(id);
+            } else if (heldVersions.has(id)) {
+                held.set(id, heldVersions.get(id)!);
             }
+        }
+        if (markers && held.size) {
+            markers.value = markers.value.map((m) =>
+                held.has(m.id) ? { ...m, updated_at: held.get(m.id)! } : m,
+            );
         }
         thumbnailPollAttempts++;
         if (pendingThumbnails.size === 0 || thumbnailPollAttempts >= THUMBNAIL_POLL_MAX_ATTEMPTS) {
             pendingThumbnails.clear();
+            heldVersions.clear();
             return;
         }
         thumbnailPollTimer = setTimeout(pollThumbnails, THUMBNAIL_POLL_INTERVAL_MS);
@@ -75,10 +89,19 @@ export const useNewMarkers = ({ markers, refresh, hasThumbnail }: Options) => {
     };
 
     // Shows an edited marker at once (the PUT response has no tags: the listed ones are kept),
-    // and waits for its new thumbnail when it moved (the server remakes it in the background)
+    // and waits for its new thumbnail when it moved (the server remakes it in the background),
+    // showing the previous one meanwhile
     const applyMarkerUpdate = (before: Marker, after: Marker) => {
-        insertMarker({ ...before, ...after, tags: after.tags ?? before.tags });
-        if (after.timestamp !== before.timestamp) waitForThumbnail(after.id, after.updated_at);
+        const moved = after.timestamp !== before.timestamp;
+        if (moved && !heldVersions.has(after.id)) heldVersions.set(after.id, before.updated_at);
+        const held = heldVersions.get(after.id);
+        insertMarker({
+            ...before,
+            ...after,
+            tags: after.tags ?? before.tags,
+            ...(held ? { updated_at: held } : {}),
+        });
+        if (moved) waitForThumbnail(after.id, after.updated_at);
     };
 
     onBeforeUnmount(() => {
@@ -86,6 +109,7 @@ export const useNewMarkers = ({ markers, refresh, hasThumbnail }: Options) => {
         if (thumbnailPollTimer) clearTimeout(thumbnailPollTimer);
         thumbnailPollTimer = null;
         pendingThumbnails.clear();
+        heldVersions.clear();
     });
 
     return { insertMarker, waitForThumbnail, applyMarkerUpdate };

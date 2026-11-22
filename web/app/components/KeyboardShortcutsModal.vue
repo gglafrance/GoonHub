@@ -13,6 +13,9 @@ const { layout, displayKeys } = useKeyboardLayout();
 const { modifierLabel } = useCommandPalette();
 const slashEnabled = useCommandPaletteSlashEnabled();
 
+// Alt+M is Option+M on macOS
+const startKey = computed(() => (modifierLabel.value === 'Ctrl' ? 'Alt M' : '⌥ M'));
+
 const paletteKeys = computed(() =>
     slashEnabled.value ? [`${modifierLabel.value} K`, '/'] : [`${modifierLabel.value} K`],
 );
@@ -72,6 +75,7 @@ const playerSections = computed(() => [
         items: [
             { keys: ['M'], description: 'Quick marker: label, then sub-labels' },
             { keys: ['Shift M'], description: 'Set the end of the last marker' },
+            { keys: [startKey.value], description: 'Set the start of the last marker' },
         ],
     },
     {
