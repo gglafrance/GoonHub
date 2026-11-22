@@ -1,8 +1,17 @@
+// Relation of a member to the scene it was matched against (ref_scene_id): identical,
+// contained (this scene is a clip of the reference), contains (the reference is a part of this
+// scene), partial, or unknown (no matching segment yet)
+export type DuplicateRelation = 'identical' | 'contained' | 'contains' | 'partial' | 'unknown';
+
+// Summary of the members' relations. Only identical groups are resolved automatically.
+export type DuplicateGroupKind = 'identical' | 'containment' | 'partial' | 'unverified';
+
 export interface DuplicateGroup {
     id: number;
     status: 'unresolved' | 'resolved' | 'dismissed';
     scene_count: number;
     best_scene_id: number | null;
+    kind: DuplicateGroupKind;
     members: DuplicateGroupMember[];
     created_at: string;
     updated_at: string;
@@ -32,13 +41,28 @@ export interface DuplicateGroupMember {
     ref_scene_id?: number;
     ref_start?: number;
     ref_end?: number;
+    relation: DuplicateRelation;
     // When this scene (not kept at resolution) will be permanently deleted
     delete_after?: string;
+}
+
+// A group left untouched by an automatic action because not all its scenes are identical
+export interface DuplicateSkippedGroup {
+    group_id: number;
+    kind: DuplicateGroupKind;
+    reason: string;
+    members: { scene_id: number; relation: DuplicateRelation; ref_scene_id?: number }[];
 }
 
 export interface BulkResolveResult {
     resolved: number[];
     failed: { group_id: number; error: string }[];
+    skipped: DuplicateSkippedGroup[];
+}
+
+export interface AutoSelectResult {
+    selected: Record<string, number>;
+    skipped: DuplicateSkippedGroup[];
 }
 
 export interface DuplicateStats {

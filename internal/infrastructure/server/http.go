@@ -184,8 +184,10 @@ func (s *Server) Start() error {
 		s.triggerScheduler.Start()
 	}
 
-	// Apply the scheduled deletions of resolved duplicates
+	// Apply the scheduled deletions of resolved duplicates, and classify the duplicate group
+	// members recorded before their relation (identical, contained...) was stored
 	if s.duplicateService != nil {
+		s.duplicateService.StartRelationBackfill()
 		s.duplicateService.StartDeletionCleanupTicker()
 	}
 

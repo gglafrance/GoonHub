@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import type { DuplicateGroup, DuplicateStats, DuplicationConfig } from '~/types/duplicates';
+import type {
+    DuplicateGroup,
+    DuplicateSkippedGroup,
+    DuplicateStats,
+    DuplicationConfig,
+} from '~/types/duplicates';
 
 definePageMeta({
     middleware: 'auth',
@@ -17,6 +22,7 @@ useSeoMeta({
 const authStore = useAuthStore();
 const {
     listGroups,
+    getGroup,
     getStats,
     resolveGroup,
     dismissGroup,
@@ -44,6 +50,10 @@ const statusFilter = useUrlQueryRef('status', '', (raw) =>
     ['unresolved', 'resolved', 'dismissed'].includes(raw) ? raw : undefined,
 );
 const sortBy = useUrlString('sort', 'newest');
+// Kind of group: identical, containment (clip / compilation), partial, unverified
+const kindFilter = useUrlQueryRef('kind', '', (raw) =>
+    ['identical', 'containment', 'partial', 'unverified'].includes(raw) ? raw : undefined,
+);
 const expandedGroupParam = useUrlQueryRef('group', 0, (raw) => {
     const n = Number(raw);
     return Number.isInteger(n) && n > 0 ? n : undefined;
@@ -61,6 +71,8 @@ const selectedIds = ref<Set<number>>(new Set());
 const bulkBusy = ref(false);
 const showBulkConfirm = ref(false);
 const bulkMessage = ref<string | null>(null);
+// Groups the last automatic action skipped (not all their scenes are identical)
+const skippedGroups = ref<DuplicateSkippedGroup[]>([]);
 const dupConfig = ref<DuplicationConfig | null>(null);
 
 // Player / compare modal
@@ -90,9 +102,13 @@ const handleAutoSelect = async (groupIds: number[]) => {
     if (groupIds.length === 0) return;
     bulkBusy.value = true;
     bulkMessage.value = null;
+    skippedGroups.value = [];
     try {
-        const { selected } = await autoSelectBest(groupIds);
-        bulkMessage.value = `Best variant selected in ${Object.keys(selected).length} group(s)`;
+        const { selected, skipped } = await autoSelectBest(groupIds);
+        bulkMessage.value =
+            `Best variant selected in ${Object.keys(selected).length} group(s)` +
+            (skipped.length ? `, ${skipped.length} skipped` : '');
+        skippedGroups.value = skipped;
         await loadGroups();
     } catch (e) {
         bulkMessage.value = e instanceof Error ? e.message : 'Auto-select failed';
@@ -107,11 +123,14 @@ const confirmBulkResolve = async () => {
     if (ids.length === 0) return;
     bulkBusy.value = true;
     bulkMessage.value = null;
+    skippedGroups.value = [];
     try {
         const result = await resolveBulk(ids, true, mergeMetadata.value);
         bulkMessage.value =
             `${result.resolved.length} group(s) resolved` +
+            (result.skipped.length ? `, ${result.skipped.length} skipped` : '') +
             (result.failed.length ? `, ${result.failed.length} failed` : '');
+        skippedGroups.value = result.skipped;
         selectedIds.value = new Set(result.failed.map((f) => f.group_id));
         await Promise.all([loadGroups(), loadStats()]);
     } catch (e) {
@@ -145,7 +164,13 @@ const totalPages = computed(() => Math.ceil(total.value / limit.value) || 1);
 const loadGroups = async () => {
     loading.value = true;
     try {
-        const data = await listGroups(page.value, limit.value, statusFilter.value, sortBy.value);
+        const data = await listGroups(
+            page.value,
+            limit.value,
+            statusFilter.value,
+            sortBy.value,
+            kindFilter.value,
+        );
         groups.value = data.data;
         total.value = data.pagination.total_items;
     } catch (e) {
@@ -196,6 +221,29 @@ const setStatus = (s: string) => {
     statusFilter.value = s;
     page.value = 1;
     loadGroups();
+};
+
+const setKind = (k: string) => {
+    kindFilter.value = k;
+    page.value = 1;
+    loadGroups();
+};
+
+// Opens a skipped group to review it, fetching it on top of the list when not on this page
+const openSkippedGroup = async (groupId: number) => {
+    if (!groups.value.some((g) => g.id === groupId)) {
+        try {
+            groups.value = [await getGroup(groupId), ...groups.value];
+        } catch (e) {
+            console.error('Failed to load group:', e);
+            return;
+        }
+    }
+    expandedGroupId.value = groupId;
+    await nextTick();
+    document
+        .getElementById(`duplicate-group-${groupId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
 const setSort = (s: string) => {
@@ -298,6 +346,7 @@ onMounted(() => {
                 </button>
             </div>
             <div class="flex items-center gap-2">
+                <DuplicatesKindFilter :model-value="kindFilter" @update:model-value="setKind" />
                 <select
                     :value="sortBy"
                     class="border-border bg-panel rounded-md border px-2 py-1 text-[11px]
@@ -356,11 +405,18 @@ onMounted(() => {
                 <Icon name="heroicons:x-mark" size="12" />
             </button>
         </div>
+        <DuplicatesSkippedNotice
+            v-if="skippedGroups.length"
+            :skipped="skippedGroups"
+            @open="openSkippedGroup"
+            @close="skippedGroups = []"
+        />
 
         <!-- Group List -->
         <div v-if="!loading && groups.length > 0" class="space-y-3">
             <DuplicatesGroupCard
                 v-for="group in groups"
+                :id="`duplicate-group-${group.id}`"
                 :key="group.id"
                 v-model:merge-metadata="mergeMetadata"
                 :group="group"
@@ -396,6 +452,11 @@ onMounted(() => {
                 selected with the configured criteria and kept; the other scenes go to the trash{{
                     mergeMetadata ? ' after their metadata is merged into the kept scene' : ''
                 }}.
+            </p>
+            <p class="text-dim mt-2 text-xs">
+                Groups whose scenes are not all identical (a clip and the compilation containing it,
+                partial or unverified matches) are skipped and listed afterwards, to be resolved by
+                hand.
             </p>
             <p v-if="dupConfig?.delete_resolved_files" class="text-lava mt-2 text-xs">
                 Their files will then be permanently deleted

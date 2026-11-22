@@ -4,14 +4,16 @@ import "goonhub/internal/core"
 
 // DuplicateGroupResponse represents a duplicate group in the API response
 type DuplicateGroupResponse struct {
-	ID          uint                           `json:"id"`
-	Status      string                         `json:"status"`
-	SceneCount  int                            `json:"scene_count"`
-	BestSceneID *uint                          `json:"best_scene_id"`
-	Members     []DuplicateGroupMemberResponse `json:"members"`
-	CreatedAt   string                         `json:"created_at"`
-	UpdatedAt   string                         `json:"updated_at"`
-	ResolvedAt  *string                        `json:"resolved_at,omitempty"`
+	ID          uint   `json:"id"`
+	Status      string `json:"status"`
+	SceneCount  int    `json:"scene_count"`
+	BestSceneID *uint  `json:"best_scene_id"`
+	// Kind summarizes the members' relations: identical, containment, partial, unverified
+	Kind       string                         `json:"kind"`
+	Members    []DuplicateGroupMemberResponse `json:"members"`
+	CreatedAt  string                         `json:"created_at"`
+	UpdatedAt  string                         `json:"updated_at"`
+	ResolvedAt *string                        `json:"resolved_at,omitempty"`
 }
 
 // DuplicateGroupMemberResponse represents a member of a duplicate group
@@ -38,6 +40,8 @@ type DuplicateGroupMemberResponse struct {
 	RefSceneID *uint    `json:"ref_scene_id,omitempty"`
 	RefStart   *float64 `json:"ref_start,omitempty"`
 	RefEnd     *float64 `json:"ref_end,omitempty"`
+	// Relation to RefSceneID: identical, contained (clip of it), contains, partial, unknown
+	Relation string `json:"relation"`
 	// DeleteAfter is when this scene (not kept at resolution) will be permanently deleted
 	DeleteAfter *string `json:"delete_after,omitempty"`
 }
@@ -95,6 +99,7 @@ func ToDuplicateGroupResponse(g core.DuplicateGroupWithScenes) DuplicateGroupRes
 			RefSceneID:      m.RefSceneID,
 			RefStart:        m.RefStart,
 			RefEnd:          m.RefEnd,
+			Relation:        m.Relation,
 		}
 		if m.TrashedAt != nil {
 			s := m.TrashedAt.Format("2006-01-02T15:04:05Z")
@@ -112,6 +117,7 @@ func ToDuplicateGroupResponse(g core.DuplicateGroupWithScenes) DuplicateGroupRes
 		Status:      g.Status,
 		SceneCount:  g.SceneCount,
 		BestSceneID: g.BestSceneID,
+		Kind:        g.Kind,
 		Members:     members,
 		CreatedAt:   g.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:   g.UpdatedAt.Format("2006-01-02T15:04:05Z"),
