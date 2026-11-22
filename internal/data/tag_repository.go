@@ -18,7 +18,10 @@ type TagRepository interface {
 	GetByNames(names []string) ([]Tag, error)
 	GetIDsByNames(names []string) ([]uint, error)
 	Create(tag *Tag) error
+	Update(tag *Tag) error
 	Delete(id uint) error
+	// MergeTags merges sources into target (see TagRepositoryImpl.MergeTags).
+	MergeTags(target Tag, sources []Tag, dryRun bool) (*TagMergeStats, []uint, error)
 	GetSceneTags(sceneID uint) ([]Tag, error)
 	GetSceneTagsMultiple(sceneIDs []uint) (map[uint][]Tag, error)
 	SetSceneTags(sceneID uint, tagIDs []uint) error

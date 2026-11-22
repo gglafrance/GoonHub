@@ -96,6 +96,9 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 				{
 					tags.GET("", tagHandler.ListTags)
 					tags.POST("", tagHandler.CreateTag)
+					tags.GET("/duplicates", tagHandler.ListDuplicateTags)
+					tags.POST("/merge", tagHandler.MergeTags)
+					tags.PUT("/:id", tagHandler.UpdateTag)
 					tags.DELETE("/:id", tagHandler.DeleteTag)
 				}
 

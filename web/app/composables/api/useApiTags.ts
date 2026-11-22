@@ -30,6 +30,33 @@ export const useApiTags = () => {
         return handleResponse(response);
     };
 
+    const updateTagColor = async (id: number, color: string) => {
+        const response = await fetch(`/api/v1/tags/${id}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ color }),
+        });
+        return handleResponse(response);
+    };
+
+    const fetchDuplicateTags = async () => {
+        const response = await fetch('/api/v1/tags/duplicates', {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    /** Merges sourceIds into targetId; with dryRun only counts what would change. */
+    const mergeTags = async (targetId: number, sourceIds: number[], dryRun = false) => {
+        const response = await fetch('/api/v1/tags/merge', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ target_id: targetId, source_ids: sourceIds, dry_run: dryRun }),
+        });
+        return handleResponse(response);
+    };
+
     const fetchSceneTags = async (sceneId: number) => {
         const response = await fetch(`/api/v1/scenes/${sceneId}/tags`, {
             headers: getAuthHeaders(),
@@ -51,6 +78,9 @@ export const useApiTags = () => {
         fetchTags,
         createTag,
         deleteTag,
+        updateTagColor,
+        fetchDuplicateTags,
+        mergeTags,
         fetchSceneTags,
         setSceneTags,
     };
