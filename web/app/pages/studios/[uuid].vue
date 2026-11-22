@@ -944,6 +944,7 @@ definePageMeta({
                         v-if="hasSelection"
                         :scene-ids="getSelectedSceneIDs()"
                         :selection-count="selectionCount"
+                        :scenes="scenes"
                         @clear-selection="clearSelection()"
                         @complete="handleBulkComplete"
                     />

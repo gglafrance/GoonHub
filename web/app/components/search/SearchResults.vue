@@ -201,6 +201,7 @@ const handleBulkComplete = () => {
             v-if="hasSelection"
             :scene-ids="getSelectedSceneIDs()"
             :selection-count="selectionCount"
+            :scenes="scenesRef"
             @clear-selection="clearSelection()"
             @complete="handleBulkComplete"
         />

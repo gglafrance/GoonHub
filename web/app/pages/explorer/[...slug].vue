@@ -228,6 +228,7 @@ definePageMeta({
                 ref="bulkToolbarRef"
                 :scene-ids="explorerStore.getSelectedSceneIDs()"
                 :selection-count="explorerStore.selectionCount"
+                :scenes="explorerStore.scenes"
                 @clear-selection="explorerStore.clearSelection()"
                 @complete="handleBulkComplete"
             />

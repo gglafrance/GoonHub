@@ -15,7 +15,7 @@ const emit = defineEmits<{
     play: [index: number];
 }>();
 
-const { formatDuration } = useFormatter();
+const { formatDuration, formatSize } = useFormatter();
 
 // List or table (Settings > table columns; no rating nor actors in playlists)
 const { isTable } = useSceneListView('playlist');
@@ -31,6 +31,16 @@ const dragSelect = (ids: number[], additive: boolean) => {
 
 const selectMode = ref(false);
 const selectedIds = ref<Set<number>>(new Set());
+
+// Total disk size of the selection (every playlist scene is loaded, with its size)
+const selectionSize = computed(() => {
+    const sizes = new Map<number, number>();
+    rememberSceneSizes(
+        sizes,
+        props.scenes.map((s) => s.scene),
+    );
+    return selectionSizeLabel(summarizeSelectionSize(selectedIds.value, sizes), formatSize);
+});
 
 const allSelected = computed(
     () => props.scenes.length > 0 && selectedIds.value.size === props.scenes.length,
@@ -127,6 +137,11 @@ const moveScene = (index: number, direction: 'up' | 'down') => {
                 </button>
                 <span v-if="selectedIds.size > 0" class="text-dim text-[11px]">
                     {{ selectedIds.size }} selected
+                    <template v-if="selectionSize">
+                        &middot;
+                        <span class="font-mono text-white/80">{{ selectionSize.size }}</span>
+                        <template v-if="selectionSize.note"> ({{ selectionSize.note }}) </template>
+                    </template>
                 </span>
             </template>
         </div>
