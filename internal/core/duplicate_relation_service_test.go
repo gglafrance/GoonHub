@@ -100,7 +100,7 @@ func TestResolveGroup_ManualResolutionAllowedForContainment(t *testing.T) {
 	groupRepo.EXPECT().UpdateStatus(uint(64), "resolved", gomock.Any()).Return(nil)
 
 	// The user chose to keep the compilation: allowed whatever the relation
-	if err := svc.ResolveGroup(64, 4446, false); err != nil {
+	if _, err := svc.ResolveGroup(64, 4446, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

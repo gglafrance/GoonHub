@@ -126,10 +126,12 @@ const confirmBulkResolve = async () => {
     skippedGroups.value = [];
     try {
         const result = await resolveBulk(ids, true, mergeMetadata.value);
+        const markers = describeMarkerMerge(result.markers);
         bulkMessage.value =
             `${result.resolved.length} group(s) resolved` +
             (result.skipped.length ? `, ${result.skipped.length} skipped` : '') +
-            (result.failed.length ? `, ${result.failed.length} failed` : '');
+            (result.failed.length ? `, ${result.failed.length} failed` : '') +
+            (markers ? `. Markers: ${markers}` : '');
         skippedGroups.value = result.skipped;
         selectedIds.value = new Set(result.failed.map((f) => f.group_id));
         await Promise.all([loadGroups(), loadStats()]);
@@ -190,7 +192,9 @@ const loadStats = async () => {
 
 const handleResolve = async (groupId: number, bestSceneId: number) => {
     try {
-        await resolveGroup(groupId, bestSceneId, mergeMetadata.value);
+        const result = await resolveGroup(groupId, bestSceneId, mergeMetadata.value);
+        const markers = describeMarkerMerge(result.markers);
+        bulkMessage.value = `Group #${groupId} resolved` + (markers ? `. Markers: ${markers}` : '');
         expandedGroupId.value = null;
         await Promise.all([loadGroups(), loadStats()]);
     } catch (e) {
@@ -308,14 +312,18 @@ onMounted(() => {
                 <h1 class="text-lg font-bold text-white">Duplicate Detection</h1>
                 <p class="text-dim mt-1 text-xs">Manage detected duplicate scenes</p>
             </div>
-            <NuxtLink
-                to="/settings?tab=duplicates"
-                class="border-border text-dim hover:border-lava/30 hover:text-lava flex items-center
-                    gap-1.5 rounded-md border px-3 py-1.5 text-[11px] font-medium transition-all"
-            >
-                <Icon name="heroicons:adjustments-horizontal" size="14" />
-                Settings
-            </NuxtLink>
+            <div class="flex items-center gap-2">
+                <DuplicatesMarkerDedup />
+                <NuxtLink
+                    to="/settings?tab=duplicates"
+                    class="border-border text-dim hover:border-lava/30 hover:text-lava flex
+                        items-center gap-1.5 rounded-md border px-3 py-1.5 text-[11px] font-medium
+                        transition-all"
+                >
+                    <Icon name="heroicons:adjustments-horizontal" size="14" />
+                    Settings
+                </NuxtLink>
+            </div>
         </div>
 
         <!-- Stats Bar -->

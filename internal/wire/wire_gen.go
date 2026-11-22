@@ -145,7 +145,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	savedSearchHandler := provideSavedSearchHandler(savedSearchService)
 	playlistRepository := providePlaylistRepository(db)
 	playlistService := providePlaylistService(playlistRepository, sceneRepository, tagRepository, logger)
-	duplicateService := provideDuplicateService(duplicateGroupRepository, sceneRepository, tagRepository, actorRepository, markerRepository, interactionRepository, sceneService, duplicationConfigRepository, logger)
+	duplicateService := provideDuplicateService(duplicateGroupRepository, sceneRepository, tagRepository, actorRepository, markerRepository, interactionRepository, sceneService, duplicationConfigRepository, markerService, logger)
 	homepageService := provideHomepageService(settingsService, searchService, savedSearchService, playlistService, watchHistoryRepository, interactionRepository, sceneRepository, tagRepository, actorRepository, studioRepository, db, markerRepository, relatedScenesService, jobHistoryRepository, duplicateService, storagePathRepository, logger)
 	homepageHandler := provideHomepageHandler(homepageService)
 	markerHandler := provideMarkerHandler(markerService, db, configConfig, logger)
@@ -549,9 +549,10 @@ func provideSceneFingerprintIndex(matchingService *core.MatchingService) core.Sc
 	return matchingService
 }
 
-func provideDuplicateService(dupGroupRepo data.DuplicateGroupRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, markerRepo data.MarkerRepository, interactionRepo data.InteractionRepository, sceneService *core.SceneService, dupConfigRepo data.DuplicationConfigRepository, logger *logging.Logger) *core.DuplicateService {
+func provideDuplicateService(dupGroupRepo data.DuplicateGroupRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, markerRepo data.MarkerRepository, interactionRepo data.InteractionRepository, sceneService *core.SceneService, dupConfigRepo data.DuplicationConfigRepository, markerService *core.MarkerService, logger *logging.Logger) *core.DuplicateService {
 	svc := core.NewDuplicateService(dupGroupRepo, sceneRepo, tagRepo, actorRepo, markerRepo, interactionRepo, sceneService, logger.Logger)
 	svc.SetConfigRepo(dupConfigRepo)
+	svc.SetMarkerService(markerService)
 	return svc
 }
 

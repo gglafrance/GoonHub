@@ -145,10 +145,10 @@ func TestMergeMetadata_SourceURL(t *testing.T) {
 	}, nil)
 	// the best scene has no source: the first other scene with one gives it
 	sceneRepo.EXPECT().UpdateSourceURL(uint(10), "https://example.com/v/30").Return(nil)
-	markerRepo.EXPECT().ReassignMarkersToScene(gomock.Any(), uint(10)).Return(nil).Times(2)
+	markerRepo.EXPECT().GetAllByScene(gomock.Any()).Return(nil, nil).Times(2)
 	interactionRepo.EXPECT().ReassignInteractionsToScene(gomock.Any(), uint(10)).Return(nil).Times(2)
 
-	if err := svc.mergeMetadata(10, []uint{20, 30}); err != nil {
+	if _, err := svc.mergeMetadata(nil, 10, []uint{20, 30}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -164,10 +164,10 @@ func TestMergeMetadata_KeepsBestSourceURL(t *testing.T) {
 		{ID: 10, Title: "Best", StudioID: &studioID, SourceURL: "https://example.com/v/10"},
 		{ID: 20, Title: "Other", SourceURL: "https://example.com/v/20"},
 	}, nil)
-	markerRepo.EXPECT().ReassignMarkersToScene(uint(20), uint(10)).Return(nil)
+	markerRepo.EXPECT().GetAllByScene(uint(20)).Return(nil, nil)
 	interactionRepo.EXPECT().ReassignInteractionsToScene(uint(20), uint(10)).Return(nil)
 
-	if err := svc.mergeMetadata(10, []uint{20}); err != nil {
+	if _, err := svc.mergeMetadata(nil, 10, []uint{20}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

@@ -201,8 +201,8 @@ func TestResolveGroup_Success(t *testing.T) {
 	}, nil)
 
 	// Merge markers
-	markerRepo.EXPECT().ReassignMarkersToScene(uint(20), uint(10)).Return(nil)
-	markerRepo.EXPECT().ReassignMarkersToScene(uint(30), uint(10)).Return(nil)
+	markerRepo.EXPECT().GetAllByScene(uint(20)).Return(nil, nil)
+	markerRepo.EXPECT().GetAllByScene(uint(30)).Return(nil, nil)
 
 	// Merge interactions
 	interactionRepo.EXPECT().ReassignInteractionsToScene(uint(20), uint(10)).Return(nil)
@@ -224,7 +224,7 @@ func TestResolveGroup_Success(t *testing.T) {
 	groupRepo.EXPECT().SetBestScene(uint(1), uint(10)).Return(nil)
 	groupRepo.EXPECT().UpdateStatus(uint(1), "resolved", gomock.Any()).Return(nil)
 
-	err := svc.ResolveGroup(1, 10, true)
+	_, err := svc.ResolveGroup(1, 10, true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -245,7 +245,7 @@ func TestResolveGroup_InvalidMember(t *testing.T) {
 
 	groupRepo.EXPECT().GetByIDWithMembers(uint(1)).Return(group, nil)
 
-	err := svc.ResolveGroup(1, 999, false)
+	_, err := svc.ResolveGroup(1, 999, false)
 	if err == nil {
 		t.Fatal("expected error for invalid member, got nil")
 	}
@@ -281,7 +281,7 @@ func TestResolveGroup_NoMerge(t *testing.T) {
 	groupRepo.EXPECT().SetBestScene(uint(1), uint(10)).Return(nil)
 	groupRepo.EXPECT().UpdateStatus(uint(1), "resolved", gomock.Any()).Return(nil)
 
-	err := svc.ResolveGroup(1, 10, false)
+	_, err := svc.ResolveGroup(1, 10, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -446,12 +446,12 @@ func TestMergeMetadata_Markers(t *testing.T) {
 	}, nil)
 
 	// Markers: should be reassigned
-	markerRepo.EXPECT().ReassignMarkersToScene(uint(20), uint(10)).Return(nil)
+	markerRepo.EXPECT().GetAllByScene(uint(20)).Return(nil, nil)
 
 	// Interactions: should be reassigned
 	interactionRepo.EXPECT().ReassignInteractionsToScene(uint(20), uint(10)).Return(nil)
 
-	err := svc.mergeMetadata(10, []uint{20})
+	_, err := svc.mergeMetadata(nil, 10, []uint{20})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -479,12 +479,12 @@ func TestMergeMetadata_Studio(t *testing.T) {
 	sceneRepo.EXPECT().UpdateSceneMetadata(uint(10), "Best Scene", "", "Great Studio", (*time.Time)(nil), "").Return(nil)
 
 	// Markers
-	markerRepo.EXPECT().ReassignMarkersToScene(uint(20), uint(10)).Return(nil)
+	markerRepo.EXPECT().GetAllByScene(uint(20)).Return(nil, nil)
 
 	// Interactions
 	interactionRepo.EXPECT().ReassignInteractionsToScene(uint(20), uint(10)).Return(nil)
 
-	err := svc.mergeMetadata(10, []uint{20})
+	_, err := svc.mergeMetadata(nil, 10, []uint{20})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -572,7 +572,7 @@ func TestResolveGroup_SchedulesDeletionWhenConfigured(t *testing.T) {
 	groupRepo.EXPECT().SetBestScene(uint(1), uint(10)).Return(nil)
 	groupRepo.EXPECT().UpdateStatus(uint(1), "resolved", gomock.Any()).Return(nil)
 
-	if err := svc.ResolveGroup(1, 10, false); err != nil {
+	if _, err := svc.ResolveGroup(1, 10, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

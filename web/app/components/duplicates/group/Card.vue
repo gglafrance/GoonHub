@@ -179,7 +179,10 @@ const pendingDeletions = computed(() => props.group.members.filter((m) => m.dele
                 class="border-border flex flex-wrap items-center justify-between gap-2 p-4"
                 :class="{ 'border-t': identical }"
             >
-                <label class="text-dim flex items-center gap-2 text-[11px]">
+                <label
+                    class="text-dim flex items-center gap-2 text-[11px]"
+                    title="Markers are moved to the kept scene, shifted to where the same moment is in it; markers outside the matching part stay on the trashed scene"
+                >
                     <input
                         :checked="mergeMetadata"
                         type="checkbox"
