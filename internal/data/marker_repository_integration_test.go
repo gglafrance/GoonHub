@@ -2,6 +2,7 @@ package data
 
 import (
 	"testing"
+	"time"
 
 	"github.com/lib/pq"
 )
@@ -135,6 +136,21 @@ func TestMarkerRepositoryListingFilters(t *testing.T) {
 		if _, err := repo.GetRandomThumbnailsForLabels(f.user.ID, []string{"Kiss"}, 5, MarkerListOptions{RangesOnly: true, Studio: f.studio.Name}); err != nil {
 			t.Fatalf("GetRandomThumbnailsForLabels: %v", err)
 		}
+		if err := repo.UpdateThumbnailPath(markers[1].ID, "marker_hug.webp"); err != nil {
+			t.Fatalf("UpdateThumbnailPath: %v", err)
+		}
+		saved, err := repo.GetByID(markers[1].ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := repo.GetRandomThumbnailsForLabels(f.user.ID, []string{"Hug"}, 5, MarkerListOptions{})
+		if err != nil {
+			t.Fatalf("GetRandomThumbnailsForLabels: %v", err)
+		}
+		refs := got["Hug"]
+		if len(refs) != 1 || refs[0].ID != markers[1].ID || !refs[0].UpdatedAt.Equal(saved.UpdatedAt) {
+			t.Fatalf("unexpected thumbnail refs: %+v (marker updated at %v)", refs, saved.UpdatedAt)
+		}
 	})
 
 	t.Run("by user and scenes", func(t *testing.T) {
@@ -146,4 +162,62 @@ func TestMarkerRepositoryListingFilters(t *testing.T) {
 			t.Fatalf("unexpected markers: %+v", got)
 		}
 	})
+}
+
+// The thumbnail URLs are versioned by updated_at: writing a thumbnail path (the file is
+// rewritten under the same name when a marker moves) must move it, and only that column
+// must change (the user may have edited the marker meanwhile).
+func TestMarkerRepositoryThumbnailPathBumpsUpdatedAt(t *testing.T) {
+	db := importTestDB(t)
+	f := newImportFixture(t, db)
+	repo := &MarkerRepositoryImpl{DB: db}
+	suffix := f.tags[0].Name[len("import-a-"):]
+
+	scene := &Scene{Title: "T", StoredPath: "/import-test/" + suffix + "/thumb.mp4", Tags: pq.StringArray{}, Actors: pq.StringArray{}}
+	if err := db.Create(scene).Error; err != nil {
+		t.Fatalf("create scene: %v", err)
+	}
+	marker := &UserSceneMarker{UserID: f.user.ID, SceneID: scene.ID, Timestamp: 10, Label: "Kiss", Color: "#FFFFFF", ThumbnailPath: "marker_x.webp"}
+	if err := db.Create(marker).Error; err != nil {
+		t.Fatalf("create marker: %v", err)
+	}
+	t.Cleanup(func() { db.Where("user_id = ?", f.user.ID).Delete(&UserSceneMarker{}) })
+
+	// An old updated_at, as for a marker made a while ago
+	old := time.Now().Add(-time.Hour).Truncate(time.Millisecond)
+	if err := db.Model(&UserSceneMarker{}).Where("id = ?", marker.ID).UpdateColumn("updated_at", old).Error; err != nil {
+		t.Fatalf("set old updated_at: %v", err)
+	}
+
+	tests := []struct {
+		name   string
+		update func(id uint, path string) error
+		path   string
+		get    func(m *UserSceneMarker) string
+	}{
+		{"static", repo.UpdateThumbnailPath, "marker_x.webp", func(m *UserSceneMarker) string { return m.ThumbnailPath }},
+		{"animated", repo.UpdateAnimatedThumbnailPath, "marker_x.mp4", func(m *UserSceneMarker) string { return m.AnimatedThumbnailPath }},
+	}
+	previous := old
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.update(marker.ID, tt.path); err != nil {
+				t.Fatalf("update: %v", err)
+			}
+			got, err := repo.GetByID(marker.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tt.get(got) != tt.path {
+				t.Fatalf("path = %q, want %q", tt.get(got), tt.path)
+			}
+			if MarkerThumbnailVersion(got.UpdatedAt) <= MarkerThumbnailVersion(previous) {
+				t.Fatalf("updated_at not bumped: %v, before %v", got.UpdatedAt, previous)
+			}
+			if got.Timestamp != 10 || got.Label != "Kiss" {
+				t.Fatalf("other columns changed: %+v", got)
+			}
+			previous = got.UpdatedAt
+		})
+	}
 }

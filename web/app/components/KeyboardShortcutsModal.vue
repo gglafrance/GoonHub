@@ -69,7 +69,10 @@ const playerSections = computed(() => [
     },
     {
         category: 'Markers',
-        items: [{ keys: ['M'], description: 'Quick marker: label, then sub-labels' }],
+        items: [
+            { keys: ['M'], description: 'Quick marker: label, then sub-labels' },
+            { keys: ['Shift M'], description: 'Set the end of the last marker' },
+        ],
     },
     {
         category: 'Navigation',

@@ -239,7 +239,7 @@ definePageMeta({
                                     marker.animated_thumbnail_path
                                 "
                                 :ref="(el) => observe(el as HTMLVideoElement)"
-                                :src="`/marker-thumbnails/${marker.id}/animated`"
+                                :src="markerThumbnailUrl(marker.id, marker.updated_at, true)"
                                 muted
                                 loop
                                 playsinline
@@ -249,7 +249,7 @@ definePageMeta({
                             />
                             <img
                                 v-else
-                                :src="`/marker-thumbnails/${marker.id}`"
+                                :src="markerThumbnailUrl(marker.id, marker.updated_at)"
                                 :alt="marker.scene_title"
                                 class="h-full w-full object-cover transition-transform duration-300
                                     group-hover:scale-105"

@@ -47,7 +47,7 @@ onBeforeUnmount(() => observer?.disconnect());
             <video
                 v-if="marker.has_animated"
                 ref="videoEl"
-                :src="`/marker-thumbnails/${marker.id}/animated`"
+                :src="markerThumbnailUrl(marker.id, marker.updated_at, true)"
                 muted
                 loop
                 playsinline
@@ -57,7 +57,7 @@ onBeforeUnmount(() => observer?.disconnect());
             />
             <img
                 v-else-if="marker.has_thumbnail"
-                :src="`/marker-thumbnails/${marker.id}`"
+                :src="markerThumbnailUrl(marker.id, marker.updated_at)"
                 :alt="marker.label || marker.scene_title"
                 loading="lazy"
                 class="h-full w-full object-cover transition-transform duration-300
