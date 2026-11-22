@@ -101,8 +101,8 @@ func TestUpdateAllSettings_DisplaySettings(t *testing.T) {
 }
 
 func TestUpdateAllSettings_InvalidGridDensity(t *testing.T) {
-	svc, settingsRepo, _ := newTestSettingsService(t)
-	settingsRepo.EXPECT().GetByUserID(uint(1)).Return(&data.UserSettings{UserID: 1}, nil)
+	// Invalid values are rejected before the settings are read
+	svc, _, _ := newTestSettingsService(t)
 
 	autoplay, volume, loop, alc, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs, spss, scc := validAllSettingsArgs()
 	if _, err := svc.UpdateAllSettings(1, autoplay, volume, loop, alc, false, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs, spss, false, "grouped", scc, WithGridDensity("tiny")); err == nil {

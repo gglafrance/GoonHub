@@ -68,6 +68,7 @@ export const useApi = () => {
         // Settings operations
         fetchSettings: settings.fetchSettings,
         updateAllSettings: settings.updateAllSettings,
+        patchSettings: settings.patchSettings,
         changePassword: settings.changePassword,
         changeUsername: settings.changeUsername,
         getParsingRules: settings.getParsingRules,

@@ -1,8 +1,10 @@
 import type { ParsingRulesSettings } from '~/types/parsing-rules';
 import type { UserSettings } from '~/types/settings';
+import type { SettingsPatch } from '~/utils/settingsPatch';
 
 /**
- * User settings API operations: unified settings, account, parsing rules.
+ * User settings API operations: unified settings (full PUT or partial PATCH), account,
+ * parsing rules.
  */
 export const useApiSettings = () => {
     const { fetchOptions, getAuthHeaders, handleResponse } = useApiCore();
@@ -20,6 +22,16 @@ export const useApiSettings = () => {
             method: 'PUT',
             headers: getAuthHeaders(),
             body: JSON.stringify(settings),
+        });
+        return handleResponse(response);
+    };
+
+    // Partial update: only the given settings change; returns all the settings
+    const patchSettings = async (patch: SettingsPatch): Promise<UserSettings> => {
+        const response = await fetch('/api/v1/settings', {
+            method: 'PATCH',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(patch),
         });
         return handleResponse(response);
     };
@@ -64,6 +76,7 @@ export const useApiSettings = () => {
     return {
         fetchSettings,
         updateAllSettings,
+        patchSettings,
         changePassword,
         changeUsername,
         getParsingRules,
