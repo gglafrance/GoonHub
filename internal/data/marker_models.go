@@ -34,6 +34,24 @@ type MarkerLabelGroup struct {
 	Count              int64  `json:"count"`
 	ThumbnailMarkerID  uint   `json:"thumbnail_marker_id"`
 	ThumbnailMarkerIDs []uint `json:"thumbnail_marker_ids" gorm:"-"`
+	// ThumbnailVersions maps the IDs of ThumbnailMarkerIDs to their thumbnail version
+	// (MarkerThumbnailVersion), appended to the thumbnail URLs so that browsers refetch a
+	// regenerated thumbnail.
+	ThumbnailVersions map[uint]int64 `json:"thumbnail_versions" gorm:"-"`
+}
+
+// MarkerThumbnailRef is a marker picked as a thumbnail, with its last update time.
+type MarkerThumbnailRef struct {
+	ID        uint
+	UpdatedAt time.Time
+}
+
+// MarkerThumbnailVersion is the version of a marker's thumbnail files: its updated_at in Unix
+// milliseconds. updated_at moves each time a thumbnail path is written (UpdateThumbnailPath,
+// UpdateAnimatedThumbnailPath), so a regenerated thumbnail gets a new version. The frontend
+// computes the same value from the marker's updated_at.
+func MarkerThumbnailVersion(updatedAt time.Time) int64 {
+	return updatedAt.UnixMilli()
 }
 
 // MarkerWithScene extends UserSceneMarker with scene information

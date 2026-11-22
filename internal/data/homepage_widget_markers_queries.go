@@ -1,6 +1,8 @@
 package data
 
 import (
+	"time"
+
 	"gorm.io/gorm"
 )
 
@@ -29,6 +31,8 @@ type WidgetMarker struct {
 	AnimatedThumbnailPath string `json:"-"`
 	HasThumbnail          bool   `json:"has_thumbnail" gorm:"-"`
 	HasAnimated           bool   `json:"has_animated" gorm:"-"`
+	// UpdatedAt versions the thumbnail URLs (see MarkerThumbnailVersion)
+	UpdatedAt time.Time `json:"updated_at"`
 	// Tags of the marker (label tag included), shown as "+X" on the card
 	Tags []MarkerTagInfo `json:"tags,omitempty" gorm:"-"`
 }
@@ -41,7 +45,7 @@ func ListWidgetMarkers(db *gorm.DB, userID uint, q WidgetMarkerQuery) ([]WidgetM
 	}
 	query := db.Table("user_scene_markers AS m").
 		Select("m.id, m.scene_id, s.title AS scene_title, m.label, m.color, m.timestamp, m.end_timestamp, "+
-			"m.thumbnail_path, m.animated_thumbnail_path").
+			"m.thumbnail_path, m.animated_thumbnail_path, m.updated_at").
 		Joins("JOIN scenes s ON s.id = m.scene_id").
 		Where("m.user_id = ? AND s.trashed_at IS NULL AND s.deleted_at IS NULL", userID)
 	if len(q.Labels) > 0 {
@@ -68,7 +72,9 @@ type WidgetTile struct {
 	Color         string `json:"color,omitempty"`
 	Count         int64  `json:"count"`
 	CoverMarkerID *uint  `json:"cover_marker_id,omitempty"`
-	CoverSceneID  *uint  `json:"cover_scene_id,omitempty"`
+	// CoverMarkerVersion is the thumbnail version of the cover marker (MarkerThumbnailVersion)
+	CoverMarkerVersion *int64 `json:"cover_marker_version,omitempty"`
+	CoverSceneID       *uint  `json:"cover_scene_id,omitempty"`
 }
 
 // ListMarkerLabelTiles returns marker label tiles of a user (most used first), each with a random
@@ -99,7 +105,41 @@ func ListMarkerLabelTiles(db *gorm.DB, userID uint, labels []string, limit int) 
 	for i, r := range rows {
 		tiles[i] = WidgetTile{Key: r.Label, Label: r.Label, Count: r.Count, CoverMarkerID: r.CoverMarkerID}
 	}
+	if err := setCoverMarkerVersions(db, tiles); err != nil {
+		return nil, err
+	}
 	return orderTiles(tiles, labels), nil
+}
+
+// setCoverMarkerVersions fills the thumbnail version of the tiles' cover markers (picked at
+// random by the tile query, so read in a second query).
+func setCoverMarkerVersions(db *gorm.DB, tiles []WidgetTile) error {
+	var ids []uint
+	for _, t := range tiles {
+		if t.CoverMarkerID != nil {
+			ids = append(ids, *t.CoverMarkerID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	var refs []MarkerThumbnailRef
+	if err := db.Table("user_scene_markers").Select("id, updated_at").Where("id IN ?", ids).Scan(&refs).Error; err != nil {
+		return err
+	}
+	versions := make(map[uint]int64, len(refs))
+	for _, ref := range refs {
+		versions[ref.ID] = MarkerThumbnailVersion(ref.UpdatedAt)
+	}
+	for i := range tiles {
+		if tiles[i].CoverMarkerID == nil {
+			continue
+		}
+		if v, ok := versions[*tiles[i].CoverMarkerID]; ok {
+			tiles[i].CoverMarkerVersion = &v
+		}
+	}
+	return nil
 }
 
 // ListSceneTagTiles returns scene tag tiles (most used first), each with a random scene

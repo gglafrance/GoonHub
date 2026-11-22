@@ -2,6 +2,7 @@ package core
 
 import (
 	"testing"
+	"time"
 
 	"goonhub/internal/data"
 )
@@ -56,14 +57,17 @@ func TestGetLabelGroups_RangesOnlyThumbnails(t *testing.T) {
 		Return([]data.MarkerLabelGroup{{Label: "Kiss", Count: 2}}, int64(1), nil)
 	markerRepo.EXPECT().
 		GetRandomThumbnailsForLabels(uint(1), []string{"Kiss"}, 10, data.MarkerListOptions{SortBy: "count_desc", RangesOnly: true}).
-		Return(map[string][]uint{"Kiss": {4}}, nil)
+		Return(map[string][]data.MarkerThumbnailRef{"Kiss": {{ID: 4, UpdatedAt: time.UnixMilli(1700000000123)}}}, nil)
 
 	groups, _, err := svc.GetLabelGroups(1, 1, 20, data.MarkerListOptions{SortBy: "bogus", RangesOnly: true})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(groups) != 1 || len(groups[0].ThumbnailMarkerIDs) != 1 {
+	if len(groups) != 1 || len(groups[0].ThumbnailMarkerIDs) != 1 || groups[0].ThumbnailMarkerIDs[0] != 4 {
 		t.Fatalf("unexpected groups: %+v", groups)
+	}
+	if v := groups[0].ThumbnailVersions[4]; v != 1700000000123 {
+		t.Fatalf("thumbnail version = %d, want 1700000000123", v)
 	}
 }
 
