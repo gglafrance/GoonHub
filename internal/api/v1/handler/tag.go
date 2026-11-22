@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"goonhub/internal/api/v1/response"
 	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
 	"net/http"
@@ -126,4 +127,62 @@ func (h *TagHandler) SetSceneTags(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": tags})
+}
+
+type updateTagRequest struct {
+	Color string `json:"color" binding:"required"`
+}
+
+// UpdateTag changes a tag's color (PUT /tags/:id, body {color}).
+func (h *TagHandler) UpdateTag(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tag ID"})
+		return
+	}
+	var req updateTagRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Color is required"})
+		return
+	}
+	tag, err := h.Service.UpdateTagColor(uint(id), req.Color)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, tag)
+}
+
+// ListDuplicateTags returns the groups of tags whose names are equal ignoring case and extra
+// spaces (GET /tags/duplicates).
+func (h *TagHandler) ListDuplicateTags(c *gin.Context) {
+	groups, err := h.Service.FindDuplicates()
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": groups})
+}
+
+type mergeTagsRequest struct {
+	TargetID  uint   `json:"target_id" binding:"required"`
+	SourceIDs []uint `json:"source_ids" binding:"required"`
+	// DryRun only counts what the merge would change.
+	DryRun bool `json:"dry_run"`
+}
+
+// MergeTags merges source tags into a target tag (POST /tags/merge, body
+// {target_id, source_ids, dry_run}).
+func (h *TagHandler) MergeTags(c *gin.Context) {
+	var req mergeTagsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "target_id and source_ids are required"})
+		return
+	}
+	res, err := h.Service.MergeTags(req.TargetID, req.SourceIDs, req.DryRun)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, res)
 }
