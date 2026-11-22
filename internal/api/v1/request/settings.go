@@ -138,6 +138,8 @@ type UpdateAllSettingsRequest struct {
 	ShowScrubber *bool `json:"show_scrubber"`
 	// ScrubberMode: free or centered, nil keeps the current value
 	ScrubberMode *string `json:"scrubber_mode"`
+	// ContentWidth: default, wide or full, nil keeps the current value
+	ContentWidth *string `json:"content_width"`
 }
 
 // SceneListViewRequest is the grid/table view per scene list page and the table columns.

@@ -3,6 +3,7 @@ import type { Studio, UpdateStudioInput } from '~/types/studio';
 import type { Scene, SceneListResponse } from '~/types/scene';
 import type { LoadedPages, PageLoadPlan } from '~/utils/infinitePages';
 
+const { containerClass } = useContentWidth();
 const route = useRoute();
 const router = useRouter();
 const api = useApi();
@@ -408,7 +409,7 @@ definePageMeta({
 
 <template>
     <div class="min-h-screen px-4 py-6 sm:px-5">
-        <div class="mx-auto max-w-415">
+        <div :class="containerClass">
             <!-- Back Button -->
             <button
                 class="text-dim hover:text-lava mb-4 flex items-center gap-1 text-sm

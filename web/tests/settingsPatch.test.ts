@@ -19,6 +19,7 @@ const saved = (): UserSettings =>
         infinite_scroll: false,
         show_scrubber: false,
         scrubber_mode: 'free',
+        content_width: 'default',
         date_format: 'auto',
         sort_preferences: {
             actors: 'name_asc',
@@ -79,11 +80,13 @@ describe('diffSettings', () => {
         draft.default_volume = 0;
         draft.grid_density = 'large';
         draft.scrubber_mode = 'centered';
+        draft.content_width = 'wide';
         expect(diffSettings(saved(), draft)).toEqual({
             show_scrubber: true,
             default_volume: 0,
             grid_density: 'large',
             scrubber_mode: 'centered',
+            content_width: 'wide',
         });
     });
 

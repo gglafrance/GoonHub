@@ -475,6 +475,31 @@ func WithPaginationPosition(position string) SettingsOption {
 	}
 }
 
+// Widths of the scene list pages: default keeps the usual maximum width, wide raises it, full
+// goes edge to edge (with the usual side padding). The grids add columns as the width grows.
+const (
+	ContentWidthDefault = "default"
+	ContentWidthWide    = "wide"
+	ContentWidthFull    = "full"
+)
+
+var allowedContentWidths = map[string]bool{ContentWidthDefault: true, ContentWidthWide: true, ContentWidthFull: true}
+
+// WithContentWidth sets the width of the scene list pages; nil keeps the current value (default
+// for a new row).
+func WithContentWidth(width *string) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if width == nil {
+			return nil
+		}
+		if !allowedContentWidths[*width] {
+			return fmt.Errorf("invalid content width: %q", *width)
+		}
+		settings.ContentWidth = *width
+		return nil
+	}
+}
+
 // DefaultGridDensity is the card size of the scene grids by default.
 const DefaultGridDensity = "comfortable"
 
@@ -864,6 +889,7 @@ func defaultUserSettings(userID uint) *data.UserSettings {
 		DateFormat:             DefaultDateFormat,
 		GridDensity:            DefaultGridDensity,
 		ScrubberMode:           ScrubberModeFree,
+		ContentWidth:           ContentWidthDefault,
 		PlayerGestures:         true,
 		GestureSeekStep:        DefaultGestureSeekStep,
 		ShowReplayHeatmap:      true,

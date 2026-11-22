@@ -15,6 +15,7 @@ import type {
     SceneTableColumn,
     GridDensity,
     ScrubberMode,
+    ContentWidth,
 } from '~/types/settings';
 import type { ParsingRulesSettings, ParsingPreset } from '~/types/parsing-rules';
 import type { SettingsPatch } from '~/utils/settingsPatch';
@@ -73,6 +74,10 @@ export const useSettingsStore = defineStore(
         // Its mode: free (default) or centered on the playback position like Stash
         const scrubberMode = computed<ScrubberMode>(() =>
             normalizeScrubberMode(settings.value?.scrubber_mode),
+        );
+        // Maximum width of the scene list pages (default, wide or full)
+        const contentWidth = computed<ContentWidth>(() =>
+            normalizeContentWidth(settings.value?.content_width),
         );
         const videosPerPage = computed(() => settings.value?.videos_per_page ?? 20);
         const defaultSortOrder = computed<SortOrder>(
@@ -211,7 +216,11 @@ export const useSettingsStore = defineStore(
             patch: Partial<
                 Pick<
                     UserSettings,
-                    'grid_density' | 'infinite_scroll' | 'show_scrubber' | 'scrubber_mode'
+                    | 'grid_density'
+                    | 'infinite_scroll'
+                    | 'show_scrubber'
+                    | 'scrubber_mode'
+                    | 'content_width'
                 >
             >,
         ) => {
@@ -234,6 +243,10 @@ export const useSettingsStore = defineStore(
 
         // Mode switch in the header of the scrubber
         const setScrubberMode = (mode: ScrubberMode) => saveDisplaySetting({ scrubber_mode: mode });
+
+        // Width switch in the display menu of the scene lists
+        const setContentWidth = (width: ContentWidth) =>
+            saveDisplaySetting({ content_width: width });
 
         const hasUnsavedChanges = computed(() => {
             if (!draft.value || !settings.value) return false;
@@ -376,6 +389,8 @@ export const useSettingsStore = defineStore(
             setShowScrubber,
             scrubberMode,
             setScrubberMode,
+            contentWidth,
+            setContentWidth,
             videosPerPage,
             defaultSortOrder,
             defaultTagSort,

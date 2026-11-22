@@ -215,6 +215,7 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		core.WithReplayHeatmap(req.ShowReplayHeatmap, req.RecordReplayHeatmap),
 		core.WithScrubber(req.ShowScrubber),
 		core.WithScrubberMode(req.ScrubberMode),
+		core.WithContentWidth(req.ContentWidth),
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -320,6 +321,9 @@ func (h *SettingsHandler) patchOptions(req *request.PatchSettingsRequest) []core
 	}
 	if req.ScrubberMode != nil {
 		opts = append(opts, core.WithScrubberMode(req.ScrubberMode))
+	}
+	if req.ContentWidth != nil {
+		opts = append(opts, core.WithContentWidth(req.ContentWidth))
 	}
 	return opts
 }

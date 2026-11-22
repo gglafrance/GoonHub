@@ -29,7 +29,7 @@ const { isDragging, selectionRect, dragSelectedIds } = useDragSelect({
 <template>
     <div
         ref="gridRef"
-        class="c_grid grid justify-center"
+        class="scene-grid grid justify-center"
         :class="[sceneGridClass, { 'select-none': isDragging }]"
         :style="sceneGridStyle"
     >
@@ -64,11 +64,3 @@ const { isDragging, selectionRect, dragSelectedIds } = useDragSelect({
         />
     </Teleport>
 </template>
-
-<style scoped>
-.c_grid {
-    @media (width >= 40rem /* 640px */) {
-        grid-template-columns: repeat(auto-fill, var(--scene-card-width, 320px));
-    }
-}
-</style>

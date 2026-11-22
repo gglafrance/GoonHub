@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { containerClass } = useContentWidth();
 const route = useRoute();
 const router = useRouter();
 const explorerStore = useExplorerStore();
@@ -186,7 +187,7 @@ definePageMeta({
 
 <template>
     <div class="min-h-screen px-4 py-6 sm:px-5">
-        <div class="mx-auto max-w-415">
+        <div :class="containerClass">
             <!-- Header -->
             <div class="mb-6">
                 <div class="flex items-center justify-between gap-4">

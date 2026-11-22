@@ -10,6 +10,7 @@ const emit = defineEmits<{
 }>();
 
 const { getScenesMatchInfo } = useApiExplorer();
+const { containerClass } = useContentWidth();
 
 const showTagEditor = ref(false);
 const showActorEditor = ref(false);
@@ -64,7 +65,7 @@ const handlePornDBMatchComplete = () => {
             class="from-void to-void/95 fixed right-0 bottom-0 left-0 z-40 border-t border-white/10
                 bg-gradient-to-t px-4 py-3 backdrop-blur-lg"
         >
-            <div class="mx-auto flex max-w-415 items-center justify-between">
+            <div class="flex items-center justify-between" :class="containerClass">
                 <!-- Selection Info -->
                 <div class="flex items-center gap-3">
                     <button

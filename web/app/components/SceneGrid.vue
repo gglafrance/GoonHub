@@ -13,7 +13,7 @@ const { sceneGridClass, sceneGridStyle } = useGridDensity();
 </script>
 
 <template>
-    <div class="c_grid grid justify-center" :class="sceneGridClass" :style="sceneGridStyle">
+    <div class="scene-grid grid justify-center" :class="sceneGridClass" :style="sceneGridStyle">
         <SceneCard
             v-for="scene in scenes"
             :key="scene.id"
@@ -26,11 +26,3 @@ const { sceneGridClass, sceneGridStyle } = useGridDensity();
         />
     </div>
 </template>
-
-<style scoped>
-.c_grid {
-    @media (width >= 40rem /* 640px */) {
-        grid-template-columns: repeat(auto-fill, var(--scene-card-width, 320px));
-    }
-}
-</style>

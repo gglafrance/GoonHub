@@ -46,6 +46,7 @@ func storedSettings() *data.UserSettings {
 		SceneListView:            data.SceneListView{Pages: map[string]string{"search": "table"}, Columns: []string{"title", "duration"}},
 		ShowScrubber:             true,
 		ScrubberMode:             "centered",
+		ContentWidth:             "wide",
 	}
 }
 
@@ -59,6 +60,7 @@ func TestUpdateSettings_AbsentFieldsUntouched(t *testing.T) {
 	}{
 		{"scrubber", WithScrubber(&off), func(s *data.UserSettings) { s.ShowScrubber = false }},
 		{"scrubber mode", WithScrubberMode(&free), func(s *data.UserSettings) { s.ScrubberMode = "free" }},
+		{"content width", WithContentWidth(ptr(ContentWidthFull)), func(s *data.UserSettings) { s.ContentWidth = "full" }},
 		{"infinite scroll", WithInfiniteScroll(&off), func(s *data.UserSettings) { s.InfiniteScroll = false }},
 		{"grid density", WithGridDensity("large"), func(s *data.UserSettings) { s.GridDensity = "large" }},
 		{"volume to zero", WithDefaultVolume(0), func(s *data.UserSettings) { s.DefaultVolume = 0 }},
@@ -145,6 +147,7 @@ func TestUpdateSettings_InvalidValueLeavesSettingsUntouched(t *testing.T) {
 		{"grid density", WithGridDensity("huge")},
 		{"scrubber mode", WithScrubberMode(ptr("stash"))},
 		{"empty scrubber mode", WithScrubberMode(ptr(""))},
+		{"content width", WithContentWidth(ptr("huge"))},
 		{"pagination", WithPaginationPosition("left")},
 		{"scene list view", WithSceneListView(&data.SceneListView{Pages: map[string]string{"search": "mosaic"}})},
 		{"card config", (&SettingsService{}).WithSceneCardConfig(data.SceneCardConfig{})},

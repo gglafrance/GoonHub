@@ -94,7 +94,7 @@ onBeforeUnmount(() => {
 <template>
     <NuxtLink
         :to="`/markers/${encodeURIComponent(group.label)}`"
-        class="group relative block max-w-[320px] overflow-hidden rounded-lg"
+        class="group relative block overflow-hidden rounded-lg"
     >
         <!-- Thumbnail -->
         <div class="relative aspect-video w-full overflow-hidden bg-black/40">

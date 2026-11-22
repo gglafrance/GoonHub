@@ -5,10 +5,12 @@ defineProps<{
     groups: MarkerLabelGroup[];
     markerThumbnailType?: string;
 }>();
+
+const { sceneGridClass, sceneGridStyle } = useGridDensity();
 </script>
 
 <template>
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+    <div class="scene-grid grid justify-center" :class="sceneGridClass" :style="sceneGridStyle">
         <MarkerLabelCard
             v-for="group in groups"
             :key="group.label"

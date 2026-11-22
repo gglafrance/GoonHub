@@ -1,12 +1,5 @@
 import type { GridDensity } from '~/types/settings';
 
-// Scene grids: columns on phones, card width from 640px (auto-fill), gaps
-const SCENE_GRID: Record<GridDensity, { class: string; cardWidth: string }> = {
-    compact: { class: 'grid-cols-3 gap-1.5 sm:gap-2', cardWidth: '240px' },
-    comfortable: { class: 'grid-cols-2 gap-2 sm:gap-3', cardWidth: '320px' },
-    large: { class: 'grid-cols-1 gap-3 sm:gap-4', cardWidth: '440px' },
-};
-
 // Actor and studio grids
 const ENTITY_GRID: Record<GridDensity, string> = {
     compact:
@@ -23,9 +16,9 @@ export function useGridDensity() {
     const density = computed(() => settingsStore.gridDensity);
 
     const sceneGridClass = computed(() => SCENE_GRID[density.value].class);
-    // Used by the scoped `grid-template-columns` of the scene grids
+    // Card width of the `scene-grid` utility (grid-template-columns from 640px)
     const sceneGridStyle = computed(() => ({
-        '--scene-card-width': SCENE_GRID[density.value].cardWidth,
+        '--scene-card-width': `${SCENE_GRID[density.value].cardWidthPx}px`,
     }));
     const entityGridClass = computed(() => ENTITY_GRID[density.value]);
 

@@ -18,6 +18,8 @@ const getProgress = (entry: WatchHistoryEntry) => {
     };
 };
 
+const { sceneGridClass, sceneGridStyle } = useGridDensity();
+
 const validEntries = computed(() => props.entries.filter((e) => e.scene));
 </script>
 
@@ -33,7 +35,7 @@ const validEntries = computed(() => props.entries.filter((e) => e.scene));
             </span>
         </div>
 
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <div class="scene-grid grid justify-center" :class="sceneGridClass" :style="sceneGridStyle">
             <SceneCard
                 v-for="entry in validEntries"
                 :key="entry.watch.id"

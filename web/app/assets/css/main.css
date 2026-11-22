@@ -176,3 +176,11 @@ input[type='password'] {
 .scrollbar-none::-webkit-scrollbar {
     display: none;
 }
+
+/* Scene card grids (with useGridDensity): fixed classes on phones, then as many columns of
+   --scene-card-width as the container fits, so a wider page gets more columns */
+@utility scene-grid {
+    @media (width >= 40rem /* 640px */) {
+        grid-template-columns: repeat(auto-fill, var(--scene-card-width, 320px));
+    }
+}
