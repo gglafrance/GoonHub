@@ -1,6 +1,7 @@
 package data
 
 import (
+	"database/sql"
 	"strings"
 	"time"
 
@@ -151,12 +152,18 @@ func (r *SceneCopyRepositoryImpl) ListCopyIDs(f SceneCopyFilter, limit int) ([]u
 	return ids, total, nil
 }
 
+// LastCompletedScanStart is the start of the last completed scan, nil when no scan has
+// completed yet (only cancelled or failed scans): MAX() is NULL then.
 func (r *SceneCopyRepositoryImpl) LastCompletedScanStart() (*time.Time, error) {
-	var started *time.Time
-	if err := r.DB.Raw(`SELECT MAX(started_at) FROM scan_history WHERE status = 'completed'`).Scan(&started).Error; err != nil {
+	var started sql.NullTime
+	if err := r.DB.Raw(`SELECT MAX(started_at) FROM scan_history WHERE status = 'completed'`).Row().Scan(&started); err != nil {
 		return nil, err
 	}
-	return started, nil
+	if !started.Valid {
+		return nil, nil
+	}
+	t := started.Time
+	return &t, nil
 }
 
 func (r *SceneCopyRepositoryImpl) GetByID(id uint) (*SceneCopy, error) {
