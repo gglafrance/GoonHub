@@ -1214,7 +1214,7 @@ fingerprints themselves live in ClickHouse. A scene belongs to at most one group
 | `is_best` | BOOLEAN | NO | false | Member chosen as the variant to keep |
 | `confidence_score` | DOUBLE PRECISION | NO | 0 | Match confidence |
 | `match_type` | VARCHAR(10) | NO | 'audio' | `audio` or `visual` |
-| `match_start`, `match_end` | REAL | YES | NULL | Matching segment in this scene, seconds (migration 066) |
+| `match_start`, `match_end` | REAL | YES | NULL | Matching segment in this scene, seconds (migration 066). Migration 089 cleared the segments a bug stored as "0 to one fingerprint step"; members without segment are recomputed at startup from the stored fingerprints (`MatchingService.BackfillMemberSegments`) |
 | `ref_scene_id` | BIGINT | YES | NULL | FK to scenes (SET NULL): the scene this member was matched against |
 | `ref_start`, `ref_end` | REAL | YES | NULL | Corresponding segment in `ref_scene_id`, seconds |
 | `relation` | VARCHAR(10) | NO | 'unknown' | Relation to `ref_scene_id` (migration 085, see below) |

@@ -89,27 +89,43 @@ func (a *matchingServiceAdapter) FindMatches(sceneID uint, fpType string, audioF
 	if err != nil {
 		return nil, err
 	}
+	return toProcessingMatches(results), nil
+}
+
+func (a *matchingServiceAdapter) ProcessMatches(sceneID uint, matches []processing.MatchResult) error {
+	return a.ms.ProcessMatches(sceneID, toMatchingMatches(matches))
+}
+
+// toProcessingMatches converts matcher results to job results, aligned segment included.
+func toProcessingMatches(results []matching.MatchResult) []processing.MatchResult {
 	out := make([]processing.MatchResult, len(results))
 	for i, r := range results {
 		out[i] = processing.MatchResult{
 			SceneID:         r.SceneID,
 			ConfidenceScore: r.ConfidenceScore,
 			MatchType:       r.MatchType,
+			QueryStart:      r.QueryStart,
+			QueryEnd:        r.QueryEnd,
+			Delta:           r.Delta,
 		}
 	}
-	return out, nil
+	return out
 }
 
-func (a *matchingServiceAdapter) ProcessMatches(sceneID uint, matches []processing.MatchResult) error {
-	converted := make([]matching.MatchResult, len(matches))
+// toMatchingMatches converts job results back to matcher results, aligned segment included.
+func toMatchingMatches(matches []processing.MatchResult) []matching.MatchResult {
+	out := make([]matching.MatchResult, len(matches))
 	for i, m := range matches {
-		converted[i] = matching.MatchResult{
+		out[i] = matching.MatchResult{
 			SceneID:         m.SceneID,
 			ConfidenceScore: m.ConfidenceScore,
 			MatchType:       m.MatchType,
+			QueryStart:      m.QueryStart,
+			QueryEnd:        m.QueryEnd,
+			Delta:           m.Delta,
 		}
 	}
-	return a.ms.ProcessMatches(sceneID, converted)
+	return out
 }
 
 // SceneProcessingService orchestrates scene processing using worker pools
