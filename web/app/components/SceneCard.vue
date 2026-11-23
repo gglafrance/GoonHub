@@ -232,8 +232,9 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
 
                 <!-- Scrubber: hover the bottom strip to browse the scene -->
                 <SceneCardPreviewScrubber
-                    v-if="hovering && thumbnailUrl && !isProcessing && !selectable"
+                    v-if="hovering && thumbnailUrl && !isProcessing"
                     :scene-id="scene.id"
+                    :no-navigate="selectable"
                     :duration="scene.duration"
                     :version="sceneVersion"
                     @update:active="scrubbing = $event"

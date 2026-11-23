@@ -2,11 +2,13 @@
 import type { VttCue } from '~/composables/useVttParser';
 
 // Stash-like scrubber: hovering the bottom strip of a scene card shows the sprite frame
-// under the cursor, and clicking opens the scene at that time.
+// under the cursor, and clicking opens the scene at that time. With noNavigate (the card is in
+// selection mode) the click is left to the card, which selects it.
 const props = defineProps<{
     sceneId: number;
     duration: number;
     version?: string;
+    noNavigate?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -68,7 +70,10 @@ const handleMove = (event: MouseEvent) => {
     percent.value = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
 };
 
-const handleClick = () => {
+const handleClick = (event: MouseEvent) => {
+    if (props.noNavigate) return;
+    event.preventDefault();
+    event.stopPropagation();
     router.push(`/watch/${props.sceneId}?t=${Math.floor(time.value)}`);
 };
 
@@ -88,7 +93,7 @@ onBeforeUnmount(() => setActive(false));
             @mouseenter="handleEnter"
             @mousemove="handleMove"
             @mouseleave="setActive(false)"
-            @click.prevent.stop="handleClick"
+            @click="handleClick"
         >
             <template v-if="active">
                 <div
