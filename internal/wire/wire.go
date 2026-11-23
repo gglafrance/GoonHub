@@ -70,6 +70,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Storage & Scan Repositories
 		provideStoragePathRepository,
 		provideScanHistoryRepository,
+		provideSceneCopyRepository,
 		provideExplorerRepository,
 
 		// Search Config Repository
@@ -366,6 +367,10 @@ func provideScanHistoryRepository(db *gorm.DB) data.ScanHistoryRepository {
 	return data.NewScanHistoryRepository(db)
 }
 
+func provideSceneCopyRepository(db *gorm.DB) data.SceneCopyRepository {
+	return data.NewSceneCopyRepository(db)
+}
+
 func provideExplorerRepository(db *gorm.DB) data.ExplorerRepository {
 	return data.NewExplorerRepository(db)
 }
@@ -567,8 +572,8 @@ func provideStoragePathService(repo data.StoragePathRepository, logger *logging.
 	return core.NewStoragePathService(repo, logger.Logger)
 }
 
-func provideScanService(storagePathService *core.StoragePathService, sceneRepo data.SceneRepository, scanHistoryRepo data.ScanHistoryRepository, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger) *core.ScanService {
-	return core.NewScanService(storagePathService, sceneRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
+func provideScanService(storagePathService *core.StoragePathService, sceneRepo data.SceneRepository, sceneCopyRepo data.SceneCopyRepository, scanHistoryRepo data.ScanHistoryRepository, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger) *core.ScanService {
+	return core.NewScanService(storagePathService, sceneRepo, sceneCopyRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
 }
 
 func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, jobHistoryRepo data.JobHistoryRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config, fingerprintIndex core.SceneFingerprintIndex, mediaGuard *core.MediaFileGuard) *core.ExplorerService {

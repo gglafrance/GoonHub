@@ -80,6 +80,7 @@ type ScanLookupEntry struct {
 	Size             int64
 	OriginalFilename string
 	IsDeleted        bool
+	IsTrashed        bool
 }
 
 // ScenePathInfo is a lightweight struct for missing file detection during scans.
@@ -449,7 +450,7 @@ func (r *SceneRepositoryImpl) GetAllStoredPathSet() (map[string]struct{}, error)
 func (r *SceneRepositoryImpl) GetScanLookupEntries() ([]ScanLookupEntry, error) {
 	var entries []ScanLookupEntry
 	if err := r.DB.Unscoped().Model(&Scene{}).
-		Select("id, stored_path, size, original_filename, (deleted_at IS NOT NULL) as is_deleted").
+		Select("id, stored_path, size, original_filename, (deleted_at IS NOT NULL) as is_deleted, (trashed_at IS NOT NULL) as is_trashed").
 		Find(&entries).Error; err != nil {
 		return nil, err
 	}

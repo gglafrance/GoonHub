@@ -74,6 +74,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					scenes.PUT("/:id/studio", middleware.RequirePermission(rbacService, "scenes:upload"), studioHandler.SetSceneStudio)
 					scenes.GET("/:id/related", middleware.RequirePermission(rbacService, "scenes:view"), sceneHandler.GetRelatedScenes)
 					scenes.GET("/:id/similar", middleware.RequirePermission(rbacService, "scenes:view"), duplicateHandler.GetSimilarScenes)
+					scenes.GET("/:id/copies", middleware.RequirePermission(rbacService, "scenes:view"), scanHandler.ListSceneCopies)
 					scenes.GET("/:id/markers", middleware.RequirePermission(rbacService, "scenes:view"), markerHandler.ListMarkers)
 					scenes.POST("/:id/markers", middleware.RequirePermission(rbacService, "scenes:view"), markerHandler.CreateMarker)
 					scenes.PUT("/:id/markers/:markerID", middleware.RequirePermission(rbacService, "scenes:view"), markerHandler.UpdateMarker)

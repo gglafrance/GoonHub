@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"goonhub/internal/api/v1/response"
 	"goonhub/internal/core"
 	"net/http"
 	"strconv"
@@ -78,4 +79,21 @@ func (h *ScanHandler) GetHistory(c *gin.Context) {
 		"page":  page,
 		"limit": limit,
 	})
+}
+
+// ListSceneCopies returns the files recognised as copies of a scene by the library scan
+// (same content at another path). Read-only.
+// GET /api/v1/scenes/:id/copies
+func (h *ScanHandler) ListSceneCopies(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil || id == 0 {
+		response.BadRequest(c, "Invalid scene ID")
+		return
+	}
+	copies, err := h.scanService.ListSceneCopies(uint(id))
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, gin.H{"copies": copies})
 }
