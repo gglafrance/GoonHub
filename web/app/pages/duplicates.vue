@@ -32,6 +32,7 @@ const {
     setBest,
     autoSelectBest,
     resolveBulk,
+    excludeMembers,
     cancelDeletion,
     getConfig,
 } = useApiDuplicates();
@@ -120,6 +121,61 @@ const handleTrashed = async (result: TrashAllResult | BulkTrashAllResult) => {
 const playerGroup = ref<DuplicateGroup | null>(null);
 const playerSceneId = ref<number | null>(null);
 
+// Eligible members (client state per group, duplicateEligibility.ts): the scenes unchecked as
+// not duplicates are removed from their group before a resolve or a trash-all
+const unchecked = ref<Map<number, Set<number>>>(new Map());
+const noneUnchecked: ReadonlySet<number> = new Set();
+const uncheckedOf = (groupId: number): ReadonlySet<number> =>
+    unchecked.value.get(groupId) ?? noneUnchecked;
+
+const toggleEligible = (groupId: number, sceneId: number) => {
+    unchecked.value = toggleUnchecked(unchecked.value, groupId, sceneId);
+};
+
+const setAllEligible = (group: DuplicateGroup, eligible: boolean) => {
+    unchecked.value = setGroupUnchecked(
+        unchecked.value,
+        group.id,
+        eligible ? [] : group.members.map((m) => m.scene_id),
+    );
+};
+
+const clearUnchecked = (groupIds: number[]) => {
+    let next: Map<number, Set<number>> = unchecked.value;
+    for (const id of groupIds) next = setGroupUnchecked(next, id, []);
+    unchecked.value = next;
+};
+
+// "Remove unchecked from group", alone or before resolving the group
+const excludeGroup = ref<DuplicateGroup | null>(null);
+const excludeThenResolve = ref(false);
+
+const openExclude = (group: DuplicateGroup, resolve: boolean) => {
+    excludeGroup.value = group;
+    excludeThenResolve.value = resolve;
+};
+
+const handleExcluded = async (message: string) => {
+    const group = excludeGroup.value;
+    bulkMessage.value = message;
+    skippedGroups.value = [];
+    if (group) {
+        clearUnchecked([group.id]);
+        if (excludeThenResolve.value) expandedGroupId.value = null;
+    }
+    await Promise.all([loadGroups(), loadStats()]);
+};
+
+const requestResolve = (group: DuplicateGroup) => {
+    if (uncheckedMembers(unchecked.value, group).length) openExclude(group, true);
+    else handleResolve(group.id, group.best_scene_id!);
+};
+
+// Unchecked members of the selected groups, removed before the bulk auto-resolve
+const bulkPlan = computed(() =>
+    planExclusions(selectedIds.value, knownGroups.value, unchecked.value),
+);
+
 const selectableIds = computed(() =>
     groups.value.filter((g) => g.status === 'unresolved').map((g) => g.id),
 );
@@ -175,15 +231,29 @@ const handleAutoSelect = async (groupIds: number[]) => {
 
 const confirmBulkResolve = async () => {
     showBulkConfirm.value = false;
-    const ids = [...selectedIds.value];
-    if (ids.length === 0) return;
+    const plan = bulkPlan.value;
+    const skip = new Set(plan.nothingEligible);
+    if (selectedIds.value.size === 0) return;
     bulkBusy.value = true;
     bulkMessage.value = null;
     skippedGroups.value = [];
     try {
+        // Unchecked members first: groups left with one video are dismissed, not resolved
+        const dismissed = await runExclusionPlan(plan, excludeMembers);
+        clearUnchecked(plan.exclusions.map((e) => e.groupId));
+        const excludedNote = plan.uncheckedVideos
+            ? `${plan.uncheckedVideos} unchecked video(s) removed from their group. `
+            : '';
+        const ids = [...selectedIds.value].filter((id) => !skip.has(id) && !dismissed.has(id));
+        if (ids.length === 0) {
+            bulkMessage.value = `${excludedNote}No group left to resolve`;
+            await Promise.all([loadGroups(), loadStats()]);
+            return;
+        }
         const result = await resolveBulk(ids, true, mergeMetadata.value);
         const markers = describeMarkerMerge(result.markers);
         bulkMessage.value =
+            excludedNote +
             `${result.resolved.length} group(s) resolved` +
             (result.skipped.length ? `, ${result.skipped.length} skipped` : '') +
             (result.failed.length ? `, ${result.failed.length} failed` : '') +
@@ -193,6 +263,7 @@ const confirmBulkResolve = async () => {
         await Promise.all([loadGroups(), loadStats()]);
     } catch (e) {
         bulkMessage.value = e instanceof Error ? e.message : 'Bulk resolve failed';
+        await Promise.all([loadGroups(), loadStats()]);
     } finally {
         bulkBusy.value = false;
     }
@@ -231,6 +302,7 @@ const loadGroups = async () => {
         );
         groups.value = data.data;
         rememberGroups(data.data);
+        unchecked.value = pruneUnchecked(unchecked.value, data.data);
         total.value = data.pagination.total_items;
     } catch (e) {
         console.error('Failed to load groups:', e);
@@ -498,15 +570,19 @@ onMounted(() => {
                 :group="group"
                 :expanded="expandedGroupId === group.id"
                 :selected="selectedIds.has(group.id)"
+                :unchecked="uncheckedOf(group.id)"
                 @toggle="toggleGroup(group.id)"
                 @toggle-select="toggleSelect(group.id)"
                 @set-best="(sceneId: number) => handleSetBest(group.id, sceneId)"
                 @auto-select="handleAutoSelect([group.id])"
-                @resolve="handleResolve(group.id, group.best_scene_id!)"
+                @resolve="requestResolve(group)"
                 @dismiss="handleDismiss(group.id)"
                 @trash-all="openTrashAll([group.id], false)"
                 @play="(sceneId: number) => openPlayer(group, sceneId)"
                 @cancel-deletion="(sceneId: number) => handleCancelDeletion(group.id, sceneId)"
+                @toggle-eligible="(sceneId: number) => toggleEligible(group.id, sceneId)"
+                @set-all-eligible="(eligible: boolean) => setAllEligible(group, eligible)"
+                @exclude-unchecked="openExclude(group, false)"
             />
         </div>
 
@@ -514,7 +590,22 @@ onMounted(() => {
             :visible="playerGroup !== null"
             :members="playerGroup?.members ?? []"
             :scene-id="playerSceneId"
+            :unchecked="playerGroup ? uncheckedOf(playerGroup.id) : noneUnchecked"
+            :editable="playerGroup?.status === 'unresolved'"
             @close="closePlayer"
+            @toggle-eligible="
+                (sceneId: number) => playerGroup && toggleEligible(playerGroup.id, sceneId)
+            "
+        />
+
+        <DuplicatesExcludeModal
+            :visible="excludeGroup !== null"
+            :group="excludeGroup"
+            :unchecked="excludeGroup ? uncheckedOf(excludeGroup.id) : noneUnchecked"
+            :resolve="excludeThenResolve"
+            :merge-metadata="mergeMetadata"
+            @close="excludeGroup = null"
+            @done="handleExcluded"
         />
 
         <DuplicatesTrashAllModal
@@ -522,8 +613,10 @@ onMounted(() => {
             :group-ids="trashAllIds"
             :groups="knownGroups"
             :bulk="trashAllBulk"
+            :unchecked="unchecked"
             @close="showTrashAll = false"
             @trashed="handleTrashed"
+            @excluded="clearUnchecked"
         />
 
         <UiConfirmModal
@@ -538,6 +631,16 @@ onMounted(() => {
                 selected with the configured criteria and kept; the other scenes go to the trash{{
                     mergeMetadata ? ' after their metadata is merged into the kept scene' : ''
                 }}.
+            </p>
+            <p v-if="bulkPlan.uncheckedVideos" class="mt-2 text-xs text-white">
+                {{ bulkPlan.uncheckedVideos }} unchecked video(s) in
+                {{ bulkPlan.exclusions.length }} group(s) are first removed from their group and
+                remembered as not duplicates of the others: they are never trashed. A group left
+                with one video is dismissed instead of resolved.
+            </p>
+            <p v-if="bulkPlan.nothingEligible.length" class="text-dim mt-2 text-xs">
+                {{ bulkPlan.nothingEligible.length }} group(s) with every video unchecked are left
+                untouched.
             </p>
             <p class="text-dim mt-2 text-xs">
                 Groups whose scenes are not all identical (a clip and the compilation containing it,

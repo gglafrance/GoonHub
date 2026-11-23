@@ -454,6 +454,127 @@ func (ds *DuplicateService) TrashAllGroups(groupIDs []uint) BulkTrashAllResult {
 	return result
 }
 
+// ExcludeResult is the outcome of ExcludeMembers.
+type ExcludeResult struct {
+	// Excluded lists the scenes removed from the group
+	Excluded []uint `json:"excluded"`
+	// Dismissed is true when fewer than 2 members were left: the group was dismissed
+	Dismissed bool `json:"dismissed"`
+	// Group is the group after the exclusion
+	Group *DuplicateGroupWithScenes `json:"group"`
+}
+
+// ExcludeMembers removes scenes that are not duplicates from an unresolved group, and records
+// that each of them is not a duplicate of each remaining member (data.DuplicateExclusion), so
+// fingerprint matching never puts them back together. When the best scene is removed, a new
+// one is picked among the remaining members with the best criteria; when fewer than 2 members
+// remain, the group is dismissed. Files and scenes are never touched here.
+func (ds *DuplicateService) ExcludeMembers(groupID uint, sceneIDs []uint) (*ExcludeResult, error) {
+	if len(sceneIDs) == 0 {
+		return nil, apperrors.NewValidationError("scene_ids is required")
+	}
+	group, err := ds.groupRepo.GetByIDWithMembers(groupID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.NewNotFoundError("duplicate group", groupID)
+		}
+		return nil, fmt.Errorf("failed to get group: %w", err)
+	}
+	if group.Status != "unresolved" {
+		return nil, apperrors.NewValidationError(fmt.Sprintf("group %d is %s: only unresolved groups can be changed", groupID, group.Status))
+	}
+
+	isMember := make(map[uint]bool, len(group.Members))
+	for _, m := range group.Members {
+		isMember[m.SceneID] = true
+	}
+	excludedSet := make(map[uint]bool, len(sceneIDs))
+	excluded := make([]uint, 0, len(sceneIDs))
+	for _, id := range sceneIDs {
+		if !isMember[id] {
+			return nil, apperrors.NewValidationError(fmt.Sprintf("scene %d is not a member of group %d", id, groupID))
+		}
+		if !excludedSet[id] {
+			excludedSet[id] = true
+			excluded = append(excluded, id)
+		}
+	}
+	var remaining []data.DuplicateGroupMember
+	for _, m := range group.Members {
+		if !excludedSet[m.SceneID] {
+			remaining = append(remaining, m)
+		}
+	}
+	if len(remaining) == 0 {
+		return nil, apperrors.NewValidationError("at least one member must stay in the group: dismiss the group instead")
+	}
+	remainingIDs := make([]uint, len(remaining))
+	for i, m := range remaining {
+		remainingIDs[i] = m.SceneID
+	}
+
+	// A new best scene when the current one is removed (0: none left to keep, all trashed)
+	bestRemoved := group.BestSceneID != nil && excludedSet[*group.BestSceneID]
+	var newBest uint
+	if bestRemoved {
+		newBest, err = ds.bestMemberScene(&data.DuplicateGroup{ID: groupID, Members: remaining})
+		if err != nil {
+			ds.logger.Info("No scene left to keep after exclusion, clearing the best scene", zap.Uint("group_id", groupID), zap.Error(err))
+			newBest = 0
+		}
+	}
+	dismiss := len(remaining) < 2
+
+	err = ds.groupRepo.RunInTransaction(func(tx data.DuplicateGroupRepository) error {
+		if err := tx.AddExclusions(excluded, remainingIDs); err != nil {
+			return fmt.Errorf("failed to record exclusions: %w", err)
+		}
+		if err := tx.RemoveMembers(groupID, excluded); err != nil {
+			return fmt.Errorf("failed to remove members: %w", err)
+		}
+		if err := tx.UpdateSceneCount(groupID); err != nil {
+			return fmt.Errorf("failed to update scene count: %w", err)
+		}
+		if bestRemoved {
+			for _, m := range remaining {
+				if isBest := m.SceneID == newBest; m.IsBest != isBest {
+					if err := tx.UpdateMemberBest(groupID, m.SceneID, isBest); err != nil {
+						return fmt.Errorf("failed to update best flag for scene %d: %w", m.SceneID, err)
+					}
+				}
+			}
+			if newBest > 0 {
+				if err := tx.SetBestScene(groupID, newBest); err != nil {
+					return fmt.Errorf("failed to set best scene: %w", err)
+				}
+			} else if err := tx.ClearBestScene(groupID); err != nil {
+				return fmt.Errorf("failed to clear best scene: %w", err)
+			}
+		}
+		if dismiss {
+			if err := tx.UpdateStatus(groupID, "dismissed", nil); err != nil {
+				return fmt.Errorf("failed to dismiss group: %w", err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	ds.logger.Info("Excluded scenes from duplicate group",
+		zap.Uint("group_id", groupID),
+		zap.Uints("excluded", excluded),
+		zap.Int("remaining", len(remaining)),
+		zap.Bool("dismissed", dismiss),
+	)
+	updated, err := ds.GetGroup(groupID)
+	if err != nil {
+		return nil, err
+	}
+	return &ExcludeResult{Excluded: excluded, Dismissed: dismiss, Group: updated}, nil
+}
+
 // DismissGroup marks a group as dismissed (no action taken)
 func (ds *DuplicateService) DismissGroup(groupID uint) error {
 	return ds.groupRepo.UpdateStatus(groupID, "dismissed", nil)

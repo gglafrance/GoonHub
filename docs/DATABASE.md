@@ -1249,6 +1249,31 @@ the others are resolved by hand.
 
 ---
 
+### `duplicate_exclusions`
+
+Pairs of scenes marked as **not duplicates** of each other (migration 090). Written by
+`POST /admin/duplicates/:id/exclude`: each scene removed from the group gets a pair with each
+member that stays. Fingerprint matching (`MatchingService.ProcessMatches`) ignores a match
+between the two scenes of a pair, and does not add to a group a new scene excluded with one of
+its members, so a later fingerprint run never puts them back together; the segment backfill
+(`BackfillMemberSegments`) never takes its segment from an excluded scene. Two scenes removed
+from the same group have no pair between them and can group again.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `scene_id_a` | BIGINT | NO | - | FK to scenes (CASCADE), the lower scene ID of the pair |
+| `scene_id_b` | BIGINT | NO | - | FK to scenes (CASCADE), the higher scene ID of the pair |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | When the pair was recorded |
+
+**Indexes:**
+- PRIMARY KEY `(scene_id_a, scene_id_b)` (a pair is stored once)
+- `idx_duplicate_exclusions_scene_id_b` on `scene_id_b`
+
+**Constraints:**
+- CHECK `chk_duplicate_exclusions_ordered`: `scene_id_a < scene_id_b`
+
+---
+
 ## Application Settings
 
 ### `app_settings`

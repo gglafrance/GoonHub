@@ -356,6 +356,43 @@ func (h *DuplicateHandler) ResolveGroup(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Group resolved", "markers": result.Markers})
 }
 
+type excludeMembersRequest struct {
+	SceneIDs []uint `json:"scene_ids" binding:"required,min=1"`
+}
+
+// ExcludeMembers removes scenes that are not duplicates from an unresolved group and records
+// them as not duplicates of the remaining members (fingerprint matching won't regroup them).
+// The best scene is replaced when removed, the group dismissed when fewer than 2 members
+// remain. No scene is trashed and no file is touched.
+// POST /admin/duplicates/:id/exclude {"scene_ids": [...]}
+// -> {"excluded": [...], "dismissed": bool, "group": {...}}
+func (h *DuplicateHandler) ExcludeMembers(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+	var req excludeMembersRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "scene_ids is required")
+		return
+	}
+	result, err := h.duplicateService.ExcludeMembers(uint(id), req.SceneIDs)
+	if err != nil {
+		if apperrors.IsNotFound(err) || apperrors.IsValidation(err) {
+			response.Error(c, err)
+			return
+		}
+		response.InternalError(c, "Failed to exclude scenes from the group: "+err.Error())
+		return
+	}
+	response.OK(c, gin.H{
+		"excluded":  result.Excluded,
+		"dismissed": result.Dismissed,
+		"group":     response.ToDuplicateGroupResponse(*result.Group),
+	})
+}
+
 // DismissGroup dismisses a duplicate group
 func (h *DuplicateHandler) DismissGroup(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)

@@ -7,6 +7,8 @@ const props = defineProps<{
     expanded: boolean;
     selected: boolean;
     mergeMetadata: boolean;
+    // members unchecked as not duplicates (see duplicateEligibility.ts)
+    unchecked: ReadonlySet<number>;
 }>();
 
 const emit = defineEmits<{
@@ -19,6 +21,9 @@ const emit = defineEmits<{
     trashAll: [];
     play: [sceneId: number];
     cancelDeletion: [sceneId: number];
+    toggleEligible: [sceneId: number];
+    setAllEligible: [eligible: boolean];
+    excludeUnchecked: [];
     'update:mergeMetadata': [value: boolean];
 }>();
 
@@ -28,6 +33,21 @@ const unresolved = computed(() => props.group.status === 'unresolved');
 // Only groups of identical scenes are handled by the automatic actions
 const identical = computed(() => props.group.kind === 'identical');
 const pendingDeletions = computed(() => props.group.members.filter((m) => m.delete_after).length);
+
+// Eligible members: the unchecked ones are removed from the group before resolve / trash all
+const uncheckedCount = computed(
+    () => props.group.members.filter((m) => props.unchecked.has(m.scene_id)).length,
+);
+const eligibleCount = computed(() => props.group.members.length - uncheckedCount.value);
+const resolveBlocker = computed(() => {
+    const best = props.group.best_scene_id;
+    if (!best) return 'Select the scene to keep first';
+    if (props.unchecked.has(best))
+        return 'The scene to keep is unchecked: check it or pick another one';
+    if (uncheckedCount.value && eligibleCount.value < 2)
+        return 'Fewer than 2 eligible videos: remove the unchecked ones from the group instead';
+    return null;
+});
 </script>
 
 <template>
@@ -134,6 +154,16 @@ const pendingDeletions = computed(() => props.group.members.filter((m) => m.dele
                 <table class="w-full text-[11px]">
                     <thead>
                         <tr class="border-border border-b bg-white/2">
+                            <th v-if="unresolved" class="py-2 pl-4 text-left">
+                                <input
+                                    type="checkbox"
+                                    class="accent-lava h-3.5 w-3.5 cursor-pointer"
+                                    :checked="uncheckedCount === 0"
+                                    :indeterminate="uncheckedCount > 0 && eligibleCount > 0"
+                                    title="Eligible duplicates: uncheck the videos that are not duplicates"
+                                    @change="emit('setAllEligible', uncheckedCount > 0)"
+                                />
+                            </th>
                             <th class="text-dim px-4 py-2 text-left font-medium">Scene</th>
                             <th class="text-dim px-3 py-2 text-left font-medium">Resolution</th>
                             <th class="text-dim px-3 py-2 text-left font-medium">Duration</th>
@@ -150,6 +180,8 @@ const pendingDeletions = computed(() => props.group.members.filter((m) => m.dele
                             :key="member.scene_id"
                             :member="member"
                             :unresolved="unresolved"
+                            :eligible="!unchecked.has(member.scene_id)"
+                            @toggle-eligible="emit('toggleEligible', member.scene_id)"
                             @set-best="emit('setBest', member.scene_id)"
                             @play="emit('play', member.scene_id)"
                             @cancel-deletion="emit('cancelDeletion', member.scene_id)"
@@ -158,6 +190,41 @@ const pendingDeletions = computed(() => props.group.members.filter((m) => m.dele
                 </table>
             </div>
 
+            <div
+                v-if="unresolved && uncheckedCount"
+                class="border-border flex flex-wrap items-center justify-between gap-2 border-t px-4
+                    py-2.5 text-[11px]"
+            >
+                <span class="text-dim">
+                    <span class="text-white">{{ uncheckedCount }}</span>
+                    unchecked video{{ uncheckedCount === 1 ? '' : 's' }}: not duplicates of the
+                    others. Resolve and Trash all remove them from the group first and never touch
+                    them.
+                </span>
+                <div class="flex items-center gap-2">
+                    <button
+                        class="text-dim transition-colors hover:text-white"
+                        @click="emit('setAllEligible', true)"
+                    >
+                        Check all
+                    </button>
+                    <button
+                        class="border-border text-dim hover:border-lava/30 hover:text-lava flex
+                            items-center gap-1 rounded-md border px-2.5 py-1 font-medium
+                            transition-all disabled:pointer-events-none disabled:opacity-40"
+                        :disabled="eligibleCount === 0"
+                        :title="
+                            eligibleCount === 0
+                                ? 'Keep at least one video in the group, or dismiss it'
+                                : 'Remove the unchecked videos from this group and remember they are not duplicates of the others (nothing is trashed)'
+                        "
+                        @click="emit('excludeUnchecked')"
+                    >
+                        <Icon name="heroicons:minus-circle" size="12" />
+                        Remove unchecked from group
+                    </button>
+                </div>
+            </div>
             <div
                 v-if="unresolved && !identical"
                 class="border-border text-dim flex items-start gap-1.5 border-t px-4 pt-3
@@ -217,8 +284,13 @@ const pendingDeletions = computed(() => props.group.members.filter((m) => m.dele
                     <button
                         class="border-border text-dim flex items-center gap-1 rounded-md border px-3
                             py-1.5 text-[11px] font-medium transition-all hover:border-red-500/40
-                            hover:text-red-400"
-                        title="Move every video of this group to the trash, the best one included"
+                            hover:text-red-400 disabled:pointer-events-none disabled:opacity-40"
+                        :disabled="eligibleCount === 0"
+                        :title="
+                            uncheckedCount
+                                ? 'Remove the unchecked videos from the group, then move every eligible video to the trash, the best one included'
+                                : 'Move every video of this group to the trash, the best one included'
+                        "
                         @click="emit('trashAll')"
                     >
                         <Icon name="heroicons:trash" size="12" />
@@ -234,7 +306,13 @@ const pendingDeletions = computed(() => props.group.members.filter((m) => m.dele
                     <button
                         class="bg-lava hover:bg-lava/80 rounded-md px-3 py-1.5 text-[11px]
                             font-medium text-white transition-all disabled:opacity-50"
-                        :disabled="!group.best_scene_id"
+                        :disabled="resolveBlocker !== null"
+                        :title="
+                            resolveBlocker ??
+                            (uncheckedCount
+                                ? 'Remove the unchecked videos from the group, then keep the selected scene and trash the other eligible ones'
+                                : 'Keep the selected scene and trash the others')
+                        "
                         @click="emit('resolve')"
                     >
                         Resolve
