@@ -51,6 +51,7 @@ func RunFFmpeg(ctx context.Context, ffmpegBin string, args []string) ([]uint64, 
 		ffmpegBin = "ffmpeg"
 	}
 	cmd := exec.CommandContext(ctx, ffmpegBin, args...)
+	dieWithParent(cmd)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)

@@ -157,6 +157,7 @@ var errAccelTimeout = errors.New("accelerated ffmpeg run timed out")
 
 func runOnce(ctx context.Context, env Env, errPrefix string, args []string) error {
 	cmd := exec.CommandContext(ctx, env.ffmpeg(), args...)
+	dieWithParent(cmd)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()

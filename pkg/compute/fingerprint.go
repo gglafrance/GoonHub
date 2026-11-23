@@ -140,6 +140,7 @@ func visualHashArgs(acc StepAccel, input string) []string {
 // the step run again in software.
 func runHashesStrict(ctx context.Context, bin string, args []string) ([]uint64, error) {
 	cmd := exec.CommandContext(ctx, bin, args...)
+	dieWithParent(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	stdout, err := cmd.StdoutPipe()
