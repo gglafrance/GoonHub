@@ -262,6 +262,22 @@ func (mr *MockDuplicateGroupRepositoryMockRecorder) ListSceneGroupMembers(sceneI
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSceneGroupMembers", reflect.TypeOf((*MockDuplicateGroupRepository)(nil).ListSceneGroupMembers), sceneID, includeTrashed)
 }
 
+// ListUnresolvedIDs mocks base method.
+func (m *MockDuplicateGroupRepository) ListUnresolvedIDs(kind string, limit int) ([]uint, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListUnresolvedIDs", kind, limit)
+	ret0, _ := ret[0].([]uint)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListUnresolvedIDs indicates an expected call of ListUnresolvedIDs.
+func (mr *MockDuplicateGroupRepositoryMockRecorder) ListUnresolvedIDs(kind, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUnresolvedIDs", reflect.TypeOf((*MockDuplicateGroupRepository)(nil).ListUnresolvedIDs), kind, limit)
+}
+
 // ListWithMembers mocks base method.
 func (m *MockDuplicateGroupRepository) ListWithMembers(page, limit int, status, kind string) ([]data.DuplicateGroup, int64, error) {
 	m.ctrl.T.Helper()

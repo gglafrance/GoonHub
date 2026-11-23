@@ -193,3 +193,52 @@ func TestDuplicateTrashAllBulk_ReportsFailedGroups(t *testing.T) {
 		t.Fatalf("unexpected body: %s", w.Body.String())
 	}
 }
+
+func newSelectableIDsRouter(t *testing.T) (*gin.Engine, *mocks.MockDuplicateGroupRepository) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	ctrl := gomock.NewController(t)
+	groups := mocks.NewMockDuplicateGroupRepository(ctrl)
+	h := NewDuplicateHandler(core.NewDuplicateService(groups, nil, nil, nil, nil, nil, nil, zap.NewNop()), nil)
+	r := gin.New()
+	r.GET("/duplicates/selectable-ids", h.SelectableIDs)
+	return r, groups
+}
+
+func TestDuplicateSelectableIDs_ReturnsIDsTotalAndLimit(t *testing.T) {
+	r, groups := newSelectableIDsRouter(t)
+	groups.EXPECT().ListUnresolvedIDs(data.DuplicateKindIdentical, maxBulkDuplicateGroups).Return([]uint{9, 7, 3}, int64(612), nil)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/duplicates/selectable-ids?kind=identical", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var body struct {
+		IDs   []uint `json:"ids"`
+		Total int64  `json:"total"`
+		Limit int    `json:"limit"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v (%s)", err, w.Body.String())
+	}
+	if len(body.IDs) != 3 || body.IDs[0] != 9 || body.Total != 612 || body.Limit != maxBulkDuplicateGroups {
+		t.Fatalf("unexpected body: %s", w.Body.String())
+	}
+}
+
+func TestDuplicateSelectableIDs_RejectsUnknownKindAndReturnsEmptyList(t *testing.T) {
+	r, groups := newSelectableIDsRouter(t)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/duplicates/selectable-ids?kind=bogus", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+
+	groups.EXPECT().ListUnresolvedIDs("", maxBulkDuplicateGroups).Return(nil, int64(0), nil)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/duplicates/selectable-ids", nil))
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"ids":[]`) {
+		t.Fatalf("expected 200 with an empty list, got %d: %s", w.Code, w.Body.String())
+	}
+}

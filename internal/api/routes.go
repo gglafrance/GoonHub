@@ -333,6 +333,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 
 					// Duplicate detection
 					admin.GET("/duplicates", duplicateHandler.ListGroups)
+					admin.GET("/duplicates/selectable-ids", duplicateHandler.SelectableIDs)
 					admin.GET("/duplicates/stats", duplicateHandler.GetStats)
 					admin.GET("/duplicates/config", duplicateHandler.GetConfig)
 					admin.PUT("/duplicates/config", duplicateHandler.UpdateConfig)

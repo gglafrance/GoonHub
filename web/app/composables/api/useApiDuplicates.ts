@@ -3,6 +3,7 @@ import type {
     BulkResolveResult,
     BulkTrashAllResult,
     ResolveGroupResult,
+    SelectableDuplicateIds,
     TrashAllResult,
 } from '~/types/duplicates';
 
@@ -22,6 +23,17 @@ export const useApiDuplicates = () => {
         if (kind) params.set('kind', kind);
         if (sortBy) params.set('sort_by', sortBy);
         const response = await fetch(`/api/v1/admin/duplicates?${params}`, {
+            ...fetchOptions(),
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    // IDs of the unresolved groups of a kind ("" = every kind), for "select all"
+    const listSelectableIds = async (kind?: string): Promise<SelectableDuplicateIds> => {
+        const params = new URLSearchParams();
+        if (kind) params.set('kind', kind);
+        const response = await fetch(`/api/v1/admin/duplicates/selectable-ids?${params}`, {
             ...fetchOptions(),
             headers: getAuthHeaders(),
         });
@@ -155,6 +167,7 @@ export const useApiDuplicates = () => {
 
     return {
         listGroups,
+        listSelectableIds,
         getGroup,
         getStats,
         resolveGroup,

@@ -3,6 +3,8 @@
 defineProps<{
     selectedCount: number;
     selectableCount: number;
+    // a kind filter is active: "select all" takes the groups of that kind only
+    kindFiltered: boolean;
     busy: boolean;
     deletionEnabled: boolean;
     deletionDelayHours: number;
@@ -10,6 +12,7 @@ defineProps<{
 
 const emit = defineEmits<{
     selectAll: [];
+    selectAllGroups: [];
     clear: [];
     autoSelect: [];
     autoResolve: [];
@@ -33,6 +36,14 @@ const emit = defineEmits<{
                 @click="emit('selectAll')"
             >
                 Select all unresolved on this page ({{ selectableCount }})
+            </button>
+            <button
+                class="text-dim transition-colors hover:text-white disabled:opacity-40"
+                :disabled="busy"
+                title="Every unresolved group, on every page (up to the bulk limit)"
+                @click="emit('selectAllGroups')"
+            >
+                Select all unresolved groups{{ kindFiltered ? ' of this kind' : '' }}
             </button>
             <button
                 v-if="selectedCount > 0"
