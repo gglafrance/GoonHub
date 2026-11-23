@@ -85,6 +85,13 @@ export interface TrashAllResult {
 }
 
 // POST /admin/duplicates/trash-all-bulk
+// Unresolved group IDs for "select all" (at most limit, the bulk actions' maximum)
+export interface SelectableDuplicateIds {
+    ids: number[];
+    total: number;
+    limit: number;
+}
+
 export interface BulkTrashAllResult {
     resolved: number[];
     failed: { group_id: number; error: string }[];

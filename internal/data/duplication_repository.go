@@ -15,6 +15,9 @@ type DuplicateGroupRepository interface {
 	// ListWithMembers lists groups with their members, optionally filtered by status and by
 	// kind (DuplicateKind*, derived from the members' relations).
 	ListWithMembers(page, limit int, status, kind string) ([]DuplicateGroup, int64, error)
+	// ListUnresolvedIDs returns the IDs of the unresolved groups of a kind ("" = all), newest
+	// first like the listing, at most limit, and how many there are in total.
+	ListUnresolvedIDs(kind string, limit int) ([]uint, int64, error)
 	UpdateStatus(id uint, status string, resolvedAt *time.Time) error
 	SetBestScene(id uint, sceneID uint) error
 	// ClearBestScene removes the group's best scene (best_scene_id NULL): a group resolved by
@@ -133,6 +136,18 @@ func (r *DuplicateGroupRepositoryImpl) ListWithMembers(page, limit int, status, 
 	}
 
 	return groups, total, nil
+}
+
+func (r *DuplicateGroupRepositoryImpl) ListUnresolvedIDs(kind string, limit int) ([]uint, int64, error) {
+	var total int64
+	if err := whereDuplicateKind(r.DB.Model(&DuplicateGroup{}).Where("status = ?", "unresolved"), kind).
+		Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var ids []uint
+	err := whereDuplicateKind(r.DB.Model(&DuplicateGroup{}).Where("status = ?", "unresolved"), kind).
+		Order("created_at DESC").Order("id DESC").Limit(limit).Pluck("id", &ids).Error
+	return ids, total, err
 }
 
 // Subqueries on the members of the listed group, for whereDuplicateKind

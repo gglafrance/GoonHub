@@ -165,6 +165,20 @@ func NewDuplicateService(
 
 // ListGroups returns paginated duplicate groups with member details, optionally filtered by
 // status and by kind (data.DuplicateKind*)
+// SelectableGroupIDs returns the IDs of the unresolved groups of a kind ("" = all), at most
+// limit (the bulk actions' maximum), and how many unresolved groups of that kind there are:
+// the "select all" of the duplicates page.
+func (ds *DuplicateService) SelectableGroupIDs(kind string, limit int) ([]uint, int64, error) {
+	ids, total, err := ds.groupRepo.ListUnresolvedIDs(kind, limit)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list unresolved groups: %w", err)
+	}
+	if ids == nil {
+		ids = []uint{}
+	}
+	return ids, total, nil
+}
+
 func (ds *DuplicateService) ListGroups(page, limit int, status, kind, sortBy string) ([]DuplicateGroupWithScenes, int64, error) {
 	groups, total, err := ds.groupRepo.ListWithMembers(page, limit, status, kind)
 	if err != nil {
