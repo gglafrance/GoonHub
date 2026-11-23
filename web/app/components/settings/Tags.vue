@@ -13,6 +13,8 @@ const loading = ref(false);
 const list = ref<InstanceType<typeof ManageList> | null>(null);
 
 const merge = ref<{ candidateIds: number[]; targetId: number | null } | null>(null);
+// tags selected for a bulk delete
+const deleteMany = ref<Tag[] | null>(null);
 
 const selectedTagSort = computed({
     get: () => (settingsStore.draft?.default_tag_sort ?? 'az') as TagSort,
@@ -111,6 +113,18 @@ function openGroupMerge(group: TagDuplicateGroup) {
     );
 }
 
+function openDeleteMany(ids: number[]) {
+    clearMessages();
+    deleteMany.value = tags.value.filter((t) => ids.includes(t.id));
+}
+
+function onDeletedMany(ids: number[]) {
+    tags.value = tags.value.filter((t) => !ids.includes(t.id));
+    list.value?.clearSelection();
+    message.value = `${plural(ids.length, 'tag')} deleted`;
+    refreshDuplicates();
+}
+
 async function onMerged(res: TagMergeResult) {
     merge.value = null;
     list.value?.clearSelection();
@@ -165,8 +179,16 @@ async function onMerged(res: TagMergeResult) {
             @delete="handleDelete"
             @color="handleColor"
             @merge="openMerge"
+            @delete-many="openDeleteMany"
             @renamed="onRenamed"
             @merge-into="(source, target) => openMerge([source.id, target.id], target.id)"
+        />
+
+        <SettingsTagsDeleteManyModal
+            :visible="deleteMany !== null"
+            :tags="deleteMany ?? []"
+            @close="deleteMany = null"
+            @deleted="onDeletedMany"
         />
 
         <SettingsTagsMergeModal

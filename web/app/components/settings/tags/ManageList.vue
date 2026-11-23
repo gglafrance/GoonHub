@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { Tag } from '~/types/tag';
 
-// List of all tags: search, rename, color change, delete, and a selection to merge several
-// tags.
+// List of all tags: search, rename, color change, delete, and a selection to merge or delete
+// several tags.
 const props = defineProps<{
     tags: Tag[];
     loading: boolean;
@@ -12,6 +12,7 @@ const emit = defineEmits<{
     delete: [tag: Tag];
     color: [tag: Tag, color: string];
     merge: [ids: number[]];
+    deleteMany: [ids: number[]];
     renamed: [tag: Tag];
     // rename refused because target already has the name: merge source into it instead
     mergeInto: [source: Tag, target: Tag];
@@ -80,8 +81,18 @@ defineExpose({ clearSelection });
                 Clear
             </button>
             <button
-                class="bg-lava hover:bg-lava-glow ml-auto flex items-center gap-1.5 rounded-lg px-3
-                    py-1 text-[11px] font-semibold text-white transition-all"
+                class="border-border text-dim ml-auto flex items-center gap-1.5 rounded-lg border
+                    px-3 py-1 text-[11px] font-semibold transition-all hover:border-red-500/40
+                    hover:text-red-400"
+                title="Remove the selected tags from their videos (the videos are kept)"
+                @click="emit('deleteMany', [...selected])"
+            >
+                <Icon name="heroicons:trash" size="13" />
+                Delete
+            </button>
+            <button
+                class="bg-lava hover:bg-lava-glow flex items-center gap-1.5 rounded-lg px-3 py-1
+                    text-[11px] font-semibold text-white transition-all"
                 @click="emit('merge', [...selected])"
             >
                 <Icon name="heroicons:arrows-pointing-in" size="13" />
