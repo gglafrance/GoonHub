@@ -240,3 +240,68 @@ func TestIsURL(t *testing.T) {
 		}
 	}
 }
+
+func TestAccelArgs_GlobalArgsPixFmtConvert(t *testing.T) {
+	// one device for every input, created once before the first one
+	shared := StepAccel{
+		Decode:  DecodeAccel{HWAccel: "vaapi", OutputFormat: "vaapi", Device: "gh", GlobalArgs: []string{"-init_hw_device", "vaapi=gh:/dev/dri/renderD128"}},
+		Scale:   ScaleAccel{Filter: "scale_vaapi", Options: "format=nv12"},
+		Encoder: EncoderAccel{H264: "h264_vaapi", QualityFlag: "-qp", QualityOffset: 4},
+	}
+	preview := strings.Join(scenePreviewArgs(shared, "in.mp4", "out.mp4", 600, 3, 1.0, 360, 27, false), " ")
+	if strings.Count(preview, "-init_hw_device") != 1 || strings.Index(preview, "-init_hw_device") > strings.Index(preview, "-hwaccel ") {
+		t.Fatalf("global args must come once, before the inputs: %s", preview)
+	}
+	if !strings.Contains(preview, "scale_vaapi=360:-2:format=nv12[v0]") || !strings.Contains(preview, "-qp 31") {
+		t.Fatalf("preview args: %s", preview)
+	}
+	clip := strings.Join(markerClipArgs(shared, "in.mp4", "out.mp4", "5", 10, 480, 32), " ")
+	if !strings.Contains(clip, "-init_hw_device vaapi=gh:/dev/dri/renderD128 -hwaccel vaapi -hwaccel_output_format vaapi -hwaccel_device gh -ss 5") {
+		t.Fatalf("marker args: %s", clip)
+	}
+
+	// CPU frames given to an encoder that wants nv12
+	qsv := StepAccel{Decode: DecodeAccel{HWAccel: "qsv"}, Encoder: EncoderAccel{H264: "h264_qsv", QualityFlag: "-global_quality", PixFmt: "nv12"}}
+	if clip := strings.Join(markerClipArgs(qsv, "in.mp4", "out.mp4", "5", 10, 480, 32), " "); !strings.Contains(clip, "-pix_fmt nv12 -global_quality 32") {
+		t.Fatalf("qsv marker args: %s", clip)
+	}
+	if p := strings.Join(scenePreviewArgs(qsv, "in.mp4", "out.mp4", 600, 2, 1.0, 360, 27, false), " "); !strings.Contains(p, "flags=bilinear,format=nv12[v0]") {
+		t.Fatalf("qsv preview args: %s", p)
+	}
+
+	// frames decoded on the GPU, converted and downloaded, scaled on the CPU
+	gpuFrames := StepAccel{
+		Decode: DecodeAccel{HWAccel: "cuda", OutputFormat: "cuda"},
+		Scale:  ScaleAccel{Convert: "scale_cuda=format=nv12", DownloadFormat: "nv12"},
+	}
+	if gpuFrames.IsSoftware() || !gpuFrames.framesOnCPU() {
+		t.Fatal("gpu frames downloaded before the CPU scale: accelerated, frames on the CPU")
+	}
+	hash := strings.Join(visualHashArgs(gpuFrames, "in.mp4"), " ")
+	if !strings.Contains(hash, "-vf fps=1/2,scale_cuda=format=nv12,hwdownload,format=nv12,scale=9:8,format=gray") {
+		t.Fatalf("visual hash args: %s", hash)
+	}
+	clip = strings.Join(markerClipArgs(gpuFrames, "in.mp4", "out.mp4", "5", 10, 480, 32), " ")
+	if !strings.Contains(clip, "-vf scale_cuda=format=nv12,hwdownload,format=nv12,scale=480:-2:flags=bilinear -pix_fmt yuv420p -preset veryfast -crf 32") {
+		t.Fatalf("marker args: %s", clip)
+	}
+	if (StepAccel{Scale: ScaleAccel{DownloadFormat: "nv12"}}).IsSoftware() {
+		t.Fatal("a download is not software")
+	}
+	if got := (StepAccel{Scale: ScaleAccel{Convert: "x", DownloadFormat: "nv12"}}).String(); !strings.Contains(got, "gpu frames") {
+		t.Fatalf("String = %q", got)
+	}
+}
+
+func TestExportedBuildersMatchInternal(t *testing.T) {
+	acc := StepAccel{Decode: DecodeAccel{HWAccel: "cuda"}}
+	if !reflect.DeepEqual(MarkerClipArgs(acc, "i", "o", 7, 10, 480, 32), markerClipArgs(acc, "i", "o", "7", 10, 480, 32)) ||
+		!reflect.DeepEqual(ScenePreviewArgs(acc, "i", "o", 600, 12, 1, 360, 27, true), scenePreviewArgs(acc, "i", "o", 600, 12, 1, 360, 27, true)) ||
+		!reflect.DeepEqual(SpriteFrameArgs(acc, "i", "o", 3, 320, 180, 75), spriteFrameArgs(acc, "i", "o", 3, 320, 180, 75)) ||
+		!reflect.DeepEqual(VisualHashArgs(acc, "i"), visualHashArgs(acc, "i")) {
+		t.Fatal("exported builders differ")
+	}
+	if got := (StepAccel{}).QualityArgs(27); !reflect.DeepEqual(got, []string{"-preset", "veryfast", "-crf", "27"}) {
+		t.Fatalf("QualityArgs = %v", got)
+	}
+}

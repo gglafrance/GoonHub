@@ -3,6 +3,7 @@ package compute
 import (
 	"fmt"
 	"strconv"
+	"time"
 )
 
 // Step is one ffmpeg step of a phase. Hardware acceleration is chosen per step: a GPU decode
@@ -57,6 +58,27 @@ type StepAccel struct {
 	Decode  DecodeAccel
 	Scale   ScaleAccel
 	Encoder EncoderAccel
+	// MaxParallel caps the concurrent ffmpeg runs of the step while it is accelerated
+	// (sprite frames run in parallel, every run opens its own GPU context and decoder, and
+	// too many of them exhaust the video memory). 0 = no cap.
+	MaxParallel int
+	// Timeout + TimeoutPerSecond x the source seconds the run covers bounds an accelerated
+	// run: a run still going after that is killed and the step runs again in software (a
+	// stalled GPU run would otherwise hold the job while its lease keeps being renewed).
+	// 0 = no bound.
+	Timeout          time.Duration
+	TimeoutPerSecond time.Duration
+}
+
+// deadline returns the time bound of an accelerated run over seconds of source (0 = none).
+func (s StepAccel) deadline(seconds int) time.Duration {
+	if s.Timeout <= 0 && s.TimeoutPerSecond <= 0 {
+		return 0
+	}
+	if seconds < 0 {
+		seconds = 0
+	}
+	return s.Timeout + time.Duration(seconds)*s.TimeoutPerSecond
 }
 
 // DecodeAccel selects a hardware decoder.
@@ -67,21 +89,39 @@ type DecodeAccel struct {
 	// OutputFormat is the -hwaccel_output_format value ("cuda", "qsv", "vaapi"...): frames
 	// stay in GPU memory, required for a GPU scale filter. "" downloads decoded frames.
 	OutputFormat string
-	// Device is the -hwaccel_device value ("0", "/dev/dri/renderD128"...).
+	// Device is the -hwaccel_device value ("0", "/dev/dri/renderD128", or the name of a
+	// device created by GlobalArgs).
 	Device string
-	// ExtraInputArgs are put before every -i (e.g. "-init_hw_device", "-extra_hw_frames").
+	// ExtraInputArgs are put before every -i (e.g. "-extra_hw_frames", "8").
 	ExtraInputArgs []string
+	// GlobalArgs are put once, before the first input: options that must not repeat per
+	// input, such as "-init_hw_device", "vaapi=gh:/dev/dri/renderD128" (every input then
+	// shares that device through Device "gh", which a multi-input filter graph needs).
+	GlobalArgs []string
 }
 
 // ScaleAccel selects a GPU scale filter.
 type ScaleAccel struct {
-	// Filter is the GPU scale filter ("scale_cuda", "scale_qsv", "scale_vaapi", "scale_vt");
-	// "" scales on the CPU with "scale".
+	// Filter is the GPU scale filter ("scale_cuda", "scale_npp", "scale_qsv", "scale_vaapi",
+	// "scale_vt"); "" scales on the CPU with "scale".
 	Filter string
-	// DownloadFormat brings frames back to the CPU after the GPU scale
-	// (",hwdownload,format=<DownloadFormat>"), needed when a CPU filter or a software
-	// encoder follows. "" keeps them on the GPU (hardware encoder next).
+	// Options are extra options of the GPU filter, after the dimensions
+	// ("interp_algo=bilinear:format=nv12" gives "scale_cuda=480:-2:interp_algo=bilinear:format=nv12").
+	Options string
+	// DownloadFormat brings frames back to the CPU (",hwdownload,format=<DownloadFormat>"),
+	// needed when a CPU filter or a software encoder follows. "" keeps them on the GPU
+	// (hardware encoder next).
+	//
+	// With Filter "" it means the decoder keeps its frames in GPU memory
+	// (DecodeAccel.OutputFormat) and they are downloaded before the CPU scale:
+	// "[<Convert>,]hwdownload,format=<DownloadFormat>,scale=...". Filters placed before the
+	// scale (fps=1/2 of the visual hash) then run on the GPU frames, so only the frames kept
+	// cross the bus, and the CPU scale keeps the software results.
 	DownloadFormat string
+	// Convert is a GPU filter run before that download when the scaling is on the CPU (Filter
+	// ""), typically a format conversion such as "scale_cuda=format=nv12" so that 10-bit
+	// frames can be downloaded as nv12.
+	Convert string
 }
 
 // EncoderAccel selects the H.264 encoder and maps the x264 CRF to its quality scale.
@@ -101,11 +141,24 @@ type EncoderAccel struct {
 	QualityArgs func(crf int) []string
 	// ExtraArgs are put after the quality options (e.g. "-preset", "p4", "-rc", "vbr").
 	ExtraArgs []string
+	// PixFmt is the pixel format given to the encoder when frames are in CPU memory ("" =
+	// yuv420p, what libx264 gets). h264_qsv needs "nv12".
+	PixFmt string
+	// Upload uploads CPU frames to the GPU before an encoder that only takes GPU frames
+	// (h264_vaapi): "format=<PixFmt>,hwupload" ends the filter chain instead of -pix_fmt.
+	// The device comes from DecodeAccel.GlobalArgs ("-filter_hw_device").
+	Upload bool
 }
 
 // IsSoftware reports whether the step runs fully in software.
 func (s StepAccel) IsSoftware() bool {
-	return s.Decode.HWAccel == "" && len(s.Decode.ExtraInputArgs) == 0 && s.Scale.Filter == "" && s.Encoder.H264 == ""
+	return s.Decode.HWAccel == "" && len(s.Decode.ExtraInputArgs) == 0 && len(s.Decode.GlobalArgs) == 0 &&
+		s.Scale.Filter == "" && s.Scale.DownloadFormat == "" && s.Encoder.H264 == ""
+}
+
+// globalArgs are the options put once before the first input.
+func (s StepAccel) globalArgs() []string {
+	return s.Decode.GlobalArgs
 }
 
 // inputArgs are the options put before each -i.
@@ -123,16 +176,28 @@ func (s StepAccel) inputArgs() []string {
 	return append(args, s.Decode.ExtraInputArgs...)
 }
 
-// scale returns the scale filter for dims ("w:h"): "scale=<dims>[:<cpuOpts>]" on the CPU,
-// "<gpu filter>=<dims>[,hwdownload,format=<fmt>]" on the GPU.
+// scale returns the scale filter for dims ("w:h"): "scale=<dims>[:<cpuOpts>]" on the CPU
+// (after "[<convert>,]hwdownload,format=<fmt>," when the decoded frames are in GPU memory),
+// "<gpu filter>=<dims>[:<options>][,hwdownload,format=<fmt>]" on the GPU.
 func (s StepAccel) scale(dims, cpuOpts string) string {
 	if s.Scale.Filter == "" {
+		cpu := "scale=" + dims
 		if cpuOpts != "" {
-			return "scale=" + dims + ":" + cpuOpts
+			cpu += ":" + cpuOpts
 		}
-		return "scale=" + dims
+		if s.Scale.DownloadFormat == "" {
+			return cpu
+		}
+		f := "hwdownload,format=" + s.Scale.DownloadFormat + "," + cpu
+		if s.Scale.Convert != "" {
+			f = s.Scale.Convert + "," + f
+		}
+		return f
 	}
 	f := s.Scale.Filter + "=" + dims
+	if s.Scale.Options != "" {
+		f += ":" + s.Scale.Options
+	}
 	if s.Scale.DownloadFormat != "" {
 		f += ",hwdownload,format=" + s.Scale.DownloadFormat
 	}
@@ -143,6 +208,24 @@ func (s StepAccel) scale(dims, cpuOpts string) string {
 // format options apply).
 func (s StepAccel) framesOnCPU() bool {
 	return s.Scale.Filter == "" || s.Scale.DownloadFormat != ""
+}
+
+// cpuTail is what ends a filter chain whose frames are in CPU memory: the encoder's pixel
+// format, then the upload for an encoder that takes GPU frames only.
+func (s StepAccel) cpuTail() string {
+	t := "format=" + s.pixFmt()
+	if s.Encoder.Upload {
+		t += ",hwupload"
+	}
+	return t
+}
+
+// pixFmt is the CPU pixel format of the frames given to the encoder.
+func (s StepAccel) pixFmt() string {
+	if s.Encoder.PixFmt == "" {
+		return "yuv420p"
+	}
+	return s.Encoder.PixFmt
 }
 
 // h264Encoder returns the H.264 encoder name.
@@ -183,12 +266,22 @@ func (s StepAccel) qualityArgs(crf int) []string {
 	return append(args, e.ExtraArgs...)
 }
 
+// QualityArgs returns the rate control options the step's encoder gets for an x264 CRF
+// ("-preset veryfast -crf <crf>" in software).
+func (s StepAccel) QualityArgs(crf int) []string {
+	return s.qualityArgs(crf)
+}
+
 // String describes the step acceleration for logs.
 func (s StepAccel) String() string {
 	if s.IsSoftware() {
 		return "software"
 	}
-	return fmt.Sprintf("decode=%s scale=%s encode=%s", orSW(s.Decode.HWAccel), orSW(s.Scale.Filter), orSW(s.Encoder.H264))
+	scale := orSW(s.Scale.Filter)
+	if s.Scale.Filter == "" && s.Scale.DownloadFormat != "" {
+		scale = "sw(gpu frames)"
+	}
+	return fmt.Sprintf("decode=%s scale=%s encode=%s", orSW(s.Decode.HWAccel), scale, orSW(s.Encoder.H264))
 }
 
 func orSW(v string) string {

@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"goonhub/pkg/ffmpeg"
 	"goonhub/pkg/workerproto"
@@ -120,16 +121,39 @@ func Run(ctx context.Context, env Env, req Request, phase workerproto.Phase, par
 }
 
 // runFFmpeg runs ffmpeg with the arguments build returns for the step's acceleration; if an
-// accelerated run fails while ctx is alive, it retries in software (unless disabled).
-// errPrefix prefixes the error of a failed run ("ffmpeg failed").
-func runFFmpeg(ctx context.Context, env Env, step Step, errPrefix string, build func(StepAccel) []string) error {
+// accelerated run fails (or exceeds its deadline over seconds of source) while ctx is
+// alive, it retries in software (unless disabled). errPrefix prefixes the error of a failed
+// run ("ffmpeg failed").
+func runFFmpeg(ctx context.Context, env Env, step Step, seconds int, errPrefix string, build func(StepAccel) []string) error {
 	acc := env.Accel.For(step)
-	err := runOnce(ctx, env, errPrefix, build(acc))
-	if err == nil || ctx.Err() != nil || acc.IsSoftware() || env.Accel.NoSoftwareFallback {
+	if acc.IsSoftware() {
+		return runOnce(ctx, env, errPrefix, build(acc))
+	}
+	err := withDeadline(ctx, acc.deadline(seconds), func(ctx context.Context) error {
+		return runOnce(ctx, env, errPrefix, build(acc))
+	})
+	if err == nil || ctx.Err() != nil || env.Accel.NoSoftwareFallback {
 		return err
 	}
 	return runOnce(ctx, env, errPrefix, build(StepAccel{}))
 }
+
+// withDeadline runs fn under d (0 = no deadline); a run cut by d returns errAccelTimeout.
+func withDeadline(ctx context.Context, d time.Duration, fn func(context.Context) error) error {
+	if d <= 0 {
+		return fn(ctx)
+	}
+	sub, cancel := context.WithTimeout(ctx, d)
+	defer cancel()
+	err := fn(sub)
+	if err != nil && ctx.Err() == nil && sub.Err() != nil {
+		return fmt.Errorf("%w after %s", errAccelTimeout, d)
+	}
+	return err
+}
+
+// errAccelTimeout: an accelerated run exceeded its deadline.
+var errAccelTimeout = errors.New("accelerated ffmpeg run timed out")
 
 func runOnce(ctx context.Context, env Env, errPrefix string, args []string) error {
 	cmd := exec.CommandContext(ctx, env.ffmpeg(), args...)

@@ -373,3 +373,48 @@ func TestRun_Dispatch(t *testing.T) {
 		t.Fatal("params of another phase must be refused")
 	}
 }
+
+// A stalled accelerated run (here: -re reads the input at its native rate) is cut at its
+// deadline and the step runs again in software.
+func TestAcceleratedDeadline_FallsBackToSoftware(t *testing.T) {
+	_, silent := sharedClips(t)
+	slow := StepAccel{Decode: DecodeAccel{ExtraInputArgs: []string{"-re"}}, Timeout: 300 * time.Millisecond}
+	env := Env{Accel: Accel{Name: "slow", Steps: map[Step]StepAccel{StepMarkerClip: slow, StepVisualHash: slow}}}
+
+	out := filepath.Join(t.TempDir(), "marker_1.mp4")
+	start := time.Now()
+	if err := MarkerClip(context.Background(), env, silent, out, 1, 3, 160, 32, 0); err != nil {
+		t.Fatalf("software fallback failed: %v", err)
+	}
+	if time.Since(start) > 2500*time.Millisecond {
+		t.Fatalf("the slow run was not cut (%s)", time.Since(start))
+	}
+	res, err := Fingerprint(context.Background(), env, Request{Input: silent, Video: workerproto.VideoInfo{DurationSec: 30}},
+		workerproto.FingerprintParams{Mode: workerproto.FingerprintModeAudioOnly})
+	if err != nil || len(res.VisualFingerprint) < 14 {
+		t.Fatalf("visual hash fallback: %v %+v", err, res)
+	}
+
+	env.Accel.NoSoftwareFallback = true
+	err = MarkerClip(context.Background(), env, silent, out, 1, 3, 160, 32, 0)
+	if !errors.Is(err, errAccelTimeout) {
+		t.Fatalf("err = %v, want the accelerated timeout", err)
+	}
+	_, err = Fingerprint(context.Background(), env, Request{Input: silent, Video: workerproto.VideoInfo{DurationSec: 30}},
+		workerproto.FingerprintParams{Mode: workerproto.FingerprintModeAudioOnly})
+	if !errors.Is(err, errAccelTimeout) {
+		t.Fatalf("visual hash err = %v, want the accelerated timeout", err)
+	}
+}
+
+func TestSprites_AcceleratedParallelCap(t *testing.T) {
+	_, silent := sharedClips(t)
+	// a "hardware" decode that is in fact the software one, capped to 1 run at a time
+	acc := StepAccel{Decode: DecodeAccel{ExtraInputArgs: []string{"-threads", "1"}}, MaxParallel: 1}
+	res, err := Sprites(context.Background(), Env{Accel: Accel{Steps: map[Step]StepAccel{StepSpriteFrame: acc}}},
+		Request{Input: silent, Video: workerproto.VideoInfo{DurationSec: 30}, OutDir: t.TempDir()},
+		workerproto.SpritesParams{SceneID: 1, TileWidth: 64, TileHeight: 48, FrameInterval: 2, FrameQuality: 50, GridCols: 4, GridRows: 2, Concurrency: 8})
+	if err != nil || res.SheetCount != 2 {
+		t.Fatalf("Sprites: %v %+v", err, res)
+	}
+}
