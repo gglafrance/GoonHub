@@ -186,6 +186,9 @@ func (w *Worker) registerLocked(ctx context.Context) error {
 	if resp.SessionID == "" {
 		return errors.New("register: the server returned no session")
 	}
+	w.mu.Lock()
+	w.setServerMaxLocked(resp.MaxConcurrency)
+	w.mu.Unlock()
 	w.sessMu.Lock()
 	w.sess = session{
 		id:               resp.SessionID,
@@ -371,6 +374,7 @@ func (w *Worker) heartbeat(ctx context.Context) error {
 		}
 	}
 	w.drain = resp.Drain
+	w.setServerMaxLocked(resp.MaxConcurrency)
 	w.mu.Unlock()
 	w.signalSlot()
 	for _, st := range resp.Jobs {

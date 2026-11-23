@@ -204,7 +204,7 @@ func (w *Worker) accept(a workerproto.Assignment) error {
 		w.log.Warn("assignment of a phase not enabled on this worker", "job_id", a.JobID, "phase", a.Phase)
 		return errBusy
 	}
-	if !w.acceptingLocked() || w.computing[a.Phase] >= w.cfg.Phases[a.Phase] || w.computingTotal >= w.cfg.MaxConcurrency {
+	if !w.acceptingLocked() || w.computing[a.Phase] >= w.phaseLimitLocked(a.Phase) || w.computingTotal >= w.totalLimitLocked() {
 		w.mu.Unlock()
 		return errBusy
 	}

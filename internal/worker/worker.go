@@ -104,9 +104,11 @@ type Worker struct {
 	computingTotal int
 	delivering     int
 	drain          bool
-	diskLow        bool
-	lastFreeDisk   int64
-	slotFreed      chan struct{}
+	// serverMax is the job limit set by the admin on the server (0 = the config's limits).
+	serverMax    int
+	diskLow      bool
+	lastFreeDisk int64
+	slotFreed    chan struct{}
 
 	wg sync.WaitGroup // job goroutines
 }
@@ -405,13 +407,50 @@ func (w *Worker) freeSlotsLocked() map[workerproto.Phase]int {
 func (w *Worker) freeSlotsPerPhaseLocked() map[workerproto.Phase]int {
 	slots := map[workerproto.Phase]int{}
 	accepting := w.acceptingLocked()
-	remaining := w.cfg.MaxConcurrency - w.computingTotal
+	remaining := w.totalLimitLocked() - w.computingTotal
 	for _, p := range w.cfg.EnabledPhases() {
 		n := 0
 		if accepting {
-			n = max(0, min(w.cfg.Phases[p]-w.computing[p], remaining))
+			n = max(0, min(w.phaseLimitLocked(p)-w.computing[p], remaining))
 		}
 		slots[p] = n
 	}
 	return slots
+}
+
+// totalLimitLocked is the number of jobs computed at once: the admin's limit when set,
+// else max_concurrency of the config.
+func (w *Worker) totalLimitLocked() int {
+	if w.serverMax > 0 {
+		return w.serverMax
+	}
+	return w.cfg.MaxConcurrency
+}
+
+// phaseLimitLocked is the number of jobs of phase p computed at once: 0 for a phase the
+// config disables, the admin's limit when set, else the phase's value in the config.
+func (w *Worker) phaseLimitLocked(p workerproto.Phase) int {
+	if w.cfg.Phases[p] <= 0 {
+		return 0
+	}
+	if w.serverMax > 0 {
+		return w.serverMax
+	}
+	return w.cfg.Phases[p]
+}
+
+// setServerMaxLocked applies the admin's job limit (register and heartbeat responses).
+func (w *Worker) setServerMaxLocked(n int) {
+	if n < 0 {
+		n = 0
+	}
+	if n == w.serverMax {
+		return
+	}
+	w.serverMax = n
+	if n > 0 {
+		w.log.Info("job limit set by the server", "max_concurrency", n)
+	} else {
+		w.log.Info("job limit back to the config", "max_concurrency", w.cfg.MaxConcurrency)
+	}
 }
