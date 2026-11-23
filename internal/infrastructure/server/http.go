@@ -186,6 +186,10 @@ func (s *Server) Start() error {
 
 	// Apply the scheduled deletions of resolved duplicates, and classify the duplicate group
 	// members recorded before their relation (identical, contained...) was stored
+	if s.matchingService != nil {
+		// Segments missing or cleared (migration 089): recomputed from the stored fingerprints
+		s.matchingService.StartSegmentBackfill()
+	}
 	if s.duplicateService != nil {
 		s.duplicateService.StartRelationBackfill()
 		s.duplicateService.StartDeletionCleanupTicker()
