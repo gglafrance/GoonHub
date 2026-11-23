@@ -20,6 +20,7 @@ import (
 	"goonhub-worker/internal/accel"
 	"goonhub-worker/internal/config"
 	"goonhub-worker/internal/logging"
+	"goonhub-worker/internal/procjob"
 	"goonhub-worker/internal/tools"
 	"goonhub-worker/internal/worker"
 )
@@ -144,6 +145,10 @@ func setup(path string, console io.Writer) (*config.Config, *slog.Logger, io.Clo
 }
 
 func newWorker(cfg *config.Config, log *slog.Logger, t *tools.Tools, sel accel.Selection) (*worker.Worker, error) {
+	// a killed worker must not leave its ffmpeg running (Windows: Job Object)
+	if err := procjob.KillChildrenOnExit(); err != nil {
+		log.Warn("child processes may outlive a killed worker", "error", err)
+	}
 	return worker.New(worker.Options{Config: cfg, Tools: t, Accel: sel.Accel, Logger: log, Version: version})
 }
 

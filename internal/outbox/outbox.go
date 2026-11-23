@@ -157,12 +157,28 @@ func (o *Outbox) Load() ([]*Entry, []error) {
 	return entries, errs
 }
 
-// Remove deletes an entry (the server acknowledged it, or it is void).
+// Remove deletes an entry (the server acknowledged it, or it is void). The entry is void as
+// soon as its assignment.json is gone (Load deletes such directories), so a file still held
+// open by another process (Windows) only delays the cleanup: the rest of the directory is
+// retried in the background for a while, then by the next Load.
 func (o *Outbox) Remove(e *Entry) error {
-	if err := os.RemoveAll(e.Dir); err != nil {
+	if err := os.Remove(filepath.Join(e.Dir, assignmentFile)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to remove outbox entry %s: %w", e.Dir, err)
 	}
+	if err := os.RemoveAll(e.Dir); err != nil {
+		go retryRemoveAll(e.Dir)
+	}
 	return nil
+}
+
+// retryRemoveAll retries removing dir for about two minutes.
+func retryRemoveAll(dir string) {
+	for delay := time.Second; delay <= time.Minute; delay *= 2 {
+		time.Sleep(delay)
+		if os.RemoveAll(dir) == nil {
+			return
+		}
+	}
 }
 
 // OutDir is the compute output directory of the entry.
