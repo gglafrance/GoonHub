@@ -1,0 +1,116 @@
+# goonhub-worker configuration (copy to config.yaml next to the binary, or pass --config).
+# Relative paths are relative to this file. Sizes: 500MB, 20GiB, 10M (binary), bytes.
+# Durations: 30s, 5m, 1h (or a number of seconds).
+
+# GoonHub server URL, usually its Tailscale MagicDNS name (http on the tailnet is fine:
+# Tailscale encrypts the traffic). The server only accepts workers from
+# workers.allowed_cidrs (Tailscale + loopback by default).
+server: http://goonhub.your-tailnet.ts.net:8080
+
+# Worker token, shown once when the worker is created in GoonHub (Settings > Workers >
+# Add worker). Prefer token_file (first line of the file), or the
+# GOONHUB_WORKER_TOKEN environment variable, to keep it out of this file.
+token: ""
+# token_file: token.txt
+
+# Display name in GoonHub (default: the hostname).
+# name: gaming-pc
+
+# pull: the worker connects to the server and claims jobs (machines behind NAT, laptops).
+# push: the worker listens and the server assigns jobs to it (always-on servers).
+mode: pull
+
+# Push mode only.
+push:
+  # Listen address (use the Tailscale IP to listen on the tailnet only).
+  listen: ":9090"
+  # URL the server uses to reach this worker (default http://<hostname>:<port>).
+  # url: http://worker-1.your-tailnet.ts.net:9090
+  # Secret the server must send (Authorization: Bearer ...). Empty: a random one per
+  # start, sent to the server at register (recommended).
+  secret: ""
+  # Source addresses accepted (default: Tailscale and loopback).
+  # allowed_cidrs: ["100.64.0.0/10", "fd7a:115c:a1e0::/48", "127.0.0.0/8", "::1/128"]
+
+# Phases this worker runs, with their number of concurrent jobs (0 or absent = not run).
+phases:
+  sprites: 1             # sprite sheets + VTT (many short seeks)
+  animated_thumbnails: 1 # marker clips + scene preview (H.264 encodes)
+  fingerprint: 2         # chromaprint (fpcalc) + visual dHash (reads the whole file)
+
+# Jobs computing at once, all phases together (0 = sum of the phase slots).
+max_concurrency: 2
+# Computed jobs waiting for upload/complete before the worker stops claiming (0 = 2 x max_concurrency).
+max_pending_uploads: 0
+# Parallel frame extractions of a sprites job (0 = the server setting).
+sprites_concurrency: 0
+
+# Direct input mode: storage paths of the server this machine sees itself. Mount them
+# READ-ONLY. A job uses a mapping when its storage path id matches (the job's relative
+# path is joined to local_path) or when its server path starts with server_prefix; the
+# file must exist with the size the server knows, else the job reads over HTTP
+# (indirect mode). Without mappings every job is indirect.
+storage: []
+#  - storage_path_id: 2           # id of the storage path in GoonHub (Settings > Storage)
+#    local_path: 'Z:\stash'       # Windows: mapped drive / UNC path (\\nas\stash)
+#  - server_prefix: /media/stash  # or by the server-side path prefix
+#    local_path: /Volumes/stash   # macOS SMB/NFS mount, Linux: /mnt/stash (mount -o ro)
+
+# Outbox (job state + computed artifacts until the server acknowledged them) and logs.
+# Default: "data" next to this file. Never inside a media mount.
+# data_dir: data
+
+# Download cache of indirect mode (whole-file copies for fingerprints, reused by the
+# other phases of the same scene). Least recently used entries go first.
+cache:
+  # dir: data/cache
+  max_size: 20GiB
+
+# Below this free space (data or cache disk) the worker stops taking jobs.
+min_free_disk: 2GiB
+
+# Bandwidth of the worker's own transfers (0 = unlimited): source downloads and
+# artifact uploads. ffmpeg streaming a media URL directly (sprites, animated thumbnails
+# in indirect mode) is not limited.
+bandwidth:
+  download: 0
+  upload: 0
+
+# Binaries. Empty = next to the goonhub-worker binary (or in ./bin), then PATH.
+# Static builds:
+#   Windows: https://github.com/BtbN/FFmpeg-Builds/releases (ffmpeg-master-latest-win64-gpl.zip)
+#            or winget install Gyan.FFmpeg
+#   macOS:   brew install ffmpeg chromaprint, or https://evermeet.cx/ffmpeg/ (ffmpeg + ffprobe)
+#   Linux:   apt install ffmpeg libchromaprint-tools, or https://johnvansickle.com/ffmpeg/
+#   fpcalc (chromaprint, audio fingerprints): https://github.com/acoustid/chromaprint/releases
+#   Without fpcalc the worker does not advertise audio fingerprints: the server only sends
+#   it fingerprint jobs of scenes without audio.
+tools:
+  ffmpeg: ""
+  ffprobe: ""
+  fpcalc: ""
+
+# Hardware acceleration: auto (every pipeline is proven at startup by running it, the first
+# working method per step wins, software fallback per step), none, or a method to force:
+# nvidia, videotoolbox (macOS), intel, vaapi (Linux), d3d11va (Windows), amd.
+# Check the choice with `goonhub-worker detect` and measure it with `goonhub-worker bench`.
+accel: auto
+# vaapi_device: /dev/dri/renderD128
+
+# Worker-side timeouts (the server's defaults). A timeout fails the job (kind timeout).
+timeouts:
+  sprites: 30m
+  animated_thumbnails: 30m
+  fingerprint: 5m   # the job gets max(this, 0.5 s per second of video)
+
+# Graceful stop: computed jobs get this long to finish their upload and complete before
+# being released; running computations are cancelled and released at once.
+shutdown_grace: 10s
+
+log:
+  level: info         # debug, info, warn, error
+  # file: data/logs/worker.log   ("-" = console only)
+  max_size_mb: 20
+  max_backups: 5
+  format: text        # console: text or json
+  file_format: json   # file: json or text

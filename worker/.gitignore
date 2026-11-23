@@ -1,0 +1,5 @@
+dist/
+*.exe
+/data/
+/config.yaml
+/token.txt
