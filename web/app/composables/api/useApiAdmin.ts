@@ -1,4 +1,10 @@
 import type { TranscodeCacheClearResponse, TranscodeCacheStats } from '~/types/admin';
+import type {
+    TrashBulkResult,
+    TrashFacets,
+    TrashIdsResponse,
+    TrashListResponse,
+} from '~/types/trash';
 
 /**
  * Admin API operations: users, roles, permissions management, trash, transcode cache.
@@ -114,14 +120,58 @@ export const useApiAdmin = () => {
         return handleResponse(response);
     };
 
-    // Trash management
-    const listTrash = async (page = 1, limit = 20) => {
+    // Trash management. filters: the query params of trashFilterParams (utils/trashFilters.ts)
+    const listTrash = async (
+        page = 1,
+        limit = 20,
+        filters: Record<string, string> = {},
+    ): Promise<TrashListResponse> => {
         const params = new URLSearchParams({
+            ...filters,
             page: page.toString(),
             limit: limit.toString(),
         });
         const response = await fetch(`/api/v1/admin/trash?${params}`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    // Every trashed scene of a filter (ids and sizes), up to the bulk limit, for "select all"
+    const listTrashIds = async (filters: Record<string, string>): Promise<TrashIdsResponse> => {
+        const params = new URLSearchParams(filters);
+        const response = await fetch(`/api/v1/admin/trash/ids?${params}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const getTrashFacets = async (): Promise<TrashFacets> => {
+        const response = await fetch('/api/v1/admin/trash/facets', {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const restoreTrashBulk = async (sceneIds: number[]): Promise<TrashBulkResult> => {
+        const response = await fetch('/api/v1/admin/trash/restore-bulk', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ scene_ids: sceneIds }),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    // Permanent deletion of trashed scenes: their files are deleted from disk
+    const deleteTrashBulk = async (sceneIds: number[]): Promise<TrashBulkResult> => {
+        const response = await fetch('/api/v1/admin/trash/delete-bulk', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ scene_ids: sceneIds }),
             ...fetchOptions(),
         });
         return handleResponse(response);
@@ -208,6 +258,10 @@ export const useApiAdmin = () => {
         getSearchConfig,
         updateSearchConfig,
         listTrash,
+        listTrashIds,
+        getTrashFacets,
+        restoreTrashBulk,
+        deleteTrashBulk,
         restoreScene,
         permanentDeleteScene,
         emptyTrash,

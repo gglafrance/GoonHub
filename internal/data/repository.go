@@ -135,6 +135,11 @@ type SceneRepository interface {
 	GetExpiredTrashScenes(retentionDays int) ([]Scene, error)
 	GetByIDIncludingTrashed(id uint) (*Scene, error)
 	GetByIDsIncludingTrashed(ids []uint) ([]Scene, error)
+	// Trash page (filters, sorts and totals computed in SQL, see trash_repository.go)
+	ListTrash(q TrashQuery) ([]TrashedSceneRow, TrashTotals, error)
+	TrashTotals(f TrashFilter) (TrashTotals, error)
+	ListTrashIDs(q TrashQuery, limit int) ([]TrashIDSize, int64, error)
+	TrashFacets() (TrashFacets, error)
 
 	// PornDB filtering
 	GetSceneIDsWithPornDBID() ([]uint, error)

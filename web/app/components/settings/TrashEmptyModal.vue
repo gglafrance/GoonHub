@@ -2,8 +2,12 @@
 defineProps<{
     visible: boolean;
     count: number;
+    /** Total size of the trash in bytes, when known */
+    size?: number;
     loading: boolean;
 }>();
+
+const { formatSize } = useFormatter();
 
 const emit = defineEmits<{
     close: [];
@@ -23,8 +27,9 @@ const emit = defineEmits<{
                 <p class="text-dim mb-4 text-xs">
                     Are you sure you want to permanently delete
                     <span class="text-white">{{ count }} scene{{ count === 1 ? '' : 's' }}</span
-                    >? This action cannot be undone. Video files on read-only storage paths are
-                    kept.
+                    ><span v-if="size"> ({{ formatSize(size) }})</span>? Their video files are
+                    deleted from disk and cannot be recovered. Video files on read-only storage
+                    paths are kept.
                 </p>
                 <div class="flex justify-end gap-2">
                     <button

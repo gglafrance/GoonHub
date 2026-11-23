@@ -476,7 +476,8 @@ definePageMeta({
 
         <!-- Content area -->
         <main class="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-            <div class="mx-auto max-w-3xl">
+            <!-- The trash list is dense (filters, bulk bar, file paths): wider -->
+            <div class="mx-auto" :class="activeTab === 'trash' ? 'max-w-6xl' : 'max-w-3xl'">
                 <!-- Global save feedback -->
                 <Transition
                     enter-active-class="transition-all duration-200 ease-out"
