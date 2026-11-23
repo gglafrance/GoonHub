@@ -182,3 +182,26 @@ func TestSceneCopyTriage(t *testing.T) {
 		t.Fatalf("last completed scan %v (%v)", last, err)
 	}
 }
+
+// No completed scan yet (only a cancelled one, like a first scan stopped by the user): the
+// Copies view must still load, LastCompletedScanStart gives nil. Runs in a transaction rolled
+// back at the end, so the scans of the shared test database are untouched.
+func TestSceneCopyRepositoryLastCompletedScanStartWithoutCompletedScan(t *testing.T) {
+	db := importTestDB(t)
+	tx := db.Begin()
+	t.Cleanup(func() { tx.Rollback() })
+	if err := tx.Exec(`DELETE FROM scan_history WHERE status = 'completed'`).Error; err != nil {
+		t.Fatal(err)
+	}
+	cancelled := &ScanHistory{Status: "cancelled", StartedAt: time.Now(), CreatedAt: time.Now()}
+	if err := tx.Create(cancelled).Error; err != nil {
+		t.Fatal(err)
+	}
+	last, err := NewSceneCopyRepository(tx).LastCompletedScanStart()
+	if err != nil {
+		t.Fatalf("last completed scan without one: %v", err)
+	}
+	if last != nil {
+		t.Fatalf("last completed scan = %v, want nil", last)
+	}
+}
