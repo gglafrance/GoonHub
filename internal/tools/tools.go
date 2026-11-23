@@ -102,7 +102,25 @@ func locate(name, configured string) (string, error) {
 	if p, err := exec.LookPath(name); err == nil {
 		return p, nil
 	}
-	return "", fmt.Errorf("%s not found next to the worker binary nor on PATH", name)
+	// A service (launchd, systemd) gets a minimal PATH without the package manager folders.
+	for _, dir := range wellKnownDirs() {
+		cand := filepath.Join(dir, exeName(name))
+		if st, err := os.Stat(cand); err == nil && !st.IsDir() {
+			return cand, nil
+		}
+	}
+	return "", fmt.Errorf("%s not found next to the worker binary, on PATH nor in %s", name, strings.Join(wellKnownDirs(), ", "))
+}
+
+// wellKnownDirs are the install folders of the usual package managers, searched after PATH.
+func wellKnownDirs() []string {
+	switch runtime.GOOS {
+	case "darwin":
+		return []string{"/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin"}
+	case "linux":
+		return []string{"/usr/local/bin", "/usr/bin", "/snap/bin", "/home/linuxbrew/.linuxbrew/bin"}
+	}
+	return nil
 }
 
 func run(ctx context.Context, bin string, args ...string) ([]byte, error) {
