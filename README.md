@@ -123,11 +123,21 @@ Both modes then run the same path: heartbeats, uploads, complete.
 
 ### Hardware acceleration
 
-`accel: auto` uses the best profile detected for the machine's ffmpeg (NVENC/NVDEC, AMF,
-QSV, VideoToolbox, VAAPI) and falls back to software for any step that fails, so the output
-is always produced. This build still runs everything in software: the detection lives in
-GoonHub's `pkg/compute/hwaccel` (in progress) and plugs into `internal/accel.Select`.
-`goonhub-worker bench` times each computation on a generated clip (or `--input FILE`).
+`accel: auto` proves at startup (about 5 s) which pipelines of the machine's ffmpeg really
+work, by running each one on tiny clips: NVIDIA (NVDEC/NVENC), VideoToolbox, Intel QSV,
+VA-API, D3D11VA, AMD AMF. Each step (marker clips, scene preview, visual hash) then takes
+the first proven method, and any step that fails at run time is redone in software, so
+the output is always produced. Sprite frames stay in software: one short ffmpeg per frame
+is slower on a GPU. Visual hashes decode on the GPU but scale on the CPU, which gives the
+same hashes as the server. `accel: none` disables everything; `accel: nvidia` (or another
+method) forces one method.
+
+- `goonhub-worker detect` prints what was proven, method by method, and the choice.
+- `goonhub-worker bench [--codec hevc] [--input FILE] [--json]` times each step in
+  software and accelerated, with the CPU time and the hash drift.
+
+Measured on an RTX 2080 Ti with a 24-thread CPU: on H.264 sources the GPU is not faster,
+but it uses far less CPU; on HEVC sources it is faster.
 
 ## Tailscale
 
