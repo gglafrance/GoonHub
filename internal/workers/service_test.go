@@ -1039,3 +1039,52 @@ func defaultWorkersConfig() config.WorkersConfig {
 	return config.WorkersConfig{Enabled: true, HeartbeatInterval: 10 * time.Second, LeaseDuration: 60 * time.Second,
 		AllowedCIDRs: []string{"100.64.0.0/10", "fd7a:115c:a1e0::/48", "127.0.0.0/8", "::1/128"}}
 }
+
+// The admin max_concurrency replaces the per-phase slots the worker registered with, and is
+// sent back at register and on every heartbeat.
+func TestAdminMaxConcurrencyReplacesWorkerSlots(t *testing.T) {
+	e := newTestEnv(t)
+	caps := defaultCaps()
+	caps.Slots = map[workerproto.Phase]int{"sprites": 1, "animated_thumbnails": 1, "fingerprint": 1}
+	w, token := e.worker(caps)
+	for i := 0; i < 4; i++ {
+		e.pending(e.scene(""), workerproto.PhaseSprites)
+	}
+
+	// No admin limit: the registered slot (1 sprites job) applies.
+	as, err := e.svc.ClaimFor(w, map[workerproto.Phase]int{"sprites": 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(as) != 1 {
+		t.Fatalf("claimed %d sprites jobs with 1 registered slot, want 1", len(as))
+	}
+
+	// Admin limit 3: replaces the registered slot, 3 jobs held in total.
+	if _, err := e.svc.UpdateWorker(w.ID, WorkerInput{MaxConcurrency: intPtr(3)}); err != nil {
+		t.Fatal(err)
+	}
+	w = e.auth(token)
+	as, err = e.svc.ClaimFor(w, map[workerproto.Phase]int{"sprites": 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(as) != 2 {
+		t.Fatalf("claimed %d more sprites jobs with an admin limit of 3 (1 held), want 2", len(as))
+	}
+
+	hb, err := e.svc.Heartbeat(w, workerproto.HeartbeatRequest{SessionID: w.SessionID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hb.MaxConcurrency != 3 {
+		t.Fatalf("heartbeat max_concurrency = %d, want 3", hb.MaxConcurrency)
+	}
+	reg, err := e.svc.Register(w, workerproto.RegisterRequest{APIVersion: 1, Name: w.Name, Capabilities: caps}, "http://127.0.0.1:8080")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reg.MaxConcurrency != 3 {
+		t.Fatalf("register max_concurrency = %d, want 3", reg.MaxConcurrency)
+	}
+}

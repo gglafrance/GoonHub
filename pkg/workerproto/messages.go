@@ -79,6 +79,11 @@ type RegisterResponse struct {
 	MaxArtifactBytes int64 `json:"max_artifact_bytes"`
 	// UploadChunkBytes: recommended maximum body size of one artifact PUT.
 	UploadChunkBytes int64 `json:"upload_chunk_bytes"`
+	// MaxConcurrency is the worker's job limit set by the admin (Settings > Workers): when
+	// > 0 the worker runs up to this many jobs in total, and up to this many per enabled
+	// phase, whatever its own config says. 0 = the worker's config. Sent at register and on
+	// every heartbeat, so a change applies within one heartbeat interval.
+	MaxConcurrency int `json:"max_concurrency,omitempty"`
 	// Resumed answers RegisterRequest.Resume, one entry per job.
 	Resumed []JobLeaseStatus `json:"resumed,omitempty"`
 }
@@ -192,6 +197,11 @@ type HeartbeatResponse struct {
 	Jobs       []JobLeaseStatus `json:"jobs"`
 	// Drain asks the worker to stop claiming new jobs (admin action); running jobs finish.
 	Drain bool `json:"drain,omitempty"`
+	// MaxConcurrency is the worker's job limit set by the admin (Settings > Workers): when
+	// > 0 the worker runs up to this many jobs in total, and up to this many per enabled
+	// phase, whatever its own config says. 0 = the worker's config. Sent at register and on
+	// every heartbeat, so a change applies within one heartbeat interval.
+	MaxConcurrency int `json:"max_concurrency,omitempty"`
 }
 
 // LeaseStatus is the server's view of one lease.

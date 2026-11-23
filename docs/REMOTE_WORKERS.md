@@ -142,9 +142,12 @@ stage, input mode, attempt, generation, lease expiry). Counters: `jobs_completed
 
 Disabling a worker, revoking or rotating its token and deleting it release its leases at
 once (back to pending, no attempt counted). `allowed_phases` (default all three) is
-intersected with the phases the worker advertises; `max_concurrency` caps the jobs it holds
-across phases (0 = only its own slots); `draining` makes its claims empty and its
-heartbeats answer `drain: true`.
+intersected with the phases the worker advertises; `max_concurrency` (0 = the worker's
+config) is the number of jobs the worker runs at once: it is sent in the register and
+heartbeat responses (`max_concurrency`) and replaces the worker's own limits, in total and
+per enabled phase, within one heartbeat interval (the server then ignores the per-phase
+slots the worker registered with); `draining` makes its claims empty and its heartbeats
+answer `drain: true`.
 
 **Creating a worker token for testing**: Settings > Workers > Add worker (the token is
 shown once), or with an admin session cookie:

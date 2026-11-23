@@ -190,7 +190,8 @@ async function submit() {
                         <div>
                             <label class="text-xs font-medium text-white">Max concurrency</label>
                             <p class="text-dim text-[10px]">
-                                Jobs held at once, all phases (0 = the worker's own slots)
+                                Jobs run at once, all phases. Replaces the worker's own limits
+                                within a heartbeat (0 = the worker's config)
                             </p>
                         </div>
                         <input

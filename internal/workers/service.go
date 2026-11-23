@@ -445,6 +445,7 @@ func (s *Service) Register(w *data.Worker, req workerproto.RegisterRequest, serv
 		ClaimMaxWaitSec:      int(s.cfg.ClaimMaxWait / time.Second),
 		MaxArtifactBytes:     s.cfg.MaxArtifactBytes,
 		UploadChunkBytes:     s.cfg.UploadChunkBytes,
+		MaxConcurrency:       w.MaxConcurrency,
 		Resumed:              resumed,
 	}, nil
 }
@@ -566,7 +567,9 @@ func (s *Service) ClaimFor(w *data.Worker, slots map[workerproto.Phase]int) ([]w
 	for _, phase := range workerproto.RemotePhases {
 		p := string(phase)
 		n := slots[phase]
-		if cs, ok := caps.Slots[phase]; ok {
+		// the per-phase slots the worker registered with come from its config; a limit
+		// set by the admin replaces them (the worker applies it too)
+		if cs, ok := caps.Slots[phase]; ok && w.MaxConcurrency <= 0 {
 			n = min(n, cs-heldPerPhase[p])
 		}
 		if remaining >= 0 {
@@ -787,7 +790,7 @@ func (s *Service) Heartbeat(w *data.Worker, req workerproto.HeartbeatRequest) (*
 	now := s.now()
 	s.touch(w, map[string]any{"free_disk_bytes": max(req.FreeDiskBytes, 0), "worker_draining": req.Draining})
 
-	resp := &workerproto.HeartbeatResponse{ServerTime: now.UTC(), Drain: w.Draining, Jobs: []workerproto.JobLeaseStatus{}}
+	resp := &workerproto.HeartbeatResponse{ServerTime: now.UTC(), Drain: w.Draining, MaxConcurrency: w.MaxConcurrency, Jobs: []workerproto.JobLeaseStatus{}}
 	reported := map[string]bool{}
 	var missing []string
 	expires := now.Add(s.cfg.LeaseDuration)
