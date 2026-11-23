@@ -89,6 +89,10 @@ func extractSpriteSheets(ctx context.Context, env Env, req Request, p workerprot
 		}
 	}
 
+	if acc := env.Accel.For(StepSpriteFrame); !acc.IsSoftware() && acc.MaxParallel > 0 && concurrency > acc.MaxParallel {
+		concurrency = acc.MaxParallel
+	}
+
 	// Phase 1: extract every frame (0-80%)
 	semaphore := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
@@ -115,7 +119,7 @@ func extractSpriteSheets(ctx context.Context, env Env, req Request, p workerprot
 
 			ts := frameIndex * interval
 			framePath := filepath.Join(tmpDir, fmt.Sprintf("frame_%04d.webp", frameIndex))
-			err := runFFmpeg(ctx, env, StepSpriteFrame, fmt.Sprintf("ffmpeg failed extracting frame at %ds", ts),
+			err := runFFmpeg(ctx, env, StepSpriteFrame, 1, fmt.Sprintf("ffmpeg failed extracting frame at %ds", ts),
 				func(acc StepAccel) []string {
 					return spriteFrameArgs(acc, req.Input, framePath, ts, p.TileWidth, p.TileHeight, p.FrameQuality)
 				})
@@ -183,9 +187,17 @@ func extractSpriteSheets(ctx context.Context, env Env, req Request, p workerprot
 	return sheets, nil
 }
 
+// SpriteFrameArgs returns the ffmpeg arguments extracting one sprite frame at ts seconds
+// with the step acceleration acc (the zero StepAccel gives the server's software command).
+// Exported for benchmarks and hardware probes (pkg/compute/hwaccel).
+func SpriteFrameArgs(acc StepAccel, input, output string, ts, width, height, quality int) []string {
+	return spriteFrameArgs(acc, input, output, ts, width, height, quality)
+}
+
 // spriteFrameArgs extracts one scaled frame at ts seconds.
 func spriteFrameArgs(acc StepAccel, input, output string, ts, width, height, quality int) []string {
 	args := ffmpeg.GetDefaultArgs()
+	args = append(args, acc.globalArgs()...)
 	args = append(args, acc.inputArgs()...)
 	return append(args,
 		"-ss", strconv.Itoa(ts),

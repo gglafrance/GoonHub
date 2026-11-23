@@ -93,7 +93,7 @@ func markerClip(ctx context.Context, env Env, input, outPath string, timestampSe
 	clipCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	seek := strconv.Itoa(timestampSec)
-	err := runFFmpeg(clipCtx, env, StepMarkerClip, "ffmpeg animated thumbnail failed", func(acc StepAccel) []string {
+	err := runFFmpeg(clipCtx, env, StepMarkerClip, durationSec, "ffmpeg animated thumbnail failed", func(acc StepAccel) []string {
 		return markerClipArgs(acc, input, outPath, seek, durationSec, width, crf)
 	})
 	if err != nil {
@@ -102,19 +102,31 @@ func markerClip(ctx context.Context, env Env, input, outPath string, timestampSe
 	return nil
 }
 
+// MarkerClipArgs returns the ffmpeg arguments of a marker clip with the step acceleration
+// acc (the zero StepAccel gives the server's software command). Exported for benchmarks
+// and hardware probes (pkg/compute/hwaccel).
+func MarkerClipArgs(acc StepAccel, input, output string, timestampSec, durationSec, width, crf int) []string {
+	return markerClipArgs(acc, input, output, strconv.Itoa(timestampSec), durationSec, width, crf)
+}
+
 // markerClipArgs encodes a short H.264 clip (no audio) starting at seek.
 func markerClipArgs(acc StepAccel, input, output, seek string, duration, width, crf int) []string {
 	args := ffmpeg.GetDefaultArgs()
+	args = append(args, acc.globalArgs()...)
 	args = append(args, acc.inputArgs()...)
+	vf := acc.scale(fmt.Sprintf("%d:-2", width), "flags=bilinear")
+	if acc.framesOnCPU() && acc.Encoder.Upload {
+		vf += "," + acc.cpuTail()
+	}
 	args = append(args,
 		"-ss", seek,
 		"-i", input,
 		"-t", strconv.Itoa(duration),
 		"-c:v", acc.h264Encoder(),
-		"-vf", acc.scale(fmt.Sprintf("%d:-2", width), "flags=bilinear"),
+		"-vf", vf,
 	)
-	if acc.framesOnCPU() {
-		args = append(args, "-pix_fmt", "yuv420p")
+	if acc.framesOnCPU() && !acc.Encoder.Upload {
+		args = append(args, "-pix_fmt", acc.pixFmt())
 	}
 	args = append(args, acc.qualityArgs(crf)...)
 	return append(args,
@@ -145,7 +157,7 @@ func scenePreview(ctx context.Context, env Env, req Request, spec workerproto.Sc
 		if isShortScenePreview(duration, spec.Segments, spec.SegmentDuration) {
 			prefix = "ffmpeg scene preview (short mode) failed"
 		}
-		return runFFmpeg(ctx, env, StepScenePreview, prefix, func(acc StepAccel) []string {
+		return runFFmpeg(ctx, env, StepScenePreview, duration, prefix, func(acc StepAccel) []string {
 			return scenePreviewArgs(acc, req.Input, out, duration, spec.Segments, spec.SegmentDuration, spec.Width, spec.CRF, hasAudio)
 		})
 	}
@@ -169,6 +181,13 @@ func isShortScenePreview(duration int, segments int, segmentDuration float64) bo
 	return float64(duration) < float64(segments)*segmentDuration
 }
 
+// ScenePreviewArgs returns the ffmpeg arguments of a scene preview with the step
+// acceleration acc (the zero StepAccel gives the server's software command). Exported for
+// benchmarks and hardware probes (pkg/compute/hwaccel).
+func ScenePreviewArgs(acc StepAccel, input, output string, durationSec, segments int, segmentDuration float64, width, crf int, hasAudio bool) []string {
+	return scenePreviewArgs(acc, input, output, durationSec, segments, segmentDuration, width, crf, hasAudio)
+}
+
 // scenePreviewArgs samples segments evenly through the video and concatenates them; a
 // video shorter than segments*segmentDuration is encoded whole at reduced resolution. With
 // hasAudio, each segment keeps its audio (AAC stereo, 50 ms fades at every cut).
@@ -180,17 +199,22 @@ func scenePreviewArgs(acc StepAccel, input, output string,
 
 	if isShortScenePreview(duration, segments, segmentDuration) {
 		args := ffmpeg.GetDefaultArgs()
+		args = append(args, acc.globalArgs()...)
 		args = append(args, acc.inputArgs()...)
 		args = append(args, "-i", input)
 		if hasAudio {
 			args = append(args, "-map", "0:v:0", "-map", "0:a:0")
 		}
+		vf := scale
+		if acc.framesOnCPU() && acc.Encoder.Upload {
+			vf += "," + acc.cpuTail()
+		}
 		args = append(args,
 			"-c:v", acc.h264Encoder(),
-			"-vf", scale,
+			"-vf", vf,
 		)
-		if acc.framesOnCPU() {
-			args = append(args, "-pix_fmt", "yuv420p")
+		if acc.framesOnCPU() && !acc.Encoder.Upload {
+			args = append(args, "-pix_fmt", acc.pixFmt())
 		}
 		args = append(args, acc.qualityArgs(crf)...)
 		args = append(args,
@@ -208,6 +232,7 @@ func scenePreviewArgs(acc StepAccel, input, output string,
 
 	interval := float64(duration) / float64(segments)
 	args := ffmpeg.GetDefaultArgs()
+	args = append(args, acc.globalArgs()...)
 	for i := 0; i < segments; i++ {
 		seekPos := interval*float64(i) + interval/2
 		args = append(args, acc.inputArgs()...)
@@ -216,7 +241,7 @@ func scenePreviewArgs(acc StepAccel, input, output string,
 
 	videoTail := scale
 	if acc.framesOnCPU() {
-		videoTail += ",format=yuv420p"
+		videoTail += "," + acc.cpuTail()
 	}
 	var filterParts []string
 	var concatInputs []string
