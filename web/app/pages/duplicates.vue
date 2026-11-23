@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import type {
+    BulkTrashAllResult,
     DuplicateGroup,
     DuplicateSkippedGroup,
     DuplicateStats,
     DuplicationConfig,
+    TrashAllResult,
 } from '~/types/duplicates';
 
 definePageMeta({
@@ -74,6 +76,44 @@ const bulkMessage = ref<string | null>(null);
 // Groups the last automatic action skipped (not all their scenes are identical)
 const skippedGroups = ref<DuplicateSkippedGroup[]>([]);
 const dupConfig = ref<DuplicationConfig | null>(null);
+
+// Trash all videos of one group or of the selected groups. Groups seen on any page are kept
+// so the confirmation can count the videos of a selection spanning pages.
+const knownGroups = ref<Map<number, DuplicateGroup>>(new Map());
+const trashAllIds = ref<number[]>([]);
+const trashAllBulk = ref(false);
+const showTrashAll = ref(false);
+
+const rememberGroups = (list: DuplicateGroup[]) => {
+    const next = new Map(knownGroups.value);
+    for (const g of list) next.set(g.id, g);
+    knownGroups.value = next;
+};
+
+const openTrashAll = (ids: number[], bulk: boolean) => {
+    if (ids.length === 0) return;
+    trashAllIds.value = ids;
+    trashAllBulk.value = bulk;
+    showTrashAll.value = true;
+};
+
+const handleTrashed = async (result: TrashAllResult | BulkTrashAllResult) => {
+    skippedGroups.value = [];
+    if ('resolved' in result) {
+        bulkMessage.value = describeBulkTrashAll(result);
+        selectedIds.value = new Set(result.failed.map((f) => f.group_id));
+    } else {
+        const groupId = trashAllIds.value[0];
+        bulkMessage.value =
+            `Group #${groupId} resolved, ${result.trashed.length} video(s) moved to the trash` +
+            (result.skipped.length
+                ? `, ${result.skipped.length} already in the trash or missing`
+                : '');
+        if (groupId !== undefined && selectedIds.value.has(groupId)) toggleSelect(groupId);
+        expandedGroupId.value = null;
+    }
+    await Promise.all([loadGroups(), loadStats()]);
+};
 
 // Player / compare modal
 const playerGroup = ref<DuplicateGroup | null>(null);
@@ -174,6 +214,7 @@ const loadGroups = async () => {
             kindFilter.value,
         );
         groups.value = data.data;
+        rememberGroups(data.data);
         total.value = data.pagination.total_items;
     } catch (e) {
         console.error('Failed to load groups:', e);
@@ -237,7 +278,9 @@ const setKind = (k: string) => {
 const openSkippedGroup = async (groupId: number) => {
     if (!groups.value.some((g) => g.id === groupId)) {
         try {
-            groups.value = [await getGroup(groupId), ...groups.value];
+            const group: DuplicateGroup = await getGroup(groupId);
+            rememberGroups([group]);
+            groups.value = [group, ...groups.value];
         } catch (e) {
             console.error('Failed to load group:', e);
             return;
@@ -408,6 +451,7 @@ onMounted(() => {
             @clear="clearSelection"
             @auto-select="handleAutoSelect([...selectedIds])"
             @auto-resolve="showBulkConfirm = true"
+            @trash-all="openTrashAll([...selectedIds], true)"
         />
         <div
             v-if="bulkMessage"
@@ -442,6 +486,7 @@ onMounted(() => {
                 @auto-select="handleAutoSelect([group.id])"
                 @resolve="handleResolve(group.id, group.best_scene_id!)"
                 @dismiss="handleDismiss(group.id)"
+                @trash-all="openTrashAll([group.id], false)"
                 @play="(sceneId: number) => openPlayer(group, sceneId)"
                 @cancel-deletion="(sceneId: number) => handleCancelDeletion(group.id, sceneId)"
             />
@@ -452,6 +497,15 @@ onMounted(() => {
             :members="playerGroup?.members ?? []"
             :scene-id="playerSceneId"
             @close="closePlayer"
+        />
+
+        <DuplicatesTrashAllModal
+            :visible="showTrashAll"
+            :group-ids="trashAllIds"
+            :groups="knownGroups"
+            :bulk="trashAllBulk"
+            @close="showTrashAll = false"
+            @trashed="handleTrashed"
         />
 
         <UiConfirmModal

@@ -13,6 +13,7 @@ const emit = defineEmits<{
     clear: [];
     autoSelect: [];
     autoResolve: [];
+    trashAll: [];
 }>();
 </script>
 
@@ -59,6 +60,17 @@ const emit = defineEmits<{
             >
                 <Icon name="heroicons:sparkles" size="12" />
                 Auto-select best
+            </button>
+            <button
+                class="border-border text-dim flex items-center gap-1 rounded-md border px-2.5 py-1
+                    text-[11px] font-medium transition-all hover:border-red-500/40
+                    hover:text-red-400 disabled:opacity-40"
+                :disabled="selectedCount === 0 || busy"
+                title="Move every video of the selected groups to the trash, the best ones included"
+                @click="emit('trashAll')"
+            >
+                <Icon name="heroicons:trash" size="12" />
+                Trash all videos
             </button>
             <button
                 class="bg-lava hover:bg-lava/80 flex items-center gap-1 rounded-md px-2.5 py-1

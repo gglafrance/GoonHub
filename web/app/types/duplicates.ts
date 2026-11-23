@@ -77,6 +77,21 @@ export interface BulkResolveResult {
     markers: MarkerMergeSummary;
 }
 
+// POST /admin/duplicates/:id/trash-all: scenes moved to the trash, and scenes left alone
+// (already in the trash or missing)
+export interface TrashAllResult {
+    trashed: number[];
+    skipped: number[];
+}
+
+// POST /admin/duplicates/trash-all-bulk
+export interface BulkTrashAllResult {
+    resolved: number[];
+    failed: { group_id: number; error: string }[];
+    trashed_scenes: number;
+    skipped_scenes: number;
+}
+
 export interface AutoSelectResult {
     selected: Record<string, number>;
     skipped: DuplicateSkippedGroup[];
