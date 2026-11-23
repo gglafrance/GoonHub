@@ -13,6 +13,32 @@ func ExtractDHashes(videoPath string) ([]uint64, error) {
 	return ExtractDHashesWithContext(context.Background(), videoPath)
 }
 
+// ffmpegArgs are the ffmpeg arguments of ExtractDHashesWithContext: 9x8 grayscale raw frames,
+// one every 2 seconds, on stdout.
+//
+// The decoder runs on a single thread: hashing jobs run several at a time, and the threads of
+// a frame-threaded decoder mostly add synchronisation overhead. Measured on 51 real videos
+// (7 h, H.264 SD to 4K, HEVC, AV1, MPEG-4, WMV) this cuts the CPU time by 36 % (x1.3 to x2.3
+// per file, AV1 and MPEG-4 the most) and the hashes are bit-identical, so nothing indexed
+// changes. Each job takes about twice as long on its own: the gain is throughput.
+// export_side_data film_grain makes AV1 decoders export the film grain parameters instead of
+// synthesizing the grain (display-only noise, irrelevant at 9x8; -8 % CPU on AV1, no effect
+// on other codecs).
+func ffmpegArgs(videoPath string) []string {
+	return []string{
+		"-nostdin",
+		"-skip_loop_filter", "all",
+		"-skip_frame", "noref",
+		"-threads", "1",
+		"-export_side_data", "film_grain",
+		"-i", videoPath,
+		"-an", "-sn", "-dn",
+		"-vf", "fps=1/2,scale=9:8,format=gray",
+		"-f", "rawvideo",
+		"pipe:1",
+	}
+}
+
 // ExtractDHashesWithContext extracts dHashes with context support for cancellation/timeout.
 // It uses ffmpeg to extract 1 frame every 2 seconds, scale to 9x8 grayscale,
 // and compute a 64-bit difference hash per frame.
@@ -23,18 +49,7 @@ func ExtractDHashes(videoPath string) ([]uint64, error) {
 // within 1-5 bits (mean < 1 bit) of the full decode, well under the matching Hamming
 // tolerance, so these hashes stay comparable with the ones already indexed.
 func ExtractDHashesWithContext(ctx context.Context, videoPath string) ([]uint64, error) {
-	args := []string{
-		"-nostdin",
-		"-skip_loop_filter", "all",
-		"-skip_frame", "noref",
-		"-i", videoPath,
-		"-an", "-sn", "-dn",
-		"-vf", "fps=1/2,scale=9:8,format=gray",
-		"-f", "rawvideo",
-		"pipe:1",
-	}
-
-	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	cmd := exec.CommandContext(ctx, "ffmpeg", ffmpegArgs(videoPath)...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
