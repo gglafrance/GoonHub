@@ -311,6 +311,11 @@ export const useApiScenes = () => {
             range: rangeDays.toString(),
             limit: limit.toString(),
         });
+        // what the user's card template shows (tags, actors, rating, likes...), like the lists
+        const historySettings = useSettingsStore();
+        if (historySettings.cardFieldsParam) {
+            params.set('card_fields', historySettings.cardFieldsParam);
+        }
         const response = await fetch(`/api/v1/history/by-date?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
@@ -335,6 +340,11 @@ export const useApiScenes = () => {
             until,
             limit: limit.toString(),
         });
+        // what the user's card template shows (tags, actors, rating, likes...), like the lists
+        const historySettings = useSettingsStore();
+        if (historySettings.cardFieldsParam) {
+            params.set('card_fields', historySettings.cardFieldsParam);
+        }
         const response = await fetch(`/api/v1/history/by-date?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),

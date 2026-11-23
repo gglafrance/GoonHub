@@ -5,6 +5,7 @@ import (
 	"goonhub/internal/api/v1/request"
 	"goonhub/internal/api/v1/response"
 	"goonhub/internal/core"
+	"goonhub/internal/data"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,6 +16,11 @@ import (
 type WatchHistoryHandler struct {
 	Service        *core.WatchHistoryService
 	HeatmapService *core.ReplayHeatmapService
+	// card data of the history scenes (see WithCardData)
+	MarkerService   *core.MarkerService
+	InteractionRepo data.InteractionRepository
+	TagRepo         data.TagRepository
+	ActorRepo       data.ActorRepository
 }
 
 func NewWatchHistoryHandler(service *core.WatchHistoryService, heatmapService *core.ReplayHeatmapService) *WatchHistoryHandler {
@@ -183,9 +189,7 @@ func (h *WatchHistoryHandler) GetUserHistoryByDateRange(c *gin.Context) {
 			return
 		}
 
-		response.OK(c, gin.H{
-			"entries": response.ToWatchHistoryEntriesResponse(entries),
-		})
+		response.OK(c, h.historyEntriesResponse(c, entries, payload.UserID))
 		return
 	}
 
@@ -202,9 +206,7 @@ func (h *WatchHistoryHandler) GetUserHistoryByDateRange(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, gin.H{
-		"entries": response.ToWatchHistoryEntriesResponse(entries),
-	})
+	response.OK(c, h.historyEntriesResponse(c, entries, payload.UserID))
 }
 
 func (h *WatchHistoryHandler) GetDailyActivity(c *gin.Context) {
