@@ -269,10 +269,19 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 			scenes[i] = batch[i].scene
 		}
 
-		// Batch create in DB
-		if err := s.sceneRepo.CreateInBatches(scenes, scanBatchSize); err != nil {
-			s.logger.Error("Failed to batch create scenes", zap.Error(err), zap.Int("count", len(scenes)))
-			scanErrors += len(batch)
+		// Batch create in DB; a failed batch is retried scene by scene so that one bad row
+		// does not drop the others
+		created, failed, err := createScenesResilient(s.sceneRepo, scenes, scanBatchSize)
+		if err != nil {
+			s.logger.Warn("Scan batch insert failed, scenes inserted one by one", zap.Error(err), zap.Int("count", len(scenes)), zap.Int("failed", len(failed)))
+		}
+		for _, sc := range failed {
+			s.logger.Error("Failed to create scene", zap.String("stored_path", sc.StoredPath))
+		}
+		scanErrors += len(failed)
+		scenesAdded -= len(failed)
+		scenes = created
+		if len(scenes) == 0 {
 			return
 		}
 
@@ -356,6 +365,15 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 			// Check if it's a video file
 			ext := strings.ToLower(filepath.Ext(d.Name()))
 			if !isVideoExtension(ext) {
+				return nil
+			}
+
+			// A path in a legacy encoding cannot be stored (PostgreSQL text is UTF-8)
+			if !validScanPath(path) {
+				s.logger.Warn("Skipped a video whose path is not valid UTF-8 (rename the file to add it)",
+					zap.String("path", strings.ToValidUTF8(path, "?")),
+				)
+				scanErrors++
 				return nil
 			}
 
