@@ -111,8 +111,9 @@ func (r *fakeScanSceneRepo) byPath(path string) *data.Scene {
 }
 
 type fakeSceneCopyRepo struct {
-	copies  map[string]data.SceneCopy
-	touched [][]string
+	data.SceneCopyRepository // triage methods are not used by the scan
+	copies                   map[string]data.SceneCopy
+	touched                  [][]string
 }
 
 func (r *fakeSceneCopyRepo) GetAllStoredPathSet() (map[string]struct{}, error) {

@@ -38,6 +38,20 @@ type SceneCopyRepository interface {
 	TouchLastSeen(paths []string, seenAt time.Time) error
 	// ListBySceneID returns the copies of a scene ordered by path.
 	ListBySceneID(sceneID uint) ([]SceneCopy, error)
+
+	// Triage (Duplicates page > Copies, see scene_copy_triage_repository.go)
+	ListScenesWithCopies(q SceneCopyQuery) ([]SceneWithCopiesRow, error)
+	CopyTotals(f SceneCopyFilter) (SceneCopyTotals, error)
+	ListCopiesOfScenes(sceneIDs []uint, f SceneCopyFilter) ([]SceneCopy, error)
+	ListCopyIDs(f SceneCopyFilter, limit int) ([]uint, int64, error)
+	LastCompletedScanStart() (*time.Time, error)
+	GetByID(id uint) (*SceneCopy, error)
+	GetByIDs(ids []uint) ([]SceneCopy, error)
+	GetSceneFile(sceneID uint) (*SceneFileRow, error)
+	SwapWithMain(copyID uint, storagePathID *uint) error
+	PromoteToScene(copyID uint, scene *Scene) error
+	Delete(id uint) error
+	DeleteByIDs(ids []uint) (int64, error)
 }
 
 type SceneCopyRepositoryImpl struct {

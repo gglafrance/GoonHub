@@ -148,6 +148,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideStoragePathService,
 		provideMediaFileGuard,
 		provideScanService,
+		provideSceneCopyService,
 		provideExplorerService,
 
 		// External API Services
@@ -572,6 +573,14 @@ func provideStoragePathService(repo data.StoragePathRepository, logger *logging.
 	return core.NewStoragePathService(repo, logger.Logger)
 }
 
+func provideSceneCopyService(copyRepo data.SceneCopyRepository, sceneRepo data.SceneRepository, storagePathService *core.StoragePathService, guard *core.MediaFileGuard, processingService *core.SceneProcessingService, searchService *core.SearchService, logger *logging.Logger) *core.SceneCopyService {
+	svc := core.NewSceneCopyService(copyRepo, sceneRepo, storagePathService, guard, processingService, logger.Logger)
+	if searchService != nil {
+		svc.SetIndexer(searchService)
+	}
+	return svc
+}
+
 func provideScanService(storagePathService *core.StoragePathService, sceneRepo data.SceneRepository, sceneCopyRepo data.SceneCopyRepository, scanHistoryRepo data.ScanHistoryRepository, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger) *core.ScanService {
 	return core.NewScanService(storagePathService, sceneRepo, sceneCopyRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
 }
@@ -819,8 +828,8 @@ func provideStoragePathHandler(service *core.StoragePathService) *handler.Storag
 	return handler.NewStoragePathHandler(service)
 }
 
-func provideScanHandler(scanService *core.ScanService) *handler.ScanHandler {
-	return handler.NewScanHandler(scanService)
+func provideScanHandler(scanService *core.ScanService, copyService *core.SceneCopyService) *handler.ScanHandler {
+	return handler.NewScanHandler(scanService, copyService)
 }
 
 func provideExplorerHandler(explorerService *core.ExplorerService, tagRepo data.TagRepository, actorRepo data.ActorRepository, interactionRepo data.InteractionRepository) *handler.ExplorerHandler {

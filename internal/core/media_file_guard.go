@@ -136,6 +136,23 @@ func (g *MediaFileGuard) RemoveSceneFile(scene *data.Scene) bool {
 	return true
 }
 
+// RemoveMediaFile deletes a media file that is not a scene's main file (e.g. a copy of a
+// scene's file), unless it is under a read-only storage path: then nothing is deleted and the
+// ValidationError of CheckModifiable is returned. A file already gone is not an error.
+func (g *MediaFileGuard) RemoveMediaFile(storagePathID *uint, filePath string) error {
+	if filePath == "" {
+		return apperrors.NewValidationError("no file path")
+	}
+	if err := g.CheckModifiable(storagePathID, filePath); err != nil {
+		return err
+	}
+	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+		return apperrors.NewInternalError("failed to delete the file", err)
+	}
+	g.log().Info("Deleted media file", zap.String("path", filePath))
+	return nil
+}
+
 func (g *MediaFileGuard) log() *zap.Logger {
 	if g == nil || g.logger == nil {
 		return zap.NewNop()

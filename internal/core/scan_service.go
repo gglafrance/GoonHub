@@ -801,6 +801,11 @@ func (s *ScanService) detectMissingFiles(ctx context.Context, scan *data.ScanHis
 
 // buildSceneRecord creates a Scene struct from file path and info without writing to DB.
 func (s *ScanService) buildSceneRecord(path string, info fs.FileInfo, storagePath *data.StoragePath) *data.Scene {
+	return newScannedSceneRecord(path, info, &storagePath.ID)
+}
+
+// newScannedSceneRecord builds the record of a scene found on disk, as the scan creates it.
+func newScannedSceneRecord(path string, info fs.FileInfo, storagePathID *uint) *data.Scene {
 	filename := filepath.Base(path)
 	title := strings.TrimSuffix(filename, filepath.Ext(filename))
 
@@ -812,7 +817,7 @@ func (s *ScanService) buildSceneRecord(path string, info fs.FileInfo, storagePat
 		ProcessingStatus: "pending",
 		Tags:             pq.StringArray{},
 		Actors:           pq.StringArray{},
-		StoragePathID:    &storagePath.ID,
+		StoragePathID:    storagePathID,
 	}
 
 	modTime := info.ModTime()

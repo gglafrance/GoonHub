@@ -12,12 +12,14 @@ import (
 // ScanHandler handles HTTP requests for scan operations
 type ScanHandler struct {
 	scanService *core.ScanService
+	copyService *core.SceneCopyService
 }
 
 // NewScanHandler creates a new scan handler
-func NewScanHandler(scanService *core.ScanService) *ScanHandler {
+func NewScanHandler(scanService *core.ScanService, copyService *core.SceneCopyService) *ScanHandler {
 	return &ScanHandler{
 		scanService: scanService,
+		copyService: copyService,
 	}
 }
 

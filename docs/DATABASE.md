@@ -1083,6 +1083,20 @@ scene keeps its rows (the copies stay skipped); permanently deleting it removes 
 cascade, never the files, so the next scan sees those files as new videos again. Listed
 read-only by `GET /api/v1/scenes/:id/copies`.
 
+Triage (Duplicates page > Copies, `/api/v1/admin/duplicates/copies...`, `SceneCopyService`):
+- **Make main file**: in one transaction the scene takes the copy's `stored_path` and storage
+  path (size kept, a scene marked missing is restored) and the copy row takes the old main
+  path (same `oshash`). The scene ID does not change; the scene is re-indexed.
+- **Separate scene**: the copy row is deleted and a scene is created for the file (as the scan
+  creates scenes), then indexed and submitted for processing.
+- **Forget**: the row is deleted; the file stays (the next scan records it again).
+- **Delete file**: the only action that deletes a file. Refused for a read-only storage path
+  (`MediaFileGuard`), for the scene's main file (same path or same file on disk), and unless
+  the copy and the scene's main file still have the same oshash, both re-read right before
+  (an unreadable main file refuses). Then the file is removed through
+  `MediaFileGuard.RemoveMediaFile` and the row deleted. Bulk forget/delete: 500 copies max,
+  per-copy results.
+
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|
 | `id` | BIGSERIAL | NO | auto | Primary key |

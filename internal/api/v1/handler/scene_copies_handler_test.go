@@ -23,7 +23,7 @@ func newSceneCopiesHandlerForTest(t *testing.T) (*gin.Engine, *mocks.MockSceneCo
 	ctrl := gomock.NewController(t)
 	copies := mocks.NewMockSceneCopyRepository(ctrl)
 	svc := core.NewScanService(nil, nil, copies, nil, nil, nil, zap.NewNop())
-	h := NewScanHandler(svc)
+	h := NewScanHandler(svc, nil)
 	r := gin.New()
 	r.GET("/scenes/:id/copies", h.ListSceneCopies)
 	return r, copies
