@@ -1,6 +1,6 @@
 # goonhub-worker
 
-Remote job worker for [GoonHub](../GoonHub-workers): runs the heavy processing phases of a
+Remote job worker for [GoonHub](../): runs the heavy processing phases of a
 GoonHub server on another machine (Windows, macOS, Linux; amd64 and arm64):
 
 - **sprites**: sprite sheets + VTT (scrubber and seek previews),
@@ -21,8 +21,9 @@ uploads resume where they stopped, and a stale worker can never overwrite a newe
 
 ## Build
 
-Go 1.24+. The module builds against the GoonHub integration worktree
-(`replace goonhub => ../GoonHub-workers` in `go.mod`), so keep both checkouts side by side.
+Go 1.24+. The worker is the `worker/` folder of the GoonHub repository, a Go module of its own
+that builds against the GoonHub module of the parent folder (`replace goonhub => ../` in
+`go.mod`): build it from a full GoonHub checkout.
 
 ```sh
 ./build.sh            # or .\build.ps1 on Windows (PowerShell)
@@ -216,8 +217,7 @@ real computation with ffmpeg and skip without it; the audio test skips without f
 The race detector needs cgo: on Windows run it in Linux, e.g.
 
 ```sh
-MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD":/src/goonhub-worker -v "$PWD/../GoonHub-workers":/src/GoonHub-workers:ro \
-  -w /src/goonhub-worker golang:1.24 sh -c "apt-get update -qq && apt-get install -y -qq ffmpeg libchromaprint-tools >/dev/null && go test -race ./..."
+MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD/..":/src -w /src/worker golang:1.24 sh -c "apt-get update -qq && apt-get install -y -qq ffmpeg libchromaprint-tools >/dev/null && go test -race ./..."
 ```
 
 `cmd/goonhub-worker/signal_unix_test.go` builds the binary and checks the real stop

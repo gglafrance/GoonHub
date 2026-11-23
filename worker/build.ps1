@@ -1,6 +1,7 @@
 # Builds goonhub-worker for every supported target into dist\ (Windows PowerShell).
 # Usage: .\build.ps1 [-Version v0.1.0]
-# Needs Go 1.24+ and the GoonHub integration worktree at ..\GoonHub-workers (go.mod replace).
+# Needs Go 1.24+. The worker lives in the worker\ folder of the GoonHub repository and builds
+# against the GoonHub module of the parent folder (go.mod replace goonhub => ../).
 param([string]$Version = "")
 $root = $PSScriptRoot
 

@@ -3,6 +3,9 @@
 GoonHub can hand the heavy phases of scene processing to separate worker processes
 (`goonhub-worker`, Windows / macOS / Linux, hardware acceleration when available). This
 document is the design and the wire protocol: the server and the worker implement it.
+The worker program is the `worker/` folder of this repository (its own Go module, built
+against this one): installation, configuration, service and Tailscale setup in
+[`worker/README.md`](../worker/README.md).
 
 - Go types of the protocol: `pkg/workerproto` (no server import, builds everywhere).
 - The computation itself: `pkg/compute`, the same code the server uses for local

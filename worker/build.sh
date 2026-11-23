@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Builds goonhub-worker for every supported target into dist/.
 # Usage: ./build.sh [version]     (default: git describe)
-# Needs Go 1.24+ and the GoonHub integration worktree at ../GoonHub-workers (go.mod replace).
+# Needs Go 1.24+. The worker lives in the worker/ folder of the GoonHub repository and builds
+# against the GoonHub module of the parent folder (go.mod replace goonhub => ../).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
