@@ -16,6 +16,7 @@ const emit = defineEmits<{
     autoSelect: [];
     resolve: [];
     dismiss: [];
+    trashAll: [];
     play: [sceneId: number];
     cancelDeletion: [sceneId: number];
     'update:mergeMetadata': [value: boolean];
@@ -212,6 +213,16 @@ const pendingDeletions = computed(() => props.group.members.filter((m) => m.dele
                     >
                         <Icon name="heroicons:sparkles" size="12" />
                         Auto-select best
+                    </button>
+                    <button
+                        class="border-border text-dim flex items-center gap-1 rounded-md border px-3
+                            py-1.5 text-[11px] font-medium transition-all hover:border-red-500/40
+                            hover:text-red-400"
+                        title="Move every video of this group to the trash, the best one included"
+                        @click="emit('trashAll')"
+                    >
+                        <Icon name="heroicons:trash" size="12" />
+                        Trash all
                     </button>
                     <button
                         class="border-border text-dim rounded-md border px-3 py-1.5 text-[11px]

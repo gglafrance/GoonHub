@@ -1,4 +1,10 @@
-import type { AutoSelectResult, BulkResolveResult, ResolveGroupResult } from '~/types/duplicates';
+import type {
+    AutoSelectResult,
+    BulkResolveResult,
+    BulkTrashAllResult,
+    ResolveGroupResult,
+    TrashAllResult,
+} from '~/types/duplicates';
 
 export const useApiDuplicates = () => {
     const { fetchOptions, getAuthHeaders, handleResponse } = useApiCore();
@@ -99,6 +105,26 @@ export const useApiDuplicates = () => {
         return handleResponse(response);
     };
 
+    // Moves every scene of the group to the trash (the best one too) and resolves the group
+    const trashAll = async (id: number): Promise<TrashAllResult> => {
+        const response = await fetch(`/api/v1/admin/duplicates/${id}/trash-all`, {
+            ...fetchOptions(),
+            method: 'POST',
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const trashAllBulk = async (groupIds: number[]): Promise<BulkTrashAllResult> => {
+        const response = await fetch('/api/v1/admin/duplicates/trash-all-bulk', {
+            ...fetchOptions(),
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ group_ids: groupIds }),
+        });
+        return handleResponse(response);
+    };
+
     const cancelDeletion = async (groupId: number, sceneId: number) => {
         const response = await fetch(`/api/v1/admin/duplicates/${groupId}/cancel-deletion`, {
             ...fetchOptions(),
@@ -136,6 +162,8 @@ export const useApiDuplicates = () => {
         setBest,
         autoSelectBest,
         resolveBulk,
+        trashAll,
+        trashAllBulk,
         cancelDeletion,
         getConfig,
         updateConfig,

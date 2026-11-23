@@ -308,10 +308,12 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					admin.PUT("/duplicates/config", duplicateHandler.UpdateConfig)
 					admin.POST("/duplicates/auto-select", duplicateHandler.AutoSelectBest)
 					admin.POST("/duplicates/resolve-bulk", duplicateHandler.ResolveBulk)
+					admin.POST("/duplicates/trash-all-bulk", duplicateHandler.TrashAllBulk)
 					admin.POST("/duplicates/:id/cancel-deletion", duplicateHandler.CancelDeletion)
 					admin.GET("/duplicates/:id", duplicateHandler.GetGroup)
 					admin.POST("/duplicates/:id/resolve", duplicateHandler.ResolveGroup)
 					admin.POST("/duplicates/:id/dismiss", duplicateHandler.DismissGroup)
+					admin.POST("/duplicates/:id/trash-all", duplicateHandler.TrashAll)
 					admin.PUT("/duplicates/:id/best", duplicateHandler.SetBest)
 					// Fold duplicate markers (e.g. left by earlier merges), dry run by default
 					admin.POST("/markers/deduplicate", markerHandler.DeduplicateMarkers)

@@ -17,6 +17,9 @@ type DuplicateGroupRepository interface {
 	ListWithMembers(page, limit int, status, kind string) ([]DuplicateGroup, int64, error)
 	UpdateStatus(id uint, status string, resolvedAt *time.Time) error
 	SetBestScene(id uint, sceneID uint) error
+	// ClearBestScene removes the group's best scene (best_scene_id NULL): a group resolved by
+	// trashing all its scenes keeps none.
+	ClearBestScene(id uint) error
 	AddMember(member *DuplicateGroupMember) error
 	RemoveMember(groupID, sceneID uint) error
 	GetGroupBySceneID(sceneID uint) (*DuplicateGroup, error)
@@ -172,6 +175,10 @@ func (r *DuplicateGroupRepositoryImpl) UpdateStatus(id uint, status string, reso
 
 func (r *DuplicateGroupRepositoryImpl) SetBestScene(id uint, sceneID uint) error {
 	return r.DB.Model(&DuplicateGroup{}).Where("id = ?", id).Update("best_scene_id", sceneID).Error
+}
+
+func (r *DuplicateGroupRepositoryImpl) ClearBestScene(id uint) error {
+	return r.DB.Model(&DuplicateGroup{}).Where("id = ?", id).Update("best_scene_id", nil).Error
 }
 
 func (r *DuplicateGroupRepositoryImpl) AddMember(member *DuplicateGroupMember) error {
