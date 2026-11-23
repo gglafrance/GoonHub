@@ -65,6 +65,7 @@ func matchingPostgresTestDB(t *testing.T) *gorm.DB {
 		"000066_duplicate_match_segments_and_deletion.up.sql",
 		"000067_add_best_selection_criteria.up.sql",
 		"000085_duplicate_member_relation.up.sql",
+		"000090_create_duplicate_exclusions.up.sql",
 	} {
 		sql, err := os.ReadFile(filepath.Join("..", "infrastructure", "persistence", "migrator", "migrations", name))
 		if err != nil {
@@ -143,5 +144,49 @@ func TestPostgresProcessMatchesRollsBackMergedGroups(t *testing.T) {
 	group, err := groups.GetGroupBySceneID(10)
 	if err != nil || group != nil {
 		t.Fatalf("query membership was not rolled back: group=%v err=%v", group, err)
+	}
+}
+
+func TestPostgresProcessMatchesRespectsExclusions(t *testing.T) {
+	db := matchingPostgresTestDB(t)
+	for _, sql := range []string{
+		`INSERT INTO duplicate_groups (id, status, scene_count) VALUES (7, 'unresolved', 2)`,
+		`INSERT INTO duplicate_group_members (group_id, scene_id) VALUES (7, 20), (7, 40)`,
+		// 10 was removed from group 7: not a duplicate of 20 nor 40
+		`INSERT INTO duplicate_exclusions (scene_id_a, scene_id_b) VALUES (10, 20), (10, 40)`,
+	} {
+		if err := db.Exec(sql).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	groups := data.NewDuplicateGroupRepository(db)
+	svc := NewMatchingService(nil, data.NewSceneRepository(db), groups, nil, zap.NewNop())
+	if err := svc.ProcessMatches(10, []matching.MatchResult{
+		{SceneID: 20, ConfidenceScore: 0.9, MatchType: "audio"},
+		{SceneID: 40, ConfidenceScore: 0.9, MatchType: "audio"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if group, err := groups.GetGroupBySceneID(10); err != nil || group != nil {
+		t.Fatalf("excluded scene regrouped: group=%v err=%v", group, err)
+	}
+	// A new scene matching 10 and 20 joins group 7 without 10
+	if err := svc.ProcessMatches(30, []matching.MatchResult{
+		{SceneID: 10, ConfidenceScore: 0.9, MatchType: "audio"},
+		{SceneID: 20, ConfidenceScore: 0.9, MatchType: "audio"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	group, err := groups.GetByIDWithMembers(7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(group.Members) != 3 || group.SceneCount != 3 {
+		t.Fatalf("expected 20, 30 and 40 in group 7: %+v", group)
+	}
+	for _, m := range group.Members {
+		if m.SceneID == 10 {
+			t.Fatal("scene 10 was put back with the scenes it was excluded from")
+		}
 	}
 }

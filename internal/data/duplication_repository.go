@@ -51,8 +51,18 @@ type DuplicateGroupRepository interface {
 	SetMemberDeleteAfter(groupID uint, sceneIDs []uint, deleteAfter *time.Time) error
 	// ListMembersDueForDeletion returns members whose scheduled deletion time has passed.
 	ListMembersDueForDeletion(now time.Time, limit int) ([]DuplicateGroupMember, error)
+	// RemoveMembers removes the given scenes from a group (scene_count is not updated).
+	RemoveMembers(groupID uint, sceneIDs []uint) error
+	// AddExclusions records that each scene of sceneIDs is not a duplicate of each scene of
+	// otherIDs (pairs of a scene with itself are skipped, known pairs are kept as they are).
+	AddExclusions(sceneIDs, otherIDs []uint) error
+	// ListExclusionsAmong returns the exclusions whose two scenes are both in sceneIDs.
+	ListExclusionsAmong(sceneIDs []uint) ([]DuplicateExclusion, error)
 	RunInTransaction(fn func(DuplicateGroupRepository) error) error
 }
+
+// duplicateExclusionBatch caps the rows of one exclusion INSERT (3 parameters per row).
+const duplicateExclusionBatch = 1000
 
 type DuplicationConfigRepository interface {
 	Get() (*DuplicationConfigRecord, error)
@@ -400,6 +410,46 @@ func (r *DuplicateGroupRepositoryImpl) UpdateMemberBest(groupID uint, sceneID ui
 	return r.DB.Model(&DuplicateGroupMember{}).
 		Where("group_id = ? AND scene_id = ?", groupID, sceneID).
 		Update("is_best", isBest).Error
+}
+
+func (r *DuplicateGroupRepositoryImpl) RemoveMembers(groupID uint, sceneIDs []uint) error {
+	if len(sceneIDs) == 0 {
+		return nil
+	}
+	return r.DB.Where("group_id = ? AND scene_id IN ?", groupID, sceneIDs).Delete(&DuplicateGroupMember{}).Error
+}
+
+func (r *DuplicateGroupRepositoryImpl) AddExclusions(sceneIDs, otherIDs []uint) error {
+	seen := make(map[DuplicateExclusion]bool, len(sceneIDs)*len(otherIDs))
+	rows := make([]DuplicateExclusion, 0, len(sceneIDs)*len(otherIDs))
+	now := time.Now()
+	for _, a := range sceneIDs {
+		for _, b := range otherIDs {
+			if a == b {
+				continue
+			}
+			pair := NewDuplicateExclusion(a, b)
+			if seen[pair] {
+				continue
+			}
+			seen[pair] = true
+			pair.CreatedAt = now
+			rows = append(rows, pair)
+		}
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	return r.DB.Clauses(clause.OnConflict{DoNothing: true}).CreateInBatches(rows, duplicateExclusionBatch).Error
+}
+
+func (r *DuplicateGroupRepositoryImpl) ListExclusionsAmong(sceneIDs []uint) ([]DuplicateExclusion, error) {
+	if len(sceneIDs) < 2 {
+		return nil, nil
+	}
+	var rows []DuplicateExclusion
+	err := r.DB.Where("scene_id_a IN ? AND scene_id_b IN ?", sceneIDs, sceneIDs).Find(&rows).Error
+	return rows, err
 }
 
 func (r *DuplicateGroupRepositoryImpl) RunInTransaction(fn func(DuplicateGroupRepository) error) error {

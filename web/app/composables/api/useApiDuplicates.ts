@@ -2,6 +2,7 @@ import type {
     AutoSelectResult,
     BulkResolveResult,
     BulkTrashAllResult,
+    ExcludeMembersResult,
     ResolveGroupResult,
     SelectableDuplicateIds,
     TrashAllResult,
@@ -137,6 +138,20 @@ export const useApiDuplicates = () => {
         return handleResponse(response);
     };
 
+    // Removes scenes that are not duplicates from a group (never trashes nor deletes anything)
+    const excludeMembers = async (
+        id: number,
+        sceneIds: number[],
+    ): Promise<ExcludeMembersResult> => {
+        const response = await fetch(`/api/v1/admin/duplicates/${id}/exclude`, {
+            ...fetchOptions(),
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ scene_ids: sceneIds }),
+        });
+        return handleResponse(response);
+    };
+
     const cancelDeletion = async (groupId: number, sceneId: number) => {
         const response = await fetch(`/api/v1/admin/duplicates/${groupId}/cancel-deletion`, {
             ...fetchOptions(),
@@ -177,6 +192,7 @@ export const useApiDuplicates = () => {
         resolveBulk,
         trashAll,
         trashAllBulk,
+        excludeMembers,
         cancelDeletion,
         getConfig,
         updateConfig,

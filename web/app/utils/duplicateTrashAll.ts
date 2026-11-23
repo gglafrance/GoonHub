@@ -1,6 +1,8 @@
 // What "Trash all" on the duplicates page would send to the trash: every video of the given
 // groups not in the trash yet, the best one included. Sizes of 0 are unknown and counted apart.
 // Groups not loaded on the client (selected on another page) are counted as missing.
+// Members unchecked as "not a duplicate" (see duplicateEligibility.ts) are removed from their
+// group first and never trashed: they are counted apart.
 // Tests in web/tests/duplicateTrashAll.test.ts.
 
 interface TrashAllMember {
@@ -22,11 +24,14 @@ export interface TrashAllSummary {
     alreadyTrashed: number;
     /** Group ids not loaded on the client. */
     missingGroups: number;
+    /** Unchecked videos, removed from their group and left untouched. */
+    unchecked: number;
 }
 
 export function summarizeTrashAll(
     groupIds: Iterable<number>,
     groupsById: ReadonlyMap<number, { members: readonly TrashAllMember[] }>,
+    unchecked: ReadonlyMap<number, ReadonlySet<number>> = new Map(),
 ): TrashAllSummary {
     const summary: TrashAllSummary = {
         groups: 0,
@@ -35,6 +40,7 @@ export function summarizeTrashAll(
         unknownSize: 0,
         alreadyTrashed: 0,
         missingGroups: 0,
+        unchecked: 0,
     };
     const seen = new Set<number>();
     for (const id of groupIds) {
@@ -44,9 +50,14 @@ export function summarizeTrashAll(
             continue;
         }
         summary.groups++;
+        const left = unchecked.get(id);
         for (const member of group.members) {
             if (seen.has(member.scene_id)) continue;
             seen.add(member.scene_id);
+            if (left?.has(member.scene_id)) {
+                summary.unchecked++;
+                continue;
+            }
             if (member.is_trashed) {
                 summary.alreadyTrashed++;
                 continue;

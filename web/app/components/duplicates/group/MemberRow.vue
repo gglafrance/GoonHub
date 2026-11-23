@@ -5,9 +5,12 @@ import type { DuplicateGroupMember } from '~/types/duplicates';
 const props = defineProps<{
     member: DuplicateGroupMember;
     unresolved: boolean;
+    // checked as a duplicate (unchecked: removed from the group before resolving or trashing)
+    eligible: boolean;
 }>();
 
 const emit = defineEmits<{
+    toggleEligible: [];
     setBest: [];
     play: [];
     cancelDeletion: [];
@@ -26,9 +29,24 @@ const hasSegment = computed(
         :class="{
             'bg-emerald/5': member.is_best,
             'opacity-60': member.is_trashed,
+            'opacity-50': !eligible,
             'hover:bg-white/2': !member.is_best && !member.is_trashed,
         }"
     >
+        <td v-if="unresolved" class="py-2.5 pl-4">
+            <input
+                type="checkbox"
+                class="accent-lava h-3.5 w-3.5 cursor-pointer"
+                :checked="eligible"
+                :title="
+                    eligible
+                        ? 'Eligible duplicate: uncheck if this video is not a duplicate'
+                        : 'Not a duplicate: removed from the group before resolving or trashing'
+                "
+                @click.stop
+                @change="emit('toggleEligible')"
+            />
+        </td>
         <td class="px-4 py-2.5">
             <div class="flex items-center gap-2">
                 <button
@@ -55,7 +73,10 @@ const hasSegment = computed(
                         <NuxtLink
                             :to="`/watch/${member.scene_id}`"
                             class="max-w-56 truncate font-medium transition-colors"
-                            :class="member.is_trashed ? 'text-dim' : 'hover:text-lava text-white'"
+                            :class="[
+                                member.is_trashed ? 'text-dim' : 'hover:text-lava text-white',
+                                { 'line-through': !eligible },
+                            ]"
                             @click.stop
                         >
                             {{ member.title }}

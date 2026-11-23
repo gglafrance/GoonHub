@@ -24,6 +24,22 @@ type memoryDuplicateGroups struct {
 	transaction bool
 	failAdd     uint
 	failReopen  bool
+	// exclusions are the pairs of scenes marked as not duplicates
+	exclusions []data.DuplicateExclusion
+}
+
+func (repo *memoryDuplicateGroups) ListExclusionsAmong(ids []uint) ([]data.DuplicateExclusion, error) {
+	in := make(map[uint]bool, len(ids))
+	for _, id := range ids {
+		in[id] = true
+	}
+	var result []data.DuplicateExclusion
+	for _, e := range repo.exclusions {
+		if in[e.SceneIDA] && in[e.SceneIDB] {
+			result = append(result, e)
+		}
+	}
+	return result, nil
 }
 
 func (repo *memoryDuplicateGroups) RunInTransaction(fn func(data.DuplicateGroupRepository) error) error {

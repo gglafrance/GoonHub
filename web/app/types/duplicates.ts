@@ -84,6 +84,15 @@ export interface TrashAllResult {
     skipped: number[];
 }
 
+// POST /admin/duplicates/:id/exclude: scenes removed from the group as not duplicates (recorded
+// so fingerprint matching won't regroup them), and the group after it (dismissed when fewer
+// than 2 members are left)
+export interface ExcludeMembersResult {
+    excluded: number[];
+    dismissed: boolean;
+    group: DuplicateGroup;
+}
+
 // POST /admin/duplicates/trash-all-bulk
 // Unresolved group IDs for "select all" (at most limit, the bulk actions' maximum)
 export interface SelectableDuplicateIds {
