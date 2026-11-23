@@ -44,19 +44,39 @@ func (g *MediaFileGuard) ProtectingPath(storagePathID *uint, filePath string) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to list storage paths: %w", err)
 	}
+	return protectingPathAmong(paths, storagePathID, filePath), nil
+}
+
+// ReadOnlyChecker returns a function telling whether a media file is protected (see
+// ProtectingPath), with the storage paths read once: for checking many files at a time.
+func (g *MediaFileGuard) ReadOnlyChecker() (func(storagePathID *uint, filePath string) bool, error) {
+	if g == nil || g.repo == nil {
+		return func(*uint, string) bool { return false }, nil
+	}
+	paths, err := g.repo.List()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list storage paths: %w", err)
+	}
+	return func(storagePathID *uint, filePath string) bool {
+		return protectingPathAmong(paths, storagePathID, filePath) != nil
+	}, nil
+}
+
+// protectingPathAmong is ProtectingPath on a list of storage paths.
+func protectingPathAmong(paths []data.StoragePath, storagePathID *uint, filePath string) *data.StoragePath {
 	for i := range paths {
 		p := &paths[i]
 		if !p.ReadOnly {
 			continue
 		}
 		if storagePathID != nil && *storagePathID == p.ID {
-			return p, nil
+			return p
 		}
 		if filePath != "" && pathWithin(filePath, p.Path) {
-			return p, nil
+			return p
 		}
 	}
-	return nil, nil
+	return nil
 }
 
 // CheckModifiable returns nil when GoonHub may delete, move, rename or write the file, a

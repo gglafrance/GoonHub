@@ -323,6 +323,10 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 
 					// Trash management
 					admin.GET("/trash", adminHandler.ListTrash)
+					admin.GET("/trash/ids", adminHandler.ListTrashIDs)
+					admin.GET("/trash/facets", adminHandler.TrashFacets)
+					admin.POST("/trash/restore-bulk", adminHandler.RestoreTrashBulk)
+					admin.POST("/trash/delete-bulk", adminHandler.DeleteTrashBulk)
 					admin.POST("/trash/:id/restore", adminHandler.RestoreScene)
 					admin.DELETE("/trash/:id", adminHandler.PermanentDeleteScene)
 					admin.DELETE("/trash", adminHandler.EmptyTrash)
