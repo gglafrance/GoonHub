@@ -129,7 +129,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	watchHistoryService := provideWatchHistoryService(watchHistoryRepository, sceneRepository, searchService, logger)
 	replayHeatmapRepository := provideReplayHeatmapRepository(db)
 	replayHeatmapService := provideReplayHeatmapService(replayHeatmapRepository, sceneRepository, userSettingsRepository, logger)
-	watchHistoryHandler := provideWatchHistoryHandler(watchHistoryService, replayHeatmapService)
+	watchHistoryHandler := provideWatchHistoryHandler(watchHistoryService, replayHeatmapService, markerService, interactionRepository, tagRepository, actorRepository)
 	storagePathService := provideStoragePathService(storagePathRepository, logger)
 	storagePathHandler := provideStoragePathHandler(storagePathService)
 	sceneCopyRepository := provideSceneCopyRepository(db)
@@ -644,8 +644,8 @@ func provideSearchHandler(searchService *core.SearchService, searchConfigRepo da
 	return handler.NewSearchHandler(searchService, searchConfigRepo)
 }
 
-func provideWatchHistoryHandler(service *core.WatchHistoryService, heatmapService *core.ReplayHeatmapService) *handler.WatchHistoryHandler {
-	return handler.NewWatchHistoryHandler(service, heatmapService)
+func provideWatchHistoryHandler(service *core.WatchHistoryService, heatmapService *core.ReplayHeatmapService, markerService *core.MarkerService, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository) *handler.WatchHistoryHandler {
+	return handler.NewWatchHistoryHandler(service, heatmapService).WithCardData(markerService, interactionRepo, tagRepo, actorRepo)
 }
 
 func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.SceneProcessingService, jobQueueFeeder *core.JobQueueFeeder) *handler.JobHandler {

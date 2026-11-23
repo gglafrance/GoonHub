@@ -26,6 +26,8 @@ const rangeMode = useUrlQueryRef<'preset' | 'custom'>('mode', 'preset', (raw) =>
 const customSince = useUrlString('since');
 const customUntil = useUrlString('until');
 const entries = ref<WatchHistoryEntry[]>([]);
+// the user's ratings / likes / jizz counts of the listed scenes, for the card badges
+const cardData = ref<HistoryCardData>({});
 const isLoading = ref(true);
 
 const totalScenes = computed(() => {
@@ -106,12 +108,15 @@ const loadData = async () => {
                 2000,
             );
             entries.value = historyData.entries || [];
+            cardData.value = historyCardData(historyData);
         } else {
             const historyData = await getUserWatchHistoryByDateRange(rangeDays.value, 2000);
             entries.value = historyData.entries || [];
+            cardData.value = historyCardData(historyData);
         }
     } catch {
         entries.value = [];
+        cardData.value = {};
     } finally {
         isLoading.value = false;
     }
@@ -215,6 +220,7 @@ definePageMeta({
                     :date-label="group.date"
                     :entries="group.entries"
                     :entry-count="group.entries.length"
+                    :card-data="cardData"
                 />
             </div>
         </div>
