@@ -18,7 +18,9 @@ import (
 	"goonhub/internal/infrastructure/meilisearch"
 	"goonhub/internal/infrastructure/persistence/postgres"
 	"goonhub/internal/infrastructure/server"
+	"goonhub/internal/jobs"
 	"goonhub/internal/streaming"
+	"goonhub/internal/workers"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
@@ -99,6 +101,10 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Import Repository
 		provideImportRepository,
+
+		// Remote Worker Repositories
+		provideWorkerRepository,
+		provideJobLeaseRepository,
 
 		// ============================================================
 		// EXTERNAL SERVICES
@@ -182,6 +188,10 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideStreamManager,
 		provideTranscoder,
 
+		// Remote Workers
+		provideWorkerService,
+		providePushDispatcher,
+
 		// ============================================================
 		// API LAYER - MIDDLEWARE
 		// ============================================================
@@ -251,6 +261,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Library Health Handler
 		provideLibraryHealthHandler,
+
+		// Remote Worker Handler
+		provideWorkerHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -936,6 +949,7 @@ func provideRouter(
 	shareHandler *handler.ShareHandler,
 	duplicateHandler *handler.DuplicateHandler,
 	libraryHealthHandler *handler.LibraryHealthHandler,
+	workerHandler *handler.WorkerHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -948,7 +962,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 
@@ -989,11 +1003,111 @@ func provideServer(
 	markerService *core.MarkerService,
 	shareServer *server.ShareServer,
 	transcoder *streaming.Transcoder,
+	workerService *workers.Service,
+	pushDispatcher *workers.PushDispatcher,
 ) *server.Server {
 	return server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
 		actorService, studioService, matchingService, duplicateService, markerService, shareServer, transcoder,
+		workerService, pushDispatcher,
 	)
+}
+
+// ============================================================================
+// REMOTE WORKERS
+// ============================================================================
+
+func provideWorkerRepository(db *gorm.DB) data.WorkerRepository {
+	return data.NewWorkerRepository(db)
+}
+
+func provideJobLeaseRepository(db *gorm.DB) data.JobLeaseRepository {
+	return data.NewJobLeaseRepository(db)
+}
+
+// provideWorkerService creates the server side of the remote workers and hooks it into the
+// local processing (phase routing, remote cancel). With workers.enabled false every phase
+// stays local and the worker API answers 404.
+func provideWorkerService(
+	cfg *config.Config,
+	workerRepo data.WorkerRepository,
+	leaseRepo data.JobLeaseRepository,
+	sceneRepo data.SceneRepository,
+	storagePathRepo data.StoragePathRepository,
+	dupConfigRepo data.DuplicationConfigRepository,
+	processingService *core.SceneProcessingService,
+	markerService *core.MarkerService,
+	matchingService *core.MatchingService,
+	retryScheduler *core.RetryScheduler,
+	feeder *core.JobQueueFeeder,
+	logger *logging.Logger,
+) (*workers.Service, error) {
+	stagingRoot := jobs.StagingRoot(cfg.Processing.StagingDir, cfg.Processing.SpriteDir)
+	settings, err := workers.NewSettings(cfg.Workers, stagingRoot)
+	if err != nil {
+		return nil, err
+	}
+	secret := cfg.Workers.MediaSecret
+	if secret == "" {
+		generated, err := workers.NewMediaSecret()
+		if err != nil {
+			return nil, err
+		}
+		if secret, err = workerRepo.EnsureMediaSecret(generated); err != nil {
+			return nil, fmt.Errorf("failed to load the worker media secret: %w", err)
+		}
+	}
+	router := workers.NewRouter(cfg.Workers.Enabled, cfg.Workers.LocalPhases, workerRepo)
+	if err := router.Load(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to load the worker phase routing, using the config: %v", err))
+	}
+	var fpIndex workers.FingerprintIndexCleaner
+	if matchingService != nil {
+		fpIndex = matchingService
+	}
+	poolManager := processingService.GetPoolManager()
+	svc := workers.NewService(workers.Deps{
+		Settings:           settings,
+		Workers:            workerRepo,
+		Leases:             leaseRepo,
+		Scenes:             sceneRepo,
+		StoragePaths:       storagePathRepo,
+		Router:             router,
+		Staging:            workers.NewStaging(stagingRoot, settings.MaxArtifactBytes),
+		Processing:         poolManager,
+		Animated:           markerService,
+		Fingerprints:       poolManager.FingerprintCommitter(),
+		FingerprintIndex:   fpIndex,
+		FingerprintMode:    func() string { return fingerprintMode(dupConfigRepo) },
+		DuplicationEnabled: cfg.Duplication.Enabled,
+		Results:            processingService,
+		Retry:              retryScheduler,
+		Gate:               feeder,
+		MediaSecret:        []byte(secret),
+		Logger:             logger.Logger,
+	})
+	feeder.SetPhaseRouter(router)
+	feeder.SetRemoteCanceller(svc)
+	processingService.SetPhaseRouter(router)
+	processingService.SetRemoteCanceller(svc)
+	return svc, nil
+}
+
+func fingerprintMode(repo data.DuplicationConfigRepository) string {
+	if repo != nil {
+		if c, err := repo.Get(); err == nil && c != nil && c.FingerprintMode != "" {
+			return c.FingerprintMode
+		}
+	}
+	return "audio_only"
+}
+
+func providePushDispatcher(svc *workers.Service) *workers.PushDispatcher {
+	return workers.NewPushDispatcher(svc, nil)
+}
+
+func provideWorkerHandler(svc *workers.Service, logger *logging.Logger) *handler.WorkerHandler {
+	return handler.NewWorkerHandler(svc, logger.Logger)
 }

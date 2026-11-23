@@ -9,6 +9,7 @@ import (
 	"goonhub/internal/data"
 	"goonhub/internal/infrastructure/logging"
 	"goonhub/internal/streaming"
+	"goonhub/internal/workers"
 	"net/http"
 	"os"
 	"os/signal"
@@ -42,6 +43,8 @@ type Server struct {
 	markerService     *core.MarkerService
 	shareServer       *ShareServer
 	transcoder        *streaming.Transcoder
+	workerService     *workers.Service
+	pushDispatcher    *workers.PushDispatcher
 	srv               *http.Server
 }
 
@@ -69,6 +72,8 @@ func NewHTTPServer(
 	markerService *core.MarkerService,
 	shareServer *ShareServer,
 	transcoder *streaming.Transcoder,
+	workerService *workers.Service,
+	pushDispatcher *workers.PushDispatcher,
 ) *Server {
 	return &Server{
 		router:            router,
@@ -94,6 +99,8 @@ func NewHTTPServer(
 		markerService:     markerService,
 		shareServer:       shareServer,
 		transcoder:        transcoder,
+		workerService:     workerService,
+		pushDispatcher:    pushDispatcher,
 	}
 }
 
@@ -174,6 +181,11 @@ func (s *Server) Start() error {
 	// The feeder moves pending jobs from DB to worker pools
 	if s.jobQueueFeeder != nil {
 		s.jobQueueFeeder.Start()
+	}
+
+	// Remote workers: startup lease grace, lease expiry sweep, staging janitor, push dispatcher
+	if s.workerService != nil {
+		s.workerService.Start(s.pushDispatcher)
 	}
 
 	if s.jobHistoryService != nil {
@@ -271,6 +283,12 @@ func (s *Server) Start() error {
 	if s.jobQueueFeeder != nil {
 		s.jobQueueFeeder.Stop()
 		s.logger.Info("Job queue feeder stopped")
+	}
+
+	// Remote leases stay in the database: workers resume them after the restart
+	if s.workerService != nil {
+		s.workerService.Stop()
+		s.logger.Info("Remote worker loops stopped")
 	}
 
 	if s.triggerScheduler != nil {

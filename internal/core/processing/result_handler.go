@@ -28,6 +28,22 @@ type ResultHandler struct {
 
 	// onPhaseComplete is called when a phase completes to submit follow-up phases
 	onPhaseComplete func(sceneID uint, phase string) error
+
+	// router routes the phases between the local pools and the remote workers (optional)
+	router PhaseRouter
+}
+
+// SetPhaseRouter sets the phase routing: after metadata, sprites are submitted straight to
+// the local pool only when remote workers may not take them; otherwise they go through the
+// job queue like the other phases, where local pools and workers compete.
+func (rh *ResultHandler) SetPhaseRouter(r PhaseRouter) {
+	rh.router = r
+}
+
+// spritesThroughQueue reports whether the sprites triggered after metadata must go through
+// the job queue (remote workers may take them) rather than straight to the local pool.
+func (rh *ResultHandler) spritesThroughQueue() bool {
+	return rh.router != nil && rh.router.RemoteAllowed("sprites")
 }
 
 // NewResultHandler creates a new ResultHandler
@@ -183,7 +199,11 @@ func (rh *ResultHandler) onMetadataComplete(result jobs.JobResult) {
 		case "thumbnail":
 			submitThumbnail = true
 		case "sprites":
-			submitSprites = true
+			if rh.spritesThroughQueue() {
+				otherPhases = append(otherPhases, phase)
+			} else {
+				submitSprites = true
+			}
 		default:
 			otherPhases = append(otherPhases, phase)
 		}

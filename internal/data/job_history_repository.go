@@ -322,7 +322,8 @@ func (r *JobHistoryRepositoryImpl) MarkOrphanedRunningAsFailed(olderThan time.Du
 	errMsg := "Orphaned job recovered after server restart"
 
 	result := r.DB.Model(&JobHistory{}).
-		Where("status = ? AND started_at < ?", JobStatusRunning, cutoff).
+		// Remote leases (worker_id set) are not orphans: the lease expiry handles them.
+		Where("status = ? AND started_at < ? AND worker_id IS NULL", JobStatusRunning, cutoff).
 		Updates(map[string]any{
 			"status":        JobStatusFailed,
 			"error_message": errMsg,
@@ -343,7 +344,7 @@ func (r *JobHistoryRepositoryImpl) ResetJobsToPending(jobIDs []string) (int64, e
 	}
 
 	result := r.DB.Model(&JobHistory{}).
-		Where("job_id IN ?", jobIDs).
+		Where("job_id IN ? AND worker_id IS NULL", jobIDs).
 		Update("status", JobStatusPending)
 
 	return result.RowsAffected, result.Error
@@ -355,8 +356,9 @@ func (r *JobHistoryRepositoryImpl) MarkRunningAsInterrupted() (int64, error) {
 	errMsg := "Job interrupted by server shutdown"
 	now := time.Now()
 
+	// Remote leases are kept: they survive a server restart (startup lease grace).
 	result := r.DB.Model(&JobHistory{}).
-		Where("status = ?", JobStatusRunning).
+		Where("status = ? AND worker_id IS NULL", JobStatusRunning).
 		Updates(map[string]any{
 			"status":        JobStatusFailed,
 			"error_message": errMsg,
@@ -555,7 +557,7 @@ func (r *JobHistoryRepositoryImpl) CancelClaimedJobs(jobIDs []string, reason str
 	for start := 0; start < len(jobIDs); start += cancelClaimedChunk {
 		end := min(start+cancelClaimedChunk, len(jobIDs))
 		result := r.DB.Model(&JobHistory{}).
-			Where("job_id IN ? AND status = ?", jobIDs[start:end], JobStatusRunning).
+			Where("job_id IN ? AND status = ? AND worker_id IS NULL", jobIDs[start:end], JobStatusRunning).
 			Updates(map[string]any{
 				"status":        JobStatusCancelled,
 				"error_message": reason,

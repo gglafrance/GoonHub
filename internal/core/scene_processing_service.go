@@ -120,6 +120,8 @@ type SceneProcessingService struct {
 	jobSubmitter  *processing.JobSubmitter
 	jobHistory    *JobHistoryService
 	logger        *zap.Logger
+
+	remoteCanceller RemoteJobCanceller
 }
 
 // NewSceneProcessingService creates a new SceneProcessingService
@@ -264,6 +266,17 @@ func (s *SceneProcessingService) CancelJob(jobID string) error {
 	err := s.poolManager.CancelJob(jobID)
 	if err == nil {
 		return nil
+	}
+	// A job leased to a remote worker: cancelled in the database (the worker learns it on its
+	// next heartbeat, a push worker at once).
+	if s.remoteCanceller != nil {
+		cancelled, remoteErr := s.remoteCanceller.CancelJob(jobID)
+		if remoteErr != nil {
+			return remoteErr
+		}
+		if cancelled {
+			return nil
+		}
 	}
 	// Fallback: cancel pending job directly in DB
 	if s.jobHistory != nil {

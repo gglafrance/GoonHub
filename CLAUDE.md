@@ -122,6 +122,7 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - `internal/infrastructure/persistence/postgres/` - GORM PostgreSQL initializer with connection pooling
 - `internal/infrastructure/persistence/migrator/` - golang-migrate based schema migrations (35 migrations)
 - `internal/jobs/` - Worker pool and scene processing jobs (metadata, thumbnail, sprites)
+- `internal/workers/` - Server side of the remote workers (goonhub-worker): leases with fencing generations, claim/push, artifact staging and verified commit, expiry sweep, phase routing. Contract: `docs/REMOTE_WORKERS.md`
 - `internal/apperrors/` - Typed error system with domain-specific errors:
     - `errors.go` - Base AppError interface and common error types (NotFoundError, ValidationError, ConflictError, InternalError, ForbiddenError, UnauthorizedError)
     - `scene.go` - Scene-specific errors (ErrSceneNotFound, ErrInvalidFileExtension, ErrSceneDimensionsNotAvailable)

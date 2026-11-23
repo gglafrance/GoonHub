@@ -10,6 +10,7 @@ export type SettingsTabId =
     | 'users'
     | 'jobs'
     | 'storage'
+    | 'workers'
     | 'duplicates'
     | 'health'
     | 'trash';
@@ -65,6 +66,7 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
         ],
     },
     { id: 'storage', label: 'Storage', icon: 'heroicons:folder', admin: true },
+    { id: 'workers', label: 'Workers', icon: 'heroicons:server-stack', admin: true },
     { id: 'duplicates', label: 'Duplicates', icon: 'heroicons:document-duplicate', admin: true },
     { id: 'health', label: 'Health', icon: 'heroicons:heart', admin: true },
     { id: 'trash', label: 'Trash', icon: 'heroicons:trash', admin: true },

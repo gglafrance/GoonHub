@@ -58,6 +58,11 @@ type JobQueueFeeder struct {
 	feedLocks map[string]*sync.Mutex
 	eventBus  *EventBus
 
+	// Remote workers (optional): phase routing, remote-only phases seen, remote cancel.
+	router          PhaseRouter
+	remoteOnly      map[string]bool
+	remoteCanceller RemoteJobCanceller
+
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -167,6 +172,8 @@ func (f *JobQueueFeeder) recoverOrphanedJobs() {
 	if plan := f.currentPlan(); plan != nil {
 		windowed = plan.WindowedPhases()
 	}
+	// Jobs of phases only remote workers process wait for a worker on purpose.
+	windowed = append(windowed, f.remoteOnlyPhases()...)
 	stuckCount, err := f.repo.MarkStuckPendingJobsAsFailed(f.stuckPendingTime, windowed)
 	if err != nil {
 		f.logger.Error("Failed to recover stuck pending jobs", zap.Error(err))
@@ -279,6 +286,10 @@ func (f *JobQueueFeeder) feedPhase(phase string) {
 	lock := f.feedLock(phase)
 	lock.Lock()
 	defer lock.Unlock()
+
+	if !f.localAllowed(phase) {
+		return
+	}
 
 	var claimOpts data.ClaimOptions
 	if plan := f.currentPlan(); plan != nil {

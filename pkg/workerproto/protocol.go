@@ -138,6 +138,8 @@ const (
 	CodeURLExpired            = "url_expired"             // 403 on the media URL: ask a new one
 	CodeBusy                  = "busy"                    // 409 on push assign: no free slot
 	CodeCommitFailed          = "commit_failed"           // 503: commit failed (DB down...), retry complete
+	CodeWorkersDisabled       = "workers_disabled"        // 404: the worker API is off on the server (workers.enabled)
+	CodeAddressNotAllowed     = "address_not_allowed"     // 403: source address outside workers.allowed_cidrs
 )
 
 // ErrorResponse is the body of every non-2xx response, the same shape as the rest of the

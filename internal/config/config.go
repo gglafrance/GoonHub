@@ -26,9 +26,33 @@ type Config struct {
 	Duplication  DuplicationConfig  `mapstructure:"duplication"`
 	ClickHouse   ClickHouseConfig   `mapstructure:"clickhouse"`
 	LibraryHealth LibraryHealthConfig `mapstructure:"library_health"`
+	Workers       WorkersConfig       `mapstructure:"workers"`
 }
 
 // LibraryHealthConfig configures the background tasks of the library health page.
+// WorkersConfig configures the remote workers (goonhub-worker, docs/REMOTE_WORKERS.md).
+type WorkersConfig struct {
+	Enabled              bool          `mapstructure:"enabled"`                 // enables the worker API
+	HeartbeatInterval    time.Duration `mapstructure:"heartbeat_interval"`      // sent to the workers
+	LeaseDuration        time.Duration `mapstructure:"lease_duration"`          // a lease not renewed for this long expires (>= 3 x heartbeat)
+	ExpirySweepInterval  time.Duration `mapstructure:"expiry_sweep_interval"`   // how often expired leases are swept
+	ClaimMaxWait         time.Duration `mapstructure:"claim_max_wait"`          // longest claim long-poll
+	MediaURLTTL          time.Duration `mapstructure:"media_url_ttl"`           // validity of a signed media URL
+	MediaSecret          string        `mapstructure:"media_secret"`            // HMAC secret of media URLs ("" = generated and stored in the database)
+	MaxArtifactBytes     int64         `mapstructure:"max_artifact_bytes"`      // largest artifact
+	UploadChunkBytes     int64         `mapstructure:"upload_chunk_bytes"`      // recommended PUT body size
+	MaxCompleteBodyBytes int64         `mapstructure:"max_complete_body_bytes"` // largest complete body
+	StagingRetention     time.Duration `mapstructure:"staging_retention"`       // abandoned staging dirs are deleted after this
+	MaxAssignmentAge     time.Duration `mapstructure:"max_assignment_age"`      // a lease older than this is no longer renewed
+	StartupLeaseGrace    time.Duration `mapstructure:"startup_lease_grace"`     // remote leases extended by this at start (0 = lease_duration)
+	PushPollInterval     time.Duration `mapstructure:"push_poll_interval"`      // push dispatcher loop
+	PushTimeout          time.Duration `mapstructure:"push_timeout"`            // timeout of a call to a push worker
+	OfflineAfter         time.Duration `mapstructure:"offline_after"`           // no contact for this long = offline (0 = 3 x heartbeat)
+	LocalPhases          []string      `mapstructure:"local_phases"`            // remotable phases the local pools still process
+	AllowedCIDRs         []string      `mapstructure:"allowed_cidrs"`           // source addresses accepted on the worker API
+	PublicURL            string        `mapstructure:"public_url"`              // base URL of the server for workers ("" = the URL the worker used)
+}
+
 type LibraryHealthConfig struct {
 	// StatConcurrency is the number of files stat'ed at once by the missing-file check and the
 	// fix-sizes task. Keep it low on NFS, where each stat is a network round trip.
@@ -315,6 +339,25 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("sharing.port", "")
 	v.SetDefault("duplication.enabled", false)
 	v.SetDefault("library_health.stat_concurrency", 8)
+	v.SetDefault("workers.enabled", false)
+	v.SetDefault("workers.heartbeat_interval", 10*time.Second)
+	v.SetDefault("workers.lease_duration", 60*time.Second)
+	v.SetDefault("workers.expiry_sweep_interval", 5*time.Second)
+	v.SetDefault("workers.claim_max_wait", 25*time.Second)
+	v.SetDefault("workers.media_url_ttl", 6*time.Hour)
+	v.SetDefault("workers.media_secret", "")
+	v.SetDefault("workers.max_artifact_bytes", int64(2<<30))
+	v.SetDefault("workers.upload_chunk_bytes", int64(16<<20))
+	v.SetDefault("workers.max_complete_body_bytes", int64(64<<20))
+	v.SetDefault("workers.staging_retention", 24*time.Hour)
+	v.SetDefault("workers.max_assignment_age", 24*time.Hour)
+	v.SetDefault("workers.startup_lease_grace", time.Duration(0))
+	v.SetDefault("workers.push_poll_interval", 5*time.Second)
+	v.SetDefault("workers.push_timeout", 10*time.Second)
+	v.SetDefault("workers.offline_after", time.Duration(0))
+	v.SetDefault("workers.local_phases", []string{"sprites", "animated_thumbnails", "fingerprint"})
+	v.SetDefault("workers.allowed_cidrs", []string{"100.64.0.0/10", "fd7a:115c:a1e0::/48", "127.0.0.0/8", "::1/128"})
+	v.SetDefault("workers.public_url", "")
 	v.SetDefault("duplication.fingerprint_workers", 1)
 	v.SetDefault("duplication.fingerprint_timeout", 5*time.Minute)
 	v.SetDefault("duplication.audio_density_threshold", 0.50)

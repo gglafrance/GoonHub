@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, shareHandler *handler.ShareHandler, duplicateHandler *handler.DuplicateHandler, libraryHealthHandler *handler.LibraryHealthHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, shareHandler *handler.ShareHandler, duplicateHandler *handler.DuplicateHandler, libraryHealthHandler *handler.LibraryHealthHandler, workerHandler *handler.WorkerHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	api := r.Group("/api")
 	{
 		v1 := api.Group("/v1")
@@ -29,6 +29,27 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 			auth := v1.Group("/auth")
 			{
 				auth.POST("/login", middleware.RateLimitMiddleware(rateLimiter, logger.Logger), authHandler.Login)
+			}
+
+			// Remote worker protocol (docs/REMOTE_WORKERS.md): per-worker bearer tokens, not
+			// user sessions. The signed media URL carries its own authorization.
+			if workerHandler != nil {
+				v1.GET("/workers/media/:job_id", workerHandler.Gate(), workerHandler.Media)
+				v1.HEAD("/workers/media/:job_id", workerHandler.Gate(), workerHandler.Media)
+				w := v1.Group("/workers")
+				w.Use(workerHandler.Auth())
+				{
+					w.POST("/register", workerHandler.Register)
+					w.POST("/claim", workerHandler.Claim)
+					w.POST("/heartbeat", workerHandler.Heartbeat)
+					w.POST("/release-all", workerHandler.ReleaseAll)
+					w.POST("/jobs/:job_id/complete", workerHandler.Complete)
+					w.POST("/jobs/:job_id/fail", workerHandler.Fail)
+					w.POST("/jobs/:job_id/release", workerHandler.Release)
+					w.POST("/jobs/:job_id/media-url", workerHandler.MediaURL)
+					w.PUT("/jobs/:job_id/artifacts/:name", workerHandler.UploadArtifact)
+					w.GET("/jobs/:job_id/artifacts/:name", workerHandler.ArtifactStatus)
+				}
 			}
 
 			protected := v1.Group("")
@@ -243,6 +264,15 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					admin.POST("/jobs/:id/cancel", jobHandler.CancelJob)
 					admin.POST("/jobs/:id/retry", jobHandler.RetryJob)
 					admin.GET("/jobs/recent-failed", jobHandler.ListRecentFailed)
+					if workerHandler != nil {
+						admin.GET("/workers", workerHandler.AdminList)
+						admin.POST("/workers", workerHandler.AdminCreate)
+						admin.PATCH("/workers/:id", workerHandler.AdminUpdate)
+						admin.DELETE("/workers/:id", workerHandler.AdminDelete)
+						admin.POST("/workers/:id/token", workerHandler.AdminRotateToken)
+						admin.GET("/worker-routing", workerHandler.AdminGetRouting)
+						admin.PUT("/worker-routing", workerHandler.AdminUpdateRouting)
+					}
 					admin.GET("/dlq", dlqHandler.ListDLQ)
 					admin.POST("/dlq/:job_id/retry", dlqHandler.RetryFromDLQ)
 					admin.POST("/dlq/:job_id/abandon", dlqHandler.AbandonDLQ)
