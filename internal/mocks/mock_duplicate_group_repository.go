@@ -55,6 +55,20 @@ func (mr *MockDuplicateGroupRepositoryMockRecorder) AddMember(member any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddMember", reflect.TypeOf((*MockDuplicateGroupRepository)(nil).AddMember), member)
 }
 
+// ClearBestScene mocks base method.
+func (m *MockDuplicateGroupRepository) ClearBestScene(id uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearBestScene", id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ClearBestScene indicates an expected call of ClearBestScene.
+func (mr *MockDuplicateGroupRepositoryMockRecorder) ClearBestScene(id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearBestScene", reflect.TypeOf((*MockDuplicateGroupRepository)(nil).ClearBestScene), id)
+}
+
 // CountByStatus mocks base method.
 func (m *MockDuplicateGroupRepository) CountByStatus() (map[string]int64, error) {
 	m.ctrl.T.Helper()

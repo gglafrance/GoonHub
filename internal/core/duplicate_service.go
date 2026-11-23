@@ -2,12 +2,15 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/data"
 	"path/filepath"
 	"time"
 
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // DuplicateGroupWithScenes represents a duplicate group with full scene details for API responses
@@ -307,6 +310,134 @@ func (ds *DuplicateService) ResolveGroup(groupID, bestSceneID uint, mergeMetadat
 	)
 
 	return result, nil
+}
+
+// TrashAllResult is the outcome of TrashAllGroup.
+type TrashAllResult struct {
+	// Trashed lists the scenes moved to the trash
+	Trashed []uint `json:"trashed"`
+	// Skipped lists the scenes left alone: already in the trash or missing
+	Skipped []uint `json:"skipped"`
+}
+
+// BulkTrashAllResult is the outcome of TrashAllGroups.
+type BulkTrashAllResult struct {
+	// Resolved lists the groups whose scenes all went to the trash
+	Resolved []uint               `json:"resolved"`
+	Failed   []BulkResolveFailure `json:"failed"`
+	// TrashedScenes and SkippedScenes sum the scenes of the resolved groups
+	TrashedScenes int `json:"trashed_scenes"`
+	SkippedScenes int `json:"skipped_scenes"`
+}
+
+// TrashAllGroup moves every scene of a group to the trash, the best one included (when they
+// are all junk), and marks the group resolved with no kept scene. It only uses the scene trash
+// (MoveSceneToTrash: search index, SSE event, trash retention): no file is deleted here and no
+// deletion of resolved duplicates is scheduled, the trash's own lifecycle decides later.
+// Scenes already in the trash or missing are skipped. A failure leaves the group unresolved;
+// calling it again finishes the job.
+func (ds *DuplicateService) TrashAllGroup(groupID uint) (TrashAllResult, error) {
+	group, err := ds.groupRepo.GetByIDWithMembers(groupID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return TrashAllResult{Trashed: []uint{}, Skipped: []uint{}}, apperrors.NewNotFoundError("duplicate group", groupID)
+		}
+		return TrashAllResult{Trashed: []uint{}, Skipped: []uint{}}, fmt.Errorf("failed to get group: %w", err)
+	}
+	return ds.trashAllMembers(group)
+}
+
+// trashAllMembers does the work of TrashAllGroup on a group loaded with its members.
+func (ds *DuplicateService) trashAllMembers(group *data.DuplicateGroup) (TrashAllResult, error) {
+	result := TrashAllResult{Trashed: []uint{}, Skipped: []uint{}}
+	groupID := group.ID
+	sceneIDs := make([]uint, len(group.Members))
+	for i, m := range group.Members {
+		sceneIDs[i] = m.SceneID
+	}
+	trashed := make(map[uint]bool, len(sceneIDs))
+	if len(sceneIDs) > 0 {
+		scenes, err := ds.sceneRepo.GetByIDsIncludingTrashed(sceneIDs)
+		if err != nil {
+			return result, fmt.Errorf("failed to fetch group scenes: %w", err)
+		}
+		for _, s := range scenes {
+			trashed[s.ID] = s.TrashedAt != nil
+		}
+	}
+
+	for _, sid := range sceneIDs {
+		if alreadyTrashed, found := trashed[sid]; !found || alreadyTrashed {
+			result.Skipped = append(result.Skipped, sid)
+			continue
+		}
+		if _, err := ds.sceneService.MoveSceneToTrash(sid); err != nil {
+			if apperrors.IsNotFound(err) {
+				result.Skipped = append(result.Skipped, sid)
+				continue
+			}
+			return result, fmt.Errorf("failed to trash scene %d: %w", sid, err)
+		}
+		result.Trashed = append(result.Trashed, sid)
+	}
+
+	// No scene is kept
+	for _, m := range group.Members {
+		if !m.IsBest {
+			continue
+		}
+		if err := ds.groupRepo.UpdateMemberBest(groupID, m.SceneID, false); err != nil {
+			return result, fmt.Errorf("failed to update best flag for scene %d: %w", m.SceneID, err)
+		}
+	}
+	if err := ds.groupRepo.ClearBestScene(groupID); err != nil {
+		return result, fmt.Errorf("failed to clear best scene: %w", err)
+	}
+	now := time.Now()
+	if err := ds.groupRepo.UpdateStatus(groupID, "resolved", &now); err != nil {
+		return result, fmt.Errorf("failed to update group status: %w", err)
+	}
+
+	ds.logger.Info("Trashed every scene of duplicate group",
+		zap.Uint("group_id", groupID),
+		zap.Int("trashed_count", len(result.Trashed)),
+		zap.Int("skipped_count", len(result.Skipped)),
+	)
+	return result, nil
+}
+
+// TrashAllGroups runs TrashAllGroup on several unresolved groups. A failing group (or one that
+// is not unresolved) is reported and does not stop the others.
+func (ds *DuplicateService) TrashAllGroups(groupIDs []uint) BulkTrashAllResult {
+	result := BulkTrashAllResult{Resolved: []uint{}, Failed: []BulkResolveFailure{}}
+	fail := func(groupID uint, err error) {
+		result.Failed = append(result.Failed, BulkResolveFailure{GroupID: groupID, Error: err.Error()})
+	}
+	for _, groupID := range groupIDs {
+		group, err := ds.groupRepo.GetByIDWithMembers(groupID)
+		if err != nil {
+			fail(groupID, fmt.Errorf("failed to get group: %w", err))
+			continue
+		}
+		if group.Status != "unresolved" {
+			fail(groupID, fmt.Errorf("group is %s", group.Status))
+			continue
+		}
+		trashed, err := ds.trashAllMembers(group)
+		if err != nil {
+			fail(groupID, err)
+			continue
+		}
+		result.Resolved = append(result.Resolved, groupID)
+		result.TrashedScenes += len(trashed.Trashed)
+		result.SkippedScenes += len(trashed.Skipped)
+	}
+	ds.logger.Info("Bulk trashed duplicate groups",
+		zap.Int("resolved", len(result.Resolved)),
+		zap.Int("failed", len(result.Failed)),
+		zap.Int("trashed_scenes", result.TrashedScenes),
+	)
+	return result
 }
 
 // DismissGroup marks a group as dismissed (no action taken)

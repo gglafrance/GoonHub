@@ -87,3 +87,35 @@ func TestDuplicateGroupRepositoryScheduledDeletion(t *testing.T) {
 		t.Fatalf("unexpected config: %+v, %v", got, err)
 	}
 }
+
+// ClearBestScene leaves a group with no best scene (trash-all resolution).
+func TestDuplicateGroupRepositoryClearBestScene(t *testing.T) {
+	db := importTestDB(t)
+	f := newImportFixture(t, db)
+	repo := NewDuplicateGroupRepository(db)
+	suffix := f.tags[0].Name[len("import-a-"):]
+
+	scene := &Scene{Title: "Junk", StoredPath: "/import-test/" + suffix + "/junk.mp4", Tags: pq.StringArray{}, Actors: pq.StringArray{}}
+	if err := db.Create(scene).Error; err != nil {
+		t.Fatalf("create scene: %v", err)
+	}
+	group := &DuplicateGroup{Status: "unresolved", SceneCount: 1}
+	if err := repo.Create(group); err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	t.Cleanup(func() { db.Delete(&DuplicateGroup{}, group.ID) })
+
+	if err := repo.SetBestScene(group.ID, scene.ID); err != nil {
+		t.Fatalf("SetBestScene: %v", err)
+	}
+	if err := repo.ClearBestScene(group.ID); err != nil {
+		t.Fatalf("ClearBestScene: %v", err)
+	}
+	got, err := repo.GetByID(group.ID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if got.BestSceneID != nil {
+		t.Fatalf("expected no best scene, got %d", *got.BestSceneID)
+	}
+}

@@ -3,6 +3,7 @@ package handler
 import (
 	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/response"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
 	"goonhub/internal/data"
 	"net/http"
@@ -248,6 +249,42 @@ func (h *DuplicateHandler) ResolveBulk(c *gin.Context) {
 		return
 	}
 	response.OK(c, h.duplicateService.ResolveGroups(req.GroupIDs, req.AutoSelect, req.MergeMetadata))
+}
+
+// TrashAll moves every scene of a group to the trash, the best one included, and marks the
+// group resolved with no kept scene. Files are never deleted here: the trash's lifecycle decides.
+// POST /admin/duplicates/:id/trash-all
+func (h *DuplicateHandler) TrashAll(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+	result, err := h.duplicateService.TrashAllGroup(uint(id))
+	if err != nil {
+		if apperrors.IsNotFound(err) {
+			response.Error(c, err)
+			return
+		}
+		response.InternalError(c, "Failed to trash group scenes: "+err.Error())
+		return
+	}
+	response.OK(c, result)
+}
+
+// TrashAllBulk runs TrashAll on several unresolved groups, reporting each failed group.
+// POST /admin/duplicates/trash-all-bulk {"group_ids": [...]}
+func (h *DuplicateHandler) TrashAllBulk(c *gin.Context) {
+	var req groupIDsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "group_ids is required")
+		return
+	}
+	if len(req.GroupIDs) > maxBulkDuplicateGroups {
+		response.BadRequest(c, "too many groups (max 500)")
+		return
+	}
+	response.OK(c, h.duplicateService.TrashAllGroups(req.GroupIDs))
 }
 
 type cancelDeletionRequest struct {
