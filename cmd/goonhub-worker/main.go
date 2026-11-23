@@ -138,7 +138,7 @@ func setup(path string, console io.Writer) (*config.Config, *slog.Logger, io.Clo
 	if t.Fpcalc == "" {
 		log.Warn("fpcalc (chromaprint) not found: audio fingerprints disabled; the server will only send fingerprint jobs of scenes without audio. " + tools.FpcalcHelp())
 	}
-	sel := accel.Select(ctx, t, accel.Mode(cfg.Accel))
+	sel := accel.Select(ctx, t, accel.Mode(cfg.Accel), accel.Options{VAAPIDevice: cfg.VAAPIDevice})
 	log.Info("tools", "ffmpeg", t.FFmpeg, "ffmpeg_version", t.FFmpegVersion, "ffprobe", t.FFprobe, "fpcalc", t.Fpcalc, "accel", sel.Accel.Label(), "accel_reason", sel.Reason)
 	return cfg, log, closer, t, sel, nil
 }

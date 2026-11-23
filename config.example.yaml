@@ -90,8 +90,12 @@ tools:
   ffprobe: ""
   fpcalc: ""
 
-# Hardware acceleration: auto (best detected profile, software fallback per step) or none.
+# Hardware acceleration: auto (every pipeline is proven at startup by running it, the first
+# working method per step wins, software fallback per step), none, or a method to force:
+# nvidia, videotoolbox (macOS), intel, vaapi (Linux), d3d11va (Windows), amd.
+# Check the choice with `goonhub-worker detect` and measure it with `goonhub-worker bench`.
 accel: auto
+# vaapi_device: /dev/dri/renderD128
 
 # Worker-side timeouts (the server's defaults). A timeout fails the job (kind timeout).
 timeouts:

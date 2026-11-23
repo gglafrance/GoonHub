@@ -64,10 +64,13 @@ type Config struct {
 
 	Bandwidth BandwidthConfig `yaml:"bandwidth"`
 	Tools     ToolsConfig     `yaml:"tools"`
-	// Accel is the hardware acceleration choice: "auto" (default) or "none". Hardware
-	// profiles come with the hwaccel package (see README).
-	Accel    string         `yaml:"accel"`
-	Timeouts TimeoutsConfig `yaml:"timeouts"`
+	// Accel is the hardware acceleration choice: "auto" (default), "none", or a method to
+	// force (nvidia, videotoolbox, intel, vaapi, d3d11va, amd).
+	Accel string `yaml:"accel"`
+	// VAAPIDevice is the DRM render node used for VA-API (Linux, default
+	// /dev/dri/renderD128).
+	VAAPIDevice string         `yaml:"vaapi_device"`
+	Timeouts    TimeoutsConfig `yaml:"timeouts"`
 	// ShutdownGrace is how long a graceful stop lets computed jobs finish their upload
 	// and complete before releasing them (default 10s).
 	ShutdownGrace Duration  `yaml:"shutdown_grace"`
@@ -351,8 +354,8 @@ func (c *Config) Validate() error {
 	if c.MaxPendingUploads < 1 {
 		errs = append(errs, errors.New("max_pending_uploads must be >= 1"))
 	}
-	if c.Accel != "auto" && c.Accel != "none" {
-		errs = append(errs, fmt.Errorf("accel %q: use auto or none", c.Accel))
+	if !validAccel(c.Accel) {
+		errs = append(errs, fmt.Errorf("accel %q: use auto, none, nvidia, videotoolbox, intel, vaapi, d3d11va or amd", c.Accel))
 	}
 	if c.Mode == workerproto.ConnPush {
 		if _, _, err := net.SplitHostPort(c.Push.Listen); err != nil {
@@ -498,4 +501,13 @@ func FormatBytes(n int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
+}
+
+// validAccel lists the accel values (the methods of goonhub/pkg/compute/hwaccel).
+func validAccel(s string) bool {
+	switch s {
+	case "auto", "none", "nvidia", "videotoolbox", "intel", "vaapi", "d3d11va", "amd":
+		return true
+	}
+	return false
 }

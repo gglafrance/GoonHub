@@ -2,15 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"goonhub/pkg/workerproto"
+	"goonhub/pkg/compute/hwaccel"
 
 	"goonhub-worker/internal/accel"
 	"goonhub-worker/internal/config"
@@ -54,11 +53,8 @@ func cmdDetect(args []string) error {
 	}
 	fmt.Printf("hwaccels (ffmpeg -hwaccels): %s\n", strings.Join(t.HWAccels, ", "))
 	fmt.Printf("H.264/HEVC encoders        : %s\n", strings.Join(t.Encoders, ", "))
-	mode := accel.ModeAuto
-	if cfg != nil {
-		mode = accel.Mode(cfg.Accel)
-	}
-	sel := accel.Select(context.Background(), t, mode)
+	sel := selectAccel(cfg, t)
+	printReport(sel)
 	fmt.Printf("acceleration in use        : %s (%s)\n", sel.Accel.Label(), sel.Reason)
 	if cfg != nil {
 		fmt.Println()
@@ -87,52 +83,113 @@ func orMissing(s string) string {
 	return s
 }
 
+// selectAccel runs the hardware detection with the config (auto without one).
+func selectAccel(cfg *config.Config, t *tools.Tools) accel.Selection {
+	mode, o := accel.ModeAuto, accel.Options{}
+	if cfg != nil {
+		mode, o.VAAPIDevice = accel.Mode(cfg.Accel), cfg.VAAPIDevice
+	}
+	fmt.Println("probing the hardware pipelines (a few seconds)...")
+	return accel.Select(context.Background(), t, mode, o)
+}
+
+// printReport prints what the detection proved, method by method.
+func printReport(sel accel.Selection) {
+	r := sel.Report
+	if r == nil {
+		return
+	}
+	if len(r.Devices) > 0 {
+		fmt.Printf("GPUs                       : %s\n", strings.Join(r.Devices, "; "))
+	}
+	for _, mr := range r.Methods {
+		if mr.Skipped != "" {
+			fmt.Printf("  %-13s skipped: %s\n", mr.Method, mr.Skipped)
+			continue
+		}
+		var ok, ko []string
+		for _, c := range mr.Candidates {
+			name := string(c.Step) + "/" + string(c.Variant)
+			if c.OK {
+				ok = append(ok, name)
+			} else {
+				ko = append(ko, name)
+			}
+		}
+		line := "proven: " + orNone(ok)
+		if len(ko) > 0 {
+			line += "; failed: " + strings.Join(ko, ",")
+		}
+		fmt.Printf("  %-13s %s\n", mr.Method, line)
+	}
+}
+
+func orNone(l []string) string {
+	if len(l) == 0 {
+		return "none"
+	}
+	return strings.Join(l, ",")
+}
+
 func cmdBench(args []string) error {
 	fs := flag.NewFlagSet("bench", flag.ExitOnError)
 	cfgPath := configFlag(fs)
-	seconds := fs.Int("seconds", 60, "length of the generated sample clip")
+	seconds := fs.Int("seconds", 20, "length of the generated sample clip")
+	codec := fs.String("codec", "h264", "codec of the generated sample clip: h264 or hevc")
 	input := fs.String("input", "", "use this video instead of a generated clip (read only)")
+	asJSON := fs.Bool("json", false, "print the full report as JSON")
 	_ = fs.Parse(args)
 	cfg, t, err := detectTools(*cfgPath)
 	if err != nil {
 		return err
 	}
-	mode := accel.ModeAuto
-	if cfg != nil {
-		mode = accel.Mode(cfg.Accel)
+	sel := selectAccel(cfg, t)
+	fmt.Printf("acceleration: %s (%s)\n", sel.Accel.Label(), sel.Reason)
+	if *input == "" {
+		fmt.Printf("generating a %d s 1920x1080 %s sample clip...\n", *seconds, *codec)
 	}
-	sel := accel.Select(context.Background(), t, mode)
-	dir, err := os.MkdirTemp("", "goonhub-worker-bench-*")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	rep, err := accel.Bench(ctx, t, sel, hwaccel.Sample{Path: *input,
+		Spec: hwaccel.SampleSpec{Codec: *codec, Seconds: *seconds}})
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(dir)
-
-	clip := *input
-	video := workerproto.VideoInfo{DurationSec: *seconds, Width: 1280, Height: 720, VideoCodec: "h264", AudioCodec: "aac"}
-	if clip == "" {
-		clip = filepath.Join(dir, "sample.mp4")
-		fmt.Printf("generating a %d s 1280x720 sample clip...\n", *seconds)
-		out, err := exec.Command(t.FFmpeg, "-hide_banner", "-loglevel", "error",
-			"-f", "lavfi", "-i", fmt.Sprintf("testsrc2=duration=%d:size=1280x720:rate=30", *seconds),
-			"-f", "lavfi", "-i", fmt.Sprintf("sine=frequency=440:duration=%d", *seconds),
-			"-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", "-y", clip).CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("failed to generate the sample clip: %v: %s", err, out)
-		}
-	} else {
-		video = workerproto.VideoInfo{DurationSec: *seconds, AudioCodec: "aac"}
-		fmt.Println("note: --seconds must match the input duration for the sprites interval")
+	if *asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(rep)
 	}
-	fmt.Printf("acceleration: %s (%s)\n\n", sel.Accel.Label(), sel.Reason)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	defer cancel()
-	for _, r := range accel.Bench(ctx, t, sel, clip, video, dir) {
-		if r.Err != nil {
-			fmt.Printf("%-22s FAILED after %s: %v\n", r.Name, r.Duration.Round(time.Millisecond), r.Err)
+	fmt.Printf("\nsample %s (%s %dx%d, %.0f s)\n\n", rep.Sample, rep.Video.Codec, rep.Video.Width, rep.Video.Height, rep.Video.Duration)
+	fmt.Printf("%-15s %-34s %10s %10s %8s %6s  %s\n", "step", "accelerated", "software", "accel", "speedup", "cpu", "verdict")
+	for i := range rep.Steps {
+		sb := &rep.Steps[i]
+		sw := fmt.Sprintf("%d ms", sb.Software.WallMS)
+		if sb.Accelerated == nil {
+			msg := "software only"
+			if sb.Error != "" {
+				msg = "FAILED: " + sb.Error
+			}
+			fmt.Printf("%-15s %-34s %10s %10s %8s %6s  %s\n", sb.Step, orDash(sb.Accel), sw, "-", "-", "-", msg)
 			continue
 		}
-		fmt.Printf("%-22s %s\n", r.Name, r.Duration.Round(time.Millisecond))
+		verdict := "not worth it (software kept)"
+		if sb.Worth() {
+			verdict = "worth it"
+		}
+		if h := sb.HashDrift; h != nil {
+			verdict += fmt.Sprintf(", hashes: %d/%d exact, max distance %d", h.Exact, h.Compared, h.Max)
+		}
+		fmt.Printf("%-15s %-34s %10s %7d ms %7.2fx %5.0f%%  %s\n", sb.Step, sb.Accel, sw,
+			sb.Accelerated.WallMS, sb.Speedup, sb.CPURatio*100, verdict)
 	}
+	fmt.Println("\ncpu = accelerated CPU time / software CPU time.")
 	return nil
+}
+
+func orDash(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
 }
