@@ -36,3 +36,21 @@ func TestFindMissingConfiguredBinary(t *testing.T) {
 		t.Fatalf("error %v, want ErrMissing", err)
 	}
 }
+
+func TestHasWebPEncoder(t *testing.T) {
+	with := []byte(" V....D libx264              libx264 H.264 / AVC\n V....D libwebp_anim         libwebp WebP image (codec webp)\n V....D libwebp              libwebp WebP image (codec webp)\n")
+	without := []byte(" V....D libx264              libx264 H.264 / AVC\n V....D png                  PNG (Portable Network Graphics) image\n")
+	if !HasWebPEncoder(with) {
+		t.Fatal("libwebp not detected")
+	}
+	if HasWebPEncoder(without) {
+		t.Fatal("WebP detected in an ffmpeg without libwebp")
+	}
+	tl := &Tools{Encoders: []string{"libx264"}}
+	if tl.MissingForPhase("sprites") == "" {
+		t.Fatal("sprites allowed without WebP")
+	}
+	if tl.MissingForPhase("animated_thumbnails") != "" {
+		t.Fatal("animated thumbnails refused with libx264")
+	}
+}

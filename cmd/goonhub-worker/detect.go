@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"goonhub/pkg/compute/hwaccel"
+	"goonhub/pkg/workerproto"
 
 	"goonhub-worker/internal/accel"
 	"goonhub-worker/internal/config"
@@ -53,6 +54,11 @@ func cmdDetect(args []string) error {
 	}
 	fmt.Printf("hwaccels (ffmpeg -hwaccels): %s\n", strings.Join(t.HWAccels, ", "))
 	fmt.Printf("H.264/HEVC encoders        : %s\n", strings.Join(t.Encoders, ", "))
+	for _, p := range []workerproto.Phase{workerproto.PhaseSprites, workerproto.PhaseAnimatedThumbnails} {
+		if why := t.MissingForPhase(p); why != "" {
+			fmt.Printf("%-27s: DISABLED: %s\n%29s%s\n", p, why, "", tools.FFmpegHelp())
+		}
+	}
 	sel := selectAccel(cfg, t)
 	printReport(sel)
 	fmt.Printf("acceleration in use        : %s (%s)\n", sel.Accel.Label(), sel.Reason)

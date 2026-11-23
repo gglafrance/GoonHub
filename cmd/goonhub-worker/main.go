@@ -145,6 +145,16 @@ func setup(path string, console io.Writer) (*config.Config, *slog.Logger, io.Clo
 }
 
 func newWorker(cfg *config.Config, log *slog.Logger, t *tools.Tools, sel accel.Selection) (*worker.Worker, error) {
+	// a phase this ffmpeg cannot produce is not advertised (its jobs would all fail)
+	for _, p := range cfg.EnabledPhases() {
+		if why := t.MissingForPhase(p); why != "" {
+			log.Warn("phase disabled: "+why+": "+tools.FFmpegHelp(), "phase", p)
+			cfg.Phases[p] = 0
+		}
+	}
+	if len(cfg.EnabledPhases()) == 0 {
+		return nil, fmt.Errorf("no phase this ffmpeg can produce: %s", tools.FFmpegHelp())
+	}
 	// a killed worker must not leave its ffmpeg running (Windows: Job Object)
 	if err := procjob.KillChildrenOnExit(); err != nil {
 		log.Warn("child processes may outlive a killed worker", "error", err)

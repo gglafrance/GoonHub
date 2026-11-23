@@ -12,8 +12,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
+
+	"goonhub/pkg/workerproto"
 )
 
 // Tools are the resolved binaries.
@@ -26,6 +29,24 @@ type Tools struct {
 	FpcalcVersion string
 	HWAccels      []string // ffmpeg -hwaccels
 	Encoders      []string // H.264 / HEVC encoders of ffmpeg -encoders
+	// WebP is true when ffmpeg can encode WebP images (libwebp): the sprite frames are
+	// WebP. Homebrew's ffmpeg, for one, is built without it.
+	WebP bool
+}
+
+// MissingForPhase explains why this ffmpeg cannot produce a phase ("" = it can).
+func (t *Tools) MissingForPhase(p workerproto.Phase) string {
+	switch p {
+	case workerproto.PhaseSprites:
+		if !t.WebP {
+			return "ffmpeg has no WebP encoder (libwebp), needed for the sprite frames"
+		}
+	case workerproto.PhaseAnimatedThumbnails:
+		if !slices.Contains(t.Encoders, "libx264") {
+			return "ffmpeg has no libx264 encoder, needed for the marker clips and previews"
+		}
+	}
+	return ""
 }
 
 // Configured are the paths from the config ("" = auto).
@@ -67,7 +88,9 @@ func Find(ctx context.Context, c Configured) (*Tools, error) {
 		t.FpcalcVersion = probeVersion(ctx, t.Fpcalc, "-version")
 	}
 	t.HWAccels = listHWAccels(ctx, t.FFmpeg)
-	t.Encoders = listEncoders(ctx, t.FFmpeg)
+	encoders, _ := run(ctx, t.FFmpeg, "-hide_banner", "-encoders")
+	t.Encoders = ParseEncoders(encoders)
+	t.WebP = HasWebPEncoder(encoders)
 	return t, nil
 }
 
@@ -172,12 +195,16 @@ func ParseHWAccels(out []byte) []string {
 	return res
 }
 
-func listEncoders(ctx context.Context, ffmpeg string) []string {
-	out, err := run(ctx, ffmpeg, "-hide_banner", "-encoders")
-	if err != nil {
-		return nil
+// HasWebPEncoder reports whether "ffmpeg -encoders" lists a WebP image encoder.
+func HasWebPEncoder(out []byte) bool {
+	sc := bufio.NewScanner(bytes.NewReader(out))
+	for sc.Scan() {
+		f := strings.Fields(sc.Text())
+		if len(f) >= 2 && len(f[0]) == 6 && f[0][0] == 'V' && (f[1] == "libwebp" || f[1] == "libwebp_anim") {
+			return true
+		}
 	}
-	return ParseEncoders(out)
+	return false
 }
 
 // ParseEncoders keeps the H.264 / HEVC video encoders of "ffmpeg -encoders".
@@ -224,5 +251,17 @@ func InstallHelp() string {
 		return "Install ffmpeg: apt install ffmpeg libchromaprint-tools (Debian/Ubuntu), dnf install ffmpeg chromaprint-tools, " +
 			"or static builds from https://johnvansickle.com/ffmpeg/ / https://github.com/BtbN/FFmpeg-Builds/releases; " +
 			"fpcalc: https://github.com/acoustid/chromaprint/releases (chromaprint-fpcalc-*-linux-x86_64.tar.gz)."
+	}
+}
+
+// FFmpegHelp explains how to get an ffmpeg with libwebp and libx264 on this OS.
+func FFmpegHelp() string {
+	switch runtime.GOOS {
+	case "darwin":
+		return "Homebrew's ffmpeg formula has no libwebp: brew install ffmpeg-full, then set tools.ffmpeg and tools.ffprobe to /opt/homebrew/opt/ffmpeg-full/bin/ffmpeg and ffprobe (or a static build from https://evermeet.cx/ffmpeg/)"
+	case "windows":
+		return "use a full build: winget install Gyan.FFmpeg, or https://github.com/BtbN/FFmpeg-Builds/releases (gpl)"
+	default:
+		return "use your distribution's ffmpeg (apt install ffmpeg) or a static build from https://johnvansickle.com/ffmpeg/"
 	}
 }
