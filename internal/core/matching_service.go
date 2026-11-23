@@ -388,6 +388,117 @@ func (ms *MatchingService) autoScoreBestTx(txRepo data.DuplicateGroupRepository,
 	return nil
 }
 
+// segmentBackfillBatch is how many members BackfillMemberSegments reads per query.
+const segmentBackfillBatch = 200
+
+// BackfillMemberSegments computes the matching segment (and relation) of the group members
+// that have none: groups recorded before segments existed, and the segments a migration
+// cleared because a bug stored "0 to one fingerprint step" for every member (the job result
+// dropped the aligned positions). Each member is matched again from its stored fingerprints
+// against the index, and the best match with another member of its group gives the
+// segment. No video is decoded again. Returns how many members got a segment.
+func (ms *MatchingService) BackfillMemberSegments() (int, error) {
+	filled := 0
+	groupMembers := map[uint]map[uint]bool{}
+	var afterID uint
+	for {
+		rows, err := ms.dupGroupRepo.ListMembersWithoutSegment(afterID, segmentBackfillBatch)
+		if err != nil {
+			return filled, fmt.Errorf("failed to list members without segment: %w", err)
+		}
+		for i := range rows {
+			member := &rows[i]
+			afterID = member.ID
+			others, ok := groupMembers[member.GroupID]
+			if !ok {
+				group, err := ms.dupGroupRepo.GetByIDWithMembers(member.GroupID)
+				if err != nil {
+					ms.logger.Warn("Segment backfill: failed to load group", zap.Uint("group_id", member.GroupID), zap.Error(err))
+					continue
+				}
+				others = make(map[uint]bool, len(group.Members))
+				for _, m := range group.Members {
+					others[m.SceneID] = true
+				}
+				groupMembers[member.GroupID] = others
+			}
+			best, found, err := ms.bestGroupMatch(member, others)
+			if err != nil {
+				ms.logger.Warn("Segment backfill: matching failed", zap.Uint("scene_id", member.SceneID), zap.Error(err))
+				continue
+			}
+			if !found {
+				continue
+			}
+			segment := &data.DuplicateGroupMember{GroupID: member.GroupID, SceneID: member.SceneID}
+			setMemberSegment(segment, best, member.SceneID, true)
+			segment.Relation = relationOfMember(segment, ms.sceneDurations([]uint{member.SceneID, best.SceneID}))
+			if err := ms.dupGroupRepo.FillMemberSegment(segment); err != nil {
+				return filled, fmt.Errorf("failed to store the segment of scene %d: %w", member.SceneID, err)
+			}
+			filled++
+		}
+		if len(rows) < segmentBackfillBatch {
+			return filled, nil
+		}
+	}
+}
+
+// bestGroupMatch matches a member's stored fingerprints (its match type first) and returns
+// the best match with another scene of its group.
+func (ms *MatchingService) bestGroupMatch(member *data.DuplicateGroupMember, groupScenes map[uint]bool) (matching.MatchResult, bool, error) {
+	scenes, err := ms.sceneRepo.GetByIDsIncludingTrashed([]uint{member.SceneID})
+	if err != nil {
+		return matching.MatchResult{}, false, fmt.Errorf("failed to load scene: %w", err)
+	}
+	if len(scenes) == 0 {
+		return matching.MatchResult{}, false, nil
+	}
+	scene := scenes[0]
+	types := []string{"audio", "visual"}
+	if member.MatchType == "visual" {
+		types = []string{"visual", "audio"}
+	}
+	for _, fpType := range types {
+		var matches []matching.MatchResult
+		switch {
+		case fpType == "audio" && len(scene.AudioFingerprint) > 0:
+			matches, err = ms.FindMatches(scene.ID, "audio", BytesToInt32Slice(scene.AudioFingerprint), nil)
+		case fpType == "visual" && len(scene.VisualFingerprint) > 0:
+			matches, err = ms.FindMatches(scene.ID, "visual", nil, BytesToUint64Slice(scene.VisualFingerprint))
+		default:
+			continue
+		}
+		if err != nil {
+			return matching.MatchResult{}, false, err
+		}
+		var best matching.MatchResult
+		for _, m := range matches {
+			if m.SceneID != scene.ID && groupScenes[m.SceneID] && m.ConfidenceScore > best.ConfidenceScore {
+				best = m
+			}
+		}
+		if best.SceneID != 0 {
+			return best, true, nil
+		}
+	}
+	return matching.MatchResult{}, false, nil
+}
+
+// StartSegmentBackfill runs BackfillMemberSegments once in the background.
+func (ms *MatchingService) StartSegmentBackfill() {
+	go func() {
+		filled, err := ms.BackfillMemberSegments()
+		if err != nil {
+			ms.logger.Warn("Duplicate segment backfill failed", zap.Int("filled", filled), zap.Error(err))
+			return
+		}
+		if filled > 0 {
+			ms.logger.Info("Recomputed duplicate matching segments", zap.Int("members", filled))
+		}
+	}()
+}
+
 // Fingerprint position durations, used to convert matched segments to seconds.
 const (
 	// chromaprint raw fingerprint: one item every 4096/3 samples at 11025 Hz
