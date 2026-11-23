@@ -139,6 +139,7 @@ watch(
         scanStatus.value.current_scan.videos_skipped = data.videos_skipped;
         scanStatus.value.current_scan.videos_removed = data.videos_removed;
         scanStatus.value.current_scan.videos_moved = data.videos_moved;
+        scanStatus.value.current_scan.copies_found = data.copies_found;
         scanStatus.value.current_scan.errors = data.errors;
         scanStatus.value.current_scan.current_path = data.current_path;
         scanStatus.value.current_scan.current_file = data.current_file;
@@ -321,7 +322,7 @@ const phaseDescription = (phase: string): string => {
                     <span class="text-xs font-medium text-white">Scanning in progress...</span>
                 </div>
 
-                <div class="mb-3 grid grid-cols-3 gap-4 sm:grid-cols-6">
+                <div class="mb-3 grid grid-cols-4 gap-4 sm:grid-cols-7">
                     <div>
                         <div class="text-dim text-[10px] tracking-wider uppercase">Found</div>
                         <div class="text-lg font-semibold text-white">
@@ -366,6 +367,19 @@ const phaseDescription = (phase: string): string => {
                             {{ scanStatus.current_scan.videos_skipped }}
                         </div>
                     </div>
+                    <div title="Files with the same content as an existing scene, not added again">
+                        <div class="text-dim text-[10px] tracking-wider uppercase">Copies</div>
+                        <div
+                            class="text-lg font-semibold"
+                            :class="
+                                scanStatus.current_scan.copies_found > 0
+                                    ? 'text-white/80'
+                                    : 'text-dim'
+                            "
+                        >
+                            {{ scanStatus.current_scan.copies_found || 0 }}
+                        </div>
+                    </div>
                     <div>
                         <div class="text-dim text-[10px] tracking-wider uppercase">Errors</div>
                         <div
@@ -400,6 +414,12 @@ const phaseDescription = (phase: string): string => {
                                 <th class="pr-3 pb-2 font-medium">Added</th>
                                 <th class="pr-3 pb-2 font-medium">Moved</th>
                                 <th class="pr-3 pb-2 font-medium">Missing</th>
+                                <th
+                                    class="pr-3 pb-2 font-medium"
+                                    title="Copies of existing scenes, not added again"
+                                >
+                                    Copies
+                                </th>
                                 <th class="pr-3 pb-2 font-medium">Duration</th>
                             </tr>
                         </thead>
@@ -434,6 +454,12 @@ const phaseDescription = (phase: string): string => {
                                     :class="scan.videos_removed > 0 ? 'text-amber-500' : 'text-dim'"
                                 >
                                     {{ scan.videos_removed || 0 }}
+                                </td>
+                                <td
+                                    class="py-2 pr-3"
+                                    :class="scan.copies_found > 0 ? 'text-white/80' : 'text-dim'"
+                                >
+                                    {{ scan.copies_found || 0 }}
                                 </td>
                                 <td class="text-dim py-2 pr-3">
                                     {{ formatDuration(scan.started_at, scan.completed_at) }}

@@ -1,5 +1,5 @@
 import type { ReplayHeatmap, ReplayHeatmapRecordResult } from '~/types/watch';
-import type { SourceSiteOption } from '~/types/scene';
+import type { SceneCopiesResponse, SourceSiteOption } from '~/types/scene';
 import type { SimilarScenesResponse } from '~/types/duplicates';
 
 /**
@@ -365,6 +365,15 @@ export const useApiScenes = () => {
         return handleResponse(response);
     };
 
+    // Files recognised by the library scan as copies of the scene (read-only)
+    const fetchSceneCopies = async (sceneId: number): Promise<SceneCopiesResponse> => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/copies`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
     const deleteScene = async (sceneId: number, permanent = false) => {
         const response = await fetch(`/api/v1/scenes/${sceneId}`, {
             method: 'DELETE',
@@ -409,6 +418,7 @@ export const useApiScenes = () => {
         getDailyActivity,
         fetchRelatedScenes,
         fetchSimilarScenes,
+        fetchSceneCopies,
         deleteScene,
     };
 };

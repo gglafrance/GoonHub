@@ -1046,6 +1046,7 @@ File scan operation records.
 | `videos_skipped` | INT | NO | 0 | Duplicate files skipped |
 | `videos_removed` | INT | NO | 0 | Missing files removed |
 | `videos_moved` | INT | NO | 0 | Relocated files updated |
+| `copies_found` | INT | NO | 0 | Files recognised as copies of an existing scene, new or already recorded in `scene_copies` (migration 091) |
 | `errors` | INT | NO | 0 | Error count |
 | `error_message` | TEXT | YES | NULL | Error details |
 | `current_path` | VARCHAR(500) | YES | NULL | Currently scanning path |
@@ -1057,6 +1058,61 @@ File scan operation records.
 **Indexes:**
 - `idx_scan_history_status` on `status`
 - `idx_scan_history_started_at` on `started_at DESC`
+
+---
+
+### `scene_copies`
+
+Files with the same content as a scene's file at another path (migration 091). A Stash import
+kept one file per scene, so the other files of a Stash scene were seen as new videos by the
+library scan; the scan now records such a file here instead of creating a scene for it.
+
+How the scan uses it (`ScanService.runScan`):
+1. A path that is a scene's `stored_path` is skipped; a path recorded here is skipped too and
+   counted in `scan_history.copies_found` (its `last_seen_at` is updated in one batched
+   `UPDATE` at the end of the scan).
+2. Move detection (same size + same filename, original path gone) keeps priority.
+3. Otherwise, when live scenes (not trashed, not soft-deleted) have exactly the same size, the
+   oshash of the new file and of each candidate's file is computed (each file at most once per
+   scan); on a match the file is recorded here for that scene. A candidate whose file is missing
+   or unreadable is never matched: the file becomes a scene as before. A file identical to a
+   scene created earlier in the same scan becomes a copy of that scene.
+
+Rows are bookkeeping only: GoonHub never deletes, moves or writes the file of a copy. Trashing a
+scene keeps its rows (the copies stay skipped); permanently deleting it removes them through the
+cascade, never the files, so the next scan sees those files as new videos again. Listed
+read-only by `GET /api/v1/scenes/:id/copies`.
+
+Triage (Duplicates page > Copies, `/api/v1/admin/duplicates/copies...`, `SceneCopyService`):
+- **Make main file**: in one transaction the scene takes the copy's `stored_path` and storage
+  path (size kept, a scene marked missing is restored) and the copy row takes the old main
+  path (same `oshash`). The scene ID does not change; the scene is re-indexed.
+- **Separate scene**: the copy row is deleted and a scene is created for the file (as the scan
+  creates scenes), then indexed and submitted for processing.
+- **Forget**: the row is deleted; the file stays (the next scan records it again).
+- **Delete file**: the only action that deletes a file. Refused for a read-only storage path
+  (`MediaFileGuard`), for the scene's main file (same path or same file on disk), and unless
+  the copy and the scene's main file still have the same oshash, both re-read right before
+  (an unreadable main file refuses). Then the file is removed through
+  `MediaFileGuard.RemoveMediaFile` and the row deleted. Bulk forget/delete: 500 copies max,
+  per-copy results.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `scene_id` | BIGINT | NO | - | FK to `scenes.id` (CASCADE), the scene the file is a copy of |
+| `stored_path` | TEXT | NO | - | Full filesystem path of the copy |
+| `storage_path_id` | INTEGER | YES | NULL | FK to `storage_paths.id` (SET NULL), the storage path the copy was found under |
+| `size` | BIGINT | NO | - | File size in bytes |
+| `oshash` | VARCHAR(16) | NO | - | OpenSubtitles hash as Stash computes it: 64-bit sum of the size and of the little-endian uint64 words of the first and last 64 KiB, 16 hex digits (`pkg/oshash`) |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | When the scan recorded the copy |
+| `last_seen_at` | TIMESTAMPTZ | NO | NOW() | Last scan that saw the file |
+
+**Indexes:**
+- `idx_scene_copies_scene_id` on `scene_id`
+
+**Constraints:**
+- UNIQUE `uq_scene_copies_stored_path` on `stored_path` (a path is recorded once)
 
 ---
 

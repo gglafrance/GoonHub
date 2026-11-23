@@ -4,6 +4,9 @@ import type {
     BulkTrashAllResult,
     ExcludeMembersResult,
     ResolveGroupResult,
+    SceneCopyBulkResult,
+    SceneCopyIds,
+    SceneCopyListResponse,
     SelectableDuplicateIds,
     TrashAllResult,
 } from '~/types/duplicates';
@@ -180,7 +183,71 @@ export const useApiDuplicates = () => {
         return handleResponse(response);
     };
 
+    // Copies recorded by the scan (Duplicates page > Copies); params from buildCopyQuery
+    const listCopies = async (params: URLSearchParams): Promise<SceneCopyListResponse> => {
+        const response = await fetch(`/api/v1/admin/duplicates/copies?${params}`, {
+            ...fetchOptions(),
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    const listCopyIds = async (params: URLSearchParams): Promise<SceneCopyIds> => {
+        const response = await fetch(`/api/v1/admin/duplicates/copies/ids?${params}`, {
+            ...fetchOptions(),
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    // action: make-main, separate or forget (no file is touched)
+    const copyAction = async (copyId: number, action: 'make-main' | 'separate' | 'forget') => {
+        const response = await fetch(`/api/v1/admin/duplicates/copies/${copyId}/${action}`, {
+            ...fetchOptions(),
+            method: 'POST',
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    };
+
+    // Permanently deletes the copy's file from disk (after the server checks)
+    const deleteCopyFile = async (copyId: number): Promise<{ freed_bytes: number }> => {
+        const response = await fetch(`/api/v1/admin/duplicates/copies/${copyId}/delete-file`, {
+            ...fetchOptions(),
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ confirm: true }),
+        });
+        return handleResponse(response);
+    };
+
+    const forgetCopiesBulk = async (copyIds: number[]): Promise<SceneCopyBulkResult> => {
+        const response = await fetch('/api/v1/admin/duplicates/copies/forget-bulk', {
+            ...fetchOptions(),
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ copy_ids: copyIds }),
+        });
+        return handleResponse(response);
+    };
+
+    const deleteCopyFilesBulk = async (copyIds: number[]): Promise<SceneCopyBulkResult> => {
+        const response = await fetch('/api/v1/admin/duplicates/copies/delete-files-bulk', {
+            ...fetchOptions(),
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ copy_ids: copyIds, confirm: true }),
+        });
+        return handleResponse(response);
+    };
+
     return {
+        listCopies,
+        listCopyIds,
+        copyAction,
+        deleteCopyFile,
+        forgetCopiesBulk,
+        deleteCopyFilesBulk,
         listGroups,
         listSelectableIds,
         getGroup,

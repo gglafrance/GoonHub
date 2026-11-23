@@ -132,9 +132,11 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	watchHistoryHandler := provideWatchHistoryHandler(watchHistoryService, replayHeatmapService)
 	storagePathService := provideStoragePathService(storagePathRepository, logger)
 	storagePathHandler := provideStoragePathHandler(storagePathService)
+	sceneCopyRepository := provideSceneCopyRepository(db)
 	scanHistoryRepository := provideScanHistoryRepository(db)
-	scanService := provideScanService(storagePathService, sceneRepository, scanHistoryRepository, sceneProcessingService, eventBus, logger)
-	scanHandler := provideScanHandler(scanService)
+	scanService := provideScanService(storagePathService, sceneRepository, sceneCopyRepository, scanHistoryRepository, sceneProcessingService, eventBus, logger)
+	sceneCopyService := provideSceneCopyService(sceneCopyRepository, sceneRepository, storagePathService, mediaFileGuard, sceneProcessingService, searchService, logger)
+	scanHandler := provideScanHandler(scanService, sceneCopyService)
 	explorerRepository := provideExplorerRepository(db)
 	explorerService := provideExplorerService(explorerRepository, storagePathRepository, sceneRepository, tagRepository, actorRepository, jobHistoryRepository, eventBus, logger, configConfig, sceneFingerprintIndex, mediaFileGuard)
 	explorerHandler := provideExplorerHandler(explorerService, tagRepository, actorRepository, interactionRepository)
@@ -261,6 +263,10 @@ func provideStoragePathRepository(db *gorm.DB) data.StoragePathRepository {
 
 func provideScanHistoryRepository(db *gorm.DB) data.ScanHistoryRepository {
 	return data.NewScanHistoryRepository(db)
+}
+
+func provideSceneCopyRepository(db *gorm.DB) data.SceneCopyRepository {
+	return data.NewSceneCopyRepository(db)
 }
 
 func provideExplorerRepository(db *gorm.DB) data.ExplorerRepository {
@@ -445,8 +451,16 @@ func provideStoragePathService(repo data.StoragePathRepository, logger *logging.
 	return core.NewStoragePathService(repo, logger.Logger)
 }
 
-func provideScanService(storagePathService *core.StoragePathService, sceneRepo data.SceneRepository, scanHistoryRepo data.ScanHistoryRepository, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger) *core.ScanService {
-	return core.NewScanService(storagePathService, sceneRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
+func provideSceneCopyService(copyRepo data.SceneCopyRepository, sceneRepo data.SceneRepository, storagePathService *core.StoragePathService, guard *core.MediaFileGuard, processingService *core.SceneProcessingService, searchService *core.SearchService, logger *logging.Logger) *core.SceneCopyService {
+	svc := core.NewSceneCopyService(copyRepo, sceneRepo, storagePathService, guard, processingService, logger.Logger)
+	if searchService != nil {
+		svc.SetIndexer(searchService)
+	}
+	return svc
+}
+
+func provideScanService(storagePathService *core.StoragePathService, sceneRepo data.SceneRepository, sceneCopyRepo data.SceneCopyRepository, scanHistoryRepo data.ScanHistoryRepository, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger) *core.ScanService {
+	return core.NewScanService(storagePathService, sceneRepo, sceneCopyRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
 }
 
 func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, jobHistoryRepo data.JobHistoryRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config, fingerprintIndex core.SceneFingerprintIndex, mediaGuard *core.MediaFileGuard) *core.ExplorerService {
@@ -666,8 +680,8 @@ func provideStoragePathHandler(service *core.StoragePathService) *handler.Storag
 	return handler.NewStoragePathHandler(service)
 }
 
-func provideScanHandler(scanService *core.ScanService) *handler.ScanHandler {
-	return handler.NewScanHandler(scanService)
+func provideScanHandler(scanService *core.ScanService, copyService *core.SceneCopyService) *handler.ScanHandler {
+	return handler.NewScanHandler(scanService, copyService)
 }
 
 func provideExplorerHandler(explorerService *core.ExplorerService, tagRepo data.TagRepository, actorRepo data.ActorRepository, interactionRepo data.InteractionRepository) *handler.ExplorerHandler {
