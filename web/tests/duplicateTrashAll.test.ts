@@ -21,6 +21,7 @@ describe('summarizeTrashAll', () => {
             unknownSize: 0,
             alreadyTrashed: 0,
             missingGroups: 0,
+            unchecked: 0,
         });
     });
 
@@ -32,6 +33,7 @@ describe('summarizeTrashAll', () => {
             unknownSize: 1,
             alreadyTrashed: 1,
             missingGroups: 0,
+            unchecked: 0,
         });
     });
 
@@ -45,6 +47,18 @@ describe('summarizeTrashAll', () => {
         expect(summary.size).toBe(100);
         expect(summary.groups).toBe(2);
         expect(summary.missingGroups).toBe(1);
+    });
+});
+
+describe('summarizeTrashAll with unchecked members', () => {
+    test('leaves the unchecked members out and counts them apart', () => {
+        const groups = new Map([
+            [1, { members: [member(10, 100), member(11, 200), member(12, 50)] }],
+        ]);
+        const summary = summarizeTrashAll([1], groups, new Map([[1, new Set([11])]]));
+        expect(summary.videos).toBe(2);
+        expect(summary.size).toBe(150);
+        expect(summary.unchecked).toBe(1);
     });
 });
 

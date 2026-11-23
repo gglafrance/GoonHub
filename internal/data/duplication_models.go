@@ -41,6 +41,27 @@ func (DuplicateGroupMember) TableName() string {
 	return "duplicate_group_members"
 }
 
+// DuplicateExclusion records that two scenes are not duplicates of each other: one of them was
+// removed from a duplicate group the other stays in. Fingerprint matching ignores a match
+// between them. The pair is stored once, ordered (SceneIDA < SceneIDB, see NewDuplicateExclusion).
+type DuplicateExclusion struct {
+	SceneIDA  uint      `gorm:"column:scene_id_a;primaryKey" json:"scene_id_a"`
+	SceneIDB  uint      `gorm:"column:scene_id_b;primaryKey" json:"scene_id_b"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (DuplicateExclusion) TableName() string {
+	return "duplicate_exclusions"
+}
+
+// NewDuplicateExclusion returns the exclusion of a pair of scenes, ordered.
+func NewDuplicateExclusion(a, b uint) DuplicateExclusion {
+	if a > b {
+		a, b = b, a
+	}
+	return DuplicateExclusion{SceneIDA: a, SceneIDB: b}
+}
+
 // Relation of a group member to the scene it was matched against (its reference, RefSceneID).
 // See core.ClassifyDuplicateRelation for how it is derived.
 const (

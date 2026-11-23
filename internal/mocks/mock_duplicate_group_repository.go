@@ -41,6 +41,20 @@ func (m *MockDuplicateGroupRepository) EXPECT() *MockDuplicateGroupRepositoryMoc
 	return m.recorder
 }
 
+// AddExclusions mocks base method.
+func (m *MockDuplicateGroupRepository) AddExclusions(sceneIDs, otherIDs []uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddExclusions", sceneIDs, otherIDs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddExclusions indicates an expected call of AddExclusions.
+func (mr *MockDuplicateGroupRepositoryMockRecorder) AddExclusions(sceneIDs, otherIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddExclusions", reflect.TypeOf((*MockDuplicateGroupRepository)(nil).AddExclusions), sceneIDs, otherIDs)
+}
+
 // AddMember mocks base method.
 func (m *MockDuplicateGroupRepository) AddMember(member *data.DuplicateGroupMember) error {
 	m.ctrl.T.Helper()
@@ -202,6 +216,21 @@ func (mr *MockDuplicateGroupRepositoryMockRecorder) List(page, limit, status any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockDuplicateGroupRepository)(nil).List), page, limit, status)
 }
 
+// ListExclusionsAmong mocks base method.
+func (m *MockDuplicateGroupRepository) ListExclusionsAmong(sceneIDs []uint) ([]data.DuplicateExclusion, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListExclusionsAmong", sceneIDs)
+	ret0, _ := ret[0].([]data.DuplicateExclusion)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListExclusionsAmong indicates an expected call of ListExclusionsAmong.
+func (mr *MockDuplicateGroupRepositoryMockRecorder) ListExclusionsAmong(sceneIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListExclusionsAmong", reflect.TypeOf((*MockDuplicateGroupRepository)(nil).ListExclusionsAmong), sceneIDs)
+}
+
 // ListMembersDueForDeletion mocks base method.
 func (m *MockDuplicateGroupRepository) ListMembersDueForDeletion(now time.Time, limit int) ([]data.DuplicateGroupMember, error) {
 	m.ctrl.T.Helper()
@@ -320,6 +349,20 @@ func (m *MockDuplicateGroupRepository) RemoveMember(groupID, sceneID uint) error
 func (mr *MockDuplicateGroupRepositoryMockRecorder) RemoveMember(groupID, sceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMember", reflect.TypeOf((*MockDuplicateGroupRepository)(nil).RemoveMember), groupID, sceneID)
+}
+
+// RemoveMembers mocks base method.
+func (m *MockDuplicateGroupRepository) RemoveMembers(groupID uint, sceneIDs []uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveMembers", groupID, sceneIDs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveMembers indicates an expected call of RemoveMembers.
+func (mr *MockDuplicateGroupRepositoryMockRecorder) RemoveMembers(groupID, sceneIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMembers", reflect.TypeOf((*MockDuplicateGroupRepository)(nil).RemoveMembers), groupID, sceneIDs)
 }
 
 // RunInTransaction mocks base method.
