@@ -55,10 +55,16 @@ func NewSceneHandler(service *core.SceneService, processingService *core.ScenePr
 
 // populateCardMarkers adds the user's markers to scene card items (best effort).
 func (h *SceneHandler) populateCardMarkers(items []response.SceneListItem, sceneIDs []uint, userID uint) {
-	if h.MarkerService == nil || userID == 0 || len(sceneIDs) == 0 {
+	fillCardMarkers(h.MarkerService, items, sceneIDs, userID)
+}
+
+// fillCardMarkers adds the user's markers to scene card items (best effort), shared by the
+// scene lists and the watch history.
+func fillCardMarkers(markerService *core.MarkerService, items []response.SceneListItem, sceneIDs []uint, userID uint) {
+	if markerService == nil || userID == 0 || len(sceneIDs) == 0 {
 		return
 	}
-	markersByScene, err := h.MarkerService.GetMarkersForScenes(userID, sceneIDs)
+	markersByScene, err := markerService.GetMarkersForScenes(userID, sceneIDs)
 	if err != nil {
 		return
 	}

@@ -801,8 +801,8 @@ func provideSearchHandler(searchService *core.SearchService, searchConfigRepo da
 	return handler.NewSearchHandler(searchService, searchConfigRepo)
 }
 
-func provideWatchHistoryHandler(service *core.WatchHistoryService, heatmapService *core.ReplayHeatmapService) *handler.WatchHistoryHandler {
-	return handler.NewWatchHistoryHandler(service, heatmapService)
+func provideWatchHistoryHandler(service *core.WatchHistoryService, heatmapService *core.ReplayHeatmapService, markerService *core.MarkerService, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository) *handler.WatchHistoryHandler {
+	return handler.NewWatchHistoryHandler(service, heatmapService).WithCardData(markerService, interactionRepo, tagRepo, actorRepo)
 }
 
 // --- Job & Processing Handlers ---

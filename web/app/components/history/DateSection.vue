@@ -6,6 +6,8 @@ const props = defineProps<{
     dateLabel: string;
     entries: WatchHistoryEntry[];
     entryCount: number;
+    // the user's ratings / likes / jizz counts, by scene id (card badges)
+    cardData?: HistoryCardData;
 }>();
 
 const { formatDuration } = useFormatter();
@@ -42,6 +44,9 @@ const validEntries = computed(() => props.entries.filter((e) => e.scene));
                 :scene="entry.scene!"
                 :progress="getProgress(entry)"
                 :completed="entry.watch.completed"
+                :rating="cardData?.ratings?.[entry.scene!.id]"
+                :liked="cardData?.likes?.[entry.scene!.id]"
+                :jizz-count="cardData?.jizz_counts?.[entry.scene!.id]"
                 fluid
             >
                 <template #footer>
