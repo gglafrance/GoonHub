@@ -142,6 +142,23 @@ export interface MarkerLabelOption {
     count: number;
 }
 
+// A file with the same content as the scene's file at another path, recognised by the
+// library scan instead of being added as a new scene (GET /scenes/:id/copies)
+export interface SceneCopy {
+    id: number;
+    scene_id: number;
+    stored_path: string;
+    storage_path_id: number | null;
+    size: number;
+    oshash: string;
+    created_at: string;
+    last_seen_at: string;
+}
+
+export interface SceneCopiesResponse {
+    copies: SceneCopy[];
+}
+
 // A site scenes come from, with its scene count (GET /scenes/source-sites)
 export interface SourceSiteOption {
     site: string;

@@ -58,6 +58,8 @@ const sortBy = useUrlString('sort', 'newest');
 const kindFilter = useUrlQueryRef('kind', '', (raw) =>
     ['identical', 'containment', 'partial', 'unverified'].includes(raw) ? raw : undefined,
 );
+// View: duplicate groups (fingerprint matches) or copies (same file at another path)
+const view = useUrlQueryRef('view', '', (raw) => (raw === 'copies' ? raw : undefined));
 const expandedGroupParam = useUrlQueryRef('group', 0, (raw) => {
     const n = Number(raw);
     return Number.isInteger(n) && n > 0 ? n : undefined;
@@ -457,233 +459,260 @@ onMounted(() => {
             </div>
         </div>
 
-        <!-- Stats Bar -->
-        <div class="mb-6 grid grid-cols-3 gap-3">
-            <div class="border-border rounded-lg border bg-white/2 p-3">
-                <div class="text-lava text-lg font-bold">{{ stats.unresolved }}</div>
-                <div class="text-dim text-[11px]">Unresolved</div>
-            </div>
-            <div class="border-border rounded-lg border bg-white/2 p-3">
-                <div class="text-emerald text-lg font-bold">{{ stats.resolved }}</div>
-                <div class="text-dim text-[11px]">Resolved</div>
-            </div>
-            <div class="border-border rounded-lg border bg-white/2 p-3">
-                <div class="text-dim text-lg font-bold">{{ stats.dismissed }}</div>
-                <div class="text-dim text-[11px]">Dismissed</div>
-            </div>
-        </div>
-
-        <!-- Filter Bar -->
-        <div class="mb-4 flex items-center justify-between">
-            <div class="flex gap-1">
-                <button
-                    v-for="s in statusTabs"
-                    :key="s.value"
-                    class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-all"
-                    :class="
-                        statusFilter === s.value
-                            ? 'bg-lava/20 text-lava'
-                            : 'text-dim hover:bg-white/5 hover:text-white'
-                    "
-                    @click="setStatus(s.value)"
-                >
-                    {{ s.label }}
-                </button>
-            </div>
-            <div class="flex items-center gap-2">
-                <DuplicatesKindFilter :model-value="kindFilter" @update:model-value="setKind" />
-                <select
-                    :value="sortBy"
-                    class="border-border bg-panel rounded-md border px-2 py-1 text-[11px]
-                        text-white"
-                    @change="setSort(($event.target as HTMLSelectElement).value)"
-                >
-                    <option value="newest">Newest</option>
-                    <option value="size">Group Size</option>
-                </select>
-                <button
-                    class="text-dim hover:text-lava transition-colors"
-                    title="Refresh"
-                    @click="
-                        loadGroups();
-                        loadStats();
-                    "
-                >
-                    <Icon name="heroicons:arrow-path" size="16" />
-                </button>
-            </div>
-        </div>
-
-        <!-- Loading -->
-        <div v-if="loading" class="flex items-center justify-center py-20">
-            <div
-                class="border-lava/30 border-t-lava h-6 w-6 animate-spin rounded-full border-2"
-            ></div>
-        </div>
-
-        <!-- Empty State -->
-        <div v-else-if="groups.length === 0" class="py-20 text-center">
-            <Icon name="heroicons:document-duplicate" size="48" class="text-dim mx-auto mb-3" />
-            <p class="text-dim text-sm">No duplicate groups found</p>
-        </div>
-
-        <!-- Bulk actions -->
-        <DuplicatesBulkBar
-            v-if="!loading && groups.length > 0"
-            :selected-count="selectedIds.size"
-            :selectable-count="selectableIds.length"
-            :kind-filtered="!!kindFilter"
-            :busy="bulkBusy"
-            :deletion-enabled="dupConfig?.delete_resolved_files ?? false"
-            :deletion-delay-hours="dupConfig?.deletion_delay_hours ?? 0"
-            @select-all="selectAllOnPage"
-            @select-all-groups="selectAllGroups"
-            @clear="clearSelection"
-            @auto-select="handleAutoSelect([...selectedIds])"
-            @auto-resolve="showBulkConfirm = true"
-            @trash-all="openTrashAll([...selectedIds], true)"
-        />
-        <div
-            v-if="bulkMessage"
-            class="border-border text-dim mb-3 flex items-center justify-between rounded-md border
-                px-3 py-1.5 text-[11px]"
-        >
-            <span>{{ bulkMessage }}</span>
-            <button class="hover:text-white" @click="bulkMessage = null">
-                <Icon name="heroicons:x-mark" size="12" />
+        <!-- View switch -->
+        <div class="border-border mb-6 flex gap-1 border-b">
+            <button
+                v-for="v in [
+                    { value: '', label: 'Groups' },
+                    { value: 'copies', label: 'Copies' },
+                ]"
+                :key="v.value"
+                class="-mb-px border-b-2 px-3 py-1.5 text-xs font-medium transition-colors"
+                :class="
+                    view === v.value
+                        ? 'border-lava text-lava'
+                        : 'text-dim border-transparent hover:text-white'
+                "
+                @click="view = v.value"
+            >
+                {{ v.label }}
             </button>
         </div>
-        <DuplicatesSkippedNotice
-            v-if="skippedGroups.length"
-            :skipped="skippedGroups"
-            @open="openSkippedGroup"
-            @close="skippedGroups = []"
-        />
 
-        <!-- Group List -->
-        <div v-if="!loading && groups.length > 0" class="space-y-3">
-            <DuplicatesGroupCard
-                v-for="group in groups"
-                :id="`duplicate-group-${group.id}`"
-                :key="group.id"
-                v-model:merge-metadata="mergeMetadata"
-                :group="group"
-                :expanded="expandedGroupId === group.id"
-                :selected="selectedIds.has(group.id)"
-                :unchecked="uncheckedOf(group.id)"
-                @toggle="toggleGroup(group.id)"
-                @toggle-select="toggleSelect(group.id)"
-                @set-best="(sceneId: number) => handleSetBest(group.id, sceneId)"
-                @auto-select="handleAutoSelect([group.id])"
-                @resolve="requestResolve(group)"
-                @dismiss="handleDismiss(group.id)"
-                @trash-all="openTrashAll([group.id], false)"
-                @play="(sceneId: number) => openPlayer(group, sceneId)"
-                @cancel-deletion="(sceneId: number) => handleCancelDeletion(group.id, sceneId)"
-                @toggle-eligible="(sceneId: number) => toggleEligible(group.id, sceneId)"
-                @set-all-eligible="(eligible: boolean) => setAllEligible(group, eligible)"
-                @exclude-unchecked="openExclude(group, false)"
+        <DuplicatesCopiesView v-if="view === 'copies'" />
+
+        <template v-else>
+            <!-- Stats Bar -->
+            <div class="mb-6 grid grid-cols-3 gap-3">
+                <div class="border-border rounded-lg border bg-white/2 p-3">
+                    <div class="text-lava text-lg font-bold">{{ stats.unresolved }}</div>
+                    <div class="text-dim text-[11px]">Unresolved</div>
+                </div>
+                <div class="border-border rounded-lg border bg-white/2 p-3">
+                    <div class="text-emerald text-lg font-bold">{{ stats.resolved }}</div>
+                    <div class="text-dim text-[11px]">Resolved</div>
+                </div>
+                <div class="border-border rounded-lg border bg-white/2 p-3">
+                    <div class="text-dim text-lg font-bold">{{ stats.dismissed }}</div>
+                    <div class="text-dim text-[11px]">Dismissed</div>
+                </div>
+            </div>
+
+            <!-- Filter Bar -->
+            <div class="mb-4 flex items-center justify-between">
+                <div class="flex gap-1">
+                    <button
+                        v-for="s in statusTabs"
+                        :key="s.value"
+                        class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-all"
+                        :class="
+                            statusFilter === s.value
+                                ? 'bg-lava/20 text-lava'
+                                : 'text-dim hover:bg-white/5 hover:text-white'
+                        "
+                        @click="setStatus(s.value)"
+                    >
+                        {{ s.label }}
+                    </button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <DuplicatesKindFilter :model-value="kindFilter" @update:model-value="setKind" />
+                    <select
+                        :value="sortBy"
+                        class="border-border bg-panel rounded-md border px-2 py-1 text-[11px]
+                            text-white"
+                        @change="setSort(($event.target as HTMLSelectElement).value)"
+                    >
+                        <option value="newest">Newest</option>
+                        <option value="size">Group Size</option>
+                    </select>
+                    <button
+                        class="text-dim hover:text-lava transition-colors"
+                        title="Refresh"
+                        @click="
+                            loadGroups();
+                            loadStats();
+                        "
+                    >
+                        <Icon name="heroicons:arrow-path" size="16" />
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading -->
+            <div v-if="loading" class="flex items-center justify-center py-20">
+                <div
+                    class="border-lava/30 border-t-lava h-6 w-6 animate-spin rounded-full border-2"
+                ></div>
+            </div>
+
+            <!-- Empty State -->
+            <div v-else-if="groups.length === 0" class="py-20 text-center">
+                <Icon name="heroicons:document-duplicate" size="48" class="text-dim mx-auto mb-3" />
+                <p class="text-dim text-sm">No duplicate groups found</p>
+            </div>
+
+            <!-- Bulk actions -->
+            <DuplicatesBulkBar
+                v-if="!loading && groups.length > 0"
+                :selected-count="selectedIds.size"
+                :selectable-count="selectableIds.length"
+                :kind-filtered="!!kindFilter"
+                :busy="bulkBusy"
+                :deletion-enabled="dupConfig?.delete_resolved_files ?? false"
+                :deletion-delay-hours="dupConfig?.deletion_delay_hours ?? 0"
+                @select-all="selectAllOnPage"
+                @select-all-groups="selectAllGroups"
+                @clear="clearSelection"
+                @auto-select="handleAutoSelect([...selectedIds])"
+                @auto-resolve="showBulkConfirm = true"
+                @trash-all="openTrashAll([...selectedIds], true)"
             />
-        </div>
-
-        <DuplicatesPlayerModal
-            :visible="playerGroup !== null"
-            :members="playerGroup?.members ?? []"
-            :scene-id="playerSceneId"
-            :unchecked="playerGroup ? uncheckedOf(playerGroup.id) : noneUnchecked"
-            :editable="playerGroup?.status === 'unresolved'"
-            @close="closePlayer"
-            @toggle-eligible="
-                (sceneId: number) => playerGroup && toggleEligible(playerGroup.id, sceneId)
-            "
-        />
-
-        <DuplicatesExcludeModal
-            :visible="excludeGroup !== null"
-            :group="excludeGroup"
-            :unchecked="excludeGroup ? uncheckedOf(excludeGroup.id) : noneUnchecked"
-            :resolve="excludeThenResolve"
-            :merge-metadata="mergeMetadata"
-            @close="excludeGroup = null"
-            @done="handleExcluded"
-        />
-
-        <DuplicatesTrashAllModal
-            :visible="showTrashAll"
-            :group-ids="trashAllIds"
-            :groups="knownGroups"
-            :bulk="trashAllBulk"
-            :unchecked="unchecked"
-            @close="showTrashAll = false"
-            @trashed="handleTrashed"
-            @excluded="clearUnchecked"
-        />
-
-        <UiConfirmModal
-            :visible="showBulkConfirm"
-            title="Auto-resolve selected groups"
-            confirm-label="Resolve"
-            @close="showBulkConfirm = false"
-            @confirm="confirmBulkResolve"
-        >
-            <p class="text-dim text-xs">
-                In each of the {{ selectedIds.size }} selected group(s), the best variant is
-                selected with the configured criteria and kept; the other scenes go to the trash{{
-                    mergeMetadata ? ' after their metadata is merged into the kept scene' : ''
-                }}.
-            </p>
-            <p v-if="bulkPlan.uncheckedVideos" class="mt-2 text-xs text-white">
-                {{ bulkPlan.uncheckedVideos }} unchecked video(s) in
-                {{ bulkPlan.exclusions.length }} group(s) are first removed from their group and
-                remembered as not duplicates of the others: they are never trashed. A group left
-                with one video is dismissed instead of resolved.
-            </p>
-            <p v-if="bulkPlan.nothingEligible.length" class="text-dim mt-2 text-xs">
-                {{ bulkPlan.nothingEligible.length }} group(s) with every video unchecked are left
-                untouched.
-            </p>
-            <p class="text-dim mt-2 text-xs">
-                Groups whose scenes are not all identical (a clip and the compilation containing it,
-                partial or unverified matches) are skipped and listed afterwards, to be resolved by
-                hand.
-            </p>
-            <p v-if="dupConfig?.delete_resolved_files" class="text-lava mt-2 text-xs">
-                Their files will then be permanently deleted
-                {{
-                    dupConfig.deletion_delay_hours === 0
-                        ? 'at the next cleanup'
-                        : `after ${dupConfig.deletion_delay_hours} hours`
-                }}, except files on read-only storage paths, which are kept.
-            </p>
-        </UiConfirmModal>
-
-        <!-- Pagination -->
-        <div v-if="totalPages > 1" class="mt-6 flex items-center justify-center gap-1">
-            <button
-                :disabled="page <= 1"
-                class="text-dim rounded px-2 py-1 text-[11px] hover:text-white disabled:opacity-30"
-                @click="goToPage(page - 1)"
+            <div
+                v-if="bulkMessage"
+                class="border-border text-dim mb-3 flex items-center justify-between rounded-md
+                    border px-3 py-1.5 text-[11px]"
             >
-                Prev
-            </button>
-            <template v-for="(p, idx) in visiblePages" :key="idx">
-                <span v-if="p === null" class="text-dim px-1 text-[11px]">...</span>
-                <button
-                    v-else
-                    class="rounded px-2.5 py-1 text-[11px] font-medium transition-all"
-                    :class="page === p ? 'bg-lava/20 text-lava' : 'text-dim hover:bg-white/5'"
-                    @click="goToPage(p)"
-                >
-                    {{ p }}
+                <span>{{ bulkMessage }}</span>
+                <button class="hover:text-white" @click="bulkMessage = null">
+                    <Icon name="heroicons:x-mark" size="12" />
                 </button>
-            </template>
-            <button
-                :disabled="page >= totalPages"
-                class="text-dim rounded px-2 py-1 text-[11px] hover:text-white disabled:opacity-30"
-                @click="goToPage(page + 1)"
+            </div>
+            <DuplicatesSkippedNotice
+                v-if="skippedGroups.length"
+                :skipped="skippedGroups"
+                @open="openSkippedGroup"
+                @close="skippedGroups = []"
+            />
+
+            <!-- Group List -->
+            <div v-if="!loading && groups.length > 0" class="space-y-3">
+                <DuplicatesGroupCard
+                    v-for="group in groups"
+                    :id="`duplicate-group-${group.id}`"
+                    :key="group.id"
+                    v-model:merge-metadata="mergeMetadata"
+                    :group="group"
+                    :expanded="expandedGroupId === group.id"
+                    :selected="selectedIds.has(group.id)"
+                    :unchecked="uncheckedOf(group.id)"
+                    @toggle="toggleGroup(group.id)"
+                    @toggle-select="toggleSelect(group.id)"
+                    @set-best="(sceneId: number) => handleSetBest(group.id, sceneId)"
+                    @auto-select="handleAutoSelect([group.id])"
+                    @resolve="requestResolve(group)"
+                    @dismiss="handleDismiss(group.id)"
+                    @trash-all="openTrashAll([group.id], false)"
+                    @play="(sceneId: number) => openPlayer(group, sceneId)"
+                    @cancel-deletion="(sceneId: number) => handleCancelDeletion(group.id, sceneId)"
+                    @toggle-eligible="(sceneId: number) => toggleEligible(group.id, sceneId)"
+                    @set-all-eligible="(eligible: boolean) => setAllEligible(group, eligible)"
+                    @exclude-unchecked="openExclude(group, false)"
+                />
+            </div>
+
+            <DuplicatesPlayerModal
+                :visible="playerGroup !== null"
+                :members="playerGroup?.members ?? []"
+                :scene-id="playerSceneId"
+                :unchecked="playerGroup ? uncheckedOf(playerGroup.id) : noneUnchecked"
+                :editable="playerGroup?.status === 'unresolved'"
+                @close="closePlayer"
+                @toggle-eligible="
+                    (sceneId: number) => playerGroup && toggleEligible(playerGroup.id, sceneId)
+                "
+            />
+
+            <DuplicatesExcludeModal
+                :visible="excludeGroup !== null"
+                :group="excludeGroup"
+                :unchecked="excludeGroup ? uncheckedOf(excludeGroup.id) : noneUnchecked"
+                :resolve="excludeThenResolve"
+                :merge-metadata="mergeMetadata"
+                @close="excludeGroup = null"
+                @done="handleExcluded"
+            />
+
+            <DuplicatesTrashAllModal
+                :visible="showTrashAll"
+                :group-ids="trashAllIds"
+                :groups="knownGroups"
+                :bulk="trashAllBulk"
+                :unchecked="unchecked"
+                @close="showTrashAll = false"
+                @trashed="handleTrashed"
+                @excluded="clearUnchecked"
+            />
+
+            <UiConfirmModal
+                :visible="showBulkConfirm"
+                title="Auto-resolve selected groups"
+                confirm-label="Resolve"
+                @close="showBulkConfirm = false"
+                @confirm="confirmBulkResolve"
             >
-                Next
-            </button>
-        </div>
+                <p class="text-dim text-xs">
+                    In each of the {{ selectedIds.size }} selected group(s), the best variant is
+                    selected with the configured criteria and kept; the other scenes go to the
+                    trash{{
+                        mergeMetadata ? ' after their metadata is merged into the kept scene' : ''
+                    }}.
+                </p>
+                <p v-if="bulkPlan.uncheckedVideos" class="mt-2 text-xs text-white">
+                    {{ bulkPlan.uncheckedVideos }} unchecked video(s) in
+                    {{ bulkPlan.exclusions.length }} group(s) are first removed from their group and
+                    remembered as not duplicates of the others: they are never trashed. A group left
+                    with one video is dismissed instead of resolved.
+                </p>
+                <p v-if="bulkPlan.nothingEligible.length" class="text-dim mt-2 text-xs">
+                    {{ bulkPlan.nothingEligible.length }} group(s) with every video unchecked are
+                    left untouched.
+                </p>
+                <p class="text-dim mt-2 text-xs">
+                    Groups whose scenes are not all identical (a clip and the compilation containing
+                    it, partial or unverified matches) are skipped and listed afterwards, to be
+                    resolved by hand.
+                </p>
+                <p v-if="dupConfig?.delete_resolved_files" class="text-lava mt-2 text-xs">
+                    Their files will then be permanently deleted
+                    {{
+                        dupConfig.deletion_delay_hours === 0
+                            ? 'at the next cleanup'
+                            : `after ${dupConfig.deletion_delay_hours} hours`
+                    }}, except files on read-only storage paths, which are kept.
+                </p>
+            </UiConfirmModal>
+
+            <!-- Pagination -->
+            <div v-if="totalPages > 1" class="mt-6 flex items-center justify-center gap-1">
+                <button
+                    :disabled="page <= 1"
+                    class="text-dim rounded px-2 py-1 text-[11px] hover:text-white
+                        disabled:opacity-30"
+                    @click="goToPage(page - 1)"
+                >
+                    Prev
+                </button>
+                <template v-for="(p, idx) in visiblePages" :key="idx">
+                    <span v-if="p === null" class="text-dim px-1 text-[11px]">...</span>
+                    <button
+                        v-else
+                        class="rounded px-2.5 py-1 text-[11px] font-medium transition-all"
+                        :class="page === p ? 'bg-lava/20 text-lava' : 'text-dim hover:bg-white/5'"
+                        @click="goToPage(p)"
+                    >
+                        {{ p }}
+                    </button>
+                </template>
+                <button
+                    :disabled="page >= totalPages"
+                    class="text-dim rounded px-2 py-1 text-[11px] hover:text-white
+                        disabled:opacity-30"
+                    @click="goToPage(page + 1)"
+                >
+                    Next
+                </button>
+            </div>
+        </template>
     </div>
 </template>

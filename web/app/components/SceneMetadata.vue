@@ -243,6 +243,8 @@ const getResolutionLabel = (h?: number): string => {
                     </p>
                 </div>
 
+                <WatchSceneCopies :scene-id="scene.id" />
+
                 <div v-if="scene.file_created_at" class="flex items-center justify-between py-2.5">
                     <span class="text-dim text-[11px]">File Date</span>
                     <span class="text-muted font-mono text-[11px]">

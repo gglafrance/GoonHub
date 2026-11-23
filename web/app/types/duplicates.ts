@@ -174,3 +174,74 @@ export interface SimilarScenesResponse {
     group_status?: DuplicateGroup['status'];
     scenes: SimilarScene[];
 }
+
+// Copies recorded by the library scan (same content as a scene's file at another path),
+// triaged on the Duplicates page > Copies (GET /admin/duplicates/copies)
+export interface SceneCopyItem {
+    id: number;
+    scene_id: number;
+    stored_path: string;
+    storage_path_id: number | null;
+    size: number;
+    oshash: string;
+    created_at: string;
+    last_seen_at: string;
+    /** The last completed scan did not see the file */
+    not_seen_in_last_scan: boolean;
+}
+
+export interface SceneWithCopies {
+    scene_id: number;
+    title: string;
+    stored_path: string;
+    size: number;
+    storage_path_id: number | null;
+    thumbnail_path: string;
+    is_trashed: boolean;
+    /** The scene's main file was not found by a scan */
+    is_missing: boolean;
+    copy_count: number;
+    copies_size: number;
+    latest_copy_at: string;
+    copies: SceneCopyItem[];
+}
+
+export interface SceneCopyTotals {
+    scenes: number;
+    copies: number;
+    /** Disk space taken by the copies */
+    size: number;
+}
+
+export interface SceneCopyListResponse {
+    data: SceneWithCopies[];
+    pagination: { page: number; limit: number; total_items: number; total_pages: number };
+    totals: SceneCopyTotals;
+    last_scan_at: string | null;
+}
+
+export type SceneCopySort = 'newest' | 'size' | 'copies';
+
+export interface SceneCopyFilters {
+    storagePathId: number | null;
+    search: string;
+    /** Size bounds in MB (null: no bound) */
+    minSizeMB: number | null;
+    maxSizeMB: number | null;
+    sort: SceneCopySort;
+}
+
+export interface SceneCopyIds {
+    ids: number[];
+    total: number;
+    limit: number;
+}
+
+export interface SceneCopyBulkResult {
+    done: number[];
+    failed: { copy_id: number; error: string }[];
+    freed_bytes: number;
+}
+
+// Actions on one copy: the first three never touch a file, "delete" removes it from disk
+export type CopyAction = 'make-main' | 'separate' | 'forget' | 'delete';
