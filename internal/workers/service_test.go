@@ -1088,3 +1088,54 @@ func TestAdminMaxConcurrencyReplacesWorkerSlots(t *testing.T) {
 		t.Fatalf("register max_concurrency = %d, want 3", reg.MaxConcurrency)
 	}
 }
+
+// slowScenes advances the clock on every scene read: a server so loaded that preparing the
+// assignments of a claim takes longer than two heartbeat intervals.
+type slowScenes struct {
+	SceneStore
+	clock *fakeClock
+	delay time.Duration
+}
+
+func (s slowScenes) GetByID(id uint) (*data.Scene, error) {
+	s.clock.Advance(s.delay)
+	return s.SceneStore.GetByID(id)
+}
+
+// A lease handed over after a slow preparation is not released by a heartbeat the worker
+// sent before it received the claim response (the race seen on a loaded server).
+func TestSlowClaimPreparationKeepsTheLease(t *testing.T) {
+	e := newTestEnv(t)
+	w, token := e.worker(workerproto.Capabilities{})
+	e.pending(e.scene(""), workerproto.PhaseSprites)
+	e.svc.Scenes = slowScenes{SceneStore: e.svc.Scenes, clock: e.clock, delay: 3 * e.svc.cfg.HeartbeatInterval}
+
+	as, err := e.svc.ClaimFor(w, map[workerproto.Phase]int{"sprites": 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(as) != 1 {
+		t.Fatalf("claimed %d jobs, want 1", len(as))
+	}
+	// The worker's heartbeat crosses the claim response: it does not report the job yet.
+	e.clock.Advance(time.Second)
+	w = e.auth(token)
+	if _, err := e.svc.Heartbeat(w, workerproto.HeartbeatRequest{SessionID: w.SessionID}); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := e.svc.Leases.CheckLease(as[0].JobID, as[0].Lease.Generation, w.ID); err != nil || !ok {
+		t.Fatalf("lease released while the assignment was on its way (ok=%v, err=%v)", ok, err)
+	}
+	if !as[0].Lease.ExpiresAt.After(e.clock.Now()) {
+		t.Fatalf("assignment expiry %s is not after the hand-over", as[0].Lease.ExpiresAt)
+	}
+
+	// Never reported for longer than two intervals after the hand-over: released.
+	e.clock.Advance(3 * e.svc.cfg.HeartbeatInterval)
+	if _, err := e.svc.Heartbeat(w, workerproto.HeartbeatRequest{SessionID: w.SessionID}); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := e.svc.Leases.CheckLease(as[0].JobID, as[0].Lease.Generation, w.ID); ok {
+		t.Fatal("a lease the worker never reports is still held")
+	}
+}

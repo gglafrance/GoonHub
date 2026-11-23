@@ -615,9 +615,32 @@ func (s *Service) ClaimFor(w *data.Worker, slots map[workerproto.Phase]int) ([]w
 		}
 	}
 	if len(out) > 0 {
+		s.handOver(w, out)
 		s.logger.Debug("Leased jobs to worker", zap.Uint("worker_id", w.ID), zap.Int("count", len(out)))
 	}
 	return out, nil
+}
+
+// handOver restarts the lease clock of the assignments about to be sent: the leases were
+// taken before the assignments were prepared (database, animated thumbnail plans on the
+// media storage), which can take longer than two heartbeat intervals on a loaded server.
+// Without this, a heartbeat the worker sends meanwhile (it does not know these jobs yet)
+// would make Heartbeat release them as "not reported" while they are on their way.
+func (s *Service) handOver(w *data.Worker, out []workerproto.Assignment) {
+	now := s.now()
+	expires := now.Add(s.cfg.LeaseDuration)
+	for i := range out {
+		a := &out[i]
+		ok, err := s.Leases.RenewLease(data.LeaseRenewal{JobID: a.JobID, Generation: a.Lease.Generation,
+			WorkerID: w.ID, Now: now, ExpiresAt: expires})
+		if err != nil {
+			s.logger.Error("Failed to restart the lease clock at hand-over", zap.String("job_id", a.JobID), zap.Error(err))
+			continue
+		}
+		if ok {
+			a.Lease.ExpiresAt = expires.UTC()
+		}
+	}
 }
 
 // failClaimed fails a job right after its claim (scene missing, no metadata...), as the local
