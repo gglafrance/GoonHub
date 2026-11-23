@@ -38,6 +38,9 @@ type DuplicateGroupRepository interface {
 	ListMembersForRelationBackfill(afterID uint, limit int) ([]DuplicateMemberRelationInput, error)
 	// SetMemberRelation stores the relation of a member to its reference.
 	SetMemberRelation(memberID uint, relation string) error
+	// ListMembersWithoutSegment returns, by ascending ID after afterID, the members that have
+	// no matching segment (their segment is recomputed from the stored fingerprints).
+	ListMembersWithoutSegment(afterID uint, limit int) ([]DuplicateGroupMember, error)
 	// SetMemberDeleteAfter schedules (or cancels, with nil) the deletion of group members.
 	SetMemberDeleteAfter(groupID uint, sceneIDs []uint, deleteAfter *time.Time) error
 	// ListMembersDueForDeletion returns members whose scheduled deletion time has passed.
@@ -207,6 +210,15 @@ func (r *DuplicateGroupRepositoryImpl) ListMembersForRelationBackfill(afterID ui
 		Order("m.id ASC").
 		Limit(limit).
 		Scan(&rows).Error
+	return rows, err
+}
+
+func (r *DuplicateGroupRepositoryImpl) ListMembersWithoutSegment(afterID uint, limit int) ([]DuplicateGroupMember, error) {
+	var rows []DuplicateGroupMember
+	err := r.DB.Where("match_start IS NULL AND id > ?", afterID).
+		Order("id ASC").
+		Limit(limit).
+		Find(&rows).Error
 	return rows, err
 }
 

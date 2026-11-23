@@ -21,6 +21,13 @@ type MatchResult struct {
 	SceneID         uint
 	ConfidenceScore float64
 	MatchType       string // "audio" or "visual"
+	// Aligned segment in fingerprint positions (see matching.MatchResult): the query scene
+	// matches from QueryStart to QueryEnd, the matched scene at the same positions + Delta.
+	// It must survive the round trip through the job result: the duplicate groups store it
+	// (in seconds) as the matching segment of each member, and derive the relation from it.
+	QueryStart int
+	QueryEnd   int
+	Delta      int
 }
 
 // ResultHandler processes job results from worker pools
