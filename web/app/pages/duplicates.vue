@@ -24,6 +24,7 @@ useSeoMeta({
 const authStore = useAuthStore();
 const {
     listGroups,
+    listSelectableIds,
     getGroup,
     getStats,
     resolveGroup,
@@ -132,6 +133,21 @@ const toggleSelect = (id: number) => {
 
 const selectAllOnPage = () => {
     selectedIds.value = new Set([...selectedIds.value, ...selectableIds.value]);
+};
+
+// Every unresolved group of the current kind, on every page (the API returns at most the bulk
+// actions' limit, the newest first).
+const selectAllGroups = async () => {
+    bulkMessage.value = null;
+    try {
+        const { ids, total, limit } = await listSelectableIds(kindFilter.value);
+        selectedIds.value = new Set([...selectedIds.value, ...ids]);
+        if (total > ids.length) {
+            bulkMessage.value = `Selected the newest ${ids.length} of ${total} unresolved groups: bulk actions take at most ${limit} groups at a time`;
+        }
+    } catch (e: unknown) {
+        bulkMessage.value = e instanceof Error ? e.message : 'Failed to select the groups';
+    }
 };
 
 const clearSelection = () => {
@@ -444,10 +460,12 @@ onMounted(() => {
             v-if="!loading && groups.length > 0"
             :selected-count="selectedIds.size"
             :selectable-count="selectableIds.length"
+            :kind-filtered="!!kindFilter"
             :busy="bulkBusy"
             :deletion-enabled="dupConfig?.delete_resolved_files ?? false"
             :deletion-delay-hours="dupConfig?.deletion_delay_hours ?? 0"
             @select-all="selectAllOnPage"
+            @select-all-groups="selectAllGroups"
             @clear="clearSelection"
             @auto-select="handleAutoSelect([...selectedIds])"
             @auto-resolve="showBulkConfirm = true"

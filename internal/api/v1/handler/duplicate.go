@@ -59,6 +59,23 @@ func (h *DuplicateHandler) ListGroups(c *gin.Context) {
 	response.OK(c, response.NewPaginatedResponse(respGroups, page, limit, total))
 }
 
+// SelectableIDs returns the IDs of the unresolved groups of a kind, for "select all": at most
+// the bulk actions' maximum, with the total.
+// GET /admin/duplicates/selectable-ids?kind= -> {"ids": [...], "total": n, "limit": 500}
+func (h *DuplicateHandler) SelectableIDs(c *gin.Context) {
+	kind := c.Query("kind")
+	if kind != "" && !core.IsValidDuplicateKind(kind) {
+		response.BadRequest(c, "kind must be one of identical, containment, partial, unverified")
+		return
+	}
+	ids, total, err := h.duplicateService.SelectableGroupIDs(kind, maxBulkDuplicateGroups)
+	if err != nil {
+		response.InternalError(c, "Failed to list duplicate groups")
+		return
+	}
+	response.OK(c, gin.H{"ids": ids, "total": total, "limit": maxBulkDuplicateGroups})
+}
+
 // GetGroup returns a single duplicate group with full details
 func (h *DuplicateHandler) GetGroup(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
