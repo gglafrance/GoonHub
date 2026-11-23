@@ -31,11 +31,22 @@ const Filter = "fps=1/2,scale=9:8,format=gray"
 
 // DefaultArgs returns the ffmpeg arguments ExtractDHashesWithContext runs: software decode,
 // 9x8 grayscale raw frames on stdout.
+//
+// The decoder runs on a single thread: hashing jobs run several at a time, and the threads of
+// a frame-threaded decoder mostly add synchronisation overhead. Measured on 51 real videos
+// (7 h, H.264 SD to 4K, HEVC, AV1, MPEG-4, WMV) this cuts the CPU time by 36 % (x1.3 to x2.3
+// per file, AV1 and MPEG-4 the most) and the hashes are bit-identical, so nothing indexed
+// changes. Each job takes about twice as long on its own: the gain is throughput.
+// export_side_data film_grain makes AV1 decoders export the film grain parameters instead of
+// synthesizing the grain (display-only noise, irrelevant at 9x8; -8 % CPU on AV1, no effect
+// on other codecs).
 func DefaultArgs(videoPath string) []string {
 	return []string{
 		"-nostdin",
 		"-skip_loop_filter", "all",
 		"-skip_frame", "noref",
+		"-threads", "1",
+		"-export_side_data", "film_grain",
 		"-i", videoPath,
 		"-an", "-sn", "-dn",
 		"-vf", Filter,
