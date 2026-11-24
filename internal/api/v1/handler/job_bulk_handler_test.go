@@ -29,7 +29,7 @@ func newTestJobBulkRouter(t *testing.T, role string) (*gin.Engine, *mocks.MockJo
 	}
 	poolManager := processing.NewPoolManager(cfg, zap.NewNop(), nil, nil, nil)
 	feeder := core.NewJobQueueFeeder(repo, mocks.NewMockSceneRepository(ctrl), nil, nil, poolManager, false, nil, zap.NewNop())
-	h := NewJobHandler(core.NewJobHistoryService(repo, cfg, zap.NewNop()), nil, feeder)
+	h := NewJobHandler(core.NewJobHistoryService(repo, cfg, zap.NewNop()), nil, feeder, nil)
 
 	r := gin.New()
 	r.Use(func(c *gin.Context) {

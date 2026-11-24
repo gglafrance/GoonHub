@@ -189,5 +189,6 @@ func TestFeeder_StuckPendingRecoverySkipsWindowedPhases(t *testing.T) {
 
 	jobRepo.EXPECT().MarkOrphanedRunningAsFailed(gomock.Any()).Return(int64(0), nil)
 	jobRepo.EXPECT().MarkStuckPendingJobsAsFailed(gomock.Any(), []string{"sprites", "fingerprint"}).Return(int64(0), nil)
+	jobRepo.EXPECT().RequeueInterruptedJobs().Return(int64(0), nil)
 	feeder.recoverOrphanedJobs()
 }

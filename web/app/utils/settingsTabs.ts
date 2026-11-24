@@ -62,6 +62,7 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
             { id: 'triggers', label: 'Triggers' },
             { id: 'retry', label: 'Retry' },
             { id: 'dlq', label: 'DLQ' },
+            { id: 'failing', label: 'Failing' },
         ],
     },
     { id: 'storage', label: 'Storage', icon: 'heroicons:folder', admin: true },

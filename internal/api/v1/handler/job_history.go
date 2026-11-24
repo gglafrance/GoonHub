@@ -18,6 +18,7 @@ type JobHandler struct {
 	jobHistoryService *core.JobHistoryService
 	processingService *core.SceneProcessingService
 	jobQueueFeeder    *core.JobQueueFeeder
+	failures          *core.SceneFailureService
 }
 
 // NewJobHandler creates a new JobHandler
@@ -25,11 +26,13 @@ func NewJobHandler(
 	jobHistoryService *core.JobHistoryService,
 	processingService *core.SceneProcessingService,
 	jobQueueFeeder *core.JobQueueFeeder,
+	failures *core.SceneFailureService,
 ) *JobHandler {
 	return &JobHandler{
 		jobHistoryService: jobHistoryService,
 		processingService: processingService,
 		jobQueueFeeder:    jobQueueFeeder,
+		failures:          failures,
 	}
 }
 
@@ -146,10 +149,11 @@ func (h *JobHandler) TriggerPhase(c *gin.Context) {
 // TriggerBulkPhase triggers a processing phase for multiple scenes
 func (h *JobHandler) TriggerBulkPhase(c *gin.Context) {
 	var req struct {
-		Phase       string `json:"phase"`
-		Mode        string `json:"mode"`
-		ForceTarget string `json:"force_target"`
-		SceneIDs    []uint `json:"scene_ids"`
+		Phase          string `json:"phase"`
+		Mode           string `json:"mode"`
+		ForceTarget    string `json:"force_target"`
+		SceneIDs       []uint `json:"scene_ids"`
+		IncludeFailing bool   `json:"include_failing"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
@@ -182,7 +186,7 @@ func (h *JobHandler) TriggerBulkPhase(c *gin.Context) {
 		return
 	}
 
-	result, err := h.processingService.SubmitBulkPhase(req.Phase, req.Mode, req.ForceTarget, req.SceneIDs)
+	result, err := h.processingService.SubmitBulkPhase(req.Phase, req.Mode, req.ForceTarget, req.SceneIDs, req.IncludeFailing)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if req.Phase == "fingerprint" && !h.processingService.IsDuplicationEnabled() {
@@ -194,9 +198,10 @@ func (h *JobHandler) TriggerBulkPhase(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":   fmt.Sprintf("Bulk %s phase triggered (%s mode)", req.Phase, req.Mode),
-		"submitted": result.Submitted,
-		"skipped":   result.Skipped,
-		"errors":    result.Errors,
+		"submitted":       result.Submitted,
+		"skipped":         result.Skipped,
+		"skipped_failing": result.SkippedFailing,
+		"errors":          result.Errors,
 	})
 }
 

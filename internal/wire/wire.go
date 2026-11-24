@@ -66,6 +66,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideTriggerConfigRepository,
 		provideDLQRepository,
 		provideRetryConfigRepository,
+		provideScenePhaseFailureRepository,
 
 		// Storage & Scan Repositories
 		provideStoragePathRepository,
@@ -143,6 +144,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideTriggerScheduler,
 		provideRetryScheduler,
 		provideDLQService,
+		provideSceneFailureService,
 
 		// Storage & Scan Services
 		provideStoragePathService,
@@ -354,6 +356,10 @@ func provideDLQRepository(db *gorm.DB) data.DLQRepository {
 	return data.NewDLQRepository(db)
 }
 
+func provideScenePhaseFailureRepository(db *gorm.DB) data.ScenePhaseFailureRepository {
+	return data.NewScenePhaseFailureRepository(db)
+}
+
 func provideRetryConfigRepository(db *gorm.DB) data.RetryConfigRepository {
 	return data.NewRetryConfigRepository(db)
 }
@@ -524,16 +530,25 @@ func provideRelatedScenesService(
 
 // --- Processing & Job Services ---
 
-func provideSceneProcessingService(repo data.SceneRepository, markerService *core.MarkerService, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository) *core.SceneProcessingService {
+func provideSceneProcessingService(repo data.SceneRepository, markerService *core.MarkerService, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository, failures *core.SceneFailureService) *core.SceneProcessingService {
 	svc := core.NewSceneProcessingService(repo, markerService, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo, triggerConfigRepo, &cfg.Duplication)
+	// "missing" runs skip the failing scenes; the Retry action of the Failing view queues here
+	svc.SetFailingChecker(failures)
+	failures.SetSubmitter(svc)
 	// The pool manager has merged the DB-persisted config over the file config; hand the
 	// preview settings to the marker service too, or a restart reverts them to the file defaults
 	markerService.ApplyQualityConfig(svc.GetProcessingQualityConfig())
 	return svc
 }
 
-func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config, logger *logging.Logger) *core.JobHistoryService {
-	return core.NewJobHistoryService(repo, cfg.Processing, logger.Logger)
+func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config, logger *logging.Logger, failures *core.SceneFailureService) *core.JobHistoryService {
+	svc := core.NewJobHistoryService(repo, cfg.Processing, logger.Logger)
+	svc.SetFailureTracker(failures)
+	return svc
+}
+
+func provideSceneFailureService(repo data.ScenePhaseFailureRepository, sceneRepo data.SceneRepository, cfg *config.Config, logger *logging.Logger) *core.SceneFailureService {
+	return core.NewSceneFailureService(repo, sceneRepo, cfg.Processing, logger.Logger)
 }
 
 func provideJobStatusService(jobHistoryService *core.JobHistoryService, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobStatusService {
@@ -555,8 +570,10 @@ func provideTriggerScheduler(triggerConfigRepo data.TriggerConfigRepository, sce
 	return core.NewTriggerScheduler(triggerConfigRepo, sceneRepo, processingService, logger.Logger)
 }
 
-func provideRetryScheduler(jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, retryConfigRepo data.RetryConfigRepository, sceneRepo data.SceneRepository, eventBus *core.EventBus, logger *logging.Logger) *core.RetryScheduler {
-	return core.NewRetryScheduler(jobHistoryRepo, dlqRepo, retryConfigRepo, sceneRepo, eventBus, logger.Logger)
+func provideRetryScheduler(jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, retryConfigRepo data.RetryConfigRepository, sceneRepo data.SceneRepository, eventBus *core.EventBus, logger *logging.Logger, failures *core.SceneFailureService) *core.RetryScheduler {
+	rs := core.NewRetryScheduler(jobHistoryRepo, dlqRepo, retryConfigRepo, sceneRepo, eventBus, logger.Logger)
+	rs.SetFailingChecker(failures)
+	return rs
 }
 
 func provideDLQService(dlqRepo data.DLQRepository, jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, eventBus *core.EventBus, logger *logging.Logger) *core.DLQService {
@@ -794,8 +811,8 @@ func provideWatchHistoryHandler(service *core.WatchHistoryService, heatmapServic
 
 // --- Job & Processing Handlers ---
 
-func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.SceneProcessingService, jobQueueFeeder *core.JobQueueFeeder) *handler.JobHandler {
-	return handler.NewJobHandler(jobHistoryService, processingService, jobQueueFeeder)
+func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.SceneProcessingService, jobQueueFeeder *core.JobQueueFeeder, failures *core.SceneFailureService) *handler.JobHandler {
+	return handler.NewJobHandler(jobHistoryService, processingService, jobQueueFeeder, failures)
 }
 
 func providePoolConfigHandler(processingService *core.SceneProcessingService, poolConfigRepo data.PoolConfigRepository, schedulingService *core.JobSchedulingService) *handler.PoolConfigHandler {

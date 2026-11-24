@@ -48,11 +48,13 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	markerService := provideMarkerService(markerRepository, sceneRepository, tagRepository, configConfig, logger)
 	eventBus := provideEventBus(logger)
 	jobHistoryRepository := provideJobHistoryRepository(db)
-	jobHistoryService := provideJobHistoryService(jobHistoryRepository, configConfig, logger)
+	scenePhaseFailureRepository := provideScenePhaseFailureRepository(db)
+	sceneFailureService := provideSceneFailureService(scenePhaseFailureRepository, sceneRepository, configConfig, logger)
+	jobHistoryService := provideJobHistoryService(jobHistoryRepository, configConfig, logger, sceneFailureService)
 	poolConfigRepository := providePoolConfigRepository(db)
 	processingConfigRepository := provideProcessingConfigRepository(db)
 	triggerConfigRepository := provideTriggerConfigRepository(db)
-	sceneProcessingService := provideSceneProcessingService(sceneRepository, markerService, configConfig, logger, eventBus, jobHistoryService, poolConfigRepository, processingConfigRepository, triggerConfigRepository)
+	sceneProcessingService := provideSceneProcessingService(sceneRepository, markerService, configConfig, logger, eventBus, jobHistoryService, poolConfigRepository, processingConfigRepository, triggerConfigRepository, sceneFailureService)
 	dlqRepository := provideDLQRepository(db)
 	appSettingsRepository := provideAppSettingsRepository(db)
 	client, err := provideClickHouseClient(configConfig, logger)
@@ -102,7 +104,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	jobScheduleRepository := provideJobScheduleRepository(db)
 	jobSchedulingService := provideJobSchedulingService(jobScheduleRepository, sceneProcessingService, jobHistoryRepository, logger)
 	jobQueueFeeder := provideJobQueueFeeder(jobHistoryRepository, sceneRepository, markerService, sceneProcessingService, duplicationConfigRepository, jobSchedulingService, eventBus, configConfig, logger)
-	jobHandler := provideJobHandler(jobHistoryService, sceneProcessingService, jobQueueFeeder)
+	jobHandler := provideJobHandler(jobHistoryService, sceneProcessingService, jobQueueFeeder, sceneFailureService)
 	poolConfigHandler := providePoolConfigHandler(sceneProcessingService, poolConfigRepository, jobSchedulingService)
 	processingConfigHandler := provideProcessingConfigHandler(sceneProcessingService, processingConfigRepository, markerService)
 	triggerScheduler := provideTriggerScheduler(triggerConfigRepository, sceneRepository, sceneProcessingService, logger)
@@ -110,7 +112,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	dlqService := provideDLQService(dlqRepository, jobHistoryRepository, sceneRepository, eventBus, logger)
 	dlqHandler := provideDLQHandler(dlqService)
 	retryConfigRepository := provideRetryConfigRepository(db)
-	retryScheduler := provideRetryScheduler(jobHistoryRepository, dlqRepository, retryConfigRepository, sceneRepository, eventBus, logger)
+	retryScheduler := provideRetryScheduler(jobHistoryRepository, dlqRepository, retryConfigRepository, sceneRepository, eventBus, logger, sceneFailureService)
 	retryConfigHandler := provideRetryConfigHandler(retryConfigRepository, retryScheduler)
 	jobStatusService := provideJobStatusService(jobHistoryService, sceneProcessingService, logger)
 	sseHandler := provideSSEHandler(eventBus, authService, jobStatusService, logger)
@@ -251,6 +253,10 @@ func provideTriggerConfigRepository(db *gorm.DB) data.TriggerConfigRepository {
 
 func provideDLQRepository(db *gorm.DB) data.DLQRepository {
 	return data.NewDLQRepository(db)
+}
+
+func provideScenePhaseFailureRepository(db *gorm.DB) data.ScenePhaseFailureRepository {
+	return data.NewScenePhaseFailureRepository(db)
 }
 
 func provideRetryConfigRepository(db *gorm.DB) data.RetryConfigRepository {
@@ -405,15 +411,24 @@ func provideRelatedScenesService(
 	return core.NewRelatedScenesService(sceneRepo, tagRepo, actorRepo, studioRepo, actorInteractionRepo, studioInteractionRepo, watchHistoryRepo, logger.Logger)
 }
 
-func provideSceneProcessingService(repo data.SceneRepository, markerService *core.MarkerService, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository) *core.SceneProcessingService {
+func provideSceneProcessingService(repo data.SceneRepository, markerService *core.MarkerService, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository, failures *core.SceneFailureService) *core.SceneProcessingService {
 	svc := core.NewSceneProcessingService(repo, markerService, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo, triggerConfigRepo, &cfg.Duplication)
+
+	svc.SetFailingChecker(failures)
+	failures.SetSubmitter(svc)
 
 	markerService.ApplyQualityConfig(svc.GetProcessingQualityConfig())
 	return svc
 }
 
-func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config, logger *logging.Logger) *core.JobHistoryService {
-	return core.NewJobHistoryService(repo, cfg.Processing, logger.Logger)
+func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config, logger *logging.Logger, failures *core.SceneFailureService) *core.JobHistoryService {
+	svc := core.NewJobHistoryService(repo, cfg.Processing, logger.Logger)
+	svc.SetFailureTracker(failures)
+	return svc
+}
+
+func provideSceneFailureService(repo data.ScenePhaseFailureRepository, sceneRepo data.SceneRepository, cfg *config.Config, logger *logging.Logger) *core.SceneFailureService {
+	return core.NewSceneFailureService(repo, sceneRepo, cfg.Processing, logger.Logger)
 }
 
 func provideJobStatusService(jobHistoryService *core.JobHistoryService, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobStatusService {
@@ -435,8 +450,10 @@ func provideTriggerScheduler(triggerConfigRepo data.TriggerConfigRepository, sce
 	return core.NewTriggerScheduler(triggerConfigRepo, sceneRepo, processingService, logger.Logger)
 }
 
-func provideRetryScheduler(jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, retryConfigRepo data.RetryConfigRepository, sceneRepo data.SceneRepository, eventBus *core.EventBus, logger *logging.Logger) *core.RetryScheduler {
-	return core.NewRetryScheduler(jobHistoryRepo, dlqRepo, retryConfigRepo, sceneRepo, eventBus, logger.Logger)
+func provideRetryScheduler(jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, retryConfigRepo data.RetryConfigRepository, sceneRepo data.SceneRepository, eventBus *core.EventBus, logger *logging.Logger, failures *core.SceneFailureService) *core.RetryScheduler {
+	rs := core.NewRetryScheduler(jobHistoryRepo, dlqRepo, retryConfigRepo, sceneRepo, eventBus, logger.Logger)
+	rs.SetFailingChecker(failures)
+	return rs
 }
 
 func provideDLQService(dlqRepo data.DLQRepository, jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, eventBus *core.EventBus, logger *logging.Logger) *core.DLQService {
@@ -648,8 +665,8 @@ func provideWatchHistoryHandler(service *core.WatchHistoryService, heatmapServic
 	return handler.NewWatchHistoryHandler(service, heatmapService).WithCardData(markerService, interactionRepo, tagRepo, actorRepo)
 }
 
-func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.SceneProcessingService, jobQueueFeeder *core.JobQueueFeeder) *handler.JobHandler {
-	return handler.NewJobHandler(jobHistoryService, processingService, jobQueueFeeder)
+func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.SceneProcessingService, jobQueueFeeder *core.JobQueueFeeder, failures *core.SceneFailureService) *handler.JobHandler {
+	return handler.NewJobHandler(jobHistoryService, processingService, jobQueueFeeder, failures)
 }
 
 func providePoolConfigHandler(processingService *core.SceneProcessingService, poolConfigRepo data.PoolConfigRepository, schedulingService *core.JobSchedulingService) *handler.PoolConfigHandler {

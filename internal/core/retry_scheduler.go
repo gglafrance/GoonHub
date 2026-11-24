@@ -21,6 +21,7 @@ type RetryScheduler struct {
 	logger            *zap.Logger
 	processingService *SceneProcessingService
 	jobHistoryService *JobHistoryService
+	failing           RetryFailingChecker
 
 	configCache   map[string]data.RetryConfigRecord
 	configCacheMu sync.RWMutex
@@ -47,6 +48,17 @@ func NewRetryScheduler(
 		logger:          logger.With(zap.String("component", "retry_scheduler")),
 		configCache:     make(map[string]data.RetryConfigRecord),
 	}
+}
+
+// RetryFailingChecker tells whether a (scene, phase) is failing (implemented by
+// SceneFailureService): its automatic retries are dropped.
+type RetryFailingChecker interface {
+	IsFailing(sceneID uint, phase string) (bool, error)
+}
+
+// SetFailingChecker sets what tells the failing (scene, phase). Must be called before Start.
+func (rs *RetryScheduler) SetFailingChecker(checker RetryFailingChecker) {
+	rs.failing = checker
 }
 
 // SetProcessingService sets the scene processing service for resubmitting jobs.
@@ -285,6 +297,24 @@ func (rs *RetryScheduler) processRetries() {
 
 // retryJob resubmits a single job for retry.
 func (rs *RetryScheduler) retryJob(job data.JobHistory) {
+	// A (scene, phase) failing on an unchanged file is not retried automatically
+	if rs.failing != nil {
+		failing, err := rs.failing.IsFailing(job.SceneID, job.Phase)
+		if err != nil {
+			rs.logger.Warn("Failed to check whether the scene phase is failing", zap.String("job_id", job.JobID), zap.Error(err))
+		} else if failing {
+			if err := rs.jobHistoryRepo.MarkNotRetryable(job.JobID); err != nil {
+				rs.logger.Warn("Failed to mark failing job as not retryable", zap.String("job_id", job.JobID), zap.Error(err))
+			}
+			rs.logger.Info("Retry dropped, scene phase failing",
+				zap.String("job_id", job.JobID),
+				zap.Uint("scene_id", job.SceneID),
+				zap.String("phase", job.Phase),
+			)
+			return
+		}
+	}
+
 	if rs.processingService == nil {
 		rs.logger.Error("Processing service not set, cannot retry job", zap.String("job_id", job.JobID))
 		return

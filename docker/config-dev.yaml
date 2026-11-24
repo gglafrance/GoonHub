@@ -81,6 +81,7 @@ processing:
   job_history_failed_retention: "90d"   # failed and timed out jobs ("0" = keep forever)
   job_history_purge_interval: 1h
   job_history_purge_batch_size: 5000
+  failing_threshold: 3                 # failures in a row on an unchanged file before "missing" runs and auto retries skip it (0 = never)
   metadata_timeout: 5m
   thumbnail_timeout: 2m
   sprites_timeout: 30m

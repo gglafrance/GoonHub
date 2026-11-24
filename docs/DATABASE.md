@@ -808,6 +808,7 @@ Processing job records for the worker pool system.
 | `started_at` | TIMESTAMPTZ | NO | NOW() | Job start timestamp |
 | `completed_at` | TIMESTAMPTZ | YES | NULL | Job completion timestamp |
 | `created_at` | TIMESTAMPTZ | NO | NOW() | Record creation timestamp |
+| `startup_requeues` | INTEGER | NO | 0 | Times the job was put back to pending at startup after an interruption while it ran (migration 092) |
 
 **Valid `phase` values:** `metadata`, `thumbnail`, `sprites`, `scan`
 
@@ -820,6 +821,44 @@ Processing job records for the worker pool system.
 - `idx_job_history_next_retry` on `next_retry_at` WHERE next_retry_at IS NOT NULL AND status = 'failed'
 - `idx_job_history_pending_poll` on `(phase, priority DESC, created_at ASC)` WHERE status = 'pending'
 - `idx_job_history_scene_phase_active` UNIQUE on `(scene_id, phase)` WHERE status IN ('pending', 'running')
+- `idx_job_history_scene_phase_created` on `(scene_id, phase, created_at)` (latest job of a (scene, phase), startup re-queue)
+
+**Startup re-queue (migration 092):** at startup, after the orphan and stuck pending recovery, the
+failed jobs the previous run interrupted (`error_message` "Job interrupted by server shutdown",
+"Orphaned job recovered after server restart" or "Stuck pending job recovered after server
+restart") go back to `pending`, with their retry count, priority and `created_at` kept. Only the
+latest job of its (scene, phase), never when the pair has an active job, never when
+`is_retryable` is false (retried by hand) or the scene is deleted or in the trash. A job that ran
+is put back once (`startup_requeues`): interrupted again, it stays failed. During the shutdown, the
+jobs that fail or are cancelled are recorded with the shutdown message.
+
+---
+
+### `scene_phase_failures`
+
+Consecutive failures of a processing phase on a scene (migration 092). A job failure of the
+phase adds one (shutdown interruptions and cancellations do not count), a success deletes the
+row. When the file changed (size or modification time) since the last failure, the counter
+restarts at 1. A (scene, phase) is **failing** when `failures` >= `processing.failing_threshold`
+(default 3, 0 = never) and the file still has `file_size` and `file_mod_time`: the "missing" bulk
+runs (unless `include_failing`) and the automatic retries skip it. Listed, retried and cleared in
+Settings > Jobs > Failing (`/api/v1/admin/jobs/failing`). Bookkeeping only, no file is touched.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `scene_id` | BIGINT | NO | - | FK to `scenes.id` (ON DELETE CASCADE) |
+| `phase` | VARCHAR(30) | NO | - | Processing phase |
+| `failures` | INTEGER | NO | 1 | Failures in a row |
+| `last_error` | TEXT | NO | '' | Error of the last failure |
+| `last_failed_at` | TIMESTAMPTZ | NO | NOW() | Date of the last failure |
+| `file_size` | BIGINT | YES | NULL | File size at the last failure (NULL: file unreadable) |
+| `file_mod_time` | TIMESTAMPTZ | YES | NULL | File modification time at the last failure (microseconds) |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | First failure of the streak |
+
+**Indexes:**
+- `uq_scene_phase_failures_scene_phase` UNIQUE on `(scene_id, phase)`
+- `idx_scene_phase_failures_phase_failures` on `(phase, failures)`
 
 ---
 

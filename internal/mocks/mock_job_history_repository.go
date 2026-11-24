@@ -411,6 +411,21 @@ func (mr *MockJobHistoryRepositoryMockRecorder) PurgeFinishedBatch(statuses, bef
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PurgeFinishedBatch", reflect.TypeOf((*MockJobHistoryRepository)(nil).PurgeFinishedBatch), statuses, before, limit)
 }
 
+// RequeueInterruptedJobs mocks base method.
+func (m *MockJobHistoryRepository) RequeueInterruptedJobs() (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RequeueInterruptedJobs")
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RequeueInterruptedJobs indicates an expected call of RequeueInterruptedJobs.
+func (mr *MockJobHistoryRepositoryMockRecorder) RequeueInterruptedJobs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RequeueInterruptedJobs", reflect.TypeOf((*MockJobHistoryRepository)(nil).RequeueInterruptedJobs))
+}
+
 // ResetJobsToPending mocks base method.
 func (m *MockJobHistoryRepository) ResetJobsToPending(jobIDs []string) (int64, error) {
 	m.ctrl.T.Helper()
