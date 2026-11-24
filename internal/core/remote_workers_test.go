@@ -59,6 +59,7 @@ func TestStuckPendingRecoverySkipsRemoteOnlyPhases(t *testing.T) {
 	feeder.SetPhaseRouter(testRouter{remoteOnly: map[string]bool{"fingerprint": true}})
 	repo.EXPECT().MarkOrphanedRunningAsFailed(gomock.Any()).Return(int64(0), nil)
 	repo.EXPECT().MarkStuckPendingJobsAsFailed(gomock.Any(), []string{"fingerprint"}).Return(int64(0), nil)
+	repo.EXPECT().RequeueInterruptedJobs().Return(int64(0), nil)
 	feeder.recoverOrphanedJobs()
 }
 

@@ -177,6 +177,9 @@ func TestTranscodeScene_CachedHeadAlignsTranscodeStart(t *testing.T) {
 	if got.Code != http.StatusOK {
 		t.Fatalf("GET: %d", got.Code)
 	}
+	// The conversion keeps writing the cache after the response: let it end before the
+	// TempDir cleanup.
+	f.waitIdle(t)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if len(f.runs) != 1 || f.runs[0] != 124 {
