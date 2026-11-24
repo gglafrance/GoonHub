@@ -40,6 +40,17 @@ type JobHistory struct {
 	IsRetryable  bool       `gorm:"not null;default:true" json:"is_retryable"`
 	Priority     int        `gorm:"not null;default:0" json:"priority"`
 	ForceTarget  string     `gorm:"not null;size:20;default:''" json:"force_target"`
+
+	// Remote worker lease (docs/REMOTE_WORKERS.md). WorkerID is NULL for local jobs.
+	WorkerID                *uint      `gorm:"column:worker_id" json:"worker_id,omitempty"`
+	LeaseGeneration         int64      `gorm:"not null;default:0" json:"lease_generation"`
+	LeaseExpiresAt          *time.Time `json:"lease_expires_at,omitempty"`
+	LastHeartbeatAt         *time.Time `json:"last_heartbeat_at,omitempty"`
+	CommittedGeneration     *int64     `json:"committed_generation,omitempty"`
+	CommitStartedGeneration *int64     `json:"-"`
+	InputMode               *string    `gorm:"size:10" json:"input_mode,omitempty"`
+	WorkerStage             *string    `gorm:"size:20" json:"worker_stage,omitempty"`
+	LeaseParams             []byte     `gorm:"type:jsonb" json:"-"`
 }
 
 func (JobHistory) TableName() string {

@@ -808,9 +808,18 @@ Processing job records for the worker pool system.
 | `started_at` | TIMESTAMPTZ | NO | NOW() | Job start timestamp |
 | `completed_at` | TIMESTAMPTZ | YES | NULL | Job completion timestamp |
 | `created_at` | TIMESTAMPTZ | NO | NOW() | Record creation timestamp |
+| `worker_id` | BIGINT | YES | NULL | FK to `workers.id` (ON DELETE SET NULL): remote worker holding (or that held) the lease; NULL = local job (migration 088) |
+| `lease_generation` | BIGINT | NO | 0 | Fencing token of the remote lease: + 1 on every claim, expiry, release and cancel of a remote lease |
+| `lease_expires_at` | TIMESTAMPTZ | YES | NULL | Remote lease expiry (renewed by heartbeats) |
+| `last_heartbeat_at` | TIMESTAMPTZ | YES | NULL | Last heartbeat of the lease (set at claim) |
+| `committed_generation` | BIGINT | YES | NULL | Generation whose complete was committed (idempotent complete) |
+| `commit_started_generation` | BIGINT | YES | NULL | Generation whose commit started (fingerprint indexed at most once) |
+| `input_mode` | VARCHAR(10) | YES | NULL | `direct` or `indirect`, reported by the worker |
+| `worker_stage` | VARCHAR(20) | YES | NULL | `downloading`, `computing`, `uploading`, `completing`, reported by the worker |
+| `lease_params` | JSONB | YES | NULL | Phase parameters prepared at claim; the complete is validated against them |
 | `startup_requeues` | INTEGER | NO | 0 | Times the job was put back to pending at startup after an interruption while it ran (migration 092) |
 
-**Valid `phase` values:** `metadata`, `thumbnail`, `sprites`, `scan`
+**Valid `phase` values:** `metadata`, `thumbnail`, `sprites`, `animated_thumbnails`, `fingerprint`, `scan`
 
 **Valid `status` values:** `pending`, `running`, `completed`, `failed`
 
@@ -821,6 +830,8 @@ Processing job records for the worker pool system.
 - `idx_job_history_next_retry` on `next_retry_at` WHERE next_retry_at IS NOT NULL AND status = 'failed'
 - `idx_job_history_pending_poll` on `(phase, priority DESC, created_at ASC)` WHERE status = 'pending'
 - `idx_job_history_scene_phase_active` UNIQUE on `(scene_id, phase)` WHERE status IN ('pending', 'running')
+- `idx_job_history_remote_lease_expiry` on `lease_expires_at` WHERE status = 'running' AND worker_id IS NOT NULL (expiry sweep)
+- `idx_job_history_worker_id` on `(worker_id, status)` WHERE worker_id IS NOT NULL
 - `idx_job_history_scene_phase_created` on `(scene_id, phase, created_at)` (latest job of a (scene, phase), startup re-queue)
 
 **Startup re-queue (migration 092):** at startup, after the orphan and stuck pending recovery, the
@@ -831,6 +842,57 @@ latest job of its (scene, phase), never when the pair has an active job, never w
 `is_retryable` is false (retried by hand) or the scene is deleted or in the trash. A job that ran
 is put back once (`startup_requeues`): interrupted again, it stays failed. During the shutdown, the
 jobs that fail or are cancelled are recorded with the shutdown message.
+
+The attempt of a job (remote workers) is its `retry_count`. See `docs/REMOTE_WORKERS.md`
+section 6 for the lease state machine.
+
+---
+
+### `workers`
+
+Remote workers (goonhub-worker), migration 088. The token itself is never stored.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key (part of the token `ghw_<id>_<secret>`) |
+| `name` | VARCHAR(100) | NO | - | Display name |
+| `token_hash` | VARCHAR(64) | YES | NULL | sha256 hex of the token; NULL = revoked |
+| `enabled` | BOOLEAN | NO | true | Disabled workers are refused (403) |
+| `draining` | BOOLEAN | NO | false | Admin asked the worker to stop claiming |
+| `connection_mode` | VARCHAR(10) | NO | 'pull' | `pull` or `push` (CHECK) |
+| `push_url` | VARCHAR(500) | NO | '' | Push endpoint of the worker |
+| `push_token` | VARCHAR(200) | NO | '' | Secret the server sends to the push worker (given by the worker at register) |
+| `session_id` | VARCHAR(64) | NO | '' | Current session (register) |
+| `server_url` | VARCHAR(500) | NO | '' | Base URL the worker used (signed media URLs) |
+| `capabilities` | JSONB | NO | '{}' | `workerproto.Capabilities` (phases, slots, input modes, accel...) |
+| `path_mappings` | JSONB | NO | '[]' | Verified server prefix -> local mount mappings |
+| `allowed_phases` | TEXT[] | NO | all three | Phases the admin allows |
+| `max_concurrency` | INTEGER | NO | 0 | Jobs held at once across phases (0 = the worker's own slots, CHECK >= 0) |
+| `version`, `hostname`, `os`, `arch` | VARCHAR | NO | '' | Reported at register |
+| `free_disk_bytes` | BIGINT | NO | 0 | Reported by heartbeats |
+| `worker_draining` | BOOLEAN | NO | false | The worker said it is shutting down |
+| `last_seen_at` | TIMESTAMPTZ | YES | NULL | Last call or push status (online/offline is computed from it) |
+| `registered_at` | TIMESTAMPTZ | YES | NULL | Last register |
+| `jobs_completed`, `jobs_failed`, `leases_expired`, `leases_released` | BIGINT | NO | 0 | Counters |
+| `last_error` | TEXT | NO | '' | Last failure reported or push error |
+| `last_error_at` | TIMESTAMPTZ | YES | NULL | |
+| `created_at`, `updated_at` | TIMESTAMPTZ | NO | NOW() | |
+
+**Indexes:**
+- `idx_workers_token_hash` UNIQUE on `token_hash` WHERE token_hash IS NOT NULL
+
+---
+
+### `worker_settings`
+
+Remote worker settings (singleton table, migration 088).
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | INTEGER | NO | 1 | Primary key (always 1, CHECK) |
+| `media_secret` | VARCHAR(128) | NO | '' | HMAC secret of the signed media URLs, generated at the first start (unless `workers.media_secret` is set) |
+| `phase_routing` | JSONB | NO | '{}' | Admin routing overrides: `{"sprites": "local" \| "remote" \| "both"}` |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | |
 
 ---
 
@@ -1486,6 +1548,7 @@ Configuration tables use `id = 1` with CHECK constraint:
 - `job_schedule_config`
 - `app_settings`
 - `search_config`
+- `worker_settings`
 
 Use `INSERT ... ON CONFLICT DO UPDATE` or `UPDATE WHERE id = 1`.
 
@@ -1527,4 +1590,5 @@ The `job_history` table serves as a persistent job queue:
 4. Priority ordering: `priority DESC, created_at ASC`; with "new scenes first" (`job_schedule_config`), jobs of scenes created recently come right after the higher priorities: `priority DESC, (scene created recently) DESC, created_at ASC`
 5. A phase outside its time window (`job_phase_schedules`) claims nothing; its pending jobs stay pending and are not failed by the startup stuck-pending recovery
 6. Bulk cancel (`POST /admin/jobs/cancel-bulk`): one `UPDATE` sets every pending job of the phase(s) to `cancelled` (`is_retryable = false`) while the feeder of those phases is held, then the jobs claimed but not started (rows `running`, still in a worker pool queue) are taken out of the queue and set to `cancelled` too
-7. History purge: finished rows are deleted by `id` batches (`processing.job_history_purge_batch_size`, default 5000 rows per `DELETE`), `completed`/`cancelled` after `processing.job_history_retention` (default 30d) and `failed`/`timed_out` after `processing.job_history_failed_retention` (default 90d), by `started_at`. `pending` and `running` rows, failed rows with a retry still scheduled (`next_retry_at`), `dead_letter_queue` and other tables are never touched
+7. Remote workers (`docs/REMOTE_WORKERS.md`): a worker claims with the same `FOR UPDATE SKIP LOCKED` statement shape (plus scene affinity, path prefixes and the no-audio filter), sets `worker_id`, `lease_generation + 1` and `lease_expires_at`. Every worker call is a compare-and-set on `(job_id, lease_generation, worker_id, status = 'running')`. Expired leases go back to pending with `retry_count + 1` (or fail when the retries are exhausted). The orphan recovery, the shutdown interruption and the reset to pending only touch `worker_id IS NULL` rows
+8. History purge: finished rows are deleted by `id` batches (`processing.job_history_purge_batch_size`, default 5000 rows per `DELETE`), `completed`/`cancelled` after `processing.job_history_retention` (default 30d) and `failed`/`timed_out` after `processing.job_history_failed_retention` (default 90d), by `started_at`. `pending` and `running` rows, failed rows with a retry still scheduled (`next_retry_at`), `dead_letter_queue` and other tables are never touched

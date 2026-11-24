@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-func TestFFmpegArgs_DecoderOptionsBeforeInput(t *testing.T) {
-	args := ffmpegArgs("/videos/a.mp4")
+func TestDefaultArgs_DecoderOptionsBeforeInput(t *testing.T) {
+	args := DefaultArgs("/videos/a.mp4")
 	in := slices.Index(args, "-i")
 	if in < 0 || args[in+1] != "/videos/a.mp4" {
 		t.Fatalf("input missing: %v", args)
@@ -26,7 +26,7 @@ func TestFFmpegArgs_DecoderOptionsBeforeInput(t *testing.T) {
 
 // The single-threaded decoder must give exactly the hashes of the previous (multi-threaded)
 // command, so the hashes already indexed stay comparable. Needs ffmpeg with libx264.
-func TestFFmpegArgs_SameHashesAsMultiThreadedDecode(t *testing.T) {
+func TestDefaultArgs_SameHashesAsMultiThreadedDecode(t *testing.T) {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		t.Skip("ffmpeg not on PATH")
 	}

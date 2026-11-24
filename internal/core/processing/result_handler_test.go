@@ -51,3 +51,21 @@ func TestManualFingerprintSubmissionStillRejectsDisabledFeature(t *testing.T) {
 		t.Fatal("manual fingerprint request must report that the feature is disabled")
 	}
 }
+
+type remoteSpritesRouter struct{}
+
+func (remoteSpritesRouter) LocalAllowed(string) bool        { return true }
+func (remoteSpritesRouter) RemoteAllowed(phase string) bool { return phase == "sprites" }
+
+// With remote workers allowed to take sprites, the sprites triggered after metadata go
+// through the job queue (where local pools and workers compete) instead of the local pool.
+func TestSpritesAfterMetadataRouting(t *testing.T) {
+	handler := NewResultHandler(nil, nil, &processingTestEvents{}, nil, NewPhaseTracker(nil, false), nil, zap.NewNop())
+	if handler.spritesThroughQueue() {
+		t.Fatal("without a router sprites go straight to the local pool, as before")
+	}
+	handler.SetPhaseRouter(remoteSpritesRouter{})
+	if !handler.spritesThroughQueue() {
+		t.Fatal("sprites must go through the queue when remote workers may take them")
+	}
+}

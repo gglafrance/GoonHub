@@ -27,6 +27,8 @@ func Setup(r *gin.Engine, logger *logging.Logger, allowedOrigins []string, envir
 		// On-the-fly conversion: streamed and flushed chunk by chunk
 		`/api/v1/scenes/\d+/transcode`,
 		`/api/v1/shares/[^/]+/transcode`,
+		// Remote workers: media served with Range, uploads without a read deadline
+		`/api/v1/workers/`,
 	})))
 
 	// Security Headers

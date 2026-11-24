@@ -49,3 +49,10 @@ type FailingChecker interface {
 type SceneIndexer interface {
 	UpdateSceneIndex(scene *data.Scene) error
 }
+
+// PhaseRouter says whether the local pools and the remote workers may claim the jobs of a
+// phase (internal/workers.Router). Without a router every phase is local.
+type PhaseRouter interface {
+	LocalAllowed(phase string) bool
+	RemoteAllowed(phase string) bool
+}

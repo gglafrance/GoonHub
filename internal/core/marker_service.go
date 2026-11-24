@@ -13,7 +13,10 @@ import (
 	"goonhub/internal/apperrors"
 	"goonhub/internal/config"
 	"goonhub/internal/data"
+	"goonhub/internal/jobs"
+	"goonhub/pkg/compute"
 	"goonhub/pkg/ffmpeg"
+	"goonhub/pkg/workerproto"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -766,16 +769,13 @@ func (s *MarkerService) generateAnimatedThumbnail(marker *data.UserSceneMarker, 
 		return fmt.Errorf("scene file not found: %s", scene.StoredPath)
 	}
 
-	animatedFilename := fmt.Sprintf("marker_%d.mp4", marker.ID)
+	animatedFilename := workerproto.MarkerClipName(marker.ID)
 	animatedPath := filepath.Join(s.markerThumbnailDir, animatedFilename)
 
-	seekPosition := strconv.Itoa(marker.Timestamp)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	if err := ffmpeg.ExtractAnimatedThumbnailWithContext(ctx, scene.StoredPath, animatedPath, seekPosition, s.markerAnimatedDuration, s.markerThumbnailMaxDim, s.markerPreviewCRF); err != nil {
-		return fmt.Errorf("failed to extract animated thumbnail: %w", err)
+	if err := compute.MarkerClip(context.Background(), compute.Env{}, scene.StoredPath, animatedPath,
+		marker.Timestamp, s.markerAnimatedDuration, s.markerThumbnailMaxDim, s.markerPreviewCRF,
+		workerproto.DefaultMarkerClipTimeoutSec*time.Second); err != nil {
+		return err
 	}
 
 	marker.AnimatedThumbnailPath = animatedFilename
@@ -787,10 +787,12 @@ func (s *MarkerService) generateAnimatedThumbnail(marker *data.UserSceneMarker, 
 	return nil
 }
 
-// GenerateMissingAnimatedForScene finds all markers for a scene that lack animated thumbnails and generates them.
-// When forceTarget is "markers" or "both", all markers are regenerated regardless of existing thumbnails.
-// Implements jobs.AnimatedThumbnailGenerator.
-func (s *MarkerService) GenerateMissingAnimatedForScene(ctx context.Context, sceneID uint, forceTarget string) (int, error) {
+// PrepareAnimatedThumbnails returns the animated thumbnails to make for a scene: a clip per
+// marker that lacks one (every marker when forceTarget is "markers" or "both") and the scene
+// preview when enabled and missing (or forceTarget is "previews" or "both"). Nil when there
+// is nothing to make. Implements jobs.AnimatedThumbnailGenerator (the server-side preparation
+// of the animated_thumbnails phase, local or remote).
+func (s *MarkerService) PrepareAnimatedThumbnails(sceneID uint, forceTarget string) (*jobs.AnimatedThumbnailsPlan, error) {
 	var markers []data.UserSceneMarker
 	var err error
 
@@ -800,43 +802,92 @@ func (s *MarkerService) GenerateMissingAnimatedForScene(ctx context.Context, sce
 		markers, err = s.markerRepo.GetBySceneWithoutAnimatedThumbnail(sceneID)
 	}
 	if err != nil {
-		return 0, fmt.Errorf("failed to query markers for animated thumbnails: %w", err)
+		return nil, fmt.Errorf("failed to query markers for animated thumbnails: %w", err)
 	}
 
-	if len(markers) == 0 {
-		return 0, nil
+	previewEnabled := s.scenePreviewEnabled
+	if len(markers) == 0 && !previewEnabled {
+		return nil, nil
 	}
 
 	scene, err := s.sceneRepo.GetByID(sceneID)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get scene for animated thumbnail generation: %w", err)
+		if len(markers) > 0 {
+			return nil, fmt.Errorf("failed to get scene for animated thumbnail generation: %w", err)
+		}
+		// Only the preview was wanted: best effort, as before
+		s.logger.Warn("Failed to generate scene preview",
+			zap.Uint("scene_id", sceneID),
+			zap.Error(fmt.Errorf("failed to get scene for preview generation: %w", err)))
+		return nil, nil
 	}
 
-	s.logger.Info("Generating missing animated marker thumbnails",
-		zap.Uint("scene_id", sceneID),
-		zap.Int("count", len(markers)))
-
-	generated := 0
-	for i := range markers {
-		if ctx.Err() != nil {
-			s.logger.Info("Animated marker thumbnail generation interrupted",
-				zap.Uint("scene_id", sceneID),
-				zap.Int("generated", generated),
-				zap.Int("remaining", len(markers)-i))
-			break
-		}
-
-		if err := s.generateAnimatedThumbnail(&markers[i], scene); err != nil {
-			s.logger.Warn("Failed to generate animated marker thumbnail",
-				zap.Uint("marker_id", markers[i].ID),
-				zap.Int("timestamp", markers[i].Timestamp),
-				zap.Error(err))
-			continue
-		}
-		generated++
+	params := workerproto.AnimatedThumbnailsParams{
+		SceneID:          sceneID,
+		Markers:          make([]workerproto.MarkerClipSpec, 0, len(markers)),
+		MarkerWidth:      s.markerThumbnailMaxDim,
+		MarkerCRF:        s.markerPreviewCRF,
+		MarkerTimeoutSec: workerproto.DefaultMarkerClipTimeoutSec,
+	}
+	for _, m := range markers {
+		params.Markers = append(params.Markers, workerproto.MarkerClipSpec{
+			MarkerID:     m.ID,
+			TimestampSec: m.Timestamp,
+			DurationSec:  s.markerAnimatedDuration,
+			Output:       workerproto.MarkerClipName(m.ID),
+		})
 	}
 
-	return generated, nil
+	forcePreview := forceTarget == "previews" || forceTarget == "both"
+	if previewEnabled && (scene.PreviewVideoPath == "" || forcePreview) {
+		params.Preview = &workerproto.ScenePreviewSpec{
+			Output:          workerproto.ScenePreviewName(scene.ID),
+			Segments:        s.scenePreviewSegments,
+			SegmentDuration: s.scenePreviewSegmentDuration,
+			Width:           s.scenePreviewMaxDim,
+			CRF:             s.scenePreviewCRF,
+			WithAudio:       scene.AudioCodec != "",
+		}
+	}
+
+	if len(params.Markers) == 0 && params.Preview == nil {
+		return nil, nil
+	}
+	if len(params.Markers) > 0 {
+		s.logger.Info("Generating missing animated marker thumbnails",
+			zap.Uint("scene_id", sceneID),
+			zap.Int("count", len(params.Markers)))
+	}
+
+	return &jobs.AnimatedThumbnailsPlan{
+		Input:  scene.StoredPath,
+		Video:  SceneVideoInfo(scene),
+		Params: params,
+	}, nil
+}
+
+// CommitAnimatedThumbnails moves the clips and preview found in artifactDir into the marker
+// thumbnail and scene preview directories and records them. Implements
+// jobs.AnimatedThumbnailGenerator.
+func (s *MarkerService) CommitAnimatedThumbnails(sceneID uint, res *workerproto.AnimatedThumbnailsResult, artifactDir string) (int, bool, error) {
+	return jobs.CommitAnimatedThumbnails(jobs.AnimatedThumbnailsCommit{
+		Markers:    s.markerRepo,
+		Scenes:     s.sceneRepo,
+		MarkerDir:  s.markerThumbnailDir,
+		PreviewDir: s.scenePreviewDir,
+	}, sceneID, res, artifactDir)
+}
+
+// SceneVideoInfo returns the probed facts of a scene in the compute/worker protocol form.
+func SceneVideoInfo(scene *data.Scene) workerproto.VideoInfo {
+	return workerproto.VideoInfo{
+		DurationSec: scene.Duration,
+		Width:       scene.Width,
+		Height:      scene.Height,
+		FrameRate:   scene.FrameRate,
+		VideoCodec:  scene.VideoCodec,
+		AudioCodec:  scene.AudioCodec,
+	}
 }
 
 // GetMarkerThumbnailType returns the current marker thumbnail type setting
@@ -963,75 +1014,6 @@ func (s *MarkerService) SetMarkerTags(userID, markerID uint, tagIDs []uint) erro
 		s.logger.Error("failed to set marker tags", zap.Uint("markerID", markerID), zap.Error(err))
 		return apperrors.NewInternalError("failed to set marker tags", err)
 	}
-	return nil
-}
-
-// GenerateScenePreview generates a preview video for a scene by sampling multiple segments.
-// Returns nil immediately if scene preview generation is disabled.
-// When forceTarget is "previews" or "both", the existing preview is regenerated.
-// Implements jobs.AnimatedThumbnailGenerator.
-func (s *MarkerService) GenerateScenePreview(ctx context.Context, sceneID uint, forceTarget string) error {
-	if !s.scenePreviewEnabled {
-		return nil
-	}
-
-	scene, err := s.sceneRepo.GetByID(sceneID)
-	if err != nil {
-		return fmt.Errorf("failed to get scene for preview generation: %w", err)
-	}
-
-	// Skip if already has a preview video (unless force regeneration is requested)
-	forcePreview := forceTarget == "previews" || forceTarget == "both"
-	if scene.PreviewVideoPath != "" && !forcePreview {
-		return nil
-	}
-
-	// Validate scene has the required data
-	if scene.StoredPath == "" {
-		return fmt.Errorf("scene has no stored path")
-	}
-	if _, err := os.Stat(scene.StoredPath); os.IsNotExist(err) {
-		return fmt.Errorf("scene file not found: %s", scene.StoredPath)
-	}
-	if scene.Duration <= 0 {
-		return fmt.Errorf("scene has no duration")
-	}
-
-	// Ensure output directory exists
-	if err := os.MkdirAll(s.scenePreviewDir, 0755); err != nil {
-		return fmt.Errorf("failed to create scene preview directory: %w", err)
-	}
-
-	outputFilename := fmt.Sprintf("%d_preview.mp4", scene.ID)
-	outputPath := filepath.Join(s.scenePreviewDir, outputFilename)
-
-	hasAudio := scene.AudioCodec != ""
-	err = ffmpeg.ExtractScenePreviewWithContext(ctx, scene.StoredPath, outputPath,
-		scene.Duration, s.scenePreviewSegments, s.scenePreviewSegmentDuration, s.scenePreviewMaxDim, s.scenePreviewCRF, hasAudio)
-	if err != nil && hasAudio && ctx.Err() == nil {
-		// An odd audio track (e.g. one that ends before a seek point) must not cost the scene its preview
-		s.logger.Warn("Scene preview with audio failed, retrying without audio",
-			zap.Uint("scene_id", scene.ID),
-			zap.Error(err))
-		err = ffmpeg.ExtractScenePreviewWithContext(ctx, scene.StoredPath, outputPath,
-			scene.Duration, s.scenePreviewSegments, s.scenePreviewSegmentDuration, s.scenePreviewMaxDim, s.scenePreviewCRF, false)
-	}
-	if err != nil {
-		return fmt.Errorf("failed to generate scene preview: %w", err)
-	}
-
-	// Update scene with preview video path
-	scene.PreviewVideoPath = outputFilename
-	if err := s.sceneRepo.UpdatePreviewVideoPath(scene.ID, outputFilename); err != nil {
-		// Clean up file on DB failure
-		os.Remove(outputPath)
-		return fmt.Errorf("failed to update scene with preview path: %w", err)
-	}
-
-	s.logger.Info("Generated scene preview video",
-		zap.Uint("scene_id", scene.ID),
-		zap.String("output", outputFilename))
-
 	return nil
 }
 

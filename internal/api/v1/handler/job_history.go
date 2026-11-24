@@ -69,7 +69,8 @@ func (h *JobHandler) ListJobs(c *gin.Context) {
 	// before the result handler updates the DB status.
 	var verifiedActive []data.JobHistory
 	for _, job := range activeJobs {
-		if _, inPool := h.processingService.GetExecutingJob(job.JobID); inPool {
+		// Jobs leased to remote workers run outside the pools: their row is the truth.
+		if _, inPool := h.processingService.GetExecutingJob(job.JobID); inPool || job.WorkerID != nil {
 			verifiedActive = append(verifiedActive, job)
 		}
 	}

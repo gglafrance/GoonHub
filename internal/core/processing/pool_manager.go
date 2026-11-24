@@ -33,6 +33,10 @@ type PoolManager struct {
 	// onJobExecuting is called when a worker picks up a job for execution
 	onJobExecuting func(jobID string)
 
+	// fingerprintCommitter is the commit step of the fingerprint phase, shared by every
+	// fingerprint job (local) and the remote complete handler
+	fingerprintCommitter *jobs.FingerprintCommitter
+
 	// Job scheduling: configured pool sizes (pool_config), per-phase worker overrides set by
 	// the scheduler (quiet hours), and the limiter shared by all pools (global cap).
 	baseWorkers     map[string]int
@@ -281,6 +285,20 @@ func createDirIfNotExists(dir string, logger *zap.Logger) {
 }
 
 // SetResultHandler sets the function to be called for processing results from each pool
+// SetFingerprintCommitter sets the commit step of the fingerprint phase.
+func (pm *PoolManager) SetFingerprintCommitter(c *jobs.FingerprintCommitter) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	pm.fingerprintCommitter = c
+}
+
+// FingerprintCommitter returns the commit step of the fingerprint phase (nil if not set).
+func (pm *PoolManager) FingerprintCommitter() *jobs.FingerprintCommitter {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	return pm.fingerprintCommitter
+}
+
 func (pm *PoolManager) SetResultHandler(handler func(*jobs.WorkerPool)) {
 	pm.resultHandler = handler
 }

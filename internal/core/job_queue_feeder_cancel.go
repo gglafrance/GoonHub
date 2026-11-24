@@ -125,6 +125,14 @@ func (f *JobQueueFeeder) CancelBulk(phase string, includeRunning bool) (*BulkCan
 		result.RunningCancelled += running
 	}
 
+	if includeRunning && f.remoteCanceller != nil {
+		remote, err := f.remoteCanceller.CancelPhases(phases)
+		if err != nil {
+			f.logger.Error("Failed to cancel the jobs of remote workers", zap.Error(err))
+		}
+		result.RunningCancelled += remote
+	}
+
 	f.logger.Info("Bulk cancelled jobs",
 		zap.Strings("phases", phases),
 		zap.Int64("pending_cancelled", result.PendingCancelled),

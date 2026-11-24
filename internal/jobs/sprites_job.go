@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"goonhub/internal/data"
-	"goonhub/pkg/ffmpeg"
+	"goonhub/pkg/compute"
+	"goonhub/pkg/workerproto"
 	"os"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -35,6 +35,8 @@ type SpritesJob struct {
 	gridCols         int
 	gridRows         int
 	concurrency      int
+	stagingRoot      string
+	env              compute.Env
 	repo             data.SceneRepository
 	logger           *zap.Logger
 	status           JobStatus
@@ -136,6 +138,27 @@ func (j *SpritesJob) Cancel() {
 	}
 }
 
+// SetStagingRoot sets the staging root the job computes into before its commit (default:
+// StagingRoot("", spriteDir)).
+func (j *SpritesJob) SetStagingRoot(dir string) { j.stagingRoot = dir }
+
+// SetComputeEnv sets the compute environment (binaries, acceleration; default: software).
+func (j *SpritesJob) SetComputeEnv(env compute.Env) { j.env = env }
+
+// Params returns the computation parameters of the job.
+func (j *SpritesJob) Params() workerproto.SpritesParams {
+	return workerproto.SpritesParams{
+		SceneID:       j.sceneID,
+		TileWidth:     j.tileWidth,
+		TileHeight:    j.tileHeight,
+		FrameInterval: j.frameInterval,
+		FrameQuality:  j.frameQuality,
+		GridCols:      j.gridCols,
+		GridRows:      j.gridRows,
+		Concurrency:   j.concurrency,
+	}
+}
+
 // SetProgressCallback sets the progress callback for this job.
 func (j *SpritesJob) SetProgressCallback(callback ProgressCallback) {
 	j.progressMu.Lock()
@@ -158,20 +181,13 @@ func (j *SpritesJob) Execute() error {
 	return j.ExecuteWithContext(context.Background())
 }
 
-// effectiveSpriteInterval shortens the sprite frame interval for short scenes so that they still
-// get at least minFrames frames (one sprite row) instead of no sprite sheet at all, which the
-// scene card scrubber and the player seek preview need.
+// effectiveSpriteInterval: see workerproto.EffectiveSpriteInterval.
 func effectiveSpriteInterval(duration, interval, minFrames int) int {
-	if interval <= 0 || duration <= 0 || minFrames <= 0 || duration/interval >= minFrames {
-		return interval
-	}
-	short := duration / minFrames
-	if short < 1 {
-		short = 1
-	}
-	return short
+	return workerproto.EffectiveSpriteInterval(duration, interval, minFrames)
 }
 
+// ExecuteWithContext prepares the parameters, computes the sprites into a staging directory
+// (pkg/compute, the same computation a remote worker runs) and commits them (CommitSprites).
 func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 	// Create a cancellable context for this execution
 	j.ctx, j.cancelFn = context.WithCancel(ctx)
@@ -179,14 +195,14 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 
 	startTime := time.Now()
 	j.status = JobStatusRunning
-	frameInterval := effectiveSpriteInterval(j.duration, j.frameInterval, j.gridCols)
+	params := j.Params()
 
 	j.logger.Info("Starting sprite sheet generation job",
 		zap.String("job_id", j.id),
 		zap.Uint("scene_id", j.sceneID),
 		zap.Int("tile_width", j.tileWidth),
 		zap.Int("tile_height", j.tileHeight),
-		zap.Int("frame_interval", frameInterval),
+		zap.Int("frame_interval", effectiveSpriteInterval(j.duration, j.frameInterval, j.gridCols)),
 		zap.Int("grid_cols", j.gridCols),
 		zap.Int("grid_rows", j.gridRows),
 	)
@@ -197,34 +213,23 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 		return fmt.Errorf("job cancelled")
 	}
 
-	if err := os.MkdirAll(j.spriteDir, 0755); err != nil {
-		j.logger.Error("Failed to create sprite directory",
-			zap.String("dir", j.spriteDir),
-			zap.Error(err),
-		)
-		j.handleError(fmt.Errorf("failed to create sprite directory: %w", err))
-		return err
+	stagingRoot := j.stagingRoot
+	if stagingRoot == "" {
+		stagingRoot = StagingRoot("", j.spriteDir)
 	}
-
-	// Create a progress callback wrapper
-	progressCallback := func(progress int) {
-		j.reportProgress(progress)
+	stage := LocalStagingDir(stagingRoot, j.id)
+	if err := os.RemoveAll(stage); err != nil {
+		j.handleError(fmt.Errorf("failed to clear staging directory: %w", err))
+		return j.error
 	}
+	defer os.RemoveAll(stage)
 
-	spriteSheets, err := ffmpeg.ExtractSpriteSheetsWithProgress(
-		j.ctx,
-		j.scenePath,
-		j.spriteDir,
-		int(j.sceneID),
-		j.tileWidth,
-		j.tileHeight,
-		j.gridCols,
-		j.gridRows,
-		frameInterval,
-		j.frameQuality,
-		j.concurrency,
-		progressCallback,
-	)
+	computed, err := compute.Sprites(j.ctx, j.env, compute.Request{
+		Input:    j.scenePath,
+		Video:    workerproto.VideoInfo{DurationSec: j.duration},
+		OutDir:   stage,
+		Progress: j.reportProgress,
+	}, params)
 	if err != nil {
 		if j.ctx.Err() == context.DeadlineExceeded {
 			j.status = JobStatusTimedOut
@@ -240,69 +245,32 @@ func (j *SpritesJob) ExecuteWithContext(ctx context.Context) error {
 			zap.Uint("scene_id", j.sceneID),
 			zap.Error(err),
 		)
-		j.handleError(fmt.Errorf("sprite sheet generation failed: %w", err))
+		j.handleError(err)
 		return err
 	}
 
 	j.logger.Info("Sprite sheets generated",
 		zap.Uint("scene_id", j.sceneID),
-		zap.Int("count", len(spriteSheets)),
+		zap.Int("count", computed.SheetCount),
 	)
 
-	if err := os.MkdirAll(j.vttDir, 0755); err != nil {
-		j.logger.Error("Failed to create VTT directory",
-			zap.String("dir", j.vttDir),
-			zap.Error(err),
-		)
-		j.handleError(fmt.Errorf("failed to create VTT directory: %w", err))
-		return err
-	}
-
-	vttPath := filepath.Join(j.vttDir, fmt.Sprintf("%d_thumbnails.vtt", j.sceneID))
-	if err := ffmpeg.GenerateVttFile(
-		vttPath,
-		spriteSheets,
-		j.duration,
-		frameInterval,
-		j.gridCols,
-		j.gridRows,
-		j.tileWidth,
-		j.tileHeight,
-	); err != nil {
-		j.logger.Error("Failed to generate VTT file",
+	result, err := CommitSprites(j.repo, j.spriteDir, j.vttDir, j.sceneID, computed, stage)
+	if err != nil {
+		j.logger.Error("Failed to commit sprites",
 			zap.Uint("scene_id", j.sceneID),
 			zap.Error(err),
 		)
-		j.handleError(fmt.Errorf("VTT generation failed: %w", err))
+		j.handleError(err)
 		return err
 	}
-
-	spriteSheetPath := ""
-	if len(spriteSheets) > 0 {
-		spriteSheetPath = filepath.Join(j.spriteDir, spriteSheets[0])
-	}
-
-	if err := j.repo.UpdateSprites(j.sceneID, spriteSheetPath, vttPath, len(spriteSheets)); err != nil {
-		j.logger.Error("Failed to update sprites in database",
-			zap.Uint("scene_id", j.sceneID),
-			zap.Error(err),
-		)
-		j.handleError(fmt.Errorf("failed to update sprites: %w", err))
-		return err
-	}
-
-	j.result = &SpritesResult{
-		SpriteSheetPath:  spriteSheetPath,
-		VttPath:          vttPath,
-		SpriteSheetCount: len(spriteSheets),
-	}
+	j.result = result
 
 	j.status = JobStatusCompleted
 	j.logger.Info("Sprite sheet generation completed",
 		zap.String("job_id", j.id),
 		zap.Uint("scene_id", j.sceneID),
-		zap.Int("sprite_sheet_count", len(spriteSheets)),
-		zap.String("vtt_path", vttPath),
+		zap.Int("sprite_sheet_count", result.SpriteSheetCount),
+		zap.String("vtt_path", result.VttPath),
 		zap.Duration("elapsed", time.Since(startTime)),
 	)
 

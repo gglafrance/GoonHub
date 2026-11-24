@@ -1,7 +1,6 @@
 package processing
 
 import (
-	"encoding/binary"
 	"fmt"
 	"goonhub/internal/data"
 	"goonhub/internal/jobs"
@@ -9,26 +8,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// MatchingService handles fingerprint matching and indexing
-type MatchingService interface {
-	IndexFingerprint(sceneID uint, fpType string, audioFP []int32, visualFP []uint64) error
-	FindMatches(sceneID uint, fpType string, audioFP []int32, visualFP []uint64) ([]MatchResult, error)
-	ProcessMatches(sceneID uint, matches []MatchResult) error
-}
+// MatchingService handles fingerprint matching and indexing (used by the fingerprint commit,
+// jobs.FingerprintCommitter).
+type MatchingService = jobs.FingerprintMatcher
 
 // MatchResult represents a fingerprint match between two scenes
-type MatchResult struct {
-	SceneID         uint
-	ConfidenceScore float64
-	MatchType       string // "audio" or "visual"
-	// Aligned segment in fingerprint positions (see matching.MatchResult): the query scene
-	// matches from QueryStart to QueryEnd, the matched scene at the same positions + Delta.
-	// It must survive the round trip through the job result: the duplicate groups store it
-	// (in seconds) as the matching segment of each member, and derive the relation from it.
-	QueryStart int
-	QueryEnd   int
-	Delta      int
-}
+type MatchResult = jobs.MatchResult
 
 // ResultHandler processes job results from worker pools
 type ResultHandler struct {
@@ -39,11 +24,26 @@ type ResultHandler struct {
 	phaseTracker   *PhaseTracker
 	poolManager      *PoolManager
 	indexer          SceneIndexer
-	matchingService  MatchingService
 	logger           *zap.Logger
 
 	// onPhaseComplete is called when a phase completes to submit follow-up phases
 	onPhaseComplete func(sceneID uint, phase string) error
+
+	// router routes the phases between the local pools and the remote workers (optional)
+	router PhaseRouter
+}
+
+// SetPhaseRouter sets the phase routing: after metadata, sprites are submitted straight to
+// the local pool only when remote workers may not take them; otherwise they go through the
+// job queue like the other phases, where local pools and workers compete.
+func (rh *ResultHandler) SetPhaseRouter(r PhaseRouter) {
+	rh.router = r
+}
+
+// spritesThroughQueue reports whether the sprites triggered after metadata must go through
+// the job queue (remote workers may take them) rather than straight to the local pool.
+func (rh *ResultHandler) spritesThroughQueue() bool {
+	return rh.router != nil && rh.router.RemoteAllowed("sprites")
 }
 
 // NewResultHandler creates a new ResultHandler
@@ -72,9 +72,11 @@ func (rh *ResultHandler) SetIndexer(indexer SceneIndexer) {
 	rh.indexer = indexer
 }
 
-// SetMatchingService sets the matching service for fingerprint matching
+// SetMatchingService sets the matcher of the fingerprint commit step.
 func (rh *ResultHandler) SetMatchingService(ms MatchingService) {
-	rh.matchingService = ms
+	if c := rh.poolManager.FingerprintCommitter(); c != nil {
+		c.SetMatcher(ms)
+	}
 }
 
 // SetOnPhaseComplete sets the callback for phase completion
@@ -85,16 +87,25 @@ func (rh *ResultHandler) SetOnPhaseComplete(fn func(sceneID uint, phase string) 
 // ProcessPoolResults processes results from a worker pool
 func (rh *ResultHandler) ProcessPoolResults(pool *jobs.WorkerPool) {
 	for result := range pool.Results() {
-		switch result.Status {
-		case jobs.JobStatusCompleted:
-			rh.handleCompleted(result)
-		case jobs.JobStatusFailed:
-			rh.handleFailed(result)
-		case jobs.JobStatusCancelled:
-			rh.handleCancelled(result)
-		case jobs.JobStatusTimedOut:
-			rh.handleTimedOut(result)
-		}
+		rh.HandleResult(result)
+	}
+}
+
+// HandleResult runs the post-processing of one finished job: job history, events, phase
+// tracking and the phases triggered after it. The phase's commit has already happened (in the
+// job, or in the remote complete handler). For a remote job, result.Data may carry the
+// committed result directly: *jobs.SpritesResult for sprites, *jobs.FingerprintResult for
+// fingerprint (the local jobs pass themselves).
+func (rh *ResultHandler) HandleResult(result jobs.JobResult) {
+	switch result.Status {
+	case jobs.JobStatusCompleted:
+		rh.handleCompleted(result)
+	case jobs.JobStatusFailed:
+		rh.handleFailed(result)
+	case jobs.JobStatusCancelled:
+		rh.handleCancelled(result)
+	case jobs.JobStatusTimedOut:
+		rh.handleTimedOut(result)
 	}
 }
 
@@ -188,7 +199,11 @@ func (rh *ResultHandler) onMetadataComplete(result jobs.JobResult) {
 		case "thumbnail":
 			submitThumbnail = true
 		case "sprites":
-			submitSprites = true
+			if rh.spritesThroughQueue() {
+				otherPhases = append(otherPhases, phase)
+			} else {
+				submitSprites = true
+			}
 		default:
 			otherPhases = append(otherPhases, phase)
 		}
@@ -254,6 +269,7 @@ func (rh *ResultHandler) onMetadataComplete(result jobs.JobResult) {
 			rh.repo,
 			rh.logger,
 		)
+		spritesJob.SetStagingRoot(jobs.StagingRoot(cfg.StagingDir, cfg.SpriteDir))
 		if rh.jobHistory != nil {
 			jh := rh.jobHistory
 			spritesJob.SetProgressCallback(func(jobID string, progress int) {
@@ -346,19 +362,22 @@ func (rh *ResultHandler) onThumbnailComplete(result jobs.JobResult) {
 }
 
 func (rh *ResultHandler) onSpritesComplete(result jobs.JobResult) {
-	spritesJob, ok := result.Data.(*jobs.SpritesJob)
-	if ok {
-		spritesResult := spritesJob.GetResult()
-		if spritesResult != nil {
-			rh.eventBus.Publish(SceneEvent{
-				Type:    "scene:sprites_complete",
-				SceneID: result.SceneID,
-				Data: map[string]any{
-					"vtt_path":          spritesResult.VttPath,
-					"sprite_sheet_path": spritesResult.SpriteSheetPath,
-				},
-			})
-		}
+	var spritesResult *jobs.SpritesResult
+	switch d := result.Data.(type) {
+	case *jobs.SpritesJob:
+		spritesResult = d.GetResult()
+	case *jobs.SpritesResult:
+		spritesResult = d
+	}
+	if spritesResult != nil {
+		rh.eventBus.Publish(SceneEvent{
+			Type:    "scene:sprites_complete",
+			SceneID: result.SceneID,
+			Data: map[string]any{
+				"vtt_path":          spritesResult.VttPath,
+				"sprite_sheet_path": spritesResult.SpriteSheetPath,
+			},
+		})
 	}
 
 	// Trigger any phases configured to run after sprites
@@ -402,92 +421,20 @@ func (rh *ResultHandler) onAnimatedThumbnailsComplete(result jobs.JobResult) {
 }
 
 func (rh *ResultHandler) onFingerprintComplete(result jobs.JobResult) {
-	fpJob, ok := result.Data.(*jobs.FingerprintJob)
-	if !ok {
+	// The fingerprint was saved and matched by the commit step (jobs.FingerprintCommitter)
+	var fpResult *jobs.FingerprintResult
+	switch d := result.Data.(type) {
+	case *jobs.FingerprintJob:
+		fpResult = d.GetResult()
+	case *jobs.FingerprintResult:
+		fpResult = d
+	default:
 		rh.logger.Error("Invalid fingerprint job result data", zap.Uint("scene_id", result.SceneID))
 		return
 	}
-
-	fpResult := fpJob.GetResult()
 	if fpResult == nil {
 		rh.logger.Error("Fingerprint result is nil", zap.Uint("scene_id", result.SceneID))
 		return
-	}
-
-	// Save fingerprint to PostgreSQL
-	var audioFPBytes []byte
-	var visualFPBytes []byte
-	if fpResult.AudioFingerprint != nil {
-		audioFPBytes = int32SliceToBytes(fpResult.AudioFingerprint)
-	}
-	if fpResult.VisualFingerprint != nil {
-		visualFPBytes = uint64SliceToBytes(fpResult.VisualFingerprint)
-	}
-	if err := rh.repo.UpdateFingerprint(result.SceneID, fpResult.FingerprintTypeLabel(), audioFPBytes, visualFPBytes); err != nil {
-		rh.logger.Error("Failed to save fingerprint to database",
-			zap.Uint("scene_id", result.SceneID),
-			zap.Error(err),
-		)
-	}
-
-	// If matching service is available, index and find matches per type
-	if rh.matchingService != nil {
-		var allMatches []MatchResult
-
-		// Match and index audio fingerprint
-		if fpResult.AudioFingerprint != nil {
-			matches, err := rh.matchingService.FindMatches(result.SceneID, "audio", fpResult.AudioFingerprint, nil)
-			if err != nil {
-				rh.logger.Error("Failed to find audio fingerprint matches",
-					zap.Uint("scene_id", result.SceneID),
-					zap.Error(err),
-				)
-			} else {
-				allMatches = append(allMatches, matches...)
-			}
-			if err := rh.matchingService.IndexFingerprint(result.SceneID, "audio", fpResult.AudioFingerprint, nil); err != nil {
-				rh.logger.Error("Failed to index audio fingerprint",
-					zap.Uint("scene_id", result.SceneID),
-					zap.Error(err),
-				)
-			}
-		}
-
-		// Match and index visual fingerprint
-		if fpResult.VisualFingerprint != nil {
-			matches, err := rh.matchingService.FindMatches(result.SceneID, "visual", nil, fpResult.VisualFingerprint)
-			if err != nil {
-				rh.logger.Error("Failed to find visual fingerprint matches",
-					zap.Uint("scene_id", result.SceneID),
-					zap.Error(err),
-				)
-			} else {
-				allMatches = append(allMatches, matches...)
-			}
-			if err := rh.matchingService.IndexFingerprint(result.SceneID, "visual", nil, fpResult.VisualFingerprint); err != nil {
-				rh.logger.Error("Failed to index visual fingerprint",
-					zap.Uint("scene_id", result.SceneID),
-					zap.Error(err),
-				)
-			}
-		}
-
-		// Deduplicate matches (keep highest confidence per scene) and process
-		allMatches = deduplicateMatches(allMatches)
-		if len(allMatches) > 0 {
-			if err := rh.matchingService.ProcessMatches(result.SceneID, allMatches); err != nil {
-				rh.logger.Error("Failed to process fingerprint matches",
-					zap.Uint("scene_id", result.SceneID),
-					zap.Int("match_count", len(allMatches)),
-					zap.Error(err),
-				)
-			} else {
-				rh.logger.Info("Fingerprint matches processed",
-					zap.Uint("scene_id", result.SceneID),
-					zap.Int("match_count", len(allMatches)),
-				)
-			}
-		}
 	}
 
 	rh.eventBus.Publish(SceneEvent{
@@ -513,40 +460,6 @@ func (rh *ResultHandler) onFingerprintComplete(result jobs.JobResult) {
 
 	rh.phaseTracker.MarkPhaseComplete(result.SceneID, "fingerprint")
 	rh.checkAndMarkComplete(result.SceneID, "fingerprint")
-}
-
-// deduplicateMatches removes duplicate scene matches, keeping the highest confidence per scene ID.
-func deduplicateMatches(matches []MatchResult) []MatchResult {
-	if len(matches) <= 1 {
-		return matches
-	}
-	best := make(map[uint]MatchResult, len(matches))
-	for _, m := range matches {
-		if existing, ok := best[m.SceneID]; !ok || m.ConfidenceScore > existing.ConfidenceScore {
-			best[m.SceneID] = m
-		}
-	}
-	result := make([]MatchResult, 0, len(best))
-	for _, m := range best {
-		result = append(result, m)
-	}
-	return result
-}
-
-func int32SliceToBytes(data []int32) []byte {
-	buf := make([]byte, len(data)*4)
-	for i, v := range data {
-		binary.LittleEndian.PutUint32(buf[i*4:], uint32(v))
-	}
-	return buf
-}
-
-func uint64SliceToBytes(data []uint64) []byte {
-	buf := make([]byte, len(data)*8)
-	for i, v := range data {
-		binary.LittleEndian.PutUint64(buf[i*8:], v)
-	}
-	return buf
 }
 
 func (rh *ResultHandler) checkAndMarkComplete(sceneID uint, completedPhase string) {
