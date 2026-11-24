@@ -214,6 +214,7 @@ type ProcessingConfig struct {
 	MetadataTimeout            time.Duration `mapstructure:"metadata_timeout"`              // timeout for metadata extraction jobs
 	ThumbnailTimeout           time.Duration `mapstructure:"thumbnail_timeout"`             // timeout for thumbnail extraction jobs
 	SpritesTimeout             time.Duration `mapstructure:"sprites_timeout"`               // timeout for sprite sheet generation jobs
+	FailingThreshold           int           `mapstructure:"failing_threshold"`             // consecutive failures of a (scene, phase) on an unchanged file before it is no longer retried automatically (0 = never)
 }
 
 type AuthConfig struct {
@@ -288,6 +289,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("processing.job_history_failed_retention", "90d")
 	v.SetDefault("processing.job_history_purge_interval", time.Hour)
 	v.SetDefault("processing.job_history_purge_batch_size", 5000)
+	v.SetDefault("processing.failing_threshold", 3)
 	v.SetDefault("processing.metadata_timeout", 5*time.Minute)
 	v.SetDefault("processing.thumbnail_timeout", 2*time.Minute)
 	v.SetDefault("processing.sprites_timeout", 30*time.Minute)

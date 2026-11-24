@@ -147,7 +147,50 @@ export interface BulkJobResponse {
     message: string;
     submitted: number;
     skipped: number;
+    // Failing scenes (failures in a row on an unchanged file) left out of a "missing" run
+    skipped_failing: number;
     errors: number;
+}
+
+// A (scene, phase) that failed processing.failing_threshold times in a row on an unchanged
+// file: the "missing" runs and the automatic retries skip it (Settings > Jobs > Failing).
+export interface FailingScene {
+    id: number;
+    scene_id: number;
+    scene_title: string;
+    stored_path: string;
+    phase: string;
+    failures: number;
+    last_error: string;
+    last_failed_at: string;
+    file_size: number | null;
+}
+
+export interface FailingSceneList {
+    data: FailingScene[];
+    total: number;
+    page: number;
+    limit: number;
+    // Failing (scene, phase) per phase, error filter applied, phase filter ignored
+    totals: Record<string, number>;
+    threshold: number;
+}
+
+export interface FailingActionResult {
+    retried: number;
+    cleared: number;
+    errors: number;
+}
+
+export type FailingAction = 'retry' | 'clear';
+
+// Body of POST /admin/jobs/failing/bulk: the given IDs, or every failing match of the filters
+export interface FailingBulkRequest {
+    action: FailingAction;
+    ids?: number[];
+    all?: boolean;
+    phase?: string;
+    q?: string;
 }
 
 export interface DLQEntry {

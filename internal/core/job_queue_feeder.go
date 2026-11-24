@@ -148,7 +148,8 @@ func (f *JobQueueFeeder) Stop() {
 	f.logger.Info("Job queue feeder stopped")
 }
 
-// recoverOrphanedJobs marks jobs that were running when the server crashed as failed
+// recoverOrphanedJobs marks jobs that were running when the server crashed as failed, then puts
+// back to pending the jobs the previous run interrupted (shutdown, crash, stuck pending).
 func (f *JobQueueFeeder) recoverOrphanedJobs() {
 	// Recover orphaned running jobs (using configurable timeout, default 30s)
 	count, err := f.repo.MarkOrphanedRunningAsFailed(f.orphanTimeout)
@@ -175,6 +176,14 @@ func (f *JobQueueFeeder) recoverOrphanedJobs() {
 			zap.Int64("count", stuckCount),
 			zap.Duration("threshold", f.stuckPendingTime),
 		)
+	}
+
+	// Put the interrupted jobs back in the queue (once, retry count kept, dedup respected)
+	requeued, err := f.repo.RequeueInterruptedJobs()
+	if err != nil {
+		f.logger.Error("Failed to re-queue the jobs interrupted by the previous run", zap.Error(err))
+	} else {
+		f.logger.Info("Re-queued the jobs interrupted by the previous run", zap.Int64("count", requeued))
 	}
 }
 

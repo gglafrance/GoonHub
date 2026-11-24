@@ -272,6 +272,12 @@ func (s *Server) Start() error {
 	// ---------------------------------------------------------------------------
 	s.logger.Info("PHASE 1: Stopping job intake...")
 
+	// From now on a job that fails or is cancelled is interrupted by the shutdown: it does not
+	// count as a failure of its scene and is put back to pending at the next startup.
+	if s.jobHistoryService != nil {
+		s.jobHistoryService.BeginShutdown()
+	}
+
 	if s.jobQueueFeeder != nil {
 		s.jobQueueFeeder.Stop()
 		s.logger.Info("Job queue feeder stopped")

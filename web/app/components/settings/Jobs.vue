@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Sub-tab id from the settings page (read from the URL): one of the Jobs sub-tabs of
-// utils/settingsTabs.ts (manual, history, workers, scheduling, processing, triggers, retry, dlq)
+// utils/settingsTabs.ts (manual, history, workers, scheduling, processing, triggers, retry, dlq,
+// failing)
 const props = defineProps<{
     activeSubTab: string;
 }>();
@@ -28,6 +29,9 @@ const props = defineProps<{
 
         <!-- DLQ sub-tab -->
         <SettingsJobsDLQ v-if="props.activeSubTab === 'dlq'" />
+
+        <!-- Failing sub-tab -->
+        <SettingsJobsFailing v-if="props.activeSubTab === 'failing'" />
 
         <!-- Manual sub-tab -->
         <SettingsJobsManual v-if="props.activeSubTab === 'manual'" />

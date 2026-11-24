@@ -43,9 +43,10 @@ type QueueStatus struct {
 
 // BulkPhaseResult contains the results of a bulk phase submission
 type BulkPhaseResult struct {
-	Submitted int `json:"submitted"`
-	Skipped   int `json:"skipped"`
-	Errors    int `json:"errors"`
+	Submitted      int `json:"submitted"`
+	Skipped        int `json:"skipped"`
+	SkippedFailing int `json:"skipped_failing"` // failing scenes left out of a "missing" run
+	Errors         int `json:"errors"`
 }
 
 // phaseState tracks completion of parallel phases for a scene
