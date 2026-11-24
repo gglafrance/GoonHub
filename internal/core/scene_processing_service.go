@@ -43,8 +43,8 @@ func (a *jobHistoryAdapter) RecordJobStartWithRetry(jobID string, sceneID uint, 
 	a.service.RecordJobStartWithRetry(jobID, sceneID, sceneTitle, phase, maxRetries, retryCount)
 }
 
-func (a *jobHistoryAdapter) RecordJobComplete(jobID string) {
-	a.service.RecordJobComplete(jobID)
+func (a *jobHistoryAdapter) RecordJobComplete(jobID string, sceneID uint, phase string) {
+	a.service.RecordJobComplete(jobID, sceneID, phase)
 }
 
 func (a *jobHistoryAdapter) RecordJobCancelled(jobID string) {
@@ -271,8 +271,15 @@ func (s *SceneProcessingService) SubmitPhaseWithRetry(sceneID uint, phase string
 
 // SubmitBulkPhase submits a processing phase for multiple scenes.
 // sceneIDs optionally scopes the operation to specific scenes (nil = all scenes).
-func (s *SceneProcessingService) SubmitBulkPhase(phase string, mode string, forceTarget string, sceneIDs []uint) (*BulkPhaseResult, error) {
-	return s.jobSubmitter.SubmitBulkPhase(phase, mode, forceTarget, sceneIDs)
+// In "missing" mode the failing scenes of the phase are skipped unless includeFailing is set.
+func (s *SceneProcessingService) SubmitBulkPhase(phase string, mode string, forceTarget string, sceneIDs []uint, includeFailing bool) (*BulkPhaseResult, error) {
+	return s.jobSubmitter.SubmitBulkPhase(phase, mode, forceTarget, sceneIDs, includeFailing)
+}
+
+// SetFailingChecker sets what tells the failing scenes of a phase to the bulk runs.
+// Must be called before jobs are submitted.
+func (s *SceneProcessingService) SetFailingChecker(checker processing.FailingChecker) {
+	s.jobSubmitter.SetFailingChecker(checker)
 }
 
 // CancelJob cancels a job by its ID.

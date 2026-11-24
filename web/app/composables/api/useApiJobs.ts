@@ -1,6 +1,9 @@
 import type {
     BulkCancelPhase,
     BulkCancelResponse,
+    FailingActionResult,
+    FailingBulkRequest,
+    FailingSceneList,
     HistoryPurgeInfo,
     HistoryPurgeResponse,
     JobScheduleConfig,
@@ -134,10 +137,13 @@ export const useApiJobs = () => {
         mode: string,
         forceTarget?: string,
         sceneIds?: number[],
+        includeFailing?: boolean,
     ) => {
         const body: Record<string, unknown> = { phase, mode };
         if (forceTarget) body.force_target = forceTarget;
         if (sceneIds?.length) body.scene_ids = sceneIds;
+        // "missing" runs skip the failing scenes unless asked to include them
+        if (includeFailing) body.include_failing = true;
         const response = await fetch('/api/v1/admin/jobs/bulk', {
             method: 'POST',
             headers: getAuthHeaders(),
@@ -252,7 +258,50 @@ export const useApiJobs = () => {
         return handleResponse(response);
     };
 
+    // Failing scenes: failures in a row on an unchanged file, skipped by the "missing" runs and
+    // the automatic retries. queryString comes from failingQueryString (utils/failingScenes).
+    const fetchFailingScenes = async (queryString: string): Promise<FailingSceneList> => {
+        const response = await fetch(`/api/v1/admin/jobs/failing?${queryString}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const retryFailingScene = async (id: number): Promise<{ result: FailingActionResult }> => {
+        const response = await fetch(`/api/v1/admin/jobs/failing/${id}/retry`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const clearFailingScene = async (id: number): Promise<{ result: FailingActionResult }> => {
+        const response = await fetch(`/api/v1/admin/jobs/failing/${id}/clear`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const bulkFailingScenes = async (
+        body: FailingBulkRequest,
+    ): Promise<{ result: FailingActionResult }> => {
+        const response = await fetch('/api/v1/admin/jobs/failing/bulk', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(body),
+        });
+        return handleResponse(response);
+    };
+
     return {
+        fetchFailingScenes,
+        retryFailingScene,
+        clearFailingScene,
+        bulkFailingScenes,
         fetchJobs,
         fetchPoolConfig,
         updatePoolConfig,

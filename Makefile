@@ -28,6 +28,7 @@ mocks: setup-test
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_watch_history_repository.go -package=mocks goonhub/internal/data WatchHistoryRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_dlq_repository.go -package=mocks goonhub/internal/data DLQRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_retry_config_repository.go -package=mocks goonhub/internal/data RetryConfigRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_scene_phase_failure_repository.go -package=mocks goonhub/internal/data ScenePhaseFailureRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_saved_search_repository.go -package=mocks goonhub/internal/data SavedSearchRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_marker_repository.go -package=mocks goonhub/internal/data MarkerRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_search_config_repository.go -package=mocks goonhub/internal/data SearchConfigRepository

@@ -117,7 +117,7 @@ func (rh *ResultHandler) handleCompleted(result jobs.JobResult) {
 	)
 
 	if rh.jobHistory != nil {
-		rh.jobHistory.RecordJobComplete(result.JobID)
+		rh.jobHistory.RecordJobComplete(result.JobID, result.SceneID, result.Phase)
 	}
 
 	switch result.Phase {

@@ -20,7 +20,7 @@ type SceneEvent struct {
 type JobHistoryRecorder interface {
 	RecordJobStart(jobID string, sceneID uint, sceneTitle string, phase string)
 	RecordJobStartWithRetry(jobID string, sceneID uint, sceneTitle string, phase string, maxRetries int, retryCount int)
-	RecordJobComplete(jobID string)
+	RecordJobComplete(jobID string, sceneID uint, phase string)
 	RecordJobCancelled(jobID string)
 	RecordJobFailedWithRetry(jobID string, sceneID uint, phase string, err error)
 	UpdateProgress(jobID string, progress int)
@@ -37,6 +37,12 @@ type JobQueueRecorder interface {
 	CreatePendingJobWithRetry(jobID string, sceneID uint, sceneTitle string, phase string, retryCount, maxRetries int, forceTarget string) error
 	// ExistsPendingOrRunning checks if a pending or running job exists for scene+phase
 	ExistsPendingOrRunning(sceneID uint, phase string) (bool, error)
+}
+
+// FailingChecker tells which scenes are failing for a phase (consecutive failures on an
+// unchanged file): the "missing" bulk runs skip them.
+type FailingChecker interface {
+	FailingSceneIDs(phase string) (map[uint]bool, error)
 }
 
 // SceneIndexer handles search index updates for scenes

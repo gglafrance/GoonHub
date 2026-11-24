@@ -110,7 +110,10 @@ const handleBulkJob = async (phase: BulkPhase, mode: 'missing' | 'all') => {
         const forceTarget = phase === 'animated_thumbnails' && mode === 'all' ? 'both' : undefined;
         const result = await triggerBulkPhase(phase, mode, forceTarget);
         bulkResults.value[phase] = result;
-        message.value = `${phaseLabel(phase)} jobs queued: ${result.submitted} submitted, ${result.skipped} skipped`;
+        const failing = result.skipped_failing
+            ? `, ${result.skipped_failing} failing skipped (see Failing)`
+            : '';
+        message.value = `${phaseLabel(phase)} jobs queued: ${result.submitted} submitted, ${result.skipped} skipped${failing}`;
     } catch (e: unknown) {
         error.value = e instanceof Error ? e.message : `Failed to start ${phase} jobs`;
     } finally {
@@ -544,6 +547,16 @@ const phaseDescription = (phase: string): string => {
                             <span class="text-dim">Skipped:</span>
                             <span class="font-medium text-white">{{
                                 bulkResults[phase]?.skipped
+                            }}</span>
+                        </div>
+                        <div
+                            v-if="bulkResults[phase]?.skipped_failing"
+                            class="flex items-center gap-1.5"
+                            title="Scenes that failed this phase several times in a row on an unchanged file. Retry them from the Failing tab."
+                        >
+                            <span class="text-dim">Failing skipped:</span>
+                            <span class="font-medium text-amber-400">{{
+                                bulkResults[phase]?.skipped_failing
                             }}</span>
                         </div>
                         <div v-if="bulkResults[phase]?.errors" class="flex items-center gap-1.5">

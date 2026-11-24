@@ -14,6 +14,14 @@ const (
 	JobStatusTimedOut  = "timed_out"
 )
 
+// Error messages of the jobs the server itself interrupted. RequeueInterruptedJobs looks for them
+// at startup: these failures are not failures of the job and never count against the scene.
+const (
+	JobErrorInterruptedByShutdown = "Job interrupted by server shutdown"
+	JobErrorOrphanRecovered       = "Orphaned job recovered after server restart"
+	JobErrorStuckPendingRecovered = "Stuck pending job recovered after server restart"
+)
+
 type JobHistory struct {
 	ID           uint       `gorm:"primarykey" json:"id"`
 	JobID        string     `gorm:"uniqueIndex;not null;size:36" json:"job_id"`

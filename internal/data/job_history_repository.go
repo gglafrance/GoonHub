@@ -36,6 +36,9 @@ type JobHistoryRepository interface {
 	ResetJobsToPending(jobIDs []string) (int64, error)
 	MarkRunningAsInterrupted() (int64, error)
 	MarkStuckPendingJobsAsFailed(olderThan time.Duration, excludePhases []string) (int64, error)
+	// RequeueInterruptedJobs puts back to pending, at startup, the jobs the previous run
+	// interrupted (see the method for the exact rules).
+	RequeueInterruptedJobs() (int64, error)
 
 	// Scene-specific methods
 	CancelPendingJobsForScene(sceneID uint) (int64, error)
@@ -319,7 +322,7 @@ func (r *JobHistoryRepositoryImpl) ExistsPendingOrRunning(sceneID uint, phase st
 // These are likely orphaned jobs from a previous server crash.
 func (r *JobHistoryRepositoryImpl) MarkOrphanedRunningAsFailed(olderThan time.Duration) (int64, error) {
 	cutoff := time.Now().Add(-olderThan)
-	errMsg := "Orphaned job recovered after server restart"
+	errMsg := JobErrorOrphanRecovered
 
 	result := r.DB.Model(&JobHistory{}).
 		// Remote leases (worker_id set) are not orphans: the lease expiry handles them.
@@ -353,7 +356,7 @@ func (r *JobHistoryRepositoryImpl) ResetJobsToPending(jobIDs []string) (int64, e
 // MarkRunningAsInterrupted marks all currently running jobs as failed due to server shutdown.
 // These jobs will be retryable so the retry scheduler can pick them up.
 func (r *JobHistoryRepositoryImpl) MarkRunningAsInterrupted() (int64, error) {
-	errMsg := "Job interrupted by server shutdown"
+	errMsg := JobErrorInterruptedByShutdown
 	now := time.Now()
 
 	// Remote leases are kept: they survive a server restart (startup lease grace).
@@ -374,7 +377,7 @@ func (r *JobHistoryRepositoryImpl) MarkRunningAsInterrupted() (int64, error) {
 // Phases in excludePhases are left alone (their jobs may wait for a time window on purpose).
 func (r *JobHistoryRepositoryImpl) MarkStuckPendingJobsAsFailed(olderThan time.Duration, excludePhases []string) (int64, error) {
 	cutoff := time.Now().Add(-olderThan)
-	errMsg := "Stuck pending job recovered after server restart"
+	errMsg := JobErrorStuckPendingRecovered
 
 	query := r.DB.Model(&JobHistory{}).
 		Where("status = ? AND created_at < ?", JobStatusPending, cutoff)
@@ -389,6 +392,53 @@ func (r *JobHistoryRepositoryImpl) MarkStuckPendingJobsAsFailed(olderThan time.D
 			"is_retryable":  true,
 		})
 
+	return result.RowsAffected, result.Error
+}
+
+// RequeueInterruptedJobs puts back to pending the jobs the previous run did not let finish: the
+// jobs failed by the server shutdown (JobErrorInterruptedByShutdown), the running jobs and the
+// pending jobs recovered at boot (JobErrorOrphanRecovered, JobErrorStuckPendingRecovered).
+// Rules:
+//   - a job is put back once: a job that ran and was interrupted again after being put back stays
+//     failed (it may be what brings the server down); a stuck pending job never ran and is always
+//     put back;
+//   - only the latest job of its (scene, phase): a job queued since (by hand, by a trigger) wins;
+//   - never when the (scene, phase) already has a pending or running job (active-job dedup);
+//   - never for a job retried by hand (is_retryable false) or a scene deleted or in the trash.
+//
+// The retry count is kept (an interruption is not an attempt) and so are the priority and the
+// creation date (the job keeps its place in the queue).
+func (r *JobHistoryRepositoryImpl) RequeueInterruptedJobs() (int64, error) {
+	result := r.DB.Exec(`
+		UPDATE job_history jh SET
+			status = ?,
+			error_message = NULL,
+			completed_at = NULL,
+			next_retry_at = NULL,
+			progress = 0,
+			startup_requeues = jh.startup_requeues + CASE WHEN jh.error_message = ? THEN 0 ELSE 1 END
+		FROM scenes s
+		WHERE s.id = jh.scene_id AND s.deleted_at IS NULL AND s.trashed_at IS NULL
+			AND jh.status = ? AND jh.is_retryable
+			AND jh.error_message IN (?, ?, ?)
+			AND (jh.startup_requeues = 0 OR jh.error_message = ?)
+			AND NOT EXISTS (
+				SELECT 1 FROM job_history later
+				WHERE later.scene_id = jh.scene_id AND later.phase = jh.phase
+					AND (later.created_at > jh.created_at OR (later.created_at = jh.created_at AND later.id > jh.id))
+			)
+			AND NOT EXISTS (
+				SELECT 1 FROM job_history active
+				WHERE active.scene_id = jh.scene_id AND active.phase = jh.phase AND active.status IN (?, ?)
+			)
+	`,
+		JobStatusPending,
+		JobErrorStuckPendingRecovered,
+		JobStatusFailed,
+		JobErrorInterruptedByShutdown, JobErrorOrphanRecovered, JobErrorStuckPendingRecovered,
+		JobErrorStuckPendingRecovered,
+		JobStatusPending, JobStatusRunning,
+	)
 	return result.RowsAffected, result.Error
 }
 

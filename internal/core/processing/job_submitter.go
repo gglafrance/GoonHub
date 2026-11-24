@@ -16,7 +16,13 @@ type JobSubmitter struct {
 	poolManager  *PoolManager
 	phaseTracker *PhaseTracker
 	jobQueue     JobQueueRecorder
+	failing      FailingChecker
 	logger       *zap.Logger
+}
+
+// SetFailingChecker sets what tells the failing scenes of a phase ("missing" runs skip them).
+func (js *JobSubmitter) SetFailingChecker(checker FailingChecker) {
+	js.failing = checker
 }
 
 // NewJobSubmitter creates a new JobSubmitter
@@ -276,7 +282,9 @@ func (js *JobSubmitter) createPendingJobWithPriority(sceneID uint, phase string,
 // mode can be "missing" (only scenes needing the phase) or "all" (all scenes)
 // forceTarget is only used for animated_thumbnails phase to control what gets regenerated
 // sceneIDs optionally scopes the operation to specific scenes (nil = all scenes)
-func (js *JobSubmitter) SubmitBulkPhase(phase string, mode string, forceTarget string, sceneIDs []uint) (*BulkPhaseResult, error) {
+// In "missing" mode, the scenes failing for the phase (failures in a row on an unchanged file)
+// are skipped and counted in SkippedFailing, unless includeFailing is set.
+func (js *JobSubmitter) SubmitBulkPhase(phase string, mode string, forceTarget string, sceneIDs []uint, includeFailing bool) (*BulkPhaseResult, error) {
 	// Prevent creating fingerprint jobs when duplication is disabled
 	if phase == "fingerprint" && !js.poolManager.IsDuplicationEnabled() {
 		return nil, fmt.Errorf("fingerprint processing requires duplication detection to be enabled")
@@ -305,7 +313,21 @@ func (js *JobSubmitter) SubmitBulkPhase(phase string, mode string, forceTarget s
 
 	result := &BulkPhaseResult{}
 
+	var failing map[uint]bool
+	if mode != "all" && !includeFailing && js.failing != nil {
+		failing, err = js.failing.FailingSceneIDs(phase)
+		if err != nil {
+			// Not blocking: the run goes on without skipping the failing scenes
+			js.logger.Warn("Failed to get the failing scenes, none skipped",
+				zap.String("phase", phase), zap.Error(err))
+		}
+	}
+
 	for _, scene := range scenes {
+		if failing[scene.ID] {
+			result.SkippedFailing++
+			continue
+		}
 		// For thumbnail/sprites/animated_thumbnails/fingerprint in "all" mode, skip scenes without metadata
 		if mode == "all" && (phase == "thumbnail" || phase == "sprites" || phase == "animated_thumbnails" || phase == "fingerprint") && scene.Duration == 0 {
 			result.Skipped++
@@ -335,6 +357,7 @@ func (js *JobSubmitter) SubmitBulkPhase(phase string, mode string, forceTarget s
 		zap.String("mode", mode),
 		zap.Int("submitted", result.Submitted),
 		zap.Int("skipped", result.Skipped),
+		zap.Int("skipped_failing", result.SkippedFailing),
 		zap.Int("errors", result.Errors),
 	)
 
