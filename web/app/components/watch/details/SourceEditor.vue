@@ -5,6 +5,7 @@
 const props = defineProps<{
     sourceUrl: string;
     sourceSite?: string;
+    readonly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -19,6 +20,7 @@ const inputRef = ref<HTMLInputElement | null>(null);
 const shortUrl = computed(() => props.sourceUrl.replace(/^https?:\/\//i, ''));
 
 const startEditing = () => {
+    if (props.readonly) return;
     editValue.value = props.sourceUrl;
     editing.value = true;
     nextTick(() => inputRef.value?.focus());
@@ -90,6 +92,7 @@ watch(
                 <span class="truncate">{{ shortUrl }}</span>
             </a>
             <button
+                v-if="!readonly"
                 type="button"
                 title="Edit the source"
                 class="text-dim shrink-0 rounded p-1 opacity-0 transition-opacity
@@ -103,6 +106,7 @@ watch(
             v-else
             class="text-dim -mx-2 min-h-8 cursor-pointer rounded-md px-2 py-1.5 text-sm
                 transition-colors hover:bg-white/3 hover:text-white"
+            :class="{ 'pointer-events-none': readonly }"
             @click="startEditing"
         >
             No source

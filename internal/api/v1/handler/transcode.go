@@ -25,12 +25,6 @@ const (
 	codeTranscodeFailed   = "TRANSCODE_FAILED"
 )
 
-// sceneDetailResponse is a scene with what the player needs to know to play it.
-type sceneDetailResponse struct {
-	response.SceneDetail
-	Playback streaming.PlaybackInfo `json:"playback"`
-}
-
 // serveTranscode streams a scene converted on the fly to a fragmented MP4 (H.264 + AAC,
 // or the copied streams when only the container is the problem), starting at ?start=
 // seconds. ?mode=transcode forces re-encoding both streams (the player asks for it when

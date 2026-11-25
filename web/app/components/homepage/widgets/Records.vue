@@ -13,7 +13,8 @@ interface RecordsPayload {
     most_rewatched: RecordScene | null;
     most_jizzed: RecordScene | null;
     longest_scene: RecordScene | null;
-    biggest_file: RecordScene | null;
+    // Omitted without files:view_size
+    biggest_file?: RecordScene | null;
     longest_streak: { days: number; start: string; end: string } | null;
     busiest_day: { day: string; count: number } | null;
     first_view: string | null;

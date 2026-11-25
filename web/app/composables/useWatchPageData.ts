@@ -76,7 +76,6 @@ export interface WatchPageData {
 export const WATCH_PAGE_DATA_KEY = 'watchPageData';
 
 export function useWatchPageData(sceneId: Ref<number>): WatchPageData {
-    const authStore = useAuthStore();
     const {
         fetchScene,
         fetchSceneInteractions,
@@ -118,7 +117,8 @@ export function useWatchPageData(sceneId: Ref<number>): WatchPageData {
     // Error state
     const error = ref<string | null>(null);
 
-    const isAdmin = computed(() => authStore.user?.role === 'admin');
+    const perms = useMyPermissions();
+    const canUsePornDB = computed(() => perms.has('porndb:use'));
 
     // P0: Critical - fetch scene
     async function loadP0(): Promise<boolean> {
@@ -234,8 +234,8 @@ export function useWatchPageData(sceneId: Ref<number>): WatchPageData {
                 // Silent fail: no Similar tab
             });
 
-        // Only check PornDB status for admins
-        const pornDBPromise = isAdmin.value
+        // Only check PornDB status for users allowed to use it
+        const pornDBPromise = canUsePornDB.value
             ? getPornDBStatus()
                   .then((status) => {
                       pornDBConfigured.value = status.configured;

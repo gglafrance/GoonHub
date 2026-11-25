@@ -81,8 +81,12 @@ watch(
     },
 );
 
+// M, Shift+M and Alt+M create or edit markers: markers:create
+const perms = useMyPermissions();
+
 const onWindowKeydown = (e: KeyboardEvent) => {
     if (isOpen.value || !props.player || !props.target) return;
+    if (!perms.has('markers:create')) return;
     if (isQuickMarkerEndKey(e)) {
         e.preventDefault();
         void quickRange.setEnd();

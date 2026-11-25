@@ -43,7 +43,9 @@ const config = computed<SceneCardConfig>({
     },
 });
 
-const contentFields = [
+// File size and frame rate are offered only with their files:* permission
+const perms = useMyPermissions();
+const allContentFields = [
     { value: 'file_size', label: 'File Size', fullOnly: false, hasMode: false },
     { value: 'added_at', label: 'Date Added', fullOnly: false, hasMode: false },
     { value: 'views', label: 'Views', fullOnly: false, hasMode: false },
@@ -58,7 +60,12 @@ const contentFields = [
 ];
 
 // Fields available in split rows (exclude fullOnly items like description, studio)
-const splitFields = computed(() => contentFields.filter((f) => !f.fullOnly));
+const contentFields = computed(() => allowedFileFields(allContentFields, perms.has));
+const splitFields = computed(() => contentFields.value.filter((f) => !f.fullOnly));
+// Field of a new content row
+const newRowField = computed(() =>
+    fileFieldAllowed('file_size', perms.has) ? 'file_size' : 'added_at',
+);
 
 const zoneNames = ['top_left', 'top_right', 'bottom_left', 'bottom_right'] as const;
 const zoneLabels: Record<string, string> = {
@@ -81,9 +88,9 @@ function updateZone(name: (typeof zoneNames)[number], zone: BadgeZone) {
 function addContentRow(type: 'full' | 'split') {
     const newConfig = JSON.parse(JSON.stringify(config.value)) as SceneCardConfig;
     if (type === 'full') {
-        newConfig.content_rows.push({ type: 'full', field: 'file_size' });
+        newConfig.content_rows.push({ type: 'full', field: newRowField.value });
     } else {
-        newConfig.content_rows.push({ type: 'split', left: 'file_size', right: 'added_at' });
+        newConfig.content_rows.push({ type: 'split', left: newRowField.value, right: 'added_at' });
     }
     config.value = newConfig;
 }

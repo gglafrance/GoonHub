@@ -54,6 +54,9 @@ export const useApiStudios = () => {
         if (sort === 'random' && seed) params.set('seed', seed.toString());
         if (cardFields) params.set('card_fields', cardFields);
 
+        // Size filters and sorts need files:view_size (403 otherwise)
+        stripRestrictedSceneParams(params, hasMyPermission);
+
         const response = await fetch(`/api/v1/scenes?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),

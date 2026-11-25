@@ -36,10 +36,11 @@ type RecordDay struct {
 
 // RecordsPayload is the payload of the records widget (absent records are null).
 type RecordsPayload struct {
-	MostRewatched  *RecordSceneRef `json:"most_rewatched"`
-	MostJizzed     *RecordSceneRef `json:"most_jizzed"`
-	LongestScene   *RecordSceneRef `json:"longest_scene"`
-	BiggestFile    *RecordSceneRef `json:"biggest_file"`
+	MostRewatched *RecordSceneRef `json:"most_rewatched"`
+	MostJizzed    *RecordSceneRef `json:"most_jizzed"`
+	LongestScene  *RecordSceneRef `json:"longest_scene"`
+	// BiggestFile is omitted for users without files:view_size (redacted by the API layer)
+	BiggestFile    *RecordSceneRef `json:"biggest_file,omitempty"`
 	LongestStreak  *RecordStreak   `json:"longest_streak"`
 	BusiestDay     *RecordDay      `json:"busiest_day"`
 	FirstView      *time.Time      `json:"first_view"`

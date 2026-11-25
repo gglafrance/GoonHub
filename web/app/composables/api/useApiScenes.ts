@@ -36,6 +36,9 @@ export const useApiScenes = () => {
             params.set('card_fields', settingsStore.cardFieldsParam);
         }
 
+        // Size filters and sorts need files:view_size (403 otherwise)
+        stripRestrictedSceneParams(params, hasMyPermission);
+
         const response = await fetch(`/api/v1/scenes?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
@@ -57,6 +60,9 @@ export const useApiScenes = () => {
         if (settingsStore.listFieldsParam) {
             params.set('card_fields', settingsStore.listFieldsParam);
         }
+
+        // Size filters and sorts need files:view_size (403 otherwise)
+        stripRestrictedSceneParams(params, hasMyPermission);
 
         const response = await fetch(`/api/v1/scenes?${params}`, {
             headers: getAuthHeaders(),
@@ -83,6 +89,9 @@ export const useApiScenes = () => {
             }
             params.set('page', String(currentPage));
             params.set('limit', String(pageLimit));
+
+            // Size filters and sorts need files:view_size (403 otherwise)
+            stripRestrictedSceneParams(params, hasMyPermission);
 
             const response = await fetch(`/api/v1/scenes?${params}`, {
                 headers: getAuthHeaders(),

@@ -142,7 +142,7 @@ func (h *WatchHistoryHandler) GetUserHistory(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"entries": response.ToWatchHistoryEntriesResponse(entries),
+		"entries": response.ToWatchHistoryEntriesResponse(entries, fileVisibility(c)),
 		"total":   total,
 		"page":    page,
 		"limit":   limit,

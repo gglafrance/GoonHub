@@ -27,6 +27,10 @@ const loading = computed(() => watchPageData?.loading.player ?? true);
 const markers = computed(() => watchPageData?.markers.value ?? []);
 // Markers of other users (shared by an admin) are listed read-only: only the owner edits
 const isOwn = (marker: Marker) => marker.user_id === authStore.user?.id;
+// Creating and editing markers needs markers:create (own markers only)
+const perms = useMyPermissions();
+const canCreateMarkers = computed(() => perms.has('markers:create'));
+const canEdit = (marker: Marker) => canCreateMarkers.value && isOwn(marker);
 // The 50 markers limit counts the user's own markers only
 const ownMarkerCount = computed(() => markers.value.filter(isOwn).length);
 // List order (by time or grouped by label), remembered in this browser
@@ -413,7 +417,7 @@ onMounted(async () => {
 <template>
     <div class="space-y-4">
         <!-- Add Marker Form -->
-        <div class="flex items-center gap-2">
+        <div v-if="canCreateMarkers" class="flex items-center gap-2">
             <div class="flex-1">
                 <input
                     ref="newMarkerInputRef"
@@ -461,7 +465,7 @@ onMounted(async () => {
 
         <!-- Empty state -->
         <div v-else-if="markers.length === 0" class="text-dim py-4 text-center text-[11px]">
-            No markers yet. Add one to bookmark a moment.
+            {{ canCreateMarkers ? 'No markers yet. Add one to bookmark a moment.' : 'No markers' }}
         </div>
 
         <!-- Markers Grid: one headerless group by time, or one group per label -->
@@ -551,7 +555,7 @@ onMounted(async () => {
                             <WatchMarkersTimeBadge
                                 :marker="marker"
                                 :editing="editingTime?.id === marker.id ? editingTime.field : null"
-                                :readonly="!isOwn(marker)"
+                                :readonly="!canEdit(marker)"
                                 @edit="startEditingTime(marker, $event)"
                             />
                         </div>
@@ -613,11 +617,16 @@ onMounted(async () => {
                                     </div>
                                 </template>
                                 <div
-                                    v-else-if="!isOwn(marker)"
+                                    v-else-if="!canEdit(marker)"
                                     class="flex min-w-0 items-center gap-1"
-                                    title="Shared marker of another user (read-only)"
+                                    :title="
+                                        isOwn(marker)
+                                            ? 'Read-only'
+                                            : 'Shared marker of another user (read-only)'
+                                    "
                                 >
                                     <Icon
+                                        v-if="!isOwn(marker)"
                                         name="heroicons:user-group"
                                         size="11"
                                         class="text-dim/60 shrink-0"
@@ -653,7 +662,7 @@ onMounted(async () => {
                             <!-- Range end: clear / set at current time -->
                             <button
                                 v-if="
-                                    isOwn(marker) &&
+                                    canEdit(marker) &&
                                     editingMarkerId !== marker.id &&
                                     markerHasRange(marker)
                                 "
@@ -667,7 +676,7 @@ onMounted(async () => {
                             </button>
                             <!-- Start: set at current time (next to the end) -->
                             <button
-                                v-if="isOwn(marker) && editingMarkerId !== marker.id"
+                                v-if="canEdit(marker) && editingMarkerId !== marker.id"
                                 class="text-dim hover:bg-surface-hover flex shrink-0 items-center
                                     justify-center rounded p-1.5 opacity-0 transition-all
                                     group-hover:opacity-100 hover:text-white"
@@ -678,7 +687,7 @@ onMounted(async () => {
                                 <Icon name="heroicons:arrow-left-start-on-rectangle" size="12" />
                             </button>
                             <button
-                                v-if="isOwn(marker) && editingMarkerId !== marker.id"
+                                v-if="canEdit(marker) && editingMarkerId !== marker.id"
                                 class="text-dim hover:bg-surface-hover flex shrink-0 items-center
                                     justify-center rounded p-1.5 opacity-0 transition-all
                                     group-hover:opacity-100 hover:text-white"
@@ -694,7 +703,7 @@ onMounted(async () => {
 
                             <!-- Delete Button -->
                             <button
-                                v-if="isOwn(marker) && editingMarkerId !== marker.id"
+                                v-if="canEdit(marker) && editingMarkerId !== marker.id"
                                 class="text-dim hover:text-lava hover:bg-lava/10 flex shrink-0
                                     items-center justify-center rounded p-1.5 opacity-0
                                     transition-all group-hover:opacity-100"
@@ -709,7 +718,7 @@ onMounted(async () => {
                         <MarkersMarkerTagEditor
                             :marker-id="marker.id"
                             :initial-tags="marker.tags"
-                            :readonly="!isOwn(marker)"
+                            :readonly="!canEdit(marker)"
                         />
                     </div>
                 </div>

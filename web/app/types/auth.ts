@@ -1,7 +1,8 @@
 export interface User {
     id: number;
     username: string;
-    // Role name from the RBAC roles table ('admin', 'moderator', 'user')
+    // Role name from the RBAC roles table. Access checks use the permissions
+    // (GET /auth/permissions, useMyPermissions), never the role name
     role: string;
 }
 

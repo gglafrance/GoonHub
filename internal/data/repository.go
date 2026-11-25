@@ -1,6 +1,7 @@
 package data
 
 import (
+	"errors"
 	"time"
 
 	"github.com/lib/pq"
@@ -16,12 +17,20 @@ type UserRepository interface {
 	UpdatePassword(userID uint, hashedPassword string) error
 	UpdateUsername(userID uint, newUsername string) error
 	List(page, limit int) ([]User, int64, error)
+	// UpdateRole changes the user's role. It returns ErrLastSuperuser, without changing
+	// anything, when the user is the last one holding a superuser role and the new role is not
+	// a superuser role (checked atomically).
 	UpdateRole(userID uint, role string) error
 	// UpdateShareMarkers sets whether the user's markers are visible to every user.
 	UpdateShareMarkers(userID uint, share bool) error
 	UpdateLastLogin(userID uint) error
+	// Delete deletes the user. It returns ErrLastSuperuser, without deleting, when the user is
+	// the last one holding a superuser role (checked atomically).
 	Delete(userID uint) error
 }
+
+// ErrLastSuperuser is returned when a change would leave no user with a superuser role.
+var ErrLastSuperuser = errors.New("this is the last user with a superuser role")
 
 type UserSettingsRepository interface {
 	GetByUserID(userID uint) (*UserSettings, error)
@@ -72,6 +81,9 @@ type SceneSearchParams struct {
 	Type             string   // Filter by type (standard, jav, hentai, amateur, professional, vr, compilation, pmv)
 	HasPornDBID      *bool    // nil = no filter, true = has, false = missing
 	Seed             int64    // Random shuffle seed (0 = auto-generate)
+	// HideFilePaths matches the query on the content only, not on the stored paths and file
+	// names (users without files:view_paths)
+	HideFilePaths bool
 }
 
 // ScanLookupEntry is a lightweight struct for move detection during scans.
@@ -744,8 +756,38 @@ func (r *UserRepositoryImpl) List(page, limit int) ([]User, int64, error) {
 	return users, total, nil
 }
 
+// lockSuperusers locks the rows of the users holding a superuser role and returns their IDs.
+// Concurrent role changes and deletions wait for each other here, and see the committed
+// result: two of them cannot both remove a different last-but-one superuser.
+func lockSuperusers(tx *gorm.DB) ([]uint, error) {
+	var ids []uint
+	err := tx.Raw(`SELECT u.id FROM users u JOIN roles r ON r.name = u.role
+		WHERE r.is_superuser ORDER BY u.id FOR UPDATE OF u`).Scan(&ids).Error
+	return ids, err
+}
+
+// isLastSuperuser reports whether userID is the only one among the superuser IDs.
+func isLastSuperuser(ids []uint, userID uint) bool {
+	return len(ids) == 1 && ids[0] == userID
+}
+
 func (r *UserRepositoryImpl) UpdateRole(userID uint, role string) error {
-	return r.DB.Model(&User{}).Where("id = ?", userID).Update("role", role).Error
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		ids, err := lockSuperusers(tx)
+		if err != nil {
+			return err
+		}
+		if isLastSuperuser(ids, userID) {
+			var superuser bool
+			if err := tx.Raw(`SELECT COALESCE((SELECT is_superuser FROM roles WHERE name = ?), FALSE)`, role).Scan(&superuser).Error; err != nil {
+				return err
+			}
+			if !superuser {
+				return ErrLastSuperuser
+			}
+		}
+		return tx.Model(&User{}).Where("id = ?", userID).Update("role", role).Error
+	})
 }
 
 func (r *UserRepositoryImpl) UpdateShareMarkers(userID uint, share bool) error {
@@ -757,7 +799,16 @@ func (r *UserRepositoryImpl) UpdateLastLogin(userID uint) error {
 }
 
 func (r *UserRepositoryImpl) Delete(userID uint) error {
-	return r.DB.Where("id = ?", userID).Delete(&User{}).Error
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		ids, err := lockSuperusers(tx)
+		if err != nil {
+			return err
+		}
+		if isLastSuperuser(ids, userID) {
+			return ErrLastSuperuser
+		}
+		return tx.Where("id = ?", userID).Delete(&User{}).Error
+	})
 }
 
 type UserSettingsRepositoryImpl struct {

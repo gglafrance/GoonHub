@@ -1,5 +1,7 @@
 <script setup lang="ts">
 const searchStore = useSearchStore();
+// The size filter needs files:view_size
+const perms = useMyPermissions();
 
 const showFilters = ref(true);
 
@@ -52,7 +54,7 @@ const resolutionOptions = [
             <SearchFiltersFilterDuration />
 
             <!-- File size -->
-            <SearchFiltersFilterSize />
+            <SearchFiltersFilterSize v-if="perms.has('files:view_size')" />
 
             <!-- Library status -->
             <SearchFiltersFilterStatus />

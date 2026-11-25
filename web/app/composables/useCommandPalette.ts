@@ -59,7 +59,7 @@ export function useCommandPalette() {
             image: item.image,
             imageShape: item.imageShape,
             to: item.to,
-            admin: item.admin,
+            permissions: item.permissions,
         };
         recent.value = [entry, ...recent.value.filter((e) => e.id !== item.id)].slice(
             0,

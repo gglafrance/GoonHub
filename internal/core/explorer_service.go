@@ -614,16 +614,18 @@ type FolderSearchResponse struct {
 
 // SceneMatchInfo contains minimal data for bulk PornDB matching
 type SceneMatchInfo struct {
-	ID               uint     `json:"id"`
-	Title            string   `json:"title"`
-	OriginalFilename string   `json:"original_filename"`
+	ID    uint   `json:"id"`
+	Title string `json:"title"`
+	// OriginalFilename and Size are omitted by the API without files:view_paths /
+	// files:view_size
+	OriginalFilename *string  `json:"original_filename,omitempty"`
 	PornDBSceneID    *string  `json:"porndb_scene_id"`
 	Actors           []string `json:"actors"`
 	Studio           *string  `json:"studio"`
 	ThumbnailPath    string   `json:"thumbnail_path"`
 	Duration         int      `json:"duration"`
 	// Size is the file size in bytes (0 when unknown), summed by the bulk toolbar
-	Size int64 `json:"size"`
+	Size *int64 `json:"size,omitempty"`
 }
 
 // GetScenesMatchInfo returns minimal scene data needed for bulk PornDB matching
@@ -670,13 +672,13 @@ func (s *ExplorerService) GetScenesMatchInfo(sceneIDs []uint) ([]SceneMatchInfo,
 		result = append(result, SceneMatchInfo{
 			ID:               scene.ID,
 			Title:            scene.Title,
-			OriginalFilename: scene.OriginalFilename,
+			OriginalFilename: &scene.OriginalFilename,
 			PornDBSceneID:    porndbID,
 			Actors:           actorNames,
 			Studio:           studio,
 			ThumbnailPath:    scene.ThumbnailPath,
 			Duration:         scene.Duration,
-			Size:             scene.Size,
+			Size:             &scene.Size,
 		})
 	}
 

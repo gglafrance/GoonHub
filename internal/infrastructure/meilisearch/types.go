@@ -55,6 +55,30 @@ type SearchParams struct {
 	Limit            int
 	MatchingStrategy string // Meilisearch matching strategy: "last", "all", or "frequency"
 	FetchAllIDs      bool   // When true, fetch all matching IDs (ignore Offset/Limit, skip sort)
+	// ExcludeFileAttributes searches the query on the non-file attributes only
+	// (ContentSearchAttributes): the user may not see paths nor file names
+	ExcludeFileAttributes bool
+}
+
+// SearchableAttributes are the attributes the query is matched against, by default.
+var SearchableAttributes = []string{
+	"title",
+	"original_filename",
+	"path",
+	"description",
+	"actors",
+	"actor_aliases",
+	"tag_names",
+}
+
+// ContentSearchAttributes are the searchable attributes without the file ones
+// (original_filename, path).
+var ContentSearchAttributes = []string{
+	"title",
+	"description",
+	"actors",
+	"actor_aliases",
+	"tag_names",
 }
 
 // SearchResult contains the result of a search query.

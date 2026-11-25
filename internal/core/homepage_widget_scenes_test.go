@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"goonhub/internal/data"
+
+	"go.uber.org/zap"
 )
 
 func TestSceneWidgetsRegistered(t *testing.T) {
@@ -58,13 +60,36 @@ func TestSceneWidgetValidation(t *testing.T) {
 }
 
 func TestSceneWidgetFilterParsing(t *testing.T) {
-	f := sceneWidgetFilter(map[string]interface{}{
+	cfg := map[string]interface{}{
 		"min_duration": 30.0, "max_duration": "120", "storage_path_id": 3.0, "folder": " coomer-dl ",
 		"tags": "Pup, Solo", "min_height": -1.0,
-	})
+	}
+	svc := NewHomepageService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
+	svc.SetWidgetDeps(HomepageWidgetDeps{Permissions: fakePermissionChecker{PermFilesViewPaths: true}})
+	f := sceneWidgetFilter(svc, 1, cfg)
 	if f.MinDuration != 30 || f.MaxDuration != 120 || f.StoragePathID != 3 || f.Folder != "coomer-dl" ||
 		len(f.Tags) != 2 || f.MinHeight != 0 {
 		t.Fatalf("unexpected filter: %+v", f)
+	}
+
+	// without files:view_paths the path filters (path oracles) are dropped
+	svc.SetWidgetDeps(HomepageWidgetDeps{Permissions: fakePermissionChecker{}})
+	f = sceneWidgetFilter(svc, 1, cfg)
+	if f.StoragePathID != 0 || f.Folder != "" || f.MinDuration != 30 {
+		t.Fatalf("path filters must be dropped: %+v", f)
+	}
+}
+
+func TestFolderLatestNeedsPaths(t *testing.T) {
+	svc := NewHomepageService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
+	svc.SetWidgetDeps(HomepageWidgetDeps{Permissions: fakePermissionChecker{}})
+	got, err := fetchFolderLatestWidget(svc, 1, data.HomepageSection{Type: "folder_latest", Config: map[string]interface{}{"folder": "x"}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	payload, ok := got.Widget.(folderLatestPayload)
+	if !ok || !payload.Forbidden || payload.Folder != "" || len(got.Scenes) != 0 {
+		t.Fatalf("expected a forbidden empty widget, got %+v", got.Widget)
 	}
 }
 

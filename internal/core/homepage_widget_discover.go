@@ -26,7 +26,7 @@ func fetchDiscoverWidget(s *HomepageService, userID uint, section data.HomepageS
 	if err != nil {
 		return nil, err
 	}
-	filter := sceneWidgetFilter(section.Config)
+	filter := sceneWidgetFilter(s, userID, section.Config)
 	ids, total, err := queries.SceneIDs(userID, filter, true, data.HomepageSceneOrderRandom, sceneWidgetLimit(section, 12))
 	if err != nil {
 		return nil, fmt.Errorf("failed to pick unwatched scenes: %w", err)

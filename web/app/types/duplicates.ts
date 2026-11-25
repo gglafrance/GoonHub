@@ -152,9 +152,10 @@ export interface SimilarScene {
     duration: number;
     width: number;
     height: number;
-    size: number;
+    // Omitted without files:view_size
+    size?: number;
     thumbnail_path: string;
-    // Only admins get trashed scenes
+    // Only users with library:insights get trashed scenes
     is_trashed: boolean;
     is_best: boolean;
     confidence_score: number;

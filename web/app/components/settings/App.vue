@@ -1,12 +1,12 @@
 <script setup lang="ts">
-const authStore = useAuthStore();
+const perms = useMyPermissions();
 const { getAppSettings, updateAppSettings } = useApiAdmin();
 
 const props = defineProps<{
     activeSubTab: string;
 }>();
 
-const isAdmin = computed(() => authStore.user?.role === 'admin');
+const canManageSettings = computed(() => perms.has('settings:manage'));
 
 // Admin app settings state (lives here so it survives sub-tab switches)
 const serveOGMetadata = ref(true);
@@ -16,7 +16,7 @@ const transcodingEnabled = ref(true);
 const originalTranscodingEnabled = ref(true);
 
 const loadAppSettings = async () => {
-    if (!isAdmin.value) return;
+    if (!canManageSettings.value) return;
     try {
         const data = await getAppSettings();
         serveOGMetadata.value = data.serve_og_metadata;
@@ -30,7 +30,7 @@ const loadAppSettings = async () => {
 };
 
 const hasUnsavedAppSettings = computed(() => {
-    if (!isAdmin.value) return false;
+    if (!canManageSettings.value) return false;
     return (
         serveOGMetadata.value !== originalServeOGMetadata.value ||
         transcodingEnabled.value !== originalTranscodingEnabled.value

@@ -70,15 +70,8 @@ func (c *Client) EnsureIndex() error {
 	index := c.client.Index(c.indexName)
 
 	// Configure searchable attributes
-	searchableTask, err := index.UpdateSearchableAttributes(&[]string{
-		"title",
-		"original_filename",
-		"path",
-		"description",
-		"actors",
-		"actor_aliases",
-		"tag_names",
-	})
+	searchable := append([]string{}, SearchableAttributes...)
+	searchableTask, err := index.UpdateSearchableAttributes(&searchable)
 	if err != nil {
 		return fmt.Errorf("failed to update searchable attributes: %w", err)
 	}
@@ -275,6 +268,10 @@ func (c *Client) Search(params SearchParams) (*SearchResult, error) {
 
 	if params.MatchingStrategy != "" {
 		searchReq.MatchingStrategy = params.MatchingStrategy
+	}
+
+	if params.ExcludeFileAttributes {
+		searchReq.AttributesToSearchOn = append([]string{}, ContentSearchAttributes...)
 	}
 
 	result, err := index.Search(params.Query, searchReq)

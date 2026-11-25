@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const authStore = useAuthStore();
+const perms = useMyPermissions();
 const { connect, disconnect } = useSSE();
 const { startAuthValidation, stopAuthValidation } = useAuthValidation();
 
@@ -34,6 +35,6 @@ onBeforeUnmount(() => {
     <div class="cosmic-bg min-h-screen overflow-x-hidden">
         <AppHeader />
         <NuxtPage />
-        <UploadIndicator />
+        <UploadIndicator v-if="perms.has('scenes:upload')" />
     </div>
 </template>

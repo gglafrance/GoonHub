@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const props = defineProps<{
     description: string;
+    readonly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -18,6 +19,7 @@ const autoResize = (event: Event) => {
 };
 
 const startEditing = () => {
+    if (props.readonly) return;
     editValue.value = props.description;
     editing.value = true;
     nextTick(() => {
@@ -63,7 +65,7 @@ watch(
             v-else
             class="text-dim -mx-2 min-h-8 cursor-pointer rounded-md px-2 py-1.5 text-sm
                 whitespace-pre-wrap transition-colors hover:bg-white/3 hover:text-white"
-            :class="{ 'text-white/70': description }"
+            :class="{ 'text-white/70': description, 'pointer-events-none': readonly }"
             @click="startEditing"
         >
             {{ description || 'No description' }}

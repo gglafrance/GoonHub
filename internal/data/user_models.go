@@ -19,26 +19,63 @@ type User struct {
 	ShareMarkers bool `gorm:"not null;default:false" json:"share_markers"`
 }
 
+// Role is a named set of permission settings (docs/RBAC.md). It inherits the permissions of
+// its parent roles (role_parents). A superuser role has every permission; a system role cannot
+// be deleted.
 type Role struct {
-	ID          uint         `gorm:"primarykey" json:"id"`
-	CreatedAt   time.Time    `json:"created_at"`
-	UpdatedAt   time.Time    `json:"updated_at"`
-	Name        string       `gorm:"uniqueIndex;not null;size:50" json:"name"`
-	Description string       `gorm:"size:255" json:"description"`
-	Permissions []Permission `gorm:"many2many:role_permissions" json:"permissions,omitempty"`
+	ID          uint      `gorm:"primarykey" json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Name        string    `gorm:"uniqueIndex;not null;size:50" json:"name"`
+	Description string    `gorm:"size:255" json:"description"`
+	IsSystem    bool      `gorm:"not null;default:false" json:"is_system"`
+	IsSuperuser bool      `gorm:"not null;default:false" json:"is_superuser"`
 }
 
+// Permission is a named capability, synced from the catalog (core/rbac_catalog.go).
 type Permission struct {
 	ID          uint      `gorm:"primarykey" json:"id"`
 	CreatedAt   time.Time `json:"created_at"`
 	Name        string    `gorm:"uniqueIndex;not null;size:100" json:"name"`
 	Description string    `gorm:"size:255" json:"description"`
+	GroupName   string    `gorm:"column:group_name;not null;default:''" json:"group"`
 }
 
+// Permission setting effects (role settings and user overrides). No row means "inherit".
+const (
+	PermissionEffectAllow = "allow"
+	PermissionEffectDeny  = "deny"
+)
+
+// RolePermission is a role's own setting for a permission.
 type RolePermission struct {
-	ID           uint `gorm:"primarykey"`
-	RoleID       uint `gorm:"not null"`
-	PermissionID uint `gorm:"not null"`
+	ID           uint   `gorm:"primarykey"`
+	RoleID       uint   `gorm:"not null"`
+	PermissionID uint   `gorm:"not null"`
+	Effect       string `gorm:"not null;default:'allow'"`
+}
+
+// RoleParent makes RoleID inherit the permissions of ParentID.
+type RoleParent struct {
+	RoleID    uint      `gorm:"primaryKey;autoIncrement:false"`
+	ParentID  uint      `gorm:"primaryKey;autoIncrement:false"`
+	CreatedAt time.Time `gorm:"autoCreateTime"`
+}
+
+func (RoleParent) TableName() string {
+	return "role_parents"
+}
+
+// UserPermissionOverride is a per-user setting: it beats the role's effective value.
+type UserPermissionOverride struct {
+	UserID       uint      `gorm:"primaryKey;autoIncrement:false"`
+	PermissionID uint      `gorm:"primaryKey;autoIncrement:false"`
+	Effect       string    `gorm:"not null"`
+	CreatedAt    time.Time `gorm:"autoCreateTime"`
+}
+
+func (UserPermissionOverride) TableName() string {
+	return "user_permission_overrides"
 }
 
 type RevokedToken struct {

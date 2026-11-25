@@ -11,6 +11,9 @@ const emit = defineEmits<{
 
 const { fetchLabelTags, setLabelTags } = useApiMarkers();
 const { fetchTags } = useApiTags();
+// Label tags are the user's own marker tags: markers:create
+const perms = useMyPermissions();
+const canEdit = computed(() => perms.has('markers:create'));
 
 const loading = ref(false);
 const saving = ref(false);
@@ -160,6 +163,7 @@ defineExpose({ reload });
                 />
                 {{ tag.name }}
                 <span
+                    v-if="canEdit"
                     class="cursor-pointer opacity-0 transition-opacity group-hover:opacity-60
                         hover:opacity-100!"
                     :class="{ 'pointer-events-none': saving }"
@@ -176,6 +180,7 @@ defineExpose({ reload });
 
             <!-- Add tag button -->
             <button
+                v-if="canEdit"
                 ref="anchorRef"
                 class="border-border hover:border-border-hover flex h-5 w-5 items-center
                     justify-center rounded-full border transition-colors"

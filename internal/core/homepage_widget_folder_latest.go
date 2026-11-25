@@ -9,7 +9,8 @@ import (
 // folder_latest: latest added scenes of a storage path and/or folder.
 // Config: storage_path_id, folder (absolute path prefix, or a folder name matched anywhere in
 // the path). At least one of them is required.
-// Widget payload: {"storage_path": {"id", "name"} | null, "folder": "..."}
+// Widget payload: {"storage_path": {"id", "name"} | null, "folder": "..."}; without
+// files:view_paths the widget gives nothing ({"forbidden": true}): it filters by path.
 
 type folderLatestStoragePath struct {
 	ID   uint   `json:"id"`
@@ -19,6 +20,7 @@ type folderLatestStoragePath struct {
 type folderLatestPayload struct {
 	StoragePath *folderLatestStoragePath `json:"storage_path"`
 	Folder      string                   `json:"folder"`
+	Forbidden   bool                     `json:"forbidden,omitempty"`
 }
 
 func init() {
@@ -37,11 +39,14 @@ func init() {
 }
 
 func fetchFolderLatestWidget(s *HomepageService, userID uint, section data.HomepageSection) (*HomepageSectionData, error) {
+	if !s.userHas(userID, PermFilesViewPaths) {
+		return &HomepageSectionData{Section: section, Scenes: []data.Scene{}, Widget: folderLatestPayload{Forbidden: true}}, nil
+	}
 	queries, err := sceneWidgetQueries(s)
 	if err != nil {
 		return nil, err
 	}
-	filter := sceneWidgetFilter(section.Config)
+	filter := sceneWidgetFilter(s, userID, section.Config)
 	payload := folderLatestPayload{Folder: filter.Folder}
 	if filter.StoragePathID > 0 && s.WidgetDeps().StoragePaths != nil {
 		if sp, err := s.WidgetDeps().StoragePaths.GetByID(filter.StoragePathID); err == nil && sp != nil {

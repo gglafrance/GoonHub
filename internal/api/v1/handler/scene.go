@@ -95,7 +95,7 @@ func (h *SceneHandler) UploadScene(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, scene)
+	c.JSON(http.StatusCreated, response.NewSceneDetail(scene, fileVisibility(c)))
 }
 
 var resolutionToHeight = map[string][2]int{
@@ -195,7 +195,13 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		userID = payload.UserID
 	}
 
+	vis := fileVisibility(c)
+	if refuseHiddenSizeQuery(c, vis, req.Sort, req.MinSize > 0 || req.MaxSize > 0) {
+		return
+	}
+
 	params := searchParamsFromRequest(&req, userID)
+	params.HideFilePaths = !vis.Paths
 
 	if req.Tags != "" {
 		tagNames := strings.Split(req.Tags, ",")
@@ -219,9 +225,9 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 
 	var items []response.SceneListItem
 	if cardFields.HasAny() {
-		items = response.ToSceneListItemsWithFields(result.Scenes, cardFields)
+		items = response.ToSceneListItemsWithFields(result.Scenes, cardFields, vis)
 	} else {
-		items = response.ToSceneListItems(result.Scenes)
+		items = response.ToSceneListItems(result.Scenes, vis)
 	}
 
 	sceneIDs := make([]uint, len(result.Scenes))
@@ -375,7 +381,7 @@ func (h *SceneHandler) GetScene(c *gin.Context) {
 		return
 	}
 
-	resp := sceneDetailResponse{SceneDetail: response.NewSceneDetail(scene)}
+	resp := response.NewSceneDetail(scene, fileVisibility(c))
 	if h.Transcoder != nil {
 		resp.Playback = h.Transcoder.PlaybackInfo(scene)
 	} else {
@@ -565,7 +571,7 @@ func (h *SceneHandler) UpdateSceneDetails(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, response.NewSceneDetail(scene))
+	c.JSON(http.StatusOK, response.NewSceneDetail(scene, fileVisibility(c)))
 }
 
 func (h *SceneHandler) UploadThumbnail(c *gin.Context) {
@@ -735,7 +741,7 @@ func (h *SceneHandler) ApplySceneMetadata(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, updatedScene)
+	c.JSON(http.StatusOK, response.NewSceneDetail(updatedScene, fileVisibility(c)))
 }
 
 func (h *SceneHandler) GetRelatedScenes(c *gin.Context) {
@@ -783,9 +789,9 @@ func (h *SceneHandler) GetRelatedScenes(c *gin.Context) {
 
 	var items []response.SceneListItem
 	if cardFields.HasAny() {
-		items = response.ToSceneListItemsWithFields(scenes, cardFields)
+		items = response.ToSceneListItemsWithFields(scenes, cardFields, fileVisibility(c))
 	} else {
-		items = response.ToSceneListItems(scenes)
+		items = response.ToSceneListItems(scenes, fileVisibility(c))
 	}
 
 	sceneIDs := make([]uint, len(scenes))

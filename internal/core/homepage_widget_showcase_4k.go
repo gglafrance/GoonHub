@@ -43,7 +43,7 @@ func fetchShowcase4KWidget(s *HomepageService, userID uint, section data.Homepag
 	if err != nil {
 		return nil, err
 	}
-	filter := sceneWidgetFilter(section.Config)
+	filter := sceneWidgetFilter(s, userID, section.Config)
 	filter.MinHeight = widgetConfigInt(section.Config, "min_height", showcase4KDefaultHeight)
 	if filter.MinHeight <= 0 {
 		filter.MinHeight = showcase4KDefaultHeight

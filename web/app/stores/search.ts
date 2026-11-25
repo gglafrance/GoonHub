@@ -34,6 +34,7 @@ const emptyStatus = (): SearchStatus => ({
 export const useSearchStore = defineStore('search', () => {
     const api = useApi();
     const settingsStore = useSettingsStore();
+    const perms = useMyPermissions();
 
     // Filter state
     const query = ref('');
@@ -376,15 +377,18 @@ export const useSearchStore = defineStore('search', () => {
         if (studio.value) params.studio = studio.value;
         if (minDuration.value > 0) params.min_duration = minDuration.value;
         if (maxDuration.value > 0) params.max_duration = maxDuration.value;
-        if (minSize.value > 0) params.min_size = minSize.value;
-        if (maxSize.value > 0) params.max_size = maxSize.value;
+        // Size filters and sorts need files:view_size (the API refuses them otherwise): a
+        // size filter or sort from an old URL or saved search is left out
+        const canSize = perms.has('files:view_size');
+        if (canSize && minSize.value > 0) params.min_size = minSize.value;
+        if (canSize && maxSize.value > 0) params.max_size = maxSize.value;
         Object.assign(params, statusParams());
         if (selectedSourceSites.value.length > 0)
             params.source_site = selectedSourceSites.value.join(',');
         if (minDate.value) params.min_date = minDate.value;
         if (maxDate.value) params.max_date = maxDate.value;
         if (resolution.value) params.resolution = resolution.value;
-        if (sort.value) params.sort = sort.value;
+        if (sort.value && sceneSortAllowed(sort.value, perms.has)) params.sort = sort.value;
         if (sort.value === 'random' && seed.value) params.seed = seed.value;
         if (liked.value) params.liked = 'true';
         if (minRating.value > 0) params.min_rating = minRating.value;

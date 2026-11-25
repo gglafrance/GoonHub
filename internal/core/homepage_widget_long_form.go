@@ -42,7 +42,7 @@ func fetchLongFormWidget(s *HomepageService, userID uint, section data.HomepageS
 	if err != nil {
 		return nil, err
 	}
-	filter := sceneWidgetFilter(section.Config)
+	filter := sceneWidgetFilter(s, userID, section.Config)
 	if filter.MinDuration <= 0 {
 		filter.MinDuration = longFormDefaultMinDuration
 	}

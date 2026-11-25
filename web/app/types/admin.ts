@@ -15,19 +15,6 @@ export interface AdminUsersResponse {
     limit: number;
 }
 
-export interface RoleResponse {
-    id: number;
-    name: string;
-    description: string;
-    permissions: PermissionResponse[];
-}
-
-export interface PermissionResponse {
-    id: number;
-    name: string;
-    description: string;
-}
-
 // Cache of the on-the-fly conversions (GET /admin/transcode-cache)
 export interface TranscodeCacheStats {
     enabled: boolean;

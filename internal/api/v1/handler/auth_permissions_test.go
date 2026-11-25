@@ -6,43 +6,23 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"goonhub/internal/api/middleware"
 	"goonhub/internal/core"
-	"goonhub/internal/mocks"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/mock/gomock"
-	"go.uber.org/zap"
 )
 
-// The RBAC service is the provider wired in the routes.
-var _ RolePermissionsProvider = (*core.RBACService)(nil)
-
-func newPermissionsTestRBAC(t *testing.T) *core.RBACService {
-	t.Helper()
-	ctrl := gomock.NewController(t)
-	roleRepo := mocks.NewMockRoleRepository(ctrl)
-	permRepo := mocks.NewMockPermissionRepository(ctrl)
-	roleRepo.EXPECT().GetAllRolePermissions().Return(map[string][]string{
-		"moderator": {"scenes:view", "scenes:upload", "scenes:trash"},
-		"user":      {"scenes:view"},
-	}, nil)
-	svc, err := core.NewRBACService(roleRepo, permRepo, zap.NewNop())
-	if err != nil {
-		t.Fatalf("failed to create RBAC service: %v", err)
-	}
-	return svc
-}
-
-func performPermissionsRequest(t *testing.T, provider RolePermissionsProvider, payload *core.UserPayload) *httptest.ResponseRecorder {
+func performPermissionsRequest(t *testing.T, access *core.UserAccess) *httptest.ResponseRecorder {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	if payload != nil {
+	if access != nil {
 		r.Use(func(c *gin.Context) {
-			c.Set("user", payload)
+			c.Set("user", &core.UserPayload{UserID: access.UserID, Role: access.Role})
+			middleware.SetAccess(c, access)
 		})
 	}
-	r.GET("/auth/permissions", MyPermissions(provider))
+	r.GET("/auth/permissions", MyPermissions())
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/auth/permissions", nil)
@@ -50,9 +30,8 @@ func performPermissionsRequest(t *testing.T, provider RolePermissionsProvider, p
 	return w
 }
 
-func TestMyPermissions_ReturnsRolePermissions(t *testing.T) {
-	rbac := newPermissionsTestRBAC(t)
-	w := performPermissionsRequest(t, rbac, &core.UserPayload{UserID: 3, Username: "mod", Role: "moderator"})
+func TestMyPermissions_ReturnsEffectivePermissions(t *testing.T) {
+	w := performPermissionsRequest(t, core.NewUserAccess(3, "moderator", false, "scenes:view", "scenes:upload", "scenes:trash"))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
@@ -61,8 +40,8 @@ func TestMyPermissions_ReturnsRolePermissions(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if body.Role != "moderator" {
-		t.Fatalf("expected role moderator, got %q", body.Role)
+	if body.Role != "moderator" || body.Superuser {
+		t.Fatalf("unexpected role %q superuser %v", body.Role, body.Superuser)
 	}
 	want := []string{"scenes:trash", "scenes:upload", "scenes:view"}
 	if len(body.Permissions) != len(want) {
@@ -75,9 +54,19 @@ func TestMyPermissions_ReturnsRolePermissions(t *testing.T) {
 	}
 }
 
-func TestMyPermissions_UnknownRoleReturnsEmptyList(t *testing.T) {
-	rbac := newPermissionsTestRBAC(t)
-	w := performPermissionsRequest(t, rbac, &core.UserPayload{UserID: 4, Username: "x", Role: "ghost"})
+func TestMyPermissions_Superuser(t *testing.T) {
+	w := performPermissionsRequest(t, core.NewUserAccess(1, "admin", true, "scenes:view"))
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(w.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if string(raw["superuser"]) != "true" || string(raw["role"]) != `"admin"` {
+		t.Fatalf("unexpected body %s", w.Body.String())
+	}
+}
+
+func TestMyPermissions_NoPermissionReturnsEmptyList(t *testing.T) {
+	w := performPermissionsRequest(t, core.NewUserAccess(4, "ghost", false))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
@@ -93,8 +82,7 @@ func TestMyPermissions_UnknownRoleReturnsEmptyList(t *testing.T) {
 }
 
 func TestMyPermissions_WithoutUserIsUnauthorized(t *testing.T) {
-	rbac := newPermissionsTestRBAC(t)
-	w := performPermissionsRequest(t, rbac, nil)
+	w := performPermissionsRequest(t, nil)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", w.Code)

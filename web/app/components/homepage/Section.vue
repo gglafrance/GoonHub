@@ -13,12 +13,15 @@ const emit = defineEmits<{
 
 const isRefreshing = ref(false);
 
-const authStore = useAuthStore();
+const perms = useMyPermissions();
 const meta = computed(() => SECTION_TYPE_META[props.section.type as SectionType]);
 const isWidget = computed(() => meta.value?.widget ?? false);
 // Widgets can hide the section header (e.g. a full width banner)
 const showHeader = computed(() => props.section.config?.hide_header !== true);
-const hiddenForUser = computed(() => meta.value?.adminOnly && authStore.user?.role !== 'admin');
+const hiddenForUser = computed(() => {
+    const permission = meta.value?.permission;
+    return !!permission && !perms.has(permission);
+});
 
 const handleRefresh = async () => {
     if (isRefreshing.value) return;

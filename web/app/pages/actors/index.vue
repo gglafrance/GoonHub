@@ -12,7 +12,6 @@ useSeoMeta({
 
 const api = useApi();
 const router = useRouter();
-const authStore = useAuthStore();
 const settingsStore = useSettingsStore();
 
 const actors = ref<ActorListItem[]>([]);
@@ -49,7 +48,8 @@ const genderOptions = [
     { value: 'Non-binary', label: 'Non-binary' },
 ];
 
-const isAdmin = computed(() => authStore.user?.role === 'admin');
+const perms = useMyPermissions();
+const canManage = computed(() => perms.has('actors:manage'));
 
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -144,7 +144,7 @@ definePageMeta({
                     <h1 class="text-lg font-semibold text-white">Actors</h1>
                     <div class="flex items-center gap-2">
                         <button
-                            v-if="isAdmin"
+                            v-if="canManage"
                             class="bg-lava hover:bg-lava-glow flex items-center gap-1 rounded-lg
                                 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
                             @click="showCreateModal = true"

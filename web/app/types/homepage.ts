@@ -1,5 +1,6 @@
 import type { SceneListItem } from './scene';
 import type { PlaylistListItem } from './playlist';
+import type { PermissionName } from './permissions';
 
 // Built-in scene list sections
 export type SceneListSectionType =
@@ -132,8 +133,8 @@ export interface SectionTypeMeta {
     usesLimit: boolean;
     // Rendered by components/homepage/widgets/<PascalType>.vue
     widget: boolean;
-    // Admin only (hidden for other users)
-    adminOnly?: boolean;
+    // Shown only to users having this permission (the API refuses the data otherwise)
+    permission?: PermissionName;
 }
 
 const sceneSort = SORT_OPTIONS;
@@ -525,6 +526,7 @@ export const SECTION_TYPE_META: Record<SectionType, SectionTypeMeta> = {
         defaultLimit: 1,
         usesLimit: false,
         widget: true,
+        permission: 'library:insights',
     },
     processing_status: {
         label: 'Processing Status',
@@ -536,7 +538,7 @@ export const SECTION_TYPE_META: Record<SectionType, SectionTypeMeta> = {
         defaultLimit: 1,
         usesLimit: false,
         widget: true,
-        adminOnly: true,
+        permission: 'library:insights',
     },
     text_block: {
         label: 'Text & Links',

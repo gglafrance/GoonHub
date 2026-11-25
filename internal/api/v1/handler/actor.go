@@ -105,7 +105,7 @@ func (h *ActorHandler) GetActorScenes(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":  response.ToSceneListItems(scenes),
+		"data":  response.ToSceneListItems(scenes, fileVisibility(c)),
 		"total": total,
 		"page":  page,
 		"limit": limit,

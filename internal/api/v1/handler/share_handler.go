@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"goonhub/internal/api/middleware"
 	"mime"
 	"net/http"
 	"os"
@@ -24,6 +25,9 @@ type ShareHandler struct {
 	StreamManager *streaming.Manager
 	Transcoder    *streaming.Transcoder
 	ShareBaseURL  string
+	// Access resolves the user of a session token: the token of a deleted user does not count
+	// as authenticated (nil: the token alone is checked)
+	Access middleware.AccessResolver
 }
 
 func NewShareHandler(
@@ -156,8 +160,16 @@ func (h *ShareHandler) isAuthenticated(c *gin.Context) bool {
 		return false
 	}
 
-	_, err := h.AuthService.ValidateToken(token)
-	return err == nil
+	payload, err := h.AuthService.ValidateToken(token)
+	if err != nil {
+		return false
+	}
+	if h.Access != nil {
+		if _, err := h.Access.ResolveUser(payload.UserID); err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 // ResolveShareLink resolves a share token to scene data.

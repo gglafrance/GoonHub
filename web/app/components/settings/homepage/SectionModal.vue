@@ -57,16 +57,15 @@ onMounted(() => {
     onUnmounted(() => window.removeEventListener('keydown', handleEscape));
 });
 
-const authStore = useAuthStore();
+const perms = useMyPermissions();
 
 // Section type options with icons and descriptions
 const typeOptions = computed(() => {
     return Object.entries(SECTION_TYPE_LABELS)
-        .filter(
-            ([value]) =>
-                !SECTION_TYPE_META[value as SectionType]?.adminOnly ||
-                authStore.user?.role === 'admin',
-        )
+        .filter(([value]) => {
+            const permission = SECTION_TYPE_META[value as SectionType]?.permission;
+            return !permission || perms.has(permission);
+        })
         .map(([value, label]) => ({
             value: value as SectionType,
             label,

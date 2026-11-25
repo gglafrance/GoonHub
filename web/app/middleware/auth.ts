@@ -1,5 +1,19 @@
+import type { PermissionName } from '~/types/permissions';
+
+// Page that needs a permission the user lacks: back to the homepage
+const deniedRedirect = (
+    required: PermissionName[] | undefined,
+    permissions: ReturnType<typeof useMyPermissions>,
+) => {
+    if (!required || required.length === 0 || permissions.hasAny(...required)) return undefined;
+    return navigateTo('/');
+};
+
 export default defineNuxtRouteMiddleware(async (to, from) => {
     const authStore = useAuthStore();
+    // Permissions gate the page blocks synchronously: loaded before the page renders (once per
+    // user, a no-op afterwards), refreshed after login and in the background (they are live)
+    const permissions = useMyPermissions();
 
     const isPublicRoute = ['/login'].includes(to.path);
 
@@ -31,7 +45,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
                 }
                 // Always fetch fresh settings on initial load (sessionStorage may be stale from another tab)
                 const settingsStore = useSettingsStore();
-                await settingsStore.loadSettings();
+                await Promise.all([settingsStore.loadSettings(), permissions.load(true)]);
             } catch {
                 authStore.$patch({ user: null });
                 return navigateTo({
@@ -39,8 +53,11 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
                     query: { redirect: to.fullPath },
                 });
             }
-            return;
+            return deniedRedirect(to.meta.permissions, permissions);
         }
+
+        // Coming from the login page: another user may have signed in
+        const permissionsLoad = permissions.load(from.path === '/login');
 
         // Case 3: In-app navigation with fresh validation - navigate immediately
         if (authStore.isValidationFresh) {
@@ -49,7 +66,8 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
             if (!settingsStore.settings) {
                 await settingsStore.loadSettings();
             }
-            return;
+            await permissionsLoad;
+            return deniedRedirect(to.meta.permissions, permissions);
         }
 
         // Case 4: In-app navigation with stale validation - navigate immediately, validate in background
@@ -58,10 +76,13 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
         if (!settingsStore.settings) {
             await settingsStore.loadSettings();
         }
+        await permissionsLoad;
 
-        // Validate in background (non-blocking)
+        // Validate in background (non-blocking), then refresh the permissions (they are live)
         authStore.validateSession().then((isValid) => {
-            if (!isValid) {
+            if (isValid) {
+                void permissions.load(true);
+            } else {
                 // Session invalid, redirect to login
                 navigateTo({
                     path: '/login',
@@ -69,6 +90,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
                 });
             }
         });
+        return deniedRedirect(to.meta.permissions, permissions);
     }
 
     // If already logged in and trying to access login page, redirect to home

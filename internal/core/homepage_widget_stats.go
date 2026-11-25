@@ -25,16 +25,17 @@ var statsWidgetPeriods = map[string]bool{"month": true, "week": true, "30d": tru
 
 // StatsWidgetPayload is the payload of the stats widget.
 type StatsWidgetPayload struct {
-	Tiles           []string `json:"tiles"`
-	Period          string   `json:"period"`
-	SceneCount      int64    `json:"scene_count"`
-	TotalDuration   int64    `json:"total_duration"`
-	TotalSize       int64    `json:"total_size"`
-	WatchedScenes   int64    `json:"watched_scenes"`
-	WatchedPercent  float64  `json:"watched_percent"`
-	ViewsPeriod     int64    `json:"views_period"`
-	ViewsPrevPeriod int64    `json:"views_prev_period"`
-	JizzTotal       int64    `json:"jizz_total"`
+	Tiles         []string `json:"tiles"`
+	Period        string   `json:"period"`
+	SceneCount    int64    `json:"scene_count"`
+	TotalDuration int64    `json:"total_duration"`
+	// TotalSize is omitted for users without files:view_size (redacted by the API layer)
+	TotalSize       *int64  `json:"total_size,omitempty"`
+	WatchedScenes   int64   `json:"watched_scenes"`
+	WatchedPercent  float64 `json:"watched_percent"`
+	ViewsPeriod     int64   `json:"views_period"`
+	ViewsPrevPeriod int64   `json:"views_prev_period"`
+	JizzTotal       int64   `json:"jizz_total"`
 	// Dated o: count of the period and of the previous one, last o, weekly average since
 	// the first dated o
 	JizzPeriod     int64      `json:"jizz_period"`
@@ -117,7 +118,7 @@ func fetchStatsWidget(s *HomepageService, userID uint, section data.HomepageSect
 		Period:          period,
 		SceneCount:      stats.SceneCount,
 		TotalDuration:   stats.TotalDuration,
-		TotalSize:       stats.TotalSize,
+		TotalSize:       &stats.TotalSize,
 		WatchedScenes:   stats.WatchedScenes,
 		ViewsPeriod:     stats.ViewsPeriod,
 		ViewsPrevPeriod: stats.ViewsPrevPeriod,

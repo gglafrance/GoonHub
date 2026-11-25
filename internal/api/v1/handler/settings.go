@@ -7,6 +7,8 @@ import (
 
 	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/request"
+	"goonhub/internal/api/v1/response"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
 	"goonhub/internal/data"
 )
@@ -37,7 +39,7 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 	}
 
 	settings.MaxItemsPerPage = h.MaxItemsPerPage
-	c.JSON(http.StatusOK, settings)
+	c.JSON(http.StatusOK, settingsForUser(c, settings))
 }
 
 func (h *SettingsHandler) ChangePassword(c *gin.Context) {
@@ -180,6 +182,9 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 	homepageConfig := h.convertRequestToConfig(req.HomepageConfig)
 	parsingRules := h.convertRequestToParsingRules(req.ParsingRules)
 	sortPrefs := convertSortPreferences(req.SortPreferences)
+	if refuseSizeSorts(c, &req.DefaultSortOrder, &homepageConfig, &sortPrefs) {
+		return
+	}
 	sceneCardConfig := h.convertRequestToSceneCardConfig(req.SceneCardConfig)
 	var sceneListView *data.SceneListView
 	if req.SceneListView != nil {
@@ -223,7 +228,7 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 	}
 
 	settings.MaxItemsPerPage = h.MaxItemsPerPage
-	c.JSON(http.StatusOK, settings)
+	c.JSON(http.StatusOK, settingsForUser(c, settings))
 }
 
 // PatchSettings updates only the settings present in the body (PATCH /settings) and returns
@@ -240,6 +245,19 @@ func (h *SettingsHandler) PatchSettings(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	var patchHomepage *data.HomepageConfig
+	if req.HomepageConfig != nil {
+		hc := h.convertRequestToConfig(*req.HomepageConfig)
+		patchHomepage = &hc
+	}
+	var patchPrefs *data.SortPreferences
+	if req.SortPreferences != nil {
+		sp := convertSortPreferences(*req.SortPreferences)
+		patchPrefs = &sp
+	}
+	if refuseSizeSorts(c, req.DefaultSortOrder, patchHomepage, patchPrefs) {
+		return
+	}
 
 	settings, err := h.SettingsService.UpdateSettings(userPayload.UserID, h.patchOptions(req)...)
 	if err != nil {
@@ -248,7 +266,7 @@ func (h *SettingsHandler) PatchSettings(c *gin.Context) {
 	}
 
 	settings.MaxItemsPerPage = h.MaxItemsPerPage
-	c.JSON(http.StatusOK, settings)
+	c.JSON(http.StatusOK, settingsForUser(c, settings))
 }
 
 // patchOptions maps the fields present in a PATCH body to the settings options, which validate
@@ -410,4 +428,23 @@ func (h *SettingsHandler) convertRequestToSceneCardConfig(req request.UpdateScen
 		},
 		ContentRows: rows,
 	}
+}
+
+// refuseSizeSorts answers 403 and returns true when settings use a file size sort and the user
+// lacks files:view_size.
+func refuseSizeSorts(c *gin.Context, defaultSort *string, homepage *data.HomepageConfig, prefs *data.SortPreferences) bool {
+	if fileVisibility(c).Size || !core.SettingsUseSizeSort(defaultSort, homepage, prefs) {
+		return false
+	}
+	response.Error(c, apperrors.NewForbiddenError("file size sorts need the files:view_size permission"))
+	return true
+}
+
+// settingsForUser returns the settings as the user may see them: the size sorts stored before
+// migration 094 fall back to the default sort without files:view_size.
+func settingsForUser(c *gin.Context, settings *data.UserSettings) *data.UserSettings {
+	if fileVisibility(c).Size {
+		return settings
+	}
+	return core.WithoutSizeSorts(settings)
 }

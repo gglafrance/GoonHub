@@ -10,6 +10,7 @@ import type {
 
 definePageMeta({
     middleware: 'auth',
+    permissions: ['duplicates:manage'],
 });
 
 useHead({ title: 'Duplicate Detection' });
@@ -21,7 +22,6 @@ useSeoMeta({
     ogDescription: 'Manage detected duplicate scenes',
 });
 
-const authStore = useAuthStore();
 const {
     listGroups,
     listSelectableIds,
@@ -36,11 +36,6 @@ const {
     cancelDeletion,
     getConfig,
 } = useApiDuplicates();
-
-// Redirect non-admins
-if (authStore.user?.role !== 'admin') {
-    navigateTo('/');
-}
 
 // State
 const groups = ref<DuplicateGroup[]>([]);

@@ -72,7 +72,7 @@ const actorsText = computed(() => props.scene.actors?.join(', ') ?? '');
     </span>
 
     <span v-else-if="column === 'file_size'" class="font-mono">
-        {{ scene.size > 0 ? formatSize(scene.size) : '-' }}
+        {{ (scene.size ?? 0) > 0 ? formatSize(scene.size ?? 0) : '-' }}
     </span>
 
     <span v-else-if="column === 'rating'" class="flex items-center gap-0.5 font-mono">

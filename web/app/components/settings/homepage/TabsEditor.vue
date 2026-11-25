@@ -18,7 +18,7 @@ const addTab = (templateId: string) => {
     const template = HOMEPAGE_TAB_TEMPLATES.find((t) => t.id === templateId);
     if (!template || tabs.value.length >= 12) return;
     const tab = createTabFromTemplate(template);
-     
+
     props.config.tabs.push(tab);
     selected.value = tab.id;
     showTemplates.value = false;
@@ -29,16 +29,15 @@ const move = (index: number, offset: number) => {
     if (target < 0 || target >= tabs.value.length) return;
     const next = [...tabs.value];
     [next[index], next[target]] = [next[target]!, next[index]!];
-     
+
     props.config.tabs = next;
 };
 
 const remove = (id: string) => {
     if (tabs.value.length <= 1) return;
-     
+
     props.config.tabs = tabs.value.filter((t) => t.id !== id);
     if (props.config.default_tab_id === id) {
-         
         props.config.default_tab_id = props.config.tabs[0]!.id;
     }
     if (selected.value === id) selected.value = props.config.tabs[0]!.id;
@@ -55,7 +54,6 @@ const requestRemove = (id: string) => {
 };
 
 const setDefault = (id: string) => {
-     
     props.config.default_tab_id = id;
 };
 
@@ -68,7 +66,6 @@ const setIcon = (id: string, icon: string) => {
 const openOn = computed({
     get: () => props.config.open_on ?? 'last',
     set: (v: HomepageOpenOn) => {
-         
         props.config.open_on = v;
     },
 });

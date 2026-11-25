@@ -23,7 +23,7 @@ const badge = computed(() => {
                 ? { icon: null, text: formatDuration(props.scene.duration), class: 'bg-void/90' }
                 : null;
         case 'file_size':
-            return props.scene.size > 0
+            return props.scene.size
                 ? { icon: null, text: formatSize(props.scene.size), class: 'bg-void/90' }
                 : null;
         case 'added_at':

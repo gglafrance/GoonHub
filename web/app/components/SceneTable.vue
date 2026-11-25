@@ -35,10 +35,12 @@ defineSlots<{
 }>();
 
 const settingsStore = useSettingsStore();
+// The size column needs files:view_size
+const perms = useMyPermissions();
 
 const columns = computed(() =>
     settingsStore.sceneListView.columns
-        .filter((id) => !props.hiddenColumns?.includes(id))
+        .filter((id) => !props.hiddenColumns?.includes(id) && fileFieldAllowed(id, perms.has))
         .map((id) => sceneTableColumnDef(id))
         .filter((c): c is SceneTableColumnDef => !!c),
 );

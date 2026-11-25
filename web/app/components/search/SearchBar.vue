@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const searchStore = useSearchStore();
 
-const sortOptions = [
+const allSortOptions = [
     { value: '', label: 'Default' },
     { value: 'relevance', label: 'Relevance' },
     { value: 'random', label: 'Random' },
@@ -20,6 +20,9 @@ const sortOptions = [
     { value: 'view_count_desc', label: 'Most Viewed' },
     { value: 'view_count_asc', label: 'Least Viewed' },
 ];
+// Size sorts need files:view_size
+const perms = useMyPermissions();
+const sortOptions = computed(() => allowedSortOptions(allSortOptions, perms.has));
 </script>
 
 <template>

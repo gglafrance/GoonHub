@@ -68,8 +68,8 @@ export const useQuickMarker = ({ player, sceneId, onSaved }: Options) => {
     let tagsLoaded = false;
     let wasPlaying = false;
 
-    // Same rule as the triage page: tags are created by the users who may edit scenes
-    const canCreateTags = computed(() => perms.has('scenes:upload'));
+    // Creating a marker tag that does not exist yet needs tags:manage
+    const canCreateTags = computed(() => perms.has('tags:manage'));
 
     const loadLabels = async () => {
         if (labelsLoaded) return;
@@ -115,7 +115,7 @@ export const useQuickMarker = ({ player, sceneId, onSaved }: Options) => {
     /** Opens the dialog at the current player time (pauses a playing scene). */
     const open = () => {
         const p = player();
-        if (!p || isOpen.value) return false;
+        if (!p || isOpen.value || !perms.has('markers:create')) return false;
         // currentTime() is the scene time, the transcode middleware adds its stream offset
         time.value = quickMarkerTimestamp(p.currentTime());
         wasPlaying = !p.paused();

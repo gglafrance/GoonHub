@@ -14,7 +14,7 @@ const { formatSize, formatFrameRate } = useFormatter();
 const metaValue = computed(() => {
     switch (props.field) {
         case 'file_size':
-            return formatSize(props.scene.size);
+            return props.scene.size !== undefined ? formatSize(props.scene.size) : '';
         case 'added_at':
             return null; // handled in template with UiFormattedDate
         case 'views':

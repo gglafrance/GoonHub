@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/request"
 	"goonhub/internal/api/v1/response"
@@ -15,12 +16,12 @@ import (
 
 type AdminHandler struct {
 	AdminService    *core.AdminService
-	RBACService     *core.RBACService
+	RBACService     RBACManager
 	SceneService    *core.SceneService
 	AppSettingsRepo data.AppSettingsRepository
 }
 
-func NewAdminHandler(adminService *core.AdminService, rbacService *core.RBACService, sceneService *core.SceneService, appSettingsRepo data.AppSettingsRepository) *AdminHandler {
+func NewAdminHandler(adminService *core.AdminService, rbacService RBACManager, sceneService *core.SceneService, appSettingsRepo data.AppSettingsRepository) *AdminHandler {
 	return &AdminHandler{
 		AdminService:    adminService,
 		RBACService:     rbacService,
@@ -85,8 +86,8 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.AdminService.CreateUser(req.Username, req.Password, req.Role); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := h.AdminService.CreateUser(middleware.GetAccess(c), req.Username, req.Password, req.Role); err != nil {
+		adminUserError(c, err)
 		return
 	}
 
@@ -106,8 +107,8 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 		return
 	}
 
-	if err := h.AdminService.UpdateUserRole(uint(id), req.Role); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := h.AdminService.UpdateUserRole(middleware.GetAccess(c), uint(id), req.Role); err != nil {
+		adminUserError(c, err)
 		return
 	}
 
@@ -149,7 +150,12 @@ func (h *AdminHandler) ResetUserPassword(c *gin.Context) {
 		return
 	}
 
-	if err := h.AdminService.ResetUserPassword(uint(id), req.NewPassword); err != nil {
+	if err := h.AdminService.ResetUserPassword(middleware.GetAccess(c), uint(id), req.NewPassword); err != nil {
+		var appErr apperrors.AppError
+		if errors.As(err, &appErr) {
+			response.Error(c, err)
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -164,59 +170,12 @@ func (h *AdminHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	userPayload, err := middleware.GetUserFromContext(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
-
-	if err := h.AdminService.DeleteUser(uint(id), userPayload.UserID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := h.AdminService.DeleteUser(middleware.GetAccess(c), uint(id)); err != nil {
+		adminUserError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
-}
-
-func (h *AdminHandler) ListRoles(c *gin.Context) {
-	roles, err := h.RBACService.GetRoles()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list roles"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"roles": roles})
-}
-
-func (h *AdminHandler) ListPermissions(c *gin.Context) {
-	permissions, err := h.RBACService.GetPermissions()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list permissions"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"permissions": permissions})
-}
-
-func (h *AdminHandler) SyncRolePermissions(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
-		return
-	}
-
-	var req request.SyncRolePermissionsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
-		return
-	}
-
-	if err := h.RBACService.SyncRolePermissions(uint(id), req.PermissionIDs); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Role permissions updated successfully"})
 }
 
 // Trash management endpoints

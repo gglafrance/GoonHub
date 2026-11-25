@@ -111,12 +111,12 @@ func NewPlaylistListResponse(items []core.PlaylistListItem) []PlaylistListItemRe
 }
 
 // NewPlaylistDetailResponse converts a service PlaylistDetail to an API response
-func NewPlaylistDetailResponse(detail *core.PlaylistDetail) PlaylistDetailResponse {
+func NewPlaylistDetailResponse(detail *core.PlaylistDetail, vis FileVisibility) PlaylistDetailResponse {
 	scenes := make([]PlaylistSceneEntryResponse, len(detail.Scenes))
 	for i, entry := range detail.Scenes {
 		scenes[i] = PlaylistSceneEntryResponse{
 			Position: entry.Position,
-			Scene:    ToSceneListItemWithFields(entry.Scene, SceneModelFields),
+			Scene:    ToSceneListItemWithFields(entry.Scene, SceneModelFields, vis),
 			AddedAt:  entry.AddedAt,
 		}
 	}

@@ -436,7 +436,8 @@ func (h *DuplicateHandler) SetBest(c *gin.Context) {
 }
 
 // GetSimilarScenes lists the scenes sharing the duplicate group (fingerprint match) of a
-// scene, for the watch page. Admins also get the trashed ones, flagged.
+// scene, for the watch page. Users with library:insights also get the trashed ones, flagged;
+// the sizes need files:view_size.
 // GET /scenes/:id/similar
 func (h *DuplicateHandler) GetSimilarScenes(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -444,14 +445,16 @@ func (h *DuplicateHandler) GetSimilarScenes(c *gin.Context) {
 		response.BadRequest(c, "Invalid scene ID")
 		return
 	}
-	includeTrashed := false
-	if user, uErr := middleware.GetUserFromContext(c); uErr == nil {
-		includeTrashed = user.Role == "admin"
-	}
+	includeTrashed := middleware.HasPermission(c, core.PermLibraryInsights)
 	result, err := h.duplicateService.GetSimilarScenes(uint(id), includeTrashed)
 	if err != nil {
 		response.Error(c, err)
 		return
+	}
+	if !fileVisibility(c).Size {
+		for i := range result.Scenes {
+			result.Scenes[i].Size = nil
+		}
 	}
 	response.OK(c, result)
 }

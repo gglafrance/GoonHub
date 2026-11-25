@@ -1,3 +1,4 @@
+import type { PermissionName } from '~/types/permissions';
 import type { PaletteItem } from '~/types/command-palette';
 import type { Actor } from '~/types/actor';
 import type { Studio } from '~/types/studio';
@@ -18,7 +19,7 @@ const CORE_PAGE_IDS = new Set([
 
 /**
  * Static entries of the command palette: pages, settings tabs, global actions and the
- * shortcuts tied to the scene being watched. Admin-only entries are left out for other users.
+ * shortcuts tied to the scene being watched. Entries the user lacks the permission for are left out.
  */
 export function useCommandPaletteCommands() {
     const authStore = useAuthStore();
@@ -32,7 +33,9 @@ export function useCommandPaletteCommands() {
     const { fetchSceneActors } = useApiActors();
     const { fetchSceneStudio } = useApiStudios();
 
-    const isAdmin = computed(() => authStore.user?.role === 'admin');
+    const perms = useMyPermissions();
+    const allowed = (item: { permissions?: readonly PermissionName[] }) =>
+        !item.permissions || perms.hasAny(...item.permissions);
 
     const pages = computed<PaletteItem[]>(() => {
         const items: PaletteItem[] = [
@@ -89,6 +92,7 @@ export function useCommandPaletteCommands() {
                 icon: 'heroicons:folder',
                 to: '/explorer',
                 keywords: ['files', 'folders', 'storage'],
+                permissions: ['explorer:access'],
             },
             {
                 id: 'page:/history',
@@ -112,7 +116,7 @@ export function useCommandPaletteCommands() {
                 label: 'Duplicates',
                 icon: 'heroicons:document-duplicate',
                 to: '/duplicates',
-                admin: true,
+                permissions: ['duplicates:manage'],
                 hint: 'Admin',
             },
             {
@@ -142,9 +146,7 @@ export function useCommandPaletteCommands() {
         }
 
         // Settings tabs and sub-tabs
-        for (const tab of SETTINGS_TABS) {
-            if (tab.admin && !isAdmin.value) continue;
-            const subTabs = (tab.subTabs ?? []).filter((st) => !st.admin || isAdmin.value);
+        for (const tab of visibleSettingsTabs(SETTINGS_TABS, perms.has)) {
             items.push({
                 id: `page:/settings?tab=${tab.id}`,
                 group: 'pages',
@@ -153,11 +155,11 @@ export function useCommandPaletteCommands() {
                 icon: tab.icon,
                 to: `/settings?tab=${tab.id}`,
                 keywords: [tab.label],
-                admin: tab.admin,
+                permissions: tab.permissions,
                 hint: tab.admin ? 'Admin' : undefined,
             });
-            for (const sub of subTabs) {
-                const admin = tab.admin || sub.admin;
+            for (const sub of visibleSettingsSubTabs(tab, perms.has)) {
+                const admin = tab.admin || !!sub.permissions;
                 items.push({
                     id: `page:/settings?tab=${tab.id}&subtab=${sub.id}`,
                     group: 'pages',
@@ -166,13 +168,13 @@ export function useCommandPaletteCommands() {
                     icon: tab.icon,
                     to: `/settings?tab=${tab.id}&subtab=${sub.id}`,
                     keywords: [sub.label, `${tab.label} ${sub.label}`],
-                    admin,
+                    permissions: sub.permissions ?? tab.permissions,
                     hint: admin ? 'Admin' : undefined,
                 });
             }
         }
 
-        return items.filter((item) => !item.admin || isAdmin.value);
+        return items.filter(allowed);
     });
 
     const corePages = computed(() => pages.value.filter((p) => CORE_PAGE_IDS.has(p.id)));
@@ -300,5 +302,13 @@ export function useCommandPaletteCommands() {
         watchedSceneId.value ? [...contextItems.value, theaterItem.value] : [],
     );
 
-    return { pages, corePages, actions, context, loadContext, isAdmin };
+    return {
+        pages,
+        corePages,
+        actions,
+        context,
+        loadContext,
+        allowed,
+        isSuperuser: perms.isSuperuser,
+    };
 }

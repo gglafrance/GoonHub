@@ -7,7 +7,6 @@ const { containerClass } = useContentWidth();
 const route = useRoute();
 const router = useRouter();
 const api = useApi();
-const authStore = useAuthStore();
 const settingsStore = useSettingsStore();
 
 const actor = ref<Actor | null>(null);
@@ -82,14 +81,17 @@ const handleBulkComplete = () => {
 
 // Scene search/sort state, kept in the URL (`q`, `sort`, `seed`, `page`) so that Back from a
 // scene, a reload or a shared link show the same scenes in the same order
-const defaultSort = settingsStore.sortPreferences?.actor_scenes ?? '';
+// A saved default or a link may hold a size sort the user cannot use (files:view_size): the
+// page default then (the API answers 403 otherwise and the scenes never load)
+const defaultSort = sanitizeSceneSort(settingsStore.sortPreferences?.actor_scenes, hasMyPermission);
 const scenesSort = useUrlSort(defaultSort);
+if (!sceneSortAllowed(scenesSort.value, hasMyPermission)) scenesSort.value = defaultSort;
 const { seed: scenesSeed, reshuffle: drawNewSeed } = useUrlSeed(scenesSort);
 const urlScenesQuery = useUrlString('q');
 const scenesQuery = ref(urlScenesQuery.value);
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-const sortOptions = [
+const allSortOptions = [
     { value: '', label: 'Newest' },
     { value: 'random', label: 'Random' },
     { value: 'created_at_asc', label: 'Oldest' },
@@ -151,9 +153,15 @@ watch(
 
 const actorUuid = computed(() => route.params.uuid as string);
 
-const isAdmin = computed(() => authStore.user?.role === 'admin');
-// actors:merge is granted to admins and moderators
-const canMerge = computed(() => isAdmin.value || authStore.user?.role === 'moderator');
+const perms = useMyPermissions();
+// Create, edit and delete: actors:manage; merge: actors:merge; PornDB fetch: both actors:manage
+// and porndb:use
+const canManage = computed(() => perms.has('actors:manage'));
+const canMerge = computed(() => perms.has('actors:merge'));
+const canFetch = computed(() => canManage.value && perms.has('porndb:use'));
+const hasActions = computed(() => canManage.value || canMerge.value);
+// Size sorts need files:view_size
+const sortOptions = computed(() => allowedSortOptions(allSortOptions, perms.has));
 
 const displayRating = computed(() => (isHovering.value ? hoverRating.value : currentRating.value));
 
@@ -589,7 +597,7 @@ definePageMeta({
                                     kind="actor"
                                     :entity-id="actor.id"
                                     :aliases="actor.aliases || []"
-                                    :editable="isAdmin"
+                                    :editable="canManage"
                                     @updated="onAliasesUpdated"
                                 />
                                 <div class="text-dim mt-1 text-sm">
@@ -599,9 +607,9 @@ definePageMeta({
                             </div>
 
                             <!-- Desktop: Full admin buttons -->
-                            <div v-if="canMerge" class="hidden items-center gap-2 sm:flex">
+                            <div v-if="hasActions" class="hidden items-center gap-2 sm:flex">
                                 <button
-                                    v-if="isAdmin"
+                                    v-if="canManage"
                                     class="border-border bg-panel hover:border-lava/50
                                         hover:text-lava text-dim flex items-center gap-1 rounded-lg
                                         border px-3 py-1.5 text-sm transition-colors"
@@ -611,7 +619,7 @@ definePageMeta({
                                     New
                                 </button>
                                 <button
-                                    v-if="isAdmin"
+                                    v-if="canFetch"
                                     class="border-border bg-panel hover:border-lava/50
                                         hover:text-lava text-dim flex items-center gap-1 rounded-lg
                                         border px-3 py-1.5 text-sm transition-colors"
@@ -621,7 +629,7 @@ definePageMeta({
                                     Fetch
                                 </button>
                                 <button
-                                    v-if="isAdmin"
+                                    v-if="canManage"
                                     class="border-border bg-panel hover:border-lava/50
                                         hover:text-lava text-dim flex items-center gap-1 rounded-lg
                                         border px-3 py-1.5 text-sm transition-colors"
@@ -631,6 +639,7 @@ definePageMeta({
                                     Edit
                                 </button>
                                 <button
+                                    v-if="canMerge"
                                     class="border-border bg-panel hover:border-lava/50
                                         hover:text-lava text-dim flex items-center gap-1 rounded-lg
                                         border px-3 py-1.5 text-sm transition-colors"
@@ -641,7 +650,7 @@ definePageMeta({
                                     Merge into...
                                 </button>
                                 <button
-                                    v-if="isAdmin"
+                                    v-if="canManage"
                                     class="border-border bg-panel text-dim flex items-center gap-1
                                         rounded-lg border px-3 py-1.5 text-sm transition-colors
                                         hover:border-red-500/50 hover:text-red-500"
@@ -653,7 +662,7 @@ definePageMeta({
                             </div>
 
                             <!-- Mobile: Dropdown menu -->
-                            <div v-if="canMerge" class="relative sm:hidden">
+                            <div v-if="hasActions" class="relative sm:hidden">
                                 <button
                                     class="border-border bg-panel text-dim flex h-9 w-9 items-center
                                         justify-center rounded-lg border transition-colors
@@ -671,7 +680,7 @@ definePageMeta({
                                             w-40 rounded-lg border py-1 shadow-xl"
                                     >
                                         <button
-                                            v-if="isAdmin"
+                                            v-if="canManage"
                                             class="text-dim flex w-full items-center gap-2 px-3 py-2
                                                 text-sm transition-colors hover:bg-white/5
                                                 hover:text-white"
@@ -684,7 +693,7 @@ definePageMeta({
                                             New Actor
                                         </button>
                                         <button
-                                            v-if="isAdmin"
+                                            v-if="canFetch"
                                             class="text-dim flex w-full items-center gap-2 px-3 py-2
                                                 text-sm transition-colors hover:bg-white/5
                                                 hover:text-white"
@@ -697,7 +706,7 @@ definePageMeta({
                                             Fetch Metadata
                                         </button>
                                         <button
-                                            v-if="isAdmin"
+                                            v-if="canManage"
                                             class="text-dim flex w-full items-center gap-2 px-3 py-2
                                                 text-sm transition-colors hover:bg-white/5
                                                 hover:text-white"
@@ -710,6 +719,7 @@ definePageMeta({
                                             Edit
                                         </button>
                                         <button
+                                            v-if="canMerge"
                                             class="text-dim flex w-full items-center gap-2 px-3 py-2
                                                 text-sm transition-colors hover:bg-white/5
                                                 hover:text-white"
@@ -721,9 +731,9 @@ definePageMeta({
                                             <Icon name="heroicons:arrows-pointing-in" size="16" />
                                             Merge into...
                                         </button>
-                                        <div v-if="isAdmin" class="border-border my-1 border-t" />
+                                        <div v-if="canManage" class="border-border my-1 border-t" />
                                         <button
-                                            v-if="isAdmin"
+                                            v-if="canManage"
                                             class="flex w-full items-center gap-2 px-3 py-2 text-sm
                                                 text-red-400 transition-colors hover:bg-red-500/10"
                                             @click="

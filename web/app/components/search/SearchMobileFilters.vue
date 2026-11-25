@@ -1,5 +1,7 @@
 <script setup lang="ts">
 const searchStore = useSearchStore();
+// Size filters and sorts need files:view_size
+const perms = useMyPermissions();
 
 const props = defineProps<{
     visible: boolean;
@@ -9,6 +11,8 @@ const emit = defineEmits<{
     close: [];
 }>();
 
+const canSize = computed(() => perms.has('files:view_size'));
+
 const activeFilterCount = computed(() => {
     let count = 0;
     if (searchStore.selectedTags.length > 0) count += searchStore.selectedTags.length;
@@ -17,7 +21,7 @@ const activeFilterCount = computed(() => {
         count += searchStore.selectedMarkerLabels.length;
     if (searchStore.studio) count++;
     if (searchStore.minDuration > 0 || searchStore.maxDuration > 0) count++;
-    if (searchStore.minSize > 0 || searchStore.maxSize > 0) count++;
+    if (canSize.value && (searchStore.minSize > 0 || searchStore.maxSize > 0)) count++;
     count += searchStore.activeStatusCount;
     count += searchStore.selectedSourceSites.length;
     if (searchStore.minDate || searchStore.maxDate) count++;
@@ -39,7 +43,7 @@ const resolutionOptions = [
     { value: '360p', label: '360p' },
 ];
 
-const sortOptions = [
+const allSortOptions = [
     { value: '', label: 'Default' },
     { value: 'relevance', label: 'Relevance' },
     { value: 'random', label: 'Random' },
@@ -58,6 +62,7 @@ const sortOptions = [
     { value: 'view_count_desc', label: 'Most Viewed' },
     { value: 'view_count_asc', label: 'Least Viewed' },
 ];
+const sortOptions = computed(() => allowedSortOptions(allSortOptions, perms.has));
 
 const handleReset = () => {
     searchStore.resetFilters();
@@ -172,7 +177,7 @@ onUnmounted(() => {
 
                         <!-- Duration -->
                         <SearchFiltersFilterDuration />
-                        <SearchFiltersFilterSize />
+                        <SearchFiltersFilterSize v-if="canSize" />
                         <SearchFiltersFilterStatus />
 
                         <!-- Date Range -->

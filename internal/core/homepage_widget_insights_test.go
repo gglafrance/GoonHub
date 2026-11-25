@@ -111,12 +111,23 @@ func TestInsightsGroupPhases(t *testing.T) {
 	}
 }
 
+// fakePermissionChecker grants the given permissions to user 1.
+type fakePermissionChecker map[string]bool
+
+func (f fakePermissionChecker) UserHasPermission(userID uint, permission string) bool {
+	return userID == 1 && f[permission]
+}
+
+// newInsightsTestService builds a homepage service where user 1 has library:insights when
+// role is admin.
 func newInsightsTestService(t *testing.T, role string) *HomepageService {
 	ctrl := gomock.NewController(t)
 	userRepo := mocks.NewMockUserRepository(ctrl)
 	userRepo.EXPECT().GetByID(uint(1)).Return(&data.User{ID: 1, Role: role}, nil).AnyTimes()
 	settings := NewSettingsService(nil, userRepo, zap.NewNop())
-	return NewHomepageService(settings, nil, nil, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
+	svc := NewHomepageService(settings, nil, nil, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
+	svc.SetWidgetDeps(HomepageWidgetDeps{Permissions: fakePermissionChecker{PermLibraryInsights: role == "admin"}})
+	return svc
 }
 
 func TestInsightsProcessingStatus_ForbiddenForNonAdmins(t *testing.T) {
@@ -148,9 +159,9 @@ func TestInsightsUserIsAdmin(t *testing.T) {
 		t.Fatal("admin not recognized")
 	}
 	if insightsUserIsAdmin(newInsightsTestService(t, "moderator"), 1) {
-		t.Fatal("moderator must not be admin")
+		t.Fatal("moderator without library:insights must not get the insights")
 	}
 	if insightsUserIsAdmin(NewHomepageService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, zap.NewNop()), 1) {
-		t.Fatal("no settings service must not be admin")
+		t.Fatal("no permission checker: no insights")
 	}
 }

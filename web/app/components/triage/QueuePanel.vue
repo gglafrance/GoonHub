@@ -22,7 +22,7 @@ const presets: Preset[] = [
     { key: 'watched', value: false, label: 'Never watched', icon: 'heroicons:eye-slash' },
 ];
 
-const sortOptions = [
+const allSortOptions = [
     { value: '', label: 'Default order' },
     { value: 'created_at_desc', label: 'Newest' },
     { value: 'created_at_asc', label: 'Oldest' },
@@ -33,6 +33,9 @@ const sortOptions = [
     { value: 'view_count_desc', label: 'Most viewed' },
     { value: 'random', label: 'Random' },
 ];
+// Size sorts need files:view_size
+const perms = useMyPermissions();
+const sortOptions = computed(() => allowedSortOptions(allSortOptions, perms.has));
 
 // A preset is active when it is the only filter
 const isPresetActive = (preset: Preset) => {

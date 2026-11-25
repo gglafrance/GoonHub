@@ -29,6 +29,13 @@ type HomepageWidgetDeps struct {
 	JobHistory    data.JobHistoryRepository
 	Duplicates    *DuplicateService
 	StoragePaths  data.StoragePathRepository
+	// Permissions tells whether a user has a permission (nil: no permission at all)
+	Permissions UserPermissionChecker
+}
+
+// UserPermissionChecker tells whether a user currently has a permission (core.RBACService).
+type UserPermissionChecker interface {
+	UserHasPermission(userID uint, permission string) bool
 }
 
 // HomepageWidgetSpec describes a widget section type.

@@ -152,6 +152,12 @@ func (s *HomepageService) fetchSectionData(userID uint, section data.HomepageSec
 	var sectionData *HomepageSectionData
 	var err error
 
+	// A size sort stored before migration 094 falls back to the section default for a user
+	// without files:view_size
+	if IsSizeSort(section.Sort) && !s.userHas(userID, PermFilesViewSize) {
+		section.Sort = ""
+	}
+
 	switch section.Type {
 	case "latest":
 		sectionData, err = s.fetchLatestSection(userID, section)
@@ -364,6 +370,14 @@ func (s *HomepageService) fetchSavedSearchSection(userID uint, section data.Home
 	if err != nil {
 		return nil, fmt.Errorf("saved search not found: %w", err)
 	}
+	// Size bounds and sorts are ignored for a user without files:view_size (saved before
+	// migration 094), and the query is not matched on paths without files:view_paths
+	if !s.userHas(userID, PermFilesViewSize) {
+		savedSearch.Filters = WithoutSizeFilters(savedSearch.Filters)
+		if IsSizeSort(section.Sort) {
+			section.Sort = ""
+		}
+	}
 
 	sortOrder := section.Sort
 	if sortOrder == "" && savedSearch.Filters.Sort != "" {
@@ -381,6 +395,8 @@ func (s *HomepageService) fetchSavedSearchSection(userID uint, section data.Home
 		Query:  savedSearch.Filters.Query,
 		Studio: savedSearch.Filters.Studio,
 		UserID: userID,
+		// paths and file names are not searched without files:view_paths
+		HideFilePaths: !s.userHas(userID, PermFilesViewPaths),
 	}
 
 	if savedSearch.Filters.MatchType != "" {

@@ -76,11 +76,11 @@ export function useBulkPornDBMatching() {
      * @param rules Optional parsing rules to apply to filename
      */
     function buildSearchQuery(scene: SceneMatchInfo, rules?: ParsingRule[]): string {
-        // Use parsing rules if provided, otherwise use cleanFilename
+        // Use parsing rules if provided, otherwise use cleanFilename (the file name is omitted
+        // without files:view_paths: the title is used then)
+        const source = scene.original_filename || scene.title;
         const filename =
-            rules && rules.length > 0
-                ? applyRules(scene.original_filename, rules)
-                : cleanFilename(scene.original_filename);
+            rules && rules.length > 0 ? applyRules(source, rules) : cleanFilename(source);
 
         // Start with cleaned filename
         let query = filename;

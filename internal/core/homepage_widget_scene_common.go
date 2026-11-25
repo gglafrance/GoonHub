@@ -22,8 +22,20 @@ func sceneWidgetQueries(s *HomepageService) (*data.HomepageSceneQueries, error) 
 }
 
 // sceneWidgetFilter reads the common filter keys of a section config:
-// min_duration, max_duration (seconds), min_height, storage_path_id, folder, tags.
-func sceneWidgetFilter(cfg map[string]interface{}) data.HomepageSceneFilter {
+// min_duration, max_duration (seconds), min_height, storage_path_id, folder, tags. The
+// storage path and folder filters (path oracles) are dropped for a user without
+// files:view_paths.
+func sceneWidgetFilter(s *HomepageService, userID uint, cfg map[string]interface{}) data.HomepageSceneFilter {
+	f := sceneWidgetFilterFromConfig(cfg)
+	if !s.userHas(userID, PermFilesViewPaths) {
+		f.StoragePathID = 0
+		f.Folder = ""
+	}
+	return f
+}
+
+// sceneWidgetFilterFromConfig reads the filter keys as configured.
+func sceneWidgetFilterFromConfig(cfg map[string]interface{}) data.HomepageSceneFilter {
 	return data.HomepageSceneFilter{
 		MinDuration:   max(widgetConfigInt(cfg, "min_duration", 0), 0),
 		MaxDuration:   max(widgetConfigInt(cfg, "max_duration", 0), 0),

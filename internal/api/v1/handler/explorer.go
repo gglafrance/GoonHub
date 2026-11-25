@@ -33,7 +33,7 @@ func NewExplorerHandler(service *core.ExplorerService, tagRepo data.TagRepositor
 // user's interaction maps, so explorer cards follow the user's card template too.
 func (h *ExplorerHandler) cardScenes(c *gin.Context, scenes []data.Scene) ([]response.SceneListItem, response.CardSidecars) {
 	fields := response.ParseCardFields(c.Query("card_fields")).With(response.SceneModelFields)
-	items := response.ToSceneListItemsWithFields(scenes, fields)
+	items := response.ToSceneListItemsWithFields(scenes, fields, fileVisibility(c))
 	sceneIDs := make([]uint, len(scenes))
 	for i, s := range scenes {
 		sceneIDs[i] = s.ID
@@ -91,7 +91,7 @@ func (h *ExplorerHandler) GetFolderContents(c *gin.Context) {
 		return
 	}
 
-	resp := response.ToFolderContentsResponse(contents)
+	resp := response.ToFolderContentsResponse(contents, fileVisibility(c))
 	resp.Scenes, resp.CardSidecars = h.cardScenes(c, contents.Scenes)
 	response.OK(c, resp)
 }
@@ -229,7 +229,7 @@ func (h *ExplorerHandler) GetScenesMatchInfo(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, response.ScenesMatchInfoResponse{Scenes: scenes})
+	response.OK(c, response.ToScenesMatchInfoResponse(scenes, fileVisibility(c)))
 }
 
 // SearchInFolder searches for videos within a folder scope
@@ -237,6 +237,11 @@ func (h *ExplorerHandler) SearchInFolder(c *gin.Context) {
 	var req request.FolderSearchRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	vis := fileVisibility(c)
+	if refuseHiddenSizeQuery(c, vis, req.Sort, false) {
 		return
 	}
 
@@ -260,7 +265,7 @@ func (h *ExplorerHandler) SearchInFolder(c *gin.Context) {
 		return
 	}
 
-	resp := response.ToFolderSearchResponse(result)
+	resp := response.ToFolderSearchResponse(result, vis)
 	resp.Scenes, resp.CardSidecars = h.cardScenes(c, result.Scenes)
 	response.OK(c, resp)
 }

@@ -100,7 +100,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	settingsHandler := provideSettingsHandler(settingsService, configConfig)
 	roleRepository := provideRoleRepository(db)
 	permissionRepository := providePermissionRepository(db)
-	rbacService := provideRBACService(roleRepository, permissionRepository, logger)
+	rbacService := provideRBACService(roleRepository, permissionRepository, userRepository, logger)
 	adminService := provideAdminService(userRepository, roleRepository, rbacService, logger)
 	adminHandler := provideAdminHandler(adminService, rbacService, sceneService, appSettingsRepository)
 	jobScheduleRepository := provideJobScheduleRepository(db)
@@ -117,7 +117,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	retryScheduler := provideRetryScheduler(jobHistoryRepository, dlqRepository, retryConfigRepository, sceneRepository, eventBus, logger, sceneFailureService)
 	retryConfigHandler := provideRetryConfigHandler(retryConfigRepository, retryScheduler)
 	jobStatusService := provideJobStatusService(jobHistoryService, sceneProcessingService, logger)
-	sseHandler := provideSSEHandler(eventBus, authService, jobStatusService, logger)
+	sseHandler := provideSSEHandler(eventBus, authService, jobStatusService, rbacService, logger)
 	tagHandler := provideTagHandler(tagService)
 	actorService := provideActorService(actorRepository, sceneRepository, logger)
 	actorHandler := provideActorHandler(actorService, configConfig)
@@ -152,7 +152,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	playlistRepository := providePlaylistRepository(db)
 	playlistService := providePlaylistService(playlistRepository, sceneRepository, tagRepository, logger)
 	duplicateService := provideDuplicateService(duplicateGroupRepository, sceneRepository, tagRepository, actorRepository, markerRepository, interactionRepository, sceneService, duplicationConfigRepository, markerService, logger)
-	homepageService := provideHomepageService(settingsService, searchService, savedSearchService, playlistService, watchHistoryRepository, interactionRepository, sceneRepository, tagRepository, actorRepository, studioRepository, db, markerRepository, relatedScenesService, jobHistoryRepository, duplicateService, storagePathRepository, logger)
+	homepageService := provideHomepageService(settingsService, searchService, savedSearchService, playlistService, watchHistoryRepository, interactionRepository, sceneRepository, tagRepository, actorRepository, studioRepository, db, markerRepository, relatedScenesService, jobHistoryRepository, duplicateService, storagePathRepository, rbacService, logger)
 	homepageHandler := provideHomepageHandler(homepageService)
 	markerHandler := provideMarkerHandler(markerService, db, configConfig, logger)
 	importRepository := provideImportRepository(db)
@@ -162,7 +162,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	playlistHandler := providePlaylistHandler(playlistService, configConfig)
 	shareLinkRepository := provideShareLinkRepository(db)
 	shareService := provideShareService(shareLinkRepository, sceneRepository, logger)
-	shareHandler := provideShareHandler(shareService, authService, manager, transcoder, configConfig)
+	shareHandler := provideShareHandler(shareService, authService, manager, transcoder, rbacService, configConfig)
 	duplicateHandler := provideDuplicateHandler(duplicateService, duplicationConfigRepository)
 	libraryHealthRepository := provideLibraryHealthRepository(db)
 	libraryHealthService := provideLibraryHealthService(libraryHealthRepository, sceneRepository, storagePathService, sceneProcessingService, searchService, configConfig, logger)
@@ -356,9 +356,13 @@ func provideSettingsService(settingsRepo data.UserSettingsRepository, userRepo d
 	return core.NewSettingsService(settingsRepo, userRepo, logger.Logger)
 }
 
-func provideRBACService(roleRepo data.RoleRepository, permRepo data.PermissionRepository, logger *logging.Logger) *core.RBACService {
-	svc, err := core.NewRBACService(roleRepo, permRepo, logger.Logger)
+func provideRBACService(roleRepo data.RoleRepository, permRepo data.PermissionRepository, userRepo data.UserRepository, logger *logging.Logger) *core.RBACService {
+	svc, err := core.NewRBACService(roleRepo, permRepo, userRepo, logger.Logger)
 	if err != nil {
+		panic(err)
+	}
+
+	if err := svc.SyncCatalog(); err != nil {
 		panic(err)
 	}
 	return svc
@@ -519,6 +523,7 @@ func provideHomepageService(
 	jobHistoryRepo data.JobHistoryRepository,
 	duplicateService *core.DuplicateService,
 	storagePathRepo data.StoragePathRepository,
+	rbacService *core.RBACService,
 	logger *logging.Logger,
 ) *core.HomepageService {
 	svc := core.NewHomepageService(
@@ -541,6 +546,7 @@ func provideHomepageService(
 		JobHistory:    jobHistoryRepo,
 		Duplicates:    duplicateService,
 		StoragePaths:  storagePathRepo,
+		Permissions:   rbacService,
 	})
 	return svc
 }
@@ -699,8 +705,8 @@ func provideRetryConfigHandler(retryConfigRepo data.RetryConfigRepository, retry
 	return handler.NewRetryConfigHandler(retryConfigRepo, retryScheduler)
 }
 
-func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, logger *logging.Logger) *handler.SSEHandler {
-	return handler.NewSSEHandler(eventBus, authService, jobStatusService, logger.Logger)
+func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, rbacService *core.RBACService, logger *logging.Logger) *handler.SSEHandler {
+	return handler.NewSSEHandler(eventBus, authService, jobStatusService, rbacService, logger.Logger)
 }
 
 func provideStoragePathHandler(service *core.StoragePathService) *handler.StoragePathHandler {
@@ -760,8 +766,10 @@ func provideStreamStatsHandler(streamManager *streaming.Manager) *handler.Stream
 	return handler.NewStreamStatsHandler(streamManager)
 }
 
-func provideShareHandler(shareService *core.ShareService, authService *core.AuthService, streamManager *streaming.Manager, transcoder *streaming.Transcoder, cfg *config.Config) *handler.ShareHandler {
-	return handler.NewShareHandler(shareService, authService, streamManager, transcoder, cfg.Sharing.BaseURL)
+func provideShareHandler(shareService *core.ShareService, authService *core.AuthService, streamManager *streaming.Manager, transcoder *streaming.Transcoder, rbacService *core.RBACService, cfg *config.Config) *handler.ShareHandler {
+	h := handler.NewShareHandler(shareService, authService, streamManager, transcoder, cfg.Sharing.BaseURL)
+	h.Access = rbacService
+	return h
 }
 
 func provideLibraryHealthRepository(db *gorm.DB) data.LibraryHealthRepository {

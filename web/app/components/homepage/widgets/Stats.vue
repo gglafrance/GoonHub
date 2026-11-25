@@ -7,7 +7,8 @@ interface StatsPayload {
     period: 'month' | 'week' | '30d' | '7d';
     scene_count: number;
     total_duration: number;
-    total_size: number;
+    // Omitted without files:view_size
+    total_size?: number;
     watched_scenes: number;
     watched_percent: number;
     views_period: number;
@@ -75,12 +76,6 @@ const tiles = computed<Tile[]>(() => {
             label: 'Hours of video',
             value: number.format(Math.round(p.total_duration / 3600)),
             icon: 'heroicons:clock',
-        },
-        size: {
-            key: 'size',
-            label: 'Library size',
-            value: formatSize(p.total_size),
-            icon: 'heroicons:circle-stack',
         },
         watched: {
             key: 'watched',
@@ -155,6 +150,14 @@ const tiles = computed<Tile[]>(() => {
             icon: 'heroicons:star',
         },
     };
+    if (p.total_size !== undefined) {
+        all.size = {
+            key: 'size',
+            label: 'Library size',
+            value: formatSize(p.total_size),
+            icon: 'heroicons:circle-stack',
+        };
+    }
     return p.tiles.map((key) => all[key]).filter((t): t is Tile => !!t);
 });
 

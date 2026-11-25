@@ -3,6 +3,8 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	"goonhub/internal/api/middleware"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
 	"net/http"
 	"time"
@@ -15,16 +17,31 @@ type SSEHandler struct {
 	eventBus         *core.EventBus
 	authService      *core.AuthService
 	jobStatusService *core.JobStatusService
+	access           middleware.AccessResolver
 	logger           *zap.Logger
 }
 
-func NewSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, logger *zap.Logger) *SSEHandler {
+func NewSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, access middleware.AccessResolver, logger *zap.Logger) *SSEHandler {
 	return &SSEHandler{
 		eventBus:         eventBus,
 		authService:      authService,
 		jobStatusService: jobStatusService,
+		access:           access,
 		logger:           logger.With(zap.String("handler", "sse")),
 	}
+}
+
+// currentAccess resolves the live access of the connected user. gone is true when the user
+// no longer exists (the stream is closed then); access is nil on other errors.
+func (h *SSEHandler) currentAccess(userID uint) (access *core.UserAccess, gone bool) {
+	if h.access == nil {
+		return nil, false
+	}
+	access, err := h.access.ResolveUser(userID)
+	if err != nil {
+		return nil, apperrors.IsNotFound(err)
+	}
+	return access, false
 }
 
 // writeJobStatus marshals and writes the current job status as an SSE event.
@@ -51,10 +68,16 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 		return
 	}
 
-	_, err = h.authService.ValidateToken(token)
+	payload, err := h.authService.ValidateToken(token)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
+	}
+	if h.access != nil {
+		if _, err := h.access.ResolveUser(payload.UserID); err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
 	}
 
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
@@ -67,8 +90,9 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 	fmt.Fprintf(c.Writer, ": connected\n\n")
 	c.Writer.Flush()
 
-	// Send initial job status immediately after connection
-	if h.jobStatusService != nil {
+	// Send initial job status immediately after connection (permissions are resolved again
+	// for every event: a change applies without reconnecting)
+	if access, _ := h.currentAccess(payload.UserID); h.jobStatusService != nil && access.Has(core.PermJobsViewStatus) {
 		h.writeJobStatus(c)
 	}
 
@@ -94,6 +118,15 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 			if !ok {
 				return
 			}
+			access, gone := h.currentAccess(payload.UserID)
+			if gone {
+				h.logger.Debug("SSE user deleted, closing the stream", zap.Uint("user_id", payload.UserID))
+				return
+			}
+			event, send := eventForUser(event, access)
+			if !send {
+				continue
+			}
 			data, err := json.Marshal(event)
 			if err != nil {
 				h.logger.Error("Failed to marshal event", zap.Error(err))
@@ -109,7 +142,12 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 			}
 			c.Writer.Flush()
 		case <-statusTicker.C:
-			if h.jobStatusService != nil {
+			access, gone := h.currentAccess(payload.UserID)
+			if gone {
+				h.logger.Debug("SSE user deleted, closing the stream", zap.Uint("user_id", payload.UserID))
+				return
+			}
+			if h.jobStatusService != nil && access.Has(core.PermJobsViewStatus) {
 				if writeErr := h.writeJobStatus(c); writeErr != nil {
 					h.logger.Debug("SSE job status write failed, client likely disconnected",
 						zap.String("subscriber_id", subscriberID),

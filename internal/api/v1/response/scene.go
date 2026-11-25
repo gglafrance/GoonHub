@@ -10,22 +10,25 @@ import (
 // SceneListItem is a lightweight representation for scene list/grid endpoints.
 // Contains only the fields needed for displaying scene cards.
 type SceneListItem struct {
-	ID               uint      `json:"id"`
-	Title            string    `json:"title"`
-	Duration         int       `json:"duration"`
-	Size             int64     `json:"size"`
+	ID       uint   `json:"id"`
+	Title    string `json:"title"`
+	Duration int    `json:"duration"`
+	// Size is omitted without files:view_size
+	Size             *int64    `json:"size,omitempty"`
 	ThumbnailPath    string    `json:"thumbnail_path"`
 	PreviewVideoPath string    `json:"preview_video_path"`
 	ProcessingStatus string    `json:"processing_status"`
 	IsCorrupted      bool      `json:"is_corrupted"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
-	StoredPath       string    `json:"stored_path"`
+	// StoredPath is omitted without files:view_paths
+	StoredPath *string `json:"stored_path,omitempty"`
 
 	// Optional fields included when requested via card_fields
-	ViewCount   *int64   `json:"view_count,omitempty"`
-	Width       *int     `json:"width,omitempty"`
-	Height      *int     `json:"height,omitempty"`
+	ViewCount *int64 `json:"view_count,omitempty"`
+	Width     *int   `json:"width,omitempty"`
+	Height    *int   `json:"height,omitempty"`
+	// FrameRate (card field) is omitted without files:view_technical
 	FrameRate   *float64 `json:"frame_rate,omitempty"`
 	Description *string  `json:"description,omitempty"`
 	Studio      *string  `json:"studio,omitempty"`
@@ -146,35 +149,36 @@ func ParseCardFields(raw string) CardFields {
 	return f
 }
 
-// ToSceneListItem converts a full Scene model to a lightweight SceneListItem.
-func ToSceneListItem(v data.Scene) SceneListItem {
+// ToSceneListItem converts a full Scene model to a lightweight SceneListItem, without the
+// file information the visibility hides.
+func ToSceneListItem(v data.Scene, vis FileVisibility) SceneListItem {
 	return SceneListItem{
 		ID:               v.ID,
 		Title:            v.Title,
 		Duration:         v.Duration,
-		Size:             v.Size,
+		Size:             int64If(vis.Size, v.Size),
 		ThumbnailPath:    v.ThumbnailPath,
 		PreviewVideoPath: v.PreviewVideoPath,
 		ProcessingStatus: v.ProcessingStatus,
 		IsCorrupted:      v.IsCorrupted,
 		CreatedAt:        v.CreatedAt,
 		UpdatedAt:        v.UpdatedAt,
-		StoredPath:       v.StoredPath,
+		StoredPath:       stringIf(vis.Paths, v.StoredPath),
 	}
 }
 
 // ToSceneListItems converts a slice of Scene models to SceneListItems.
-func ToSceneListItems(scenes []data.Scene) []SceneListItem {
+func ToSceneListItems(scenes []data.Scene, vis FileVisibility) []SceneListItem {
 	items := make([]SceneListItem, len(scenes))
 	for i, v := range scenes {
-		items[i] = ToSceneListItem(v)
+		items[i] = ToSceneListItem(v, vis)
 	}
 	return items
 }
 
 // ToSceneListItemWithFields converts a Scene model with optional fields based on CardFields.
-func ToSceneListItemWithFields(v data.Scene, fields CardFields) SceneListItem {
-	item := ToSceneListItem(v)
+func ToSceneListItemWithFields(v data.Scene, fields CardFields, vis FileVisibility) SceneListItem {
+	item := ToSceneListItem(v, vis)
 
 	if fields.Views {
 		vc := v.ViewCount
@@ -186,7 +190,7 @@ func ToSceneListItemWithFields(v data.Scene, fields CardFields) SceneListItem {
 		item.Width = &w
 		item.Height = &h
 	}
-	if fields.FrameRate {
+	if fields.FrameRate && vis.Technical {
 		fr := v.FrameRate
 		item.FrameRate = &fr
 	}
@@ -209,10 +213,10 @@ func ToSceneListItemWithFields(v data.Scene, fields CardFields) SceneListItem {
 }
 
 // ToSceneListItemsWithFields converts a slice of Scene models with optional fields.
-func ToSceneListItemsWithFields(scenes []data.Scene, fields CardFields) []SceneListItem {
+func ToSceneListItemsWithFields(scenes []data.Scene, fields CardFields, vis FileVisibility) []SceneListItem {
 	items := make([]SceneListItem, len(scenes))
 	for i, v := range scenes {
-		items[i] = ToSceneListItemWithFields(v, fields)
+		items[i] = ToSceneListItemWithFields(v, fields, vis)
 	}
 	return items
 }

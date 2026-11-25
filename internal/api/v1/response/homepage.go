@@ -31,7 +31,7 @@ type HomepageResponse struct {
 }
 
 // ToHomepageResponse converts the service response to an API response with lightweight scenes.
-func ToHomepageResponse(resp *core.HomepageResponse) *HomepageResponse {
+func ToHomepageResponse(resp *core.HomepageResponse, vis FileVisibility) *HomepageResponse {
 	sections := make([]HomepageSectionData, len(resp.Sections))
 	for i, s := range resp.Sections {
 		// Convert watch progress
@@ -53,13 +53,13 @@ func ToHomepageResponse(resp *core.HomepageResponse) *HomepageResponse {
 
 		sections[i] = HomepageSectionData{
 			Section:       s.Section,
-			Scenes:        ToSceneListItems(s.Scenes),
+			Scenes:        ToSceneListItems(s.Scenes, vis),
 			Total:         s.Total,
 			Seed:          s.Seed,
 			WatchProgress: watchProgress,
 			Ratings:       s.Ratings,
 			Playlists:     playlists,
-			Widget:        s.Widget,
+			Widget:        redactWidget(s.Widget, vis),
 		}
 	}
 
@@ -71,7 +71,7 @@ func ToHomepageResponse(resp *core.HomepageResponse) *HomepageResponse {
 }
 
 // ToHomepageSectionDataResponse converts a single section response to lightweight format.
-func ToHomepageSectionDataResponse(s *core.HomepageSectionData) *HomepageSectionData {
+func ToHomepageSectionDataResponse(s *core.HomepageSectionData, vis FileVisibility) *HomepageSectionData {
 	var watchProgress map[uint]WatchProgress
 	if len(s.WatchProgress) > 0 {
 		watchProgress = make(map[uint]WatchProgress, len(s.WatchProgress))
@@ -90,11 +90,42 @@ func ToHomepageSectionDataResponse(s *core.HomepageSectionData) *HomepageSection
 
 	return &HomepageSectionData{
 		Section:       s.Section,
-		Scenes:        ToSceneListItems(s.Scenes),
+		Scenes:        ToSceneListItems(s.Scenes, vis),
 		Total:         s.Total,
 		Seed:          s.Seed,
 		WatchProgress: watchProgress,
 		Ratings:       s.Ratings,
 		Playlists:     playlists,
 	}
+}
+
+// redactWidget removes from a widget payload the file information the visibility hides
+// (stats total_size, records biggest_file). The payload is copied, never modified.
+func redactWidget(widget any, vis FileVisibility) any {
+	if vis.Size {
+		return widget
+	}
+	switch p := widget.(type) {
+	case core.StatsWidgetPayload:
+		p.TotalSize = nil
+		return p
+	case *core.StatsWidgetPayload:
+		if p == nil {
+			return widget
+		}
+		cp := *p
+		cp.TotalSize = nil
+		return &cp
+	case core.RecordsPayload:
+		p.BiggestFile = nil
+		return p
+	case *core.RecordsPayload:
+		if p == nil {
+			return widget
+		}
+		cp := *p
+		cp.BiggestFile = nil
+		return &cp
+	}
+	return widget
 }

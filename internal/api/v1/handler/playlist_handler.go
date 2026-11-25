@@ -98,7 +98,7 @@ func (h *PlaylistHandler) GetByUUID(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, response.NewPlaylistDetailResponse(detail))
+	response.OK(c, response.NewPlaylistDetailResponse(detail, fileVisibility(c)))
 }
 
 func (h *PlaylistHandler) Create(c *gin.Context) {

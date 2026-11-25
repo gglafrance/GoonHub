@@ -9,6 +9,7 @@ const MIN_HIDDEN_TIME_MS = 30 * 1000; // 30 seconds
 export const useAuthValidation = () => {
     const authStore = useAuthStore();
     const router = useRouter();
+    const permissions = useMyPermissions();
 
     let lastHiddenAt: number | null = null;
     let isInitialized = false;
@@ -23,6 +24,8 @@ export const useAuthValidation = () => {
                 // Tab was hidden for >30s, validate in background
                 if (authStore.user) {
                     const isValid = await authStore.validateSession();
+                    // Permissions are live: pick up role or permission changes
+                    if (isValid) void permissions.load(true);
                     if (!isValid) {
                         // Session invalid, redirect to login
                         router.push({

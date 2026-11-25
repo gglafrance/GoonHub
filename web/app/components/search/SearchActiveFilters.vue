@@ -2,6 +2,8 @@
 import type { SearchStatusKey } from '~/stores/search';
 import { SEARCH_STATUS_KEYS } from '~/stores/search';
 const searchStore = useSearchStore();
+// Size filters are not applied without files:view_size (see the search store)
+const perms = useMyPermissions();
 
 const removeTag = (tag: string) => {
     searchStore.selectedTags = searchStore.selectedTags.filter((t) => t !== tag);
@@ -167,7 +169,9 @@ const statusChips = computed(() =>
             </button>
         </span>
         <span
-            v-if="searchStore.minSize > 0 || searchStore.maxSize > 0"
+            v-if="
+                perms.has('files:view_size') && (searchStore.minSize > 0 || searchStore.maxSize > 0)
+            "
             class="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-0.5 text-[11px]
                 font-medium text-white"
         >

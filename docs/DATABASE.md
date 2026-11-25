@@ -95,12 +95,16 @@ User accounts with authentication credentials.
 | `updated_at` | TIMESTAMPTZ | NO | NOW() | Last update timestamp |
 | `username` | VARCHAR(255) | NO | - | Unique username |
 | `password` | VARCHAR(255) | NO | - | Bcrypt hashed password |
-| `role` | VARCHAR(50) | NO | 'user' | Role name (admin, moderator, user) |
+| `role` | VARCHAR(50) | NO | 'user' | Role name, FK to `roles.name` (`ON UPDATE CASCADE ON DELETE RESTRICT`, migration 094) |
 | `last_login_at` | TIMESTAMPTZ | YES | NULL | Last successful login |
 | `share_markers` | BOOLEAN | NO | FALSE | The user's markers are visible (read-only) to every user (set by an admin) |
 
+**Indexes:**
+- `idx_users_role` on `role`
+
 **Constraints:**
 - `uni_users_username` UNIQUE on `username`
+- `fk_users_role` FK `role` -> `roles(name)` ON UPDATE CASCADE (renaming a role follows) ON DELETE RESTRICT (a role held by users cannot be deleted)
 
 ---
 
@@ -173,6 +177,11 @@ Per-user application preferences.
 
 ## RBAC (Role-Based Access Control)
 
+Roles with several parent roles, `allow`/`deny` settings, per-user overrides and a superuser
+role. The resolution rules, the permission catalog and the API are described in
+[`docs/RBAC.md`](RBAC.md). Effective permissions are resolved live by the application
+(`core.RBACService`), never stored.
+
 ### `roles`
 
 Role definitions for access control.
@@ -182,22 +191,47 @@ Role definitions for access control.
 | `id` | BIGSERIAL | NO | auto | Primary key |
 | `created_at` | TIMESTAMPTZ | NO | NOW() | Record creation timestamp |
 | `updated_at` | TIMESTAMPTZ | NO | NOW() | Last update timestamp |
-| `name` | VARCHAR(50) | NO | - | Unique role name |
+| `name` | VARCHAR(50) | NO | - | Unique role name (`users.role` references it) |
 | `description` | VARCHAR(255) | YES | NULL | Role description |
+| `is_system` | BOOLEAN | NO | FALSE | System role: cannot be deleted nor renamed (`admin`, `user`; migration 094) |
+| `is_superuser` | BOOLEAN | NO | FALSE | Superuser role: every permission, nothing can be denied (`admin`; migration 094) |
 
 **Seed Data:**
-- `admin` - Full system access
+- `admin` - Full system access (system, superuser)
 - `moderator` - Video management access
-- `user` - Basic view and upload access
+- `user` - Regular viewer, default role of new accounts (system)
 
 **Constraints:**
 - `uni_roles_name` UNIQUE on `name`
 
 ---
 
+### `role_parents`
+
+Parent roles: `role_id` inherits the permissions of `parent_id` (several parents per role,
+cycles refused by the application). Migration 094.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `role_id` | BIGINT | NO | - | FK to `roles.id` (CASCADE) |
+| `parent_id` | BIGINT | NO | - | FK to `roles.id` (CASCADE: a deleted role is removed from its children's parents) |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Record creation timestamp |
+
+**Indexes:**
+- `idx_role_parents_parent_id` on `parent_id`
+
+**Constraints:**
+- PRIMARY KEY `(role_id, parent_id)`
+- CHECK `chk_role_parents_not_self`: `role_id <> parent_id`
+
+---
+
 ### `permissions`
 
-Permission definitions for granular access control.
+Permission definitions for granular access control. Synced at startup from the catalog
+(`internal/core/rbac_catalog.go`): missing permissions are inserted with their default grants,
+the group and description of the others are kept up to date. Permissions that left the catalog
+stay in the table (deprecated: `users:create`, `users:delete`).
 
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|
@@ -205,20 +239,13 @@ Permission definitions for granular access control.
 | `created_at` | TIMESTAMPTZ | NO | NOW() | Record creation timestamp |
 | `name` | VARCHAR(100) | NO | - | Unique permission identifier |
 | `description` | VARCHAR(255) | YES | NULL | Permission description |
+| `group_name` | VARCHAR(50) | NO | '' | Group shown by the UI (`Scenes`, `Markers`, `Library`, `Playlists`, `File info`, `Processing`, `Admin`; migration 094) |
 
-**Seed Data:**
-- `scenes:view` - View and stream scenes
-- `scenes:upload` - Upload new scenes
-- `scenes:delete` - Delete scenes
-- `scenes:reprocess` - Reprocess scenes
-- `scenes:trash` - Move scenes to trash
-- `actors:merge` - Merge an actor into another one (admin, moderator; migration 083)
-- `studios:merge` - Merge a studio into another one (admin, moderator; migration 083)
-- `users:manage` - Manage users
-- `users:create` - Create new users
-- `users:delete` - Delete users
-- `roles:manage` - Manage roles and permissions
-- `settings:manage` - Manage application settings
+**Permissions:** see the catalog in [`docs/RBAC.md`](RBAC.md#catalog) (`scenes:*`,
+`markers:create`, `tags:manage`, `actors:*`, `studios:*`, `playlists:*`, `files:view_size`,
+`files:view_paths`, `files:view_technical`, `explorer:access`, `jobs:*`, `users:manage`,
+`roles:manage`, `settings:manage`, `storage:manage`, `duplicates:manage`, `trash:manage`,
+`library:health`, `library:insights`, `porndb:use`, `import:use`, `stats:view_streams`).
 
 **Constraints:**
 - `uni_permissions_name` UNIQUE on `name`
@@ -227,19 +254,43 @@ Permission definitions for granular access control.
 
 ### `role_permissions`
 
-Junction table linking roles to permissions.
+A role's own setting for a permission: `allow` or `deny`. No row means "inherit from the
+parents".
 
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|
 | `id` | BIGSERIAL | NO | auto | Primary key |
 | `role_id` | BIGINT | NO | - | FK to `roles.id` (CASCADE) |
 | `permission_id` | BIGINT | NO | - | FK to `permissions.id` (CASCADE) |
+| `effect` | VARCHAR(5) | NO | 'allow' | `allow` or `deny` (migration 094; the rows before it are grants) |
 
 **Indexes:**
 - `idx_role_permissions_role_id` on `role_id`
 
 **Constraints:**
 - `uni_role_permissions` UNIQUE on `(role_id, permission_id)`
+- CHECK `chk_role_permissions_effect`: `effect IN ('allow', 'deny')`
+
+---
+
+### `user_permission_overrides`
+
+Per-user overrides: beat the role's effective value (except for a superuser role, which has
+everything). Migration 094.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `permission_id` | BIGINT | NO | - | FK to `permissions.id` (CASCADE) |
+| `effect` | VARCHAR(5) | NO | - | `allow` or `deny` |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Record creation timestamp |
+
+**Indexes:**
+- `idx_user_permission_overrides_permission_id` on `permission_id`
+
+**Constraints:**
+- PRIMARY KEY `(user_id, permission_id)`
+- CHECK `chk_user_permission_overrides_effect`: `effect IN ('allow', 'deny')`
 
 ---
 

@@ -11,9 +11,33 @@ const { getStoragePaths } = useApiExplorer();
 
 const storagePaths = ref<StoragePathWithCount[]>([]);
 
-// Fetch storage paths to resolve explorer links
+// File information is gated by the files:* permissions (the API omits the fields too);
+// resolution and duration stay
+const perms = useMyPermissions();
+const canSize = computed(() => perms.has('files:view_size'));
+const canPaths = computed(() => perms.has('files:view_paths'));
+const canTechnical = computed(() => perms.has('files:view_technical'));
+const canExplore = computed(() => perms.has('explorer:access'));
+const canShare = computed(() => perms.has('scenes:share'));
+
+const showTechnical = computed(
+    () =>
+        !!(props.scene.width && props.scene.height) ||
+        (canTechnical.value &&
+            !!(
+                props.scene.frame_rate ||
+                props.scene.bit_rate ||
+                props.scene.video_codec ||
+                props.scene.audio_codec
+            )),
+);
+const showFile = computed(
+    () => (canPaths.value && !!props.scene.original_filename) || !!props.scene.file_created_at,
+);
+
+// Fetch storage paths to resolve explorer links (explorer API)
 const loadStoragePaths = async () => {
-    if (!props.scene.stored_path) return;
+    if (!props.scene.stored_path || !canPaths.value || !canExplore.value) return;
     try {
         const response = await getStoragePaths();
         storagePaths.value = response.storage_paths;
@@ -116,7 +140,10 @@ const getResolutionLabel = (h?: number): string => {
                     </span>
                 </div>
 
-                <div class="border-border flex items-center justify-between border-b py-2.5">
+                <div
+                    v-if="canSize && scene.size !== undefined"
+                    class="border-border flex items-center justify-between border-b py-2.5"
+                >
                     <span class="text-dim text-[11px]">Size</span>
                     <span class="text-muted font-mono text-[11px]">
                         {{ formatSize(scene.size) }}
@@ -141,7 +168,7 @@ const getResolutionLabel = (h?: number): string => {
 
         <!-- Technical Section -->
         <div
-            v-if="scene.width || scene.frame_rate || scene.bit_rate || scene.video_codec"
+            v-if="showTechnical"
             class="border-border bg-surface/30 rounded-xl border p-4 backdrop-blur-sm"
         >
             <span class="text-dim text-[10px] font-medium tracking-wider uppercase">Technical</span>
@@ -165,7 +192,7 @@ const getResolutionLabel = (h?: number): string => {
                 </div>
 
                 <div
-                    v-if="scene.frame_rate"
+                    v-if="canTechnical && scene.frame_rate"
                     class="border-border flex items-center justify-between border-b py-2.5"
                 >
                     <span class="text-dim text-[11px]">Frame Rate</span>
@@ -175,7 +202,7 @@ const getResolutionLabel = (h?: number): string => {
                 </div>
 
                 <div
-                    v-if="scene.bit_rate"
+                    v-if="canTechnical && scene.bit_rate"
                     class="border-border flex items-center justify-between border-b py-2.5"
                 >
                     <span class="text-dim text-[11px]">Bit Rate</span>
@@ -185,7 +212,7 @@ const getResolutionLabel = (h?: number): string => {
                 </div>
 
                 <div
-                    v-if="scene.video_codec"
+                    v-if="canTechnical && scene.video_codec"
                     class="border-border flex items-center justify-between py-2.5"
                     :class="{ 'border-b': scene.audio_codec }"
                 >
@@ -195,7 +222,10 @@ const getResolutionLabel = (h?: number): string => {
                     </span>
                 </div>
 
-                <div v-if="scene.audio_codec" class="flex items-center justify-between py-2.5">
+                <div
+                    v-if="canTechnical && scene.audio_codec"
+                    class="flex items-center justify-between py-2.5"
+                >
                     <span class="text-dim text-[11px]">Audio Codec</span>
                     <span class="text-muted font-mono text-[11px]">
                         {{ formatCodec(scene.audio_codec) }}
@@ -205,17 +235,23 @@ const getResolutionLabel = (h?: number): string => {
         </div>
 
         <!-- File Section -->
-        <div class="border-border bg-surface/30 rounded-xl border p-4 backdrop-blur-sm">
+        <div
+            v-if="showFile"
+            class="border-border bg-surface/30 rounded-xl border p-4 backdrop-blur-sm"
+        >
             <span class="text-dim text-[10px] font-medium tracking-wider uppercase">File</span>
             <div class="mt-2 space-y-0">
-                <div class="border-border border-b py-2.5">
+                <div
+                    v-if="canPaths && scene.original_filename"
+                    class="border-border border-b py-2.5"
+                >
                     <span class="text-dim text-[11px]">Filename</span>
                     <p class="text-dim/70 mt-0.5 font-mono text-[10px] break-all">
                         {{ scene.original_filename }}
                     </p>
                 </div>
 
-                <div v-if="scene.stored_path" class="border-border border-b py-2.5">
+                <div v-if="canPaths && scene.stored_path" class="border-border border-b py-2.5">
                     <span class="text-dim text-[11px]">Path</span>
                     <p
                         v-if="pathSegments"
@@ -243,7 +279,7 @@ const getResolutionLabel = (h?: number): string => {
                     </p>
                 </div>
 
-                <WatchSceneCopies :scene-id="scene.id" />
+                <WatchSceneCopies v-if="canPaths" :scene-id="scene.id" />
 
                 <div v-if="scene.file_created_at" class="flex items-center justify-between py-2.5">
                     <span class="text-dim text-[11px]">File Date</span>
@@ -255,7 +291,10 @@ const getResolutionLabel = (h?: number): string => {
         </div>
 
         <!-- Actions -->
-        <div class="border-border bg-surface/30 rounded-xl border p-3 backdrop-blur-sm">
+        <div
+            v-if="canShare"
+            class="border-border bg-surface/30 rounded-xl border p-3 backdrop-blur-sm"
+        >
             <div class="flex gap-2">
                 <button
                     class="border-border bg-panel text-dim hover:border-border-hover flex-1
@@ -270,6 +309,7 @@ const getResolutionLabel = (h?: number): string => {
         </div>
 
         <ShareModal
+            v-if="canShare"
             :visible="showShareModal"
             :scene-id="scene.id"
             @close="showShareModal = false"

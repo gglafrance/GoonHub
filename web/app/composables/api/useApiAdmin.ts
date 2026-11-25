@@ -1,5 +1,13 @@
 import type { TranscodeCacheClearResponse, TranscodeCacheStats } from '~/types/admin';
 import type {
+    CatalogPermission,
+    EffectivePermission,
+    PermissionSetting,
+    RoleInput,
+    RoleSummary,
+    UserPermissionsResponse,
+} from '~/types/permissions';
+import type {
     TrashBulkResult,
     TrashFacets,
     TrashIdsResponse,
@@ -70,7 +78,7 @@ export const useApiAdmin = () => {
         return handleResponse(response);
     };
 
-    const fetchRoles = async () => {
+    const fetchRoles = async (): Promise<{ roles: RoleSummary[] }> => {
         const response = await fetch('/api/v1/admin/roles', {
             headers: getAuthHeaders(),
             ...fetchOptions(),
@@ -78,7 +86,8 @@ export const useApiAdmin = () => {
         return handleResponse(response);
     };
 
-    const fetchPermissions = async () => {
+    // Permission catalog (deprecated permissions excluded), in catalog order
+    const fetchPermissions = async (): Promise<{ permissions: CatalogPermission[] }> => {
         const response = await fetch('/api/v1/admin/permissions', {
             headers: getAuthHeaders(),
             ...fetchOptions(),
@@ -86,11 +95,71 @@ export const useApiAdmin = () => {
         return handleResponse(response);
     };
 
-    const syncRolePermissions = async (roleId: number, permissionIds: number[]) => {
+    const createRole = async (input: RoleInput): Promise<RoleSummary> => {
+        const response = await fetch('/api/v1/admin/roles', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(input),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const updateRole = async (roleId: number, input: RoleInput): Promise<RoleSummary> => {
+        const response = await fetch(`/api/v1/admin/roles/${roleId}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(input),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const deleteRole = async (roleId: number) => {
+        const response = await fetch(`/api/v1/admin/roles/${roleId}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    // Replaces the role's own settings (absent = inherit)
+    const setRolePermissions = async (roleId: number, settings: PermissionSetting[]) => {
         const response = await fetch(`/api/v1/admin/roles/${roleId}/permissions`, {
             method: 'PUT',
             headers: getAuthHeaders(),
-            body: JSON.stringify({ permission_ids: permissionIds }),
+            body: JSON.stringify({ settings }),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const fetchRoleEffective = async (
+        roleId: number,
+    ): Promise<{ permissions: EffectivePermission[] }> => {
+        const response = await fetch(`/api/v1/admin/roles/${roleId}/effective`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const fetchUserPermissions = async (userId: number): Promise<UserPermissionsResponse> => {
+        const response = await fetch(`/api/v1/admin/users/${userId}/permissions`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    // Replaces the user's overrides (absent = no override)
+    const setUserPermissions = async (userId: number, overrides: PermissionSetting[]) => {
+        const response = await fetch(`/api/v1/admin/users/${userId}/permissions`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ overrides }),
+            ...fetchOptions(),
         });
         return handleResponse(response);
     };
@@ -262,7 +331,13 @@ export const useApiAdmin = () => {
         deleteUser,
         fetchRoles,
         fetchPermissions,
-        syncRolePermissions,
+        createRole,
+        updateRole,
+        deleteRole,
+        setRolePermissions,
+        fetchRoleEffective,
+        fetchUserPermissions,
+        setUserPermissions,
         getSearchStatus,
         triggerReindex,
         getSearchConfig,

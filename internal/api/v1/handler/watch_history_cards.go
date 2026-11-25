@@ -25,7 +25,7 @@ func (h *WatchHistoryHandler) WithCardData(markerService *core.MarkerService, in
 func (h *WatchHistoryHandler) historyEntriesResponse(c *gin.Context, entries []core.WatchHistoryEntry, userID uint) gin.H {
 	fields := response.ParseCardFields(c.Query("card_fields"))
 	if !fields.HasAny() {
-		return gin.H{"entries": response.ToWatchHistoryEntriesResponse(entries)}
+		return gin.H{"entries": response.ToWatchHistoryEntriesResponse(entries, fileVisibility(c))}
 	}
 
 	// one card item per scene, even when the scene was watched several times
@@ -41,7 +41,7 @@ func (h *WatchHistoryHandler) historyEntriesResponse(c *gin.Context, entries []c
 		index[e.Scene.ID] = len(scenes)
 		scenes = append(scenes, *e.Scene)
 	}
-	items := response.ToSceneListItemsWithFields(scenes, fields)
+	items := response.ToSceneListItemsWithFields(scenes, fields, fileVisibility(c))
 	sceneIDs := make([]uint, len(scenes))
 	for i, s := range scenes {
 		sceneIDs[i] = s.ID

@@ -4,7 +4,8 @@ export interface SceneListItem {
     id: number;
     title: string;
     duration: number;
-    size: number;
+    // Omitted by the API without files:view_size
+    size?: number;
     thumbnail_path: string;
     preview_video_path: string;
     processing_status: string;
@@ -15,6 +16,7 @@ export interface SceneListItem {
     view_count?: number;
     width?: number;
     height?: number;
+    // Omitted without files:view_technical
     frame_rate?: number;
     description?: string;
     studio?: string;
@@ -28,8 +30,9 @@ export interface SceneListItem {
 // Scene is the full scene representation with all metadata.
 // Used by: scene player page, scene details editor
 export interface Scene extends SceneListItem {
-    original_filename: string;
-    stored_path: string;
+    // Omitted by the API without files:view_paths
+    original_filename?: string;
+    stored_path?: string;
     storage_path_id?: number;
     view_count: number;
     width?: number;
@@ -39,6 +42,8 @@ export interface Scene extends SceneListItem {
     sprite_sheet_count?: number;
     thumbnail_width?: number;
     thumbnail_height?: number;
+    // processing_error, file_hash, fingerprint_*, frame_rate, bit_rate and the codecs are
+    // omitted without files:view_technical
     processing_error?: string;
     file_created_at?: string;
     description?: string;
@@ -51,6 +56,8 @@ export interface Scene extends SceneListItem {
     actors?: string[];
     cover_image_path?: string;
     file_hash?: string;
+    fingerprint_type?: string;
+    fingerprint_at?: string;
     frame_rate?: number;
     bit_rate?: number;
     video_codec?: string;

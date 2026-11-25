@@ -2,7 +2,7 @@
 import type { SettingsTabId, SettingsTabConfig, SettingsSubTabConfig } from '~/utils/settingsTabs';
 
 const settingsStore = useSettingsStore();
-const authStore = useAuthStore();
+const perms = useMyPermissions();
 const route = useRoute();
 const router = useRouter();
 
@@ -25,11 +25,8 @@ const activeTab = ref<TabType>('account');
 const activeSubTab = ref<string>('general');
 const expandedTabs = ref<Set<TabType>>(new Set());
 
-const isAdmin = computed(() => authStore.user?.role === 'admin');
-
 function getVisibleSubTabs(tab: TabConfig): SubTabConfig[] {
-    if (!tab.subTabs) return [];
-    return tab.subTabs.filter((st) => !st.admin || isAdmin.value);
+    return visibleSettingsSubTabs(tab, perms.has);
 }
 
 const currentTabConfig = computed(() => tabConfig.find((t) => t.id === activeTab.value));
@@ -70,9 +67,7 @@ async function handleGlobalSave() {
     }
 }
 
-const availableTabs = computed(() => {
-    return tabConfig.filter((tab) => !tab.admin || authStore.user?.role === 'admin');
-});
+const availableTabs = computed(() => visibleSettingsTabs(tabConfig, perms.has));
 
 const regularTabs = computed(() => availableTabs.value.filter((t) => !t.admin));
 const adminTabs = computed(() => availableTabs.value.filter((t) => t.admin));

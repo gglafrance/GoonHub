@@ -6,7 +6,7 @@ import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 const scene = inject<Ref<Scene | null>>('watchScene');
 const thumbnailVersion = inject<Ref<number>>('thumbnailVersion');
 const detailsRefreshKey = inject<Ref<number>>('detailsRefreshKey');
-const authStore = useAuthStore();
+const perms = useMyPermissions();
 const { updateSceneDetails, fetchScene } = useApi();
 
 // Inject centralized watch page data
@@ -30,7 +30,9 @@ const router = useRouter();
 // Tag manager ref for reloading
 const tagManagerRef = ref<{ reload: () => void } | null>(null);
 
-const isAdmin = computed(() => authStore.user?.role === 'admin');
+const canEdit = computed(() => perms.has('scenes:edit'));
+const canUsePornDB = computed(() => perms.has('porndb:use'));
+const canTrash = computed(() => perms.has('scenes:trash'));
 
 // Loading state for interactions
 const interactionsLoading = computed(() => watchPageData?.loading.details ?? true);
@@ -197,12 +199,14 @@ function handleSceneDeleted() {
                     <WatchDetailsTitleEditor
                         :title="scene?.title || ''"
                         :saved="saved"
+                        :readonly="!canEdit"
                         @save="saveTitle"
                     />
 
                     <!-- Description -->
                     <WatchDetailsDescriptionEditor
                         :description="scene?.description || ''"
+                        :readonly="!canEdit"
                         @save="saveDescription"
                     />
 
@@ -210,6 +214,7 @@ function handleSceneDeleted() {
                     <WatchDetailsSourceEditor
                         :source-url="scene?.source_url || ''"
                         :source-site="scene?.source_site || ''"
+                        :readonly="!canEdit"
                         @save="saveSourceUrl"
                     />
                 </div>
@@ -272,6 +277,7 @@ function handleSceneDeleted() {
             <div class="border-border/50 bg-surface/30 w-40 shrink-0 rounded-lg border p-3">
                 <WatchDetailsReleaseDateEditor
                     :release-date="scene?.release_date || null"
+                    :readonly="!canEdit"
                     @save="saveReleaseDate"
                 />
             </div>
@@ -302,7 +308,7 @@ function handleSceneDeleted() {
                     <p v-else class="text-dim text-xs">Not linked</p>
                     <!-- Fetch/Refresh button -->
                     <button
-                        v-if="isAdmin && pornDBConfigured"
+                        v-if="canUsePornDB && pornDBConfigured"
                         class="hover:border-lava/40 hover:text-lava text-dim flex w-full
                             items-center justify-center gap-2 rounded-md border border-dashed
                             border-white/10 px-2 py-1.5 text-xs transition-colors"
@@ -337,7 +343,7 @@ function handleSceneDeleted() {
                 Add to Playlist
             </button>
             <button
-                v-if="isAdmin"
+                v-if="canTrash"
                 class="hover:border-lava/40 hover:text-lava text-dim flex items-center gap-2
                     rounded-md border border-dashed border-white/10 px-3 py-1.5 text-xs
                     transition-colors"

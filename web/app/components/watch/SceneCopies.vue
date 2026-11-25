@@ -8,6 +8,8 @@ const props = defineProps<{
 }>();
 
 const { fetchSceneCopies } = useApiScenes();
+// Copies are file paths: files:view_paths (the API refuses the request otherwise)
+const perms = useMyPermissions();
 const { formatSize } = useFormatter();
 
 const copies = ref<SceneCopy[]>([]);
@@ -15,6 +17,7 @@ const expanded = ref(false);
 
 const load = async () => {
     const id = props.sceneId;
+    if (!perms.has('files:view_paths')) return;
     try {
         const res = await fetchSceneCopies(id);
         if (id === props.sceneId) copies.value = res.copies ?? [];

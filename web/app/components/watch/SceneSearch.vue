@@ -77,7 +77,8 @@ function clearFilters() {
 function getQueryFromScene(): string {
     if (!props.scene) return '';
 
-    // If parsing rules are selected, apply them to original_filename
+    // If parsing rules are selected, apply them to original_filename (omitted without
+    // files:view_paths: the title is used then)
     let query = '';
     if (selectedPresetRules.value && props.scene.original_filename) {
         query = applyRules(props.scene.original_filename, selectedPresetRules.value);
@@ -126,7 +127,7 @@ async function searchScenes() {
             const localScene = {
                 id: 0, // Not used for confidence
                 title: props.scene.original_filename || props.scene.title || '',
-                original_filename: props.scene.original_filename || '',
+                original_filename: props.scene.original_filename || props.scene.title || '',
                 porndb_scene_id: null,
                 actors: props.scene.actors || [],
                 studio: props.scene.studio || null,
