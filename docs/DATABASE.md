@@ -15,13 +15,14 @@ This document provides a comprehensive reference of the GoonHub database schema.
 3. [Content Organization](#content-organization)
 4. [Sharing](#sharing)
 5. [Playlists](#playlists)
-6. [User Interactions](#user-interactions)
-7. [Job System](#job-system)
-8. [Storage & Scanning](#storage--scanning)
-9. [Duplicate Detection](#duplicate-detection)
-10. [Application Settings](#application-settings)
-11. [Entity Relationship Diagram](#entity-relationship-diagram)
-12. [Key Patterns & Conventions](#key-patterns--conventions)
+6. [Social Graph](#social-graph)
+7. [User Interactions](#user-interactions)
+8. [Job System](#job-system)
+9. [Storage & Scanning](#storage--scanning)
+10. [Duplicate Detection](#duplicate-detection)
+11. [Application Settings](#application-settings)
+12. [Entity Relationship Diagram](#entity-relationship-diagram)
+13. [Key Patterns & Conventions](#key-patterns--conventions)
 
 ---
 
@@ -593,6 +594,112 @@ Resume point of a user in a playlist (one row per user and playlist).
 | `updated_at` | TIMESTAMPTZ | NO | NOW() | Last save |
 
 **Indexes:** UNIQUE `(user_id, playlist_id)` (upsert target).
+
+---
+
+## Social Graph
+
+Follows, friendships, friend requests and privacy settings (migration 095, `docs/SOCIAL.md`).
+Every table cascades on user deletion.
+
+### `user_follows`
+
+One-way follows (no approval). Two users following each other are "mutuals".
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `follower_id` | BIGINT | NO | - | FK to `users.id` (CASCADE), the user who follows |
+| `followed_id` | BIGINT | NO | - | FK to `users.id` (CASCADE), the user followed |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Follow date |
+
+**Indexes:**
+- `idx_user_follows_followed_id` on `(followed_id, created_at DESC)` (followers of a user)
+
+**Constraints:**
+- PRIMARY KEY `(follower_id, followed_id)`
+- CHECK `chk_user_follows_not_self`: `follower_id <> followed_id`
+
+---
+
+### `user_friendships`
+
+Friendships, one row per pair with the smaller user id first.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `user_low_id` | BIGINT | NO | - | FK to `users.id` (CASCADE), the smaller id of the pair |
+| `user_high_id` | BIGINT | NO | - | FK to `users.id` (CASCADE), the larger id |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Friendship date (request accepted) |
+
+**Indexes:**
+- `idx_user_friendships_user_high_id` on `user_high_id`
+
+**Constraints:**
+- PRIMARY KEY `(user_low_id, user_high_id)`
+- CHECK `chk_user_friendships_ordered`: `user_low_id < user_high_id` (a pair is stored once)
+
+**View `user_friends`:** `(user_id, friend_id, created_at)`, both directions of every
+friendship (`UNION ALL` of the two orders): `SELECT friend_id FROM user_friends WHERE user_id
+= ?` lists the friends of a user.
+
+---
+
+### `friend_requests`
+
+Pending friend requests only: accepting, declining or cancelling deletes the row. A request
+from B to A when A already asked B is an acceptance (application rule, under a per-pair
+advisory lock).
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `sender_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `receiver_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Request date |
+
+**Indexes:**
+- `idx_friend_requests_receiver_id` on `(receiver_id, created_at DESC)`
+
+**Constraints:**
+- `uni_friend_requests_pair` UNIQUE on `(sender_id, receiver_id)`
+- CHECK `chk_friend_requests_not_self`: `sender_id <> receiver_id`
+
+---
+
+### `user_privacy_settings`
+
+Explicit privacy choices: who can see an information item of the user. The items are declared
+in code (`core/privacy_catalog.go`); no row = the item's catalog default (follows a change of
+default), rows of unknown items are ignored.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `item` | VARCHAR(64) | NO | - | Privacy item key (`profile`, `friends_list`, `stats`...) |
+| `audience` | VARCHAR(16) | NO | - | `public`, `followers`, `mutuals`, `friends` or `private` |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last change |
+
+**Indexes:**
+- `idx_user_privacy_settings_item` on `item`
+
+**Constraints:**
+- PRIMARY KEY `(user_id, item)`
+- CHECK `chk_user_privacy_settings_audience`: `audience IN ('public', 'followers', 'mutuals', 'friends', 'private')`
+
+---
+
+### `user_social_settings`
+
+Social preferences of a user. No row = the defaults.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `user_id` | BIGINT | NO | - | Primary key, FK to `users.id` (CASCADE) |
+| `friend_request_policy` | VARCHAR(16) | NO | 'everyone' | Who may send friend requests: `everyone`, `mutuals`, `nobody` |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last change |
+
+**Constraints:**
+- CHECK `chk_user_social_settings_friend_request_policy`: `friend_request_policy IN ('everyone', 'mutuals', 'nobody')`
 
 ---
 
@@ -1710,7 +1817,7 @@ Internal references still use BIGSERIAL `id` for performance.
 
 ### Foreign Key Cascade Rules
 
-- User-owned data: `ON DELETE CASCADE` (settings, interactions, markers, share_links, playlists)
+- User-owned data: `ON DELETE CASCADE` (settings, interactions, markers, share_links, playlists, follows, friendships, friend requests, privacy settings)
 - Playlist items: `ON DELETE CASCADE` (`playlist_scenes`, `playlist_markers`: a deleted scene or marker leaves the playlists)
 - Content associations: `ON DELETE CASCADE` (scene_tags, scene_actors, share_links)
 - Optional references: `ON DELETE SET NULL` (scenes.studio_id)

@@ -29,6 +29,14 @@ type Config struct {
 	ClickHouse    ClickHouseConfig    `mapstructure:"clickhouse"`
 	LibraryHealth LibraryHealthConfig `mapstructure:"library_health"`
 	Workers       WorkersConfig       `mapstructure:"workers"`
+	Social        SocialConfig        `mapstructure:"social"`
+}
+
+// SocialConfig limits the social actions that notify another user (docs/SOCIAL.md).
+type SocialConfig struct {
+	FriendRequestsPerHour int `mapstructure:"friend_requests_per_hour"` // friend requests a user can send per hour (0 = unlimited)
+	FollowsPerHour        int `mapstructure:"follows_per_hour"`         // follows a user can make per hour (0 = unlimited)
+	MaxPendingRequests    int `mapstructure:"max_pending_requests"`     // pending outgoing friend requests per user (0 = unlimited)
 }
 
 // LibraryHealthConfig configures the background tasks of the library health page.
@@ -352,6 +360,10 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("playlists.marker_default_duration", 30)
 	v.SetDefault("sharing.base_url", "")
 	v.SetDefault("sharing.port", "")
+
+	v.SetDefault("social.friend_requests_per_hour", 30)
+	v.SetDefault("social.follows_per_hour", 60)
+	v.SetDefault("social.max_pending_requests", 50)
 	v.SetDefault("duplication.enabled", false)
 	v.SetDefault("library_health.stat_concurrency", 8)
 	v.SetDefault("workers.enabled", false)

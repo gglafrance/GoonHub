@@ -109,6 +109,11 @@ playlists:
   max_markers: 1000           # most markers in a marker playlist (0 = no limit)
   marker_default_duration: 30 # seconds a marker without an end plays in a marker playlist
 
+social:                       # docs/SOCIAL.md (0 = unlimited)
+  friend_requests_per_hour: 30  # friend requests a user can send per hour
+  follows_per_hour: 60          # follows a user can make per hour
+  max_pending_requests: 50      # pending outgoing friend requests per user
+
 streaming:
   max_global_streams: 100     # total concurrent streams allowed
   max_streams_per_ip: 10      # per-IP limit

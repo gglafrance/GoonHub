@@ -36,6 +36,7 @@ const (
 	PermPornDBUse         = "porndb:use"
 	PermImportUse         = "import:use"
 	PermStatsViewStreams  = "stats:view_streams"
+	PermSocialUse         = "social:use"
 	permUsersCreateLegacy = "users:create"
 	permUsersDeleteLegacy = "users:delete"
 )
@@ -46,6 +47,7 @@ const (
 	PermGroupMarkers    = "Markers"
 	PermGroupLibrary    = "Library"
 	PermGroupPlaylists  = "Playlists"
+	PermGroupSocial     = "Social"
 	PermGroupFileInfo   = "File info"
 	PermGroupProcessing = "Processing"
 	PermGroupAdmin      = "Admin"
@@ -86,6 +88,7 @@ var PermissionCatalog = []CatalogPermission{
 	{Name: PermPlaylistsEdit, Group: PermGroupPlaylists, Description: "Edit one's own playlists"},
 	{Name: PermPlaylistsDelete, Group: PermGroupPlaylists, Description: "Delete one's own playlists"},
 	{Name: PermPlaylistsPublic, Group: PermGroupPlaylists, Description: "View and like public playlists of other users"},
+	{Name: PermSocialUse, Group: PermGroupSocial, Description: "Follow users and send or accept friend requests", GrantRoles: []string{"user"}, GrantFrom: PermScenesView},
 	{Name: PermFilesViewSize, Group: PermGroupFileInfo, Description: "File sizes, size filters and sorts, selection and library totals, biggest file", GrantRoles: []string{"moderator"}},
 	{Name: PermFilesViewPaths, Group: PermGroupFileInfo, Description: "Stored paths, original file names, storage paths, copies of a scene", GrantRoles: []string{"moderator"}},
 	{Name: PermFilesViewTech, Group: PermGroupFileInfo, Description: "Codecs, bit rate, frame rate, file hash, fingerprint, processing errors", GrantRoles: []string{"moderator"}},
