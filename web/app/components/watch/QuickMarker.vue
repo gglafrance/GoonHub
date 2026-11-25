@@ -170,6 +170,7 @@ onBeforeUnmount(() => {
                     :labels="qm.labels.value"
                     :last-label="lastLabel"
                     :locked="qm.labelLocked.value"
+                    :can-create="qm.canCreateLabels.value"
                     @confirm="qm.confirmLabel()"
                     @cancel="qm.close()"
                 />

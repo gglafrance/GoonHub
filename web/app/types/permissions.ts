@@ -10,6 +10,7 @@ export type PermissionName =
     | 'scenes:reprocess'
     | 'scenes:share'
     | 'markers:create'
+    | 'marker_labels:manage'
     | 'tags:manage'
     | 'actors:manage'
     | 'actors:merge'

@@ -15,7 +15,7 @@ func TestMarkerFilterSQL(t *testing.T) {
 	}{
 		{"no filter", MarkerListOptions{}, true, nil, 0},
 		{"ranges only", MarkerListOptions{RangesOnly: true}, true, []string{"m.end_timestamp IS NOT NULL"}, 0},
-		{"labels", MarkerListOptions{Labels: []string{"a", "b"}}, true, []string{"m.label IN ?"}, 1},
+		{"labels", MarkerListOptions{Labels: []string{"a", "b"}}, true, []string{"m.label_id IN (SELECT id FROM marker_labels WHERE lower(name) IN ?)"}, 1},
 		{"labels ignored", MarkerListOptions{Labels: []string{"a"}}, false, nil, 0},
 		{"tags need all", MarkerListOptions{Tags: []string{"x", "y", "x"}}, true, []string{"scene_tags", "HAVING COUNT(DISTINCT t.name) = ?"}, 2},
 		{"actors", MarkerListOptions{Actors: []string{"z"}}, true, []string{"scene_actors"}, 2},

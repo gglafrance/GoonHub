@@ -858,7 +858,8 @@ Video bookmarks/markers created by users. A user sees their own markers plus tho
 | `scene_id` | BIGINT | NO | - | FK to `scenes.id` (CASCADE) |
 | `timestamp` | INTEGER | NO | - | Position in seconds |
 | `end_timestamp` | INTEGER | YES | NULL | Optional end of the marked range in seconds (looped on click when `user_settings.marker_loop` is on; played up to it in a marker playlist) |
-| `label` | VARCHAR(100) | YES | NULL | Marker label/name |
+| `label_id` | BIGINT | YES | NULL | FK to `marker_labels.id` (SET NULL): the marker's label, NULL without label. Source of truth (migration 097) |
+| `label` | VARCHAR(100) | NO | '' | Name of the label, a copy kept by the trigger `trg_user_scene_markers_sync_label` (`''` without label). A write of the text alone is resolved to the label of that name (ignoring case), created when missing |
 | `color` | VARCHAR(7) | NO | '#FFFFFF' | Hex color code |
 | `thumbnail_path` | VARCHAR(255) | YES | NULL | Generated thumbnail path |
 | `created_at` | TIMESTAMPTZ | NO | NOW() | Marker creation timestamp |
@@ -867,7 +868,8 @@ Video bookmarks/markers created by users. A user sees their own markers plus tho
 **Indexes:**
 - `idx_user_scene_markers_user_scene` on `(user_id, scene_id)`
 - `idx_user_scene_markers_timestamp` on `(scene_id, timestamp)`
-- `idx_user_scene_markers_user_label` on `(user_id, label)`
+- `idx_user_scene_markers_user_label` on `(user_id, label)` (named `idx_user_video_markers_user_label`)
+- `idx_user_scene_markers_label_id` on `label_id`
 
 **Constraints:**
 - CHECK `timestamp >= 0`
@@ -915,24 +917,48 @@ Tags associated with individual markers.
 
 ---
 
+### `marker_labels`
+
+Server-wide marker labels (migration 097, `docs/MARKER_LABELS.md`), managed with
+`marker_labels:manage`.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `name` | VARCHAR(100) | NO | - | Label name, trimmed, unique ignoring case |
+| `color` | VARCHAR(7) | NO | '#FFFFFF' | Hex color |
+| `description` | TEXT | NO | '' | Optional description |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last update timestamp |
+
+**Indexes:**
+- `idx_marker_labels_name_lower` UNIQUE on `lower(name)`
+
+**Constraints:**
+- CHECK `chk_marker_labels_name_not_blank`: `btrim(name) <> ''`
+
+**Triggers:** `trg_marker_labels_propagate_name` (AFTER UPDATE OF name) renames the
+`user_scene_markers.label` copy of the label's markers.
+
+---
+
 ### `marker_label_tags`
 
-Default tags associated with marker labels (per user).
+Default tags of the marker labels, the same for every user (migration 097; per user before).
+Every marker of the label carries them as `marker_tags.is_from_label = true`.
 
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|
 | `id` | SERIAL | NO | auto | Primary key |
-| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
-| `label` | VARCHAR(100) | NO | - | Marker label name |
+| `label_id` | BIGINT | NO | - | FK to `marker_labels.id` (CASCADE) |
 | `tag_id` | BIGINT | NO | - | FK to `tags.id` (CASCADE) |
 | `created_at` | TIMESTAMPTZ | NO | NOW() | Association timestamp |
 
 **Indexes:**
-- `idx_marker_label_tags_user_label` on `(user_id, label)`
 - `idx_marker_label_tags_tag_id` on `tag_id`
 
 **Constraints:**
-- UNIQUE on `(user_id, label, tag_id)`
+- UNIQUE `uq_marker_label_tags_label_tag` on `(label_id, tag_id)`
 
 ---
 
@@ -1732,11 +1758,11 @@ User Interactions (scenes):
 
 +------------------------+   +------------------------+
 | user_scene_watches     |   | user_scene_markers     |-------> marker_tags
-+------------------------+   +------------------------+         marker_label_tags
++------------------------+   +------------------------+         marker_labels <- marker_label_tags
 | user_id (FK)           |   | user_id (FK)           |
 | scene_id (FK)          |   | scene_id (FK)          |
 | last_position          |   | timestamp              |
-| completed              |   | label                  |
+| completed              |   | label_id (FK), label   |
 +------------------------+   +------------------------+
 
 Job System:

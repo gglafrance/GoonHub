@@ -94,6 +94,7 @@ grant (superuser roles never get a grant row).
 | `scenes:reprocess` | Scenes | Reprocess a scene | existing |
 | `scenes:share` | Scenes | Create and delete share links | from `scenes:view` |
 | `markers:create` | Markers | Create, edit and delete one's own markers and marker tags | from `scenes:view` |
+| `marker_labels:manage` | Markers | Create, rename, recolor, merge and delete the server-wide marker labels and set their default tags (`/marker-labels`, `PUT /markers/label-tags`); a marker with an unknown label creates it (without the permission: `400`). See `docs/MARKER_LABELS.md` | moderator |
 | `tags:manage` | Library | Create, rename, recolor, merge and delete tags | moderator |
 | `actors:manage` | Library | Create, edit and delete actors and their images | none |
 | `actors:merge` | Library | Merge actors | existing |

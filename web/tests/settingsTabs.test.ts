@@ -40,6 +40,15 @@ describe('visibleSettingsTabs', () => {
         ]);
     });
 
+    test('marker labels need marker_labels:manage (not an admin tab)', () => {
+        const tabs = visibleSettingsTabs(
+            SETTINGS_TABS,
+            withPermissions('scenes:view', 'marker_labels:manage'),
+        );
+        expect(ids(tabs)).toContain('marker-labels');
+        expect(tabs.find((t) => t.id === 'marker-labels')?.admin).toBeUndefined();
+    });
+
     test('each admin tab follows its own permission', () => {
         const tabs = visibleSettingsTabs(
             SETTINGS_TABS,

@@ -31,6 +31,8 @@ const isOwn = (marker: Marker) => marker.user_id === authStore.user?.id;
 const perms = useMyPermissions();
 const canCreateMarkers = computed(() => perms.has('markers:create'));
 const canEdit = (marker: Marker) => canCreateMarkers.value && isOwn(marker);
+// Labels are server-wide: creating one needs marker_labels:manage (else pick an existing one)
+const canCreateLabels = computed(() => perms.has('marker_labels:manage'));
 // Every marker shown (own and shared), for "Add all to playlist"
 const allMarkerIds = computed(() => markers.value.map((m) => m.id));
 // The 50 markers limit counts the user's own markers only
@@ -87,6 +89,36 @@ const filteredSuggestions = computed(() => {
     const lowerQuery = query.toLowerCase();
     return labelSuggestions.value.filter((s) => s.label.toLowerCase().includes(lowerQuery));
 });
+
+// What the typed label resolves to (existing, new for a label manager, or unknown)
+const labelPick = computed(() =>
+    pickMarkerLabel(
+        showEditSuggestions.value ? editingLabel.value : newMarkerLabel.value,
+        labelSuggestions.value,
+        canCreateLabels.value,
+    ),
+);
+const pickerCreateName = computed(() =>
+    labelPick.value.kind === 'create' ? labelPick.value.name : null,
+);
+const pickerUnknownName = computed(() =>
+    labelPick.value.kind === 'unknown' && suggestionsLoaded.value ? labelPick.value.name : null,
+);
+
+// The label to send: the canonical spelling of an existing label; null (with the error set)
+// for a label that does not exist and that the user cannot create
+const resolveTypedLabel = (typed: string): string | null => {
+    const pick = pickMarkerLabel(typed, labelSuggestions.value, canCreateLabels.value);
+    if (pick.kind === 'unknown' && suggestionsLoaded.value) {
+        error.value = unknownMarkerLabelMessage(pick.name);
+        return null;
+    }
+    return pick.kind === 'empty' ? '' : pick.name;
+};
+
+const createLabelFromPicker = (name: string) => {
+    selectSuggestion({ label: name, count: 0 });
+};
 
 const handleNewMarkerFocus = () => {
     loadSuggestions();
@@ -221,13 +253,15 @@ const handleAddMarker = async () => {
     if (saving.value) return;
 
     const currentTime = getPlayerTime?.() ?? 0;
-    saving.value = true;
     error.value = null;
+    const label = resolveTypedLabel(newMarkerLabel.value);
+    if (label === null) return;
+    saving.value = true;
 
     try {
         const marker = await createMarker(sceneId.value, {
             timestamp: Math.floor(currentTime),
-            label: newMarkerLabel.value.trim() || undefined,
+            label: label || undefined,
         });
         newMarkerLabel.value = '';
         // Show the new marker at once (list and timeline), without waiting for a refetch
@@ -290,10 +324,10 @@ const handleSaveEdit = async (marker: Marker) => {
     }
 
     error.value = null;
+    const label = resolveTypedLabel(editingLabel.value);
+    if (label === null) return;
     try {
-        const updated = await updateMarker(sceneId.value, marker.id, {
-            label: editingLabel.value.trim(),
-        });
+        const updated = await updateMarker(sceneId.value, marker.id, { label });
         applyMarkerUpdate(marker, updated);
         cancelEditing();
         // Refresh parent markers for timeline indicators
@@ -751,7 +785,10 @@ onMounted(async () => {
             :suggestions="filteredSuggestions"
             :anchor-el="newMarkerInputRef"
             :selected-index="selectedSuggestionIndex"
+            :create-name="pickerCreateName"
+            :unknown-name="pickerUnknownName"
             @select="selectSuggestion"
+            @create="createLabelFromPicker"
             @close="showNewMarkerSuggestions = false"
         />
         <WatchMarkerLabelPicker
@@ -759,7 +796,10 @@ onMounted(async () => {
             :suggestions="filteredSuggestions"
             :anchor-el="editInputRef?.[0] ?? null"
             :selected-index="selectedSuggestionIndex"
+            :create-name="pickerCreateName"
+            :unknown-name="pickerUnknownName"
             @select="selectSuggestion"
+            @create="createLabelFromPicker"
             @close="showEditSuggestions = false"
         />
 

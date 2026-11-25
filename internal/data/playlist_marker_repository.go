@@ -253,8 +253,9 @@ func (r *PlaylistRepositoryImpl) ResolveVisibleMarkerIDs(userID uint, label stri
 	where := VisibleMarkersSQL("m")
 	args := []any{userID}
 	if label != "" {
-		where += " AND m.label = ?"
-		args = append(args, label)
+		// Same match as the label page (GetMarkersByLabelForUser): the label, ignoring case
+		where += " AND " + markerLabelInSQL("m")
+		args = append(args, markerLabelKeys([]string{label}))
 	}
 	where += filter
 	args = append(args, filterArgs...)
