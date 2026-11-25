@@ -22,21 +22,27 @@ const showDeleteConfirm = ref(false);
 
 const pageTitle = computed(() => store.currentPlaylist?.name || 'Playlist');
 
+// A playlist holds scenes or markers (docs/MARKER_PLAYLISTS.md); playback works on its items
+const isMarkers = computed(() => store.currentPlaylist?.kind === 'markers');
+const items = computed(() =>
+    store.currentPlaylist ? playlistQueueItems(store.currentPlaylist) : [],
+);
+
 useHead({ title: pageTitle });
+
+const seoDescription = computed(() => {
+    const p = store.currentPlaylist;
+    if (!p) return 'View playlist';
+    const count = items.value.length;
+    const word = p.kind === 'markers' ? 'markers' : 'scenes';
+    return `${count} ${word} in ${p.name}`;
+});
 
 useSeoMeta({
     title: pageTitle,
     ogTitle: computed(() => `${pageTitle.value} - GoonHub`),
-    description: computed(() =>
-        store.currentPlaylist
-            ? `${store.currentPlaylist.scenes.length} scenes in ${store.currentPlaylist.name}`
-            : 'View playlist',
-    ),
-    ogDescription: computed(() =>
-        store.currentPlaylist
-            ? `${store.currentPlaylist.scenes.length} scenes in ${store.currentPlaylist.name}`
-            : 'View playlist',
-    ),
+    description: seoDescription,
+    ogDescription: seoDescription,
 });
 
 onMounted(() => {
@@ -47,18 +53,17 @@ watch(uuid, (newUuid) => {
     store.loadPlaylist(newUuid);
 });
 
-// Resume button
+// Resume button: the last item played (scene or marker) and the time in its scene
 const resumeData = computed(() => {
-    const resume = store.currentPlaylist?.resume;
-    if (!resume?.scene_id) return null;
-    const scenes = store.currentPlaylist?.scenes ?? [];
-    const index = scenes.findIndex((s) => s.scene.id === resume.scene_id);
-    if (index === -1) return null;
+    if (!store.currentPlaylist) return null;
+    const target = playlistResumeTarget(store.currentPlaylist);
+    if (!target) return null;
     return {
-        sceneId: resume.scene_id,
-        positionS: resume.position_s,
-        index,
-        title: scenes[index]!.scene.title,
+        sceneId: target.item.sceneId,
+        positionS: target.startAt,
+        index: target.index,
+        item: target.item,
+        title: target.item.title,
     };
 });
 
@@ -66,11 +71,13 @@ const handleResume = () => {
     if (!resumeData.value) return;
     router.push({
         path: `/watch/${resumeData.value.sceneId}`,
-        query: {
-            playlist: uuid.value,
-            pos: String(resumeData.value.index),
-            t: String(Math.floor(resumeData.value.positionS)),
-        },
+        query: playlistItemQuery(
+            uuid.value,
+            resumeData.value.item,
+            resumeData.value.index,
+            0,
+            resumeData.value.positionS,
+        ),
     });
 };
 
@@ -111,32 +118,41 @@ const handleReorder = async (sceneIds: number[]) => {
     await store.reorderScenes(store.currentPlaylist.uuid, sceneIds);
 };
 
+const handleRemoveMarkers = async (markerIds: number[]) => {
+    if (!store.currentPlaylist) return;
+    await store.removeMarkers(store.currentPlaylist.uuid, markerIds);
+};
+
+const handleReorderMarkers = async (markerIds: number[]) => {
+    if (!store.currentPlaylist) return;
+    await store.reorderMarkers(store.currentPlaylist.uuid, markerIds);
+};
+
 const handlePlay = (index: number) => {
-    if (!store.currentPlaylist?.scenes[index]) return;
-    const sceneId = store.currentPlaylist.scenes[index].scene.id;
+    const item = items.value[index];
+    if (!item) return;
     router.push({
-        path: `/watch/${sceneId}`,
-        query: { playlist: uuid.value, pos: String(index) },
+        path: `/watch/${item.sceneId}`,
+        query: playlistItemQuery(uuid.value, item, index),
     });
 };
 
 const handlePlayAll = () => {
-    if (!store.currentPlaylist?.scenes.length) return;
+    if (!items.value.length) return;
     handlePlay(0);
 };
 
 const handleShuffle = () => {
-    if (!store.currentPlaylist?.scenes.length) return;
+    if (!items.value.length) return;
     const seed = Math.floor(Math.random() * 0xffffffff);
-    const order = seededShuffle(store.currentPlaylist.scenes.length, seed);
+    const order = seededShuffle(items.value.length, seed);
     const firstIndex = order[0];
     if (firstIndex === undefined) return;
-    const firstScene = store.currentPlaylist.scenes[firstIndex];
-    if (!firstScene) return;
-    const firstSceneId = firstScene.scene.id;
+    const first = items.value[firstIndex];
+    if (!first) return;
     router.push({
-        path: `/watch/${firstSceneId}`,
-        query: { playlist: uuid.value, pos: '0', shuffle: String(seed) },
+        path: `/watch/${first.sceneId}`,
+        query: playlistItemQuery(uuid.value, first, 0, seed),
     });
 };
 </script>
@@ -174,7 +190,7 @@ const handleShuffle = () => {
             <!-- Action bar -->
             <div class="mb-6 flex flex-wrap gap-2">
                 <button
-                    :disabled="store.currentPlaylist.scenes.length === 0"
+                    :disabled="items.length === 0"
                     class="bg-lava hover:bg-lava-glow flex items-center gap-1.5 rounded-lg px-4 py-2
                         text-xs font-semibold text-white transition-all disabled:cursor-not-allowed
                         disabled:opacity-40"
@@ -200,7 +216,7 @@ const handleShuffle = () => {
                     </span>
                 </button>
                 <button
-                    :disabled="store.currentPlaylist.scenes.length === 0"
+                    :disabled="items.length === 0"
                     class="border-border bg-surface text-dim hover:border-border-hover
                         hover:bg-elevated flex items-center gap-1.5 rounded-lg border px-3 py-2
                         text-xs font-medium transition-all hover:text-white
@@ -213,7 +229,7 @@ const handleShuffle = () => {
 
                 <!-- List / table -->
                 <SceneTableViewControls
-                    v-if="store.currentPlaylist.scenes.length > 0"
+                    v-if="!isMarkers && store.currentPlaylist.scenes.length > 0"
                     class="ml-auto"
                     page="playlist"
                     grid-label="List"
@@ -222,8 +238,20 @@ const handleShuffle = () => {
                 />
             </div>
 
+            <!-- Marker list (marker playlists) -->
+            <PlaylistMarkerList
+                v-if="isMarkers"
+                :markers="store.currentPlaylist.markers"
+                :is-owner="isOwner"
+                @remove="(id: number) => handleRemoveMarkers([id])"
+                @remove-many="handleRemoveMarkers"
+                @reorder="handleReorderMarkers"
+                @play="handlePlay"
+            />
+
             <!-- Scene list -->
             <PlaylistSceneList
+                v-else
                 :scenes="store.currentPlaylist.scenes"
                 :is-owner="isOwner"
                 :playlist-uuid="uuid"

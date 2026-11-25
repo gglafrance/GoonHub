@@ -1,5 +1,6 @@
-import type { PlaylistDetail, PlaylistSceneEntry } from '~/types/playlist';
+import type { PlaylistDetail } from '~/types/playlist';
 import type { PlaylistAutoAdvance } from '~/types/settings';
+import type { PlaylistQueueItem } from '~/utils/playlistQueue';
 
 // Mulberry32 seeded PRNG — deterministic random from a 32-bit seed
 function mulberry32(seed: number): () => number {
@@ -26,6 +27,8 @@ export function seededShuffle(length: number, seed: number): number[] {
     return indices;
 }
 
+// Play order of a playlist (scenes or markers, see utils/playlistQueue): current item,
+// next/previous, shuffle and the auto-advance countdown
 export const usePlaylistPlayer = () => {
     const settingsStore = useSettingsStore();
     const api = useApiPlaylists();
@@ -39,37 +42,34 @@ export const usePlaylistPlayer = () => {
     const isLoading = ref(false);
 
     let countdownTimer: ReturnType<typeof setInterval> | null = null;
-    let onNavigateCallback: ((entry: PlaylistSceneEntry, index: number) => void) | null = null;
+    let onNavigateCallback: ((entry: PlaylistQueueItem, index: number) => void) | null = null;
+
+    // Queue items in playlist order (scenes, or markers with their range)
+    const items = computed<PlaylistQueueItem[]>(() =>
+        playlist.value ? playlistQueueItems(playlist.value) : [],
+    );
+    const isMarkerPlaylist = computed(() => playlist.value?.kind === 'markers');
 
     const effectiveOrder = computed<number[]>(() => {
         if (!playlist.value) return [];
-        const len = playlist.value.scenes.length;
+        const len = items.value.length;
         if (isShuffled.value && shuffleOrder.value.length === len) {
             return shuffleOrder.value;
         }
         return Array.from({ length: len }, (_, i) => i);
     });
 
-    const currentScene = computed<PlaylistSceneEntry | null>(() => {
-        if (!playlist.value || effectiveOrder.value.length === 0) return null;
-        const idx = effectiveOrder.value[currentIndex.value];
+    const itemAt = (orderIndex: number): PlaylistQueueItem | null => {
+        const idx = effectiveOrder.value[orderIndex];
         if (idx === undefined) return null;
-        return playlist.value.scenes[idx] ?? null;
-    });
+        return items.value[idx] ?? null;
+    };
 
-    const nextScene = computed<PlaylistSceneEntry | null>(() => {
-        if (!playlist.value || currentIndex.value >= effectiveOrder.value.length - 1) return null;
-        const idx = effectiveOrder.value[currentIndex.value + 1];
-        if (idx === undefined) return null;
-        return playlist.value.scenes[idx] ?? null;
-    });
-
-    const previousScene = computed<PlaylistSceneEntry | null>(() => {
-        if (!playlist.value || currentIndex.value <= 0) return null;
-        const idx = effectiveOrder.value[currentIndex.value - 1];
-        if (idx === undefined) return null;
-        return playlist.value.scenes[idx] ?? null;
-    });
+    const currentItem = computed<PlaylistQueueItem | null>(() => itemAt(currentIndex.value));
+    const nextItem = computed<PlaylistQueueItem | null>(() => itemAt(currentIndex.value + 1));
+    const previousItem = computed<PlaylistQueueItem | null>(() =>
+        currentIndex.value > 0 ? itemAt(currentIndex.value - 1) : null,
+    );
 
     const hasNext = computed(() => currentIndex.value < effectiveOrder.value.length - 1);
     const hasPrevious = computed(() => currentIndex.value > 0);
@@ -94,25 +94,25 @@ export const usePlaylistPlayer = () => {
         }
     };
 
-    const goToNext = (): PlaylistSceneEntry | null => {
+    const goToNext = (): PlaylistQueueItem | null => {
         if (!hasNext.value) return null;
         currentIndex.value++;
         cancelCountdown();
-        return currentScene.value;
+        return currentItem.value;
     };
 
-    const goToPrevious = (): PlaylistSceneEntry | null => {
+    const goToPrevious = (): PlaylistQueueItem | null => {
         if (!hasPrevious.value) return null;
         currentIndex.value--;
         cancelCountdown();
-        return currentScene.value;
+        return currentItem.value;
     };
 
-    const goToScene = (index: number): PlaylistSceneEntry | null => {
+    const goToItem = (index: number): PlaylistQueueItem | null => {
         if (!playlist.value || index < 0 || index >= effectiveOrder.value.length) return null;
         currentIndex.value = index;
         cancelCountdown();
-        return currentScene.value;
+        return currentItem.value;
     };
 
     const shuffleSeed = ref<number>(0);
@@ -120,7 +120,7 @@ export const usePlaylistPlayer = () => {
     const shuffleWithSeed = (seed: number, startIndex = 0) => {
         if (!playlist.value) return;
         shuffleSeed.value = seed;
-        shuffleOrder.value = seededShuffle(playlist.value.scenes.length, seed);
+        shuffleOrder.value = seededShuffle(items.value.length, seed);
         isShuffled.value = true;
         currentIndex.value = startIndex;
     };
@@ -163,8 +163,15 @@ export const usePlaylistPlayer = () => {
         }
     };
 
-    const onSceneEnd = (): PlaylistSceneEntry | null => {
+    // End of the current item. A scene follows the auto-advance setting; a marker goes on to
+    // the next one at once (a countdown between short clips would break the compilation),
+    // unless the setting is manual.
+    const onSceneEnd = (): PlaylistQueueItem | null => {
         if (!hasNext.value) return null;
+
+        if (isMarkerPlaylist.value) {
+            return autoAdvanceMode.value === 'manual' ? null : goToNext();
+        }
 
         switch (autoAdvanceMode.value) {
             case 'instant':
@@ -178,14 +185,21 @@ export const usePlaylistPlayer = () => {
         }
     };
 
-    const onNavigate = (cb: (entry: PlaylistSceneEntry, index: number) => void) => {
+    const onNavigate = (cb: (entry: PlaylistQueueItem, index: number) => void) => {
         onNavigateCallback = cb;
     };
 
-    const saveProgress = async (sceneId: number, positionS: number) => {
+    // Resume point of the playlist: the item played (its marker in a marker playlist) and the
+    // time in its scene
+    const saveProgress = async (item: PlaylistQueueItem, positionS: number) => {
         if (!playlist.value) return;
         try {
-            await api.updateProgress(playlist.value.uuid, sceneId, positionS);
+            await api.updateProgress(
+                playlist.value.uuid,
+                item.sceneId,
+                Math.max(0, positionS),
+                item.markerId ?? undefined,
+            );
         } catch {
             // Non-critical
         }
@@ -203,16 +217,18 @@ export const usePlaylistPlayer = () => {
         showCountdown,
         countdownRemaining,
         isLoading,
-        currentScene,
-        nextScene,
-        previousScene,
+        items,
+        isMarkerPlaylist,
+        currentItem,
+        nextItem,
+        previousItem,
         hasNext,
         hasPrevious,
         effectiveOrder,
         loadPlaylist,
         goToNext,
         goToPrevious,
-        goToScene,
+        goToItem,
         shuffle,
         shuffleWithSeed,
         unshuffle,

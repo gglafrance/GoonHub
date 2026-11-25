@@ -31,6 +31,8 @@ const isOwn = (marker: Marker) => marker.user_id === authStore.user?.id;
 const perms = useMyPermissions();
 const canCreateMarkers = computed(() => perms.has('markers:create'));
 const canEdit = (marker: Marker) => canCreateMarkers.value && isOwn(marker);
+// Every marker shown (own and shared), for "Add all to playlist"
+const allMarkerIds = computed(() => markers.value.map((m) => m.id));
 // The 50 markers limit counts the user's own markers only
 const ownMarkerCount = computed(() => markers.value.filter(isOwn).length);
 // List order (by time or grouped by label), remembered in this browser
@@ -470,7 +472,13 @@ onMounted(async () => {
 
         <!-- Markers Grid: one headerless group by time, or one group per label -->
         <div v-else class="space-y-4">
-            <WatchMarkersSortToggle v-model="listSort" class="w-fit" />
+            <div class="flex items-center justify-between gap-2">
+                <WatchMarkersSortToggle v-model="listSort" class="w-fit" />
+                <MarkersPlaylistAddButton
+                    :marker-ids="allMarkerIds"
+                    :label="allMarkerIds.length === 1 ? 'Add to playlist' : 'Add all to playlist'"
+                />
+            </div>
             <section v-for="group in markerGroups" :key="group.key">
                 <div v-if="listSort === 'label'" class="mb-2 flex items-center gap-2 text-[11px]">
                     <span
@@ -700,6 +708,13 @@ onMounted(async () => {
                             >
                                 <Icon name="heroicons:arrow-right-end-on-rectangle" size="12" />
                             </button>
+
+                            <!-- Add to a marker playlist -->
+                            <MarkersPlaylistAddButton
+                                v-if="editingMarkerId !== marker.id"
+                                variant="row"
+                                :marker-ids="[marker.id]"
+                            />
 
                             <!-- Delete Button -->
                             <button

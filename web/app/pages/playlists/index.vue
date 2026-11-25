@@ -4,6 +4,7 @@ import type {
     PlaylistSortOption,
     PlaylistOwnerFilter,
     PlaylistVisibilityFilter,
+    PlaylistKindFilter,
 } from '~/types/playlist';
 
 definePageMeta({ middleware: 'auth' });
@@ -28,6 +29,7 @@ const showCreateModal = ref(false);
 const SORTS = PLAYLIST_SORT_OPTIONS.map((o) => o.value);
 const OWNERS: PlaylistOwnerFilter[] = ['me', 'all'];
 const VISIBILITIES: PlaylistVisibilityFilter[] = ['', 'public', 'private', 'unlisted'];
+const KINDS: PlaylistKindFilter[] = ['', 'scenes', 'markers'];
 
 /** Applies the URL to the store; returns whether the list changed. */
 const applyUrl = (): boolean => {
@@ -35,6 +37,7 @@ const applyUrl = (): boolean => {
     const next = {
         owner: queryEnum(q.owner, OWNERS, 'me'),
         visibility: queryEnum(q.visibility, VISIBILITIES, ''),
+        kind: queryEnum(q.kind, KINDS, ''),
         sort: queryEnum(q.sort, SORTS, 'created_at_desc'),
         tags: queryList(q.tags)
             .map(Number)
@@ -45,12 +48,14 @@ const applyUrl = (): boolean => {
     const changed =
         next.owner !== store.ownerFilter ||
         next.visibility !== store.visibilityFilter ||
+        next.kind !== store.kindFilter ||
         next.sort !== store.sortOrder ||
         next.tags.join(',') !== store.tagFilter.join(',') ||
         next.search !== store.searchQuery ||
         next.page !== store.currentPage;
     store.ownerFilter = next.owner;
     store.visibilityFilter = next.visibility;
+    store.kindFilter = next.kind;
     store.sortOrder = next.sort;
     store.tagFilter = next.tags;
     store.searchQuery = next.search;
@@ -67,6 +72,7 @@ watch(
     () => [
         store.ownerFilter,
         store.visibilityFilter,
+        store.kindFilter,
         store.sortOrder,
         store.tagFilter.join(','),
         store.searchQuery,
@@ -76,6 +82,7 @@ watch(
         patchQuery({
             owner: unlessDefault(store.ownerFilter, 'me'),
             visibility: store.visibilityFilter || undefined,
+            kind: store.kindFilter || undefined,
             sort: unlessDefault(store.sortOrder, 'created_at_desc'),
             tags: store.tagFilter.join(','),
             q: store.searchQuery,
@@ -115,6 +122,7 @@ watch(
     [
         () => store.ownerFilter,
         () => store.visibilityFilter,
+        () => store.kindFilter,
         () => store.sortOrder,
         () => store.tagFilter,
         () => store.searchQuery,
@@ -219,6 +227,29 @@ const handleCreated = () => {
                 <option value="public">Public</option>
                 <option value="private">Private</option>
             </select>
+
+            <!-- Kind filter -->
+            <div class="flex gap-1">
+                <button
+                    v-for="opt in [
+                        { value: '', label: 'All Kinds', icon: 'heroicons:squares-2x2' },
+                        { value: 'scenes', label: 'Scenes', icon: 'heroicons:film' },
+                        { value: 'markers', label: 'Markers', icon: 'heroicons:bookmark' },
+                    ] as { value: PlaylistKindFilter; label: string; icon: string }[]"
+                    :key="opt.value"
+                    class="flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-[11px]
+                        font-medium transition-all"
+                    :class="
+                        store.kindFilter === opt.value
+                            ? 'border-lava/40 bg-lava/10 text-lava'
+                            : 'border-border bg-surface text-dim hover:text-white'
+                    "
+                    @click="store.kindFilter = opt.value"
+                >
+                    <Icon :name="opt.icon" size="12" />
+                    {{ opt.label }}
+                </button>
+            </div>
 
             <!-- Sort -->
             <select
