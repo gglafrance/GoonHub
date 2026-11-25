@@ -75,6 +75,11 @@ func (r *PlaylistRepositoryImpl) List(params PlaylistListParams) ([]Playlist, in
 		}
 	}
 
+	// Kind filter
+	if params.Kind != "" {
+		query = query.Where("kind = ?", params.Kind)
+	}
+
 	// Tag filter via subquery
 	if len(params.TagIDs) > 0 {
 		query = query.Where("id IN (?)",
@@ -108,7 +113,8 @@ func (r *PlaylistRepositoryImpl) List(params PlaylistListParams) ([]Playlist, in
 	case "updated_at_desc":
 		query = query.Order("updated_at DESC")
 	case "scene_count_desc":
-		query = query.Select("playlists.*, (SELECT COUNT(*) FROM playlist_scenes WHERE playlist_scenes.playlist_id = playlists.id) as scene_count_sort").
+		// Items of either kind: scenes or markers
+		query = query.Select("playlists.*, (SELECT COUNT(*) FROM playlist_scenes WHERE playlist_scenes.playlist_id = playlists.id) + (SELECT COUNT(*) FROM playlist_markers WHERE playlist_markers.playlist_id = playlists.id) as scene_count_sort").
 			Order("scene_count_sort DESC")
 	default:
 		query = query.Order("created_at DESC")
@@ -345,32 +351,19 @@ func (r *PlaylistRepositoryImpl) GetProgress(userID uint, playlistID uint) (*Pla
 	return &progress, nil
 }
 
-func (r *PlaylistRepositoryImpl) UpsertProgress(userID uint, playlistID uint, sceneID uint, positionS float64) error {
-	now := time.Now()
-	result := r.DB.Where("user_id = ? AND playlist_id = ?", userID, playlistID).First(&PlaylistProgress{})
-
-	if result.Error == gorm.ErrRecordNotFound {
-		// Insert
-		return r.DB.Create(&PlaylistProgress{
-			UserID:        userID,
-			PlaylistID:    playlistID,
-			LastSceneID:   &sceneID,
-			LastPositionS: positionS,
-			UpdatedAt:     now,
-		}).Error
+func (r *PlaylistRepositoryImpl) UpsertProgress(userID uint, playlistID uint, sceneID uint, markerID *uint, positionS float64) error {
+	progress := PlaylistProgress{
+		UserID:        userID,
+		PlaylistID:    playlistID,
+		LastSceneID:   &sceneID,
+		LastMarkerID:  markerID,
+		LastPositionS: positionS,
+		UpdatedAt:     time.Now(),
 	}
-	if result.Error != nil {
-		return result.Error
-	}
-
-	// Update
-	return r.DB.Model(&PlaylistProgress{}).
-		Where("user_id = ? AND playlist_id = ?", userID, playlistID).
-		Updates(map[string]any{
-			"last_scene_id":   sceneID,
-			"last_position_s": positionS,
-			"updated_at":      now,
-		}).Error
+	return r.DB.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_id"}, {Name: "playlist_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"last_scene_id", "last_marker_id", "last_position_s", "updated_at"}),
+	}).Create(&progress).Error
 }
 
 func (r *PlaylistRepositoryImpl) GetSceneCount(playlistID uint) (int64, error) {

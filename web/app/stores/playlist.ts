@@ -2,10 +2,12 @@ import type {
     PlaylistListItem,
     PlaylistDetail,
     CreatePlaylistInput,
+    CreatePlaylistResult,
     UpdatePlaylistInput,
     PlaylistSortOption,
     PlaylistOwnerFilter,
     PlaylistVisibilityFilter,
+    PlaylistKindFilter,
 } from '~/types/playlist';
 
 export const usePlaylistStore = defineStore('playlist', () => {
@@ -28,6 +30,7 @@ export const usePlaylistStore = defineStore('playlist', () => {
     // Filters
     const ownerFilter = ref<PlaylistOwnerFilter>('me');
     const visibilityFilter = ref<PlaylistVisibilityFilter>('');
+    const kindFilter = ref<PlaylistKindFilter>('');
     const sortOrder = ref<PlaylistSortOption>('created_at_desc');
     const tagFilter = ref<number[]>([]);
     const searchQuery = ref('');
@@ -55,6 +58,9 @@ export const usePlaylistStore = defineStore('playlist', () => {
 
             if (visibilityFilter.value) {
                 params.visibility = visibilityFilter.value;
+            }
+            if (kindFilter.value) {
+                params.kind = kindFilter.value;
             }
             if (tagFilter.value.length > 0) {
                 params.tag_ids = tagFilter.value.join(',');
@@ -103,7 +109,9 @@ export const usePlaylistStore = defineStore('playlist', () => {
         }
     };
 
-    const createPlaylist = async (input: CreatePlaylistInput): Promise<PlaylistListItem | null> => {
+    const createPlaylist = async (
+        input: CreatePlaylistInput,
+    ): Promise<CreatePlaylistResult | null> => {
         try {
             const result = await api.createPlaylist(input);
             await loadPlaylists();
@@ -208,6 +216,43 @@ export const usePlaylistStore = defineStore('playlist', () => {
         }
     };
 
+    // Marker playlists
+    const removeMarkers = async (uuid: string, markerIDs: number[]): Promise<boolean> => {
+        try {
+            if (markerIDs.length === 1) await api.removeMarker(uuid, markerIDs[0]!);
+            else await api.removeMarkers(uuid, markerIDs);
+            if (currentPlaylist.value?.uuid === uuid) {
+                // Counts and duration come from the server
+                await loadPlaylist(uuid);
+            }
+            return true;
+        } catch (e: unknown) {
+            error.value = e instanceof Error ? e.message : 'Failed to remove markers';
+            return false;
+        }
+    };
+
+    const reorderMarkers = async (uuid: string, markerIDs: number[]): Promise<boolean> => {
+        const held = currentPlaylist.value;
+        if (held?.uuid === uuid) {
+            // Moves the rows right away; the server order is reloaded after
+            const byId = new Map(held.markers.map((m) => [m.marker.id, m]));
+            const next = markerIDs.map((id) => byId.get(id)).filter((m) => m !== undefined);
+            if (next.length === held.markers.length) held.markers = next;
+        }
+        try {
+            await api.reorderMarkers(uuid, markerIDs);
+            if (currentPlaylist.value?.uuid === uuid) {
+                await loadPlaylist(uuid);
+            }
+            return true;
+        } catch (e: unknown) {
+            error.value = e instanceof Error ? e.message : 'Failed to reorder markers';
+            if (currentPlaylist.value?.uuid === uuid) await loadPlaylist(uuid);
+            return false;
+        }
+    };
+
     const toggleLike = async (uuid: string): Promise<boolean | null> => {
         try {
             const result = await api.toggleLike(uuid);
@@ -245,6 +290,7 @@ export const usePlaylistStore = defineStore('playlist', () => {
     const resetFilters = () => {
         ownerFilter.value = 'me';
         visibilityFilter.value = '';
+        kindFilter.value = '';
         sortOrder.value = 'created_at_desc';
         tagFilter.value = [];
         searchQuery.value = '';
@@ -269,6 +315,7 @@ export const usePlaylistStore = defineStore('playlist', () => {
         // Filters
         ownerFilter,
         visibilityFilter,
+        kindFilter,
         sortOrder,
         tagFilter,
         searchQuery,
@@ -283,6 +330,8 @@ export const usePlaylistStore = defineStore('playlist', () => {
         removeScene,
         removeScenes,
         reorderScenes,
+        removeMarkers,
+        reorderMarkers,
         toggleLike,
         updateProgress,
         resetFilters,

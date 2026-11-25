@@ -1,12 +1,31 @@
 <script setup lang="ts">
 import type { PlaylistListItem } from '~/types/playlist';
 
-defineProps<{
+const props = defineProps<{
     playlist: PlaylistListItem;
     fluid?: boolean;
 }>();
 
 const { formatDuration } = useFormatter();
+
+// Thumbnails: scene thumbnails, or the (versioned) marker thumbnails of a marker playlist
+const isMarkers = computed(() => props.playlist.kind === 'markers');
+const thumbs = computed(() =>
+    isMarkers.value
+        ? (props.playlist.thumbnail_markers ?? []).slice(0, 4).map((m) => ({
+              key: `m${m.id}`,
+              src: markerThumbnailUrl(m.id, m.version),
+          }))
+        : props.playlist.thumbnail_scenes.slice(0, 4).map((s) => ({
+              key: `s${s.id}`,
+              src: `/thumbnails/${s.id}`,
+          })),
+);
+const countLabel = computed(() => {
+    const n = isMarkers.value ? props.playlist.marker_count : props.playlist.scene_count;
+    const word = isMarkers.value ? 'marker' : 'scene';
+    return `${n} ${word}${n === 1 ? '' : 's'}`;
+});
 </script>
 
 <template>
@@ -21,37 +40,49 @@ const { formatDuration } = useFormatter();
             class="bg-void relative grid grid-cols-2 grid-rows-2"
             :class="fluid ? 'aspect-video w-full' : 'h-[158px] sm:h-45'"
         >
-            <template v-if="playlist.thumbnail_scenes.length > 0">
+            <template v-if="thumbs.length > 0">
                 <div
-                    v-for="(thumb, i) in playlist.thumbnail_scenes.slice(0, 4)"
-                    :key="thumb.id"
+                    v-for="(thumb, i) in thumbs"
+                    :key="thumb.key"
                     class="relative overflow-hidden"
                     :class="{
-                        'col-span-2 row-span-2': playlist.thumbnail_scenes.length === 1,
-                        'row-span-2':
-                            playlist.thumbnail_scenes.length === 2 ||
-                            (playlist.thumbnail_scenes.length === 3 && i === 0),
+                        'col-span-2 row-span-2': thumbs.length === 1,
+                        'row-span-2': thumbs.length === 2 || (thumbs.length === 3 && i === 0),
                     }"
                 >
                     <img
-                        :src="`/thumbnails/${thumb.id}`"
+                        :src="thumb.src"
                         class="h-full w-full object-cover transition-transform duration-300
                             group-hover:scale-[1.03]"
-                        :alt="`Scene ${i + 1}`"
+                        :alt="`${isMarkers ? 'Marker' : 'Scene'} ${i + 1}`"
                         loading="lazy"
                     />
                 </div>
             </template>
             <div v-else class="col-span-2 row-span-2 flex items-center justify-center">
-                <Icon name="heroicons:queue-list" size="32" class="text-dim" />
+                <Icon
+                    :name="isMarkers ? 'heroicons:bookmark' : 'heroicons:queue-list'"
+                    size="32"
+                    class="text-dim"
+                />
             </div>
 
-            <!-- Scene count badge -->
+            <!-- Kind badge (marker playlists) -->
+            <div
+                v-if="isMarkers"
+                class="bg-void/90 text-lava absolute top-1.5 left-1.5 z-10 flex items-center gap-1
+                    rounded px-1.5 py-0.5 text-[9px] font-semibold backdrop-blur-sm"
+            >
+                <Icon name="heroicons:bookmark-solid" size="10" />
+                Markers
+            </div>
+
+            <!-- Item count badge -->
             <div
                 class="bg-void/90 absolute right-1.5 bottom-1.5 z-10 rounded px-1.5 py-0.5 font-mono
                     text-[10px] font-medium text-white backdrop-blur-sm"
             >
-                {{ playlist.scene_count }} {{ playlist.scene_count === 1 ? 'scene' : 'scenes' }}
+                {{ countLabel }}
             </div>
 
             <!-- Visibility badge -->
