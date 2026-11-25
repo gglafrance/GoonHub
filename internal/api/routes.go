@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, shareHandler *handler.ShareHandler, duplicateHandler *handler.DuplicateHandler, libraryHealthHandler *handler.LibraryHealthHandler, workerHandler *handler.WorkerHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, shareHandler *handler.ShareHandler, duplicateHandler *handler.DuplicateHandler, libraryHealthHandler *handler.LibraryHealthHandler, workerHandler *handler.WorkerHandler, socialHandler *handler.SocialHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	perm := middleware.RequirePermission
 	anyPerm := middleware.RequireAnyPermission
 
@@ -227,6 +227,29 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					markers.GET("/:markerID/tags", markerHandler.GetMarkerTags)
 					markers.PUT("/:markerID/tags", perm(core.PermMarkersCreate), markerHandler.SetMarkerTags)
 					markers.POST("/:markerID/tags", perm(core.PermMarkersCreate), markerHandler.AddMarkerTags)
+				}
+
+				// Social graph and privacy (docs/SOCIAL.md): reading needs a signed-in user (privacy
+				// is checked by the services), creating a relation needs social:use. Undoing one
+				// (unfollow, decline, cancel, remove a friend) is always allowed.
+				social := protected.Group("/social")
+				{
+					social.GET("/me", socialHandler.Me)
+					social.GET("/users", socialHandler.SearchUsers)
+					social.GET("/users/:username", socialHandler.GetUser)
+					social.GET("/users/:username/friends", socialHandler.ListFriends)
+					social.GET("/users/:username/followers", socialHandler.ListFollowers)
+					social.GET("/users/:username/following", socialHandler.ListFollowing)
+					social.POST("/follows/:userId", perm(core.PermSocialUse), socialHandler.Follow)
+					social.DELETE("/follows/:userId", socialHandler.Unfollow)
+					social.DELETE("/friends/:userId", socialHandler.RemoveFriend)
+					social.GET("/friend-requests", socialHandler.ListFriendRequests)
+					social.POST("/friend-requests", perm(core.PermSocialUse), socialHandler.SendFriendRequest)
+					social.POST("/friend-requests/:userId/accept", perm(core.PermSocialUse), socialHandler.AcceptFriendRequest)
+					social.POST("/friend-requests/:userId/decline", socialHandler.DeclineFriendRequest)
+					social.DELETE("/friend-requests/:userId", socialHandler.CancelFriendRequest)
+					social.GET("/privacy", socialHandler.GetPrivacy)
+					social.PUT("/privacy", socialHandler.UpdatePrivacy)
 				}
 
 				markerFilters := protected.Group("/marker-filters")

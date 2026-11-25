@@ -499,6 +499,7 @@ definePageMeta({
                 </Transition>
 
                 <SettingsAccount v-if="activeTab === 'account'" />
+                <SettingsPrivacy v-if="activeTab === 'privacy'" />
                 <SettingsPlayer v-if="activeTab === 'player'" />
                 <SettingsApp
                     v-if="activeTab === 'app'"
