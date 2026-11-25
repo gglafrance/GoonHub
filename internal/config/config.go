@@ -23,11 +23,20 @@ type Config struct {
 	Shutdown      ShutdownConfig      `mapstructure:"shutdown"`
 	Streaming     StreamingConfig     `mapstructure:"streaming"`
 	Pagination    PaginationConfig    `mapstructure:"pagination"`
+	Playlists     PlaylistsConfig     `mapstructure:"playlists"`
 	Sharing       SharingConfig       `mapstructure:"sharing"`
 	Duplication   DuplicationConfig   `mapstructure:"duplication"`
 	ClickHouse    ClickHouseConfig    `mapstructure:"clickhouse"`
 	LibraryHealth LibraryHealthConfig `mapstructure:"library_health"`
 	Workers       WorkersConfig       `mapstructure:"workers"`
+	Social        SocialConfig        `mapstructure:"social"`
+}
+
+// SocialConfig limits the social actions that notify another user (docs/SOCIAL.md).
+type SocialConfig struct {
+	FriendRequestsPerHour int `mapstructure:"friend_requests_per_hour"` // friend requests a user can send per hour (0 = unlimited)
+	FollowsPerHour        int `mapstructure:"follows_per_hour"`         // follows a user can make per hour (0 = unlimited)
+	MaxPendingRequests    int `mapstructure:"max_pending_requests"`     // pending outgoing friend requests per user (0 = unlimited)
 }
 
 // LibraryHealthConfig configures the background tasks of the library health page.
@@ -89,6 +98,15 @@ type SharingConfig struct {
 
 type PaginationConfig struct {
 	MaxItemsPerPage int `mapstructure:"max_items_per_page"`
+}
+
+// PlaylistsConfig configures the playlists (marker playlists: docs/MARKER_PLAYLISTS.md).
+type PlaylistsConfig struct {
+	// MaxMarkers is the most markers a marker playlist holds (0 = no limit).
+	MaxMarkers int `mapstructure:"max_markers"`
+	// MarkerDefaultDuration is how long, in seconds, a marker without an end plays in a marker
+	// playlist before the next one.
+	MarkerDefaultDuration int `mapstructure:"marker_default_duration"`
 }
 
 type StreamingConfig struct {
@@ -338,8 +356,14 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("shutdown.orphan_timeout", 30*time.Second)
 	v.SetDefault("shutdown.stuck_pending_time", 10*time.Minute)
 	v.SetDefault("pagination.max_items_per_page", 100)
+	v.SetDefault("playlists.max_markers", 1000)
+	v.SetDefault("playlists.marker_default_duration", 30)
 	v.SetDefault("sharing.base_url", "")
 	v.SetDefault("sharing.port", "")
+
+	v.SetDefault("social.friend_requests_per_hour", 30)
+	v.SetDefault("social.follows_per_hour", 60)
+	v.SetDefault("social.max_pending_requests", 50)
 	v.SetDefault("duplication.enabled", false)
 	v.SetDefault("library_health.stat_concurrency", 8)
 	v.SetDefault("workers.enabled", false)

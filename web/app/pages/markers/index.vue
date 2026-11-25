@@ -201,6 +201,11 @@ watch([sortBy, () => JSON.stringify(filterParams.value)], () => {
     loadData(1);
 });
 
+// "Add all to playlist" (All view): every marker of the filtered list, in its order
+const playlistFilter = computed(() =>
+    markerPlaylistFilter(filterParams.value, { sort: sortBy.value }),
+);
+
 const patchQuery = useUrlQueryPatch();
 watch(viewMode, (view) => {
     // Keep the view in the URL so that Back or a reload stays on it
@@ -307,6 +312,12 @@ definePageMeta({
                         v-if="filtersEnabled"
                         :snapshot="savedFilterSnapshot"
                         @apply="applySavedFilter"
+                    />
+                    <MarkersPlaylistAddButton
+                        v-if="viewMode === 'all' && allTotal > 0"
+                        :filter="playlistFilter"
+                        :count="allTotal"
+                        label="Add all to playlist"
                     />
                     <UiSortSelect v-model="sortBy" :options="sortOptions" />
                     <MarkersRandomSeed
@@ -498,6 +509,18 @@ definePageMeta({
                                         backdrop-blur-sm"
                                 >
                                     {{ formatMarkerRange(marker.timestamp, marker.end_timestamp) }}
+                                </div>
+
+                                <!-- Add to a marker playlist -->
+                                <div
+                                    class="absolute top-1.5 right-1.5 z-10 opacity-0
+                                        transition-opacity group-hover:opacity-100
+                                        focus-within:opacity-100"
+                                >
+                                    <MarkersPlaylistAddButton
+                                        variant="icon"
+                                        :marker-ids="[marker.id]"
+                                    />
                                 </div>
 
                                 <!-- Label badge -->

@@ -36,7 +36,8 @@ export type PermissionName =
     | 'library:insights'
     | 'porndb:use'
     | 'import:use'
-    | 'stats:view_streams';
+    | 'stats:view_streams'
+    | 'social:use';
 
 /** GET /api/v1/auth/permissions: the signed-in user's effective permissions. */
 export interface MyPermissionsResponse {

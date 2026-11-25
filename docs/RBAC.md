@@ -100,7 +100,8 @@ grant (superuser roles never get a grant row).
 | `actors:merge` | Library | Merge actors | existing |
 | `studios:manage` | Library | Create, edit and delete studios and their logos | none |
 | `studios:merge` | Library | Merge studios | existing |
-| `playlists:create`, `playlists:edit`, `playlists:delete`, `playlists:view_public` | Playlists | as today | existing |
+| `playlists:create`, `playlists:edit`, `playlists:delete`, `playlists:view_public` | Playlists | as today; they also cover the marker playlists (create, add/remove/reorder markers, delete, like; `docs/MARKER_PLAYLISTS.md`) | existing |
+| `social:use` | Social | Follow users, send and accept friend requests (`docs/SOCIAL.md`). Reading the directory, lists and profiles, unfollowing, declining, cancelling and removing a friend only need a signed-in user | `user`, from `scenes:view` |
 | `files:view_size` | File info | File sizes, size filters and sorts, selection and library totals, biggest file | moderator |
 | `files:view_paths` | File info | Stored paths, original file names, storage paths, copies of a scene | moderator |
 | `files:view_technical` | File info | Codecs, bit rate, frame rate, file hash, fingerprint, processing errors | moderator |
@@ -155,6 +156,10 @@ refuses the matching parameters (`403`); the UI hides the matching blocks.
 - `storage:manage`: scan events on `/events` (`scan:*`, they carry absolute paths).
 - `library:insights`: the trashed scenes in `GET /scenes/:id/similar` and the details of the
   curation and processing homepage widgets.
+- Marker playlists carry no file information (no size, path nor technical field): a viewer
+  of a public marker playlist gets its markers (also those of users who do not share theirs)
+  with only what playing needs. Only markers the owner sees can be added
+  (`docs/MARKER_PLAYLISTS.md`).
 
 The redaction is done in one place, `internal/api/v1/response/file_visibility.go`:
 `FileVisibility` is built from the request's permissions and passed to every scene DTO
@@ -172,6 +177,14 @@ data. Superusers get every event as is. Notable rules: `scan:*` need `storage:ma
 events need `jobs:view_status`; `fingerprint_type` of `scene:fingerprint_complete` needs
 `files:view_technical`; the `error` of `scene:failed` needs `files:view_technical` and
 `files:view_paths`.
+
+### Social privacy
+
+What a user shows to other users (profile, friends and followers lists, presence, activity...)
+is not governed by permissions but by that user's privacy settings (`docs/SOCIAL.md`). Privacy
+has **no administrator bypass**: a superuser is a viewer like any other and does not see what a
+user keeps private. Social live events (`social:*`) are personal: they only reach the user they
+are for, superusers included (`EventBus.PublishToUser`).
 
 ### Known limitations
 
@@ -215,6 +228,9 @@ events need `jobs:view_status`; `fingerprint_type` of `scene:fingerprint_complet
 
 The rest of `/admin` needs the permission of its area (see the catalog). There is no
 role-name check anymore: `RequireRole("admin")` is gone, a superuser passes every check.
+
+The `/social` routes need a signed-in user; those creating a relation need `social:use`
+(`docs/SOCIAL.md`).
 
 Routes listing scenes need `scenes:view`: `/scenes...`, `/actors/:uuid/scenes`,
 `/studios/:uuid/scenes`, `/history...`, `/homepage...`, `GET /playlists/:uuid`.

@@ -31,6 +31,7 @@ describe('visibleSettingsTabs', () => {
     test('a regular user only gets the personal tabs', () => {
         expect(ids(visibleSettingsTabs(SETTINGS_TABS, withPermissions('scenes:view')))).toEqual([
             'account',
+            'privacy',
             'player',
             'app',
             'homepage',

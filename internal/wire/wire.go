@@ -105,6 +105,10 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Import Repository
 		provideImportRepository,
 
+		// Social Repositories
+		provideSocialRepository,
+		providePrivacyRepository,
+
 		// Remote Worker Repositories
 		provideWorkerRepository,
 		provideJobLeaseRepository,
@@ -193,6 +197,10 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideStreamManager,
 		provideTranscoder,
 
+		// Social Services
+		providePrivacyService,
+		provideSocialService,
+
 		// Remote Workers
 		provideWorkerService,
 		providePushDispatcher,
@@ -269,6 +277,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Remote Worker Handler
 		provideWorkerHandler,
+
+		// Social Handler
+		provideSocialHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -422,6 +433,16 @@ func providePlaylistRepository(db *gorm.DB) data.PlaylistRepository {
 
 func provideShareLinkRepository(db *gorm.DB) data.ShareLinkRepository {
 	return data.NewShareLinkRepository(db)
+}
+
+// --- Social Repositories ---
+
+func provideSocialRepository(db *gorm.DB) data.SocialRepository {
+	return data.NewSocialRepository(db)
+}
+
+func providePrivacyRepository(db *gorm.DB) data.PrivacyRepository {
+	return data.NewPrivacyRepository(db)
 }
 
 // ============================================================================
@@ -687,8 +708,8 @@ func provideMarkerService(markerRepo data.MarkerRepository, labelRepo data.Marke
 	return core.NewMarkerService(markerRepo, labelRepo, sceneRepo, tagRepo, cfg, logger.Logger)
 }
 
-func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, logger *logging.Logger) *core.PlaylistService {
-	return core.NewPlaylistService(repo, sceneRepo, tagRepo, logger.Logger)
+func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.PlaylistService {
+	return core.NewPlaylistService(repo, sceneRepo, tagRepo, cfg.Playlists, logger.Logger)
 }
 
 // --- Share Service ---
@@ -931,6 +952,20 @@ func provideShareHandler(shareService *core.ShareService, authService *core.Auth
 	return h
 }
 
+// --- Social ---
+
+func providePrivacyService(repo data.PrivacyRepository, socialRepo data.SocialRepository, logger *logging.Logger) *core.PrivacyService {
+	return core.NewPrivacyService(repo, socialRepo, logger.Logger)
+}
+
+func provideSocialService(repo data.SocialRepository, privacy *core.PrivacyService, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.SocialService {
+	return core.NewSocialService(repo, privacy, eventBus, cfg.Social, logger.Logger)
+}
+
+func provideSocialHandler(social *core.SocialService, privacy *core.PrivacyService, cfg *config.Config) *handler.SocialHandler {
+	return handler.NewSocialHandler(social, privacy, cfg.Pagination.MaxItemsPerPage)
+}
+
 // --- Library Health ---
 
 func provideLibraryHealthRepository(db *gorm.DB) data.LibraryHealthRepository {
@@ -995,6 +1030,7 @@ func provideRouter(
 	duplicateHandler *handler.DuplicateHandler,
 	libraryHealthHandler *handler.LibraryHealthHandler,
 	workerHandler *handler.WorkerHandler,
+	socialHandler *handler.SocialHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -1007,7 +1043,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 

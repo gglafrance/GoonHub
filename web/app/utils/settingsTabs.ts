@@ -5,6 +5,7 @@ import type { PermissionName } from '~/types/permissions';
 
 export type SettingsTabId =
     | 'account'
+    | 'privacy'
     | 'player'
     | 'app'
     | 'homepage'
@@ -36,6 +37,7 @@ export interface SettingsTabConfig {
 
 export const SETTINGS_TABS: SettingsTabConfig[] = [
     { id: 'account', label: 'Account', icon: 'heroicons:user-circle' },
+    { id: 'privacy', label: 'Privacy', icon: 'heroicons:lock-closed' },
     { id: 'player', label: 'Player', icon: 'heroicons:play-circle' },
     {
         id: 'app',

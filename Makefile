@@ -43,6 +43,8 @@ mocks: setup-test
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_saved_marker_filter_repository.go -package=mocks goonhub/internal/data SavedMarkerFilterRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_replay_heatmap_repository.go -package=mocks goonhub/internal/data ReplayHeatmapRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_library_health_repository.go -package=mocks goonhub/internal/data LibraryHealthRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_social_repository.go -package=mocks goonhub/internal/data SocialRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_privacy_repository.go -package=mocks goonhub/internal/data PrivacyRepository
 
 test: mocks
 	go test ./...
