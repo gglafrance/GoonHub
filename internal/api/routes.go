@@ -111,6 +111,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 				protected.DELETE("/shares/:id", perm(core.PermScenesShare), shareHandler.DeleteShareLink)
 
 				history := protected.Group("/history")
+				history.Use(perm(core.PermScenesView))
 				{
 					history.GET("", watchHistoryHandler.GetUserHistory)
 					history.GET("/by-date", watchHistoryHandler.GetUserHistoryByDateRange)
@@ -134,7 +135,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					actors.GET("/:uuid", actorHandler.GetActorByUUID)
 					actors.GET("/:uuid/merge-preview", perm(core.PermActorsMerge), actorHandler.MergeActorPreview)
 					actors.POST("/:uuid/merge", perm(core.PermActorsMerge), actorHandler.MergeActor)
-					actors.GET("/:uuid/scenes", actorHandler.GetActorScenes)
+					actors.GET("/:uuid/scenes", perm(core.PermScenesView), actorHandler.GetActorScenes)
 					actors.GET("/:uuid/interactions", actorInteractionHandler.GetInteractions)
 					actors.PUT("/:uuid/rating", actorInteractionHandler.SetRating)
 					actors.DELETE("/:uuid/rating", actorInteractionHandler.DeleteRating)
@@ -148,7 +149,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					studios.GET("/:uuid", studioHandler.GetStudioByUUID)
 					studios.GET("/:uuid/merge-preview", perm(core.PermStudiosMerge), studioHandler.MergeStudioPreview)
 					studios.POST("/:uuid/merge", perm(core.PermStudiosMerge), studioHandler.MergeStudio)
-					studios.GET("/:uuid/scenes", studioHandler.GetStudioScenes)
+					studios.GET("/:uuid/scenes", perm(core.PermScenesView), studioHandler.GetStudioScenes)
 					studios.GET("/:uuid/interactions", studioInteractionHandler.GetInteractions)
 					studios.PUT("/:uuid/rating", studioInteractionHandler.SetRating)
 					studios.DELETE("/:uuid/rating", studioInteractionHandler.DeleteRating)
@@ -181,6 +182,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 				}
 
 				homepage := protected.Group("/homepage")
+				homepage.Use(perm(core.PermScenesView))
 				{
 					homepage.GET("", homepageHandler.GetHomepageData)
 					homepage.GET("/sections/:id", homepageHandler.GetSectionData)
@@ -198,7 +200,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 				playlists := protected.Group("/playlists")
 				{
 					playlists.GET("", playlistHandler.List)
-					playlists.GET("/:uuid", playlistHandler.GetByUUID)
+					playlists.GET("/:uuid", perm(core.PermScenesView), playlistHandler.GetByUUID)
 					playlists.POST("", perm(core.PermPlaylistsCreate), playlistHandler.Create)
 					playlists.PUT("/:uuid", perm(core.PermPlaylistsEdit), playlistHandler.Update)
 					playlists.DELETE("/:uuid", perm(core.PermPlaylistsDelete), playlistHandler.Delete)

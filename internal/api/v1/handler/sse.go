@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"goonhub/internal/api/middleware"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -31,51 +31,17 @@ func NewSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobSt
 	}
 }
 
-// sseJobEventTypes are the job events (besides the jobs:* ones), sent only to the users
-// with jobs:view_status.
-var sseJobEventTypes = map[string]bool{
-	"scene:retry_scheduled": true,
-	"scene:dlq_added":       true,
-	"scene:dlq_retry":       true,
-	"scene:dlq_abandoned":   true,
-}
-
-// isJobEvent reports whether an event is about the job queue rather than a scene.
-func isJobEvent(eventType string) bool {
-	return strings.HasPrefix(eventType, "jobs:") || sseJobEventTypes[eventType]
-}
-
-// eventForUser returns the event as a user may see it, false when it must not be sent: job
-// events need jobs:view_status, the error of a failed phase needs files:view_technical.
-func eventForUser(event core.SceneEvent, access *core.UserAccess) (core.SceneEvent, bool) {
-	if isJobEvent(event.Type) && !access.Has(core.PermJobsViewStatus) {
-		return event, false
-	}
-	if data, ok := event.Data.(map[string]any); ok && !access.Has(core.PermFilesViewTech) {
-		if _, hasErr := data["error"]; hasErr {
-			cp := make(map[string]any, len(data))
-			for k, v := range data {
-				if k != "error" {
-					cp[k] = v
-				}
-			}
-			event.Data = cp
-		}
-	}
-	return event, true
-}
-
-// currentAccess resolves the live access of the connected user (nil when it can no longer be
-// resolved: the user was deleted).
-func (h *SSEHandler) currentAccess(userID uint) *core.UserAccess {
+// currentAccess resolves the live access of the connected user. gone is true when the user
+// no longer exists (the stream is closed then); access is nil on other errors.
+func (h *SSEHandler) currentAccess(userID uint) (access *core.UserAccess, gone bool) {
 	if h.access == nil {
-		return nil
+		return nil, false
 	}
 	access, err := h.access.ResolveUser(userID)
 	if err != nil {
-		return nil
+		return nil, apperrors.IsNotFound(err)
 	}
-	return access
+	return access, false
 }
 
 // writeJobStatus marshals and writes the current job status as an SSE event.
@@ -126,7 +92,7 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 
 	// Send initial job status immediately after connection (permissions are resolved again
 	// for every event: a change applies without reconnecting)
-	if h.jobStatusService != nil && h.currentAccess(payload.UserID).Has(core.PermJobsViewStatus) {
+	if access, _ := h.currentAccess(payload.UserID); h.jobStatusService != nil && access.Has(core.PermJobsViewStatus) {
 		h.writeJobStatus(c)
 	}
 
@@ -152,7 +118,12 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 			if !ok {
 				return
 			}
-			event, send := eventForUser(event, h.currentAccess(payload.UserID))
+			access, gone := h.currentAccess(payload.UserID)
+			if gone {
+				h.logger.Debug("SSE user deleted, closing the stream", zap.Uint("user_id", payload.UserID))
+				return
+			}
+			event, send := eventForUser(event, access)
 			if !send {
 				continue
 			}
@@ -171,7 +142,12 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 			}
 			c.Writer.Flush()
 		case <-statusTicker.C:
-			if h.jobStatusService != nil && h.currentAccess(payload.UserID).Has(core.PermJobsViewStatus) {
+			access, gone := h.currentAccess(payload.UserID)
+			if gone {
+				h.logger.Debug("SSE user deleted, closing the stream", zap.Uint("user_id", payload.UserID))
+				return
+			}
+			if h.jobStatusService != nil && access.Has(core.PermJobsViewStatus) {
 				if writeErr := h.writeJobStatus(c); writeErr != nil {
 					h.logger.Debug("SSE job status write failed, client likely disconnected",
 						zap.String("subscriber_id", subscriberID),

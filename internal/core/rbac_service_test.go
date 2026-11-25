@@ -399,7 +399,7 @@ func TestResolveUser_OverridesAndCache(t *testing.T) {
 		data.UserPermissionOverride{UserID: 2, PermissionID: fxEdit, Effect: data.PermissionEffectAllow},
 	)
 	f.permRepo.EXPECT().ReplaceUserOverrides(uint(2), gomock.Any()).Return(nil)
-	if err := svc.SetUserOverrides(2, []PermissionSetting{
+	if err := svc.SetUserOverrides(testSuperActor, 2, []PermissionSetting{
 		{PermissionID: fxSize, Effect: data.PermissionEffectDeny},
 		{PermissionID: fxEdit, Effect: data.PermissionEffectAllow},
 	}); err != nil {
@@ -448,7 +448,7 @@ func TestResolveUser_RoleChangeInvalidatesEveryUser(t *testing.T) {
 	f.graph.Settings = append(f.graph.Settings, data.RolePermission{RoleID: fxUser, PermissionID: fxEdit, Effect: data.PermissionEffectAllow})
 	f.mu.Unlock()
 	f.roleRepo.EXPECT().ReplaceSettings(fxUser, gomock.Any()).Return(nil)
-	if err := svc.SetRoleSettings(fxUser, []PermissionSetting{
+	if err := svc.SetRoleSettings(testSuperActor, fxUser, []PermissionSetting{
 		{PermissionID: fxView, Effect: data.PermissionEffectAllow},
 		{PermissionID: fxSize, Effect: data.PermissionEffectAllow},
 		{PermissionID: fxEdit, Effect: data.PermissionEffectAllow},
@@ -567,12 +567,12 @@ func TestSetUserOverrides_Validation(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := svc.SetUserOverrides(2, tc.in); !apperrors.IsValidation(err) {
+			if err := svc.SetUserOverrides(testSuperActor, 2, tc.in); !apperrors.IsValidation(err) {
 				t.Fatalf("expected a validation error, got %v", err)
 			}
 		})
 	}
-	if err := svc.SetUserOverrides(99, nil); !apperrors.IsNotFound(err) {
+	if err := svc.SetUserOverrides(testSuperActor, 99, nil); !apperrors.IsNotFound(err) {
 		t.Fatalf("expected NotFound for an unknown user, got %v", err)
 	}
 }
@@ -593,7 +593,7 @@ func TestCreateRole(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := svc.CreateRole(tc.in); !tc.check(err) {
+			if _, err := svc.CreateRole(testSuperActor, tc.in); !tc.check(err) {
 				t.Fatalf("unexpected error %v", err)
 			}
 		})
@@ -610,7 +610,7 @@ func TestCreateRole(t *testing.T) {
 		return nil
 	})
 	f.roleRepo.EXPECT().CountUsersByRole("restricted").Return(int64(0), nil)
-	view, err := svc.CreateRole(RoleInput{Name: "restricted", Description: " Viewer without file info ", ParentIDs: []uint{fxNoFile, fxUser, fxUser}})
+	view, err := svc.CreateRole(testSuperActor, RoleInput{Name: "restricted", Description: " Viewer without file info ", ParentIDs: []uint{fxNoFile, fxUser, fxUser}})
 	if err != nil {
 		t.Fatalf("CreateRole: %v", err)
 	}
@@ -624,22 +624,22 @@ func TestUpdateRole(t *testing.T) {
 	svc := f.service(t)
 
 	// cycle: user gets child (whose parent is user) as a parent
-	if _, err := svc.UpdateRole(fxUser, RoleInput{Name: "user", ParentIDs: []uint{fxChild}}); !apperrors.IsValidation(err) {
+	if _, err := svc.UpdateRole(testSuperActor, fxUser, RoleInput{Name: "user", ParentIDs: []uint{fxChild}}); !apperrors.IsValidation(err) {
 		t.Fatalf("expected a validation error for a cycle, got %v", err)
 	}
-	if _, err := svc.UpdateRole(fxModerator, RoleInput{Name: "moderator", ParentIDs: []uint{fxModerator}}); !apperrors.IsValidation(err) {
+	if _, err := svc.UpdateRole(testSuperActor, fxModerator, RoleInput{Name: "moderator", ParentIDs: []uint{fxModerator}}); !apperrors.IsValidation(err) {
 		t.Fatalf("expected a validation error for a self parent, got %v", err)
 	}
-	if _, err := svc.UpdateRole(fxAdmin, RoleInput{Name: "root"}); !apperrors.IsValidation(err) {
+	if _, err := svc.UpdateRole(testSuperActor, fxAdmin, RoleInput{Name: "root"}); !apperrors.IsValidation(err) {
 		t.Fatalf("expected a validation error for renaming the superuser role, got %v", err)
 	}
-	if _, err := svc.UpdateRole(fxUser, RoleInput{Name: "viewer"}); !apperrors.IsValidation(err) {
+	if _, err := svc.UpdateRole(testSuperActor, fxUser, RoleInput{Name: "viewer"}); !apperrors.IsValidation(err) {
 		t.Fatalf("expected a validation error for renaming a system role, got %v", err)
 	}
-	if _, err := svc.UpdateRole(fxModerator, RoleInput{Name: "user"}); !apperrors.IsConflict(err) {
+	if _, err := svc.UpdateRole(testSuperActor, fxModerator, RoleInput{Name: "user"}); !apperrors.IsConflict(err) {
 		t.Fatalf("expected a conflict for a taken name, got %v", err)
 	}
-	if _, err := svc.UpdateRole(404, RoleInput{Name: "ghost"}); !apperrors.IsNotFound(err) {
+	if _, err := svc.UpdateRole(testSuperActor, 404, RoleInput{Name: "ghost"}); !apperrors.IsNotFound(err) {
 		t.Fatalf("expected NotFound, got %v", err)
 	}
 
@@ -655,7 +655,7 @@ func TestUpdateRole(t *testing.T) {
 		return nil
 	})
 	f.roleRepo.EXPECT().CountUsersByRole("mod").Return(int64(3), nil)
-	view, err := svc.UpdateRole(fxModerator, RoleInput{Name: "mod", ParentIDs: []uint{fxNoFile}})
+	view, err := svc.UpdateRole(testSuperActor, fxModerator, RoleInput{Name: "mod", ParentIDs: []uint{fxNoFile}})
 	if err != nil {
 		t.Fatalf("UpdateRole: %v", err)
 	}
@@ -668,18 +668,18 @@ func TestDeleteRole(t *testing.T) {
 	f := newRBACFixture(t)
 	svc := f.service(t)
 
-	if err := svc.DeleteRole(fxUser); !apperrors.IsValidation(err) {
+	if err := svc.DeleteRole(testSuperActor, fxUser); !apperrors.IsValidation(err) {
 		t.Fatalf("expected a validation error for a system role, got %v", err)
 	}
-	if err := svc.DeleteRole(fxAdmin); !apperrors.IsValidation(err) {
+	if err := svc.DeleteRole(testSuperActor, fxAdmin); !apperrors.IsValidation(err) {
 		t.Fatalf("expected a validation error for the superuser role, got %v", err)
 	}
-	if err := svc.DeleteRole(404); !apperrors.IsNotFound(err) {
+	if err := svc.DeleteRole(testSuperActor, 404); !apperrors.IsNotFound(err) {
 		t.Fatalf("expected NotFound, got %v", err)
 	}
 
 	f.roleRepo.EXPECT().CountUsersByRole("moderator").Return(int64(2), nil)
-	err := svc.DeleteRole(fxModerator)
+	err := svc.DeleteRole(testSuperActor, fxModerator)
 	var inUse *RoleInUseError
 	if !errors.As(err, &inUse) || inUse.UserCount != 2 || !apperrors.IsConflict(err) {
 		t.Fatalf("expected RoleInUseError with 2 users, got %v", err)
@@ -705,7 +705,7 @@ func TestDeleteRole(t *testing.T) {
 		f.graph.Parents = parents
 		return nil
 	})
-	if err := svc.DeleteRole(fxNoFile); err != nil {
+	if err := svc.DeleteRole(testSuperActor, fxNoFile); err != nil {
 		t.Fatalf("DeleteRole: %v", err)
 	}
 	// child lost nofile as a parent: it gets files:view_size from user again
@@ -718,13 +718,13 @@ func TestSetRoleSettings_Validation(t *testing.T) {
 	f := newRBACFixture(t)
 	svc := f.service(t)
 
-	if err := svc.SetRoleSettings(fxAdmin, nil); !apperrors.IsValidation(err) {
+	if err := svc.SetRoleSettings(testSuperActor, fxAdmin, nil); !apperrors.IsValidation(err) {
 		t.Fatalf("expected a validation error on the superuser role, got %v", err)
 	}
-	if err := svc.SetRoleSettings(404, nil); !apperrors.IsNotFound(err) {
+	if err := svc.SetRoleSettings(testSuperActor, 404, nil); !apperrors.IsNotFound(err) {
 		t.Fatalf("expected NotFound, got %v", err)
 	}
-	if err := svc.SetRoleSettings(fxUser, []PermissionSetting{{PermissionID: fxView, Effect: "grant"}}); !apperrors.IsValidation(err) {
+	if err := svc.SetRoleSettings(testSuperActor, fxUser, []PermissionSetting{{PermissionID: fxView, Effect: "grant"}}); !apperrors.IsValidation(err) {
 		t.Fatalf("expected a validation error for a bad effect, got %v", err)
 	}
 }
@@ -905,5 +905,27 @@ func TestRefreshCache_RepoError(t *testing.T) {
 	roleRepo.EXPECT().LoadGraph().Return(nil, errors.New("db down"))
 	if _, err := NewRBACService(roleRepo, mocks.NewMockPermissionRepository(ctrl), mocks.NewMockUserRepository(ctrl), zap.NewNop()); err == nil {
 		t.Fatal("expected an error")
+	}
+}
+
+// A change made outside the API (SQL on role_permissions) applies once the graph is older
+// than the TTL, without any RefreshCache call.
+func TestResolveUser_GraphReloadedAfterTTL(t *testing.T) {
+	f := newRBACFixture(t)
+	svc := f.service(t)
+	if access, _ := svc.ResolveUser(2); access.Has(PermScenesEdit) {
+		t.Fatal("user should not edit yet")
+	}
+	f.mu.Lock()
+	f.graph.Settings = append(f.graph.Settings, data.RolePermission{RoleID: fxUser, PermissionID: fxEdit, Effect: data.PermissionEffectAllow})
+	f.mu.Unlock()
+
+	if access, _ := svc.ResolveUser(2); access.Has(PermScenesEdit) {
+		t.Fatal("before the TTL the cached graph is used")
+	}
+	later := time.Now().Add(2 * userAccessTTL)
+	svc.now = func() time.Time { return later }
+	if access, _ := svc.ResolveUser(2); !access.Has(PermScenesEdit) {
+		t.Fatal("the graph must be reloaded after the TTL")
 	}
 }

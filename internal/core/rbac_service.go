@@ -15,8 +15,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// userAccessTTL bounds how long a user's resolved access is reused. Every change made through
-// the API invalidates it at once; the TTL only covers changes made outside of it.
+// userAccessTTL bounds how long a user's resolved access, and the role graph, are reused.
+// Every change made through the API invalidates them at once; the TTL only covers changes
+// made outside of it (SQL on users, roles, role_parents, role_permissions, overrides).
 const userAccessTTL = time.Minute
 
 // roleNamePattern is the format of a role name.
@@ -130,6 +131,10 @@ type RBACService struct {
 	users map[uint]*UserAccess
 	// gen changes on every invalidation: an access resolved meanwhile is not cached
 	gen uint64
+	// graphLoadedAt is when the role graph was loaded (reloaded after userAccessTTL)
+	graphLoadedAt time.Time
+	// refreshing guards the reload of a stale graph (one at a time, others use the old one)
+	refreshing sync.Mutex
 	// writeMu serializes the changes (cycle checks read the graph they modify)
 	writeMu sync.Mutex
 	now     func() time.Time
@@ -167,10 +172,32 @@ func (s *RBACService) RefreshCache() error {
 	s.graph = g
 	s.users = make(map[uint]*UserAccess)
 	s.gen++
+	s.graphLoadedAt = s.now()
 	s.mu.Unlock()
 
 	s.logger.Info("RBAC cache refreshed", zap.Int("roles", len(g.roles)), zap.Int("permissions", len(perms)))
 	return nil
+}
+
+// refreshIfStale reloads the role graph when it is older than userAccessTTL. A failed reload
+// keeps the current graph (retried on the next call).
+func (s *RBACService) refreshIfStale() {
+	s.mu.RLock()
+	stale := s.now().Sub(s.graphLoadedAt) >= userAccessTTL
+	s.mu.RUnlock()
+	if !stale || !s.refreshing.TryLock() {
+		return
+	}
+	defer s.refreshing.Unlock()
+	s.mu.RLock()
+	stale = s.now().Sub(s.graphLoadedAt) >= userAccessTTL
+	s.mu.RUnlock()
+	if !stale {
+		return
+	}
+	if err := s.RefreshCache(); err != nil {
+		s.logger.Warn("Failed to reload the roles and permissions", zap.Error(err))
+	}
 }
 
 func (s *RBACService) currentGraph() *rbacGraph {
@@ -190,6 +217,8 @@ func (s *RBACService) InvalidateUser(userID uint) {
 // ResolveUser returns the live access of a user: current role and effective permissions.
 // A user that no longer exists gives a NotFoundError.
 func (s *RBACService) ResolveUser(userID uint) (*UserAccess, error) {
+	s.refreshIfStale()
+
 	s.mu.RLock()
 	cached, ok := s.users[userID]
 	g := s.graph
@@ -456,13 +485,25 @@ func (g *rbacGraph) validateRoleInput(roleID uint, in *RoleInput) error {
 	return nil
 }
 
-// CreateRole creates a role with its parents (no setting: it inherits everything).
-func (s *RBACService) CreateRole(in RoleInput) (*RoleView, error) {
+// CreateRole creates a role with its parents (no setting: it inherits everything). A
+// non-superuser actor can only give it parents within their own permissions.
+func (s *RBACService) CreateRole(actor *UserAccess, in RoleInput) (*RoleView, error) {
+	if actor == nil {
+		return nil, errNoActor()
+	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	if err := s.currentGraph().validateRoleInput(0, &in); err != nil {
+	g := s.currentGraph()
+	if err := g.validateRoleInput(0, &in); err != nil {
 		return nil, err
+	}
+	if !actor.Superuser {
+		for _, pid := range in.ParentIDs {
+			if err := g.checkGrantableRole(actor, pid, "inherit from"); err != nil {
+				return nil, err
+			}
+		}
 	}
 	role := &data.Role{Name: in.Name, Description: in.Description}
 	if err := s.roleRepo.Create(role, in.ParentIDs); err != nil {
@@ -476,8 +517,12 @@ func (s *RBACService) CreateRole(in RoleInput) (*RoleView, error) {
 }
 
 // UpdateRole renames a role, changes its description and replaces its parents. System roles
-// keep their name; cycles are refused.
-func (s *RBACService) UpdateRole(id uint, in RoleInput) (*RoleView, error) {
+// keep their name; cycles are refused. A non-superuser actor cannot change their own role
+// (nor its ancestors) and can only add parents within their own permissions.
+func (s *RBACService) UpdateRole(actor *UserAccess, id uint, in RoleInput) (*RoleView, error) {
+	if actor == nil {
+		return nil, errNoActor()
+	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
@@ -486,8 +531,27 @@ func (s *RBACService) UpdateRole(id uint, in RoleInput) (*RoleView, error) {
 	if !ok {
 		return nil, apperrors.NewNotFoundError("role", id)
 	}
+	if !actor.Superuser {
+		if err := g.checkEditableRole(actor, id); err != nil {
+			return nil, err
+		}
+	}
 	if err := g.validateRoleInput(id, &in); err != nil {
 		return nil, err
+	}
+	if !actor.Superuser {
+		existing := map[uint]bool{}
+		for _, pid := range g.parents[id] {
+			existing[pid] = true
+		}
+		for _, pid := range in.ParentIDs {
+			if existing[pid] {
+				continue
+			}
+			if err := g.checkGrantableRole(actor, pid, "inherit from"); err != nil {
+				return nil, err
+			}
+		}
 	}
 	if in.Name != current.Name && (current.IsSuperuser || current.IsSystem) {
 		return nil, apperrors.NewValidationErrorWithField("name", "a system role cannot be renamed")
@@ -505,16 +569,23 @@ func (s *RBACService) UpdateRole(id uint, in RoleInput) (*RoleView, error) {
 
 // DeleteRole deletes a role that is not a system role and that no user holds. Its child
 // roles lose it as a parent.
-func (s *RBACService) DeleteRole(id uint) error {
+func (s *RBACService) DeleteRole(actor *UserAccess, id uint) error {
+	if actor == nil {
+		return errNoActor()
+	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	role, ok := s.currentGraph().roles[id]
+	g := s.currentGraph()
+	role, ok := g.roles[id]
 	if !ok {
 		return apperrors.NewNotFoundError("role", id)
 	}
 	if role.IsSystem || role.IsSuperuser {
 		return apperrors.NewValidationError("a system role cannot be deleted")
+	}
+	if !actor.Superuser && g.actorLineage(actor)[id] {
+		return apperrors.NewForbiddenError("you cannot delete your own role nor a role it inherits from")
 	}
 	count, err := s.roleRepo.CountUsersByRole(role.Name)
 	if err != nil {
@@ -557,8 +628,12 @@ func (g *rbacGraph) validateSettings(settings []PermissionSetting, field string)
 }
 
 // SetRoleSettings replaces a role's own settings (absent permission = inherit). Refused on a
-// superuser role.
-func (s *RBACService) SetRoleSettings(id uint, settings []PermissionSetting) error {
+// superuser role. A non-superuser actor cannot change their own role (nor its ancestors) and
+// can only allow permissions they hold (or that the role already allows).
+func (s *RBACService) SetRoleSettings(actor *UserAccess, id uint, settings []PermissionSetting) error {
+	if actor == nil {
+		return errNoActor()
+	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
@@ -572,6 +647,14 @@ func (s *RBACService) SetRoleSettings(id uint, settings []PermissionSetting) err
 	}
 	if err := g.validateSettings(settings, "settings"); err != nil {
 		return err
+	}
+	if !actor.Superuser {
+		if err := g.checkEditableRole(actor, id); err != nil {
+			return err
+		}
+		if err := g.checkAllowedSettings(actor, settings, g.settings[id]); err != nil {
+			return err
+		}
 	}
 	rows := make([]data.RolePermission, len(settings))
 	for i, st := range settings {
@@ -650,16 +733,39 @@ func (s *RBACService) UserPermissions(userID uint) (*UserPermissionsView, error)
 	return view, nil
 }
 
-// SetUserOverrides replaces a user's permission overrides.
-func (s *RBACService) SetUserOverrides(userID uint, overrides []PermissionSetting) error {
+// SetUserOverrides replaces a user's permission overrides. A non-superuser actor cannot
+// change their own overrides nor those of a superuser account, and can only allow
+// permissions they hold (or that the user is already allowed by an override).
+func (s *RBACService) SetUserOverrides(actor *UserAccess, userID uint, overrides []PermissionSetting) error {
+	if actor == nil {
+		return errNoActor()
+	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	if _, err := s.getUser(userID); err != nil {
+	user, err := s.getUser(userID)
+	if err != nil {
 		return err
 	}
-	if err := s.currentGraph().validateSettings(overrides, "overrides"); err != nil {
+	if err := s.CheckManageableUser(actor, user, false); err != nil {
 		return err
+	}
+	g := s.currentGraph()
+	if err := g.validateSettings(overrides, "overrides"); err != nil {
+		return err
+	}
+	if !actor.Superuser {
+		existing, err := s.permRepo.ListUserOverrides(userID)
+		if err != nil {
+			return apperrors.NewInternalError("failed to load user permission overrides", err)
+		}
+		current := make(map[uint]string, len(existing))
+		for _, o := range existing {
+			current[o.PermissionID] = o.Effect
+		}
+		if err := g.checkAllowedSettings(actor, overrides, current); err != nil {
+			return err
+		}
 	}
 	rows := make([]data.UserPermissionOverride, len(overrides))
 	for i, o := range overrides {

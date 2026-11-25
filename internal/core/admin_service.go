@@ -81,7 +81,9 @@ func (s *AdminService) ListUsers(page, limit int) ([]data.User, int64, error) {
 	return s.userRepo.List(page, limit)
 }
 
-func (s *AdminService) CreateUser(username, password, role string) error {
+// CreateUser creates an account. A non-superuser actor can only give a role within their
+// own permissions (docs/RBAC.md, "Delegation").
+func (s *AdminService) CreateUser(actor *UserAccess, username, password, role string) error {
 	// Validate password complexity
 	if err := ValidatePassword(password); err != nil {
 		return fmt.Errorf("password validation failed: %w", err)
@@ -89,6 +91,9 @@ func (s *AdminService) CreateUser(username, password, role string) error {
 
 	if _, err := s.roleRepo.GetByName(role); err != nil {
 		return fmt.Errorf("invalid role: %s", role)
+	}
+	if err := s.rbac.CheckAssignableRole(actor, role); err != nil {
+		return err
 	}
 
 	exists, err := s.userRepo.Exists(username)
@@ -118,53 +123,45 @@ func (s *AdminService) CreateUser(username, password, role string) error {
 	return nil
 }
 
-func (s *AdminService) UpdateUserRole(userID uint, newRole string) error {
+// UpdateUserRole changes a user's role. A non-superuser actor cannot change their own role
+// nor a superuser account's, and can only give a role within their own permissions. The last
+// user holding a superuser role keeps it (checked atomically by the repository).
+func (s *AdminService) UpdateUserRole(actor *UserAccess, userID uint, newRole string) error {
 	if _, err := s.roleRepo.GetByName(newRole); err != nil {
 		return fmt.Errorf("invalid role: %s", newRole)
 	}
-	if err := s.ensureNotLastSuperuser(userID, newRole); err != nil {
+	target, err := s.getUser(userID)
+	if err != nil {
+		return err
+	}
+	if err := s.rbac.CheckManageableUser(actor, target, false); err != nil {
+		return err
+	}
+	if err := s.rbac.CheckAssignableRole(actor, newRole); err != nil {
 		return err
 	}
 
 	if err := s.userRepo.UpdateRole(userID, newRole); err != nil {
+		if errors.Is(err, data.ErrLastSuperuser) {
+			return apperrors.NewValidationError(err.Error())
+		}
 		return fmt.Errorf("failed to update user role: %w", err)
 	}
-	if s.rbac != nil {
-		s.rbac.InvalidateUser(userID)
-	}
+	s.rbac.InvalidateUser(userID)
 
-	s.logger.Info("Admin updated user role", zap.Uint("user_id", userID), zap.String("new_role", newRole))
+	s.logger.Info("Admin updated user role", zap.Uint("user_id", userID), zap.String("new_role", newRole), zap.Uint("by", actor.UserID))
 	return nil
 }
 
-// ensureNotLastSuperuser refuses to take the last user of the superuser roles out of them
-// (newRole "" means the user is deleted): nobody could manage the roles anymore.
-func (s *AdminService) ensureNotLastSuperuser(userID uint, newRole string) error {
-	if s.rbac == nil {
-		return nil
-	}
+func (s *AdminService) getUser(userID uint) (*data.User, error) {
 	user, err := s.userRepo.GetByID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return apperrors.NewNotFoundError("user", userID)
+			return nil, apperrors.NewNotFoundError("user", userID)
 		}
-		return apperrors.NewInternalError("failed to get user", err)
+		return nil, apperrors.NewInternalError("failed to get user", err)
 	}
-	if !s.rbac.IsSuperuserRole(user.Role) || (newRole != "" && s.rbac.IsSuperuserRole(newRole)) {
-		return nil
-	}
-	var total int64
-	for _, name := range s.rbac.SuperuserRoleNames() {
-		n, err := s.roleRepo.CountUsersByRole(name)
-		if err != nil {
-			return apperrors.NewInternalError("failed to count superusers", err)
-		}
-		total += n
-	}
-	if total <= 1 {
-		return apperrors.NewValidationError("this is the last user with a superuser role")
-	}
-	return nil
+	return user, nil
 }
 
 // SetUserShareMarkers sets whether the user's markers are visible (read-only) to every user.
@@ -182,10 +179,19 @@ func (s *AdminService) SetUserShareMarkers(userID uint, share bool) error {
 	return nil
 }
 
-func (s *AdminService) ResetUserPassword(userID uint, newPassword string) error {
+// ResetUserPassword sets a user's password. A non-superuser actor cannot reset the password
+// of a superuser account.
+func (s *AdminService) ResetUserPassword(actor *UserAccess, userID uint, newPassword string) error {
 	// Validate password complexity
 	if err := ValidatePassword(newPassword); err != nil {
 		return fmt.Errorf("password validation failed: %w", err)
+	}
+	target, err := s.getUser(userID)
+	if err != nil {
+		return err
+	}
+	if err := s.rbac.CheckManageableUser(actor, target, true); err != nil {
+		return err
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
@@ -201,21 +207,31 @@ func (s *AdminService) ResetUserPassword(userID uint, newPassword string) error 
 	return nil
 }
 
-func (s *AdminService) DeleteUser(userID, requestingUserID uint) error {
-	if userID == requestingUserID {
+// DeleteUser deletes an account (not one's own). A non-superuser actor cannot delete a
+// superuser account; the last user holding a superuser role cannot be deleted.
+func (s *AdminService) DeleteUser(actor *UserAccess, userID uint) error {
+	if actor == nil {
+		return errNoActor()
+	}
+	if userID == actor.UserID {
 		return fmt.Errorf("cannot delete your own account")
 	}
-	if err := s.ensureNotLastSuperuser(userID, ""); err != nil {
+	target, err := s.getUser(userID)
+	if err != nil {
+		return err
+	}
+	if err := s.rbac.CheckManageableUser(actor, target, true); err != nil {
 		return err
 	}
 
 	if err := s.userRepo.Delete(userID); err != nil {
+		if errors.Is(err, data.ErrLastSuperuser) {
+			return apperrors.NewValidationError(err.Error())
+		}
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
-	if s.rbac != nil {
-		s.rbac.InvalidateUser(userID)
-	}
+	s.rbac.InvalidateUser(userID)
 
-	s.logger.Info("Admin deleted user", zap.Uint("user_id", userID), zap.Uint("deleted_by", requestingUserID))
+	s.logger.Info("Admin deleted user", zap.Uint("user_id", userID), zap.Uint("deleted_by", actor.UserID))
 	return nil
 }

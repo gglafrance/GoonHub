@@ -45,12 +45,37 @@ setting always overrides its parents, and a user override always overrides the r
 The effective permissions are computed live: a change of role, of role settings, of parents or
 of overrides applies to the next request of every affected user, without logging in again (the
 role stored in the session token is not used for authorization). The auth middleware resolves
-the user's current role and permissions on every request (`RBACService.ResolveUser`, cached per
-user and dropped on every change made through the API; a one-minute TTL covers changes made
-outside of it). The token of a deleted user is refused (`401`).
+the user's current role and permissions on every request (`RBACService.ResolveUser`). The role
+graph (roles, parents, settings) and each user's access are cached and dropped on every change
+made through the API; both are also reloaded once older than one minute, so a change made
+outside the API (SQL on `users`, `roles`, `role_parents`, `role_permissions`,
+`user_permission_overrides`) applies within a minute. The token of a deleted user is refused
+(`401`, also by `/events`, which closes an open stream, and by the share links that require
+an account).
 
 To keep at least one account able to manage everything, the last user holding a superuser role
-cannot be moved to another role nor deleted (`400`).
+cannot be moved to another role nor deleted (`400`). The check is atomic: the repository locks
+the rows of the superuser accounts (`SELECT ... FOR UPDATE`) in the same transaction as the
+change, so two concurrent demotions cannot remove the last two.
+
+## Delegation
+
+An actor who is not a superuser can only hand out what they hold. These rules are enforced by
+the services (`AdminService`, `RBACService`, actor passed in), answer `403`, and a superuser
+actor bypasses them all:
+
+- **Assigning a role** (user creation, role change): not a superuser role, and the role's
+  effective permissions must be a subset of the actor's.
+- **Acting on a user** (role change, password reset, deletion, overrides): not an account
+  holding a superuser role. Changing one's own role or overrides is refused (one's own password
+  is changed in the account settings).
+- **Overrides**: `allow` only for permissions the actor holds (or already allowed by an
+  override of that user); `deny` is always possible.
+- **Roles**: the actor cannot change the settings, parents or name of their own role nor of
+  any role it inherits from, nor delete them; nor change a superuser role. A setting can only
+  `allow` a permission the actor holds (or one the role already allows). A parent can only be
+  added (role creation or update) if its effective permissions are a subset of the actor's
+  (parents already present are kept).
 
 ## Catalog
 
@@ -107,17 +132,26 @@ refuses the matching parameters (`403`); the UI hides the matching blocks.
   playlists, actor/studio scenes, homepage, explorer and its folders' `total_size`, explorer
   match-info), `min_size`/`max_size` filters and `size_asc`/`size_desc` sorts of
   `GET /scenes` and of the explorer search (refused), `total_size` of the stats widget,
-  `biggest_file` record.
+  `biggest_file` record. Saving size filters or sorts is refused (`403`): saved searches
+  (`min_size`, `max_size`, size `sort`) and settings (`default_sort_order`, homepage section
+  sorts, `sort_preferences.actor_scenes`/`studio_scenes`). Those stored before migration 094
+  are ignored, not failed: the saved search and settings responses hide them (default sort,
+  no bound) and the homepage sections run without them.
 - `files:view_paths`: `stored_path`, `original_filename`, `storage_path_id` in scene payloads
   (and `original_filename` of the explorer match-info); `GET /scenes/:id/copies` (refused). The
-  explorer itself (folder names, storage paths) is governed by `explorer:access`.
+  explorer itself (folder names, storage paths) is governed by `explorer:access`. Path oracles
+  are closed too: without it, the text search (`GET /scenes` `q`, saved search sections) is
+  matched on title, description, actors and tags only (Meilisearch `attributesToSearchOn`,
+  not on `path`/`original_filename`), the `folder_latest` homepage widget gives nothing
+  (`{"forbidden": true}`) and the `storage_path_id`/`folder` filters of the other scene
+  widgets are ignored.
 - `files:view_technical`: `video_codec`, `audio_codec`, `bit_rate`, `frame_rate`, `file_hash`,
   `fingerprint_type`, `fingerprint_at`, `processing_error` in scene payloads (and the
   `frame_rate` card field). The `playback` object (needed by the player) stays.
 - `explorer:access`: every `/explorer` route.
 - `jobs:view_status`: job events on `/events` (`jobs:*`, `scene:retry_scheduled`,
-  `scene:dlq_*`) and the header job indicator. Without `files:view_technical`, the `error` of a
-  `scene:failed` event is removed.
+  `scene:dlq_*`) and the header job indicator.
+- `storage:manage`: scan events on `/events` (`scan:*`, they carry absolute paths).
 - `library:insights`: the trashed scenes in `GET /scenes/:id/similar` and the details of the
   curation and processing homepage widgets.
 
@@ -127,6 +161,21 @@ converter (`ToSceneListItem*`, `NewSceneDetail`, homepage, explorer, playlist, h
 responses). Admin-only payloads (duplicates, trash, library health, jobs) are not redacted.
 
 Resolution (width/height) and duration stay visible to everyone who can view scenes.
+
+### Live events (`/events`)
+
+Every event type has an allowlist (`internal/api/v1/handler/sse_filter.go`): who receives
+it and which `data` fields each permission shows. Fields that are not listed are never sent, so
+a field added later stays private until it is listed. An unknown event type is sent without its
+data. Superusers get every event as is. Notable rules: `scan:*` need `storage:manage`; job
+events need `jobs:view_status`; `fingerprint_type` of `scene:fingerprint_complete` needs
+`files:view_technical`; the `error` of `scene:failed` needs `files:view_technical` and
+`files:view_paths`.
+
+### Known limitations
+
+- `GET /api/v1/scenes/:id/stream` and `/transcode` are not authenticated (unchanged by this
+  rework): anyone who knows a scene ID can stream it.
 
 ## API
 
@@ -165,6 +214,11 @@ Resolution (width/height) and duration stay visible to everyone who can view sce
 
 The rest of `/admin` needs the permission of its area (see the catalog). There is no
 role-name check anymore: `RequireRole("admin")` is gone, a superuser passes every check.
+
+Routes listing scenes need `scenes:view`: `/scenes...`, `/actors/:uuid/scenes`,
+`/studios/:uuid/scenes`, `/history...`, `/homepage...`, `GET /playlists/:uuid`.
+
+The user and role changes answer `403` when they break the delegation rules above.
 
 ## Catalog sync
 

@@ -21,11 +21,17 @@ func insightsQueries(s *HomepageService) (*data.InsightsWidgetQueries, error) {
 // insightsUserIsAdmin reports whether the user has the library:insights permission (the
 // curation and processing details of the insight widgets).
 func insightsUserIsAdmin(s *HomepageService, userID uint) bool {
+	return s.userHas(userID, PermLibraryInsights)
+}
+
+// userHas reports whether the user currently has a permission (false without a permission
+// checker).
+func (s *HomepageService) userHas(userID uint, permission string) bool {
 	perms := s.WidgetDeps().Permissions
 	if perms == nil {
 		return false
 	}
-	return perms.UserHasPermission(userID, PermLibraryInsights)
+	return perms.UserHasPermission(userID, permission)
 }
 
 // insightsValidateOneOf checks an optional string config value against allowed values.

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/request"
 	"goonhub/internal/api/v1/response"
@@ -85,8 +86,8 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.AdminService.CreateUser(req.Username, req.Password, req.Role); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := h.AdminService.CreateUser(middleware.GetAccess(c), req.Username, req.Password, req.Role); err != nil {
+		adminUserError(c, err)
 		return
 	}
 
@@ -106,7 +107,7 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 		return
 	}
 
-	if err := h.AdminService.UpdateUserRole(uint(id), req.Role); err != nil {
+	if err := h.AdminService.UpdateUserRole(middleware.GetAccess(c), uint(id), req.Role); err != nil {
 		adminUserError(c, err)
 		return
 	}
@@ -149,7 +150,12 @@ func (h *AdminHandler) ResetUserPassword(c *gin.Context) {
 		return
 	}
 
-	if err := h.AdminService.ResetUserPassword(uint(id), req.NewPassword); err != nil {
+	if err := h.AdminService.ResetUserPassword(middleware.GetAccess(c), uint(id), req.NewPassword); err != nil {
+		var appErr apperrors.AppError
+		if errors.As(err, &appErr) {
+			response.Error(c, err)
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -164,13 +170,7 @@ func (h *AdminHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	userPayload, err := middleware.GetUserFromContext(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
-
-	if err := h.AdminService.DeleteUser(uint(id), userPayload.UserID); err != nil {
+	if err := h.AdminService.DeleteUser(middleware.GetAccess(c), uint(id)); err != nil {
 		adminUserError(c, err)
 		return
 	}

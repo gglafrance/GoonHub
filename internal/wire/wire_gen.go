@@ -162,7 +162,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	playlistHandler := providePlaylistHandler(playlistService, configConfig)
 	shareLinkRepository := provideShareLinkRepository(db)
 	shareService := provideShareService(shareLinkRepository, sceneRepository, logger)
-	shareHandler := provideShareHandler(shareService, authService, manager, transcoder, configConfig)
+	shareHandler := provideShareHandler(shareService, authService, manager, transcoder, rbacService, configConfig)
 	duplicateHandler := provideDuplicateHandler(duplicateService, duplicationConfigRepository)
 	libraryHealthRepository := provideLibraryHealthRepository(db)
 	libraryHealthService := provideLibraryHealthService(libraryHealthRepository, sceneRepository, storagePathService, sceneProcessingService, searchService, configConfig, logger)
@@ -766,8 +766,10 @@ func provideStreamStatsHandler(streamManager *streaming.Manager) *handler.Stream
 	return handler.NewStreamStatsHandler(streamManager)
 }
 
-func provideShareHandler(shareService *core.ShareService, authService *core.AuthService, streamManager *streaming.Manager, transcoder *streaming.Transcoder, cfg *config.Config) *handler.ShareHandler {
-	return handler.NewShareHandler(shareService, authService, streamManager, transcoder, cfg.Sharing.BaseURL)
+func provideShareHandler(shareService *core.ShareService, authService *core.AuthService, streamManager *streaming.Manager, transcoder *streaming.Transcoder, rbacService *core.RBACService, cfg *config.Config) *handler.ShareHandler {
+	h := handler.NewShareHandler(shareService, authService, streamManager, transcoder, cfg.Sharing.BaseURL)
+	h.Access = rbacService
+	return h
 }
 
 func provideLibraryHealthRepository(db *gorm.DB) data.LibraryHealthRepository {

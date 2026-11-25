@@ -525,6 +525,8 @@ func (s *SearchService) buildMeiliParams(params data.SceneSearchParams, preFilte
 		Offset:           (params.Page - 1) * params.Limit,
 		Limit:            params.Limit,
 		MatchingStrategy: params.MatchingStrategy,
+		// paths and file names are not searched for users who may not see them
+		ExcludeFileAttributes: params.HideFilePaths,
 	}
 
 	if params.MinDuration > 0 {

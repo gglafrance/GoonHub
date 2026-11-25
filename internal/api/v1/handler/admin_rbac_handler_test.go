@@ -35,22 +35,22 @@ func (f *fakeRBAC) ListRoles() ([]core.RoleView, error) {
 func (f *fakeRBAC) GetRole(id uint) (*core.RoleView, error) {
 	return &core.RoleView{ID: id, Name: "r", ParentIDs: []uint{}, Settings: f.gotSettings}, nil
 }
-func (f *fakeRBAC) CreateRole(in core.RoleInput) (*core.RoleView, error) {
+func (f *fakeRBAC) CreateRole(_ *core.UserAccess, in core.RoleInput) (*core.RoleView, error) {
 	f.gotInput = in
 	if f.err != nil {
 		return nil, f.err
 	}
 	return &core.RoleView{ID: 9, Name: in.Name, ParentIDs: in.ParentIDs, Settings: []core.PermissionSetting{}}, nil
 }
-func (f *fakeRBAC) UpdateRole(id uint, in core.RoleInput) (*core.RoleView, error) {
+func (f *fakeRBAC) UpdateRole(_ *core.UserAccess, id uint, in core.RoleInput) (*core.RoleView, error) {
 	f.gotInput = in
 	if f.err != nil {
 		return nil, f.err
 	}
 	return &core.RoleView{ID: id, Name: in.Name, ParentIDs: in.ParentIDs, Settings: []core.PermissionSetting{}}, nil
 }
-func (f *fakeRBAC) DeleteRole(uint) error { return f.err }
-func (f *fakeRBAC) SetRoleSettings(_ uint, s []core.PermissionSetting) error {
+func (f *fakeRBAC) DeleteRole(*core.UserAccess, uint) error { return f.err }
+func (f *fakeRBAC) SetRoleSettings(_ *core.UserAccess, _ uint, s []core.PermissionSetting) error {
 	f.gotSettings = s
 	return f.err
 }
@@ -66,7 +66,7 @@ func (f *fakeRBAC) UserPermissions(uint) (*core.UserPermissionsView, error) {
 	}
 	return &core.UserPermissionsView{Role: "user", Overrides: f.gotOverrides, Effective: []core.EffectivePermission{{Name: "scenes:view", Granted: true, Source: "role"}}}, nil
 }
-func (f *fakeRBAC) SetUserOverrides(_ uint, o []core.PermissionSetting) error {
+func (f *fakeRBAC) SetUserOverrides(_ *core.UserAccess, _ uint, o []core.PermissionSetting) error {
 	f.gotOverrides = o
 	return f.err
 }
@@ -160,6 +160,9 @@ func TestRBACAdmin_StatusCodes(t *testing.T) {
 		{"settings bad effect", nil, http.MethodPut, "/admin/roles/3/permissions", `{"settings":[{"permission_id":1,"effect":"grant"}]}`, 400},
 		{"settings missing", nil, http.MethodPut, "/admin/roles/3/permissions", `{}`, 400},
 		{"settings on superuser", apperrors.NewValidationError("superuser"), http.MethodPut, "/admin/roles/1/permissions", `{"settings":[]}`, 400},
+		{"settings beyond the actor", apperrors.NewForbiddenError("you do not have it"), http.MethodPut, "/admin/roles/3/permissions", `{"settings":[]}`, 403},
+		{"update own role", apperrors.NewForbiddenError("own role"), http.MethodPut, "/admin/roles/3", `{"name":"mod"}`, 403},
+		{"overrides on a superuser", apperrors.NewForbiddenError("superuser account"), http.MethodPut, "/admin/users/1/permissions", `{"overrides":[]}`, 403},
 		{"effective", nil, http.MethodGet, "/admin/roles/3/effective", "", 200},
 		{"effective unknown", apperrors.NewNotFoundError("role", 9), http.MethodGet, "/admin/roles/9/effective", "", 404},
 		{"user permissions unknown", apperrors.NewNotFoundError("user", 9), http.MethodGet, "/admin/users/9/permissions", "", 404},
@@ -264,42 +267,5 @@ func TestRefuseHiddenSizeQuery(t *testing.T) {
 		if tc.refused && w.Code != http.StatusForbidden {
 			t.Fatalf("%+v: status %d", tc, w.Code)
 		}
-	}
-}
-
-func TestSSEEventForUser(t *testing.T) {
-	viewer := core.NewUserAccess(1, "user", false, core.PermScenesView)
-	mod := core.NewUserAccess(2, "moderator", false, core.PermJobsViewStatus, core.PermFilesViewTech)
-
-	for _, typ := range []string{"jobs:status", "jobs:bulk_cancelled", "scene:dlq_added", "scene:retry_scheduled"} {
-		if _, send := eventForUser(core.SceneEvent{Type: typ}, viewer); send {
-			t.Fatalf("%s must not reach a user without jobs:view_status", typ)
-		}
-		if _, send := eventForUser(core.SceneEvent{Type: typ}, mod); !send {
-			t.Fatalf("%s must reach a user with jobs:view_status", typ)
-		}
-	}
-	if _, send := eventForUser(core.SceneEvent{Type: "scene:completed"}, viewer); !send {
-		t.Fatal("scene events stay")
-	}
-
-	failed := core.SceneEvent{Type: "scene:failed", Data: map[string]any{"error": "ffmpeg: /media/x.mkv broken", "phase": "metadata"}}
-	ev, send := eventForUser(failed, viewer)
-	if !send {
-		t.Fatal("scene:failed is a scene event")
-	}
-	data := ev.Data.(map[string]any)
-	if _, ok := data["error"]; ok || data["phase"] != "metadata" {
-		t.Fatalf("error must be removed without files:view_technical: %v", data)
-	}
-	if _, ok := failed.Data.(map[string]any)["error"]; !ok {
-		t.Fatal("the shared event must not be modified")
-	}
-	ev, _ = eventForUser(failed, mod)
-	if _, ok := ev.Data.(map[string]any)["error"]; !ok {
-		t.Fatal("error kept with files:view_technical")
-	}
-	if _, send := eventForUser(core.SceneEvent{Type: "jobs:status"}, nil); send {
-		t.Fatal("no access: no job event")
 	}
 }

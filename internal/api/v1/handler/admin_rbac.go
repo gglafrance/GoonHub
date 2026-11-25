@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/request"
 	"goonhub/internal/api/v1/response"
 	"goonhub/internal/apperrors"
@@ -19,13 +20,13 @@ type RBACManager interface {
 	ListPermissions() []core.PermissionView
 	ListRoles() ([]core.RoleView, error)
 	GetRole(id uint) (*core.RoleView, error)
-	CreateRole(in core.RoleInput) (*core.RoleView, error)
-	UpdateRole(id uint, in core.RoleInput) (*core.RoleView, error)
-	DeleteRole(id uint) error
-	SetRoleSettings(id uint, settings []core.PermissionSetting) error
+	CreateRole(actor *core.UserAccess, in core.RoleInput) (*core.RoleView, error)
+	UpdateRole(actor *core.UserAccess, id uint, in core.RoleInput) (*core.RoleView, error)
+	DeleteRole(actor *core.UserAccess, id uint) error
+	SetRoleSettings(actor *core.UserAccess, id uint, settings []core.PermissionSetting) error
 	RoleEffective(id uint) ([]core.EffectivePermission, error)
 	UserPermissions(userID uint) (*core.UserPermissionsView, error)
-	SetUserOverrides(userID uint, overrides []core.PermissionSetting) error
+	SetUserOverrides(actor *core.UserAccess, userID uint, overrides []core.PermissionSetting) error
 }
 
 // adminUserError answers a user management error: typed errors with their status, the
@@ -80,7 +81,7 @@ func (h *AdminHandler) CreateRole(c *gin.Context) {
 		response.Error(c, apperrors.NewValidationError("invalid request: "+err.Error()))
 		return
 	}
-	role, err := h.RBACService.CreateRole(core.RoleInput{Name: req.Name, Description: req.Description, ParentIDs: req.ParentIDs})
+	role, err := h.RBACService.CreateRole(middleware.GetAccess(c), core.RoleInput{Name: req.Name, Description: req.Description, ParentIDs: req.ParentIDs})
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -100,7 +101,7 @@ func (h *AdminHandler) UpdateRole(c *gin.Context) {
 		response.Error(c, apperrors.NewValidationError("invalid request: "+err.Error()))
 		return
 	}
-	role, err := h.RBACService.UpdateRole(id, core.RoleInput{Name: req.Name, Description: req.Description, ParentIDs: req.ParentIDs})
+	role, err := h.RBACService.UpdateRole(middleware.GetAccess(c), id, core.RoleInput{Name: req.Name, Description: req.Description, ParentIDs: req.ParentIDs})
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -115,7 +116,7 @@ func (h *AdminHandler) DeleteRole(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.RBACService.DeleteRole(id); err != nil {
+	if err := h.RBACService.DeleteRole(middleware.GetAccess(c), id); err != nil {
 		var inUse *core.RoleInUseError
 		if errors.As(err, &inUse) {
 			c.JSON(http.StatusConflict, gin.H{"error": inUse.Error(), "code": "ROLE_IN_USE", "user_count": inUse.UserCount})
@@ -143,7 +144,7 @@ func (h *AdminHandler) SetRolePermissions(c *gin.Context) {
 		response.Error(c, apperrors.NewValidationErrorWithField("settings", "settings is required (an empty list clears the settings of the role)"))
 		return
 	}
-	if err := h.RBACService.SetRoleSettings(id, toPermissionSettings(req.Settings)); err != nil {
+	if err := h.RBACService.SetRoleSettings(middleware.GetAccess(c), id, toPermissionSettings(req.Settings)); err != nil {
 		response.Error(c, err)
 		return
 	}
@@ -201,7 +202,7 @@ func (h *AdminHandler) SetUserPermissions(c *gin.Context) {
 		response.Error(c, apperrors.NewValidationErrorWithField("overrides", "overrides is required (an empty list clears the overrides of the user)"))
 		return
 	}
-	if err := h.RBACService.SetUserOverrides(id, toPermissionSettings(req.Overrides)); err != nil {
+	if err := h.RBACService.SetUserOverrides(middleware.GetAccess(c), id, toPermissionSettings(req.Overrides)); err != nil {
 		response.Error(c, err)
 		return
 	}

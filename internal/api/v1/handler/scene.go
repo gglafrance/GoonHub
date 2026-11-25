@@ -201,6 +201,7 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 	}
 
 	params := searchParamsFromRequest(&req, userID)
+	params.HideFilePaths = !vis.Paths
 
 	if req.Tags != "" {
 		tagNames := strings.Split(req.Tags, ",")

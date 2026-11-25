@@ -14,6 +14,9 @@ import (
 	"gorm.io/gorm"
 )
 
+// testSuperActor is a superuser actor (user 1): it passes every delegation check.
+var testSuperActor = NewUserAccess(1, "admin", true)
+
 func newTestAdminService(t *testing.T) (*AdminService, *mocks.MockUserRepository, *mocks.MockRoleRepository) {
 	ctrl := gomock.NewController(t)
 	userRepo := mocks.NewMockUserRepository(ctrl)
@@ -41,7 +44,7 @@ func TestDeleteUser_Success(t *testing.T) {
 	userRepo.EXPECT().GetByID(uint(5)).Return(&data.User{ID: 5, Role: "user"}, nil)
 	userRepo.EXPECT().Delete(uint(5)).Return(nil)
 
-	err := svc.DeleteUser(5, 1) // deleting user 5 as user 1
+	err := svc.DeleteUser(testSuperActor, 5) // deleting user 5 as user 1
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -50,7 +53,7 @@ func TestDeleteUser_Success(t *testing.T) {
 func TestDeleteUser_SelfDeletion(t *testing.T) {
 	svc, _, _ := newTestAdminService(t)
 
-	err := svc.DeleteUser(1, 1) // trying to delete self
+	err := svc.DeleteUser(testSuperActor, 1) // trying to delete self
 	if err == nil {
 		t.Fatal("expected error for self-deletion")
 	}
@@ -81,7 +84,7 @@ func TestCreateUser_Success(t *testing.T) {
 		return nil
 	})
 
-	err := svc.CreateUser("newuser", validPassword, "viewer")
+	err := svc.CreateUser(testSuperActor, "newuser", validPassword, "viewer")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -95,7 +98,7 @@ func TestCreateUser_InvalidRole(t *testing.T) {
 
 	roleRepo.EXPECT().GetByName("superadmin").Return(nil, fmt.Errorf("record not found"))
 
-	err := svc.CreateUser("newuser", validPassword, "superadmin")
+	err := svc.CreateUser(testSuperActor, "newuser", validPassword, "superadmin")
 	if err == nil {
 		t.Fatal("expected error for invalid role")
 	}
@@ -113,7 +116,7 @@ func TestCreateUser_DuplicateUsername(t *testing.T) {
 	roleRepo.EXPECT().GetByName("viewer").Return(&data.Role{ID: 2, Name: "viewer"}, nil)
 	userRepo.EXPECT().Exists("existing").Return(true, nil)
 
-	err := svc.CreateUser("existing", validPassword, "viewer")
+	err := svc.CreateUser(testSuperActor, "existing", validPassword, "viewer")
 	if err == nil {
 		t.Fatal("expected error for duplicate username")
 	}
@@ -127,7 +130,7 @@ func TestUpdateUserRole_InvalidRole(t *testing.T) {
 
 	roleRepo.EXPECT().GetByName("fakerole").Return(nil, fmt.Errorf("not found"))
 
-	err := svc.UpdateUserRole(1, "fakerole")
+	err := svc.UpdateUserRole(testSuperActor, 1, "fakerole")
 	if err == nil {
 		t.Fatal("expected error for invalid role")
 	}
@@ -143,7 +146,7 @@ func TestUpdateUserRole_Success(t *testing.T) {
 	userRepo.EXPECT().GetByID(uint(5)).Return(&data.User{ID: 5, Role: "user"}, nil)
 	userRepo.EXPECT().UpdateRole(uint(5), "admin").Return(nil)
 
-	err := svc.UpdateUserRole(5, "admin")
+	err := svc.UpdateUserRole(testSuperActor, 5, "admin")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -154,9 +157,9 @@ func TestUpdateUserRole_LastSuperuserRefused(t *testing.T) {
 
 	roleRepo.EXPECT().GetByName("user").Return(&data.Role{ID: 2, Name: "user"}, nil)
 	userRepo.EXPECT().GetByID(uint(1)).Return(&data.User{ID: 1, Role: "admin"}, nil)
-	roleRepo.EXPECT().CountUsersByRole("admin").Return(int64(1), nil)
+	userRepo.EXPECT().UpdateRole(uint(1), "user").Return(data.ErrLastSuperuser)
 
-	err := svc.UpdateUserRole(1, "user")
+	err := svc.UpdateUserRole(testSuperActor, 1, "user")
 	if !apperrors.IsValidation(err) {
 		t.Fatalf("expected a validation error for the last superuser, got %v", err)
 	}
@@ -167,21 +170,20 @@ func TestUpdateUserRole_SuperuserWithAnotherOneLeft(t *testing.T) {
 
 	roleRepo.EXPECT().GetByName("user").Return(&data.Role{ID: 2, Name: "user"}, nil)
 	userRepo.EXPECT().GetByID(uint(1)).Return(&data.User{ID: 1, Role: "admin"}, nil)
-	roleRepo.EXPECT().CountUsersByRole("admin").Return(int64(2), nil)
 	userRepo.EXPECT().UpdateRole(uint(1), "user").Return(nil)
 
-	if err := svc.UpdateUserRole(1, "user"); err != nil {
+	if err := svc.UpdateUserRole(testSuperActor, 1, "user"); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 }
 
 func TestDeleteUser_LastSuperuserRefused(t *testing.T) {
-	svc, userRepo, roleRepo := newTestAdminService(t)
+	svc, userRepo, _ := newTestAdminService(t)
 
 	userRepo.EXPECT().GetByID(uint(3)).Return(&data.User{ID: 3, Role: "admin"}, nil)
-	roleRepo.EXPECT().CountUsersByRole("admin").Return(int64(1), nil)
+	userRepo.EXPECT().Delete(uint(3)).Return(data.ErrLastSuperuser)
 
-	if err := svc.DeleteUser(3, 7); !apperrors.IsValidation(err) {
+	if err := svc.DeleteUser(NewUserAccess(7, "admin", true), 3); !apperrors.IsValidation(err) {
 		t.Fatalf("expected a validation error for the last superuser, got %v", err)
 	}
 }
@@ -192,6 +194,7 @@ func TestResetUserPassword_Success(t *testing.T) {
 	// Password must meet complexity requirements: 12+ chars, upper, lower, digit
 	validPassword := "NewPass12345!"
 
+	userRepo.EXPECT().GetByID(uint(5)).Return(&data.User{ID: 5, Role: "user"}, nil)
 	userRepo.EXPECT().UpdatePassword(uint(5), gomock.Any()).DoAndReturn(func(id uint, hash string) error {
 		if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(validPassword)); err != nil {
 			t.Fatal("stored hash does not match new password")
@@ -199,7 +202,7 @@ func TestResetUserPassword_Success(t *testing.T) {
 		return nil
 	})
 
-	err := svc.ResetUserPassword(5, validPassword)
+	err := svc.ResetUserPassword(testSuperActor, 5, validPassword)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -211,9 +214,10 @@ func TestResetUserPassword_RepoFails(t *testing.T) {
 	// Password must meet complexity requirements: 12+ chars, upper, lower, digit
 	validPassword := "NewPass12345!"
 
+	userRepo.EXPECT().GetByID(uint(5)).Return(&data.User{ID: 5, Role: "user"}, nil)
 	userRepo.EXPECT().UpdatePassword(uint(5), gomock.Any()).Return(fmt.Errorf("connection reset"))
 
-	err := svc.ResetUserPassword(5, validPassword)
+	err := svc.ResetUserPassword(testSuperActor, 5, validPassword)
 	if err == nil {
 		t.Fatal("expected error when repo fails")
 	}
@@ -226,7 +230,7 @@ func TestCreateUser_WeakPassword(t *testing.T) {
 	svc, _, _ := newTestAdminService(t)
 
 	// Test password too short
-	err := svc.CreateUser("newuser", "short", "viewer")
+	err := svc.CreateUser(testSuperActor, "newuser", "short", "viewer")
 	if err == nil {
 		t.Fatal("expected error for short password")
 	}
@@ -235,7 +239,7 @@ func TestCreateUser_WeakPassword(t *testing.T) {
 	}
 
 	// Test password without uppercase
-	err = svc.CreateUser("newuser", "alllowercase123", "viewer")
+	err = svc.CreateUser(testSuperActor, "newuser", "alllowercase123", "viewer")
 	if err == nil {
 		t.Fatal("expected error for password without uppercase")
 	}
@@ -244,7 +248,7 @@ func TestCreateUser_WeakPassword(t *testing.T) {
 	}
 
 	// Test password without lowercase
-	err = svc.CreateUser("newuser", "ALLUPPERCASE123", "viewer")
+	err = svc.CreateUser(testSuperActor, "newuser", "ALLUPPERCASE123", "viewer")
 	if err == nil {
 		t.Fatal("expected error for password without lowercase")
 	}
@@ -253,7 +257,7 @@ func TestCreateUser_WeakPassword(t *testing.T) {
 	}
 
 	// Test password without digit
-	err = svc.CreateUser("newuser", "NoDigitsHere!", "viewer")
+	err = svc.CreateUser(testSuperActor, "newuser", "NoDigitsHere!", "viewer")
 	if err == nil {
 		t.Fatal("expected error for password without digit")
 	}

@@ -919,8 +919,10 @@ func provideStreamStatsHandler(streamManager *streaming.Manager) *handler.Stream
 	return handler.NewStreamStatsHandler(streamManager)
 }
 
-func provideShareHandler(shareService *core.ShareService, authService *core.AuthService, streamManager *streaming.Manager, transcoder *streaming.Transcoder, cfg *config.Config) *handler.ShareHandler {
-	return handler.NewShareHandler(shareService, authService, streamManager, transcoder, cfg.Sharing.BaseURL)
+func provideShareHandler(shareService *core.ShareService, authService *core.AuthService, streamManager *streaming.Manager, transcoder *streaming.Transcoder, rbacService *core.RBACService, cfg *config.Config) *handler.ShareHandler {
+	h := handler.NewShareHandler(shareService, authService, streamManager, transcoder, cfg.Sharing.BaseURL)
+	h.Access = rbacService
+	return h
 }
 
 // --- Library Health ---
