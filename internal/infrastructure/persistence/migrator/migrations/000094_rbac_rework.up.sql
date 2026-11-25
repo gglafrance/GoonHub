@@ -56,3 +56,7 @@ CREATE INDEX idx_users_role ON users (role);
 DELETE FROM role_permissions
 WHERE role_id = (SELECT id FROM roles WHERE name = 'user')
   AND permission_id = (SELECT id FROM permissions WHERE name = 'scenes:upload');
+
+-- The seeded description of the user role mentioned upload, which it no longer has
+UPDATE roles SET description = 'Browse and watch scenes, markers and playlists'
+WHERE name = 'user' AND description = 'Basic view and upload access';
