@@ -96,9 +96,9 @@ func (r *TagRepositoryImpl) MergeTags(target Tag, sources []Tag, dryRun bool) (*
 				ON CONFLICT (marker_id, tag_id) DO UPDATE
 				SET is_from_label = marker_tags.is_from_label AND EXCLUDED.is_from_label`},
 			{"drop source markers", `DELETE FROM marker_tags WHERE tag_id IN @src`},
-			{"move label tags", `INSERT INTO marker_label_tags (user_id, label, tag_id)
-				SELECT DISTINCT user_id, label, CAST(@dst AS bigint) FROM marker_label_tags WHERE tag_id IN @src
-				ON CONFLICT (user_id, label, tag_id) DO NOTHING`},
+			{"move label tags", `INSERT INTO marker_label_tags (label_id, tag_id)
+				SELECT DISTINCT label_id, CAST(@dst AS bigint) FROM marker_label_tags WHERE tag_id IN @src
+				ON CONFLICT (label_id, tag_id) DO NOTHING`},
 			{"drop source label tags", `DELETE FROM marker_label_tags WHERE tag_id IN @src`},
 			{"move playlists", `INSERT INTO playlist_tags (playlist_id, tag_id)
 				SELECT DISTINCT playlist_id, CAST(@dst AS bigint) FROM playlist_tags WHERE tag_id IN @src

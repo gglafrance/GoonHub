@@ -29,19 +29,14 @@ type MarkerRepository interface {
 	GetLabelGroupsForUser(userID uint, offset, limit int, opts MarkerListOptions) ([]MarkerLabelGroup, int64, error)
 	GetMarkersByLabelForUser(userID uint, label string, offset, limit int, opts MarkerListOptions) ([]MarkerWithScene, int64, error)
 
-	// Label tag methods
-	GetLabelTags(userID uint, label string) ([]Tag, error)
-	SetLabelTags(userID uint, label string, tagIDs []uint) error
-	GetAllLabelTagsForUser(userID uint) (map[string][]Tag, error)
-
 	// Individual marker tag methods
 	GetMarkerTags(markerID uint) ([]MarkerTagInfo, error)
 	GetMarkerTagsMultiple(markerIDs []uint) (map[uint][]MarkerTagInfo, error)
 	SetMarkerTags(markerID uint, tagIDs []uint) error
 	AddMarkerTags(markerID uint, tagIDs []uint) error
-	SyncMarkerTagsFromLabel(userID uint, label string) error
-	ApplyLabelTagsToMarker(userID uint, markerID uint, label string) error
-	GetMarkerIDsByLabel(userID uint, label string) ([]uint, error)
+	// ApplyLabelTagsToMarker makes the marker's tags "from label" the default tags of its
+	// current label (none without label); tags set by hand stay.
+	ApplyLabelTagsToMarker(markerID uint) error
 
 	// Thumbnail methods
 	GetRandomThumbnailsForLabels(userID uint, labels []string, perLabel int, opts MarkerListOptions) (map[string][]MarkerThumbnailRef, error)
@@ -147,15 +142,16 @@ func (r *MarkerRepositoryImpl) Delete(id uint) error {
 	return r.DB.Delete(&UserSceneMarker{}, id).Error
 }
 
+// GetLabelSuggestionsForUser returns the labels of the referential (unused ones included),
+// most used first by the markers the user sees, then by name.
 func (r *MarkerRepositoryImpl) GetLabelSuggestionsForUser(userID uint, limit int) ([]MarkerLabelSuggestion, error) {
 	var suggestions []MarkerLabelSuggestion
-	err := r.DB.Model(&UserSceneMarker{}).
-		Select("label, COUNT(*) as count").
-		Where(VisibleMarkersSQL("")+" AND label != ''", userID).
-		Group("label").
-		Order("count DESC").
-		Limit(limit).
-		Scan(&suggestions).Error
+	err := r.DB.Raw(`SELECT ml.id, ml.name AS label, ml.color, COUNT(m.id) AS count
+		FROM marker_labels ml
+		LEFT JOIN user_scene_markers m ON m.label_id = ml.id AND `+VisibleMarkersSQL("m")+`
+		GROUP BY ml.id
+		ORDER BY count DESC, lower(ml.name) ASC, ml.id ASC
+		LIMIT ?`, userID, limit).Scan(&suggestions).Error
 	if err != nil {
 		return nil, err
 	}
@@ -215,8 +211,8 @@ func markerFilterSQL(opts MarkerListOptions, alias string, withLabels bool) (str
 		sql += " AND " + alias + ".end_timestamp IS NOT NULL"
 	}
 	if withLabels && len(opts.Labels) > 0 {
-		sql += " AND " + alias + ".label IN ?"
-		args = append(args, opts.Labels)
+		sql += " AND " + markerLabelInSQL(alias)
+		args = append(args, markerLabelKeys(opts.Labels))
 	}
 	if len(opts.Tags) > 0 {
 		sql += " AND " + alias + `.scene_id IN (
@@ -308,13 +304,13 @@ func (r *MarkerRepositoryImpl) GetLabelGroupsForUser(userID uint, offset, limit 
 
 func (r *MarkerRepositoryImpl) GetMarkersByLabelForUser(userID uint, label string, offset, limit int, opts MarkerListOptions) ([]MarkerWithScene, int64, error) {
 	filter, filterArgs := markerFilterSQL(opts, "m", false)
-	baseArgs := append([]any{userID, label}, filterArgs...)
+	baseArgs := append([]any{userID, markerLabelKeys([]string{label})}, filterArgs...)
 
 	// Get total count
 	var totalCount int64
 	err := r.DB.Raw(`
 		SELECT COUNT(*) FROM user_scene_markers m
-		WHERE `+VisibleMarkersSQL("m")+` AND m.label = ?`+filter, baseArgs...).Scan(&totalCount).Error
+		WHERE `+VisibleMarkersSQL("m")+` AND `+markerLabelInSQL("m")+filter, baseArgs...).Scan(&totalCount).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -325,7 +321,7 @@ func (r *MarkerRepositoryImpl) GetMarkersByLabelForUser(userID uint, label strin
 		SELECT m.*, s.title as scene_title
 		FROM user_scene_markers m
 		JOIN scenes s ON m.scene_id = s.id
-		WHERE `+VisibleMarkersSQL("m")+` AND m.label = ?`+filter+`
+		WHERE `+VisibleMarkersSQL("m")+` AND `+markerLabelInSQL("m")+filter+`
 		ORDER BY m.created_at DESC
 		LIMIT ? OFFSET ?
 	`, append(baseArgs, limit, offset)...).Scan(&markers).Error
@@ -399,110 +395,6 @@ func (r *MarkerRepositoryImpl) GetByUserAndScenes(userID uint, sceneIDs []uint) 
 		return nil, err
 	}
 	return markers, nil
-}
-
-// GetLabelTags returns the default tags for a label
-func (r *MarkerRepositoryImpl) GetLabelTags(userID uint, label string) ([]Tag, error) {
-	var tags []Tag
-	err := r.DB.
-		Table("tags").
-		Joins("JOIN marker_label_tags ON marker_label_tags.tag_id = tags.id").
-		Where("marker_label_tags.user_id = ? AND marker_label_tags.label = ?", userID, label).
-		Order("tags.name ASC").
-		Find(&tags).Error
-	if err != nil {
-		return nil, err
-	}
-	return tags, nil
-}
-
-// SetLabelTags sets the default tags for a label and syncs to all existing markers
-func (r *MarkerRepositoryImpl) SetLabelTags(userID uint, label string, tagIDs []uint) error {
-	return r.DB.Transaction(func(tx *gorm.DB) error {
-		// Delete existing label tags
-		if err := tx.Where("user_id = ? AND label = ?", userID, label).Delete(&MarkerLabelTag{}).Error; err != nil {
-			return err
-		}
-
-		// Insert new label tags
-		if len(tagIDs) > 0 {
-			labelTags := make([]MarkerLabelTag, len(tagIDs))
-			for i, tagID := range tagIDs {
-				labelTags[i] = MarkerLabelTag{
-					UserID: userID,
-					Label:  label,
-					TagID:  tagID,
-				}
-			}
-			if err := tx.Create(&labelTags).Error; err != nil {
-				return err
-			}
-		}
-
-		// Sync to all existing markers with this label
-		// First, get all marker IDs with this label
-		var markerIDs []uint
-		if err := tx.Model(&UserSceneMarker{}).
-			Where("user_id = ? AND label = ?", userID, label).
-			Pluck("id", &markerIDs).Error; err != nil {
-			return err
-		}
-
-		if len(markerIDs) == 0 {
-			return nil
-		}
-
-		// Delete existing label-derived tags from these markers
-		if err := tx.Where("marker_id IN ? AND is_from_label = ?", markerIDs, true).Delete(&MarkerTag{}).Error; err != nil {
-			return err
-		}
-
-		// Add new label-derived tags to all markers
-		if len(tagIDs) > 0 {
-			markerTags := make([]MarkerTag, 0, len(markerIDs)*len(tagIDs))
-			for _, markerID := range markerIDs {
-				for _, tagID := range tagIDs {
-					markerTags = append(markerTags, MarkerTag{
-						MarkerID:    markerID,
-						TagID:       tagID,
-						IsFromLabel: true,
-					})
-				}
-			}
-			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&markerTags).Error; err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-}
-
-// GetAllLabelTagsForUser returns all label->tags mappings for a user
-func (r *MarkerRepositoryImpl) GetAllLabelTagsForUser(userID uint) (map[string][]Tag, error) {
-	type labelTagResult struct {
-		Label string
-		Tag
-	}
-
-	var results []labelTagResult
-	err := r.DB.
-		Table("marker_label_tags").
-		Select("marker_label_tags.label, tags.*").
-		Joins("JOIN tags ON tags.id = marker_label_tags.tag_id").
-		Where("marker_label_tags.user_id = ?", userID).
-		Order("marker_label_tags.label ASC, tags.name ASC").
-		Scan(&results).Error
-	if err != nil {
-		return nil, err
-	}
-
-	tagsByLabel := make(map[string][]Tag)
-	for _, r := range results {
-		tagsByLabel[r.Label] = append(tagsByLabel[r.Label], r.Tag)
-	}
-
-	return tagsByLabel, nil
 }
 
 // GetMarkerTags returns tags for a specific marker
@@ -599,96 +491,27 @@ func (r *MarkerRepositoryImpl) AddMarkerTags(markerID uint, tagIDs []uint) error
 	return r.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&markerTags).Error
 }
 
-// SyncMarkerTagsFromLabel syncs label-derived tags to all markers with a given label
-func (r *MarkerRepositoryImpl) SyncMarkerTagsFromLabel(userID uint, label string) error {
+// ApplyLabelTagsToMarker makes the marker's tags "from label" the default tags of its label:
+// the other tags from label are dropped, the missing ones added (a tag set by hand stays).
+func (r *MarkerRepositoryImpl) ApplyLabelTagsToMarker(markerID uint) error {
 	return r.DB.Transaction(func(tx *gorm.DB) error {
-		// Get label tag IDs
-		var tagIDs []uint
-		if err := tx.Model(&MarkerLabelTag{}).
-			Where("user_id = ? AND label = ?", userID, label).
-			Pluck("tag_id", &tagIDs).Error; err != nil {
-			return err
+		if err := tx.Exec(`DELETE FROM marker_tags mt
+				USING user_scene_markers m
+				WHERE mt.marker_id = m.id AND m.id = ? AND mt.is_from_label
+					AND (m.label_id IS NULL
+						OR mt.tag_id NOT IN (SELECT tag_id FROM marker_label_tags WHERE label_id = m.label_id))`,
+			markerID).Error; err != nil {
+			return fmt.Errorf("drop old label tags of marker %d: %w", markerID, err)
 		}
-
-		// Get marker IDs with this label
-		var markerIDs []uint
-		if err := tx.Model(&UserSceneMarker{}).
-			Where("user_id = ? AND label = ?", userID, label).
-			Pluck("id", &markerIDs).Error; err != nil {
-			return err
+		if err := tx.Exec(`INSERT INTO marker_tags (marker_id, tag_id, is_from_label)
+				SELECT m.id, lt.tag_id, TRUE FROM user_scene_markers m
+				JOIN marker_label_tags lt ON lt.label_id = m.label_id
+				WHERE m.id = ?
+				ON CONFLICT (marker_id, tag_id) DO NOTHING`, markerID).Error; err != nil {
+			return fmt.Errorf("add label tags to marker %d: %w", markerID, err)
 		}
-
-		if len(markerIDs) == 0 {
-			return nil
-		}
-
-		// Delete existing label-derived tags
-		if err := tx.Where("marker_id IN ? AND is_from_label = ?", markerIDs, true).Delete(&MarkerTag{}).Error; err != nil {
-			return err
-		}
-
-		// Add new label-derived tags
-		if len(tagIDs) > 0 {
-			markerTags := make([]MarkerTag, 0, len(markerIDs)*len(tagIDs))
-			for _, markerID := range markerIDs {
-				for _, tagID := range tagIDs {
-					markerTags = append(markerTags, MarkerTag{
-						MarkerID:    markerID,
-						TagID:       tagID,
-						IsFromLabel: true,
-					})
-				}
-			}
-			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&markerTags).Error; err != nil {
-				return err
-			}
-		}
-
 		return nil
 	})
-}
-
-// ApplyLabelTagsToMarker applies label-derived tags to a single marker
-func (r *MarkerRepositoryImpl) ApplyLabelTagsToMarker(userID uint, markerID uint, label string) error {
-	if label == "" {
-		return nil
-	}
-
-	// Get label tag IDs
-	var tagIDs []uint
-	if err := r.DB.Model(&MarkerLabelTag{}).
-		Where("user_id = ? AND label = ?", userID, label).
-		Pluck("tag_id", &tagIDs).Error; err != nil {
-		return err
-	}
-
-	if len(tagIDs) == 0 {
-		return nil
-	}
-
-	// Add label-derived tags to the marker
-	markerTags := make([]MarkerTag, len(tagIDs))
-	for i, tagID := range tagIDs {
-		markerTags[i] = MarkerTag{
-			MarkerID:    markerID,
-			TagID:       tagID,
-			IsFromLabel: true,
-		}
-	}
-
-	return r.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&markerTags).Error
-}
-
-// GetMarkerIDsByLabel returns all marker IDs with a given label for a user
-func (r *MarkerRepositoryImpl) GetMarkerIDsByLabel(userID uint, label string) ([]uint, error) {
-	var markerIDs []uint
-	err := r.DB.Model(&UserSceneMarker{}).
-		Where("user_id = ? AND label = ?", userID, label).
-		Pluck("id", &markerIDs).Error
-	if err != nil {
-		return nil, err
-	}
-	return markerIDs, nil
 }
 
 // GetRandomThumbnailsForLabels returns random marker IDs with thumbnails for each label
@@ -769,7 +592,7 @@ func (r *MarkerRepositoryImpl) GetSceneIDsByLabels(userID uint, labels []string)
 	var sceneIDs []uint
 	err := r.DB.Model(&UserSceneMarker{}).
 		Select("DISTINCT scene_id").
-		Where(VisibleMarkersSQL("")+" AND label IN ?", userID, labels).
+		Where(VisibleMarkersSQL("")+" AND "+markerLabelInSQL("user_scene_markers"), userID, markerLabelKeys(labels)).
 		Pluck("scene_id", &sceneIDs).Error
 	if err != nil {
 		return nil, err
@@ -810,8 +633,10 @@ func (r *MarkerRepositoryImpl) ApplyMarkerDedup(merges []MarkerDedupMerge) error
 	return r.DB.Transaction(func(tx *gorm.DB) error {
 		for _, m := range merges {
 			if m.Label != nil {
-				if err := tx.Model(&UserSceneMarker{}).Where("id = ?", m.KeepID).
-					Update("label", *m.Label).Error; err != nil {
+				// the label comes from another marker of the set: it exists (empty: none)
+				if err := tx.Exec(`UPDATE user_scene_markers SET label_id =
+						(SELECT id FROM marker_labels WHERE lower(name) = lower(btrim(?)))
+					WHERE id = ?`, *m.Label, m.KeepID).Error; err != nil {
 					return fmt.Errorf("failed to set label of marker %d: %w", m.KeepID, err)
 				}
 			}

@@ -56,7 +56,7 @@ func TestUpdateMarker_SetEnd(t *testing.T) {
 	sceneRepo.EXPECT().GetByID(uint(2)).Return(&data.Scene{ID: 2, Duration: 100}, nil)
 	markerRepo.EXPECT().Update(marker).Return(nil)
 
-	got, err := svc.UpdateMarker(1, 3, nil, nil, nil, ptr(25), false)
+	got, err := svc.UpdateMarker(1, 3, nil, nil, nil, ptr(25), false, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestUpdateMarker_ClearEnd(t *testing.T) {
 	markerRepo.EXPECT().GetByID(uint(3)).Return(marker, nil)
 	markerRepo.EXPECT().Update(marker).Return(nil)
 
-	got, err := svc.UpdateMarker(1, 3, nil, nil, nil, ptr(40), true)
+	got, err := svc.UpdateMarker(1, 3, nil, nil, nil, ptr(40), true, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestUpdateMarker_StartMovedPastExistingEnd(t *testing.T) {
 	markerRepo.EXPECT().GetByID(uint(3)).Return(marker, nil)
 	sceneRepo.EXPECT().GetByID(uint(2)).Return(&data.Scene{ID: 2, Duration: 100}, nil)
 
-	_, err := svc.UpdateMarker(1, 3, nil, nil, ptr(30), nil, false)
+	_, err := svc.UpdateMarker(1, 3, nil, nil, ptr(30), nil, false, false)
 	if !apperrors.IsValidation(err) {
 		t.Fatalf("expected validation error, got %v", err)
 	}
@@ -98,7 +98,7 @@ func TestUpdateMarker_EndBeyondDuration(t *testing.T) {
 	markerRepo.EXPECT().GetByID(uint(3)).Return(marker, nil)
 	sceneRepo.EXPECT().GetByID(uint(2)).Return(&data.Scene{ID: 2, Duration: 100}, nil)
 
-	_, err := svc.UpdateMarker(1, 3, nil, nil, nil, ptr(150), false)
+	_, err := svc.UpdateMarker(1, 3, nil, nil, nil, ptr(150), false, false)
 	if !apperrors.IsValidation(err) {
 		t.Fatalf("expected validation error, got %v", err)
 	}

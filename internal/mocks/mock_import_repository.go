@@ -55,17 +55,17 @@ func (mr *MockImportRepositoryMockRecorder) AddMarkerTags(markerID, tagIDs any) 
 }
 
 // ApplyLabelTagsToMarker mocks base method.
-func (m *MockImportRepository) ApplyLabelTagsToMarker(userID, markerID uint, label string) error {
+func (m *MockImportRepository) ApplyLabelTagsToMarker(markerID uint) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ApplyLabelTagsToMarker", userID, markerID, label)
+	ret := m.ctrl.Call(m, "ApplyLabelTagsToMarker", markerID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ApplyLabelTagsToMarker indicates an expected call of ApplyLabelTagsToMarker.
-func (mr *MockImportRepositoryMockRecorder) ApplyLabelTagsToMarker(userID, markerID, label any) *gomock.Call {
+func (mr *MockImportRepositoryMockRecorder) ApplyLabelTagsToMarker(markerID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyLabelTagsToMarker", reflect.TypeOf((*MockImportRepository)(nil).ApplyLabelTagsToMarker), userID, markerID, label)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyLabelTagsToMarker", reflect.TypeOf((*MockImportRepository)(nil).ApplyLabelTagsToMarker), markerID)
 }
 
 // CountMarkersByScenes mocks base method.
@@ -124,6 +124,21 @@ func (m *MockImportRepository) CreateScene(scene *data.Scene) error {
 func (mr *MockImportRepositoryMockRecorder) CreateScene(scene any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateScene", reflect.TypeOf((*MockImportRepository)(nil).CreateScene), scene)
+}
+
+// EnsureMarkerLabel mocks base method.
+func (m *MockImportRepository) EnsureMarkerLabel(name string) (*data.MarkerLabel, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnsureMarkerLabel", name)
+	ret0, _ := ret[0].(*data.MarkerLabel)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EnsureMarkerLabel indicates an expected call of EnsureMarkerLabel.
+func (mr *MockImportRepositoryMockRecorder) EnsureMarkerLabel(name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnsureMarkerLabel", reflect.TypeOf((*MockImportRepository)(nil).EnsureMarkerLabel), name)
 }
 
 // FindMarker mocks base method.

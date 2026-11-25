@@ -46,8 +46,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	}
 	sceneRepository := provideSceneRepository(db)
 	markerRepository := provideMarkerRepository(db)
+	markerLabelRepository := provideMarkerLabelRepository(db)
 	tagRepository := provideTagRepository(db)
-	markerService := provideMarkerService(markerRepository, sceneRepository, tagRepository, configConfig, logger)
+	markerService := provideMarkerService(markerRepository, markerLabelRepository, sceneRepository, tagRepository, configConfig, logger)
 	eventBus := provideEventBus(logger)
 	jobHistoryRepository := provideJobHistoryRepository(db)
 	scenePhaseFailureRepository := provideScenePhaseFailureRepository(db)
@@ -154,7 +155,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	duplicateService := provideDuplicateService(duplicateGroupRepository, sceneRepository, tagRepository, actorRepository, markerRepository, interactionRepository, sceneService, duplicationConfigRepository, markerService, logger)
 	homepageService := provideHomepageService(settingsService, searchService, savedSearchService, playlistService, watchHistoryRepository, interactionRepository, sceneRepository, tagRepository, actorRepository, studioRepository, db, markerRepository, relatedScenesService, jobHistoryRepository, duplicateService, storagePathRepository, rbacService, logger)
 	homepageHandler := provideHomepageHandler(homepageService)
-	markerHandler := provideMarkerHandler(markerService, db, configConfig, logger)
+	markerHandler := provideMarkerHandler(markerService, markerLabelRepository, tagRepository, db, configConfig, logger)
 	importRepository := provideImportRepository(db)
 	importService := provideImportService(importRepository, sceneRepository, tagRepository, actorRepository, studioRepository, storagePathRepository, userRepository, interactionRepository, searchService, logger)
 	importHandler := provideImportHandler(importService, logger)
@@ -303,6 +304,10 @@ func provideSavedSearchRepository(db *gorm.DB) data.SavedSearchRepository {
 
 func provideMarkerRepository(db *gorm.DB) data.MarkerRepository {
 	return data.NewMarkerRepository(db)
+}
+
+func provideMarkerLabelRepository(db *gorm.DB) data.MarkerLabelRepository {
+	return data.NewMarkerLabelRepository(db)
 }
 
 func providePlaylistRepository(db *gorm.DB) data.PlaylistRepository {
@@ -551,8 +556,8 @@ func provideHomepageService(
 	return svc
 }
 
-func provideMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
-	return core.NewMarkerService(markerRepo, sceneRepo, tagRepo, cfg, logger.Logger)
+func provideMarkerService(markerRepo data.MarkerRepository, labelRepo data.MarkerLabelRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
+	return core.NewMarkerService(markerRepo, labelRepo, sceneRepo, tagRepo, cfg, logger.Logger)
 }
 
 func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, logger *logging.Logger) *core.PlaylistService {
@@ -733,8 +738,9 @@ func provideHomepageHandler(homepageService *core.HomepageService) *handler.Home
 	return handler.NewHomepageHandler(homepageService)
 }
 
-func provideMarkerHandler(markerService *core.MarkerService, db *gorm.DB, cfg *config.Config, logger *logging.Logger) *handler.MarkerHandler {
+func provideMarkerHandler(markerService *core.MarkerService, labelRepo data.MarkerLabelRepository, tagRepo data.TagRepository, db *gorm.DB, cfg *config.Config, logger *logging.Logger) *handler.MarkerHandler {
 	h := handler.NewMarkerHandler(markerService, cfg.Pagination.MaxItemsPerPage)
+	h.SetLabelService(core.NewMarkerLabelService(labelRepo, tagRepo, logger.Logger))
 	h.SetSavedFilterService(core.NewSavedMarkerFilterService(data.NewSavedMarkerFilterRepository(db), logger.Logger))
 	return h
 }
