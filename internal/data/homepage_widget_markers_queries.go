@@ -37,7 +37,7 @@ type WidgetMarker struct {
 	Tags []MarkerTagInfo `json:"tags,omitempty" gorm:"-"`
 }
 
-// ListWidgetMarkers returns markers of a user for a widget.
+// ListWidgetMarkers returns the markers a user sees (own and shared) for a widget.
 func ListWidgetMarkers(db *gorm.DB, userID uint, q WidgetMarkerQuery) ([]WidgetMarker, error) {
 	order := "m.created_at DESC, m.id DESC"
 	if q.Order == "random" {
@@ -47,7 +47,7 @@ func ListWidgetMarkers(db *gorm.DB, userID uint, q WidgetMarkerQuery) ([]WidgetM
 		Select("m.id, m.scene_id, s.title AS scene_title, m.label, m.color, m.timestamp, m.end_timestamp, "+
 			"m.thumbnail_path, m.animated_thumbnail_path, m.updated_at").
 		Joins("JOIN scenes s ON s.id = m.scene_id").
-		Where("m.user_id = ? AND s.trashed_at IS NULL AND s.deleted_at IS NULL", userID)
+		Where(VisibleMarkersSQL("m")+" AND s.trashed_at IS NULL AND s.deleted_at IS NULL", userID)
 	if len(q.Labels) > 0 {
 		query = query.Where("m.label IN ?", q.Labels)
 	}
@@ -77,7 +77,8 @@ type WidgetTile struct {
 	CoverSceneID       *uint  `json:"cover_scene_id,omitempty"`
 }
 
-// ListMarkerLabelTiles returns marker label tiles of a user (most used first), each with a random
+// ListMarkerLabelTiles returns the label tiles of the markers a user sees (own and shared, most
+// used first), each with a random
 // marker thumbnail as cover. With labels, only those labels are returned (in that order).
 func ListMarkerLabelTiles(db *gorm.DB, userID uint, labels []string, limit int) ([]WidgetTile, error) {
 	type row struct {
@@ -88,12 +89,12 @@ func ListMarkerLabelTiles(db *gorm.DB, userID uint, labels []string, limit int) 
 	query := db.Table("user_scene_markers AS m").
 		Select(`m.label, COUNT(*) AS count,
 			(SELECT m2.id FROM user_scene_markers m2 JOIN scenes s2 ON s2.id = m2.scene_id
-			 WHERE m2.user_id = m.user_id AND m2.label = m.label AND m2.thumbnail_path <> ''
+			 WHERE `+VisibleMarkersSQL("m2")+` AND m2.label = m.label AND m2.thumbnail_path <> ''
 			   AND s2.trashed_at IS NULL AND s2.deleted_at IS NULL
-			 ORDER BY RANDOM() LIMIT 1) AS cover_marker_id`).
+			 ORDER BY RANDOM() LIMIT 1) AS cover_marker_id`, userID).
 		Joins("JOIN scenes s ON s.id = m.scene_id").
-		Where("m.user_id = ? AND m.label <> '' AND s.trashed_at IS NULL AND s.deleted_at IS NULL", userID).
-		Group("m.user_id, m.label")
+		Where(VisibleMarkersSQL("m")+" AND m.label <> '' AND s.trashed_at IS NULL AND s.deleted_at IS NULL", userID).
+		Group("m.label")
 	if len(labels) > 0 {
 		query = query.Where("m.label IN ?", labels)
 	}

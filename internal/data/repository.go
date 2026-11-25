@@ -17,6 +17,8 @@ type UserRepository interface {
 	UpdateUsername(userID uint, newUsername string) error
 	List(page, limit int) ([]User, int64, error)
 	UpdateRole(userID uint, role string) error
+	// UpdateShareMarkers sets whether the user's markers are visible to every user.
+	UpdateShareMarkers(userID uint, share bool) error
 	UpdateLastLogin(userID uint) error
 	Delete(userID uint) error
 }
@@ -744,6 +746,10 @@ func (r *UserRepositoryImpl) List(page, limit int) ([]User, int64, error) {
 
 func (r *UserRepositoryImpl) UpdateRole(userID uint, role string) error {
 	return r.DB.Model(&User{}).Where("id = ?", userID).Update("role", role).Error
+}
+
+func (r *UserRepositoryImpl) UpdateShareMarkers(userID uint, share bool) error {
+	return r.DB.Model(&User{}).Where("id = ?", userID).Update("share_markers", share).Error
 }
 
 func (r *UserRepositoryImpl) UpdateLastLogin(userID uint) error {

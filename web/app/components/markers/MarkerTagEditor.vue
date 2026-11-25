@@ -5,6 +5,8 @@ import type { Tag } from '~/types/tag';
 const props = defineProps<{
     markerId: number;
     initialTags?: MarkerTagInfo[];
+    // Tags shown only (a marker shared by another user)
+    readonly?: boolean;
 }>();
 
 const { fetchMarkerTags, setMarkerTags } = useApiMarkers();
@@ -180,6 +182,7 @@ defineExpose({ reload });
                 />
                 {{ tag.name }}
                 <span
+                    v-if="!readonly"
                     class="cursor-pointer opacity-0 transition-opacity group-hover:opacity-60
                         hover:opacity-100!"
                     :class="{ 'pointer-events-none': saving }"
@@ -191,6 +194,7 @@ defineExpose({ reload });
 
             <!-- Add tag button -->
             <button
+                v-if="!readonly"
                 ref="anchorRef"
                 class="border-border hover:border-border-hover flex h-4 w-4 items-center
                     justify-center rounded-full border transition-colors"
@@ -208,6 +212,7 @@ defineExpose({ reload });
             </button>
 
             <WatchTagPicker
+                v-if="!readonly"
                 :visible="showTagPicker"
                 :tags="availableTags"
                 :anchor-el="anchorRef"

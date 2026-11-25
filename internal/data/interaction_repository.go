@@ -39,7 +39,7 @@ type InteractionRepository interface {
 	GetJizzedSceneIDs(userID uint, minCount, maxCount int) ([]uint, error)
 	// GetWatchedSceneIDs returns the scenes the user has watched at least once.
 	GetWatchedSceneIDs(userID uint) ([]uint, error)
-	// GetMarkedSceneIDs returns the scenes on which the user has markers.
+	// GetMarkedSceneIDs returns the scenes on which the user sees markers (own or shared).
 	GetMarkedSceneIDs(userID uint) ([]uint, error)
 	GetLikesBySceneIDs(userID uint, sceneIDs []uint) (map[uint]bool, error)
 	GetJizzCountsBySceneIDs(userID uint, sceneIDs []uint) (map[uint]int, error)
@@ -314,7 +314,7 @@ func (r *InteractionRepositoryImpl) GetWatchedSceneIDs(userID uint) ([]uint, err
 
 func (r *InteractionRepositoryImpl) GetMarkedSceneIDs(userID uint) ([]uint, error) {
 	var ids []uint
-	err := r.DB.Raw("SELECT DISTINCT scene_id FROM user_scene_markers WHERE user_id = ?", userID).
+	err := r.DB.Raw("SELECT DISTINCT scene_id FROM user_scene_markers WHERE "+VisibleMarkersSQL(""), userID).
 		Scan(&ids).Error
 	return ids, err
 }

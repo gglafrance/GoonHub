@@ -12,7 +12,10 @@ import (
 type MarkerRepository interface {
 	Create(marker *UserSceneMarker) error
 	GetByID(id uint) (*UserSceneMarker, error)
+	// GetByUserAndScene returns the markers of a scene that the user sees (VisibleMarkersSQL):
+	// their own and the shared ones.
 	GetByUserAndScene(userID, sceneID uint) ([]UserSceneMarker, error)
+	// CountByUserAndScene counts the user's own markers on a scene.
 	CountByUserAndScene(userID, sceneID uint) (int64, error)
 	Update(marker *UserSceneMarker) error
 	// UpdateThumbnailPath / UpdateAnimatedThumbnailPath set only that column (and updated_at,
@@ -20,6 +23,8 @@ type MarkerRepository interface {
 	UpdateThumbnailPath(id uint, path string) error
 	UpdateAnimatedThumbnailPath(id uint, path string) error
 	Delete(id uint) error
+	// The listings below (labels, markers, thumbnails, scenes by label) cover the markers the
+	// user sees: their own and the shared ones (VisibleMarkersSQL).
 	GetLabelSuggestionsForUser(userID uint, limit int) ([]MarkerLabelSuggestion, error)
 	GetLabelGroupsForUser(userID uint, offset, limit int, opts MarkerListOptions) ([]MarkerLabelGroup, int64, error)
 	GetMarkersByLabelForUser(userID uint, label string, offset, limit int, opts MarkerListOptions) ([]MarkerWithScene, int64, error)
@@ -40,7 +45,7 @@ type MarkerRepository interface {
 
 	// Thumbnail methods
 	GetRandomThumbnailsForLabels(userID uint, labels []string, perLabel int, opts MarkerListOptions) (map[string][]MarkerThumbnailRef, error)
-	// GetByUserAndScenes returns the user's markers of several scenes, ordered by timestamp.
+	// GetByUserAndScenes returns the markers the user sees on several scenes, ordered by timestamp.
 	GetByUserAndScenes(userID uint, sceneIDs []uint) ([]UserSceneMarker, error)
 
 	// Scene-level methods (not user-scoped)
@@ -73,6 +78,18 @@ func NewMarkerRepository(db *gorm.DB) *MarkerRepositoryImpl {
 	return &MarkerRepositoryImpl{DB: db}
 }
 
+// VisibleMarkersSQL is the condition keeping the markers (of the table aliased as alias, or
+// unaliased when alias is empty) that a user sees: their own and those of the users who share
+// theirs (users.share_markers). The user ID is its single bound argument. Only listings use it;
+// writes stay limited to the owner.
+func VisibleMarkersSQL(alias string) string {
+	col := "user_id"
+	if alias != "" {
+		col = alias + ".user_id"
+	}
+	return "(" + col + " = ? OR " + col + " IN (SELECT id FROM users WHERE share_markers))"
+}
+
 func (r *MarkerRepositoryImpl) Create(marker *UserSceneMarker) error {
 	return r.DB.Create(marker).Error
 }
@@ -87,8 +104,8 @@ func (r *MarkerRepositoryImpl) GetByID(id uint) (*UserSceneMarker, error) {
 
 func (r *MarkerRepositoryImpl) GetByUserAndScene(userID, sceneID uint) ([]UserSceneMarker, error) {
 	var markers []UserSceneMarker
-	err := r.DB.Where("user_id = ? AND scene_id = ?", userID, sceneID).
-		Order("timestamp ASC").
+	err := r.DB.Where(VisibleMarkersSQL("")+" AND scene_id = ?", userID, sceneID).
+		Order("timestamp ASC, id ASC").
 		Find(&markers).Error
 	if err != nil {
 		return nil, err
@@ -134,7 +151,7 @@ func (r *MarkerRepositoryImpl) GetLabelSuggestionsForUser(userID uint, limit int
 	var suggestions []MarkerLabelSuggestion
 	err := r.DB.Model(&UserSceneMarker{}).
 		Select("label, COUNT(*) as count").
-		Where("user_id = ? AND label != ''", userID).
+		Where(VisibleMarkersSQL("")+" AND label != ''", userID).
 		Group("label").
 		Order("count DESC").
 		Limit(limit).
@@ -248,7 +265,7 @@ func (r *MarkerRepositoryImpl) GetLabelGroupsForUser(userID uint, offset, limit 
 	var totalCount int64
 	err := r.DB.Raw(`
 		SELECT COUNT(DISTINCT um.label) FROM user_scene_markers um
-		WHERE um.user_id = ? AND um.label != ''`+outerFilter,
+		WHERE `+VisibleMarkersSQL("um")+` AND um.label != ''`+outerFilter,
 		append([]any{userID}, outerArgs...)...).Scan(&totalCount).Error
 	if err != nil {
 		return nil, 0, err
@@ -274,10 +291,10 @@ func (r *MarkerRepositoryImpl) GetLabelGroupsForUser(userID uint, offset, limit 
 			um.label,
 			COUNT(*) as count,
 			(SELECT m2.id FROM user_scene_markers m2
-			 WHERE m2.user_id = ? AND m2.label = um.label`+innerFilter+`
+			 WHERE `+VisibleMarkersSQL("m2")+` AND m2.label = um.label`+innerFilter+`
 			 ORDER BY m2.created_at DESC LIMIT 1) as thumbnail_marker_id
 		FROM user_scene_markers um
-		WHERE um.user_id = ? AND um.label != ''`+outerFilter+`
+		WHERE `+VisibleMarkersSQL("um")+` AND um.label != ''`+outerFilter+`
 		GROUP BY um.label
 		ORDER BY `+orderClause+`
 		LIMIT ? OFFSET ?
@@ -297,7 +314,7 @@ func (r *MarkerRepositoryImpl) GetMarkersByLabelForUser(userID uint, label strin
 	var totalCount int64
 	err := r.DB.Raw(`
 		SELECT COUNT(*) FROM user_scene_markers m
-		WHERE m.user_id = ? AND m.label = ?`+filter, baseArgs...).Scan(&totalCount).Error
+		WHERE `+VisibleMarkersSQL("m")+` AND m.label = ?`+filter, baseArgs...).Scan(&totalCount).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -308,7 +325,7 @@ func (r *MarkerRepositoryImpl) GetMarkersByLabelForUser(userID uint, label strin
 		SELECT m.*, s.title as scene_title
 		FROM user_scene_markers m
 		JOIN scenes s ON m.scene_id = s.id
-		WHERE m.user_id = ? AND m.label = ?`+filter+`
+		WHERE `+VisibleMarkersSQL("m")+` AND m.label = ?`+filter+`
 		ORDER BY m.created_at DESC
 		LIMIT ? OFFSET ?
 	`, append(baseArgs, limit, offset)...).Scan(&markers).Error
@@ -336,7 +353,7 @@ func (r *MarkerRepositoryImpl) GetAllMarkersForUser(userID uint, offset, limit i
 	var totalCount int64
 	err := r.DB.Raw(`
 		SELECT COUNT(*) FROM user_scene_markers m
-		WHERE m.user_id = ?`+filter, baseArgs...).Scan(&totalCount).Error
+		WHERE `+VisibleMarkersSQL("m")+filter, baseArgs...).Scan(&totalCount).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -357,7 +374,7 @@ func (r *MarkerRepositoryImpl) GetAllMarkersForUser(userID uint, offset, limit i
 		SELECT m.*, s.title as scene_title
 		FROM user_scene_markers m
 		JOIN scenes s ON m.scene_id = s.id
-		WHERE m.user_id = ?`+filter+`
+		WHERE `+VisibleMarkersSQL("m")+filter+`
 		ORDER BY `+orderClause+`
 		LIMIT ? OFFSET ?
 	`, args...).Scan(&markers).Error
@@ -368,13 +385,14 @@ func (r *MarkerRepositoryImpl) GetAllMarkersForUser(userID uint, offset, limit i
 	return markers, totalCount, nil
 }
 
-// GetByUserAndScenes returns the user's markers of several scenes, ordered by timestamp.
+// GetByUserAndScenes returns the markers the user sees (own and shared) on several scenes,
+// ordered by timestamp.
 func (r *MarkerRepositoryImpl) GetByUserAndScenes(userID uint, sceneIDs []uint) ([]UserSceneMarker, error) {
 	if len(sceneIDs) == 0 {
 		return []UserSceneMarker{}, nil
 	}
 	var markers []UserSceneMarker
-	err := r.DB.Where("user_id = ? AND scene_id IN ?", userID, sceneIDs).
+	err := r.DB.Where(VisibleMarkersSQL("")+" AND scene_id IN ?", userID, sceneIDs).
 		Order("scene_id ASC, timestamp ASC").
 		Find(&markers).Error
 	if err != nil {
@@ -694,7 +712,7 @@ func (r *MarkerRepositoryImpl) GetRandomThumbnailsForLabels(userID uint, labels 
 		SELECT label, id, updated_at FROM (
 			SELECT um.label, um.id, um.updated_at, ROW_NUMBER() OVER (PARTITION BY um.label ORDER BY RANDOM()) as rn
 			FROM user_scene_markers um
-			WHERE um.user_id = ? AND um.label IN ? AND um.thumbnail_path != '' AND um.thumbnail_path IS NOT NULL`+filter+`
+			WHERE `+VisibleMarkersSQL("um")+` AND um.label IN ? AND um.thumbnail_path != '' AND um.thumbnail_path IS NOT NULL`+filter+`
 		) sub WHERE rn <= ?
 	`, args...).Scan(&results).Error
 	if err != nil {
@@ -751,7 +769,7 @@ func (r *MarkerRepositoryImpl) GetSceneIDsByLabels(userID uint, labels []string)
 	var sceneIDs []uint
 	err := r.DB.Model(&UserSceneMarker{}).
 		Select("DISTINCT scene_id").
-		Where("user_id = ? AND label IN ?", userID, labels).
+		Where(VisibleMarkersSQL("")+" AND label IN ?", userID, labels).
 		Pluck("scene_id", &sceneIDs).Error
 	if err != nil {
 		return nil, err

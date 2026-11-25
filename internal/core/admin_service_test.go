@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/data"
 	"goonhub/internal/mocks"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 func newTestAdminService(t *testing.T) (*AdminService, *mocks.MockUserRepository, *mocks.MockRoleRepository) {
@@ -213,5 +215,27 @@ func TestCreateUser_WeakPassword(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "digit") {
 		t.Fatalf("expected digit error, got: %v", err)
+	}
+}
+
+func TestSetUserShareMarkers_Success(t *testing.T) {
+	svc, userRepo, _ := newTestAdminService(t)
+
+	userRepo.EXPECT().GetByID(uint(3)).Return(&data.User{ID: 3}, nil)
+	userRepo.EXPECT().UpdateShareMarkers(uint(3), true).Return(nil)
+
+	if err := svc.SetUserShareMarkers(3, true); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+}
+
+func TestSetUserShareMarkers_UnknownUser(t *testing.T) {
+	svc, userRepo, _ := newTestAdminService(t)
+
+	userRepo.EXPECT().GetByID(uint(9)).Return(nil, gorm.ErrRecordNotFound)
+
+	err := svc.SetUserShareMarkers(9, true)
+	if !apperrors.IsNotFound(err) {
+		t.Fatalf("expected a not found error, got: %v", err)
 	}
 }

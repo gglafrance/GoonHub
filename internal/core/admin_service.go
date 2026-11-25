@@ -1,12 +1,15 @@
 package core
 
 import (
+	"errors"
 	"fmt"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/data"
 	"unicode"
 
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 // Password validation constants
@@ -125,6 +128,21 @@ func (s *AdminService) UpdateUserRole(userID uint, newRole string) error {
 	}
 
 	s.logger.Info("Admin updated user role", zap.Uint("user_id", userID), zap.String("new_role", newRole))
+	return nil
+}
+
+// SetUserShareMarkers sets whether the user's markers are visible (read-only) to every user.
+func (s *AdminService) SetUserShareMarkers(userID uint, share bool) error {
+	if _, err := s.userRepo.GetByID(userID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.NewNotFoundError("user", userID)
+		}
+		return apperrors.NewInternalError("failed to get user", err)
+	}
+	if err := s.userRepo.UpdateShareMarkers(userID, share); err != nil {
+		return apperrors.NewInternalError("failed to update marker sharing", err)
+	}
+	s.logger.Info("Admin updated user marker sharing", zap.Uint("user_id", userID), zap.Bool("share_markers", share))
 	return nil
 }
 

@@ -237,6 +237,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					admin.GET("/users", adminHandler.ListUsers)
 					admin.POST("/users", adminHandler.CreateUser)
 					admin.PUT("/users/:id/role", adminHandler.UpdateUserRole)
+					admin.PUT("/users/:id/share-markers", adminHandler.UpdateUserShareMarkers)
 					admin.PUT("/users/:id/password", adminHandler.ResetUserPassword)
 					admin.DELETE("/users/:id", adminHandler.DeleteUser)
 					admin.GET("/roles", adminHandler.ListRoles)

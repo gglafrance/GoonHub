@@ -43,6 +43,15 @@ export const useApiAdmin = () => {
         return handleResponse(response);
     };
 
+    const updateUserShareMarkers = async (userId: number, shareMarkers: boolean) => {
+        const response = await fetch(`/api/v1/admin/users/${userId}/share-markers`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ share_markers: shareMarkers }),
+        });
+        return handleResponse(response);
+    };
+
     const resetUserPassword = async (userId: number, newPassword: string) => {
         const response = await fetch(`/api/v1/admin/users/${userId}/password`, {
             method: 'PUT',
@@ -248,6 +257,7 @@ export const useApiAdmin = () => {
         fetchAdminUsers,
         createUser,
         updateUserRole,
+        updateUserShareMarkers,
         resetUserPassword,
         deleteUser,
         fetchRoles,

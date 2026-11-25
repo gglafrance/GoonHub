@@ -2,6 +2,8 @@ export interface AdminUser {
     id: number;
     username: string;
     role: string;
+    // The user's markers are visible (read-only) to every user
+    share_markers: boolean;
     created_at: string;
     last_login_at: string | null;
 }

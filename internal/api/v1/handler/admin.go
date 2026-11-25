@@ -3,6 +3,8 @@ package handler
 import (
 	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/request"
+	"goonhub/internal/api/v1/response"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
 	"goonhub/internal/data"
 	"net/http"
@@ -45,20 +47,22 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 	}
 
 	type userResponse struct {
-		ID          uint   `json:"id"`
-		Username    string `json:"username"`
-		Role        string `json:"role"`
-		CreatedAt   string `json:"created_at"`
-		LastLoginAt string `json:"last_login_at,omitempty"`
+		ID           uint   `json:"id"`
+		Username     string `json:"username"`
+		Role         string `json:"role"`
+		ShareMarkers bool   `json:"share_markers"`
+		CreatedAt    string `json:"created_at"`
+		LastLoginAt  string `json:"last_login_at,omitempty"`
 	}
 
 	userList := make([]userResponse, 0, len(users))
 	for _, u := range users {
 		ur := userResponse{
-			ID:        u.ID,
-			Username:  u.Username,
-			Role:      u.Role,
-			CreatedAt: u.CreatedAt.Format("2006-01-02T15:04:05Z"),
+			ID:           u.ID,
+			Username:     u.Username,
+			Role:         u.Role,
+			ShareMarkers: u.ShareMarkers,
+			CreatedAt:    u.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		}
 		if u.LastLoginAt != nil {
 			ur.LastLoginAt = u.LastLoginAt.Format("2006-01-02T15:04:05Z")
@@ -108,6 +112,28 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "User role updated successfully"})
+}
+
+// UpdateUserShareMarkers sets whether a user's markers are visible (read-only) to every user.
+func (h *AdminHandler) UpdateUserShareMarkers(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.Error(c, apperrors.NewValidationError("invalid user ID"))
+		return
+	}
+
+	var req request.UpdateUserShareMarkersRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, apperrors.NewValidationError("invalid request: "+err.Error()))
+		return
+	}
+
+	if err := h.AdminService.SetUserShareMarkers(uint(id), *req.ShareMarkers); err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, gin.H{"id": uint(id), "share_markers": *req.ShareMarkers})
 }
 
 func (h *AdminHandler) ResetUserPassword(c *gin.Context) {
