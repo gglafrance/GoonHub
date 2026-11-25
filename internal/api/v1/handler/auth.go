@@ -28,7 +28,7 @@ func NewAuthHandler(authService *core.AuthService, userService *core.UserService
 	return &AuthHandler{
 		AuthService:   authService,
 		UserService:   userService,
-		TokenDuration: 24 * time.Hour, // Default, should match config
+		TokenDuration: 24 * time.Hour, // Default of auth.token_duration
 		SecureCookies: false,          // Will be set based on environment
 	}
 }

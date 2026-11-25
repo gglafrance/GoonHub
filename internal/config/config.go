@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -11,20 +12,20 @@ import (
 )
 
 type Config struct {
-	Environment string            `mapstructure:"environment"`
-	Server      ServerConfig      `mapstructure:"server"`
-	Database    DatabaseConfig    `mapstructure:"database"`
-	Log         LogConfig         `mapstructure:"log"`
-	Processing  ProcessingConfig  `mapstructure:"processing"`
-	Auth        AuthConfig        `mapstructure:"auth"`
-	Meilisearch MeilisearchConfig `mapstructure:"meilisearch"`
-	PornDB      PornDBConfig      `mapstructure:"porndb"`
-	Shutdown    ShutdownConfig    `mapstructure:"shutdown"`
-	Streaming   StreamingConfig   `mapstructure:"streaming"`
-	Pagination  PaginationConfig  `mapstructure:"pagination"`
-	Sharing      SharingConfig      `mapstructure:"sharing"`
-	Duplication  DuplicationConfig  `mapstructure:"duplication"`
-	ClickHouse   ClickHouseConfig   `mapstructure:"clickhouse"`
+	Environment   string              `mapstructure:"environment"`
+	Server        ServerConfig        `mapstructure:"server"`
+	Database      DatabaseConfig      `mapstructure:"database"`
+	Log           LogConfig           `mapstructure:"log"`
+	Processing    ProcessingConfig    `mapstructure:"processing"`
+	Auth          AuthConfig          `mapstructure:"auth"`
+	Meilisearch   MeilisearchConfig   `mapstructure:"meilisearch"`
+	PornDB        PornDBConfig        `mapstructure:"porndb"`
+	Shutdown      ShutdownConfig      `mapstructure:"shutdown"`
+	Streaming     StreamingConfig     `mapstructure:"streaming"`
+	Pagination    PaginationConfig    `mapstructure:"pagination"`
+	Sharing       SharingConfig       `mapstructure:"sharing"`
+	Duplication   DuplicationConfig   `mapstructure:"duplication"`
+	ClickHouse    ClickHouseConfig    `mapstructure:"clickhouse"`
 	LibraryHealth LibraryHealthConfig `mapstructure:"library_health"`
 	Workers       WorkersConfig       `mapstructure:"workers"`
 }
@@ -198,55 +199,55 @@ type LogConfig struct {
 }
 
 type ProcessingConfig struct {
-	FrameInterval          int           `mapstructure:"frame_interval"`            // seconds
-	MaxFrameDimension      int           `mapstructure:"max_frame_dimension"`       // longest side in pixels (small thumbnail)
-	MaxFrameDimensionLarge int           `mapstructure:"max_frame_dimension_large"` // longest side in pixels (large thumbnail)
-	FrameQuality           int           `mapstructure:"frame_quality"`             // 1-100, WebP quality (small thumbnails)
-	FrameQualityLg         int           `mapstructure:"frame_quality_lg"`          // 1-100, WebP quality (large thumbnails)
-	FrameQualitySprites    int           `mapstructure:"frame_quality_sprites"`     // 1-100, WebP quality (sprite sheets)
-	MetadataWorkers        int           `mapstructure:"metadata_workers"`          // concurrent metadata jobs
-	ThumbnailWorkers       int           `mapstructure:"thumbnail_workers"`         // concurrent thumbnail jobs
-	SpritesWorkers         int           `mapstructure:"sprites_workers"`           // concurrent sprites jobs
-	ThumbnailSeek          string        `mapstructure:"thumbnail_seek"`            // "00:00:05" or "5%"
-	VideoDir               string        `mapstructure:"video_dir"`                 // directory for video files
-	MetadataDir            string        `mapstructure:"metadata_dir"`              // base directory for metadata (thumbnails, sprites, vtt)
-	FrameOutputDir         string        `mapstructure:"frame_output_dir"`          // relative to app root
-	ThumbnailDir           string        `mapstructure:"thumbnail_dir"`             // relative to app root
-	SpriteDir              string        `mapstructure:"sprite_dir"`                // relative to app root
-	VttDir                 string        `mapstructure:"vtt_dir"`                   // relative to app root
-	ActorImageDir          string        `mapstructure:"actor_image_dir"`           // directory for actor images
-	StudioLogoDir          string        `mapstructure:"studio_logo_dir"`           // directory for studio logos
-	MarkerThumbnailDir     string        `mapstructure:"marker_thumbnail_dir"`      // directory for marker thumbnails
-	GridCols               int           `mapstructure:"grid_cols"`                 // number of columns in sprite sheet
-	GridRows               int           `mapstructure:"grid_rows"`                 // number of rows in sprite sheet
-	SpritesConcurrency         int           `mapstructure:"sprites_concurrency"`           // concurrent ffmpeg processes for sprite extraction (0 = auto)
-	AnimatedThumbnailsWorkers  int           `mapstructure:"animated_thumbnails_workers"`   // concurrent animated thumbnail jobs
-	AnimatedThumbnailsTimeout  time.Duration `mapstructure:"animated_thumbnails_timeout"`   // timeout for animated thumbnail jobs
-	MarkerThumbnailType            string        `mapstructure:"marker_thumbnail_type"`             // "static" or "animated"
-	MarkerAnimatedDuration         int           `mapstructure:"marker_animated_duration"`          // animated clip duration in seconds (3-15)
-	MarkerThumbnailWorkers         int           `mapstructure:"marker_thumbnail_workers"`          // background marker thumbnail workers (default 2)
-	ScenePreviewEnabled            bool          `mapstructure:"scene_preview_enabled"`             // enable scene preview video generation
-	ScenePreviewSegments           int           `mapstructure:"scene_preview_segments"`            // number of segments to sample (2-24)
-	ScenePreviewSegmentDuration    float64       `mapstructure:"scene_preview_segment_duration"`    // duration of each segment in seconds (0.75-30.0)
-	ScenePreviewDir                string        `mapstructure:"scene_preview_dir"`                 // directory for scene preview videos
-	StagingDir                     string        `mapstructure:"staging_dir"`                       // job outputs before their commit ("" = "staging" next to sprite_dir)
-	MarkerPreviewCRF               int           `mapstructure:"marker_preview_crf"`                // CRF for marker animated thumbnails (18-40)
-	ScenePreviewCRF                int           `mapstructure:"scene_preview_crf"`                 // CRF for scene preview videos (18-40)
-	JobHistoryRetention            string        `mapstructure:"job_history_retention"`             // completed/cancelled jobs kept this long, e.g. "30d", "24h" ("0" = never purged)
-	JobHistoryFailedRetention      string        `mapstructure:"job_history_failed_retention"`      // failed/timed out jobs kept this long, e.g. "90d" ("0" = never purged)
-	JobHistoryPurgeInterval        time.Duration `mapstructure:"job_history_purge_interval"`        // how often the job history purge runs
-	JobHistoryPurgeBatchSize       int           `mapstructure:"job_history_purge_batch_size"`      // rows deleted per statement by the purge
-	MetadataTimeout            time.Duration `mapstructure:"metadata_timeout"`              // timeout for metadata extraction jobs
-	ThumbnailTimeout           time.Duration `mapstructure:"thumbnail_timeout"`             // timeout for thumbnail extraction jobs
-	SpritesTimeout             time.Duration `mapstructure:"sprites_timeout"`               // timeout for sprite sheet generation jobs
-	FailingThreshold           int           `mapstructure:"failing_threshold"`             // consecutive failures of a (scene, phase) on an unchanged file before it is no longer retried automatically (0 = never)
+	FrameInterval               int           `mapstructure:"frame_interval"`                 // seconds
+	MaxFrameDimension           int           `mapstructure:"max_frame_dimension"`            // longest side in pixels (small thumbnail)
+	MaxFrameDimensionLarge      int           `mapstructure:"max_frame_dimension_large"`      // longest side in pixels (large thumbnail)
+	FrameQuality                int           `mapstructure:"frame_quality"`                  // 1-100, WebP quality (small thumbnails)
+	FrameQualityLg              int           `mapstructure:"frame_quality_lg"`               // 1-100, WebP quality (large thumbnails)
+	FrameQualitySprites         int           `mapstructure:"frame_quality_sprites"`          // 1-100, WebP quality (sprite sheets)
+	MetadataWorkers             int           `mapstructure:"metadata_workers"`               // concurrent metadata jobs
+	ThumbnailWorkers            int           `mapstructure:"thumbnail_workers"`              // concurrent thumbnail jobs
+	SpritesWorkers              int           `mapstructure:"sprites_workers"`                // concurrent sprites jobs
+	ThumbnailSeek               string        `mapstructure:"thumbnail_seek"`                 // "00:00:05" or "5%"
+	VideoDir                    string        `mapstructure:"video_dir"`                      // directory for video files
+	MetadataDir                 string        `mapstructure:"metadata_dir"`                   // base directory for metadata (thumbnails, sprites, vtt)
+	FrameOutputDir              string        `mapstructure:"frame_output_dir"`               // relative to app root
+	ThumbnailDir                string        `mapstructure:"thumbnail_dir"`                  // relative to app root
+	SpriteDir                   string        `mapstructure:"sprite_dir"`                     // relative to app root
+	VttDir                      string        `mapstructure:"vtt_dir"`                        // relative to app root
+	ActorImageDir               string        `mapstructure:"actor_image_dir"`                // directory for actor images
+	StudioLogoDir               string        `mapstructure:"studio_logo_dir"`                // directory for studio logos
+	MarkerThumbnailDir          string        `mapstructure:"marker_thumbnail_dir"`           // directory for marker thumbnails
+	GridCols                    int           `mapstructure:"grid_cols"`                      // number of columns in sprite sheet
+	GridRows                    int           `mapstructure:"grid_rows"`                      // number of rows in sprite sheet
+	SpritesConcurrency          int           `mapstructure:"sprites_concurrency"`            // concurrent ffmpeg processes for sprite extraction (0 = auto)
+	AnimatedThumbnailsWorkers   int           `mapstructure:"animated_thumbnails_workers"`    // concurrent animated thumbnail jobs
+	AnimatedThumbnailsTimeout   time.Duration `mapstructure:"animated_thumbnails_timeout"`    // timeout for animated thumbnail jobs
+	MarkerThumbnailType         string        `mapstructure:"marker_thumbnail_type"`          // "static" or "animated"
+	MarkerAnimatedDuration      int           `mapstructure:"marker_animated_duration"`       // animated clip duration in seconds (3-15)
+	MarkerThumbnailWorkers      int           `mapstructure:"marker_thumbnail_workers"`       // background marker thumbnail workers (default 2)
+	ScenePreviewEnabled         bool          `mapstructure:"scene_preview_enabled"`          // enable scene preview video generation
+	ScenePreviewSegments        int           `mapstructure:"scene_preview_segments"`         // number of segments to sample (2-24)
+	ScenePreviewSegmentDuration float64       `mapstructure:"scene_preview_segment_duration"` // duration of each segment in seconds (0.75-30.0)
+	ScenePreviewDir             string        `mapstructure:"scene_preview_dir"`              // directory for scene preview videos
+	StagingDir                  string        `mapstructure:"staging_dir"`                    // job outputs before their commit ("" = "staging" next to sprite_dir)
+	MarkerPreviewCRF            int           `mapstructure:"marker_preview_crf"`             // CRF for marker animated thumbnails (18-40)
+	ScenePreviewCRF             int           `mapstructure:"scene_preview_crf"`              // CRF for scene preview videos (18-40)
+	JobHistoryRetention         string        `mapstructure:"job_history_retention"`          // completed/cancelled jobs kept this long, e.g. "30d", "24h" ("0" = never purged)
+	JobHistoryFailedRetention   string        `mapstructure:"job_history_failed_retention"`   // failed/timed out jobs kept this long, e.g. "90d" ("0" = never purged)
+	JobHistoryPurgeInterval     time.Duration `mapstructure:"job_history_purge_interval"`     // how often the job history purge runs
+	JobHistoryPurgeBatchSize    int           `mapstructure:"job_history_purge_batch_size"`   // rows deleted per statement by the purge
+	MetadataTimeout             time.Duration `mapstructure:"metadata_timeout"`               // timeout for metadata extraction jobs
+	ThumbnailTimeout            time.Duration `mapstructure:"thumbnail_timeout"`              // timeout for thumbnail extraction jobs
+	SpritesTimeout              time.Duration `mapstructure:"sprites_timeout"`                // timeout for sprite sheet generation jobs
+	FailingThreshold            int           `mapstructure:"failing_threshold"`              // consecutive failures of a (scene, phase) on an unchanged file before it is no longer retried automatically (0 = never)
 }
 
 type AuthConfig struct {
 	PasetoSecret       string        `mapstructure:"paseto_secret"`
 	AdminUsername      string        `mapstructure:"admin_username"`
 	AdminPassword      string        `mapstructure:"admin_password"`
-	TokenDuration      time.Duration `mapstructure:"token_duration"`
+	TokenDuration      time.Duration `mapstructure:"token_duration"`       // session lifetime (token + cookie), e.g. "24h", "30d", "1y"
 	LoginRateLimit     int           `mapstructure:"login_rate_limit"`     // requests per minute
 	LoginRateBurst     int           `mapstructure:"login_rate_burst"`     // burst size
 	LockoutThreshold   int           `mapstructure:"lockout_threshold"`    // failed attempts before lockout
@@ -377,7 +378,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("clickhouse.password", "")
 	v.SetDefault("streaming.max_global_streams", 100)
 	v.SetDefault("streaming.max_streams_per_ip", 10)
-	v.SetDefault("streaming.buffer_size", 262144)       // 256KB (8x default 32KB)
+	v.SetDefault("streaming.buffer_size", 262144) // 256KB (8x default 32KB)
 	v.SetDefault("streaming.path_cache_ttl", 5*time.Minute)
 	v.SetDefault("streaming.path_cache_max_size", 10000)
 	v.SetDefault("streaming.transcode.max_concurrent", 4)
@@ -408,9 +409,22 @@ func Load(path string) (*Config, error) {
 		}
 	}
 
+	// The session lifetime also accepts days and years ("30d", "1y"), which
+	// time.ParseDuration does not know.
+	if raw := strings.TrimSpace(v.GetString("auth.token_duration")); raw != "" {
+		d, err := ParseSessionDuration(raw)
+		if err != nil {
+			return nil, fmt.Errorf("auth.token_duration: %w", err)
+		}
+		v.Set("auth.token_duration", d)
+	}
+
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
+	}
+	if cfg.Auth.TokenDuration <= 0 {
+		return nil, fmt.Errorf("auth.token_duration must be positive, got %s", cfg.Auth.TokenDuration)
 	}
 
 	// Validate PASETO secret
@@ -463,6 +477,28 @@ func ParseRetentionDuration(s string) (time.Duration, error) {
 			return 0, fmt.Errorf("invalid day duration %q: %w", s, err)
 		}
 		return time.Duration(days) * 24 * time.Hour, nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid duration %q: %w", s, err)
+	}
+	return d, nil
+}
+
+// ParseSessionDuration parses a session lifetime. Besides the time.ParseDuration
+// units it accepts a whole number of days ("30d") or years of 365 days ("1y").
+func ParseSessionDuration(s string) (time.Duration, error) {
+	s = strings.TrimSpace(s)
+	for suffix, unit := range map[string]time.Duration{"d": 24 * time.Hour, "y": 365 * 24 * time.Hour} {
+		numStr, ok := strings.CutSuffix(s, suffix)
+		if !ok {
+			continue
+		}
+		n, err := strconv.Atoi(numStr)
+		if err != nil {
+			return 0, fmt.Errorf("invalid duration %q", s)
+		}
+		return time.Duration(n) * unit, nil
 	}
 	d, err := time.ParseDuration(s)
 	if err != nil {
