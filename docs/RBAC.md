@@ -12,8 +12,9 @@ resolved, the permission catalog, the API and what each permission shows or hide
 - **Role**: a named set of permission settings. A role can have **several parent roles** and
   inherits their permissions. Cycles are refused.
   - `is_superuser`: the role has every permission, nothing can be denied to it (`admin`).
-  - `is_system`: the role cannot be deleted (`admin`, and `user`, the default role of new
-    accounts). The superuser role cannot be renamed nor lose its superuser flag.
+  - `is_system`: the role cannot be deleted nor renamed (`admin`, and `user`, the default
+    role of new accounts: `users.role` defaults to `'user'`). The superuser role cannot lose
+    its superuser flag (no API changes the flags).
 - **Setting** (per role and permission, and per user and permission): `allow` or `deny`. No
   row means "inherit".
 - **User**: has exactly one role (`users.role`, the role name, foreign key to `roles.name`
@@ -35,18 +36,28 @@ Effective value of a role for a permission:
    else one parent allows: granted.
 3. Otherwise: not granted.
 
+A superuser parent counts as allowing every permission (the child's own deny still wins).
+
 "Deny wins among parents" lets small restrictive roles be used as mixins (for example a
 `no-file-info` role that denies the `files:*` permissions, added as a parent). A role's own
 setting always overrides its parents, and a user override always overrides the role.
 
 The effective permissions are computed live: a change of role, of role settings, of parents or
 of overrides applies to the next request of every affected user, without logging in again (the
-role stored in the session token is not used for authorization).
+role stored in the session token is not used for authorization). The auth middleware resolves
+the user's current role and permissions on every request (`RBACService.ResolveUser`, cached per
+user and dropped on every change made through the API; a one-minute TTL covers changes made
+outside of it). The token of a deleted user is refused (`401`).
+
+To keep at least one account able to manage everything, the last user holding a superuser role
+cannot be moved to another role nor deleted (`400`).
 
 ## Catalog
 
 Default grants are those applied when a permission is first inserted. `from X` means "every
-role that has X allowed at that time". `admin` is a superuser and needs no grant.
+role that has X allowed by its own setting at that time" (inherited values are not looked at:
+the children inherit the grant from their parent anyway). `admin` is a superuser and needs no
+grant (superuser roles never get a grant row).
 
 | Permission | Group | Gives | Default grant |
 |---|---|---|---|
@@ -67,7 +78,7 @@ role that has X allowed at that time". `admin` is a superuser and needs no grant
 | `files:view_size` | File info | File sizes, size filters and sorts, selection and library totals, biggest file | moderator |
 | `files:view_paths` | File info | Stored paths, original file names, storage paths, copies of a scene | moderator |
 | `files:view_technical` | File info | Codecs, bit rate, frame rate, file hash, fingerprint, processing errors | moderator |
-| `explorer:access` | File info | Folder explorer (pages and API) | moderator |
+| `explorer:access` | File info | Folder explorer (pages and API); bulk tags/actors/studio also need `scenes:edit`, bulk delete `scenes:delete` | moderator |
 | `jobs:view_status` | Processing | Job status in the header and its live events | moderator |
 | `jobs:manage` | Admin | Jobs, pools, processing, triggers, retry, DLQ, workers, transcode cache, scene phases | none |
 | `users:manage` | Admin | Users, their role, overrides, password, marker sharing | existing |
@@ -93,41 +104,63 @@ Without the permission, the API **omits** the fields (absent from the JSON, not 
 refuses the matching parameters (`403`); the UI hides the matching blocks.
 
 - `files:view_size`: `size` in every scene payload (detail, list items, similar, history,
-  playlists, actor/studio scenes, triage, explorer), `min_size`/`max_size` filters and
-  `size_asc`/`size_desc` sorts (refused), `total_size` of the stats widget, `biggest_file` record.
-- `files:view_paths`: `stored_path`, `original_filename`, `storage_path_id` in scene payloads;
-  `GET /scenes/:id/copies` (refused).
+  playlists, actor/studio scenes, homepage, explorer and its folders' `total_size`, explorer
+  match-info), `min_size`/`max_size` filters and `size_asc`/`size_desc` sorts of
+  `GET /scenes` and of the explorer search (refused), `total_size` of the stats widget,
+  `biggest_file` record.
+- `files:view_paths`: `stored_path`, `original_filename`, `storage_path_id` in scene payloads
+  (and `original_filename` of the explorer match-info); `GET /scenes/:id/copies` (refused). The
+  explorer itself (folder names, storage paths) is governed by `explorer:access`.
 - `files:view_technical`: `video_codec`, `audio_codec`, `bit_rate`, `frame_rate`, `file_hash`,
   `fingerprint_type`, `fingerprint_at`, `processing_error` in scene payloads (and the
   `frame_rate` card field). The `playback` object (needed by the player) stays.
 - `explorer:access`: every `/explorer` route.
-- `jobs:view_status`: job events on `/events` and the header job indicator.
+- `jobs:view_status`: job events on `/events` (`jobs:*`, `scene:retry_scheduled`,
+  `scene:dlq_*`) and the header job indicator. Without `files:view_technical`, the `error` of a
+  `scene:failed` event is removed.
+- `library:insights`: the trashed scenes in `GET /scenes/:id/similar` and the details of the
+  curation and processing homepage widgets.
+
+The redaction is done in one place, `internal/api/v1/response/file_visibility.go`:
+`FileVisibility` is built from the request's permissions and passed to every scene DTO
+converter (`ToSceneListItem*`, `NewSceneDetail`, homepage, explorer, playlist, history
+responses). Admin-only payloads (duplicates, trash, library health, jobs) are not redacted.
 
 Resolution (width/height) and duration stay visible to everyone who can view scenes.
 
 ## API
 
 - `GET /api/v1/auth/me`: `{id, username, role}`, role read live.
-- `GET /api/v1/auth/permissions`: `{role, superuser, permissions: [names]}`, effective, live.
+- `GET /api/v1/auth/permissions`: `{role, superuser, permissions: [names]}`, effective, live
+  (sorted; a superuser gets every catalog permission).
 - `GET /api/v1/admin/permissions` (`roles:manage` or `users:manage`):
   `{permissions: [{id, name, group, description}]}` (deprecated ones excluded), catalog order.
 - `GET /api/v1/admin/roles` (`roles:manage` or `users:manage`): `{roles: [{id, name,
   description, is_system, is_superuser, parent_ids: [], settings: [{permission_id, effect}],
-  user_count}]}`.
+  user_count}]}` (id order; `settings` are the role's own ones, catalog order).
 - `POST /api/v1/admin/roles` (`roles:manage`): `{name, description, parent_ids}`; name
-  `^[a-z0-9][a-z0-9_-]{1,49}$`, unique (`409`).
-- `PUT /api/v1/admin/roles/:id` (`roles:manage`): `{name, description, parent_ids}`; cycle
-  (`400`), superuser role rename (`400`).
+  `^[a-z0-9][a-z0-9_-]{1,49}$` (`400`), unique (`409`), parents must exist (`400`). Answers
+  `201` with the role (same shape as a `GET /admin/roles` item).
+- `PUT /api/v1/admin/roles/:id` (`roles:manage`): `{name, description, parent_ids}`; cycle or
+  self parent (`400`), system role rename (`400`), name taken (`409`), unknown role (`404`).
+  Answers the role.
 - `DELETE /api/v1/admin/roles/:id` (`roles:manage`): system role (`400`), role still held by
-  users (`409` with the count). Its child roles lose it as a parent.
+  users (`409`: `{error, code: "ROLE_IN_USE", user_count}`), else `{message}`. Its child roles
+  lose it as a parent.
 - `PUT /api/v1/admin/roles/:id/permissions` (`roles:manage`): `{settings: [{permission_id,
-  effect}]}` replaces the role's own settings (absent = inherit). Refused on a superuser role.
+  effect}]}` replaces the role's own settings (absent = inherit; `settings` is required, `[]`
+  clears them). Effect `allow` or `deny`, each permission once, deprecated or unknown ones
+  refused (`400`). Refused on a superuser role (`400`). Answers the role.
 - `GET /api/v1/admin/roles/:id/effective` (`roles:manage`): `{permissions: [{name, granted,
-  source}]}` where `source` is `superuser`, `role` (own setting), `parent:<role name>` or `none`.
+  source}]}` (catalog order) where `source` is `superuser`, `role` (own setting),
+  `parent:<role name>` (the ancestor whose own setting decided, possibly a grandparent) or
+  `none`.
 - `GET /api/v1/admin/users/:id/permissions` (`users:manage`): `{role, overrides:
   [{permission_id, effect}], effective: [{name, granted, source}]}` (`source` adds `override`).
+  Unknown user: `404`.
 - `PUT /api/v1/admin/users/:id/permissions` (`users:manage`): `{overrides: [{permission_id,
-  effect}]}` replaces the user's overrides.
+  effect}]}` replaces the user's overrides (required, `[]` clears them; same validation as the
+  role settings). Answers the updated `GET` view.
 - Existing user routes (`/admin/users...`) need `users:manage`.
 
 The rest of `/admin` needs the permission of its area (see the catalog). There is no
