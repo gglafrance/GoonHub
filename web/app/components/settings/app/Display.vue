@@ -8,6 +8,11 @@ import type {
 } from '~/types/settings';
 
 const settingsStore = useSettingsStore();
+// The size column needs files:view_size
+const perms = useMyPermissions();
+const columnChoices = computed(() =>
+    SCENE_TABLE_COLUMNS.filter((c) => fileFieldAllowed(c.id, perms.has)),
+);
 
 const densityOptions: { value: GridDensity; label: string; hint: string }[] = [
     { value: 'compact', label: 'Compact', hint: 'More, smaller cards' },
@@ -211,7 +216,7 @@ const toggleColumn = (id: SceneTableColumn) => {
                 </p>
                 <div class="flex flex-wrap gap-1.5">
                     <button
-                        v-for="col in SCENE_TABLE_COLUMNS"
+                        v-for="col in columnChoices"
                         :key="col.id"
                         class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-all"
                         :class="[

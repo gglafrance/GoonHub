@@ -39,8 +39,8 @@ const facts = computed(() => {
                     ? `${props.scene.width}x${props.scene.height}`
                     : undefined,
         });
-    if (props.scene.size > 0)
-        out.push({ icon: 'heroicons:circle-stack', label: formatSize(props.scene.size) });
+    const size = props.scene.size ?? 0;
+    if (size > 0) out.push({ icon: 'heroicons:circle-stack', label: formatSize(size) });
     return out;
 });
 

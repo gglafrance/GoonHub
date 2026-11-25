@@ -33,7 +33,10 @@ const selectMode = ref(false);
 const selectedIds = ref<Set<number>>(new Set());
 
 // Total disk size of the selection (every playlist scene is loaded, with its size)
+// Sizes are omitted by the API without files:view_size: no total then
+const perms = useMyPermissions();
 const selectionSize = computed(() => {
+    if (!perms.has('files:view_size')) return null;
     const sizes = new Map<number, number>();
     rememberSceneSizes(
         sizes,

@@ -111,8 +111,10 @@ const NuxtLinkComponent = resolveComponent('NuxtLink');
                 <span class="text-dim" :title="`${scene.width}x${scene.height}`">
                     {{ resolutionLabel(scene.height) || '-' }}
                 </span>
-                <span class="text-dim">·</span>
-                <span class="text-dim">{{ formatSize(scene.size) }}</span>
+                <template v-if="scene.size !== undefined">
+                    <span class="text-dim">·</span>
+                    <span class="text-dim">{{ formatSize(scene.size) }}</span>
+                </template>
             </div>
 
             <div

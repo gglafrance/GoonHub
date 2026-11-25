@@ -366,7 +366,8 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                     class="text-dim mt-1.5 flex items-center justify-between font-mono text-[10px]"
                 >
                     <slot name="footer">
-                        <span>{{ formatSize(scene.size) }}</span>
+                        <!-- size: absent without files:view_size -->
+                        <span>{{ scene.size !== undefined ? formatSize(scene.size) : '' }}</span>
                         <UiFormattedDate :datetime="scene.created_at" />
                     </slot>
                 </div>

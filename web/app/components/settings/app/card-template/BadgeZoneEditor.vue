@@ -12,6 +12,8 @@ const emit = defineEmits<{
     toggle: [];
 }>();
 
+// File size and frame rate are offered only with their files:* permission
+const perms = useMyPermissions();
 const badgeFields = [
     { value: 'liked', label: 'Liked' },
     { value: 'rating', label: 'Rating' },
@@ -80,7 +82,9 @@ function moveBadge(idx: number, dir: -1 | 1) {
 const availableFields = computed(() =>
     props.zone.items.length >= maxItems
         ? []
-        : badgeFields.filter((f) => !props.zone.items.includes(f.value)),
+        : allowedFileFields(badgeFields, perms.has).filter(
+              (f) => !props.zone.items.includes(f.value),
+          ),
 );
 
 const directionLabel = computed(() => {

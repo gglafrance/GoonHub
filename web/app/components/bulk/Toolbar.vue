@@ -48,8 +48,16 @@ watch(
     { immediate: true },
 );
 
+// Sizes are omitted by the API without files:view_size: no total then
+const perms = useMyPermissions();
+const canEdit = computed(() => perms.has('scenes:edit'));
+// Processing phases go through the job admin routes
+const canProcess = computed(() => perms.has('jobs:manage'));
+const canMatch = computed(() => perms.has('porndb:use') && perms.has('scenes:edit'));
+const canDelete = computed(() => perms.has('scenes:delete'));
 const selectionSize = computed(() => {
     void sizeVersion.value;
+    if (!perms.has('files:view_size')) return null;
     return selectionSizeLabel(
         summarizeSelectionSize(props.sceneIds, sizeCache),
         formatSize,
@@ -137,6 +145,7 @@ const handlePornDBMatchComplete = () => {
                 <!-- Actions -->
                 <div class="flex items-center gap-2">
                     <button
+                        v-if="canEdit"
                         class="border-border bg-panel hover:border-lava/30 hover:text-lava flex
                             items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium
                             text-white transition-all"
@@ -147,6 +156,7 @@ const handlePornDBMatchComplete = () => {
                     </button>
 
                     <button
+                        v-if="canEdit"
                         class="border-border bg-panel hover:border-lava/30 hover:text-lava flex
                             items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium
                             text-white transition-all"
@@ -157,6 +167,7 @@ const handlePornDBMatchComplete = () => {
                     </button>
 
                     <button
+                        v-if="canEdit"
                         class="border-border bg-panel hover:border-lava/30 hover:text-lava flex
                             items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium
                             text-white transition-all"
@@ -177,6 +188,7 @@ const handlePornDBMatchComplete = () => {
                     </button>
 
                     <button
+                        v-if="canProcess"
                         class="border-border bg-panel hover:border-lava/30 hover:text-lava flex
                             items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium
                             text-white transition-all"
@@ -186,10 +198,11 @@ const handlePornDBMatchComplete = () => {
                         Process
                     </button>
 
-                    <div class="border-border mx-1 h-4 border-l" />
+                    <div v-if="canMatch" class="border-border mx-1 h-4 border-l" />
 
                     <!-- PornDB Match Button -->
                     <button
+                        v-if="canMatch"
                         :disabled="allScenesMatched || checkingMatchStatus"
                         :title="
                             allScenesMatched
@@ -217,9 +230,10 @@ const handlePornDBMatchComplete = () => {
                         Match
                     </button>
 
-                    <div class="border-border mx-1 h-4 border-l" />
+                    <div v-if="canDelete" class="border-border mx-1 h-4 border-l" />
 
                     <button
+                        v-if="canDelete"
                         class="border-border bg-panel flex items-center gap-1.5 rounded-lg border
                             px-3 py-1.5 text-xs font-medium text-red-400 transition-all
                             hover:border-red-500/50 hover:text-red-300"

@@ -90,7 +90,7 @@ const entitySceneSortOptions = [
     { value: 'random', label: 'Random' },
 ];
 
-const sceneSortOptions: { value: SortOrder; label: string }[] = [
+const allSceneSortOptions: { value: SortOrder; label: string }[] = [
     { value: 'created_at_desc', label: 'Newest First' },
     { value: 'created_at_asc', label: 'Oldest First' },
     { value: 'title_asc', label: 'Title A-Z' },
@@ -105,6 +105,9 @@ const sceneSortOptions: { value: SortOrder; label: string }[] = [
     { value: 'last_jizz_asc', label: 'Oldest O' },
     { value: 'random', label: 'Random' },
 ];
+// Size sorts need files:view_size
+const perms = useMyPermissions();
+const sceneSortOptions = computed(() => allowedSortOptions(allSceneSortOptions, perms.has));
 </script>
 
 <template>

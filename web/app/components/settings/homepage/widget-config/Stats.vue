@@ -2,7 +2,9 @@
 // Config form of the stats widget: tiles shown, views period and timezone.
 const config = defineModel<Record<string, unknown>>({ required: true });
 
-const TILES = [
+// The library size needs files:view_size
+const perms = useMyPermissions();
+const ALL_TILES = [
     { value: 'scenes', label: 'Scenes' },
     { value: 'hours', label: 'Hours of video' },
     { value: 'size', label: 'Library size' },
@@ -16,6 +18,7 @@ const TILES = [
     { value: 'markers', label: 'Markers' },
     { value: 'rating', label: 'Average rating' },
 ];
+const TILES = ALL_TILES.filter((t) => t.value !== 'size' || perms.has('files:view_size'));
 
 const PERIODS = [
     { value: 'month', label: 'Calendar month' },
@@ -26,14 +29,14 @@ const PERIODS = [
 
 const selectedTiles = computed<string[]>(() => {
     const raw = config.value.tiles;
-    return Array.isArray(raw) && raw.length ? (raw as string[]) : TILES.map((t) => t.value);
+    return Array.isArray(raw) && raw.length ? (raw as string[]) : ALL_TILES.map((t) => t.value);
 });
 
 const toggleTile = (value: string) => {
     const current = selectedTiles.value;
     const next = current.includes(value)
         ? current.filter((t) => t !== value)
-        : TILES.map((t) => t.value).filter((t) => t === value || current.includes(t));
+        : ALL_TILES.map((t) => t.value).filter((t) => t === value || current.includes(t));
     if (next.length === 0) return;
     config.value = { ...config.value, tiles: next };
 };

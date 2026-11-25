@@ -14,8 +14,12 @@ const open = ref(false);
 const root = ref<HTMLElement | null>(null);
 
 const visible = computed(() => new Set(settingsStore.sceneListView.columns));
+// The size column needs files:view_size
+const perms = useMyPermissions();
 const choices = computed(() =>
-    SCENE_TABLE_COLUMNS.filter((c) => !props.hiddenColumns?.includes(c.id)),
+    SCENE_TABLE_COLUMNS.filter(
+        (c) => !props.hiddenColumns?.includes(c.id) && fileFieldAllowed(c.id, perms.has),
+    ),
 );
 
 const toggle = (id: SceneTableColumn) => {
