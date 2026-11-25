@@ -82,7 +82,6 @@ export const useApi = () => {
         deleteUser: admin.deleteUser,
         fetchRoles: admin.fetchRoles,
         fetchPermissions: admin.fetchPermissions,
-        syncRolePermissions: admin.syncRolePermissions,
         getSearchStatus: admin.getSearchStatus,
         triggerReindex: admin.triggerReindex,
 

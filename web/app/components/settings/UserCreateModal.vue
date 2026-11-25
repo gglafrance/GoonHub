@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { RoleResponse } from '~/types/admin';
+import type { RoleSummary } from '~/types/permissions';
 
-defineProps<{
+const props = defineProps<{
     visible: boolean;
-    roles: RoleResponse[];
+    roles: RoleSummary[];
 }>();
 
 const emit = defineEmits<{
@@ -11,11 +11,24 @@ const emit = defineEmits<{
     created: [];
 }>();
 
-const { createUser } = useApi();
+const { createUser } = useApiAdmin();
 
 const username = ref('');
 const password = ref('');
-const role = ref('user');
+const role = ref('');
+
+const roleOptions = computed(() => props.roles.map((r) => ({ value: r.name, label: r.name })));
+
+// Default role on opening (the roles may load after the modal is mounted)
+watch(
+    () => [props.visible, props.roles] as const,
+    ([visible]) => {
+        if (visible && !props.roles.some((r) => r.name === role.value)) {
+            role.value = defaultRoleName(props.roles);
+        }
+    },
+    { immediate: true },
+);
 const loading = ref(false);
 const error = ref('');
 
@@ -26,7 +39,7 @@ const handleSubmit = async () => {
         await createUser(username.value, password.value, role.value);
         username.value = '';
         password.value = '';
-        role.value = 'user';
+        role.value = defaultRoleName(props.roles);
         emit('created');
     } catch (e: unknown) {
         error.value = e instanceof Error ? e.message : 'Failed to create user';
@@ -100,8 +113,9 @@ const handleClose = () => {
                             Role
                         </label>
                         <UiSelectMenu
-                            v-model="role"
-                            :options="roles.map((r) => ({ value: r.name, label: r.name }))"
+                            :model-value="role"
+                            :options="roleOptions"
+                            @update:model-value="role = String($event)"
                         />
                     </div>
                     <div class="flex justify-end gap-2 pt-2">
@@ -115,7 +129,7 @@ const handleClose = () => {
                         </button>
                         <button
                             type="submit"
-                            :disabled="loading || !username || !password"
+                            :disabled="loading || !username || !password || !role"
                             class="bg-lava hover:bg-lava-glow rounded-lg px-4 py-1.5 text-xs
                                 font-semibold text-white transition-all disabled:cursor-not-allowed
                                 disabled:opacity-40"
