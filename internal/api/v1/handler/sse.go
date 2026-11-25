@@ -96,7 +96,8 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 		h.writeJobStatus(c)
 	}
 
-	subscriberID, eventCh := h.eventBus.Subscribe()
+	// the stream belongs to the user: it also receives the events targeted at them
+	subscriberID, eventCh := h.eventBus.SubscribeUser(payload.UserID)
 	defer h.eventBus.Unsubscribe(subscriberID)
 
 	h.logger.Debug("SSE client connected", zap.String("subscriber_id", subscriberID))
