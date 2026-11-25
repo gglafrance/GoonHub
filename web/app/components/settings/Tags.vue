@@ -6,6 +6,9 @@ import type ManageList from '~/components/settings/tags/ManageList.vue';
 const { fetchTags, deleteTag, updateTagColor, fetchDuplicateTags } = useApiTags();
 const { message, error, clearMessages } = useSettingsMessage();
 const settingsStore = useSettingsStore();
+// Everyone sets the default sort; the tag management needs tags:manage
+const perms = useMyPermissions();
+const canManage = computed(() => perms.has('tags:manage'));
 
 const tags = ref<Tag[]>([]);
 const duplicates = ref<TagDuplicateGroup[]>([]);
@@ -31,6 +34,7 @@ const tagSortOptions: { value: TagSort; label: string }[] = [
 ];
 
 onMounted(async () => {
+    if (!canManage.value) return;
     loading.value = true;
     await loadTags();
     loading.value = false;
@@ -168,36 +172,38 @@ async function onMerged(res: TagMergeResult) {
             </div>
         </div>
 
-        <SettingsTagsCreateForm @created="onCreated" @error="onCreateError" />
+        <template v-if="canManage">
+            <SettingsTagsCreateForm @created="onCreated" @error="onCreateError" />
 
-        <SettingsTagsDuplicatesPanel :groups="duplicates" @merge="openGroupMerge" />
+            <SettingsTagsDuplicatesPanel :groups="duplicates" @merge="openGroupMerge" />
 
-        <SettingsTagsManageList
-            ref="list"
-            :tags="tags"
-            :loading="loading"
-            @delete="handleDelete"
-            @color="handleColor"
-            @merge="openMerge"
-            @delete-many="openDeleteMany"
-            @renamed="onRenamed"
-            @merge-into="(source, target) => openMerge([source.id, target.id], target.id)"
-        />
+            <SettingsTagsManageList
+                ref="list"
+                :tags="tags"
+                :loading="loading"
+                @delete="handleDelete"
+                @color="handleColor"
+                @merge="openMerge"
+                @delete-many="openDeleteMany"
+                @renamed="onRenamed"
+                @merge-into="(source, target) => openMerge([source.id, target.id], target.id)"
+            />
 
-        <SettingsTagsDeleteManyModal
-            :visible="deleteMany !== null"
-            :tags="deleteMany ?? []"
-            @close="deleteMany = null"
-            @deleted="onDeletedMany"
-        />
+            <SettingsTagsDeleteManyModal
+                :visible="deleteMany !== null"
+                :tags="deleteMany ?? []"
+                @close="deleteMany = null"
+                @deleted="onDeletedMany"
+            />
 
-        <SettingsTagsMergeModal
-            :visible="merge !== null"
-            :tags="tags"
-            :candidate-ids="merge?.candidateIds ?? []"
-            :initial-target-id="merge?.targetId ?? null"
-            @close="merge = null"
-            @merged="onMerged"
-        />
+            <SettingsTagsMergeModal
+                :visible="merge !== null"
+                :tags="tags"
+                :candidate-ids="merge?.candidateIds ?? []"
+                :initial-target-id="merge?.targetId ?? null"
+                @close="merge = null"
+                @merged="onMerged"
+            />
+        </template>
     </div>
 </template>

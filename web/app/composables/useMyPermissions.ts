@@ -1,56 +1,97 @@
+import type { MyPermissionsResponse, PermissionName } from '~/types/permissions';
+
 /**
- * Permissions of the signed-in user's role (GET /api/v1/auth/permissions).
- * Loaded once per user and shared between components. Used to hide or disable actions the
- * user cannot perform; the API still enforces every permission.
+ * Effective permissions of the signed-in user (GET /api/v1/auth/permissions). Loaded by the
+ * auth middleware before a page renders (once per user, refreshed in the background), so pages
+ * can gate blocks synchronously. Until loaded, `has()` is false: gated blocks stay hidden
+ * rather than flicker. The API still enforces every permission.
  */
 interface PermissionsState {
     userId: number | null;
+    role: string;
+    superuser: boolean;
     permissions: string[];
     loaded: boolean;
 }
 
 let inflight: Promise<void> | null = null;
+let inflightUserId: number | null = null;
+let requestSeq = 0;
 
 export const useMyPermissions = () => {
     const authStore = useAuthStore();
     const { fetchOptions, getAuthHeaders, handleResponse } = useApiCore();
     const state = useState<PermissionsState>('my-permissions', () => ({
         userId: null,
+        role: '',
+        superuser: false,
         permissions: [],
         loaded: false,
     }));
 
-    const load = async (force = false) => {
+    const load = async (force = false): Promise<void> => {
         const userId = authStore.user?.id ?? null;
         if (userId === null) return;
         if (!force && state.value.loaded && state.value.userId === userId) return;
-        if (inflight) return inflight;
+        if (inflight && inflightUserId === userId) return inflight;
+        inflightUserId = userId;
+        const seq = ++requestSeq;
         inflight = (async () => {
             try {
                 const response = await fetch('/api/v1/auth/permissions', {
                     headers: getAuthHeaders(),
                     ...fetchOptions(),
                 });
-                const body: { permissions: string[] } = await handleResponse(response);
-                state.value = { userId, permissions: body.permissions || [], loaded: true };
+                const body = (await handleResponse(response)) as MyPermissionsResponse | null;
+                if (authStore.user?.id !== userId) return;
+                state.value = {
+                    userId,
+                    role: body?.role ?? authStore.user?.role ?? '',
+                    superuser: body?.superuser ?? false,
+                    permissions: body?.permissions ?? [],
+                    loaded: true,
+                };
             } catch {
-                // Unknown permissions: everything stays disabled except role-based checks
-                state.value = { userId, permissions: [], loaded: true };
+                // Unknown permissions: every gated block stays hidden, the API decides anyway.
+                // A background refresh keeps the last known permissions.
+                if (state.value.userId !== userId) {
+                    state.value = {
+                        userId,
+                        role: authStore.user?.role ?? '',
+                        superuser: false,
+                        permissions: [],
+                        loaded: true,
+                    };
+                }
             } finally {
-                inflight = null;
+                if (requestSeq === seq) {
+                    inflight = null;
+                    inflightUserId = null;
+                }
             }
         })();
         return inflight;
     };
 
-    const isAdmin = computed(() => authStore.user?.role === 'admin');
-    // No admin shortcut: the API checks permissions for every role, admin included
-    const has = (permission: string) => state.value.permissions.includes(permission);
+    const current = computed(() =>
+        state.value.loaded && state.value.userId === (authStore.user?.id ?? null)
+            ? state.value
+            : null,
+    );
+
+    const has = (permission: PermissionName): boolean => {
+        const s = current.value;
+        return !!s && grantsPermission(s, permission);
+    };
+
+    /** True when the user has at least one of the permissions. */
+    const hasAny = (...permissions: PermissionName[]): boolean => permissions.some(has);
 
     return {
         load,
         has,
-        isAdmin,
-        loaded: computed(() => state.value.loaded),
+        hasAny,
+        isSuperuser: computed(() => current.value?.superuser ?? false),
+        loaded: computed(() => current.value !== null),
     };
 };

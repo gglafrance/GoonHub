@@ -120,7 +120,7 @@ defineExpose({
             shortcut="T"
             :items="details.tags"
             :can-edit="actions.canEdit.value"
-            :allow-create="actions.canEdit.value"
+            :allow-create="actions.canCreateTags.value"
             :search="searchTags"
             :link-for="tagLink"
             placeholder="Add a tag..."
@@ -136,7 +136,7 @@ defineExpose({
             shortcut="A"
             :items="details.actors"
             :can-edit="actions.canEdit.value"
-            :allow-create="actions.canCreateEntities.value"
+            :allow-create="actions.canCreateActors.value"
             :search="searchActors"
             :link-for="actorLink"
             placeholder="Add an actor..."
@@ -152,7 +152,7 @@ defineExpose({
             shortcut="S"
             :items="studioItems"
             :can-edit="actions.canEdit.value"
-            :allow-create="actions.canCreateEntities.value"
+            :allow-create="actions.canCreateStudios.value"
             :search="searchStudios"
             :link-for="studioLink"
             placeholder="Set the studio..."
@@ -164,7 +164,7 @@ defineExpose({
 
         <p v-if="!actions.canEdit.value" class="text-dim text-[11px]">
             You can rate and like scenes, but editing tags, actors and studios needs the
-            "scenes:upload" permission.
+            "scenes:edit" permission.
         </p>
 
         <button

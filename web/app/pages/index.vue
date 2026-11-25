@@ -1,5 +1,7 @@
 <script setup lang="ts">
 const homepageStore = useHomepageStore();
+// The upload block needs scenes:upload
+const perms = useMyPermissions();
 const route = useRoute();
 const router = useRouter();
 
@@ -43,7 +45,9 @@ definePageMeta({
     <div class="min-h-[calc(100svh-5.25rem)] px-4 py-4 sm:min-h-[calc(100vh-5.25rem)] sm:py-6">
         <div class="mx-auto max-w-415">
             <!-- Upload Section -->
-            <SceneUpload v-if="homepageStore.config?.show_upload !== false" />
+            <SceneUpload
+                v-if="homepageStore.config?.show_upload !== false && perms.has('scenes:upload')"
+            />
 
             <!-- Loading State -->
             <div

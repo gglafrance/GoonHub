@@ -9,9 +9,9 @@ const seekToTime = inject<(time: number) => void>('seekToTime');
 const playMarker =
     inject<(marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) => void>('playMarker');
 
-const authStore = useAuthStore();
-
-const isAdmin = computed(() => authStore.user?.role === 'admin');
+// The group link opens the Duplicates page
+const perms = useMyPermissions();
+const canOpenGroup = computed(() => perms.has('duplicates:manage'));
 const similar = computed(() => watchPageData?.similar.value ?? null);
 const scenes = computed(() => similar.value?.scenes ?? []);
 const currentSceneId = computed(() => similar.value?.scene_id ?? 0);
@@ -67,7 +67,7 @@ const seekHere = (time: number) => {
                     </span>
                 </span>
                 <NuxtLink
-                    v-if="isAdmin && groupLink"
+                    v-if="canOpenGroup && groupLink"
                     :to="groupLink"
                     class="text-dim hover:text-lava inline-flex items-center gap-1
                         transition-colors"

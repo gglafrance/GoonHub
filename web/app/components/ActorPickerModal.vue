@@ -102,8 +102,14 @@ const maxSceneCount = computed(() => {
     return Math.max(...filteredActors.value.map((a) => a.scene_count || 0), 1);
 });
 
+// Creating an actor needs actors:manage
+const perms = useMyPermissions();
 const showCreateOption = computed(
-    () => searchQuery.value.trim() && !showSkeleton.value && !creating.value,
+    () =>
+        perms.has('actors:manage') &&
+        searchQuery.value.trim() &&
+        !showSkeleton.value &&
+        !creating.value,
 );
 
 const loadActors = async () => {

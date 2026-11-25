@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const authStore = useAuthStore();
+const perms = useMyPermissions();
 const { shortcutsVisible, open: openPalette, modifierLabel } = useCommandPalette();
 const setShortcutsVisible = (value: boolean) => {
     shortcutsVisible.value = value;
@@ -67,11 +68,7 @@ const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
                                 </div>
                                 <div
                                     class="font-mono text-[10px] tracking-wider uppercase"
-                                    :class="
-                                        authStore.user!.role === 'admin'
-                                            ? 'text-emerald'
-                                            : 'text-dim'
-                                    "
+                                    :class="perms.isSuperuser.value ? 'text-emerald' : 'text-dim'"
                                 >
                                     {{ authStore.user!.role }}
                                 </div>
@@ -108,7 +105,7 @@ const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
 
                         <HeaderHoverAudioControl />
 
-                        <HeaderJobStatus />
+                        <HeaderJobStatus v-if="perms.has('jobs:view_status')" />
 
                         <NuxtLink
                             to="/settings"
@@ -230,6 +227,7 @@ const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
                     </NuxtLink>
 
                     <NuxtLink
+                        v-if="perms.has('explorer:access')"
                         to="/explorer"
                         class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
                             text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
@@ -254,7 +252,7 @@ const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
                     </NuxtLink>
 
                     <NuxtLink
-                        v-if="authStore.user?.role === 'admin'"
+                        v-if="perms.has('duplicates:manage')"
                         to="/duplicates"
                         class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
                             text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white

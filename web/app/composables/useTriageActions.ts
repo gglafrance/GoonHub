@@ -9,7 +9,7 @@ import type { Studio, StudioListItem } from '~/types/studio';
 import type { TriageSceneDetails } from '~/composables/useTriageSceneDetails';
 
 // The trash is applied after this delay when it cannot be undone server side (restoring
-// from the trash is an admin action)
+// from the trash needs trash:manage)
 const DEFERRED_TRASH_MS = 5000;
 const NEW_TAG_COLOR = '#6B7280';
 
@@ -29,11 +29,12 @@ export function useTriageActions({ current, details, queue, toasts, advance }: T
     const { restoreScene } = useApiAdmin();
     const perms = useMyPermissions();
 
-    const canEdit = computed(() => perms.has('scenes:upload'));
+    const canEdit = computed(() => perms.has('scenes:edit'));
     const canTrash = computed(() => perms.has('scenes:trash'));
-    const canRestore = computed(() => perms.isAdmin.value);
-    // Actors and studios are created through admin routes
-    const canCreateEntities = computed(() => perms.isAdmin.value);
+    const canRestore = computed(() => perms.has('trash:manage'));
+    const canCreateTags = computed(() => perms.has('tags:manage'));
+    const canCreateActors = computed(() => perms.has('actors:manage'));
+    const canCreateStudios = computed(() => perms.has('studios:manage'));
 
     const errorMessage = (e: unknown, fallback: string) =>
         e instanceof Error && e.message ? e.message : fallback;
@@ -117,7 +118,7 @@ export function useTriageActions({ current, details, queue, toasts, advance }: T
 
     const createTag = async (name: string): Promise<Tag | null> => {
         const d = withScene();
-        if (!d || !canEdit.value) return null;
+        if (!d || !canEdit.value || !canCreateTags.value) return null;
         try {
             const tag: Tag = await apiCreateTag(name, NEW_TAG_COLOR);
             await saveTags(d, [...d.tags, tag], `Tag "${tag.name}" created and added`);
@@ -161,7 +162,7 @@ export function useTriageActions({ current, details, queue, toasts, advance }: T
 
     const createActor = async (name: string) => {
         const d = withScene();
-        if (!d || !canEdit.value || !canCreateEntities.value) return;
+        if (!d || !canEdit.value || !canCreateActors.value) return;
         try {
             const actor: Actor = await apiCreateActor({ name });
             await saveActors(
@@ -206,7 +207,7 @@ export function useTriageActions({ current, details, queue, toasts, advance }: T
 
     const createStudio = async (name: string) => {
         const d = withScene();
-        if (!d || !canEdit.value || !canCreateEntities.value) return;
+        if (!d || !canEdit.value || !canCreateStudios.value) return;
         try {
             const studio: Studio = await apiCreateStudio({ name });
             await saveStudio(d, studio.id, `Studio ${studio.name} created and set`);
@@ -271,7 +272,7 @@ export function useTriageActions({ current, details, queue, toasts, advance }: T
             return;
         }
 
-        // Restoring needs the admin role: give a short window to undo before trashing
+        // Restoring needs trash:manage: give a short window to undo before trashing
         queue.skip(id);
         pendingTrash.set(
             id,
@@ -314,7 +315,9 @@ export function useTriageActions({ current, details, queue, toasts, advance }: T
     return {
         canEdit,
         canTrash,
-        canCreateEntities,
+        canCreateTags,
+        canCreateActors,
+        canCreateStudios,
         rate,
         toggleLike,
         addTag,

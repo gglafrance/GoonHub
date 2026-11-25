@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const props = defineProps<{
     releaseDate: string | null;
+    readonly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -19,6 +20,7 @@ const displayDate = computed(() => {
 });
 
 const startEditing = () => {
+    if (props.readonly) return;
     editValue.value = props.releaseDate?.split('T')[0] || '';
     editing.value = true;
     nextTick(() => inputRef.value?.focus());
@@ -60,7 +62,7 @@ watch(
             v-else
             class="text-dim -mx-1 cursor-pointer rounded-md px-1 py-0.5 text-sm transition-colors
                 hover:bg-white/3 hover:text-white"
-            :class="{ 'text-white': releaseDate }"
+            :class="{ 'text-white': releaseDate, 'pointer-events-none': readonly }"
             @click="startEditing"
         >
             {{ displayDate }}

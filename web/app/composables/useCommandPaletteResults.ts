@@ -28,7 +28,8 @@ export function useCommandPaletteResults(query: Ref<string>) {
         );
         const items: PaletteItem[] = [];
         for (const entry of recent.value) {
-            if (entry.admin && !commands.isAdmin.value) continue;
+            if (!commands.allowed(entry)) continue;
+            if (entry.admin && !entry.permissions && !commands.isSuperuser.value) continue;
             if (entry.to) {
                 items.push({ ...entry, icon: entry.icon || 'heroicons:clock' });
                 continue;

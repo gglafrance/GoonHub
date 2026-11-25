@@ -11,6 +11,9 @@ const emit = defineEmits<{
 }>();
 
 const jobStatusStore = useJobStatusStore();
+// Job history, retries and the jobs settings need jobs:manage (the status is jobs:view_status)
+const perms = useMyPermissions();
+const canManageJobs = computed(() => perms.has('jobs:manage'));
 const { fetchRecentFailedJobs, retryJob } = useApiJobs();
 const popupRef = ref<HTMLDivElement | null>(null);
 const position = ref({ top: 0, left: 0 });
@@ -62,6 +65,7 @@ async function handleRetryJob(jobId: string) {
 }
 
 function navigateToFailedJobs() {
+    if (!canManageJobs.value) return;
     emit('close');
     navigateTo('/settings?tab=jobs&subtab=history&status=failed');
 }
@@ -118,7 +122,7 @@ watch(
             updatePosition();
             window.addEventListener('resize', updatePosition);
             document.addEventListener('mousedown', onClickOutside);
-            if (jobStatusStore.hasFailed) {
+            if (jobStatusStore.hasFailed && canManageJobs.value) {
                 loadRecentFailures();
             }
         } else {
@@ -213,6 +217,7 @@ onBeforeUnmount(() => {
                             <button
                                 class="flex items-center gap-1 transition-colors"
                                 :class="
+                                    canManageJobs &&
                                     (jobStatusStore.byPhase[phase]?.failed ?? 0) > 0
                                         ? 'cursor-pointer hover:opacity-80'
                                         : 'cursor-default'
@@ -240,7 +245,10 @@ onBeforeUnmount(() => {
             </div>
 
             <!-- Recent Failures -->
-            <div v-if="jobStatusStore.hasFailed" class="border-border border-b px-4 py-3">
+            <div
+                v-if="jobStatusStore.hasFailed && canManageJobs"
+                class="border-border border-b px-4 py-3"
+            >
                 <div class="mb-2 flex items-center justify-between">
                     <span class="text-[10px] font-medium tracking-wider text-red-400/70 uppercase">
                         Recent Failures
@@ -357,7 +365,7 @@ onBeforeUnmount(() => {
             </div>
 
             <!-- Footer -->
-            <div class="border-border border-t px-4 py-2">
+            <div v-if="canManageJobs" class="border-border border-t px-4 py-2">
                 <button
                     class="text-dim hover:text-lava flex w-full items-center justify-center gap-1.5
                         py-1 text-xs transition-colors"

@@ -1,3 +1,5 @@
+import type { PermissionName } from '~/types/permissions';
+
 export type PaletteGroupId =
     | 'recent'
     | 'context'
@@ -26,7 +28,8 @@ export interface PaletteItem {
     // Command to run (action entries); actions are remembered by id and resolved again
     run?: () => void | Promise<void>;
     keywords?: string[];
-    admin?: boolean;
+    // Shown only to users having at least one of these permissions
+    permissions?: readonly PermissionName[];
     // Short hint shown on the right (e.g. "Admin", "Tab")
     hint?: string;
 }
@@ -47,5 +50,7 @@ export interface PaletteRecentEntry {
     image?: string;
     imageShape?: PaletteImageShape;
     to?: string;
+    permissions?: readonly PermissionName[];
+    // Legacy entries (before permissions): admin-only, kept for superusers only
     admin?: boolean;
 }

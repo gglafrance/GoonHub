@@ -189,6 +189,7 @@ const handleBulkComplete = () => {
 
 definePageMeta({
     middleware: ['auth'],
+    permissions: ['explorer:access'],
 });
 </script>
 

@@ -27,6 +27,7 @@ onMounted(async () => {
 
 definePageMeta({
     middleware: ['auth'],
+    permissions: ['explorer:access'],
 });
 </script>
 

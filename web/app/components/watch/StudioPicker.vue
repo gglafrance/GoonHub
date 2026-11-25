@@ -16,6 +16,8 @@ const emit = defineEmits<{
 }>();
 
 const searchQuery = ref('');
+// Creating a studio needs studios:manage
+const perms = useMyPermissions();
 const sortMode = ref<'az' | 'za' | 'most' | 'least'>('az');
 
 const sortLabels: Record<string, string> = {
@@ -171,7 +173,7 @@ onBeforeUnmount(() => {
                     {{ searchQuery ? 'No matching studios' : 'No studios available' }}
                 </p>
                 <button
-                    v-if="searchQuery"
+                    v-if="searchQuery && perms.has('studios:manage')"
                     class="text-lava hover:bg-lava/10 mt-2 flex w-full items-center gap-1.5
                         rounded-md px-2 py-1.5 text-left text-[11px] transition-colors"
                     @click="emit('create', searchQuery)"
