@@ -15,6 +15,8 @@ type User struct {
 	Password    string     `gorm:"not null" json:"-"`
 	Role        string     `gorm:"not null;default:'user'" json:"role"`
 	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
+	// ShareMarkers makes the user's markers visible (read-only) to every user.
+	ShareMarkers bool `gorm:"not null;default:false" json:"share_markers"`
 }
 
 type Role struct {

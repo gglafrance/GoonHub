@@ -6,6 +6,7 @@ import type { WatchPageData } from '~/composables/useWatchPageData';
 import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
 const route = useRoute();
+const authStore = useAuthStore();
 const { createMarker, updateMarker, deleteMarker, fetchLabelSuggestions } = useApiMarkers();
 const { fetchProcessingConfig } = useApiJobs();
 const { formatMarkerRange } = useFormatter();
@@ -24,6 +25,10 @@ const sceneId = computed(() => parseInt(route.params.id as string));
 // Use centralized data for markers and loading state
 const loading = computed(() => watchPageData?.loading.player ?? true);
 const markers = computed(() => watchPageData?.markers.value ?? []);
+// Markers of other users (shared by an admin) are listed read-only: only the owner edits
+const isOwn = (marker: Marker) => marker.user_id === authStore.user?.id;
+// The 50 markers limit counts the user's own markers only
+const ownMarkerCount = computed(() => markers.value.filter(isOwn).length);
 // List order (by time or grouped by label), remembered in this browser
 const listSort = ref<MarkerListSort>('time');
 const markerGroups = computed(() => markerListGroups(markers.value, listSort.value));
@@ -546,6 +551,7 @@ onMounted(async () => {
                             <WatchMarkersTimeBadge
                                 :marker="marker"
                                 :editing="editingTime?.id === marker.id ? editingTime.field : null"
+                                :readonly="!isOwn(marker)"
                                 @edit="startEditingTime(marker, $event)"
                             />
                         </div>
@@ -606,6 +612,23 @@ onMounted(async () => {
                                         </button>
                                     </div>
                                 </template>
+                                <div
+                                    v-else-if="!isOwn(marker)"
+                                    class="flex min-w-0 items-center gap-1"
+                                    title="Shared marker of another user (read-only)"
+                                >
+                                    <Icon
+                                        name="heroicons:user-group"
+                                        size="11"
+                                        class="text-dim/60 shrink-0"
+                                    />
+                                    <span
+                                        class="line-clamp-1 text-[11px]"
+                                        :class="marker.label ? 'text-dim' : 'text-dim/50 italic'"
+                                    >
+                                        {{ marker.label || 'No label' }}
+                                    </span>
+                                </div>
                                 <template v-else>
                                     <span
                                         v-if="marker.label"
@@ -629,7 +652,11 @@ onMounted(async () => {
 
                             <!-- Range end: clear / set at current time -->
                             <button
-                                v-if="editingMarkerId !== marker.id && markerHasRange(marker)"
+                                v-if="
+                                    isOwn(marker) &&
+                                    editingMarkerId !== marker.id &&
+                                    markerHasRange(marker)
+                                "
                                 class="text-dim hover:bg-surface-hover flex shrink-0 items-center
                                     justify-center rounded p-1.5 opacity-0 transition-all
                                     group-hover:opacity-100 hover:text-white"
@@ -640,7 +667,7 @@ onMounted(async () => {
                             </button>
                             <!-- Start: set at current time (next to the end) -->
                             <button
-                                v-if="editingMarkerId !== marker.id"
+                                v-if="isOwn(marker) && editingMarkerId !== marker.id"
                                 class="text-dim hover:bg-surface-hover flex shrink-0 items-center
                                     justify-center rounded p-1.5 opacity-0 transition-all
                                     group-hover:opacity-100 hover:text-white"
@@ -651,7 +678,7 @@ onMounted(async () => {
                                 <Icon name="heroicons:arrow-left-start-on-rectangle" size="12" />
                             </button>
                             <button
-                                v-if="editingMarkerId !== marker.id"
+                                v-if="isOwn(marker) && editingMarkerId !== marker.id"
                                 class="text-dim hover:bg-surface-hover flex shrink-0 items-center
                                     justify-center rounded p-1.5 opacity-0 transition-all
                                     group-hover:opacity-100 hover:text-white"
@@ -667,7 +694,7 @@ onMounted(async () => {
 
                             <!-- Delete Button -->
                             <button
-                                v-if="editingMarkerId !== marker.id"
+                                v-if="isOwn(marker) && editingMarkerId !== marker.id"
                                 class="text-dim hover:text-lava hover:bg-lava/10 flex shrink-0
                                     items-center justify-center rounded p-1.5 opacity-0
                                     transition-all group-hover:opacity-100"
@@ -682,6 +709,7 @@ onMounted(async () => {
                         <MarkersMarkerTagEditor
                             :marker-id="marker.id"
                             :initial-tags="marker.tags"
+                            :readonly="!isOwn(marker)"
                         />
                     </div>
                 </div>
@@ -689,8 +717,8 @@ onMounted(async () => {
         </div>
 
         <!-- Marker count -->
-        <div v-if="markers.length > 0" class="text-dim text-right text-[10px]">
-            {{ markers.length }}/50 markers
+        <div v-if="ownMarkerCount > 0" class="text-dim text-right text-[10px]">
+            {{ ownMarkerCount }}/50 markers
         </div>
 
         <!-- Label autocomplete pickers (teleported to body) -->

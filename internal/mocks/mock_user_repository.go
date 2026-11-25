@@ -186,6 +186,20 @@ func (mr *MockUserRepositoryMockRecorder) UpdateRole(userID, role any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRole", reflect.TypeOf((*MockUserRepository)(nil).UpdateRole), userID, role)
 }
 
+// UpdateShareMarkers mocks base method.
+func (m *MockUserRepository) UpdateShareMarkers(userID uint, share bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateShareMarkers", userID, share)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateShareMarkers indicates an expected call of UpdateShareMarkers.
+func (mr *MockUserRepositoryMockRecorder) UpdateShareMarkers(userID, share any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateShareMarkers", reflect.TypeOf((*MockUserRepository)(nil).UpdateShareMarkers), userID, share)
+}
+
 // UpdateUsername mocks base method.
 func (m *MockUserRepository) UpdateUsername(userID uint, newUsername string) error {
 	m.ctrl.T.Helper()

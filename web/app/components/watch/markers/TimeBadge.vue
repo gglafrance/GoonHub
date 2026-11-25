@@ -8,6 +8,8 @@ const props = defineProps<{
     marker: Pick<Marker, 'timestamp' | 'end_timestamp'>;
     // Time being edited on this card, if any
     editing?: MarkerTimeField | null;
+    // Shown only (a marker shared by another user)
+    readonly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -28,7 +30,15 @@ const partClass = (field: MarkerTimeField) => [
         class="absolute right-2 bottom-2 z-10 flex items-center rounded bg-black/70 px-1 py-0.5
             font-mono text-[10px] text-white backdrop-blur-sm"
     >
+        <span v-if="readonly" class="px-0.5">
+            {{ formatMarkerTime(marker.timestamp)
+            }}<template v-if="hasEnd">
+                <span class="text-white/50">-</span
+                >{{ formatMarkerTime(marker.end_timestamp ?? 0) }}</template
+            >
+        </span>
         <button
+            v-else
             type="button"
             :class="partClass('start')"
             title="Edit the start"
@@ -37,7 +47,7 @@ const partClass = (field: MarkerTimeField) => [
         >
             {{ formatMarkerTime(marker.timestamp) }}
         </button>
-        <template v-if="hasEnd">
+        <template v-if="hasEnd && !readonly">
             <span class="text-white/50">-</span>
             <button
                 type="button"

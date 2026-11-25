@@ -10,6 +10,11 @@ type UpdateUserRoleRequest struct {
 	Role string `json:"role" binding:"required"`
 }
 
+// UpdateUserShareMarkersRequest sets whether a user's markers are visible to every user.
+type UpdateUserShareMarkersRequest struct {
+	ShareMarkers *bool `json:"share_markers" binding:"required"`
+}
+
 type ResetPasswordRequest struct {
 	NewPassword string `json:"new_password" binding:"required,min=12,max=128"`
 }

@@ -4,6 +4,7 @@ import type { AdminUser, RoleResponse, PermissionResponse } from '~/types/admin'
 const { formatDateTime } = useDateFormatter();
 
 const { fetchAdminUsers, fetchRoles, fetchPermissions, syncRolePermissions } = useApi();
+const { updateUserShareMarkers } = useApiAdmin();
 const { message, error, clearMessages } = useSettingsMessage();
 
 const usersLoading = ref(false);
@@ -92,6 +93,27 @@ const handleDeleted = () => {
     loadUsers();
 };
 
+// Users whose marker sharing is being saved (toggle disabled meanwhile)
+const shareSaving = ref<Set<number>>(new Set());
+
+const handleShareMarkers = async (user: AdminUser, share: boolean) => {
+    clearMessages();
+    shareSaving.value = new Set(shareSaving.value).add(user.id);
+    try {
+        await updateUserShareMarkers(user.id, share);
+        user.share_markers = share;
+        message.value = share
+            ? `${user.username}'s markers are now visible to every user`
+            : `${user.username}'s markers are private again`;
+    } catch (e: unknown) {
+        error.value = e instanceof Error ? e.message : 'Failed to update marker sharing';
+    } finally {
+        const next = new Set(shareSaving.value);
+        next.delete(user.id);
+        shareSaving.value = next;
+    }
+};
+
 const toggleRoleExpand = (roleId: number) => {
     expandedRole.value = expandedRole.value === roleId ? null : roleId;
 };
@@ -171,6 +193,12 @@ const roleBadgeClass = (role: string): string => {
                         >
                             <th class="pr-4 pb-2 font-medium">Username</th>
                             <th class="pr-4 pb-2 font-medium">Role</th>
+                            <th
+                                class="pr-4 pb-2 font-medium"
+                                title="Markers visible (read-only) to every user"
+                            >
+                                Shared markers
+                            </th>
                             <th class="pr-4 pb-2 font-medium">Created</th>
                             <th class="pr-4 pb-2 font-medium">Last Login</th>
                             <th class="pb-2 font-medium">Actions</th>
@@ -191,6 +219,18 @@ const roleBadgeClass = (role: string): string => {
                                 >
                                     {{ u.role }}
                                 </span>
+                            </td>
+                            <td class="py-2.5 pr-4">
+                                <UiToggle
+                                    :model-value="u.share_markers"
+                                    :disabled="shareSaving.has(u.id)"
+                                    :title="
+                                        u.share_markers
+                                            ? `Every user sees ${u.username}'s markers`
+                                            : `Only ${u.username} sees their markers`
+                                    "
+                                    @update:model-value="handleShareMarkers(u, $event)"
+                                />
                             </td>
                             <td class="text-dim py-2.5 pr-4">{{ formatDate(u.created_at) }}</td>
                             <td class="text-dim py-2.5 pr-4">{{ formatDate(u.last_login_at) }}</td>

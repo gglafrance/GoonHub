@@ -97,6 +97,7 @@ User accounts with authentication credentials.
 | `password` | VARCHAR(255) | NO | - | Bcrypt hashed password |
 | `role` | VARCHAR(50) | NO | 'user' | Role name (admin, moderator, user) |
 | `last_login_at` | TIMESTAMPTZ | YES | NULL | Last successful login |
+| `share_markers` | BOOLEAN | NO | FALSE | The user's markers are visible (read-only) to every user (set by an admin) |
 
 **Constraints:**
 - `uni_users_username` UNIQUE on `username`
@@ -595,7 +596,7 @@ Dated "o" (jizz) events; `user_scene_jizzed.count` stays the per-scene total.
 
 ### `user_scene_markers`
 
-Video bookmarks/markers created by users.
+Video bookmarks/markers created by users. A user sees their own markers plus those of the users with `users.share_markers`; only the owner can edit a marker.
 
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|

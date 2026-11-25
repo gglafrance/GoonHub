@@ -221,3 +221,79 @@ func TestMarkerRepositoryThumbnailPathBumpsUpdatedAt(t *testing.T) {
 		})
 	}
 }
+
+// TestMarkerRepositorySharedMarkersVisibility checks that listings cover the viewer's markers
+// plus those of the users sharing theirs, while counts used for writes stay per owner. It runs
+// in a rolled back transaction: a sharing user would otherwise show up in the listings of the
+// other tests using the same database.
+func TestMarkerRepositorySharedMarkersVisibility(t *testing.T) {
+	db := importTestDB(t)
+	tx := db.Begin()
+	if tx.Error != nil {
+		t.Fatalf("begin: %v", tx.Error)
+	}
+	t.Cleanup(func() { tx.Rollback() })
+	repo := &MarkerRepositoryImpl{DB: tx}
+
+	suffix := time.Now().Format("150405.000000000")
+	viewer := &User{Username: "shared-viewer-" + suffix, Password: "x", Role: "user"}
+	owner := &User{Username: "shared-owner-" + suffix, Password: "x", Role: "user"}
+	for _, u := range []*User{viewer, owner} {
+		if err := tx.Create(u).Error; err != nil {
+			t.Fatalf("create user: %v", err)
+		}
+	}
+	scene := &Scene{Title: "Shared", StoredPath: "/shared-test/" + suffix + ".mp4", Tags: pq.StringArray{}, Actors: pq.StringArray{}}
+	if err := tx.Create(scene).Error; err != nil {
+		t.Fatalf("create scene: %v", err)
+	}
+	label := "SharedLabel-" + suffix
+	for _, m := range []*UserSceneMarker{
+		{UserID: viewer.ID, SceneID: scene.ID, Timestamp: 10, Label: label, Color: "#FFFFFF"},
+		{UserID: owner.ID, SceneID: scene.ID, Timestamp: 20, Label: label, Color: "#FFFFFF"},
+		{UserID: owner.ID, SceneID: scene.ID, Timestamp: 30, Label: label, Color: "#FFFFFF"},
+	} {
+		if err := tx.Create(m).Error; err != nil {
+			t.Fatalf("create marker: %v", err)
+		}
+	}
+
+	check := func(t *testing.T, wantVisible int) {
+		t.Helper()
+		markers, err := repo.GetByUserAndScene(viewer.ID, scene.ID)
+		if err != nil {
+			t.Fatalf("GetByUserAndScene: %v", err)
+		}
+		if len(markers) != wantVisible {
+			t.Fatalf("GetByUserAndScene: got %d markers, want %d", len(markers), wantVisible)
+		}
+		_, total, err := repo.GetMarkersByLabelForUser(viewer.ID, label, 0, 50, MarkerListOptions{})
+		if err != nil {
+			t.Fatalf("GetMarkersByLabelForUser: %v", err)
+		}
+		if total != int64(wantVisible) {
+			t.Fatalf("GetMarkersByLabelForUser: got %d, want %d", total, wantVisible)
+		}
+		ids, err := repo.GetSceneIDsByLabels(viewer.ID, []string{label})
+		if err != nil || len(ids) != 1 {
+			t.Fatalf("GetSceneIDsByLabels: got %v (%v), want the scene", ids, err)
+		}
+		tiles, err := ListMarkerLabelTiles(tx, viewer.ID, []string{label}, 10)
+		if err != nil {
+			t.Fatalf("ListMarkerLabelTiles: %v", err)
+		}
+		if len(tiles) != 1 || tiles[0].Count != int64(wantVisible) {
+			t.Fatalf("ListMarkerLabelTiles: got %+v, want one tile of %d", tiles, wantVisible)
+		}
+		count, err := repo.CountByUserAndScene(viewer.ID, scene.ID)
+		if err != nil || count != 1 {
+			t.Fatalf("CountByUserAndScene: got %d (%v), want the viewer's own 1", count, err)
+		}
+	}
+
+	t.Run("not shared", func(t *testing.T) { check(t, 1) })
+	if err := (&UserRepositoryImpl{DB: tx}).UpdateShareMarkers(owner.ID, true); err != nil {
+		t.Fatalf("UpdateShareMarkers: %v", err)
+	}
+	t.Run("shared", func(t *testing.T) { check(t, 3) })
+}
