@@ -12,10 +12,10 @@ type WatchHistoryEntryResponse struct {
 }
 
 // ToWatchHistoryEntryResponse converts a service WatchHistoryEntry to the response type.
-func ToWatchHistoryEntryResponse(entry core.WatchHistoryEntry) WatchHistoryEntryResponse {
+func ToWatchHistoryEntryResponse(entry core.WatchHistoryEntry, vis FileVisibility) WatchHistoryEntryResponse {
 	var scene *SceneListItem
 	if entry.Scene != nil {
-		item := ToSceneListItem(*entry.Scene)
+		item := ToSceneListItem(*entry.Scene, vis)
 		scene = &item
 	}
 	return WatchHistoryEntryResponse{
@@ -25,10 +25,10 @@ func ToWatchHistoryEntryResponse(entry core.WatchHistoryEntry) WatchHistoryEntry
 }
 
 // ToWatchHistoryEntriesResponse converts a slice of WatchHistoryEntry to response types.
-func ToWatchHistoryEntriesResponse(entries []core.WatchHistoryEntry) []WatchHistoryEntryResponse {
+func ToWatchHistoryEntriesResponse(entries []core.WatchHistoryEntry, vis FileVisibility) []WatchHistoryEntryResponse {
 	result := make([]WatchHistoryEntryResponse, len(entries))
 	for i, e := range entries {
-		result[i] = ToWatchHistoryEntryResponse(e)
+		result[i] = ToWatchHistoryEntryResponse(e, vis)
 	}
 	return result
 }

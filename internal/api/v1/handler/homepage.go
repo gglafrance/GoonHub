@@ -34,7 +34,7 @@ func (h *HomepageHandler) GetHomepageData(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, response.ToHomepageResponse(data))
+	response.OK(c, response.ToHomepageResponse(data, fileVisibility(c)))
 }
 
 func (h *HomepageHandler) GetSectionData(c *gin.Context) {
@@ -61,5 +61,5 @@ func (h *HomepageHandler) GetSectionData(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, response.ToHomepageSectionDataResponse(data))
+	response.OK(c, response.ToHomepageSectionDataResponse(data, fileVisibility(c)))
 }

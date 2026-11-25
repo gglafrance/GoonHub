@@ -5,20 +5,36 @@ import (
 	"goonhub/internal/data"
 )
 
-// SceneDetail is a scene as returned by GET /scenes/:id and the scene details update: the
-// scene with the normalized site of its source URL ("" without a source).
+// SceneDetail is a scene as returned by GET /scenes/:id, the upload and the scene details
+// update: the scene with the normalized site of its source URL ("" without a source), the
+// playback info when set, without the file information the user may not see.
 type SceneDetail struct {
-	*data.Scene
-	SourceSite string `json:"source_site"`
+	Scene      *data.Scene
+	SourceSite string
+	// Playback (how the player gets the scene) is added when set
+	Playback   any
+	Visibility FileVisibility
 }
 
 // NewSceneDetail adds the source site to a scene.
-func NewSceneDetail(scene *data.Scene) SceneDetail {
-	detail := SceneDetail{Scene: scene}
+func NewSceneDetail(scene *data.Scene, vis FileVisibility) SceneDetail {
+	detail := SceneDetail{Scene: scene, Visibility: vis}
 	if scene != nil {
 		detail.SourceSite = core.SourceSiteFromURL(scene.SourceURL)
 	}
 	return detail
+}
+
+// MarshalJSON writes the scene fields (minus the hidden ones), source_site and playback.
+func (d SceneDetail) MarshalJSON() ([]byte, error) {
+	if d.Scene == nil {
+		return []byte("null"), nil
+	}
+	extra := map[string]any{"source_site": d.SourceSite}
+	if d.Playback != nil {
+		extra["playback"] = d.Playback
+	}
+	return marshalSceneWithout(d.Scene, d.Visibility, extra)
 }
 
 // SourceSiteItem is a source site with its scene count.
