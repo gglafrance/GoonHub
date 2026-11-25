@@ -474,9 +474,13 @@ func provideSettingsService(settingsRepo data.UserSettingsRepository, userRepo d
 	return core.NewSettingsService(settingsRepo, userRepo, logger.Logger)
 }
 
-func provideRBACService(roleRepo data.RoleRepository, permRepo data.PermissionRepository, logger *logging.Logger) *core.RBACService {
-	svc, err := core.NewRBACService(roleRepo, permRepo, logger.Logger)
+func provideRBACService(roleRepo data.RoleRepository, permRepo data.PermissionRepository, userRepo data.UserRepository, logger *logging.Logger) *core.RBACService {
+	svc, err := core.NewRBACService(roleRepo, permRepo, userRepo, logger.Logger)
 	if err != nil {
+		panic(err)
+	}
+	// Permission catalog: new permissions with their default grants (docs/RBAC.md)
+	if err := svc.SyncCatalog(); err != nil {
 		panic(err)
 	}
 	return svc
@@ -646,6 +650,7 @@ func provideHomepageService(
 	jobHistoryRepo data.JobHistoryRepository,
 	duplicateService *core.DuplicateService,
 	storagePathRepo data.StoragePathRepository,
+	rbacService *core.RBACService,
 	logger *logging.Logger,
 ) *core.HomepageService {
 	svc := core.NewHomepageService(
@@ -668,6 +673,7 @@ func provideHomepageService(
 		JobHistory:    jobHistoryRepo,
 		Duplicates:    duplicateService,
 		StoragePaths:  storagePathRepo,
+		Permissions:   rbacService,
 	})
 	return svc
 }
@@ -850,8 +856,8 @@ func provideRetryConfigHandler(retryConfigRepo data.RetryConfigRepository, retry
 
 // --- Real-time & Storage Handlers ---
 
-func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, logger *logging.Logger) *handler.SSEHandler {
-	return handler.NewSSEHandler(eventBus, authService, jobStatusService, logger.Logger)
+func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, rbacService *core.RBACService, logger *logging.Logger) *handler.SSEHandler {
+	return handler.NewSSEHandler(eventBus, authService, jobStatusService, rbacService, logger.Logger)
 }
 
 func provideStoragePathHandler(service *core.StoragePathService) *handler.StoragePathHandler {

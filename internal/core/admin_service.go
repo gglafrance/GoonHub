@@ -122,12 +122,48 @@ func (s *AdminService) UpdateUserRole(userID uint, newRole string) error {
 	if _, err := s.roleRepo.GetByName(newRole); err != nil {
 		return fmt.Errorf("invalid role: %s", newRole)
 	}
+	if err := s.ensureNotLastSuperuser(userID, newRole); err != nil {
+		return err
+	}
 
 	if err := s.userRepo.UpdateRole(userID, newRole); err != nil {
 		return fmt.Errorf("failed to update user role: %w", err)
 	}
+	if s.rbac != nil {
+		s.rbac.InvalidateUser(userID)
+	}
 
 	s.logger.Info("Admin updated user role", zap.Uint("user_id", userID), zap.String("new_role", newRole))
+	return nil
+}
+
+// ensureNotLastSuperuser refuses to take the last user of the superuser roles out of them
+// (newRole "" means the user is deleted): nobody could manage the roles anymore.
+func (s *AdminService) ensureNotLastSuperuser(userID uint, newRole string) error {
+	if s.rbac == nil {
+		return nil
+	}
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.NewNotFoundError("user", userID)
+		}
+		return apperrors.NewInternalError("failed to get user", err)
+	}
+	if !s.rbac.IsSuperuserRole(user.Role) || (newRole != "" && s.rbac.IsSuperuserRole(newRole)) {
+		return nil
+	}
+	var total int64
+	for _, name := range s.rbac.SuperuserRoleNames() {
+		n, err := s.roleRepo.CountUsersByRole(name)
+		if err != nil {
+			return apperrors.NewInternalError("failed to count superusers", err)
+		}
+		total += n
+	}
+	if total <= 1 {
+		return apperrors.NewValidationError("this is the last user with a superuser role")
+	}
 	return nil
 }
 
@@ -169,9 +205,15 @@ func (s *AdminService) DeleteUser(userID, requestingUserID uint) error {
 	if userID == requestingUserID {
 		return fmt.Errorf("cannot delete your own account")
 	}
+	if err := s.ensureNotLastSuperuser(userID, ""); err != nil {
+		return err
+	}
 
 	if err := s.userRepo.Delete(userID); err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
+	}
+	if s.rbac != nil {
+		s.rbac.InvalidateUser(userID)
 	}
 
 	s.logger.Info("Admin deleted user", zap.Uint("user_id", userID), zap.Uint("deleted_by", requestingUserID))

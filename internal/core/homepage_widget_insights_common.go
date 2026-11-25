@@ -18,16 +18,14 @@ func insightsQueries(s *HomepageService) (*data.InsightsWidgetQueries, error) {
 	return data.NewInsightsWidgetQueries(db), nil
 }
 
-// insightsUserIsAdmin reports whether the user has the admin role.
+// insightsUserIsAdmin reports whether the user has the library:insights permission (the
+// curation and processing details of the insight widgets).
 func insightsUserIsAdmin(s *HomepageService, userID uint) bool {
-	if s.settingsService == nil || s.settingsService.userRepo == nil {
+	perms := s.WidgetDeps().Permissions
+	if perms == nil {
 		return false
 	}
-	user, err := s.settingsService.userRepo.GetByID(userID)
-	if err != nil || user == nil {
-		return false
-	}
-	return user.Role == "admin"
+	return perms.UserHasPermission(userID, PermLibraryInsights)
 }
 
 // insightsValidateOneOf checks an optional string config value against allowed values.

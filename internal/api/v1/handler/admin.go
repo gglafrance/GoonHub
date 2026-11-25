@@ -15,12 +15,12 @@ import (
 
 type AdminHandler struct {
 	AdminService    *core.AdminService
-	RBACService     *core.RBACService
+	RBACService     RBACManager
 	SceneService    *core.SceneService
 	AppSettingsRepo data.AppSettingsRepository
 }
 
-func NewAdminHandler(adminService *core.AdminService, rbacService *core.RBACService, sceneService *core.SceneService, appSettingsRepo data.AppSettingsRepository) *AdminHandler {
+func NewAdminHandler(adminService *core.AdminService, rbacService RBACManager, sceneService *core.SceneService, appSettingsRepo data.AppSettingsRepository) *AdminHandler {
 	return &AdminHandler{
 		AdminService:    adminService,
 		RBACService:     rbacService,
@@ -107,7 +107,7 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 	}
 
 	if err := h.AdminService.UpdateUserRole(uint(id), req.Role); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		adminUserError(c, err)
 		return
 	}
 
@@ -171,52 +171,11 @@ func (h *AdminHandler) DeleteUser(c *gin.Context) {
 	}
 
 	if err := h.AdminService.DeleteUser(uint(id), userPayload.UserID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		adminUserError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
-}
-
-func (h *AdminHandler) ListRoles(c *gin.Context) {
-	roles, err := h.RBACService.GetRoles()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list roles"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"roles": roles})
-}
-
-func (h *AdminHandler) ListPermissions(c *gin.Context) {
-	permissions, err := h.RBACService.GetPermissions()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list permissions"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"permissions": permissions})
-}
-
-func (h *AdminHandler) SyncRolePermissions(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
-		return
-	}
-
-	var req request.SyncRolePermissionsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
-		return
-	}
-
-	if err := h.RBACService.SyncRolePermissions(uint(id), req.PermissionIDs); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Role permissions updated successfully"})
 }
 
 // Trash management endpoints

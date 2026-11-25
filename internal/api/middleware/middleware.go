@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
 	"goonhub/internal/infrastructure/logging"
 	"net/http"
@@ -142,7 +143,40 @@ func Logger(logger *logging.Logger) gin.HandlerFunc {
 // AuthCookieName is the name of the HTTP-only auth cookie
 const AuthCookieName = "goonhub_auth"
 
-func AuthMiddleware(authService *core.AuthService) gin.HandlerFunc {
+// AccessResolver resolves the live access (current role, effective permissions) of a user
+// (implemented by core.RBACService).
+type AccessResolver interface {
+	ResolveUser(userID uint) (*core.UserAccess, error)
+}
+
+// contextAccessKey is the gin context key of the authenticated user's *core.UserAccess.
+const contextAccessKey = "access"
+
+// SetAccess stores the user's access in the context (done by AuthMiddleware; tests use it
+// to stand in for it).
+func SetAccess(c *gin.Context, access *core.UserAccess) {
+	c.Set(contextAccessKey, access)
+}
+
+// GetAccess returns the authenticated user's access, nil when there is none.
+func GetAccess(c *gin.Context) *core.UserAccess {
+	v, ok := c.Get(contextAccessKey)
+	if !ok {
+		return nil
+	}
+	access, _ := v.(*core.UserAccess)
+	return access
+}
+
+// HasPermission reports whether the authenticated user has the permission.
+func HasPermission(c *gin.Context, permission string) bool {
+	return GetAccess(c).Has(permission)
+}
+
+// AuthMiddleware authenticates the session token, then resolves the user's current role and
+// effective permissions: the role stored in the token is not used for authorization. The
+// token of a user that no longer exists is refused.
+func AuthMiddleware(authService *core.AuthService, resolver AccessResolver) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := ""
 
@@ -175,60 +209,49 @@ func AuthMiddleware(authService *core.AuthService) gin.HandlerFunc {
 			return
 		}
 
-		c.Set("user", payload)
+		access, err := resolver.ResolveUser(payload.UserID)
+		if err != nil {
+			if apperrors.IsNotFound(err) {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resolve permissions"})
+			}
+			c.Abort()
+			return
+		}
+
+		live := *payload
+		live.Role = access.Role
+		c.Set("user", &live)
+		SetAccess(c, access)
 		c.Next()
 	}
 }
 
-func RequireRole(role string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		user, exists := c.Get("user")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-			c.Abort()
-			return
-		}
-
-		userPayload, ok := user.(*core.UserPayload)
-		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user data"})
-			c.Abort()
-			return
-		}
-
-		if userPayload.Role != role {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
+// RequirePermission lets the request through only if the authenticated user has the
+// permission (a superuser has them all).
+func RequirePermission(permission string) gin.HandlerFunc {
+	return RequireAnyPermission(permission)
 }
 
-func RequirePermission(rbac *core.RBACService, permission string) gin.HandlerFunc {
+// RequireAnyPermission lets the request through if the authenticated user has at least one
+// of the permissions.
+func RequireAnyPermission(permissions ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		user, exists := c.Get("user")
-		if !exists {
+		access := GetAccess(c)
+		if access == nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 			c.Abort()
 			return
 		}
-
-		userPayload, ok := user.(*core.UserPayload)
-		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user data"})
-			c.Abort()
-			return
+		for _, p := range permissions {
+			if access.Has(p) {
+				c.Next()
+				return
+			}
 		}
-
-		if !rbac.HasPermission(userPayload.Role, permission) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
-			c.Abort()
-			return
-		}
-
-		c.Next()
+		c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
+		c.Abort()
 	}
 }
 

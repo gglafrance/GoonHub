@@ -34,10 +34,11 @@ func newTestJobBulkRouter(t *testing.T, role string) (*gin.Engine, *mocks.MockJo
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set("user", &core.UserPayload{UserID: 1, Role: role})
+		middleware.SetAccess(c, testAccessForRole(role))
 		c.Next()
 	})
 	admin := r.Group("/admin")
-	admin.Use(middleware.RequireRole("admin"))
+	admin.Use(middleware.RequirePermission(core.PermJobsManage))
 	admin.POST("/jobs/cancel-bulk", h.CancelBulk)
 	admin.GET("/jobs/history-purge", h.GetHistoryPurge)
 	admin.POST("/jobs/history-purge", h.PurgeHistory)

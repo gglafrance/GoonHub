@@ -55,18 +55,33 @@ func (mr *MockRoleRepositoryMockRecorder) CountUsersByRole(roleName any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUsersByRole", reflect.TypeOf((*MockRoleRepository)(nil).CountUsersByRole), roleName)
 }
 
-// Create mocks base method.
-func (m *MockRoleRepository) Create(role *data.Role) error {
+// CountUsersPerRole mocks base method.
+func (m *MockRoleRepository) CountUsersPerRole() (map[string]int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", role)
+	ret := m.ctrl.Call(m, "CountUsersPerRole")
+	ret0, _ := ret[0].(map[string]int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountUsersPerRole indicates an expected call of CountUsersPerRole.
+func (mr *MockRoleRepositoryMockRecorder) CountUsersPerRole() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUsersPerRole", reflect.TypeOf((*MockRoleRepository)(nil).CountUsersPerRole))
+}
+
+// Create mocks base method.
+func (m *MockRoleRepository) Create(role *data.Role, parentIDs []uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Create", role, parentIDs)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockRoleRepositoryMockRecorder) Create(role any) *gomock.Call {
+func (mr *MockRoleRepositoryMockRecorder) Create(role, parentIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRoleRepository)(nil).Create), role)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRoleRepository)(nil).Create), role, parentIDs)
 }
 
 // Delete mocks base method.
@@ -81,21 +96,6 @@ func (m *MockRoleRepository) Delete(id uint) error {
 func (mr *MockRoleRepositoryMockRecorder) Delete(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockRoleRepository)(nil).Delete), id)
-}
-
-// GetAllRolePermissions mocks base method.
-func (m *MockRoleRepository) GetAllRolePermissions() (map[string][]string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllRolePermissions")
-	ret0, _ := ret[0].(map[string][]string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAllRolePermissions indicates an expected call of GetAllRolePermissions.
-func (mr *MockRoleRepositoryMockRecorder) GetAllRolePermissions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllRolePermissions", reflect.TypeOf((*MockRoleRepository)(nil).GetAllRolePermissions))
 }
 
 // GetByID mocks base method.
@@ -143,16 +143,45 @@ func (mr *MockRoleRepositoryMockRecorder) List() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockRoleRepository)(nil).List))
 }
 
-// Update mocks base method.
-func (m *MockRoleRepository) Update(role *data.Role) error {
+// LoadGraph mocks base method.
+func (m *MockRoleRepository) LoadGraph() (*data.RBACGraph, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", role)
+	ret := m.ctrl.Call(m, "LoadGraph")
+	ret0, _ := ret[0].(*data.RBACGraph)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LoadGraph indicates an expected call of LoadGraph.
+func (mr *MockRoleRepositoryMockRecorder) LoadGraph() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadGraph", reflect.TypeOf((*MockRoleRepository)(nil).LoadGraph))
+}
+
+// ReplaceSettings mocks base method.
+func (m *MockRoleRepository) ReplaceSettings(roleID uint, settings []data.RolePermission) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReplaceSettings", roleID, settings)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReplaceSettings indicates an expected call of ReplaceSettings.
+func (mr *MockRoleRepositoryMockRecorder) ReplaceSettings(roleID, settings any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplaceSettings", reflect.TypeOf((*MockRoleRepository)(nil).ReplaceSettings), roleID, settings)
+}
+
+// Update mocks base method.
+func (m *MockRoleRepository) Update(role *data.Role, parentIDs []uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Update", role, parentIDs)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Update indicates an expected call of Update.
-func (mr *MockRoleRepositoryMockRecorder) Update(role any) *gomock.Call {
+func (mr *MockRoleRepositoryMockRecorder) Update(role, parentIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRoleRepository)(nil).Update), role)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRoleRepository)(nil).Update), role, parentIDs)
 }

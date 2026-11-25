@@ -21,12 +21,13 @@ type SimilarSegment struct {
 
 // SimilarScene is a scene sharing the duplicate group (fingerprint match) of the current scene.
 type SimilarScene struct {
-	ID              uint    `json:"id"`
-	Title           string  `json:"title"`
-	Duration        int     `json:"duration"`
-	Width           int     `json:"width"`
-	Height          int     `json:"height"`
-	Size            int64   `json:"size"`
+	ID       uint   `json:"id"`
+	Title    string `json:"title"`
+	Duration int    `json:"duration"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	// Size is omitted by the API without files:view_size
+	Size            *int64  `json:"size,omitempty"`
 	ThumbnailPath   string  `json:"thumbnail_path"`
 	IsTrashed       bool    `json:"is_trashed"`
 	IsBest          bool    `json:"is_best"`
@@ -92,13 +93,14 @@ func (ds *DuplicateService) GetSimilarScenes(sceneID uint, includeTrashed bool) 
 		if refID != nil && !visible[*refID] {
 			refID = nil
 		}
+		size := other.Size
 		result.Scenes = append(result.Scenes, SimilarScene{
 			ID:                 other.SceneID,
 			Title:              other.Title,
 			Duration:           other.Duration,
 			Width:              other.Width,
 			Height:             other.Height,
-			Size:               other.Size,
+			Size:               &size,
 			ThumbnailPath:      other.ThumbnailPath,
 			IsTrashed:          other.TrashedAt != nil,
 			IsBest:             other.IsBest,

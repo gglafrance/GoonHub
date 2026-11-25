@@ -19,9 +19,14 @@ func newTestAdminService(t *testing.T) (*AdminService, *mocks.MockUserRepository
 	userRepo := mocks.NewMockUserRepository(ctrl)
 	roleRepo := mocks.NewMockRoleRepository(ctrl)
 
-	// Create a minimal RBAC service with no permissions loaded
-	roleRepo.EXPECT().GetAllRolePermissions().Return(map[string][]string{}, nil)
-	rbac, err := NewRBACService(roleRepo, mocks.NewMockPermissionRepository(ctrl), zap.NewNop())
+	// RBAC service with the admin (superuser) and user roles, no permission
+	roleRepo.EXPECT().LoadGraph().Return(&data.RBACGraph{Roles: []data.Role{
+		{ID: 1, Name: "admin", IsSystem: true, IsSuperuser: true},
+		{ID: 2, Name: "user", IsSystem: true},
+	}}, nil)
+	permRepo := mocks.NewMockPermissionRepository(ctrl)
+	permRepo.EXPECT().List().Return(nil, nil)
+	rbac, err := NewRBACService(roleRepo, permRepo, userRepo, zap.NewNop())
 	if err != nil {
 		t.Fatalf("failed to create RBAC service: %v", err)
 	}
@@ -33,6 +38,7 @@ func newTestAdminService(t *testing.T) (*AdminService, *mocks.MockUserRepository
 func TestDeleteUser_Success(t *testing.T) {
 	svc, userRepo, _ := newTestAdminService(t)
 
+	userRepo.EXPECT().GetByID(uint(5)).Return(&data.User{ID: 5, Role: "user"}, nil)
 	userRepo.EXPECT().Delete(uint(5)).Return(nil)
 
 	err := svc.DeleteUser(5, 1) // deleting user 5 as user 1
@@ -134,11 +140,49 @@ func TestUpdateUserRole_Success(t *testing.T) {
 	svc, userRepo, roleRepo := newTestAdminService(t)
 
 	roleRepo.EXPECT().GetByName("admin").Return(&data.Role{ID: 1, Name: "admin"}, nil)
+	userRepo.EXPECT().GetByID(uint(5)).Return(&data.User{ID: 5, Role: "user"}, nil)
 	userRepo.EXPECT().UpdateRole(uint(5), "admin").Return(nil)
 
 	err := svc.UpdateUserRole(5, "admin")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
+	}
+}
+
+func TestUpdateUserRole_LastSuperuserRefused(t *testing.T) {
+	svc, userRepo, roleRepo := newTestAdminService(t)
+
+	roleRepo.EXPECT().GetByName("user").Return(&data.Role{ID: 2, Name: "user"}, nil)
+	userRepo.EXPECT().GetByID(uint(1)).Return(&data.User{ID: 1, Role: "admin"}, nil)
+	roleRepo.EXPECT().CountUsersByRole("admin").Return(int64(1), nil)
+
+	err := svc.UpdateUserRole(1, "user")
+	if !apperrors.IsValidation(err) {
+		t.Fatalf("expected a validation error for the last superuser, got %v", err)
+	}
+}
+
+func TestUpdateUserRole_SuperuserWithAnotherOneLeft(t *testing.T) {
+	svc, userRepo, roleRepo := newTestAdminService(t)
+
+	roleRepo.EXPECT().GetByName("user").Return(&data.Role{ID: 2, Name: "user"}, nil)
+	userRepo.EXPECT().GetByID(uint(1)).Return(&data.User{ID: 1, Role: "admin"}, nil)
+	roleRepo.EXPECT().CountUsersByRole("admin").Return(int64(2), nil)
+	userRepo.EXPECT().UpdateRole(uint(1), "user").Return(nil)
+
+	if err := svc.UpdateUserRole(1, "user"); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
+func TestDeleteUser_LastSuperuserRefused(t *testing.T) {
+	svc, userRepo, roleRepo := newTestAdminService(t)
+
+	userRepo.EXPECT().GetByID(uint(3)).Return(&data.User{ID: 3, Role: "admin"}, nil)
+	roleRepo.EXPECT().CountUsersByRole("admin").Return(int64(1), nil)
+
+	if err := svc.DeleteUser(3, 7); !apperrors.IsValidation(err) {
+		t.Fatalf("expected a validation error for the last superuser, got %v", err)
 	}
 }
 

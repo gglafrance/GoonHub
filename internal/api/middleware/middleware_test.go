@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
 	"goonhub/internal/data"
 	"goonhub/internal/mocks"
@@ -42,7 +43,7 @@ func TestAuthMiddleware_NoHeader(t *testing.T) {
 	authSvc, _, _ := newTestAuthService(t)
 
 	router := gin.New()
-	router.Use(AuthMiddleware(authSvc))
+	router.Use(AuthMiddleware(authSvc, fakeResolver{}))
 	router.GET("/protected", func(c *gin.Context) {
 		c.JSON(200, gin.H{"ok": true})
 	})
@@ -60,7 +61,7 @@ func TestAuthMiddleware_NoBearerPrefix(t *testing.T) {
 	authSvc, _, _ := newTestAuthService(t)
 
 	router := gin.New()
-	router.Use(AuthMiddleware(authSvc))
+	router.Use(AuthMiddleware(authSvc, fakeResolver{}))
 	router.GET("/protected", func(c *gin.Context) {
 		c.JSON(200, gin.H{"ok": true})
 	})
@@ -81,7 +82,7 @@ func TestAuthMiddleware_InvalidToken(t *testing.T) {
 	revokedRepo.EXPECT().IsRevoked(gomock.Any()).Return(false, nil)
 
 	router := gin.New()
-	router.Use(AuthMiddleware(authSvc))
+	router.Use(AuthMiddleware(authSvc, fakeResolver{}))
 	router.GET("/protected", func(c *gin.Context) {
 		c.JSON(200, gin.H{"ok": true})
 	})
@@ -112,12 +113,15 @@ func TestAuthMiddleware_ValidToken_SetsContext(t *testing.T) {
 
 	revokedRepo.EXPECT().IsRevoked(gomock.Any()).Return(false, nil)
 
+	// the role in the token is admin, the user's current role is user
 	var capturedPayload *core.UserPayload
+	var capturedAccess *core.UserAccess
 	router := gin.New()
-	router.Use(AuthMiddleware(authSvc))
+	router.Use(AuthMiddleware(authSvc, fakeResolver{42: core.NewUserAccess(42, "user", false, "scenes:view")}))
 	router.GET("/protected", func(c *gin.Context) {
 		user, _ := c.Get("user")
 		capturedPayload = user.(*core.UserPayload)
+		capturedAccess = GetAccess(c)
 		c.JSON(200, gin.H{"ok": true})
 	})
 
@@ -135,105 +139,105 @@ func TestAuthMiddleware_ValidToken_SetsContext(t *testing.T) {
 	if capturedPayload.UserID != 42 {
 		t.Fatalf("expected UserID 42, got %d", capturedPayload.UserID)
 	}
-	if capturedPayload.Role != "admin" {
-		t.Fatalf("expected role admin, got %s", capturedPayload.Role)
+	if capturedPayload.Role != "user" {
+		t.Fatalf("expected the live role user, got %s", capturedPayload.Role)
+	}
+	if capturedAccess == nil || !capturedAccess.Has("scenes:view") || capturedAccess.Has("users:manage") {
+		t.Fatalf("expected the resolved access in the context, got %+v", capturedAccess)
 	}
 }
 
-func TestRequireRole_Correct(t *testing.T) {
+// fakeResolver resolves the users it knows, NotFound for the others (deleted users).
+type fakeResolver map[uint]*core.UserAccess
+
+func (f fakeResolver) ResolveUser(userID uint) (*core.UserAccess, error) {
+	if a, ok := f[userID]; ok {
+		return a, nil
+	}
+	return nil, apperrors.NewNotFoundError("user", userID)
+}
+
+func TestAuthMiddleware_DeletedUser(t *testing.T) {
+	authSvc, userRepo, revokedRepo := newTestAuthService(t)
+
+	user := &data.User{ID: 7, Username: "bob", Password: hashForTest(t, "testpass"), Role: "user"}
+	userRepo.EXPECT().GetByUsername("bob").Return(user, nil)
+	userRepo.EXPECT().UpdateLastLogin(uint(7)).Return(nil)
+	token, _, err := authSvc.Login("bob", "testpass")
+	if err != nil {
+		t.Fatalf("login failed: %v", err)
+	}
+	revokedRepo.EXPECT().IsRevoked(gomock.Any()).Return(false, nil)
+
 	router := gin.New()
-	router.Use(func(c *gin.Context) {
-		c.Set("user", &core.UserPayload{UserID: 1, Role: "admin"})
-		c.Next()
-	})
-	router.Use(RequireRole("admin"))
-	router.GET("/admin", func(c *gin.Context) {
+	router.Use(AuthMiddleware(authSvc, fakeResolver{}))
+	router.GET("/protected", func(c *gin.Context) {
 		c.JSON(200, gin.H{"ok": true})
 	})
 
-	req, _ := http.NewRequest("GET", "/admin", nil)
+	req, _ := http.NewRequest("GET", "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != 200 {
-		t.Fatalf("expected 200 for correct role, got %d", w.Code)
+	if w.Code != 401 {
+		t.Fatalf("expected 401 for the token of a deleted user, got %d", w.Code)
 	}
 }
 
-func TestRequireRole_Wrong(t *testing.T) {
+func serveWithAccess(access *core.UserAccess, guard gin.HandlerFunc) int {
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		c.Set("user", &core.UserPayload{UserID: 1, Role: "viewer"})
+		if access != nil {
+			c.Set("user", &core.UserPayload{UserID: access.UserID, Role: access.Role})
+			SetAccess(c, access)
+		}
 		c.Next()
 	})
-	router.Use(RequireRole("admin"))
-	router.GET("/admin", func(c *gin.Context) {
+	router.Use(guard)
+	router.GET("/x", func(c *gin.Context) {
 		c.JSON(200, gin.H{"ok": true})
 	})
-
-	req, _ := http.NewRequest("GET", "/admin", nil)
+	req, _ := http.NewRequest("GET", "/x", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
+	return w.Code
+}
 
-	if w.Code != 403 {
-		t.Fatalf("expected 403 for wrong role, got %d", w.Code)
+func TestRequirePermission(t *testing.T) {
+	viewer := core.NewUserAccess(1, "user", false, "scenes:view", "files:view_size")
+	admin := core.NewUserAccess(2, "admin", true)
+	tests := []struct {
+		name   string
+		access *core.UserAccess
+		guard  gin.HandlerFunc
+		want   int
+	}{
+		{"has the permission", viewer, RequirePermission("scenes:view"), 200},
+		{"lacks the permission", viewer, RequirePermission("scenes:delete"), 403},
+		{"superuser passes", admin, RequirePermission("roles:manage"), 200},
+		{"not authenticated", nil, RequirePermission("scenes:view"), 401},
+		{"any: one of them", viewer, RequireAnyPermission("roles:manage", "files:view_size"), 200},
+		{"any: none of them", viewer, RequireAnyPermission("roles:manage", "users:manage"), 403},
+		{"any: superuser", admin, RequireAnyPermission("roles:manage", "users:manage"), 200},
+		{"any: not authenticated", nil, RequireAnyPermission("roles:manage"), 401},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := serveWithAccess(tc.access, tc.guard); got != tc.want {
+				t.Fatalf("got %d, want %d", got, tc.want)
+			}
+		})
 	}
 }
 
-func TestRequirePermission_Has(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	roleRepo := mocks.NewMockRoleRepository(ctrl)
-	permRepo := mocks.NewMockPermissionRepository(ctrl)
-
-	roleRepo.EXPECT().GetAllRolePermissions().Return(map[string][]string{
-		"admin": {"videos.upload"},
-	}, nil)
-	rbac, _ := core.NewRBACService(roleRepo, permRepo, zap.NewNop())
-
-	router := gin.New()
-	router.Use(func(c *gin.Context) {
-		c.Set("user", &core.UserPayload{UserID: 1, Role: "admin"})
-		c.Next()
-	})
-	router.Use(RequirePermission(rbac, "videos.upload"))
-	router.GET("/upload", func(c *gin.Context) {
-		c.JSON(200, gin.H{"ok": true})
-	})
-
-	req, _ := http.NewRequest("GET", "/upload", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	if w.Code != 200 {
-		t.Fatalf("expected 200 when permission exists, got %d", w.Code)
+func TestHasPermission_FromContext(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	if HasPermission(c, "scenes:view") {
+		t.Fatal("no access in the context: no permission")
 	}
-}
-
-func TestRequirePermission_Lacks(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	roleRepo := mocks.NewMockRoleRepository(ctrl)
-	permRepo := mocks.NewMockPermissionRepository(ctrl)
-
-	roleRepo.EXPECT().GetAllRolePermissions().Return(map[string][]string{
-		"viewer": {"videos.view"},
-	}, nil)
-	rbac, _ := core.NewRBACService(roleRepo, permRepo, zap.NewNop())
-
-	router := gin.New()
-	router.Use(func(c *gin.Context) {
-		c.Set("user", &core.UserPayload{UserID: 1, Role: "viewer"})
-		c.Next()
-	})
-	router.Use(RequirePermission(rbac, "videos.delete"))
-	router.GET("/delete", func(c *gin.Context) {
-		c.JSON(200, gin.H{"ok": true})
-	})
-
-	req, _ := http.NewRequest("GET", "/delete", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	if w.Code != 403 {
-		t.Fatalf("expected 403 when permission lacking, got %d", w.Code)
+	SetAccess(c, core.NewUserAccess(1, "user", false, "scenes:view"))
+	if !HasPermission(c, "scenes:view") || HasPermission(c, "scenes:edit") {
+		t.Fatal("unexpected permissions from the context")
 	}
 }

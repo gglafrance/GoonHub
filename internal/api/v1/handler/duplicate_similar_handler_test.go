@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"goonhub/internal/api/middleware"
 	"goonhub/internal/core"
 	"goonhub/internal/data"
 	"goonhub/internal/mocks"
@@ -16,7 +18,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// newSimilarHandlerForTest serves GET /scenes/:id/similar as the given role (none if empty).
+// newSimilarHandlerForTest serves GET /scenes/:id/similar as the given role (none if empty):
+// admin is the superuser, moderator has files:view_size, user has no file permission.
 func newSimilarHandlerForTest(t *testing.T, role string) (*gin.Engine, *mocks.MockDuplicateGroupRepository, *mocks.MockSceneRepository) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -29,6 +32,11 @@ func newSimilarHandlerForTest(t *testing.T, role string) (*gin.Engine, *mocks.Mo
 	r.Use(func(c *gin.Context) {
 		if role != "" {
 			c.Set("user", &core.UserPayload{UserID: 1, Username: "u", Role: role})
+			access := testAccessForRole(role)
+			if role == "moderator" {
+				access = core.NewUserAccess(1, role, false, core.PermScenesView, core.PermFilesViewSize)
+			}
+			middleware.SetAccess(c, access)
 		}
 		c.Next()
 	})
@@ -77,8 +85,25 @@ func TestGetSimilarScenes_TrashedOnlyForAdmins(t *testing.T) {
 	}
 }
 
-func TestGetSimilarScenes_ResponseShape(t *testing.T) {
+func TestGetSimilarScenes_SizeNeedsPermission(t *testing.T) {
 	r, groups, scenes := newSimilarHandlerForTest(t, "user")
+	scenes.EXPECT().GetByID(uint(1)).Return(&data.Scene{ID: 1}, nil)
+	groups.EXPECT().ListSceneGroupMembers(uint(1), false).Return([]data.DuplicateMemberScene{
+		{GroupID: 4, GroupStatus: "unresolved", SceneID: 1, Duration: 600},
+		{GroupID: 4, GroupStatus: "unresolved", SceneID: 2, Title: "Copy", Duration: 600, Size: 1234},
+	}, nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/scenes/1/similar", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), `"size"`) {
+		t.Fatalf("size must be omitted without files:view_size: %s", w.Body.String())
+	}
+}
+
+func TestGetSimilarScenes_ResponseShape(t *testing.T) {
+	r, groups, scenes := newSimilarHandlerForTest(t, "moderator")
 	f := func(v float64) *float64 { return &v }
 	one := uint(1)
 	scenes.EXPECT().GetByID(uint(1)).Return(&data.Scene{ID: 1}, nil)
