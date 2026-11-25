@@ -47,6 +47,8 @@ auth:
   # paseto_secret: set via GOONHUB_AUTH_PASETO_SECRET env var (must be exactly 32 bytes)
   admin_username: admin
   # admin_password: set via GOONHUB_AUTH_ADMIN_PASSWORD env var
+  # Session lifetime (login token and cookie). Units: h, m, s, d (days), y (365 days).
+  # Env: GOONHUB_AUTH_TOKEN_DURATION. Logging out still ends the session at once.
   token_duration: 24h
   login_rate_limit: 10        # requests per minute
   login_rate_burst: 5         # burst size
