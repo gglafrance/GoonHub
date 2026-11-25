@@ -150,7 +150,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	savedSearchService := provideSavedSearchService(savedSearchRepository, logger)
 	savedSearchHandler := provideSavedSearchHandler(savedSearchService)
 	playlistRepository := providePlaylistRepository(db)
-	playlistService := providePlaylistService(playlistRepository, sceneRepository, tagRepository, logger)
+	playlistService := providePlaylistService(playlistRepository, sceneRepository, tagRepository, configConfig, logger)
 	duplicateService := provideDuplicateService(duplicateGroupRepository, sceneRepository, tagRepository, actorRepository, markerRepository, interactionRepository, sceneService, duplicationConfigRepository, markerService, logger)
 	homepageService := provideHomepageService(settingsService, searchService, savedSearchService, playlistService, watchHistoryRepository, interactionRepository, sceneRepository, tagRepository, actorRepository, studioRepository, db, markerRepository, relatedScenesService, jobHistoryRepository, duplicateService, storagePathRepository, rbacService, logger)
 	homepageHandler := provideHomepageHandler(homepageService)
@@ -555,8 +555,8 @@ func provideMarkerService(markerRepo data.MarkerRepository, sceneRepo data.Scene
 	return core.NewMarkerService(markerRepo, sceneRepo, tagRepo, cfg, logger.Logger)
 }
 
-func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, logger *logging.Logger) *core.PlaylistService {
-	return core.NewPlaylistService(repo, sceneRepo, tagRepo, logger.Logger)
+func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.PlaylistService {
+	return core.NewPlaylistService(repo, sceneRepo, tagRepo, cfg.Playlists, logger.Logger)
 }
 
 func provideShareService(shareLinkRepo data.ShareLinkRepository, sceneRepo data.SceneRepository, logger *logging.Logger) *core.ShareService {

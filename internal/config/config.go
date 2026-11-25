@@ -23,6 +23,7 @@ type Config struct {
 	Shutdown      ShutdownConfig      `mapstructure:"shutdown"`
 	Streaming     StreamingConfig     `mapstructure:"streaming"`
 	Pagination    PaginationConfig    `mapstructure:"pagination"`
+	Playlists     PlaylistsConfig     `mapstructure:"playlists"`
 	Sharing       SharingConfig       `mapstructure:"sharing"`
 	Duplication   DuplicationConfig   `mapstructure:"duplication"`
 	ClickHouse    ClickHouseConfig    `mapstructure:"clickhouse"`
@@ -89,6 +90,15 @@ type SharingConfig struct {
 
 type PaginationConfig struct {
 	MaxItemsPerPage int `mapstructure:"max_items_per_page"`
+}
+
+// PlaylistsConfig configures the playlists (marker playlists: docs/MARKER_PLAYLISTS.md).
+type PlaylistsConfig struct {
+	// MaxMarkers is the most markers a marker playlist holds (0 = no limit).
+	MaxMarkers int `mapstructure:"max_markers"`
+	// MarkerDefaultDuration is how long, in seconds, a marker without an end plays in a marker
+	// playlist before the next one.
+	MarkerDefaultDuration int `mapstructure:"marker_default_duration"`
 }
 
 type StreamingConfig struct {
@@ -338,6 +348,8 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("shutdown.orphan_timeout", 30*time.Second)
 	v.SetDefault("shutdown.stuck_pending_time", 10*time.Minute)
 	v.SetDefault("pagination.max_items_per_page", 100)
+	v.SetDefault("playlists.max_markers", 1000)
+	v.SetDefault("playlists.marker_default_duration", 30)
 	v.SetDefault("sharing.base_url", "")
 	v.SetDefault("sharing.port", "")
 	v.SetDefault("duplication.enabled", false)

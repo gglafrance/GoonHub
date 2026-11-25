@@ -14,13 +14,14 @@ This document provides a comprehensive reference of the GoonHub database schema.
 2. [RBAC (Role-Based Access Control)](#rbac-role-based-access-control)
 3. [Content Organization](#content-organization)
 4. [Sharing](#sharing)
-5. [User Interactions](#user-interactions)
-6. [Job System](#job-system)
-7. [Storage & Scanning](#storage--scanning)
-8. [Duplicate Detection](#duplicate-detection)
-9. [Application Settings](#application-settings)
-10. [Entity Relationship Diagram](#entity-relationship-diagram)
-11. [Key Patterns & Conventions](#key-patterns--conventions)
+5. [Playlists](#playlists)
+6. [User Interactions](#user-interactions)
+7. [Job System](#job-system)
+8. [Storage & Scanning](#storage--scanning)
+9. [Duplicate Detection](#duplicate-detection)
+10. [Application Settings](#application-settings)
+11. [Entity Relationship Diagram](#entity-relationship-diagram)
+12. [Key Patterns & Conventions](#key-patterns--conventions)
 
 ---
 
@@ -501,6 +502,100 @@ Shareable links for scenes with configurable visibility and expiration.
 
 ---
 
+## Playlists
+
+Playlists of scenes or of markers (migrations 046, 096; see `docs/MARKER_PLAYLISTS.md`). The
+kind is fixed at creation; the items live in `playlist_scenes` or `playlist_markers`.
+
+### `playlists`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `uuid` | UUID | NO | gen_random_uuid() | Public identifier (unique) |
+| `user_id` | BIGINT | NO | - | Owner, FK to `users.id` (CASCADE) |
+| `name` | VARCHAR(255) | NO | - | Name |
+| `description` | TEXT | YES | NULL | Description |
+| `visibility` | VARCHAR(20) | NO | 'private' | `private` or `public` |
+| `kind` | VARCHAR(20) | NO | 'scenes' | `scenes` or `markers` (migration 096) |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last update timestamp |
+
+**Indexes:** `idx_playlists_uuid` UNIQUE on `uuid`, `idx_playlists_user_id` on `user_id`,
+`idx_playlists_visibility` on `visibility` WHERE `visibility = 'public'`, `idx_playlists_kind`
+on `kind`.
+
+**Constraints:** CHECK `visibility IN ('private', 'public')`, CHECK `chk_playlists_kind`:
+`kind IN ('scenes', 'markers')`.
+
+---
+
+### `playlist_scenes`
+
+Scenes of a scene playlist.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `playlist_id` | BIGINT | NO | - | FK to `playlists.id` (CASCADE) |
+| `scene_id` | BIGINT | NO | - | FK to `scenes.id` (CASCADE) |
+| `position` | INT | NO | - | Order in the playlist |
+| `added_at` | TIMESTAMPTZ | NO | NOW() | When the scene was added |
+
+**Indexes:** UNIQUE `(playlist_id, scene_id)`, `(playlist_id)`, `(playlist_id, position)`.
+
+---
+
+### `playlist_markers`
+
+Markers of a marker playlist (migration 096). A marker is in a playlist once; a deleted marker
+leaves every playlist. Markers of trashed or deleted scenes are kept but not listed.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `playlist_id` | BIGINT | NO | - | FK to `playlists.id` (CASCADE) |
+| `marker_id` | BIGINT | NO | - | FK to `user_scene_markers.id` (CASCADE) |
+| `position` | INT | NO | - | Order in the playlist |
+| `added_at` | TIMESTAMPTZ | NO | NOW() | When the marker was added |
+
+**Indexes:** `idx_playlist_markers_unique` UNIQUE on `(playlist_id, marker_id)`,
+`idx_playlist_markers_position` on `(playlist_id, position)`, `idx_playlist_markers_marker_id`
+on `marker_id`.
+
+---
+
+### `playlist_tags`
+
+Tags of a playlist (the `tags` table). UNIQUE `(playlist_id, tag_id)`, both FK CASCADE.
+
+### `playlist_likes`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `playlist_id` | BIGINT | NO | - | FK to `playlists.id` (CASCADE) |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Like timestamp |
+
+**Indexes:** UNIQUE `(user_id, playlist_id)`.
+
+### `playlist_progress`
+
+Resume point of a user in a playlist (one row per user and playlist).
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `playlist_id` | BIGINT | NO | - | FK to `playlists.id` (CASCADE) |
+| `last_scene_id` | BIGINT | YES | NULL | Scene played, FK to `scenes.id` (SET NULL) |
+| `last_marker_id` | BIGINT | YES | NULL | Marker played (marker playlists), FK to `user_scene_markers.id` (SET NULL; migration 096) |
+| `last_position_s` | DOUBLE PRECISION | NO | 0 | Time in the scene, in seconds |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last save |
+
+**Indexes:** UNIQUE `(user_id, playlist_id)` (upsert target).
+
+---
+
 ## User Interactions
 
 ### `user_scene_ratings`
@@ -655,7 +750,7 @@ Video bookmarks/markers created by users. A user sees their own markers plus tho
 | `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
 | `scene_id` | BIGINT | NO | - | FK to `scenes.id` (CASCADE) |
 | `timestamp` | INTEGER | NO | - | Position in seconds |
-| `end_timestamp` | INTEGER | YES | NULL | Optional end of the marked range in seconds (looped on click when `user_settings.marker_loop` is on) |
+| `end_timestamp` | INTEGER | YES | NULL | Optional end of the marked range in seconds (looped on click when `user_settings.marker_loop` is on; played up to it in a marker playlist) |
 | `label` | VARCHAR(100) | YES | NULL | Marker label/name |
 | `color` | VARCHAR(7) | NO | '#FFFFFF' | Hex color code |
 | `thumbnail_path` | VARCHAR(255) | YES | NULL | Generated thumbnail path |
@@ -1615,7 +1710,8 @@ Internal references still use BIGSERIAL `id` for performance.
 
 ### Foreign Key Cascade Rules
 
-- User-owned data: `ON DELETE CASCADE` (settings, interactions, markers, share_links)
+- User-owned data: `ON DELETE CASCADE` (settings, interactions, markers, share_links, playlists)
+- Playlist items: `ON DELETE CASCADE` (`playlist_scenes`, `playlist_markers`: a deleted scene or marker leaves the playlists)
 - Content associations: `ON DELETE CASCADE` (scene_tags, scene_actors, share_links)
 - Optional references: `ON DELETE SET NULL` (scenes.studio_id)
 
