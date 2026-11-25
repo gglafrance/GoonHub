@@ -44,3 +44,39 @@ export function allowedFileFields<T extends { value: string }>(
 ): T[] {
     return fields.filter((f) => fileFieldAllowed(f.value, has));
 }
+
+/**
+ * A stored or URL sort the user may use: the sort itself when allowed, else the fallback when
+ * allowed, else '' (the list default). Saved defaults and old links may hold a size sort the
+ * API refuses (403) without files:view_size.
+ */
+export function sanitizeSceneSort(
+    sort: string | null | undefined,
+    has: PermissionCheck,
+    fallback = '',
+): string {
+    if (sort && sceneSortAllowed(sort, has)) return sort;
+    if (fallback && sceneSortAllowed(fallback, has)) return fallback;
+    return '';
+}
+
+/**
+ * Removes from a scene list query (GET /api/v1/scenes) what the user may not send: the size
+ * bounds without files:view_size and a sort that needs a permission (with its seed).
+ * Returns the same params, changed in place.
+ */
+export function stripRestrictedSceneParams(
+    params: URLSearchParams,
+    has: PermissionCheck,
+): URLSearchParams {
+    if (!has('files:view_size')) {
+        params.delete('min_size');
+        params.delete('max_size');
+    }
+    const sort = params.get('sort');
+    if (sort && !sceneSortAllowed(sort, has)) {
+        params.delete('sort');
+        params.delete('seed');
+    }
+    return params;
+}

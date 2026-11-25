@@ -81,8 +81,11 @@ const handleBulkComplete = () => {
 
 // Scene search/sort state, kept in the URL (`q`, `sort`, `seed`, `page`) so that Back from a
 // scene, a reload or a shared link show the same scenes in the same order
-const defaultSort = settingsStore.sortPreferences?.actor_scenes ?? '';
+// A saved default or a link may hold a size sort the user cannot use (files:view_size): the
+// page default then (the API answers 403 otherwise and the scenes never load)
+const defaultSort = sanitizeSceneSort(settingsStore.sortPreferences?.actor_scenes, hasMyPermission);
 const scenesSort = useUrlSort(defaultSort);
+if (!sceneSortAllowed(scenesSort.value, hasMyPermission)) scenesSort.value = defaultSort;
 const { seed: scenesSeed, reshuffle: drawNewSeed } = useUrlSeed(scenesSort);
 const urlScenesQuery = useUrlString('q');
 const scenesQuery = ref(urlScenesQuery.value);

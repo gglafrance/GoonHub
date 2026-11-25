@@ -14,6 +14,30 @@ interface PermissionsState {
     loaded: boolean;
 }
 
+// Shared by every caller (client-only app: one state per tab). A plain ref rather than
+// useState so that the API composables can check a permission outside a component context.
+const state = ref<PermissionsState>({
+    userId: null,
+    role: '',
+    superuser: false,
+    permissions: [],
+    loaded: false,
+});
+
+/** The loaded permissions of the signed-in user, or null (not loaded, other user). */
+const currentPermissions = (): PermissionsState | null => {
+    const userId = useAuthStore().user?.id ?? null;
+    return state.value.loaded && state.value.userId === userId ? state.value : null;
+};
+
+/**
+ * Permission check usable anywhere (API composables, stores): false until loaded.
+ */
+export const hasMyPermission = (permission: PermissionName): boolean => {
+    const s = currentPermissions();
+    return !!s && grantsPermission(s, permission);
+};
+
 let inflight: Promise<void> | null = null;
 let inflightUserId: number | null = null;
 let requestSeq = 0;
@@ -21,13 +45,6 @@ let requestSeq = 0;
 export const useMyPermissions = () => {
     const authStore = useAuthStore();
     const { fetchOptions, getAuthHeaders, handleResponse } = useApiCore();
-    const state = useState<PermissionsState>('my-permissions', () => ({
-        userId: null,
-        role: '',
-        superuser: false,
-        permissions: [],
-        loaded: false,
-    }));
 
     const load = async (force = false): Promise<void> => {
         const userId = authStore.user?.id ?? null;
@@ -73,16 +90,8 @@ export const useMyPermissions = () => {
         return inflight;
     };
 
-    const current = computed(() =>
-        state.value.loaded && state.value.userId === (authStore.user?.id ?? null)
-            ? state.value
-            : null,
-    );
-
-    const has = (permission: PermissionName): boolean => {
-        const s = current.value;
-        return !!s && grantsPermission(s, permission);
-    };
+    const current = computed(currentPermissions);
+    const has = hasMyPermission;
 
     /** True when the user has at least one of the permissions. */
     const hasAny = (...permissions: PermissionName[]): boolean => permissions.some(has);
