@@ -106,6 +106,11 @@ func TestPlaylistMarkerRepository(t *testing.T) {
 		if len(got) != 2 || got[0] != own2.ID || got[1] != own1.ID {
 			t.Fatalf("got %v, want [%d %d]", got, own2.ID, own1.ID)
 		}
+		// Labels are matched ignoring case, like the label page
+		got, err = repo.ResolveVisibleMarkerIDs(f.user.ID, "kiss", MarkerListOptions{}, 10)
+		if err != nil || len(got) != 2 {
+			t.Fatalf("lower-case label: got %v, %v", got, err)
+		}
 		got, err = repo.ResolveVisibleMarkerIDs(f.user.ID, "", MarkerListOptions{RangesOnly: true}, 10)
 		if err != nil || len(got) != 1 || got[0] != own1.ID {
 			t.Fatalf("ranges only: got %v, %v", got, err)
