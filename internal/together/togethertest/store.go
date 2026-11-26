@@ -150,6 +150,18 @@ func (s *Store) CountHostedBy(userID uint) (int64, error) {
 	return n, nil
 }
 
+func (s *Store) CountPublic() (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var n int64
+	for _, l := range s.lobbies {
+		if l.Visibility == data.LobbyVisibilityPublic {
+			n++
+		}
+	}
+	return n, nil
+}
+
 func (s *Store) update(id uint, fn func(l *data.Lobby)) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

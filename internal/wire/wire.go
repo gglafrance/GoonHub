@@ -1263,10 +1263,14 @@ func provideEmoteService(repo data.EmoteRepository, cfg *config.Config, logger *
 	return together.NewEmoteService(repo, cfg.Goon2gether, logger.Logger)
 }
 
-func provideTogetherHub(cfg *config.Config, lobbyRepo data.LobbyRepository, sceneRepo data.SceneRepository, rbacService *core.RBACService, emotes *together.EmoteService, logger *logging.Logger) *together.Hub {
+func provideTogetherHub(cfg *config.Config, lobbyRepo data.LobbyRepository, sceneRepo data.SceneRepository, rbacService *core.RBACService, emotes *together.EmoteService, eventBus *core.EventBus, logger *logging.Logger) *together.Hub {
 	hub := together.NewHub(cfg.Goon2gether, lobbyRepo, sceneRepo, rbacService, logger.Logger)
 	hub.SetEmotes(emotes)
 	emotes.OnChange(hub.BroadcastEmotesChanged)
+	// The nav badge of the lobby browser (broadcast, filtered to goon2gether:use)
+	hub.OnPublicCountChange(func(count int64) {
+		eventBus.Publish(core.SceneEvent{Type: "together:public_count", Data: map[string]any{"count": count}})
+	})
 	return hub
 }
 

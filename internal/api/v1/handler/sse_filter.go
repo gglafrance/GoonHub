@@ -51,6 +51,8 @@ var sseEventRules = map[string]sseEventRule{
 	"scene:dlq_retry":       {require: core.PermJobsViewStatus, fields: map[string][]string{"job_id": nil, "phase": nil}},
 	"scene:dlq_abandoned":   {require: core.PermJobsViewStatus, fields: map[string][]string{"job_id": nil, "phase": nil}},
 	"jobs:bulk_cancelled":   {require: core.PermJobsViewStatus, fields: map[string][]string{"phases": nil, "pending_cancelled": nil, "queued_skipped": nil, "running_cancelled": nil}},
+	// Goon2gether: number of public lobbies (nav badge), no personal data
+	"together:public_count": {require: core.PermTogetherUse, fields: map[string][]string{"count": nil}},
 }
 
 // sseTargetedPrefixes are the event families that are always personal (targeted at one
