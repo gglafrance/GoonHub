@@ -106,7 +106,7 @@ func orderedPair(a, b uint) (uint, uint) {
 
 func (r *SocialRepositoryImpl) GetUser(ctx context.Context, userID uint) (*SocialUser, error) {
 	var u SocialUser
-	res := r.DB.WithContext(ctx).Raw(`SELECT id, username, created_at, created_at AS since FROM users WHERE id = ?`, userID).Scan(&u)
+	res := r.DB.WithContext(ctx).Raw(`SELECT `+socialUserColumns+`, u.created_at AS since FROM users u`+socialUserProfileJoin+` WHERE u.id = ?`, userID).Scan(&u)
 	if res.Error != nil {
 		return nil, res.Error
 	}
@@ -118,7 +118,7 @@ func (r *SocialRepositoryImpl) GetUser(ctx context.Context, userID uint) (*Socia
 
 func (r *SocialRepositoryImpl) GetUserByUsername(ctx context.Context, username string) (*SocialUser, error) {
 	var u SocialUser
-	res := r.DB.WithContext(ctx).Raw(`SELECT id, username, created_at, created_at AS since FROM users WHERE username = ?`, username).Scan(&u)
+	res := r.DB.WithContext(ctx).Raw(`SELECT `+socialUserColumns+`, u.created_at AS since FROM users u`+socialUserProfileJoin+` WHERE u.username = ?`, username).Scan(&u)
 	if res.Error != nil {
 		return nil, res.Error
 	}
@@ -150,7 +150,7 @@ func (r *SocialRepositoryImpl) SearchUsers(ctx context.Context, viewerID uint, q
 	}
 	listArgs = append(listArgs, limit, socialOffset(page, limit))
 	var users []SocialUser
-	if err := r.DB.WithContext(ctx).Raw("SELECT id, username, created_at, created_at AS since FROM users WHERE "+where+
+	if err := r.DB.WithContext(ctx).Raw("SELECT "+socialUserColumns+", u.created_at AS since FROM users u"+socialUserProfileJoin+" WHERE "+where+
 		" ORDER BY "+order+" LIMIT ? OFFSET ?", listArgs...).Scan(&users).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to search users: %w", err)
 	}
@@ -182,8 +182,8 @@ func (r *SocialRepositoryImpl) listUsers(ctx context.Context, from string, args 
 	}
 	listArgs := append(append([]any{}, args...), limit, socialOffset(page, limit))
 	var users []SocialUser
-	if err := r.DB.WithContext(ctx).Raw("SELECT u.id, u.username, u.created_at, rel.since FROM "+from+
-		" JOIN users u ON u.id = rel.uid ORDER BY rel.since DESC, u.id LIMIT ? OFFSET ?", listArgs...).Scan(&users).Error; err != nil {
+	if err := r.DB.WithContext(ctx).Raw("SELECT "+socialUserColumns+", rel.since FROM "+from+
+		" JOIN users u ON u.id = rel.uid"+socialUserProfileJoin+" ORDER BY rel.since DESC, u.id LIMIT ? OFFSET ?", listArgs...).Scan(&users).Error; err != nil {
 		return nil, 0, err
 	}
 	return users, total, nil

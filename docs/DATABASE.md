@@ -14,16 +14,17 @@ This document provides a comprehensive reference of the GoonHub database schema.
 2. [RBAC (Role-Based Access Control)](#rbac-role-based-access-control)
 3. [Content Organization](#content-organization)
 4. [Sharing](#sharing)
-1. [Playlists](#playlists)
-2. [Social Graph](#social-graph)
-3. [User Interactions](#user-interactions)
-4. [Job System](#job-system)
-5. [Storage & Scanning](#storage--scanning)
-6. [Duplicate Detection](#duplicate-detection)
-7. [Goon2gether](#goon2gether)
-8. [Application Settings](#application-settings)
-9. [Entity Relationship Diagram](#entity-relationship-diagram)
-10. [Key Patterns & Conventions](#key-patterns--conventions)
+5. [Playlists](#playlists)
+6. [Social Graph](#social-graph)
+7. [User Profiles](#user-profiles)
+8. [User Interactions](#user-interactions)
+9. [Job System](#job-system)
+10. [Storage & Scanning](#storage--scanning)
+11. [Duplicate Detection](#duplicate-detection)
+12. [Goon2gether](#goon2gether)
+13. [Application Settings](#application-settings)
+14. [Entity Relationship Diagram](#entity-relationship-diagram)
+15. [Key Patterns & Conventions](#key-patterns--conventions)
 
 ---
 
@@ -715,6 +716,81 @@ Social preferences of a user. No row = the defaults.
 
 **Constraints:**
 - CHECK `chk_user_social_settings_friend_request_policy`: `friend_request_policy IN ('everyone', 'mutuals', 'nobody')`
+
+---
+
+## User Profiles
+
+Profile pages (migration 100, `docs/PROFILES.md`). Every table cascades on user deletion. Who
+sees what is decided by the privacy settings (`user_privacy_settings`), not here.
+
+### `user_profiles`
+
+One row per user who edited their profile; no row = the defaults (no display name nor bio,
+initials avatar, no banner, default layout).
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `user_id` | BIGINT | NO | - | Primary key, FK to `users.id` (CASCADE) |
+| `display_name` | VARCHAR(64) | NO | '' | Shown instead of the username ('' = the username) |
+| `bio` | TEXT | NO | '' | Plain text (links rendered by the frontend), length capped by `profiles.bio_max_length` |
+| `avatar_version` | BIGINT | NO | 0 | Unix ms of the avatar upload, appended to its URLs; 0 = no avatar. Files `<user_id>_<size>.jpg` in `profiles.image_dir/avatars` |
+| `banner_type` | VARCHAR(16) | NO | 'none' | `none`, `scene` (thumbnail of `banner_scene_id`) or `upload` |
+| `banner_scene_id` | BIGINT | YES | NULL | FK to `scenes.id` (SET NULL), for the `scene` banner |
+| `banner_version` | BIGINT | NO | 0 | Version of the uploaded banner (files in `profiles.image_dir/banners`) |
+| `layout` | JSONB | YES | NULL | Ordered blocks `[{type, visible, locked_placeholder, config}]`, validated by the server (`core/profile_blocks.go`); NULL = the default layout |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Row creation |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last change |
+
+**Indexes:**
+- `idx_user_profiles_banner_scene_id` on `banner_scene_id` WHERE NOT NULL
+
+**Constraints:**
+- CHECK `chk_user_profiles_banner_type`: `banner_type IN ('none', 'scene', 'upload')`
+- CHECK `chk_user_profiles_bio_length`: `char_length(bio) <= 5000`
+- CHECK `chk_user_profiles_layout_array`: `layout IS NULL OR jsonb_typeof(layout) = 'array'`
+
+---
+
+### `user_profile_favorite_scenes`
+
+The favorite videos showcase, ordered (`profiles.max_showcase_items` at most, application rule).
+Trashed and deleted scenes stay stored but are skipped when read.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `scene_id` | BIGINT | NO | - | FK to `scenes.id` (CASCADE) |
+| `position` | SMALLINT | NO | - | Order, 0 first |
+
+**Indexes:**
+- `idx_user_profile_favorite_scenes_scene_id` on `scene_id`
+
+**Constraints:**
+- PRIMARY KEY `(user_id, scene_id)`
+- `uni_user_profile_favorite_scenes_position` UNIQUE on `(user_id, position)`
+- CHECK `chk_user_profile_favorite_scenes_position`: `position >= 0`
+
+---
+
+### `user_profile_favorite_markers`
+
+The favorite markers showcase, ordered: markers the user sees (their own or shared with them,
+checked when saved and when read).
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `marker_id` | INTEGER | NO | - | FK to `user_scene_markers.id` (CASCADE) |
+| `position` | SMALLINT | NO | - | Order, 0 first |
+
+**Indexes:**
+- `idx_user_profile_favorite_markers_marker_id` on `marker_id`
+
+**Constraints:**
+- PRIMARY KEY `(user_id, marker_id)`
+- `uni_user_profile_favorite_markers_position` UNIQUE on `(user_id, position)`
+- CHECK `chk_user_profile_favorite_markers_position`: `position >= 0`
 
 ---
 

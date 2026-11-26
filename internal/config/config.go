@@ -32,6 +32,7 @@ type Config struct {
 	Goon2gether   Goon2getherConfig   `mapstructure:"goon2gether"`
 	Social        SocialConfig        `mapstructure:"social"`
 	Presence      PresenceConfig      `mapstructure:"presence"`
+	Profiles      ProfilesConfig      `mapstructure:"profiles"`
 }
 
 // PresenceConfig sets the timings of the presence (online, idle, now watching, docs/PRESENCE.md).
@@ -46,6 +47,17 @@ type PresenceConfig struct {
 	FlushInterval     time.Duration `mapstructure:"flush_interval"`     // changes are coalesced and pushed at this interval
 	LastSeenInterval  time.Duration `mapstructure:"last_seen_interval"` // last_seen_at of online users is saved this often (also on disconnect)
 	MaxTabsPerUser    int           `mapstructure:"max_tabs_per_user"`  // activities kept per user (one per tab), the oldest is dropped
+}
+
+// ProfilesConfig configures the user profile pages (docs/PROFILES.md).
+type ProfilesConfig struct {
+	ImageDir             string `mapstructure:"image_dir"`               // avatars and uploaded banners (GoonHub data, never a media directory)
+	MaxUploadBytes       int64  `mapstructure:"max_upload_bytes"`        // largest accepted avatar or banner upload
+	MaxImagePixels       int    `mapstructure:"max_image_pixels"`        // largest decoded image (width x height), checked before decoding
+	ImageUploadsPerHour  int    `mapstructure:"image_uploads_per_hour"`  // avatar and banner uploads a user can make per hour (0 = unlimited)
+	MaxShowcaseItems     int    `mapstructure:"max_showcase_items"`      // favorite videos and favorite markers per showcase (1-12)
+	BioMaxLength         int    `mapstructure:"bio_max_length"`          // characters
+	DisplayNameMaxLength int    `mapstructure:"display_name_max_length"` // characters (at most 64, the column size)
 }
 
 // SocialConfig limits the social actions that notify another user (docs/SOCIAL.md).
@@ -412,6 +424,13 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("social.friend_requests_per_hour", 30)
 	v.SetDefault("social.follows_per_hour", 60)
 	v.SetDefault("social.max_pending_requests", 50)
+	v.SetDefault("profiles.image_dir", "./data/metadata/profiles")
+	v.SetDefault("profiles.max_upload_bytes", 8*1024*1024)
+	v.SetDefault("profiles.max_image_pixels", 25_000_000)
+	v.SetDefault("profiles.image_uploads_per_hour", 20)
+	v.SetDefault("profiles.max_showcase_items", 4)
+	v.SetDefault("profiles.bio_max_length", 1000)
+	v.SetDefault("profiles.display_name_max_length", 64)
 	v.SetDefault("presence.disconnect_grace", 30*time.Second)
 	v.SetDefault("presence.idle_after", 5*time.Minute)
 	v.SetDefault("presence.heartbeat_interval", 60*time.Second)

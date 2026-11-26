@@ -108,6 +108,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Social Repositories
 		provideSocialRepository,
+		provideProfileRepository,
 		providePrivacyRepository,
 		providePresenceRepository,
 
@@ -206,6 +207,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Social Services
 		providePrivacyService,
 		provideSocialService,
+		provideProfileService,
 		providePresenceService,
 
 		// Remote Workers
@@ -293,6 +295,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideTogetherHandler,
 		// Social Handler
 		provideSocialHandler,
+		provideProfileHandler,
 		providePresenceHandler,
 
 		// ============================================================
@@ -986,6 +989,20 @@ func provideSocialHandler(social *core.SocialService, privacy *core.PrivacyServi
 	return handler.NewSocialHandler(social, privacy, cfg.Pagination.MaxItemsPerPage)
 }
 
+// --- Profiles ---
+
+func provideProfileRepository(db *gorm.DB) data.ProfileRepository {
+	return data.NewProfileRepository(db)
+}
+
+func provideProfileService(repo data.ProfileRepository, socialRepo data.SocialRepository, markerRepo data.MarkerRepository, social *core.SocialService, privacy *core.PrivacyService, homepage *core.HomepageService, cfg *config.Config, logger *logging.Logger) *core.ProfileService {
+	return core.NewProfileService(repo, socialRepo, markerRepo, social, privacy, homepage, cfg.Profiles, logger.Logger)
+}
+
+func provideProfileHandler(profiles *core.ProfileService, cfg *config.Config) *handler.ProfileHandler {
+	return handler.NewProfileHandler(profiles, cfg.Pagination.MaxItemsPerPage)
+}
+
 // providePresenceService creates the presence (docs/PRESENCE.md), subscribed to the privacy
 // and social changes. Its loop is started and stopped by the server.
 func providePresenceService(repo data.PresenceRepository, privacy *core.PrivacyService, social *core.SocialService, sceneRepo data.SceneRepository, rbacService *core.RBACService, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.PresenceService {
@@ -1062,6 +1079,7 @@ func provideRouter(
 	workerHandler *handler.WorkerHandler,
 	togetherHandler *handler.TogetherHandler,
 	socialHandler *handler.SocialHandler,
+	profileHandler *handler.ProfileHandler,
 	presenceHandler *handler.PresenceHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
@@ -1075,7 +1093,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, presenceHandler, togetherHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, presenceHandler, togetherHandler, profileHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 

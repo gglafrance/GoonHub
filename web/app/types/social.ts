@@ -16,6 +16,9 @@ export interface SocialUser {
     id: number;
     username: string;
     created_at: string;
+    // From the profile (docs/PROFILES.md): '' and 0 when not set
+    display_name?: string;
+    avatar_version?: number;
 }
 
 /** A user in a social list; `since` is the date of the listed relation. */
@@ -52,6 +55,7 @@ export interface SocialProfile {
 
 /** GET /api/v1/social/me */
 export interface SocialSummary {
+    user?: SocialUser;
     incoming_requests: number;
     outgoing_requests: number;
     friends: number;

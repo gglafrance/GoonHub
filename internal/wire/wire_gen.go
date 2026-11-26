@@ -188,10 +188,13 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	hub := provideTogetherHub(configConfig, lobbyRepository, sceneRepository, rbacService, emoteService, logger)
 	togetherHandler := provideTogetherHandler(configConfig, hub, emoteService, logger)
 	socialHandler := provideSocialHandler(socialService, privacyService, configConfig)
+	profileRepository := provideProfileRepository(db)
+	profileService := provideProfileService(profileRepository, socialRepository, markerRepository, socialService, privacyService, homepageService, configConfig, logger)
+	profileHandler := provideProfileHandler(profileService, configConfig)
 	presenceHandler := providePresenceHandler(presenceService)
 	ipRateLimiter := provideRateLimiter(configConfig)
 	ogMiddleware := provideOGMiddleware(sceneRepository, actorRepository, studioRepository, playlistRepository, shareLinkRepository, appSettingsRepository, logger)
-	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, togetherHandler, socialHandler, presenceHandler, authService, rbacService, ipRateLimiter, ogMiddleware)
+	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, togetherHandler, socialHandler, profileHandler, presenceHandler, authService, rbacService, ipRateLimiter, ogMiddleware)
 	shareServer := provideShareServer(configConfig, shareHandler, ogMiddleware, logger)
 	pushDispatcher := providePushDispatcher(service)
 	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService, matchingService, duplicateService, markerService, shareServer, transcoder, service, pushDispatcher, hub, presenceService)
@@ -818,6 +821,18 @@ func provideSocialHandler(social *core.SocialService, privacy *core.PrivacyServi
 	return handler.NewSocialHandler(social, privacy, cfg.Pagination.MaxItemsPerPage)
 }
 
+func provideProfileRepository(db *gorm.DB) data.ProfileRepository {
+	return data.NewProfileRepository(db)
+}
+
+func provideProfileService(repo data.ProfileRepository, socialRepo data.SocialRepository, markerRepo data.MarkerRepository, social *core.SocialService, privacy *core.PrivacyService, homepage *core.HomepageService, cfg *config.Config, logger *logging.Logger) *core.ProfileService {
+	return core.NewProfileService(repo, socialRepo, markerRepo, social, privacy, homepage, cfg.Profiles, logger.Logger)
+}
+
+func provideProfileHandler(profiles *core.ProfileService, cfg *config.Config) *handler.ProfileHandler {
+	return handler.NewProfileHandler(profiles, cfg.Pagination.MaxItemsPerPage)
+}
+
 // providePresenceService creates the presence (docs/PRESENCE.md), subscribed to the privacy
 // and social changes. Its loop is started and stopped by the server.
 func providePresenceService(repo data.PresenceRepository, privacy *core.PrivacyService, social *core.SocialService, sceneRepo data.SceneRepository, rbacService *core.RBACService, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.PresenceService {
@@ -888,6 +903,7 @@ func provideRouter(
 	workerHandler *handler.WorkerHandler,
 	togetherHandler *handler.TogetherHandler,
 	socialHandler *handler.SocialHandler,
+	profileHandler *handler.ProfileHandler,
 	presenceHandler *handler.PresenceHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
@@ -901,7 +917,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, presenceHandler, togetherHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, presenceHandler, togetherHandler, profileHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 

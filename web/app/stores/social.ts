@@ -1,12 +1,14 @@
-import type { SocialEventData } from '~/types/social';
+import type { SocialEventData, SocialUser } from '~/types/social';
 
 /**
  * Social state of the signed-in user: the pending incoming friend requests count (header
  * badge), kept live by the social SSE events. `version` bumps on every social event so that
- * open lists (the /friends page, a profile) can reload.
+ * open lists (the /friends page, a profile) can reload. `me` is the card of the signed-in user
+ * (avatar and display name of the header), refreshed after a profile edit.
  */
 export const useSocialStore = defineStore('social', () => {
     const incomingRequests = ref(0);
+    const me = ref<SocialUser | null>(null);
     const loaded = ref(false);
     const version = ref(0);
 
@@ -18,6 +20,7 @@ export const useSocialStore = defineStore('social', () => {
         try {
             const summary = await useApiSocial().getSummary();
             incomingRequests.value = summary.incoming_requests;
+            me.value = summary.user ?? null;
             loaded.value = true;
         } catch {
             // the badge keeps its last value; the next event or reconnect refreshes it
@@ -48,6 +51,7 @@ export const useSocialStore = defineStore('social', () => {
         for (const off of unsubscribers) off();
         unsubscribers = [];
         incomingRequests.value = 0;
+        me.value = null;
         loaded.value = false;
     }
 
@@ -57,5 +61,5 @@ export const useSocialStore = defineStore('social', () => {
         refresh();
     }
 
-    return { incomingRequests, loaded, version, refresh, start, stop, setIncoming, changed };
+    return { incomingRequests, me, loaded, version, refresh, start, stop, setIncoming, changed };
 });

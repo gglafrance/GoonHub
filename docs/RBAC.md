@@ -197,6 +197,12 @@ has **no administrator bypass**: a superuser is a viewer like any other and does
 user keeps private. Social live events (`social:*`, `presence:*`) are personal: they only reach the user they
 are for, superusers included (`EventBus.PublishToUser`).
 
+Profile pages (`docs/PROFILES.md`) add no permission: editing one's own profile only needs a
+signed-in user (picking scenes or markers needs `scenes:view`). Their blocks combine both: the
+owner's privacy decides whether a block is sent, the viewer's permissions whether it can be
+(`scenes:view` for the blocks showing scenes or markers, `playlists:view_public` for the
+playlists), and the scenes are redacted with the viewer's file visibility.
+
 ### Known limitations
 
 - `GET /api/v1/scenes/:id/stream` and `/transcode` are not authenticated (unchanged by this

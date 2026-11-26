@@ -87,16 +87,21 @@ audience.
 | Key | Group | Default | What it hides |
 |---|---|---|---|
 | `profile` | Profile | public | the profile page at all; what a profile shows also needs its own item |
-| `favorites` | Profile | friends | favorite videos and markers |
-| `stats` | Profile | friends | watch statistics |
-| `activity` | Profile | friends | recent watches, most watched |
+| `favorites` | Profile | friends | the favorite videos showcase |
+| `favorite_markers` | Profile | friends | the favorite markers showcase |
+| `stats` | Profile | friends | watch statistics (stats block) |
+| `activity` | Profile | friends | recent watches, most watched, activity calendar |
+| `recent_markers` | Profile | friends | the markers created recently |
+| `liked` | Profile | friends | the liked videos |
+| `playlists` | Profile | public | the public playlists listed on the profile |
 | `friends_list` | Connections | public | the friends list (and its count) |
 | `followers_list` | Connections | public | followers and following lists (and their counts) |
 | `online_status` | Presence | friends | whether the user is online, idle or offline, and their last seen (`docs/PRESENCE.md`) |
 | `now_watching` | Presence | friends | what the user is watching (also needs `online_status`) |
 
 `profile` is a gate: a block shown on the profile page needs `profile` and its own item (the
-lists endpoints check both, `CanViewAll`). Items shown elsewhere (presence in the header, for
+lists endpoints check both, `CanViewAll`; the profile blocks and their items are listed in
+`docs/PROFILES.md`). Items shown elsewhere (presence in the header, for
 example) only need their own item.
 
 ### Storage
@@ -181,7 +186,9 @@ designated by id in actions and by exact username in reads.
 `relationship` (the signed-in user toward the listed user): `{self, following, followed_by,
 mutual, friend, request_sent, request_received, can_send_friend_request}`.
 
-A list item: `{id, username, created_at, since, relationship}` (`since`: date of the listed
+A list item: `{id, username, created_at, display_name, avatar_version, since, relationship}`
+(`display_name` and `avatar_version` come from the profile, `docs/PROFILES.md`; '' and 0 when
+not set) (`since`: date of the listed
 relation: follow, friendship, request; the account creation in the directory). Lists are
 paginated (`page`, `limit`, default 30, max `pagination.max_items_per_page`) in the usual
 envelope `{data: [...], pagination: {page, limit, total_items, total_pages}}`, most recent
@@ -189,9 +196,9 @@ first.
 
 | Route | Permission | Answer |
 |---|---|---|
-| `GET /api/v1/social/me` | | `{incoming_requests, outgoing_requests, friends, followers, following}` |
+| `GET /api/v1/social/me` | | `{user, incoming_requests, outgoing_requests, friends, followers, following}` (`user`: the card of the signed-in user) |
 | `GET /api/v1/social/users?q=` | | directory: the other users whose username contains `q` (all when empty), prefix matches first |
-| `GET /api/v1/social/users/:username` | | `{user: {id, username, created_at}, relationship, visibility: {profile, friends_list, followers_list}, counts: {friends?, followers?, following?}}` (counts absent when hidden; the lists also need `profile`) |
+| `GET /api/v1/social/users/:username` | | `{user: {id, username, created_at, display_name, avatar_version}, relationship, visibility: {profile, friends_list, followers_list}, counts: {friends?, followers?, following?}}` (counts absent when hidden; the lists also need `profile`) |
 | `GET /api/v1/social/users/:username/friends` | | list; `403 PRIVACY_RESTRICTED` unless `profile` and `friends_list` allow it |
 | `GET /api/v1/social/users/:username/followers` | | list; needs `profile` and `followers_list` |
 | `GET /api/v1/social/users/:username/following` | | list; needs `profile` and `followers_list` |
@@ -206,8 +213,9 @@ first.
 | `GET /api/v1/social/privacy` | | `{items: [{key, label, description, group, default, audience, is_default}], audiences: [{value, label, description}], friend_request_policy, friend_request_policies: [{value, label, description}]}` |
 | `PUT /api/v1/social/privacy` `{items?: {key: audience\|"default"}, friend_request_policy?}` | | the same as `GET`; absent items are unchanged |
 
-The directory and the user cards only expose `id`, `username` and `created_at` (no role, no
-login dates). Usernames are not private: every signed-in user can list them.
+The directory and the user cards only expose `id`, `username`, `created_at`, the display name
+and the avatar version (no role, no login dates). Usernames, display names and avatars are not
+private: every signed-in user can list them.
 
 ## Live events (SSE)
 
@@ -239,16 +247,15 @@ then listen with `onSSEEvent(type, fn)`.
   by the `social` store, refreshed after an SSE reconnection).
 - `/friends`: tabs Friends, Requests (received: accept/decline, sent: cancel), Following,
   Followers, Find people (`?tab=`).
-- `/u/<username>`: minimal profile (`pages/u/[username].vue`, orchestrator):
-  `SocialProfileHeader` (identity, badges, follow/friend buttons, counts) and
-  `SocialProfileLists` (friends/followers/following, each behind its privacy). The full profile
-  adds its blocks to this page.
+- `/u/<username>`: the profile page (`docs/PROFILES.md`): `ProfileHeader` (identity, badges,
+  follow/friend buttons, counts), the blocks, and `SocialProfileLists`
+  (friends/followers/following, each behind its privacy, opened from the counts).
 - Settings > Privacy (`SettingsPrivacy`): one audience per catalog item, grouped, and the
   friend request policy; each change is saved at once. The Presence group also has the
   invisible mode toggle (`SettingsPrivacyInvisibleToggle`, `docs/PRESENCE.md`).
 - Presence (`docs/PRESENCE.md`): `HeaderFriendsPresence` (who is online, watching), presence
   dots on `SocialUserRow` and the profile header (`SocialPresenceDot`, `SocialPresenceBadge`).
-- Reusable pieces: `SocialUserRow`, `SocialUserList` (paginated, "load more"),
+- Reusable pieces: `SocialUserAvatar` (avatar image or initials), `SocialUserRow`, `SocialUserList` (paginated, "load more"),
   `SocialRelationshipBadges`, `SocialRelationshipActions`, `useApiSocial()`, `useSocialStore()`,
   `utils/social.ts` (`relationshipBadges`, `friendAction`, `profilePath`). Usernames in lists
   link to `/u/<username>` (`profilePath`).

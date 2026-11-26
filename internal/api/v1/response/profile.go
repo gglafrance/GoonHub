@@ -1,0 +1,251 @@
+package response
+
+import (
+	"fmt"
+	"time"
+
+	"goonhub/internal/config"
+	"goonhub/internal/core"
+	"goonhub/internal/data"
+)
+
+// Profile pages (docs/PROFILES.md). Scenes are SceneListItem redacted with the viewer's file
+// visibility; markers use the marker widget shape (versioned thumbnails).
+
+// ProfileBannerURL is the URL of a banner image.
+func ProfileBannerURL(b *core.ProfileBanner, ownerID uint, size string) string {
+	if b == nil {
+		return ""
+	}
+	if b.Type == data.ProfileBannerScene {
+		return fmt.Sprintf("/thumbnails/%d?size=lg", b.SceneID)
+	}
+	return fmt.Sprintf("/api/v1/profiles/banner/%d/%s?v=%d", ownerID, size, b.Version)
+}
+
+// ProfileBannerResponse is the banner of a profile.
+type ProfileBannerResponse struct {
+	Type    string `json:"type"`
+	URL     string `json:"url"`
+	URLMd   string `json:"url_md"`
+	SceneID *uint  `json:"scene_id,omitempty"`
+}
+
+func newProfileBannerResponse(b *core.ProfileBanner, ownerID uint) *ProfileBannerResponse {
+	if b == nil {
+		return nil
+	}
+	out := &ProfileBannerResponse{Type: b.Type, URL: ProfileBannerURL(b, ownerID, "lg"), URLMd: ProfileBannerURL(b, ownerID, "md")}
+	if b.Type == data.ProfileBannerScene {
+		id := b.SceneID
+		out.SceneID = &id
+	}
+	return out
+}
+
+// ProfileSceneResponse is a scene of a block with its figure.
+type ProfileSceneResponse struct {
+	Scene SceneListItem `json:"scene"`
+	At    *time.Time    `json:"at,omitempty"`
+	Views *int64        `json:"views,omitempty"`
+}
+
+// ProfileBlockResponse is a block of a profile as the viewer gets it. A locked block (the
+// owner's placeholder for viewers who may not see it) has no data.
+type ProfileBlockResponse struct {
+	Type        string                 `json:"type"`
+	Label       string                 `json:"label"`
+	PrivacyItem string                 `json:"privacy_item"`
+	Config      map[string]any         `json:"config"`
+	Locked      bool                   `json:"locked"`
+	Failed      bool                   `json:"failed,omitempty"`
+	Empty       bool                   `json:"empty"`
+	Scenes      []ProfileSceneResponse `json:"scenes,omitempty"`
+	Markers     []data.WidgetMarker    `json:"markers,omitempty"`
+	Widget      any                    `json:"widget,omitempty"`
+	Total       *int64                 `json:"total,omitempty"`
+}
+
+// ProfileResponse is GET /profiles/users/:username: the social summary (user, relationship,
+// visibility, counts) and, when the profile is visible, the bio, the banner and the blocks.
+type ProfileResponse struct {
+	SocialProfileResponse
+	Bio    string                 `json:"bio"`
+	Banner *ProfileBannerResponse `json:"banner"`
+	Blocks []ProfileBlockResponse `json:"blocks"`
+}
+
+func newProfileBlockResponse(b core.ProfileBlockView, vis FileVisibility) ProfileBlockResponse {
+	out := ProfileBlockResponse{
+		Type:        b.Spec.Type,
+		Label:       b.Spec.Label,
+		PrivacyItem: b.Spec.PrivacyItem,
+		Config:      map[string]any(b.Config),
+		Locked:      b.Locked,
+		Failed:      b.Failed,
+	}
+	if out.Config == nil {
+		out.Config = map[string]any{}
+	}
+	if b.Data == nil {
+		return out
+	}
+	out.Empty = b.Data.Empty
+	out.Widget = b.Data.Widget
+	out.Total = b.Data.Total
+	if b.Data.Markers != nil {
+		out.Markers = b.Data.Markers
+	}
+	if b.Data.Scenes != nil {
+		out.Scenes = make([]ProfileSceneResponse, len(b.Data.Scenes))
+		for i, s := range b.Data.Scenes {
+			item := ProfileSceneResponse{Scene: ToSceneListItem(s.Scene, vis), At: s.At}
+			if s.Views > 0 {
+				v := s.Views
+				item.Views = &v
+			}
+			out.Scenes[i] = item
+		}
+	}
+	return out
+}
+
+func NewProfileResponse(v *core.ProfileView, vis FileVisibility) ProfileResponse {
+	out := ProfileResponse{
+		SocialProfileResponse: NewSocialProfileResponse(v.Social),
+		Bio:                   v.Bio,
+		Banner:                newProfileBannerResponse(v.Banner, v.Social.User.ID),
+		Blocks:                make([]ProfileBlockResponse, len(v.Blocks)),
+	}
+	for i, b := range v.Blocks {
+		out.Blocks[i] = newProfileBlockResponse(b, vis)
+	}
+	return out
+}
+
+// ProfileBlockOptionResponse describes an option of a block type.
+type ProfileBlockOptionResponse struct {
+	Key     string               `json:"key"`
+	Label   string               `json:"label"`
+	Kind    string               `json:"kind"`
+	Min     int                  `json:"min,omitempty"`
+	Max     int                  `json:"max,omitempty"`
+	Default any                  `json:"default"`
+	Choices []PrivacyOptionLabel `json:"choices,omitempty"`
+}
+
+// PrivacyOptionLabel is a value and its label.
+type PrivacyOptionLabel struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
+// ProfileBlockTypeResponse describes a block type of the library.
+type ProfileBlockTypeResponse struct {
+	Type             string                       `json:"type"`
+	Label            string                       `json:"label"`
+	Description      string                       `json:"description"`
+	PrivacyItem      string                       `json:"privacy_item"`
+	ViewerPermission string                       `json:"viewer_permission,omitempty"`
+	Options          []ProfileBlockOptionResponse `json:"options"`
+}
+
+// NewProfileBlockTypesResponse lists the registered block types.
+func NewProfileBlockTypesResponse() []ProfileBlockTypeResponse {
+	specs := core.ProfileBlockSpecs()
+	out := make([]ProfileBlockTypeResponse, len(specs))
+	for i, spec := range specs {
+		t := ProfileBlockTypeResponse{
+			Type:             spec.Type,
+			Label:            spec.Label,
+			Description:      spec.Description,
+			PrivacyItem:      spec.PrivacyItem,
+			ViewerPermission: spec.ViewerPermission,
+			Options:          make([]ProfileBlockOptionResponse, len(spec.Options)),
+		}
+		for j, opt := range spec.Options {
+			o := ProfileBlockOptionResponse{Key: opt.Key, Label: opt.Label, Kind: string(opt.Kind)}
+			if opt.Kind == core.ProfileOptionInt {
+				o.Min, o.Max, o.Default = opt.Min, opt.Max, opt.Default
+			} else {
+				o.Default = opt.DefaultChoice
+				for _, c := range opt.Choices {
+					o.Choices = append(o.Choices, PrivacyOptionLabel{Value: c.Value, Label: c.Label})
+				}
+			}
+			t.Options[j] = o
+		}
+		out[i] = t
+	}
+	return out
+}
+
+// ProfileLayoutResponse is the layout of a profile (PUT /profiles/me/layout).
+type ProfileLayoutResponse struct {
+	Blocks []data.ProfileBlockConfig `json:"blocks"`
+}
+
+// ProfileLimitsResponse are the limits the edit UI shows.
+type ProfileLimitsResponse struct {
+	MaxShowcaseItems     int   `json:"max_showcase_items"`
+	BioMaxLength         int   `json:"bio_max_length"`
+	DisplayNameMaxLength int   `json:"display_name_max_length"`
+	MaxUploadBytes       int64 `json:"max_upload_bytes"`
+}
+
+// ProfileEditBannerResponse is the banner as its owner edits it.
+type ProfileEditBannerResponse struct {
+	Type    string `json:"type"`
+	SceneID *uint  `json:"scene_id,omitempty"`
+	Version int64  `json:"version"`
+	URL     string `json:"url,omitempty"`
+}
+
+// ProfileEditResponse is GET /profiles/me: everything the owner edits.
+type ProfileEditResponse struct {
+	User            SocialUserResponse         `json:"user"`
+	DisplayName     string                     `json:"display_name"`
+	Bio             string                     `json:"bio"`
+	AvatarVersion   int64                      `json:"avatar_version"`
+	Banner          ProfileEditBannerResponse  `json:"banner"`
+	Layout          []data.ProfileBlockConfig  `json:"layout"`
+	FavoriteScenes  []SceneListItem            `json:"favorite_scenes"`
+	FavoriteMarkers []data.WidgetMarker        `json:"favorite_markers"`
+	BlockTypes      []ProfileBlockTypeResponse `json:"block_types"`
+	Privacy         PrivacySettingsResponse    `json:"privacy"`
+	Limits          ProfileLimitsResponse      `json:"limits"`
+}
+
+// NewProfileLimitsResponse returns the limits of the configuration.
+func NewProfileLimitsResponse(cfg config.ProfilesConfig) ProfileLimitsResponse {
+	return ProfileLimitsResponse{
+		MaxShowcaseItems:     cfg.MaxShowcaseItems,
+		BioMaxLength:         cfg.BioMaxLength,
+		DisplayNameMaxLength: cfg.DisplayNameMaxLength,
+		MaxUploadBytes:       cfg.MaxUploadBytes,
+	}
+}
+
+func NewProfileEditResponse(s *core.ProfileEditState, cfg config.ProfilesConfig, vis FileVisibility) ProfileEditResponse {
+	p := s.Profile
+	banner := ProfileEditBannerResponse{Type: p.BannerType, SceneID: p.BannerSceneID, Version: p.BannerVersion}
+	switch {
+	case p.BannerType == data.ProfileBannerUpload && p.BannerVersion > 0:
+		banner.URL = ProfileBannerURL(&core.ProfileBanner{Type: data.ProfileBannerUpload, Version: p.BannerVersion}, p.UserID, "md")
+	case p.BannerType == data.ProfileBannerScene && p.BannerSceneID != nil:
+		banner.URL = ProfileBannerURL(&core.ProfileBanner{Type: data.ProfileBannerScene, SceneID: *p.BannerSceneID}, p.UserID, "md")
+	}
+	return ProfileEditResponse{
+		User:            NewSocialUserResponse(s.User),
+		DisplayName:     p.DisplayName,
+		Bio:             p.Bio,
+		AvatarVersion:   p.AvatarVersion,
+		Banner:          banner,
+		Layout:          s.Layout,
+		FavoriteScenes:  ToSceneListItems(s.FavoriteScenes, vis),
+		FavoriteMarkers: s.FavoriteMarkers,
+		BlockTypes:      NewProfileBlockTypesResponse(),
+		Privacy:         NewPrivacySettingsResponse(s.Privacy),
+		Limits:          NewProfileLimitsResponse(cfg),
+	}
+}

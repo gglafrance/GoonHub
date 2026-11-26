@@ -114,6 +114,15 @@ social:                       # docs/SOCIAL.md (0 = unlimited)
   follows_per_hour: 60          # follows a user can make per hour
   max_pending_requests: 50      # pending outgoing friend requests per user
 
+profiles:                       # docs/PROFILES.md
+  image_dir: "/app/data/metadata/profiles"  # avatars and banners (GoonHub data, never a media directory)
+  max_upload_bytes: 8388608     # largest avatar or banner upload (8 MB)
+  max_image_pixels: 25000000    # largest decoded image (width x height)
+  image_uploads_per_hour: 20    # per user (0 = unlimited)
+  max_showcase_items: 4         # favorite videos / markers per showcase (1-12)
+  bio_max_length: 1000          # characters
+  display_name_max_length: 64   # characters (64 at most)
+
 presence:                       # docs/PRESENCE.md
   disconnect_grace: 30s         # still online this long after the last live connection closed
   idle_after: 5m                # no input nor playback for this long = idle

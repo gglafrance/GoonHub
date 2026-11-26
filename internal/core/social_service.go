@@ -112,6 +112,8 @@ type SocialProfile struct {
 
 // SocialSummary is the social state of the signed-in user (header badge, /friends tabs).
 type SocialSummary struct {
+	// User is the card of the user (nil if it could not be read)
+	User             *data.SocialUser
 	IncomingRequests int64
 	OutgoingRequests int64
 	Friends          int64
@@ -351,7 +353,11 @@ func (s *SocialService) Summary(ctx context.Context, userID uint) (*SocialSummar
 	if err != nil {
 		return nil, err
 	}
-	return &SocialSummary{IncomingRequests: in, OutgoingRequests: out, Friends: counts.Friends, Followers: counts.Followers, Following: counts.Following}, nil
+	user, err := s.repo.GetUser(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read user: %w", err)
+	}
+	return &SocialSummary{User: user, IncomingRequests: in, OutgoingRequests: out, Friends: counts.Friends, Followers: counts.Followers, Following: counts.Following}, nil
 }
 
 // checkTarget refuses self relations and unknown users.
