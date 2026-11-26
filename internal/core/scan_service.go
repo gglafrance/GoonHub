@@ -41,7 +41,7 @@ type pendingScene struct {
 
 // scanLookupIndex provides in-memory lookup structures built once before a scan
 type scanLookupIndex struct {
-	// knownPaths is the set of stored_path values for non-deleted scenes
+	// knownPaths is the set of stored_path values for non-deleted scenes, trashed ones included
 	knownPaths map[string]struct{}
 	// knownCopyPaths is the set of paths recorded as copies of a scene (scene_copies)
 	knownCopyPaths map[string]struct{}
@@ -259,6 +259,11 @@ func (s *ScanService) buildLookupIndex() (*scanLookupIndex, error) {
 	lookupByKey := make(map[string][]data.ScanLookupEntry, len(entries))
 	bySize := make(map[int64][]copyCandidate)
 	for _, e := range entries {
+		// A scene in the trash keeps its file until it is deleted for good: its path stays
+		// known, so a scan skips the file instead of adding it again as a new scene
+		if e.IsTrashed && !e.IsDeleted && e.StoredPath != "" {
+			knownPaths[e.StoredPath] = struct{}{}
+		}
 		key := buildScanLookupKey(e.Size, e.OriginalFilename)
 		lookupByKey[key] = append(lookupByKey[key], e)
 		if !e.IsDeleted && !e.IsTrashed && e.Size > 0 && e.StoredPath != "" {
