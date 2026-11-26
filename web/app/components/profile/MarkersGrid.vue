@@ -11,8 +11,8 @@ const props = defineProps<{ markers: WidgetMarker[]; showcase?: boolean }>();
         class="grid gap-3"
         :class="
             props.showcase
-                ? 'grid-cols-[repeat(auto-fill,minmax(10rem,1fr))]'
-                : 'grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))]'
+                ? 'grid-cols-[repeat(auto-fill,minmax(9rem,1fr))]'
+                : 'grid-cols-[repeat(auto-fill,minmax(8rem,1fr))]'
         "
     >
         <HomepageWidgetsMarkersMarkerCard

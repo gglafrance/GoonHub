@@ -17,8 +17,8 @@ const props = defineProps<{
         class="grid gap-3"
         :class="
             props.showcase
-                ? 'grid-cols-[repeat(auto-fill,minmax(12rem,1fr))]'
-                : 'grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))]'
+                ? 'grid-cols-[repeat(auto-fill,minmax(10rem,1fr))]'
+                : 'grid-cols-[repeat(auto-fill,minmax(9rem,1fr))]'
         "
     >
         <div v-for="item in props.scenes" :key="item.scene.id" class="min-w-0">
