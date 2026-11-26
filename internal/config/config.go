@@ -28,10 +28,43 @@ type Config struct {
 	ClickHouse    ClickHouseConfig    `mapstructure:"clickhouse"`
 	LibraryHealth LibraryHealthConfig `mapstructure:"library_health"`
 	Workers       WorkersConfig       `mapstructure:"workers"`
+	Goon2gether   Goon2getherConfig   `mapstructure:"goon2gether"`
 }
 
 // LibraryHealthConfig configures the background tasks of the library health page.
 // WorkersConfig configures the remote workers (goonhub-worker, docs/REMOTE_WORKERS.md).
+// Goon2getherConfig configures the synchronized watch lobbies (docs/GOON2GETHER.md).
+type Goon2getherConfig struct {
+	Enabled               bool          `mapstructure:"enabled"`
+	EmoteDir              string        `mapstructure:"emote_dir"`           // emote images (GoonHub data, never a media directory)
+	EmoteMaxBytes         int64         `mapstructure:"emote_max_bytes"`     // largest emote file
+	EmoteMaxDimension     int           `mapstructure:"emote_max_dimension"` // largest emote width and height (px)
+	EmoteMaxCount         int           `mapstructure:"emote_max_count"`
+	MaxMembers            int           `mapstructure:"max_members"` // online members per lobby (cap of a lobby's own limit)
+	MaxLobbiesPerUser     int           `mapstructure:"max_lobbies_per_user"`
+	MaxQueueItems         int           `mapstructure:"max_queue_items"`
+	MaxSuggestions        int           `mapstructure:"max_suggestions"`
+	MaxConnectionsPerUser int           `mapstructure:"max_connections_per_user"` // per lobby
+	ChatHistory           int           `mapstructure:"chat_history"`             // messages kept per lobby
+	ChatMaxLength         int           `mapstructure:"chat_max_length"`          // characters
+	ChatRateLimit         int           `mapstructure:"chat_rate_limit"`          // messages per rate_window
+	ReactionRateLimit     int           `mapstructure:"reaction_rate_limit"`      // reactions per rate_window
+	RateWindow            time.Duration `mapstructure:"rate_window"`
+	DriftThreshold        float64       `mapstructure:"drift_threshold"` // seconds, clients seek over it
+	DriftNudge            bool          `mapstructure:"drift_nudge"`     // small drifts corrected with the playback rate
+	HoldTimeout           time.Duration `mapstructure:"hold_timeout"`    // longest "wait for everyone" hold
+	EndGrace              time.Duration `mapstructure:"end_grace"`       // after the scene duration before advancing
+	HostGrace             time.Duration `mapstructure:"host_grace"`      // host absence before the role is handed over
+	TickInterval          time.Duration `mapstructure:"tick_interval"`
+	UnloadAfter           time.Duration `mapstructure:"unload_after"` // a lobby without connections leaves memory
+	IdleTimeout           time.Duration `mapstructure:"idle_timeout"` // a lobby nobody connected to is deleted
+	CleanupInterval       time.Duration `mapstructure:"cleanup_interval"`
+	SendBuffer            int           `mapstructure:"send_buffer"` // messages queued per connection
+	PingInterval          time.Duration `mapstructure:"ping_interval"`
+	WriteTimeout          time.Duration `mapstructure:"write_timeout"`
+	MaxMessageBytes       int64         `mapstructure:"max_message_bytes"`
+}
+
 type WorkersConfig struct {
 	Enabled              bool          `mapstructure:"enabled"`                 // enables the worker API
 	HeartbeatInterval    time.Duration `mapstructure:"heartbeat_interval"`      // sent to the workers
@@ -343,6 +376,34 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("duplication.enabled", false)
 	v.SetDefault("library_health.stat_concurrency", 8)
 	v.SetDefault("workers.enabled", false)
+	v.SetDefault("goon2gether.enabled", true)
+	v.SetDefault("goon2gether.emote_dir", "./data/emotes")
+	v.SetDefault("goon2gether.emote_max_bytes", int64(512<<10))
+	v.SetDefault("goon2gether.emote_max_dimension", 256)
+	v.SetDefault("goon2gether.emote_max_count", 500)
+	v.SetDefault("goon2gether.max_members", 20)
+	v.SetDefault("goon2gether.max_lobbies_per_user", 5)
+	v.SetDefault("goon2gether.max_queue_items", 200)
+	v.SetDefault("goon2gether.max_suggestions", 50)
+	v.SetDefault("goon2gether.max_connections_per_user", 4)
+	v.SetDefault("goon2gether.chat_history", 100)
+	v.SetDefault("goon2gether.chat_max_length", 500)
+	v.SetDefault("goon2gether.chat_rate_limit", 5)
+	v.SetDefault("goon2gether.reaction_rate_limit", 10)
+	v.SetDefault("goon2gether.rate_window", 10*time.Second)
+	v.SetDefault("goon2gether.drift_threshold", 0.75)
+	v.SetDefault("goon2gether.drift_nudge", true)
+	v.SetDefault("goon2gether.hold_timeout", 10*time.Second)
+	v.SetDefault("goon2gether.end_grace", 1500*time.Millisecond)
+	v.SetDefault("goon2gether.host_grace", 60*time.Second)
+	v.SetDefault("goon2gether.tick_interval", 500*time.Millisecond)
+	v.SetDefault("goon2gether.unload_after", time.Minute)
+	v.SetDefault("goon2gether.idle_timeout", 24*time.Hour)
+	v.SetDefault("goon2gether.cleanup_interval", time.Minute)
+	v.SetDefault("goon2gether.send_buffer", 64)
+	v.SetDefault("goon2gether.ping_interval", 25*time.Second)
+	v.SetDefault("goon2gether.write_timeout", 10*time.Second)
+	v.SetDefault("goon2gether.max_message_bytes", int64(16<<10))
 	v.SetDefault("workers.heartbeat_interval", 10*time.Second)
 	v.SetDefault("workers.lease_duration", 60*time.Second)
 	v.SetDefault("workers.expiry_sweep_interval", 5*time.Second)

@@ -46,7 +46,13 @@ func (h *WatchHistoryHandler) RecordWatch(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.RecordWatch(payload.UserID, uint(sceneID), req.Duration, req.Position, req.Completed); err != nil {
+	record := h.Service.RecordWatch
+	if req.KeepResume {
+		record = func(userID, sceneID uint, duration, _ int, _ bool) error {
+			return h.Service.RecordWatchKeepResume(userID, sceneID, duration)
+		}
+	}
+	if err := record(payload.UserID, uint(sceneID), req.Duration, req.Position, req.Completed); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record watch"})
 		return
 	}
