@@ -107,6 +107,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Social Repositories
 		provideSocialRepository,
 		providePrivacyRepository,
+		providePresenceRepository,
 
 		// Remote Worker Repositories
 		provideWorkerRepository,
@@ -199,6 +200,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Social Services
 		providePrivacyService,
 		provideSocialService,
+		providePresenceService,
 
 		// Remote Workers
 		provideWorkerService,
@@ -279,6 +281,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Social Handler
 		provideSocialHandler,
+		providePresenceHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -438,6 +441,10 @@ func provideSocialRepository(db *gorm.DB) data.SocialRepository {
 
 func providePrivacyRepository(db *gorm.DB) data.PrivacyRepository {
 	return data.NewPrivacyRepository(db)
+}
+
+func providePresenceRepository(db *gorm.DB) data.PresenceRepository {
+	return data.NewPresenceRepository(db)
 }
 
 // ============================================================================
@@ -877,8 +884,10 @@ func provideRetryConfigHandler(retryConfigRepo data.RetryConfigRepository, retry
 
 // --- Real-time & Storage Handlers ---
 
-func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, rbacService *core.RBACService, logger *logging.Logger) *handler.SSEHandler {
-	return handler.NewSSEHandler(eventBus, authService, jobStatusService, rbacService, logger.Logger)
+func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, rbacService *core.RBACService, presence *core.PresenceService, logger *logging.Logger) *handler.SSEHandler {
+	h := handler.NewSSEHandler(eventBus, authService, jobStatusService, rbacService, logger.Logger)
+	h.SetPresence(presence)
+	return h
 }
 
 func provideStoragePathHandler(service *core.StoragePathService) *handler.StoragePathHandler {
@@ -960,6 +969,16 @@ func provideSocialHandler(social *core.SocialService, privacy *core.PrivacyServi
 	return handler.NewSocialHandler(social, privacy, cfg.Pagination.MaxItemsPerPage)
 }
 
+// providePresenceService creates the presence (docs/PRESENCE.md), subscribed to the privacy
+// and social changes. Its loop is started and stopped by the server.
+func providePresenceService(repo data.PresenceRepository, privacy *core.PrivacyService, social *core.SocialService, sceneRepo data.SceneRepository, rbacService *core.RBACService, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.PresenceService {
+	return core.NewPresenceService(repo, privacy, social, sceneRepo, rbacService, eventBus, cfg.Presence, logger.Logger)
+}
+
+func providePresenceHandler(presence *core.PresenceService) *handler.PresenceHandler {
+	return handler.NewPresenceHandler(presence)
+}
+
 // --- Library Health ---
 
 func provideLibraryHealthRepository(db *gorm.DB) data.LibraryHealthRepository {
@@ -1025,6 +1044,7 @@ func provideRouter(
 	libraryHealthHandler *handler.LibraryHealthHandler,
 	workerHandler *handler.WorkerHandler,
 	socialHandler *handler.SocialHandler,
+	presenceHandler *handler.PresenceHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -1037,7 +1057,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, presenceHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 
@@ -1080,14 +1100,17 @@ func provideServer(
 	transcoder *streaming.Transcoder,
 	workerService *workers.Service,
 	pushDispatcher *workers.PushDispatcher,
+	presenceService *core.PresenceService,
 ) *server.Server {
-	return server.NewHTTPServer(
+	srv := server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
 		actorService, studioService, matchingService, duplicateService, markerService, shareServer, transcoder,
 		workerService, pushDispatcher,
 	)
+	srv.SetPresence(presenceService)
+	return srv
 }
 
 // ============================================================================

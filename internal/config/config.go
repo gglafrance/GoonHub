@@ -29,6 +29,21 @@ type Config struct {
 	LibraryHealth LibraryHealthConfig `mapstructure:"library_health"`
 	Workers       WorkersConfig       `mapstructure:"workers"`
 	Social        SocialConfig        `mapstructure:"social"`
+	Presence      PresenceConfig      `mapstructure:"presence"`
+}
+
+// PresenceConfig sets the timings of the presence (online, idle, now watching, docs/PRESENCE.md).
+type PresenceConfig struct {
+	DisconnectGrace   time.Duration `mapstructure:"disconnect_grace"`   // a user stays online this long after their last live connection closed (page reloads)
+	IdleAfter         time.Duration `mapstructure:"idle_after"`         // no activity (input, playback) for this long = idle
+	HeartbeatInterval time.Duration `mapstructure:"heartbeat_interval"` // the client reports input at most this often (sent to the client)
+	ActivityInterval  time.Duration `mapstructure:"activity_interval"`  // the client reports the playback position this often (sent to the client)
+	ActivityTTL       time.Duration `mapstructure:"activity_ttl"`       // an activity not reported for this long ends (closed tab, crash)
+	PausedAfter       time.Duration `mapstructure:"paused_after"`       // a playback paused for this long shows as paused
+	SeekThreshold     time.Duration `mapstructure:"seek_threshold"`     // a position this far from the expected one is a seek (pushed)
+	FlushInterval     time.Duration `mapstructure:"flush_interval"`     // changes are coalesced and pushed at this interval
+	LastSeenInterval  time.Duration `mapstructure:"last_seen_interval"` // last_seen_at of online users is saved this often (also on disconnect)
+	MaxTabsPerUser    int           `mapstructure:"max_tabs_per_user"`  // activities kept per user (one per tab), the oldest is dropped
 }
 
 // SocialConfig limits the social actions that notify another user (docs/SOCIAL.md).
@@ -352,6 +367,16 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("social.friend_requests_per_hour", 30)
 	v.SetDefault("social.follows_per_hour", 60)
 	v.SetDefault("social.max_pending_requests", 50)
+	v.SetDefault("presence.disconnect_grace", 30*time.Second)
+	v.SetDefault("presence.idle_after", 5*time.Minute)
+	v.SetDefault("presence.heartbeat_interval", 60*time.Second)
+	v.SetDefault("presence.activity_interval", 15*time.Second)
+	v.SetDefault("presence.activity_ttl", 60*time.Second)
+	v.SetDefault("presence.paused_after", 20*time.Second)
+	v.SetDefault("presence.seek_threshold", 15*time.Second)
+	v.SetDefault("presence.flush_interval", 2*time.Second)
+	v.SetDefault("presence.last_seen_interval", 5*time.Minute)
+	v.SetDefault("presence.max_tabs_per_user", 8)
 	v.SetDefault("duplication.enabled", false)
 	v.SetDefault("library_health.stat_concurrency", 8)
 	v.SetDefault("workers.enabled", false)
