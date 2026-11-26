@@ -9,6 +9,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 func newTestWatchHistoryService(t *testing.T) (*WatchHistoryService, *mocks.MockWatchHistoryRepository, *mocks.MockSceneRepository) {
@@ -239,5 +240,30 @@ func TestGetDailyActivity_AllTime(t *testing.T) {
 	}
 	if result != nil {
 		t.Fatalf("expected nil, got %v", result)
+	}
+}
+
+func TestRecordWatchKeepResume_KeepsThePreviousPosition(t *testing.T) {
+	service, repo, sceneRepo := newTestWatchHistoryService(t)
+	repo.EXPECT().GetLastWatch(uint(1), uint(10)).Return(&data.UserSceneWatch{LastPosition: 321, Completed: false}, nil)
+	sceneRepo.EXPECT().GetByID(uint(10)).Return(&data.Scene{ID: 10}, nil)
+	// The lobby position (not sent) does not replace the resume position
+	repo.EXPECT().RecordWatch(uint(1), uint(10), 42, 321, false).Return(nil)
+	repo.EXPECT().TryIncrementViewCount(uint(1), uint(10)).Return(false, nil)
+
+	if err := service.RecordWatchKeepResume(1, 10, 42); err != nil {
+		t.Fatalf("RecordWatchKeepResume: %v", err)
+	}
+}
+
+func TestRecordWatchKeepResume_FirstWatchHasNoResume(t *testing.T) {
+	service, repo, sceneRepo := newTestWatchHistoryService(t)
+	repo.EXPECT().GetLastWatch(uint(1), uint(10)).Return(nil, gorm.ErrRecordNotFound)
+	sceneRepo.EXPECT().GetByID(uint(10)).Return(&data.Scene{ID: 10}, nil)
+	repo.EXPECT().RecordWatch(uint(1), uint(10), 7, 0, false).Return(nil)
+	repo.EXPECT().TryIncrementViewCount(uint(1), uint(10)).Return(true, nil)
+
+	if err := service.RecordWatchKeepResume(1, 10, 7); err != nil {
+		t.Fatalf("RecordWatchKeepResume: %v", err)
 	}
 }

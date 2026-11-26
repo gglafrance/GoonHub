@@ -18,7 +18,8 @@ export type SettingsTabId =
     | 'workers'
     | 'duplicates'
     | 'health'
-    | 'trash';
+    | 'trash'
+    | 'emotes';
 
 export interface SettingsSubTabConfig {
     id: string;
@@ -120,6 +121,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
         icon: 'heroicons:trash',
         admin: true,
         permissions: ['trash:manage'],
+    },
+    {
+        id: 'emotes',
+        label: 'Emotes',
+        icon: 'heroicons:face-smile',
+        admin: true,
+        permissions: ['emotes:manage'],
     },
 ];
 

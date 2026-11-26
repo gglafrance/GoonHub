@@ -8,6 +8,9 @@ import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 const route = useRoute();
 const router = useRouter();
 const settingsStore = useSettingsStore();
+const perms = useMyPermissions();
+// "Watch together" (Goon2gether): start a lobby with this scene or add it to one
+const showTogether = ref(false);
 
 const sceneId = computed(() => parseInt(route.params.id as string));
 
@@ -350,8 +353,21 @@ definePageMeta({
                     <span class="text-xs font-medium">{{ backLabel }}</span>
                 </button>
 
-                <div v-if="scene" class="text-dim hidden truncate text-xs sm:block">
-                    {{ scene.title }}
+                <div class="flex min-w-0 items-center gap-3">
+                    <div v-if="scene" class="text-dim hidden truncate text-xs sm:block">
+                        {{ scene.title }}
+                    </div>
+                    <button
+                        v-if="scene && perms.has('goon2gether:use')"
+                        class="border-border bg-panel text-dim hover:border-lava/30 hover:text-lava
+                            flex h-6 shrink-0 items-center gap-1.5 rounded-md border px-2
+                            text-[11px] font-medium transition-all"
+                        title="Watch this scene with others"
+                        @click="showTogether = true"
+                    >
+                        <Icon name="heroicons:users" size="12" />
+                        Watch together
+                    </button>
                 </div>
             </div>
         </div>
@@ -599,6 +615,13 @@ definePageMeta({
             @previous="handlePlaylistPrevious"
             @shuffle="playlistPlayer.shuffle()"
             @unshuffle="playlistPlayer.unshuffle()"
+        />
+
+        <TogetherAddModal
+            v-if="scene"
+            :visible="showTogether"
+            :items="[{ scene_id: scene.id }]"
+            @close="showTogether = false"
         />
 
         <!-- Playlist Auto-Advance Overlay -->

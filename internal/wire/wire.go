@@ -20,6 +20,7 @@ import (
 	"goonhub/internal/infrastructure/server"
 	"goonhub/internal/jobs"
 	"goonhub/internal/streaming"
+	"goonhub/internal/together"
 	"goonhub/internal/workers"
 
 	"github.com/gin-gonic/gin"
@@ -114,6 +115,10 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideWorkerRepository,
 		provideJobLeaseRepository,
 
+		// Goon2gether Repositories
+		provideLobbyRepository,
+		provideEmoteRepository,
+
 		// ============================================================
 		// EXTERNAL SERVICES
 		// ============================================================
@@ -207,6 +212,10 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideWorkerService,
 		providePushDispatcher,
 
+		// Goon2gether (watch lobbies, emotes)
+		provideEmoteService,
+		provideTogetherHub,
+
 		// ============================================================
 		// API LAYER - MIDDLEWARE
 		// ============================================================
@@ -280,6 +289,8 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Remote Worker Handler
 		provideWorkerHandler,
 
+		// Goon2gether Handler
+		provideTogetherHandler,
 		// Social Handler
 		provideSocialHandler,
 		providePresenceHandler,
@@ -1049,6 +1060,7 @@ func provideRouter(
 	duplicateHandler *handler.DuplicateHandler,
 	libraryHealthHandler *handler.LibraryHealthHandler,
 	workerHandler *handler.WorkerHandler,
+	togetherHandler *handler.TogetherHandler,
 	socialHandler *handler.SocialHandler,
 	presenceHandler *handler.PresenceHandler,
 	authService *core.AuthService,
@@ -1063,7 +1075,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, presenceHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, presenceHandler, togetherHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 
@@ -1106,6 +1118,7 @@ func provideServer(
 	transcoder *streaming.Transcoder,
 	workerService *workers.Service,
 	pushDispatcher *workers.PushDispatcher,
+	togetherHub *together.Hub,
 	presenceService *core.PresenceService,
 ) *server.Server {
 	srv := server.NewHTTPServer(
@@ -1113,7 +1126,7 @@ func provideServer(
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
 		actorService, studioService, matchingService, duplicateService, markerService, shareServer, transcoder,
-		workerService, pushDispatcher,
+		workerService, pushDispatcher, togetherHub,
 	)
 	srv.SetPresence(presenceService)
 	return srv
@@ -1214,4 +1227,35 @@ func providePushDispatcher(svc *workers.Service) *workers.PushDispatcher {
 
 func provideWorkerHandler(svc *workers.Service, logger *logging.Logger) *handler.WorkerHandler {
 	return handler.NewWorkerHandler(svc, logger.Logger)
+}
+
+// ============================================================================
+// GOON2GETHER
+// ============================================================================
+
+func provideLobbyRepository(db *gorm.DB) data.LobbyRepository {
+	return data.NewLobbyRepository(db)
+}
+
+func provideEmoteRepository(db *gorm.DB) data.EmoteRepository {
+	return data.NewEmoteRepository(db)
+}
+
+func provideEmoteService(repo data.EmoteRepository, cfg *config.Config, logger *logging.Logger) *together.EmoteService {
+	return together.NewEmoteService(repo, cfg.Goon2gether, logger.Logger)
+}
+
+func provideTogetherHub(cfg *config.Config, lobbyRepo data.LobbyRepository, sceneRepo data.SceneRepository, rbacService *core.RBACService, emotes *together.EmoteService, logger *logging.Logger) *together.Hub {
+	hub := together.NewHub(cfg.Goon2gether, lobbyRepo, sceneRepo, rbacService, logger.Logger)
+	hub.SetEmotes(emotes)
+	emotes.OnChange(hub.BroadcastEmotesChanged)
+	return hub
+}
+
+// provideTogetherHandler is nil when Goon2gether is disabled (no routes).
+func provideTogetherHandler(cfg *config.Config, hub *together.Hub, emotes *together.EmoteService, logger *logging.Logger) *handler.TogetherHandler {
+	if !cfg.Goon2gether.Enabled {
+		return nil
+	}
+	return handler.NewTogetherHandler(hub, emotes, handler.OriginPatterns(cfg.Server.AllowedOrigins), logger.Logger)
 }

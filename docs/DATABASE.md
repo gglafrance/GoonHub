@@ -14,15 +14,16 @@ This document provides a comprehensive reference of the GoonHub database schema.
 2. [RBAC (Role-Based Access Control)](#rbac-role-based-access-control)
 3. [Content Organization](#content-organization)
 4. [Sharing](#sharing)
-5. [Playlists](#playlists)
-6. [Social Graph](#social-graph)
-7. [User Interactions](#user-interactions)
-8. [Job System](#job-system)
-9. [Storage & Scanning](#storage--scanning)
-10. [Duplicate Detection](#duplicate-detection)
-11. [Application Settings](#application-settings)
-12. [Entity Relationship Diagram](#entity-relationship-diagram)
-13. [Key Patterns & Conventions](#key-patterns--conventions)
+1. [Playlists](#playlists)
+2. [Social Graph](#social-graph)
+3. [User Interactions](#user-interactions)
+4. [Job System](#job-system)
+5. [Storage & Scanning](#storage--scanning)
+6. [Duplicate Detection](#duplicate-detection)
+7. [Goon2gether](#goon2gether)
+8. [Application Settings](#application-settings)
+9. [Entity Relationship Diagram](#entity-relationship-diagram)
+10. [Key Patterns & Conventions](#key-patterns--conventions)
 
 ---
 
@@ -1660,6 +1661,86 @@ from the same group have no pair between them and can group again.
 
 **Constraints:**
 - CHECK `chk_duplicate_exclusions_ordered`: `scene_id_a < scene_id_b`
+
+---
+
+## Goon2gether
+
+Synchronized watch lobbies and custom emotes (migration 099, `docs/GOON2GETHER.md`). The live
+state (connections, buffering, holds, chat) is in memory; these tables keep what must survive a
+restart.
+
+### `lobbies`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `uuid` | UUID | NO | - | Public identifier (unique) |
+| `invite_code` | VARCHAR(16) | NO | - | Code of the invite link `/together/join/<code>` (unique, 8 characters without ambiguous ones; can be changed by the host) |
+| `name` | VARCHAR(100) | NO | - | Display name |
+| `visibility` | VARCHAR(10) | NO | 'private' | `public` (listed) or `private` (invite only) |
+| `host_user_id` | BIGINT | YES | NULL | FK to `users.id` (SET NULL): the host (handed over when the host leaves or is away) |
+| `created_by` | BIGINT | YES | NULL | FK to `users.id` (SET NULL) |
+| `control_open` | BOOLEAN | NO | FALSE | Every member controls playback and the queue |
+| `queue_open` | BOOLEAN | NO | FALSE | Every member adds to the queue (else suggestions) |
+| `wait_for_all` | BOOLEAN | NO | FALSE | Hold playback while members buffer |
+| `max_members` | INTEGER | NO | 0 | Most online members (0 = `goon2gether.max_members`) |
+| `current_item_id` | BIGINT | YES | NULL | FK to `lobby_queue_items.id` (SET NULL): item playing, last saved |
+| `position_s` | DOUBLE PRECISION | NO | 0 | Last saved position in the current item (seconds) |
+| `playback_rate` | DOUBLE PRECISION | NO | 1 | Last saved playback rate |
+| `last_active_at` | TIMESTAMPTZ | NO | NOW() | Last time someone was connected; lobbies idle for `goon2gether.idle_timeout` are deleted |
+| `created_at`, `updated_at` | TIMESTAMPTZ | NO | NOW() | |
+
+**Indexes:** `idx_lobbies_uuid` UNIQUE, `idx_lobbies_invite_code` UNIQUE, `idx_lobbies_public_active` on `last_active_at DESC` WHERE `visibility = 'public'`, `idx_lobbies_host_user_id`, `idx_lobbies_last_active_at`.
+
+**Constraints:** CHECK `chk_lobbies_visibility` (`public`, `private`), `chk_lobbies_max_members` (`>= 0`), `chk_lobbies_playback_rate` (`> 0`); `fk_lobbies_current_item` ON DELETE SET NULL.
+
+### `lobby_members`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `lobby_id` | BIGINT | NO | - | FK to `lobbies.id` (CASCADE) |
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `can_control` | BOOLEAN | NO | FALSE | Control given by the host |
+| `banned_at` | TIMESTAMPTZ | YES | NULL | Banned from the lobby (the row stays, the user cannot join again) |
+| `joined_at` | TIMESTAMPTZ | NO | NOW() | Join date (orders the host hand-over) |
+
+**Indexes:** PRIMARY KEY `(lobby_id, user_id)`, `idx_lobby_members_user_id`.
+
+### `lobby_queue_items`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `lobby_id` | BIGINT | NO | - | FK to `lobbies.id` (CASCADE) |
+| `scene_id` | BIGINT | NO | - | FK to `scenes.id` (CASCADE) |
+| `status` | VARCHAR(10) | NO | 'queued' | `queued` (in the queue; the first one is playing) or `suggested` (waiting for the host or a controller) |
+| `position` | INTEGER | NO | 0 | Order within its status |
+| `start_s`, `end_s` | DOUBLE PRECISION | YES | NULL | Optional range (a marker) in seconds |
+| `label` | VARCHAR(100) | YES | NULL | Optional label (e.g. the marker label) |
+| `added_by` | BIGINT | YES | NULL | FK to `users.id` (SET NULL) |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | |
+
+An item that finished playing is deleted. **Indexes:** `idx_lobby_queue_items_lobby_status_position` on `(lobby_id, status, position)`, `idx_lobby_queue_items_scene_id`. **Constraints:** CHECK `chk_lobby_queue_items_status`, `chk_lobby_queue_items_start` (`start_s >= 0`), `chk_lobby_queue_items_range` (`end_s > COALESCE(start_s, 0)`).
+
+### `emotes`
+
+Server custom emotes (`:name:` in the chat). The image is stored in `goon2gether.emote_dir`
+under `filename` (random hex name, never a media directory) and served at `/emotes/<filename>`.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `name` | VARCHAR(32) | NO | - | `^[A-Za-z0-9_]{2,32}$`, unique without regard to case |
+| `filename` | VARCHAR(64) | NO | - | Stored file name (unique) |
+| `content_type` | VARCHAR(32) | NO | - | `image/png`, `image/gif` or `image/webp` |
+| `width`, `height` | INTEGER | NO | - | Pixels |
+| `size_bytes` | INTEGER | NO | - | File size |
+| `animated` | BOOLEAN | NO | FALSE | Animated GIF, WebP or APNG |
+| `created_by` | BIGINT | YES | NULL | FK to `users.id` (SET NULL) |
+| `created_at`, `updated_at` | TIMESTAMPTZ | NO | NOW() | |
+
+**Indexes:** `idx_emotes_name_lower` UNIQUE on `LOWER(name)`, `idx_emotes_filename` UNIQUE. **Constraints:** CHECK `chk_emotes_name`, `chk_emotes_content_type`.
 
 ---
 

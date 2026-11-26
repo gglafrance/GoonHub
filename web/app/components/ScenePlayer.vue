@@ -360,6 +360,8 @@ const props = defineProps<{
     durationHint?: number;
     // Control bar button that shows/hides the thumbnail scrubber (saved in the user settings)
     scrubberToggle?: boolean;
+    // Views and history are recorded but the resume position is kept (Goon2gether lobbies)
+    keepResume?: boolean;
     // Report the playback to the presence of the signed-in user ("now watching")
     presence?: boolean;
 }>();
@@ -481,6 +483,7 @@ const sceneRef = computed(() => props.scene);
 const { hasRecordedView, setupTracking, cleanup } = useWatchTracking({
     player,
     scene: sceneRef,
+    keepResume: props.keepResume,
 });
 const { setup: setupPresenceActivity, cleanup: cleanupPresenceActivity } = usePresenceActivity({
     player,

@@ -10,6 +10,8 @@ interface WatchTrackingOptions {
     viewThresholdSeconds?: number;
     saveDebounceMs?: number;
     completionThresholdSeconds?: number;
+    // Record views and history without moving the resume position (Goon2gether lobbies)
+    keepResume?: boolean;
 }
 
 /**
@@ -22,6 +24,7 @@ export const useWatchTracking = (options: WatchTrackingOptions) => {
         viewThresholdSeconds = 5,
         saveDebounceMs = 10000,
         completionThresholdSeconds = 5,
+        keepResume = false,
     } = options;
 
     const { recordWatch } = useApiScenes();
@@ -62,7 +65,7 @@ export const useWatchTracking = (options: WatchTrackingOptions) => {
         try {
             const currentTime = Math.floor(player.value?.currentTime() ?? 0);
             const duration = Math.floor(cumulativeWatchTime.value);
-            await recordWatch(scene.value.id, duration, currentTime, false);
+            await recordWatch(scene.value.id, duration, currentTime, false, keepResume);
         } catch {
             // Silently fail - view tracking is not critical
         }
@@ -81,7 +84,7 @@ export const useWatchTracking = (options: WatchTrackingOptions) => {
         try {
             const currentTime = Math.floor(player.value?.currentTime() ?? 0);
             const duration = Math.floor(cumulativeWatchTime.value);
-            await recordWatch(scene.value.id, duration, currentTime, completed);
+            await recordWatch(scene.value.id, duration, currentTime, completed, keepResume);
         } catch {
             // Silently fail
         }
@@ -108,6 +111,7 @@ export const useWatchTracking = (options: WatchTrackingOptions) => {
                 duration,
                 position: currentTime,
                 completed,
+                ...(keepResume ? { keep_resume: true } : {}),
             }),
         }).catch(() => {
             // Silently fail - page is unloading anyway

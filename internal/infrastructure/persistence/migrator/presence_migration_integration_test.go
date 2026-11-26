@@ -14,6 +14,9 @@ import (
 // Integration test of migration 000098 (user_presence): up, down, up again, and the cascade.
 // It migrates the database down and up, so it needs a disposable database of its own:
 // GOONHUB_TEST_MIGRATION_POSTGRES_DSN.
+// presenceMigration is the version of the user_presence migration.
+const presenceMigration = 98
+
 func TestMigration098UserPresence(t *testing.T) {
 	dsn := os.Getenv("GOONHUB_TEST_MIGRATION_POSTGRES_DSN")
 	if dsn == "" {
@@ -47,13 +50,18 @@ func TestMigration098UserPresence(t *testing.T) {
 	if !exists() {
 		t.Fatal("user_presence missing after up")
 	}
-	if err := m.Steps(-1); err != nil {
+	// Down to the migration before 098 (later migrations may exist above it)
+	prev, err := source.Prev(presenceMigration)
+	if err != nil {
+		t.Fatalf("previous migration: %v", err)
+	}
+	if err := m.Migrate(prev); err != nil {
 		t.Fatalf("down: %v", err)
 	}
 	if exists() {
 		t.Fatal("user_presence still there after down")
 	}
-	if err := m.Steps(1); err != nil {
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		t.Fatalf("up again: %v", err)
 	}
 	if !exists() {

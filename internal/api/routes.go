@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, shareHandler *handler.ShareHandler, duplicateHandler *handler.DuplicateHandler, libraryHealthHandler *handler.LibraryHealthHandler, workerHandler *handler.WorkerHandler, socialHandler *handler.SocialHandler, presenceHandler *handler.PresenceHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, shareHandler *handler.ShareHandler, duplicateHandler *handler.DuplicateHandler, libraryHealthHandler *handler.LibraryHealthHandler, workerHandler *handler.WorkerHandler, socialHandler *handler.SocialHandler, presenceHandler *handler.PresenceHandler, togetherHandler *handler.TogetherHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	perm := middleware.RequirePermission
 	anyPerm := middleware.RequireAnyPermission
 
@@ -105,6 +105,28 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					scenes.DELETE("/:id/markers/:markerID", perm(core.PermMarkersCreate), markerHandler.DeleteMarker)
 					scenes.POST("/:id/shares", perm(core.PermScenesShare), shareHandler.CreateShareLink)
 					scenes.GET("/:id/shares", perm(core.PermScenesView), shareHandler.ListShareLinks)
+				}
+
+				// Goon2gether: watch lobbies, chat and emotes (docs/GOON2GETHER.md)
+				if togetherHandler != nil {
+					tg := protected.Group("/together")
+					tg.Use(perm(core.PermTogetherUse))
+					{
+						tg.GET("/lobbies", togetherHandler.ListLobbies)
+						tg.POST("/lobbies", perm(core.PermTogetherHost), togetherHandler.CreateLobby)
+						tg.GET("/lobbies/:id", togetherHandler.GetLobby)
+						tg.DELETE("/lobbies/:id", togetherHandler.CloseLobby)
+						tg.POST("/lobbies/:id/join", togetherHandler.JoinLobby)
+						tg.POST("/lobbies/:id/leave", togetherHandler.LeaveLobby)
+						tg.POST("/lobbies/:id/invite-code", togetherHandler.RotateInviteCode)
+						tg.POST("/lobbies/:id/queue", perm(core.PermScenesView), togetherHandler.AddToQueue)
+						tg.GET("/lobbies/:id/ws", togetherHandler.Socket)
+						tg.POST("/join", togetherHandler.JoinByCode)
+						tg.GET("/emotes", togetherHandler.ListEmotes)
+						tg.POST("/emotes", perm(core.PermEmotesManage), togetherHandler.UploadEmote)
+						tg.PUT("/emotes/:id", perm(core.PermEmotesManage), togetherHandler.RenameEmote)
+						tg.DELETE("/emotes/:id", perm(core.PermEmotesManage), togetherHandler.DeleteEmote)
+					}
 				}
 
 				// Share link deletion (protected, not under /scenes/:id)

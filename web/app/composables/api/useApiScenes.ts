@@ -251,11 +251,18 @@ export const useApiScenes = () => {
         duration: number,
         position: number,
         completed: boolean,
+        // Goon2gether: the server keeps the previous resume position
+        keepResume = false,
     ) => {
         const response = await fetch(`/api/v1/scenes/${sceneId}/watch`, {
             method: 'POST',
             headers: getAuthHeaders(),
-            body: JSON.stringify({ duration, position, completed }),
+            body: JSON.stringify({
+                duration,
+                position,
+                completed,
+                ...(keepResume ? { keep_resume: true } : {}),
+            }),
         });
         return handleResponse(response);
     };

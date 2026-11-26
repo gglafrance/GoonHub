@@ -102,6 +102,10 @@ grant (superuser roles never get a grant row).
 | `studios:merge` | Library | Merge studios | existing |
 | `playlists:create`, `playlists:edit`, `playlists:delete`, `playlists:view_public` | Playlists | as today; they also cover the marker playlists (create, add/remove/reorder markers, delete, like; `docs/MARKER_PLAYLISTS.md`) | existing |
 | `social:use` | Social | Follow users, send and accept friend requests (`docs/SOCIAL.md`). Reading the directory, lists and profiles, unfollowing, declining, cancelling and removing a friend only need a signed-in user | `user`, from `scenes:view` |
+| `goon2gether:use` | Goon2gether | Join watch lobbies, chat, react, suggest (every `/together` route; see `docs/GOON2GETHER.md`) | from `scenes:view` |
+| `goon2gether:host` | Goon2gether | Create watch lobbies | from `scenes:view` |
+| `goon2gether:moderate` | Goon2gether | See and close any lobby (private ones too), kick and ban in any lobby, delete any chat message | moderator |
+| `emotes:manage` | Goon2gether | Upload, rename and delete the custom emotes (Settings > Emotes) | moderator |
 | `files:view_size` | File info | File sizes, size filters and sorts, selection and library totals, biggest file | moderator |
 | `files:view_paths` | File info | Stored paths, original file names, storage paths, copies of a scene | moderator |
 | `files:view_technical` | File info | Codecs, bit rate, frame rate, file hash, fingerprint, processing errors | moderator |
@@ -154,6 +158,9 @@ refuses the matching parameters (`403`); the UI hides the matching blocks.
 - `jobs:view_status`: job events on `/events` (`jobs:*`, `scene:retry_scheduled`,
   `scene:dlq_*`) and the header job indicator.
 - `storage:manage`: scan events on `/events` (`scan:*`, they carry absolute paths).
+- Goon2gether (`docs/GOON2GETHER.md`): queue items and lobby summaries carry the scene ID,
+  title and duration only (no `files:*` field); the title is omitted without `scenes:view`, and
+  adding to a queue needs `scenes:view`.
 - `library:insights`: the trashed scenes in `GET /scenes/:id/similar` and the details of the
   curation and processing homepage widgets.
 - Marker playlists carry no file information (no size, path nor technical field): a viewer
