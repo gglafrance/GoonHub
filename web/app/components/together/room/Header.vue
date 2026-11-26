@@ -58,9 +58,11 @@ const close = () => run(() => closeLobby(socket.lobby.value!.id));
 </script>
 
 <template>
+    <!-- Sticks right under the app header (bar h-12 + nav h-10, sm:h-9, and their borders),
+         not under its nav. 3rem + 1px tall: the room page sizes its side column with it -->
     <div
-        class="border-border bg-void/10 sticky top-12 z-40 border-b px-4 py-2.5 backdrop-blur-md
-            sm:px-5"
+        class="border-border bg-void/10 sticky top-[calc(5.5rem+2px)] z-40 border-b px-4 py-2.5
+            backdrop-blur-md sm:top-[calc(5.25rem+2px)] sm:px-5"
     >
         <div class="mx-auto flex max-w-415 items-center gap-3">
             <NuxtLink
