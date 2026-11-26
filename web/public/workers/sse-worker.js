@@ -27,6 +27,12 @@ var SSE_EVENT_TYPES = [
     'social:friend_requests_changed',
     // presence (targeted, see app/utils/presence.ts)
     'presence:update',
+    // messages (targeted, see app/utils/messages.ts)
+    'chat:message',
+    'chat:message_updated',
+    'chat:read',
+    'chat:typing',
+    'chat:conversation_updated',
 ];
 
 function broadcast(type, payload) {

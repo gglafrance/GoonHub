@@ -10,6 +10,8 @@ export interface Relationship {
     request_sent: boolean;
     request_received: boolean;
     can_send_friend_request: boolean;
+    // The user's message policy lets me write to them (docs/MESSAGES.md)
+    can_message?: boolean;
 }
 
 export interface SocialUser {

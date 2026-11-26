@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { ChatMessage } from '~/types/together';
 
-// One chat line: text and :emote: tokens (text nodes and images, never HTML).
+// One chat line: text, links and :emote: tokens (ChatRichText: text nodes, images and
+// anchors, never HTML).
 const props = defineProps<{
     message: ChatMessage;
     canDelete: boolean;
@@ -12,14 +13,6 @@ const emit = defineEmits<{
     delete: [id: number];
 }>();
 
-const { byName } = useTogetherEmotes();
-const tokens = computed(() => tokenizeChat(props.message.text, byName.value));
-// A message made of emotes only shows them bigger
-const emoteOnly = computed(
-    () =>
-        tokens.value.length > 0 &&
-        tokens.value.every((t) => t.kind === 'emote' || t.text.trim() === ''),
-);
 // Anonymous author shown under the alias (a moderator gets the real name and a badge)
 const anonymousAlias = computed(() => !!props.message.anonymous && props.message.user_id === null);
 const time = computed(() =>
@@ -58,21 +51,8 @@ const time = computed(() =>
             </span>
             <span class="text-dim shrink-0 font-mono text-[9px]">{{ time }}</span>
         </div>
-        <div
-            class="min-w-0 text-xs leading-relaxed break-words text-white/85"
-            :class="{ 'py-0.5': emoteOnly }"
-        >
-            <template v-for="(t, i) in tokens" :key="i">
-                <img
-                    v-if="t.kind === 'emote'"
-                    :src="t.url"
-                    :alt="`:${t.name}:`"
-                    :title="`:${t.name}:`"
-                    class="inline-block object-contain align-middle"
-                    :class="emoteOnly ? 'h-8 w-8' : 'h-5 w-5'"
-                />
-                <span v-else class="whitespace-pre-wrap">{{ t.text }}</span>
-            </template>
+        <div class="min-w-0 text-xs leading-relaxed break-words text-white/85">
+            <ChatRichText :text="message.text" />
         </div>
         <button
             v-if="canDelete"

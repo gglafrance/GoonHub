@@ -1,4 +1,4 @@
-import type { ShareLinksResponse } from '~/types/share';
+import type { ShareLinkOptions, ShareLinksResponse } from '~/types/share';
 
 /**
  * Share link API operations: create, list, delete, resolve.
@@ -7,11 +7,16 @@ export const useApiShares = () => {
     const { fetchOptions, getAuthHeaders, handleResponse, handleResponseWithNoContent } =
         useApiCore();
 
-    const createShareLink = async (sceneId: number, shareType: string, expiresIn: string) => {
+    const createShareLink = async (
+        sceneId: number,
+        shareType: string,
+        expiresIn: string,
+        options: ShareLinkOptions = {},
+    ) => {
         const response = await fetch(`/api/v1/scenes/${sceneId}/shares`, {
             method: 'POST',
             headers: getAuthHeaders(),
-            body: JSON.stringify({ share_type: shareType, expires_in: expiresIn }),
+            body: JSON.stringify({ share_type: shareType, expires_in: expiresIn, ...options }),
             ...fetchOptions(),
         });
 

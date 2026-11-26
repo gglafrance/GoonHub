@@ -226,6 +226,16 @@ const handleShuffle = () => {
                     <Icon name="heroicons:arrows-right-left" size="14" />
                     Shuffle
                 </button>
+                <!-- Send to friends: only a public playlist can be seen by them -->
+                <ShareButton
+                    v-if="store.currentPlaylist.visibility === 'public'"
+                    :subject="{
+                        kind: 'playlist',
+                        uuid: store.currentPlaylist.uuid,
+                        name: store.currentPlaylist.name,
+                    }"
+                    label="Send to friends"
+                />
 
                 <!-- List / table -->
                 <SceneTableViewControls

@@ -60,7 +60,11 @@ const EVENT_HANDLERS: Record<string, FieldExtractor> = SCENE_UPDATE_HANDLERS;
 
 // Events dispatched to the listeners registered with onSSEEvent (features outside the scene
 // store: social, presence...). Add the type here and in public/workers/sse-worker.js.
-const LISTENER_EVENT_TYPES: readonly string[] = [...SOCIAL_SSE_EVENTS, ...PRESENCE_SSE_EVENTS];
+const LISTENER_EVENT_TYPES: readonly string[] = [
+    ...SOCIAL_SSE_EVENTS,
+    ...PRESENCE_SSE_EVENTS,
+    ...MESSAGE_SSE_EVENTS,
+];
 
 export interface SSEListenerEvent {
     type: string;

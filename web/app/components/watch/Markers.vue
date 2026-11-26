@@ -774,6 +774,20 @@ onMounted(async () => {
                                 variant="row"
                                 :marker-ids="[marker.id]"
                             />
+                            <!-- Share the marker (send to friends, link to its range) -->
+                            <ShareButton
+                                v-if="editingMarkerId !== marker.id"
+                                variant="row"
+                                label="Share marker"
+                                :subject="{
+                                    kind: 'marker',
+                                    markerId: marker.id,
+                                    sceneId: marker.scene_id,
+                                    label: marker.label,
+                                    start: marker.timestamp,
+                                    end: marker.end_timestamp ?? null,
+                                }"
+                            />
 
                             <!-- Delete Button -->
                             <button
