@@ -37,7 +37,7 @@ const component = computed<Component | null>(() => {
 </script>
 
 <template>
-    <section class="glass-panel p-4">
+    <section class="glass-panel @container min-w-0 p-4">
         <div class="mb-3 flex items-center gap-2">
             <Icon
                 :name="PROFILE_BLOCK_ICONS[block.type] ?? 'heroicons:squares-2x2'"

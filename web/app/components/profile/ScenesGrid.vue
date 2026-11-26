@@ -3,6 +3,7 @@ import type { ProfileScene, ProfileSceneFigureKind } from '~/types/profile';
 
 // Scene cards of a profile block, with the figure of the block under each card (watched or
 // liked date, view count, rating, O count). `showcase` makes bigger cards (favorite videos).
+// The columns follow the width of the block (a narrow layout column gets fewer, wider cards).
 const props = defineProps<{
     scenes: ProfileScene[];
     figure?: ProfileSceneFigureKind;
@@ -16,8 +17,8 @@ const props = defineProps<{
         class="grid gap-3"
         :class="
             props.showcase
-                ? 'grid-cols-2 md:grid-cols-4'
-                : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6'
+                ? 'grid-cols-[repeat(auto-fill,minmax(12rem,1fr))]'
+                : 'grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))]'
         "
     >
         <div v-for="item in props.scenes" :key="item.scene.id" class="min-w-0">
