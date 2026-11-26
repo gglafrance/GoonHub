@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import type { QuickMarkerLabelOption } from '~/utils/quickMarker';
+import type { QuickMarkerLabelOption, QuickMarkerSuggestionRow } from '~/utils/quickMarker';
 
-// Step 1 of the quick marker: the label, with the existing labels as suggestions (most used
-// first). Arrows move, Tab completes, Enter confirms (empty: the last label used), Esc cancels.
+// Step 1 of the quick marker: the label, with the existing (server-wide) labels as suggestions
+// (most used first). Arrows move, Tab completes, Enter confirms (empty: the last label used),
+// Esc cancels. A label manager (canCreate) also gets a "Create label" row for a new name.
 const props = defineProps<{
     modelValue: string;
     labels: QuickMarkerLabelOption[];
     lastLabel: string;
     // The marker is already saved (its sub-labels failed): the label can't change anymore
     locked: boolean;
+    canCreate?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -24,9 +26,28 @@ const highlighted = ref(-1);
 const suggestions = computed(() =>
     props.locked ? [] : rankQuickMarkerLabels(props.labels, props.modelValue),
 );
-const rows = computed(() =>
-    suggestions.value.map((s) => ({ key: s.label, text: s.label, hint: `${s.count}x` })),
-);
+// Name typed that matches no label: offered as a new label to a label manager
+const newName = computed(() => {
+    const typed = props.modelValue.trim();
+    if (props.locked || !props.canCreate || !typed) return '';
+    return findMarkerLabel(props.labels, typed) ? '' : typed.slice(0, QUICK_MARKER_LABEL_MAX);
+});
+const rows = computed(() => {
+    const out: QuickMarkerSuggestionRow[] = suggestions.value.map((s) => ({
+        key: s.label,
+        text: s.label,
+        hint: `${s.count}x`,
+    }));
+    if (newName.value) {
+        out.push({
+            key: '__create',
+            text: `Create label "${newName.value}"`,
+            hint: 'new',
+            create: true,
+        });
+    }
+    return out;
+});
 
 watch(
     () => props.modelValue,
@@ -39,14 +60,14 @@ const setValue = (value: string) => emit('update:modelValue', value);
 
 const pick = (index: number) => {
     const row = suggestions.value[index];
-    if (!row) return;
-    setValue(row.label);
+    if (row) setValue(row.label);
+    else if (!rows.value[index]?.create) return;
     emit('confirm');
 };
 
 const onKeydown = (e: KeyboardEvent) => {
     if (e.isComposing) return;
-    const count = suggestions.value.length;
+    const count = rows.value.length;
     switch (e.key) {
         case 'ArrowDown':
         case 'ArrowUp':

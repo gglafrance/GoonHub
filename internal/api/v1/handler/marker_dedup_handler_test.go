@@ -24,7 +24,7 @@ func newMarkerDedupHandlerForTest(t *testing.T) (*gin.Engine, *mocks.MockMarkerR
 	ctrl := gomock.NewController(t)
 	markers := mocks.NewMockMarkerRepository(ctrl)
 	scenes := mocks.NewMockSceneRepository(ctrl)
-	svc := core.NewMarkerService(markers, scenes, nil, &config.Config{}, zap.NewNop())
+	svc := core.NewMarkerService(markers, nil, scenes, nil, &config.Config{}, zap.NewNop())
 	h := NewMarkerHandler(svc, 100)
 	r := gin.New()
 	r.POST("/admin/markers/deduplicate", h.DeduplicateMarkers)

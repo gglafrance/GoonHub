@@ -35,12 +35,17 @@ type ImportRepository interface {
 
 	// Markers
 	// FindMarker returns the oldest marker matching the natural key, or (nil, nil) if none.
+	// The label matches ignoring case and surrounding spaces (empty: a marker without label).
 	FindMarker(userID, sceneID uint, timestamp int, label string) (*UserSceneMarker, error)
+	// EnsureMarkerLabel returns the marker label of that name (ignoring case), created when
+	// missing: an import never fails on an unknown label.
+	EnsureMarkerLabel(name string) (*MarkerLabel, error)
 	CreateMarker(marker *UserSceneMarker) error
 	UpdateMarkerColor(markerID uint, color string) error
 	// UpdateMarkerEndTimestamp sets (or clears, with nil) the end of a marker range.
 	UpdateMarkerEndTimestamp(markerID uint, endTimestamp *int) error
-	ApplyLabelTagsToMarker(userID, markerID uint, label string) error
+	// ApplyLabelTagsToMarker gives the marker the default tags of its label (as tags from label).
+	ApplyLabelTagsToMarker(markerID uint) error
 	AddMarkerTags(markerID uint, tagIDs []uint) error
 	SetMarkerTags(markerID uint, tagIDs []uint) error
 
@@ -131,7 +136,8 @@ func (r *ImportRepositoryImpl) InsertWatchIfAbsent(watch *UserSceneWatch) (bool,
 func (r *ImportRepositoryImpl) FindMarker(userID, sceneID uint, timestamp int, label string) (*UserSceneMarker, error) {
 	var marker UserSceneMarker
 	err := r.DB.
-		Where("user_id = ? AND scene_id = ? AND timestamp = ? AND label = ?", userID, sceneID, timestamp, label).
+		Where(`user_id = ? AND scene_id = ? AND timestamp = ? AND label_id IS NOT DISTINCT FROM
+			(SELECT id FROM marker_labels WHERE lower(name) = lower(btrim(?)))`, userID, sceneID, timestamp, label).
 		Order("id ASC").
 		First(&marker).Error
 	if err != nil {
@@ -141,6 +147,11 @@ func (r *ImportRepositoryImpl) FindMarker(userID, sceneID uint, timestamp int, l
 		return nil, err
 	}
 	return &marker, nil
+}
+
+func (r *ImportRepositoryImpl) EnsureMarkerLabel(name string) (*MarkerLabel, error) {
+	label, _, err := (&MarkerLabelRepositoryImpl{DB: r.DB}).Ensure(name)
+	return label, err
 }
 
 func (r *ImportRepositoryImpl) CreateMarker(marker *UserSceneMarker) error {
@@ -155,8 +166,8 @@ func (r *ImportRepositoryImpl) UpdateMarkerEndTimestamp(markerID uint, endTimest
 	return r.DB.Model(&UserSceneMarker{}).Where("id = ?", markerID).Update("end_timestamp", endTimestamp).Error
 }
 
-func (r *ImportRepositoryImpl) ApplyLabelTagsToMarker(userID, markerID uint, label string) error {
-	return (&MarkerRepositoryImpl{DB: r.DB}).ApplyLabelTagsToMarker(userID, markerID, label)
+func (r *ImportRepositoryImpl) ApplyLabelTagsToMarker(markerID uint) error {
+	return (&MarkerRepositoryImpl{DB: r.DB}).ApplyLabelTagsToMarker(markerID)
 }
 
 func (r *ImportRepositoryImpl) AddMarkerTags(markerID uint, tagIDs []uint) error {

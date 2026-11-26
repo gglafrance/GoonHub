@@ -208,6 +208,12 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					playlists.DELETE("/:uuid/scenes/:sceneId", perm(core.PermPlaylistsEdit), playlistHandler.RemoveScene)
 					playlists.POST("/:uuid/scenes/remove", perm(core.PermPlaylistsEdit), playlistHandler.RemoveScenes)
 					playlists.PUT("/:uuid/scenes/reorder", perm(core.PermPlaylistsEdit), playlistHandler.ReorderScenes)
+					// Marker playlists (docs/MARKER_PLAYLISTS.md)
+					playlists.POST("/:uuid/markers", perm(core.PermPlaylistsEdit), playlistHandler.AddMarkers)
+					playlists.POST("/:uuid/markers/from-filter", perm(core.PermPlaylistsEdit), playlistHandler.AddMarkersFromFilter)
+					playlists.DELETE("/:uuid/markers/:markerId", perm(core.PermPlaylistsEdit), playlistHandler.RemoveMarker)
+					playlists.POST("/:uuid/markers/remove", perm(core.PermPlaylistsEdit), playlistHandler.RemoveMarkers)
+					playlists.PUT("/:uuid/markers/reorder", perm(core.PermPlaylistsEdit), playlistHandler.ReorderMarkers)
 					playlists.GET("/:uuid/tags", playlistHandler.GetTags)
 					playlists.PUT("/:uuid/tags", perm(core.PermPlaylistsEdit), playlistHandler.SetTags)
 					playlists.POST("/:uuid/like", perm(core.PermPlaylistsPublic), playlistHandler.ToggleLike)
@@ -223,10 +229,24 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					markers.GET("/labels", markerHandler.ListLabelSuggestions)
 					markers.GET("/by-label", markerHandler.ListMarkersByLabel)
 					markers.GET("/label-tags", markerHandler.GetLabelTags)
-					markers.PUT("/label-tags", perm(core.PermMarkersCreate), markerHandler.SetLabelTags)
+					markers.PUT("/label-tags", perm(core.PermMarkerLabelsManage), markerHandler.SetLabelTags)
 					markers.GET("/:markerID/tags", markerHandler.GetMarkerTags)
 					markers.PUT("/:markerID/tags", perm(core.PermMarkersCreate), markerHandler.SetMarkerTags)
 					markers.POST("/:markerID/tags", perm(core.PermMarkersCreate), markerHandler.AddMarkerTags)
+				}
+
+				// Server-wide marker labels (docs/MARKER_LABELS.md); everyone lists them through
+				// GET /markers/labels
+				markerLabels := protected.Group("/marker-labels", perm(core.PermMarkerLabelsManage))
+				{
+					markerLabels.GET("", markerHandler.ListMarkerLabels)
+					markerLabels.POST("", markerHandler.CreateMarkerLabel)
+					markerLabels.POST("/merge", markerHandler.MergeMarkerLabels)
+					markerLabels.POST("/delete", markerHandler.DeleteMarkerLabels)
+					markerLabels.PUT("/:labelID", markerHandler.UpdateMarkerLabel)
+					markerLabels.DELETE("/:labelID", markerHandler.DeleteMarkerLabel)
+					markerLabels.GET("/:labelID/tags", markerHandler.GetMarkerLabelTags)
+					markerLabels.PUT("/:labelID/tags", markerHandler.SetMarkerLabelTags)
 				}
 
 				// Social graph and privacy (docs/SOCIAL.md): reading needs a signed-in user (privacy

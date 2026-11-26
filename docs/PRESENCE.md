@@ -12,7 +12,7 @@ Code: `internal/core/presence_service.go` (state, reports), `internal/core/prese
 ## Model
 
 Everything lives in memory (one process), except `user_presence.last_seen_at` and the invisible
-mode (migration 100, `docs/DATABASE.md`).
+mode (migration 098, `docs/DATABASE.md`).
 
 | Status | When |
 |---|---|

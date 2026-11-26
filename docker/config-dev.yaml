@@ -100,6 +100,10 @@ shutdown:
 pagination:
   max_items_per_page: 100             # maximum items per page for all paginated endpoints
 
+playlists:
+  max_markers: 1000           # most markers in a marker playlist (0 = no limit)
+  marker_default_duration: 30 # seconds a marker without an end plays in a marker playlist
+
 streaming:
   max_global_streams: 100             # total concurrent streams allowed
   max_streams_per_ip: 10              # per-IP limit

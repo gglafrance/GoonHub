@@ -388,8 +388,9 @@ func TestImportMarker_LabelOf100RunesAccepted(t *testing.T) {
 	d.sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{ID: 1}, nil)
 	d.expectTx()
 	d.importRepo.EXPECT().FindMarker(uint(1), uint(1), 0, label).Return(nil, nil)
+	d.importRepo.EXPECT().EnsureMarkerLabel(label).Return(&data.MarkerLabel{ID: 4, Name: label}, nil)
 	d.importRepo.EXPECT().CreateMarker(gomock.Any()).DoAndReturn(func(m *data.UserSceneMarker) error { m.ID = 3; return nil })
-	d.importRepo.EXPECT().ApplyLabelTagsToMarker(uint(1), uint(3), label).Return(nil)
+	d.importRepo.EXPECT().ApplyLabelTagsToMarker(uint(3)).Return(nil)
 
 	if _, err := svc.ImportMarker(1, ImportMarkerInput{SceneID: 1, Label: label}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -404,12 +405,13 @@ func TestImportMarker_CreateDefaultsToCurrentUser(t *testing.T) {
 	var created *data.UserSceneMarker
 	gomock.InOrder(
 		d.importRepo.EXPECT().FindMarker(uint(7), uint(2), 30, "Intro").Return(nil, nil),
+		d.importRepo.EXPECT().EnsureMarkerLabel("Intro").Return(&data.MarkerLabel{ID: 4, Name: "Intro"}, nil),
 		d.importRepo.EXPECT().CreateMarker(gomock.Any()).DoAndReturn(func(m *data.UserSceneMarker) error {
 			m.ID = 11
 			created = m
 			return nil
 		}),
-		d.importRepo.EXPECT().ApplyLabelTagsToMarker(uint(7), uint(11), "Intro").Return(nil),
+		d.importRepo.EXPECT().ApplyLabelTagsToMarker(uint(11)).Return(nil),
 		d.importRepo.EXPECT().AddMarkerTags(uint(11), []uint{8}).Return(nil),
 	)
 
@@ -420,7 +422,7 @@ func TestImportMarker_CreateDefaultsToCurrentUser(t *testing.T) {
 	if res.ID != 11 || res.SceneID != 2 || !res.Created {
 		t.Fatalf("unexpected result: %+v", res)
 	}
-	if created.UserID != 7 || created.Color != "#FFFFFF" {
+	if created.UserID != 7 || created.Color != "#FFFFFF" || created.LabelID == nil || *created.LabelID != 4 || created.Label != "Intro" {
 		t.Fatalf("unexpected marker: %+v", created)
 	}
 }
@@ -471,7 +473,7 @@ func TestImportMarker_DedupUpdateExisting(t *testing.T) {
 		d.importRepo.EXPECT().FindMarker(uint(1), uint(2), 30, "Intro").
 			Return(&data.UserSceneMarker{ID: 11, SceneID: 2, Color: "#FFFFFF"}, nil),
 		d.importRepo.EXPECT().UpdateMarkerColor(uint(11), "#FF0000").Return(nil),
-		d.importRepo.EXPECT().ApplyLabelTagsToMarker(uint(1), uint(11), "Intro").Return(nil),
+		d.importRepo.EXPECT().ApplyLabelTagsToMarker(uint(11)).Return(nil),
 		d.importRepo.EXPECT().SetMarkerTags(uint(11), []uint{8}).Return(nil),
 	)
 
@@ -492,12 +494,13 @@ func TestImportMarker_CreateWithEnd(t *testing.T) {
 	d.expectTx()
 	var created *data.UserSceneMarker
 	d.importRepo.EXPECT().FindMarker(uint(1), uint(2), 30, "Intro").Return(nil, nil)
+	d.importRepo.EXPECT().EnsureMarkerLabel("Intro").Return(&data.MarkerLabel{ID: 4, Name: "Intro"}, nil)
 	d.importRepo.EXPECT().CreateMarker(gomock.Any()).DoAndReturn(func(m *data.UserSceneMarker) error {
 		m.ID = 12
 		created = m
 		return nil
 	})
-	d.importRepo.EXPECT().ApplyLabelTagsToMarker(uint(1), uint(12), "Intro").Return(nil)
+	d.importRepo.EXPECT().ApplyLabelTagsToMarker(uint(12)).Return(nil)
 
 	if _, err := svc.ImportMarker(1, ImportMarkerInput{SceneID: 2, Timestamp: 30, EndTimestamp: ptr(45), Label: "Intro"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -529,7 +532,7 @@ func TestImportMarker_UpdateExistingEnd(t *testing.T) {
 			if tt.wantUpdate {
 				d.importRepo.EXPECT().UpdateMarkerEndTimestamp(uint(11), tt.in).Return(nil)
 			}
-			d.importRepo.EXPECT().ApplyLabelTagsToMarker(uint(1), uint(11), "Intro").Return(nil)
+			d.importRepo.EXPECT().ApplyLabelTagsToMarker(uint(11)).Return(nil)
 
 			res, err := svc.ImportMarker(1, ImportMarkerInput{
 				SceneID: 2, Timestamp: 30, EndTimestamp: tt.in, Label: "Intro", UpdateExisting: true,

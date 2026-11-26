@@ -87,6 +87,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Marker Repository
 		provideMarkerRepository,
+		provideMarkerLabelRepository,
 
 		// Playlist Repository
 		providePlaylistRepository,
@@ -425,6 +426,10 @@ func provideMarkerRepository(db *gorm.DB) data.MarkerRepository {
 	return data.NewMarkerRepository(db)
 }
 
+func provideMarkerLabelRepository(db *gorm.DB) data.MarkerLabelRepository {
+	return data.NewMarkerLabelRepository(db)
+}
+
 func providePlaylistRepository(db *gorm.DB) data.PlaylistRepository {
 	return data.NewPlaylistRepository(db)
 }
@@ -706,12 +711,12 @@ func provideHomepageService(
 	return svc
 }
 
-func provideMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
-	return core.NewMarkerService(markerRepo, sceneRepo, tagRepo, cfg, logger.Logger)
+func provideMarkerService(markerRepo data.MarkerRepository, labelRepo data.MarkerLabelRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
+	return core.NewMarkerService(markerRepo, labelRepo, sceneRepo, tagRepo, cfg, logger.Logger)
 }
 
-func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, logger *logging.Logger) *core.PlaylistService {
-	return core.NewPlaylistService(repo, sceneRepo, tagRepo, logger.Logger)
+func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.PlaylistService {
+	return core.NewPlaylistService(repo, sceneRepo, tagRepo, cfg.Playlists, logger.Logger)
 }
 
 // --- Share Service ---
@@ -916,8 +921,9 @@ func provideHomepageHandler(homepageService *core.HomepageService) *handler.Home
 	return handler.NewHomepageHandler(homepageService)
 }
 
-func provideMarkerHandler(markerService *core.MarkerService, db *gorm.DB, cfg *config.Config, logger *logging.Logger) *handler.MarkerHandler {
+func provideMarkerHandler(markerService *core.MarkerService, labelRepo data.MarkerLabelRepository, tagRepo data.TagRepository, db *gorm.DB, cfg *config.Config, logger *logging.Logger) *handler.MarkerHandler {
 	h := handler.NewMarkerHandler(markerService, cfg.Pagination.MaxItemsPerPage)
+	h.SetLabelService(core.NewMarkerLabelService(labelRepo, tagRepo, logger.Logger))
 	h.SetSavedFilterService(core.NewSavedMarkerFilterService(data.NewSavedMarkerFilterRepository(db), logger.Logger))
 	return h
 }

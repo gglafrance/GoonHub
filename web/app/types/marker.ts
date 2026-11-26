@@ -4,6 +4,8 @@ export interface Marker {
     scene_id: number;
     timestamp: number;
     end_timestamp?: number | null;
+    // Server-wide label (null: no label); label is its name
+    label_id?: number | null;
     label: string;
     color: string;
     thumbnail_path: string;
@@ -58,8 +60,12 @@ export interface UpdateMarkerRequest {
     color?: string;
 }
 
+// A label of the server-wide referential (GET /markers/labels) with the number of markers the
+// user sees with it; unused labels are listed too (count 0)
 export interface MarkerLabelSuggestion {
+    id?: number;
     label: string;
+    color?: string;
     count: number;
 }
 

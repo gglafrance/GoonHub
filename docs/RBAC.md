@@ -94,12 +94,13 @@ grant (superuser roles never get a grant row).
 | `scenes:reprocess` | Scenes | Reprocess a scene | existing |
 | `scenes:share` | Scenes | Create and delete share links | from `scenes:view` |
 | `markers:create` | Markers | Create, edit and delete one's own markers and marker tags | from `scenes:view` |
+| `marker_labels:manage` | Markers | Create, rename, recolor, merge and delete the server-wide marker labels and set their default tags (`/marker-labels`, `PUT /markers/label-tags`); a marker with an unknown label creates it (without the permission: `400`). See `docs/MARKER_LABELS.md` | moderator |
 | `tags:manage` | Library | Create, rename, recolor, merge and delete tags | moderator |
 | `actors:manage` | Library | Create, edit and delete actors and their images | none |
 | `actors:merge` | Library | Merge actors | existing |
 | `studios:manage` | Library | Create, edit and delete studios and their logos | none |
 | `studios:merge` | Library | Merge studios | existing |
-| `playlists:create`, `playlists:edit`, `playlists:delete`, `playlists:view_public` | Playlists | as today | existing |
+| `playlists:create`, `playlists:edit`, `playlists:delete`, `playlists:view_public` | Playlists | as today; they also cover the marker playlists (create, add/remove/reorder markers, delete, like; `docs/MARKER_PLAYLISTS.md`) | existing |
 | `social:use` | Social | Follow users, send and accept friend requests (`docs/SOCIAL.md`). Reading the directory, lists and profiles, unfollowing, declining, cancelling and removing a friend only need a signed-in user | `user`, from `scenes:view` |
 | `files:view_size` | File info | File sizes, size filters and sorts, selection and library totals, biggest file | moderator |
 | `files:view_paths` | File info | Stored paths, original file names, storage paths, copies of a scene | moderator |
@@ -155,6 +156,10 @@ refuses the matching parameters (`403`); the UI hides the matching blocks.
 - `storage:manage`: scan events on `/events` (`scan:*`, they carry absolute paths).
 - `library:insights`: the trashed scenes in `GET /scenes/:id/similar` and the details of the
   curation and processing homepage widgets.
+- Marker playlists carry no file information (no size, path nor technical field): a viewer
+  of a public marker playlist gets its markers (also those of users who do not share theirs)
+  with only what playing needs. Only markers the owner sees can be added
+  (`docs/MARKER_PLAYLISTS.md`).
 
 The redaction is done in one place, `internal/api/v1/response/file_visibility.go`:
 `FileVisibility` is built from the request's permissions and passed to every scene DTO

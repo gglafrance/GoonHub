@@ -101,7 +101,7 @@ func TestMergeMarkers_PostgreSQL(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Processing.MarkerThumbnailDir = t.TempDir()
 	markerRepo := data.NewMarkerRepository(db)
-	markerSvc := NewMarkerService(markerRepo, data.NewSceneRepository(db), nil, cfg, zap.NewNop())
+	markerSvc := NewMarkerService(markerRepo, data.NewMarkerLabelRepository(db), data.NewSceneRepository(db), nil, cfg, zap.NewNop())
 	svc := NewDuplicateService(nil, nil, nil, nil, markerRepo, nil, nil, zap.NewNop())
 	svc.SetMarkerService(markerSvc)
 
