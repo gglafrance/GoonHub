@@ -3,6 +3,7 @@ package together
 import (
 	"encoding/json"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -12,12 +13,41 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// member is a (non banned) lobby member.
+// member is a (non banned) lobby member. anon > 0: an anonymous member, "Anonymous #anon"
+// for the other members (moderators see who it is).
 type member struct {
 	userID     uint
 	username   string
 	canControl bool
 	joinedAt   time.Time
+	anon       int
+}
+
+// anonName is the name of an anonymous member.
+func anonName(n int) string { return "Anonymous #" + strconv.Itoa(n) }
+
+// display is the name every member sees.
+func (m *member) display() string {
+	if m.anon > 0 {
+		return anonName(m.anon)
+	}
+	return m.username
+}
+
+// modDisplay is the name moderators see: an anonymous member with the real username.
+func (m *member) modDisplay() string {
+	if m.anon > 0 {
+		return anonName(m.anon) + " (" + m.username + ")"
+	}
+	return m.username
+}
+
+// anonPtr is the anonymous number as sent (nil: named).
+func anonPtr(n int) *int {
+	if n <= 0 {
+		return nil
+	}
+	return &n
 }
 
 // item is a queue item or a suggestion.
@@ -31,6 +61,7 @@ type item struct {
 	label       *string
 	addedBy     *uint
 	addedByName string
+	addedAnon   int // the adder was anonymous (their number)
 }
 
 func itemFromRow(r data.LobbyQueueItem) *item {
@@ -44,10 +75,19 @@ func itemFromRow(r data.LobbyQueueItem) *item {
 		label:       r.Label,
 		addedBy:     r.AddedBy,
 		addedByName: r.AddedByName,
+		addedAnon:   derefInt(r.AddedByAnon),
 	}
 }
 
-func (it *item) dto() QueueItem {
+func derefInt(p *int) int {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+
+// dto is the item as sent: full (moderators) or with an anonymous adder redacted.
+func (it *item) dto(full bool) QueueItem {
 	q := QueueItem{
 		ID:       it.id,
 		SceneID:  it.sceneID,
@@ -57,8 +97,12 @@ func (it *item) dto() QueueItem {
 		End:      it.end,
 		Label:    it.label,
 	}
-	if it.addedBy != nil {
-		q.AddedBy = &UserRef{ID: *it.addedBy, Username: it.addedByName}
+	switch {
+	case it.addedAnon > 0 && !full:
+		q.AddedBy = &MemberRef{Username: anonName(it.addedAnon), Anonymous: true, AnonNumber: anonPtr(it.addedAnon)}
+	case it.addedBy != nil:
+		id := *it.addedBy
+		q.AddedBy = &MemberRef{ID: &id, Username: it.addedByName, Anonymous: it.addedAnon > 0, AnonNumber: anonPtr(it.addedAnon)}
 	}
 	return q
 }
@@ -88,6 +132,12 @@ type lobby struct {
 	endedReports  map[uint]bool
 	hostAwaySince time.Time
 	emptySince    time.Time
+	// a repeat restarted the item: stale ended reports of the previous loop are ignored
+	restartedAt time.Time
+
+	// inactivity close: the last activity, and when the lobby closes once announced
+	lastActivity time.Time
+	closingAt    time.Time
 
 	chatLimiters     map[uint]*rate.Limiter
 	reactionLimiters map[uint]*rate.Limiter
@@ -110,14 +160,22 @@ func newLobby(h *Hub, row data.Lobby, members []data.LobbyMember, items []data.L
 		reactionLimiters: make(map[uint]*rate.Limiter),
 		emptySince:       now,
 		hostAwaySince:    now,
+		lastActivity:     now,
 		syncSeq:          1,
+	}
+	// Nobody connected since last_active_at (restart, reload): the empty close counts from it
+	if !row.LastActiveAt.IsZero() && row.LastActiveAt.Before(now) {
+		l.emptySince = row.LastActiveAt
+	}
+	if !data.ValidAutoNext(l.row.AutoNext) {
+		l.row.AutoNext = data.AutoNextNext
 	}
 	for _, m := range members {
 		if m.BannedAt != nil {
 			l.banned[m.UserID] = true
 			continue
 		}
-		l.members[m.UserID] = &member{userID: m.UserID, username: m.Username, canControl: m.CanControl, joinedAt: m.JoinedAt}
+		l.members[m.UserID] = &member{userID: m.UserID, username: m.Username, canControl: m.CanControl, joinedAt: m.JoinedAt, anon: derefInt(m.AnonNumber)}
 	}
 	for _, r := range items {
 		if r.Status == data.QueueItemSuggested {
@@ -180,8 +238,10 @@ func (l *lobby) isHost(userID uint) bool {
 	return l.row.HostUserID != nil && *l.row.HostUserID == userID
 }
 
+// canControl tells whether a member controls playback and the queue. A lobby without host
+// (only anonymous members left) is controlled by every member.
 func (l *lobby) canControl(userID uint) bool {
-	if l.isHost(userID) || l.row.ControlOpen {
+	if l.isHost(userID) || l.row.ControlOpen || l.row.HostUserID == nil {
 		return true
 	}
 	m := l.members[userID]
@@ -239,11 +299,46 @@ func (l *lobby) info() LobbyInfo {
 		QueueOpen:   l.row.QueueOpen,
 		WaitForAll:  l.row.WaitForAll,
 		MaxMembers:  l.row.MaxMembers,
+		AutoNext:    l.row.AutoNext,
 		InviteCode:  l.row.InviteCode,
 	}
 }
 
-func (l *lobby) memberList() []Member {
+// memberDTO is a member as sent: full (moderators) or redacted.
+func memberDTO(m *member, full bool) Member {
+	id := m.userID
+	out := Member{UserID: &id, Username: m.username, Anonymous: m.anon > 0, AnonNumber: anonPtr(m.anon)}
+	if m.anon > 0 && !full {
+		out.UserID = nil
+		out.Username = anonName(m.anon)
+	}
+	return out
+}
+
+// hasAnonymous tells whether some member, chat message or queue item is anonymous: only then
+// do the moderators and the other members get different payloads.
+func (l *lobby) hasAnonymous() bool {
+	for _, m := range l.members {
+		if m.anon > 0 {
+			return true
+		}
+	}
+	for _, m := range l.chat {
+		if m.Anonymous || m.modText != "" {
+			return true
+		}
+	}
+	for _, list := range [][]*item{l.queue, l.suggestions} {
+		for _, it := range list {
+			if it.addedAnon > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (l *lobby) memberList(full bool) []Member {
 	conns := make(map[uint]int)
 	buffering := make(map[uint]bool)
 	for c := range l.clients {
@@ -264,37 +359,47 @@ func (l *lobby) memberList() []Member {
 	})
 	out := make([]Member, 0, len(ms))
 	for _, m := range ms {
-		out = append(out, Member{
-			UserID:      m.userID,
-			Username:    m.username,
-			Host:        l.isHost(m.userID),
-			Control:     l.canControl(m.userID),
-			Online:      conns[m.userID] > 0,
-			Connections: conns[m.userID],
-			Buffering:   buffering[m.userID],
-			JoinedAt:    m.joinedAt.UTC().Format(time.RFC3339),
-		})
+		dto := memberDTO(m, full)
+		dto.Host = l.isHost(m.userID)
+		dto.Control = l.canControl(m.userID)
+		dto.Online = conns[m.userID] > 0
+		dto.Connections = conns[m.userID]
+		dto.Buffering = buffering[m.userID]
+		dto.JoinedAt = m.joinedAt.UTC().Format(time.RFC3339)
+		out = append(out, dto)
 	}
 	return out
 }
 
-func itemList(items []*item) []QueueItem {
+func itemList(items []*item, full bool) []QueueItem {
 	out := make([]QueueItem, 0, len(items))
 	for _, it := range items {
-		out = append(out, it.dto())
+		out = append(out, it.dto(full))
 	}
 	return out
 }
 
 func (l *lobby) welcome(c *Client) welcomeMsg {
+	full := c.moderate
 	chat := make([]ChatMessage, len(l.chat))
-	copy(chat, l.chat)
+	for i, m := range l.chat {
+		chat[i] = m.view(full)
+	}
 	cfg := l.hub.cfg
+	you := You{UserID: c.userID, Username: c.username, Moderate: c.moderate}
+	if m := l.members[c.userID]; m != nil && m.anon > 0 {
+		you.Anonymous, you.AnonNumber = true, anonPtr(m.anon)
+	}
+	var closingAt *int64
+	if !l.closingAt.IsZero() {
+		ms := l.closingAt.UnixMilli()
+		closingAt = &ms
+	}
 	return welcomeMsg{
 		T:          msgWelcome,
 		V:          ProtocolVersion,
 		ServerTime: l.hub.now().UnixMilli(),
-		You:        You{UserID: c.userID, Username: c.username, Moderate: c.moderate},
+		You:        you,
 		Config: ClientConfig{
 			DriftThreshold: cfg.DriftThreshold,
 			DriftNudge:     cfg.DriftNudge,
@@ -303,11 +408,12 @@ func (l *lobby) welcome(c *Client) welcomeMsg {
 			EndGrace:       cfg.EndGrace.Seconds(),
 		},
 		Lobby:       l.info(),
-		Members:     l.memberList(),
-		Queue:       itemList(l.queue),
-		Suggestions: itemList(l.suggestions),
+		Members:     l.memberList(full),
+		Queue:       itemList(l.queue, full),
+		Suggestions: itemList(l.suggestions, full),
 		State:       l.state.snapshot(),
 		Chat:        chat,
+		ClosingAt:   closingAt,
 	}
 }
 
@@ -338,13 +444,47 @@ func (l *lobby) sendTo(c *Client, msg any) {
 	}
 }
 
+// broadcastSplit sends build(true) to the moderators and build(false) to the other members:
+// for the payloads naming members (anonymous members are redacted for non-moderators). Each
+// variant is marshaled once; without anonymous content everyone gets the same bytes.
+func (l *lobby) broadcastSplit(build func(full bool) any) {
+	if !l.hasAnonymous() {
+		l.broadcast(build(false))
+		return
+	}
+	var pub, full []byte
+	for c := range l.clients {
+		var b []byte
+		if c.moderate {
+			if full == nil {
+				full = l.marshal(build(true))
+			}
+			b = full
+		} else {
+			if pub == nil {
+				pub = l.marshal(build(false))
+			}
+			b = pub
+		}
+		if b != nil {
+			c.enqueue(b)
+		}
+	}
+}
+
 func (l *lobby) broadcastState() { l.broadcast(stateMsg{T: msgState, State: l.state.snapshot()}) }
 
 func (l *lobby) broadcastQueue() {
-	l.broadcast(queueMsg{T: msgQueue, Queue: itemList(l.queue), Suggestions: itemList(l.suggestions)})
+	l.broadcastSplit(func(full bool) any {
+		return queueMsg{T: msgQueue, Queue: itemList(l.queue, full), Suggestions: itemList(l.suggestions, full)}
+	})
 }
 
-func (l *lobby) broadcastMembers() { l.broadcast(membersMsg{T: msgMembers, Members: l.memberList()}) }
+func (l *lobby) broadcastMembers() {
+	l.broadcastSplit(func(full bool) any {
+		return membersMsg{T: msgMembers, Members: l.memberList(full)}
+	})
+}
 
 func (l *lobby) broadcastLobby() { l.broadcast(lobbyMsg{T: msgLobby, Lobby: l.info()}) }
 
@@ -359,11 +499,25 @@ func (l *lobby) addChat(msg ChatMessage) {
 	} else if limit <= 0 {
 		l.chat = nil
 	}
-	l.broadcast(chatMsg{T: msgChat, Message: msg})
+	if !msg.Anonymous && msg.modText == "" {
+		l.broadcast(chatMsg{T: msgChat, Message: msg})
+		return
+	}
+	l.broadcastSplit(func(full bool) any { return chatMsg{T: msgChat, Message: msg.view(full)} })
 }
 
 func (l *lobby) system(text string) {
 	l.addChat(ChatMessage{Text: text, System: true})
+}
+
+// systemAbout is a system message naming a member: "Anonymous #N" for everyone, with the
+// real username for the moderators.
+func (l *lobby) systemAbout(m *member, suffix string) {
+	msg := ChatMessage{Text: m.display() + suffix, System: true}
+	if m.anon > 0 {
+		msg.modText = m.modDisplay() + suffix
+	}
+	l.addChat(msg)
 }
 
 // --- playback changes (lock held) ---
@@ -463,16 +617,60 @@ func itemTitle(it *item) string {
 	return title
 }
 
-// advance ends the item playing: it leaves the queue and the next one starts.
-func (l *lobby) advance(now time.Time) error {
+// finishKind is why the item playing ends.
+type finishKind int
+
+const (
+	finishEnded  finishKind = iota // it reached its end: the auto-next mode decides
+	finishSkip                     // skipped: the next item starts (repeat_queue keeps it)
+	finishRemove                   // removed from the queue: the next item starts
+)
+
+// finish ends the item playing. At its natural end the auto-next mode decides: stop pauses at
+// the end, repeat_one starts it over, repeat_queue moves it to the end of the queue, next
+// drops it. Skipping drops it too, except in repeat_queue (it goes to the end of the queue).
+func (l *lobby) finish(now time.Time, kind finishKind) error {
 	cur := l.current()
 	if cur == nil {
 		return nil
 	}
-	if err := l.hub.store.DeleteQueueItem(l.row.ID, cur.id); err != nil {
-		return err
+	mode := l.row.AutoNext
+	if kind == finishEnded {
+		switch mode {
+		case data.AutoNextStop:
+			if !l.state.playing {
+				return nil // already stopped
+			}
+			l.state.position = l.posNow(now)
+			l.state.ref = now
+			l.state.playing = false
+			l.state.hold = false
+			l.changed()
+			l.savePlayback()
+			return nil
+		case data.AutoNextRepeatOne:
+			l.restart(now)
+			return nil
+		}
 	}
-	l.queue = l.queue[1:]
+	if mode == data.AutoNextRepeatQueue && kind != finishRemove {
+		if len(l.queue) == 1 {
+			l.restart(now)
+			return nil
+		}
+		next := make([]*item, 0, len(l.queue))
+		next = append(next, l.queue[1:]...)
+		next = append(next, cur)
+		if err := l.hub.store.SetQueueOrder(l.row.ID, itemIDs(next)); err != nil {
+			return err
+		}
+		l.queue = next
+	} else {
+		if err := l.hub.store.DeleteQueueItem(l.row.ID, cur.id); err != nil {
+			return err
+		}
+		l.queue = l.queue[1:]
+	}
 	l.startItem(now, true)
 	l.savePlayback()
 	l.broadcastQueue()
@@ -483,6 +681,72 @@ func (l *lobby) advance(now time.Time) error {
 		l.system("The queue is finished")
 	}
 	return nil
+}
+
+// restart plays the current item again from its start (repeat).
+func (l *lobby) restart(now time.Time) {
+	l.startItem(now, true)
+	l.restartedAt = now
+	l.broadcastState()
+	l.savePlayback()
+}
+
+// --- inactivity (lock held) ---
+
+// activity records something a member did (playback, chat, queue, control): the inactivity
+// close starts over, and an announced close is called off.
+func (l *lobby) activity(now time.Time) {
+	l.lastActivity = now
+	if !l.closingAt.IsZero() {
+		l.closingAt = time.Time{}
+		l.broadcast(closingMsg{T: msgClosing})
+	}
+}
+
+// checkInactivity closes a lobby with connected members but nothing happening for
+// inactive_close_after, announced close_warning before. It returns whether the lobby closed.
+func (l *lobby) checkInactivity(now time.Time) bool {
+	cfg := l.hub.cfg
+	if l.state.playing && l.state.itemID != 0 {
+		l.activity(now) // playback running is activity
+		return false
+	}
+	if cfg.InactiveCloseAfter <= 0 {
+		return false
+	}
+	closeAt := l.lastActivity.Add(cfg.InactiveCloseAfter)
+	if !now.Before(closeAt) {
+		if err := l.closeWith(ByeInactive); err != nil {
+			l.hub.logger.Error("Failed to close an inactive lobby", zap.Uint("lobby_id", l.row.ID), zap.Error(err))
+			return false
+		}
+		l.hub.logger.Info("Closed an inactive lobby", zap.Uint("lobby_id", l.row.ID))
+		return true
+	}
+	if cfg.CloseWarning > 0 && l.closingAt.IsZero() && !now.Before(closeAt.Add(-cfg.CloseWarning)) {
+		l.closingAt = closeAt
+		at := closeAt.UnixMilli()
+		l.broadcast(closingMsg{T: msgClosing, At: &at, Reason: closingInactive})
+		l.system("Nothing happened here for a while: the lobby closes in " + humanDuration(closeAt.Sub(now)) +
+			". Play something, chat or change the queue to keep it open.")
+	}
+	return false
+}
+
+// humanDuration writes a short duration for system messages ("5 minutes", "30 seconds").
+func humanDuration(d time.Duration) string {
+	if d >= time.Minute {
+		n := int((d + time.Minute - 1) / time.Minute)
+		if n == 1 {
+			return "1 minute"
+		}
+		return strconv.Itoa(n) + " minutes"
+	}
+	n := int((d + time.Second - 1) / time.Second)
+	if n <= 1 {
+		return "1 second"
+	}
+	return strconv.Itoa(n) + " seconds"
 }
 
 // limiter gives the rate limiter of a user (chat or reactions).

@@ -124,13 +124,22 @@ func (h *Hub) Stop() {
 			lobbies = append(lobbies, l)
 		}
 		h.mu.Unlock()
+		now := h.now().UTC()
+		var connected []uint
 		for _, l := range lobbies {
 			l.mu.Lock()
 			l.savePlayback()
+			if len(l.clients) > 0 {
+				connected = append(connected, l.row.ID)
+			}
 			for c := range l.clients {
 				c.close(1001, "server shutdown")
 			}
 			l.mu.Unlock()
+		}
+		// Members were there until now: the empty close counts from the restart on
+		if err := h.store.Touch(connected, now); err != nil {
+			h.logger.Warn("Failed to touch the connected lobbies", zap.Error(err))
 		}
 	})
 }
@@ -249,6 +258,7 @@ type CreateInput struct {
 	QueueOpen   bool        `json:"queue_open"`
 	WaitForAll  bool        `json:"wait_for_all"`
 	MaxMembers  int         `json:"max_members"`
+	AutoNext    string      `json:"auto_next"`
 	Items       []ItemInput `json:"items"`
 }
 
@@ -272,10 +282,20 @@ type Summary struct {
 	QueueOpen   bool        `json:"queue_open"`
 	WaitForAll  bool        `json:"wait_for_all"`
 	MaxMembers  int         `json:"max_members"`
+	AutoNext    string      `json:"auto_next"`
 	IsMember    bool        `json:"is_member"`
-	InviteCode  string      `json:"invite_code,omitempty"`
-	CreatedAt   time.Time   `json:"created_at"`
-	lastActive  time.Time
+	// Anonymous: the user is an anonymous member of the lobby
+	Anonymous  bool      `json:"anonymous"`
+	InviteCode string    `json:"invite_code,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+	lastActive time.Time
+}
+
+func autoNextOrDefault(mode string) string {
+	if data.ValidAutoNext(mode) {
+		return mode
+	}
+	return data.AutoNextNext
 }
 
 // summary describes the loaded lobby for a user (lock held).
@@ -290,9 +310,13 @@ func (l *lobby) summary(a Actor) Summary {
 		QueueOpen:   l.row.QueueOpen,
 		WaitForAll:  l.row.WaitForAll,
 		MaxMembers:  l.row.MaxMembers,
+		AutoNext:    l.row.AutoNext,
 		IsMember:    l.members[a.ID] != nil,
 		CreatedAt:   l.row.CreatedAt,
 		lastActive:  l.row.LastActiveAt,
+	}
+	if m := l.members[a.ID]; m != nil && m.anon > 0 {
+		s.Anonymous = true
 	}
 	if len(l.clients) > 0 {
 		s.lastActive = l.hub.now()
@@ -326,7 +350,9 @@ func summaryFromEntry(e data.LobbyListEntry, a Actor) Summary {
 		QueueOpen:   e.QueueOpen,
 		WaitForAll:  e.WaitForAll,
 		MaxMembers:  e.MaxMembers,
+		AutoNext:    autoNextOrDefault(e.AutoNext),
 		IsMember:    e.IsMember,
+		Anonymous:   e.IsMember && e.MemberAnonymous,
 		CreatedAt:   e.CreatedAt,
 		lastActive:  e.LastActiveAt,
 	}
@@ -369,6 +395,13 @@ func (h *Hub) CreateLobby(a Actor, in CreateInput) (*Summary, error) {
 	if in.MaxMembers < 0 || (h.cfg.MaxMembers > 0 && in.MaxMembers > h.cfg.MaxMembers) {
 		return nil, apperrors.NewValidationErrorWithField("max_members", "max_members is out of range")
 	}
+	autoNext := in.AutoNext
+	if autoNext == "" {
+		autoNext = data.AutoNextNext
+	}
+	if !data.ValidAutoNext(autoNext) {
+		return nil, apperrors.NewValidationErrorWithField("auto_next", "auto_next must be stop, next, repeat_one or repeat_queue")
+	}
 	if limit := h.cfg.MaxLobbiesPerUser; limit > 0 {
 		n, err := h.store.CountHostedBy(a.ID)
 		if err != nil {
@@ -392,6 +425,7 @@ func (h *Hub) CreateLobby(a Actor, in CreateInput) (*Summary, error) {
 		QueueOpen:    in.QueueOpen,
 		WaitForAll:   in.WaitForAll,
 		MaxMembers:   in.MaxMembers,
+		AutoNext:     autoNext,
 		PlaybackRate: 1,
 		LastActiveAt: now,
 	}
@@ -412,7 +446,7 @@ func (h *Hub) CreateLobby(a Actor, in CreateInput) (*Summary, error) {
 	var summary Summary
 	err = h.withLobby(row.UUID, func(l *lobby) error {
 		if len(in.Items) > 0 {
-			if _, _, err := l.addItems(a.ID, a.Username, in.Items, h.now()); err != nil {
+			if _, _, err := l.addItems(a.ID, in.Items, h.now()); err != nil {
 				return cmdToAppError(err)
 			}
 		}
@@ -496,25 +530,45 @@ func (h *Hub) GetLobby(a Actor, id uuid.UUID) (*Summary, error) {
 	return &s, nil
 }
 
-// join adds the actor as a member (lock held).
-func (l *lobby) join(userID uint, username string) error {
+// join adds the actor as a member (lock held). An anonymous join is only for public lobbies
+// and never for their creator; a member keeps the identity mode they joined with (an
+// anonymous member joining again stays anonymous, a named member cannot become anonymous).
+func (l *lobby) join(userID uint, username string, anonymous bool) error {
 	if l.banned[userID] {
 		return apperrors.NewForbiddenErrorWithCode("you are banned from this lobby", apperrors.CodeLobbyBanned)
 	}
-	if l.members[userID] != nil {
+	if m := l.members[userID]; m != nil {
+		if anonymous && m.anon == 0 {
+			return apperrors.NewConflictError("lobby", "you are already in this lobby under your name: leave it first to join anonymously")
+		}
 		return nil
 	}
+	if anonymous {
+		if l.row.Visibility != data.LobbyVisibilityPublic {
+			return apperrors.NewValidationError("only public lobbies can be joined anonymously")
+		}
+		if l.row.CreatedBy != nil && *l.row.CreatedBy == userID {
+			return apperrors.NewValidationError("the creator of a lobby cannot join it anonymously")
+		}
+	}
 	m := &data.LobbyMember{LobbyID: l.row.ID, UserID: userID, JoinedAt: l.hub.now().UTC()}
-	if err := l.hub.store.AddMember(m); err != nil {
+	var err error
+	if anonymous {
+		err = l.hub.store.AddAnonymousMember(m)
+	} else {
+		err = l.hub.store.AddMember(m)
+	}
+	if err != nil {
 		return apperrors.NewInternalError("failed to join the lobby", err)
 	}
-	l.members[userID] = &member{userID: userID, username: username, joinedAt: m.JoinedAt}
+	l.members[userID] = &member{userID: userID, username: username, joinedAt: m.JoinedAt, anon: derefInt(m.AnonNumber)}
 	l.broadcastMembers()
 	return nil
 }
 
-// JoinLobby joins a public lobby (moderators: any lobby).
-func (h *Hub) JoinLobby(a Actor, id uuid.UUID) (*Summary, error) {
+// JoinLobby joins a public lobby (moderators: any lobby), anonymously if asked (public
+// lobbies only).
+func (h *Hub) JoinLobby(a Actor, id uuid.UUID, anonymous bool) (*Summary, error) {
 	var s Summary
 	err := h.withLobby(id, func(l *lobby) error {
 		if l.banned[a.ID] {
@@ -523,7 +577,7 @@ func (h *Hub) JoinLobby(a Actor, id uuid.UUID) (*Summary, error) {
 		if !l.visible(a) {
 			return apperrors.NewNotFoundError("lobby", id.String())
 		}
-		if err := l.join(a.ID, a.Username); err != nil {
+		if err := l.join(a.ID, a.Username, anonymous); err != nil {
 			return err
 		}
 		s = l.summary(a)
@@ -553,7 +607,7 @@ func (h *Hub) JoinByCode(a Actor, code string) (*Summary, error) {
 		if l.row.InviteCode != code {
 			return apperrors.NewNotFoundError("lobby", code) // rotated meanwhile
 		}
-		if err := l.join(a.ID, a.Username); err != nil {
+		if err := l.join(a.ID, a.Username, false); err != nil {
 			return err
 		}
 		s = l.summary(a)
@@ -572,15 +626,17 @@ func (h *Hub) InviteUser(id uuid.UUID, inviterID, userID uint, username string) 
 		if l.members[inviterID] == nil {
 			return apperrors.NewForbiddenError("only members can invite")
 		}
-		return l.join(userID, username)
+		return l.join(userID, username, false)
 	})
 }
 
-// LeaveLobby removes the actor from a lobby. A leaving host hands the role to the next
-// member; a lobby nobody is left in is closed.
+// LeaveLobby removes the actor from a lobby. A leaving host hands the role to the next named
+// member (a lobby with only anonymous members left has no host); a lobby nobody is left in
+// is closed.
 func (h *Hub) LeaveLobby(a Actor, id uuid.UUID) error {
 	return h.withLobby(id, func(l *lobby) error {
-		if l.members[a.ID] == nil {
+		m := l.members[a.ID]
+		if m == nil {
 			return nil
 		}
 		if err := l.hub.store.RemoveMember(l.row.ID, a.ID); err != nil {
@@ -593,13 +649,9 @@ func (h *Hub) LeaveLobby(a Actor, id uuid.UUID) error {
 			return l.close()
 		}
 		l.broadcastMembers()
-		l.system(a.Username + " left the lobby")
+		l.systemAbout(m, " left the lobby")
 		if wasHost {
-			next := l.nextHost(false)
-			if next == nil {
-				return l.close()
-			}
-			if err := l.setHost(next, h.now()); err != nil {
+			if err := l.setHost(l.nextHost(false), h.now()); err != nil {
 				return apperrors.NewInternalError("failed to hand over the host role", err)
 			}
 		}
@@ -621,11 +673,15 @@ func (h *Hub) CloseLobby(a Actor, id uuid.UUID) error {
 }
 
 // close deletes the lobby and closes every connection (lock held).
-func (l *lobby) close() error {
+func (l *lobby) close() error { return l.closeWith(ByeClosed) }
+
+// closeWith deletes the lobby (its members, queue and invite code with it: the invite link
+// stops working) and closes every connection with a bye of the reason (lock held).
+func (l *lobby) closeWith(reason string) error {
 	if err := l.hub.store.Delete(l.row.ID); err != nil {
 		return apperrors.NewInternalError("failed to close the lobby", err)
 	}
-	bye := l.marshal(byeMsg{T: msgBye, Reason: ByeClosed})
+	bye := l.marshal(byeMsg{T: msgBye, Reason: reason})
 	for c := range l.clients {
 		if bye != nil {
 			c.enqueue(bye)
@@ -679,7 +735,10 @@ func (h *Hub) AddToQueue(a Actor, id uuid.UUID, items []ItemInput) (queued, sugg
 			return apperrors.NewForbiddenError("join the lobby first")
 		}
 		var cmdErr error
-		queued, suggested, cmdErr = l.addItems(a.ID, a.Username, items, h.now())
+		queued, suggested, cmdErr = l.addItems(a.ID, items, h.now())
+		if cmdErr == nil {
+			l.activity(h.now())
+		}
 		return cmdToAppError(cmdErr)
 	})
 	return queued, suggested, err
@@ -694,7 +753,7 @@ type ActiveLobby struct {
 }
 
 // ActiveLobbiesForUser lists the lobbies where the user has an open connection (hook for the
-// future friends presence: "watching in lobby X").
+// future friends presence: "watching in lobby X"). Anonymous memberships are never listed.
 func (h *Hub) ActiveLobbiesForUser(userID uint) []ActiveLobby {
 	h.mu.Lock()
 	lobbies := make([]*lobby, 0, len(h.lobbies))
@@ -705,7 +764,7 @@ func (h *Hub) ActiveLobbiesForUser(userID uint) []ActiveLobby {
 	var out []ActiveLobby
 	for _, l := range lobbies {
 		l.mu.Lock()
-		if !l.closed && !l.unloaded && l.connections(userID) > 0 {
+		if m := l.members[userID]; !l.closed && !l.unloaded && m != nil && m.anon == 0 && l.connections(userID) > 0 {
 			a := ActiveLobby{ID: l.row.UUID.String(), Name: l.row.Name, Visibility: l.row.Visibility}
 			if cur := l.current(); cur != nil {
 				a.SceneID = cur.sceneID
@@ -736,8 +795,8 @@ func (h *Hub) BroadcastEmotesChanged() {
 // --- connections ---
 
 // Connect attaches a connection of the actor to a lobby. A public lobby is joined on connect
-// (moderators: any lobby). The welcome snapshot is queued first.
-func (h *Hub) Connect(a Actor, id uuid.UUID) (*Client, error) {
+// (moderators: any lobby), anonymously if asked. The welcome snapshot is queued first.
+func (h *Hub) Connect(a Actor, id uuid.UUID, anonymous bool) (*Client, error) {
 	var c *Client
 	err := h.withLobby(id, func(l *lobby) error {
 		if l.banned[a.ID] {
@@ -747,7 +806,7 @@ func (h *Hub) Connect(a Actor, id uuid.UUID) (*Client, error) {
 			if !l.visible(a) {
 				return apperrors.NewNotFoundError("lobby", id.String())
 			}
-			if err := l.join(a.ID, a.Username); err != nil {
+			if err := l.join(a.ID, a.Username, anonymous); err != nil {
 				return err
 			}
 		}
@@ -763,6 +822,9 @@ func (h *Hub) Connect(a Actor, id uuid.UUID) (*Client, error) {
 		c.lobby = l
 		c.moderate = a.moderate()
 		c.joinedSync = l.syncSeq
+		if len(l.clients) == 0 {
+			l.activity(now) // someone came back: the inactivity close starts over
+		}
 		l.clients[c] = struct{}{}
 		l.emptySince = time.Time{}
 		if l.isHost(a.ID) {
@@ -771,7 +833,7 @@ func (h *Hub) Connect(a Actor, id uuid.UUID) (*Client, error) {
 		l.sendTo(c, l.welcome(c))
 		if existing == 0 {
 			l.broadcastMembers()
-			l.system(a.Username + " joined")
+			l.systemAbout(l.members[a.ID], " joined")
 		}
 		if err := h.store.Touch([]uint{l.row.ID}, now.UTC()); err != nil {
 			h.logger.Warn("Failed to touch the lobby", zap.Error(err))
@@ -804,8 +866,8 @@ func (h *Hub) Disconnect(c *Client) {
 		}
 		delete(l.endedReports, c.userID)
 		l.broadcastMembers()
-		if l.members[c.userID] != nil {
-			l.system(c.username + " left")
+		if m := l.members[c.userID]; m != nil {
+			l.systemAbout(m, " left")
 		}
 	}
 	if len(l.clients) == 0 {
@@ -840,13 +902,28 @@ func (h *Hub) Receive(c *Client, raw []byte) {
 	if _, ok := l.clients[c]; !ok || l.closed {
 		return
 	}
-	if err := l.handle(c, &in, h.now()); err != nil {
+	now := h.now()
+	if err := l.handle(c, &in, now); err != nil {
 		var ce *cmdError
 		if !errors.As(err, &ce) {
 			ce = refuse(ErrCodeInternal, "internal error")
 		}
 		l.sendTo(c, errorMsg{T: msgError, Code: ce.code, Message: ce.message, Ref: in.Ref})
+		return
 	}
+	if isActivity(in.T) && !l.closed {
+		l.activity(now)
+	}
+}
+
+// isActivity tells whether a command counts as activity for the inactivity close: everything
+// a member does, not the automatic messages (clock sync, buffering, end of item).
+func isActivity(t string) bool {
+	switch t {
+	case cmdPing, cmdStatus, cmdEnded:
+		return false
+	}
+	return true
 }
 
 // --- ticks ---
@@ -862,7 +939,14 @@ func (h *Hub) Tick() {
 	}
 	h.mu.Unlock()
 	for _, l := range lobbies {
-		if l.tick(now) {
+		unload := l.tick(now)
+		l.mu.Lock()
+		closed := l.closed
+		l.mu.Unlock()
+		switch {
+		case closed:
+			h.forget(l)
+		case unload:
 			h.unload(l, now)
 		}
 	}
@@ -876,7 +960,8 @@ func (h *Hub) Tick() {
 	}
 }
 
-// tick runs the periodic work of a lobby and tells whether it can be unloaded.
+// tick runs the periodic work of a lobby and tells whether it can be unloaded. It may close
+// the lobby (inactivity).
 func (l *lobby) tick(now time.Time) (unload bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -893,7 +978,7 @@ func (l *lobby) tick(now time.Time) (unload bool) {
 				limit += cfg.EndGrace.Seconds()
 			}
 			if l.state.at(now) >= limit {
-				if err := l.advance(now); err != nil {
+				if err := l.finish(now, finishEnded); err != nil {
 					l.hub.logger.Error("Failed to advance the lobby queue", zap.Uint("lobby_id", l.row.ID), zap.Error(err))
 				}
 			}
@@ -908,7 +993,7 @@ func (l *lobby) tick(now time.Time) (unload bool) {
 		l.changed()
 	}
 
-	// Host away: the role goes to the next online member
+	// Host away: the role goes to the next online named member
 	if len(l.clients) > 0 {
 		hostOnline := l.row.HostUserID != nil && l.connections(*l.row.HostUserID) > 0
 		if !hostOnline {
@@ -923,21 +1008,31 @@ func (l *lobby) tick(now time.Time) (unload bool) {
 				}
 			}
 		}
+		l.checkInactivity(now)
 		return false
 	}
 	if l.emptySince.IsZero() {
 		l.emptySince = now
 	}
+	// Nobody connected for empty_close_after: the lobby closes (also checked in the database
+	// for the unloaded lobbies, see cleanup)
+	if cfg.EmptyCloseAfter > 0 && now.Sub(l.emptySince) >= cfg.EmptyCloseAfter {
+		if err := l.closeWith(ByeInactive); err != nil {
+			l.hub.logger.Error("Failed to close an empty lobby", zap.Uint("lobby_id", l.row.ID), zap.Error(err))
+			return false
+		}
+		return false
+	}
 	return now.Sub(l.emptySince) >= cfg.UnloadAfter
 }
 
 // nextHost picks the next host: members with control first, then by join date (online only
-// when asked). The current host is skipped.
+// when asked). The current host and the anonymous members (never host) are skipped.
 func (l *lobby) nextHost(onlineOnly bool) *member {
 	var best *member
 	bestOnline := false
 	for _, m := range l.members {
-		if l.isHost(m.userID) {
+		if l.isHost(m.userID) || m.anon > 0 {
 			continue
 		}
 		online := l.connections(m.userID) > 0
@@ -974,7 +1069,12 @@ func (h *Hub) unload(l *lobby, now time.Time) {
 		return
 	}
 	l.savePlayback()
-	if err := h.store.Touch([]uint{l.row.ID}, now.UTC()); err != nil {
+	// last_active_at is when the last member left: the empty close goes on from it
+	at := l.emptySince
+	if at.IsZero() {
+		at = now
+	}
+	if err := h.store.Touch([]uint{l.row.ID}, at.UTC()); err != nil {
 		h.logger.Warn("Failed to touch the lobby", zap.Error(err))
 	}
 	l.unloaded = true
@@ -983,8 +1083,9 @@ func (h *Hub) unload(l *lobby, now time.Time) {
 	}
 }
 
-// cleanup marks the lobbies with connections as active and deletes the lobbies nobody
-// connected to for idle_timeout.
+// cleanup marks the lobbies with connections as active and deletes the unloaded lobbies
+// nobody connected to for empty_close_after (also after a restart: last_active_at is in the
+// database), or idle_timeout when the empty close is off (safety net).
 func (h *Hub) cleanup(now time.Time) {
 	h.mu.Lock()
 	var active, loaded []uint
@@ -1000,10 +1101,15 @@ func (h *Hub) cleanup(now time.Time) {
 	if err := h.store.Touch(active, now.UTC()); err != nil {
 		h.logger.Warn("Failed to touch the active lobbies", zap.Error(err))
 	}
-	if h.cfg.IdleTimeout <= 0 {
+	after := h.cfg.IdleTimeout
+	if e := h.cfg.EmptyCloseAfter; e > 0 && (after <= 0 || e < after) {
+		after = e
+	}
+	if after <= 0 {
 		return
 	}
-	n, err := h.store.DeleteIdle(now.UTC().Add(-h.cfg.IdleTimeout), loaded)
+	n, err := h.store.DeleteIdle(now.UTC().Add(-after), loaded)
+
 	if err != nil {
 		h.logger.Warn("Failed to delete the idle lobbies", zap.Error(err))
 		return

@@ -26,8 +26,11 @@ func (l *lobby) handle(c *Client, in *inbound, now time.Time) error {
 	case cmdPing:
 		l.sendTo(c, pongMsg{T: msgPong, ID: in.ID, C: in.C, S: now.UnixMilli()})
 		return nil
+	case cmdKeepOpen:
+		return nil // activity only: calls an announced inactivity close off (Receive)
 	case cmdStatus:
 		return l.cmdStatus(c, in, now)
+
 	case cmdEnded:
 		return l.cmdEnded(c, in, now)
 	case cmdChat:
@@ -40,7 +43,7 @@ func (l *lobby) handle(c *Client, in *inbound, now time.Time) error {
 		if !l.hub.hasPermission(c.userID, core.PermScenesView) {
 			return refuse(ErrCodeNotAllowed, "you cannot view scenes")
 		}
-		_, _, err := l.addItems(c.userID, c.username, in.Items, now)
+		_, _, err := l.addItems(c.userID, in.Items, now)
 		return err
 	case cmdQueueRemove:
 		return l.cmdQueueRemove(c, in, now)
@@ -53,7 +56,7 @@ func (l *lobby) handle(c *Client, in *inbound, now time.Time) error {
 			return refuse(ErrCodeNotAllowed, "only the host can do this")
 		}
 		return l.handleHost(c, in, now)
-	case cmdPlay, cmdPause, cmdSeek, cmdRate, cmdSkip, cmdPlayItem, cmdQueueMove, cmdSuggestionAccept:
+	case cmdPlay, cmdPause, cmdSeek, cmdRate, cmdSkip, cmdPlayItem, cmdQueueMove, cmdSuggestionAccept, cmdAutoNext:
 		if !l.canControl(c.userID) {
 			return refuse(ErrCodeNotAllowed, "you do not have control of the lobby")
 		}
@@ -71,10 +74,15 @@ func (l *lobby) handleControl(in *inbound, now time.Time) error {
 		if cur == nil {
 			return refuse(ErrCodeInvalid, "the queue is empty")
 		}
-		end, _, _ := itemEnd(cur)
+		end, known, _ := itemEnd(cur)
 		pos := l.posNow(now)
 		if in.Position != nil {
 			pos = clampPosition(*in.Position, end)
+		}
+		if known && l.row.AutoNext == data.AutoNextStop && pos >= end-atEndTolerance {
+			// Stopped at the end (auto-next stop): playing again starts the item over
+			pos = itemStart(cur)
+			l.syncPoint()
 		}
 		l.state.position = pos
 		l.state.ref = now
@@ -129,14 +137,37 @@ func (l *lobby) handleControl(in *inbound, now time.Time) error {
 		if l.current() == nil {
 			return refuse(ErrCodeInvalid, "the queue is empty")
 		}
-		return l.internal(l.advance(now))
+		return l.internal(l.finish(now, finishSkip))
 	case cmdPlayItem:
 		return l.cmdPlayItem(in, now)
 	case cmdQueueMove:
 		return l.cmdQueueMove(in)
 	case cmdSuggestionAccept:
 		return l.cmdSuggestionAccept(in, now)
+	case cmdAutoNext:
+		return l.cmdAutoNext(in)
 	}
+	return nil
+}
+
+// atEndTolerance: a position this close to the end of an item counts as the end.
+const atEndTolerance = 0.5
+
+// cmdAutoNext changes what happens at the end of an item (anyone with control).
+func (l *lobby) cmdAutoNext(in *inbound) error {
+	if in.Mode == nil || !data.ValidAutoNext(*in.Mode) {
+		return refuse(ErrCodeInvalid, "mode must be stop, next, repeat_one or repeat_queue")
+	}
+	if *in.Mode == l.row.AutoNext {
+		return nil
+	}
+	next := l.row
+	next.AutoNext = *in.Mode
+	if err := l.hub.store.UpdateSettings(&next); err != nil {
+		return l.internal(err)
+	}
+	l.row = next
+	l.broadcastLobby()
 	return nil
 }
 
@@ -174,15 +205,18 @@ func (l *lobby) cmdEnded(c *Client, in *inbound, now time.Time) error {
 	if cur == nil || in.ItemID == nil || *in.ItemID != cur.id {
 		return nil // another item: already advanced, or a late report
 	}
+	if !l.restartedAt.IsZero() && now.Sub(l.restartedAt) < restartGrace {
+		return nil // the end of the previous loop of a repeated item
+	}
 	end, known, _ := itemEnd(cur)
 	if known {
 		if l.state.at(now) < end-endedTolerance {
 			return nil // too early: a broken stream must not skip for everyone
 		}
-		return l.internal(l.advance(now))
+		return l.internal(l.finish(now, finishEnded))
 	}
 	if l.canControl(c.userID) {
-		return l.internal(l.advance(now))
+		return l.internal(l.finish(now, finishEnded))
 	}
 	l.endedReports[c.userID] = true
 	online := l.onlineUsers()
@@ -193,10 +227,13 @@ func (l *lobby) cmdEnded(c *Client, in *inbound, now time.Time) error {
 		}
 	}
 	if reported*2 >= len(online) {
-		return l.internal(l.advance(now))
+		return l.internal(l.finish(now, finishEnded))
 	}
 	return nil
 }
+
+// restartGrace: ended reports this soon after a repeat restarted the item are ignored.
+const restartGrace = 3 * time.Second
 
 func (l *lobby) cmdPlayItem(in *inbound, now time.Time) error {
 	if in.ItemID == nil {
@@ -214,16 +251,24 @@ func (l *lobby) cmdPlayItem(in *inbound, now time.Time) error {
 		return nil
 	}
 	target := l.queue[i]
-	rest := make([]*item, 0, len(l.queue)-1)
-	rest = append(rest, target)
-	for j, it := range l.queue {
-		if j == 0 || j == i {
-			continue
+	var rest []*item
+	if l.row.AutoNext == data.AutoNextRepeatQueue {
+		// The queue loops: it turns until the item is first, nothing is dropped
+		rest = make([]*item, 0, len(l.queue))
+		rest = append(rest, l.queue[i:]...)
+		rest = append(rest, l.queue[:i]...)
+	} else {
+		rest = make([]*item, 0, len(l.queue)-1)
+		rest = append(rest, target)
+		for j, it := range l.queue {
+			if j == 0 || j == i {
+				continue
+			}
+			rest = append(rest, it)
 		}
-		rest = append(rest, it)
-	}
-	if err := l.hub.store.DeleteQueueItem(l.row.ID, l.queue[0].id); err != nil {
-		return l.internal(err)
+		if err := l.hub.store.DeleteQueueItem(l.row.ID, l.queue[0].id); err != nil {
+			return l.internal(err)
+		}
 	}
 	if err := l.hub.store.SetQueueOrder(l.row.ID, itemIDs(rest)); err != nil {
 		return l.internal(err)
@@ -323,7 +368,7 @@ func (l *lobby) cmdQueueRemove(c *Client, in *inbound, now time.Time) error {
 		return refuse(ErrCodeNotAllowed, "you do not have control of the lobby")
 	}
 	if i == 0 && l.current() != nil {
-		return l.internal(l.advance(now))
+		return l.internal(l.finish(now, finishRemove))
 	}
 	if err := l.hub.store.DeleteQueueItem(l.row.ID, *in.ItemID); err != nil {
 		return l.internal(err)
@@ -412,9 +457,13 @@ func (l *lobby) validateItems(inputs []ItemInput) ([]ItemInput, map[uint]data.Sc
 	return valid, byID, nil
 }
 
-// addItems adds items to the queue when the user may, else as suggestions. The first item
-// queued into an empty queue becomes the current one, paused at its start.
-func (l *lobby) addItems(userID uint, username string, inputs []ItemInput, now time.Time) (queued, suggested int, err error) {
+// addItems adds items to the queue when the user (a member) may, else as suggestions. The
+// first item queued into an empty queue becomes the current one, paused at its start.
+func (l *lobby) addItems(userID uint, inputs []ItemInput, now time.Time) (queued, suggested int, err error) {
+	adderMember := l.members[userID]
+	if adderMember == nil {
+		return 0, 0, refuse(ErrCodeNotAllowed, "join the lobby first")
+	}
 	valid, scenes, err := l.validateItems(inputs)
 	if err != nil {
 		return 0, 0, err
@@ -442,6 +491,10 @@ func (l *lobby) addItems(userID uint, username string, inputs []ItemInput, now t
 			Label:    in.Label,
 			AddedBy:  &adder,
 		}
+		if adderMember.anon > 0 {
+			n := adderMember.anon
+			rows[i].AddedByAnon = &n
+		}
 	}
 	if err := l.hub.store.AddQueueItems(rows); err != nil {
 		return 0, 0, l.internal(err)
@@ -451,13 +504,13 @@ func (l *lobby) addItems(userID uint, username string, inputs []ItemInput, now t
 		s := scenes[r.SceneID]
 		r.SceneTitle = s.Title
 		r.SceneDuration = s.Duration
-		r.AddedByName = username
+		r.AddedByName = adderMember.username
 		added[i] = itemFromRow(r)
 	}
 	if !toQueue {
 		l.suggestions = append(l.suggestions, added...)
 		l.broadcastQueue()
-		l.system(username + " suggested " + itemTitle(added[0]) + plural(len(added)-1))
+		l.systemAbout(adderMember, " suggested "+itemTitle(added[0])+plural(len(added)-1))
 		return 0, len(added), nil
 	}
 	wasEmpty := l.current() == nil
@@ -516,7 +569,11 @@ func (l *lobby) cmdChat(c *Client, in *inbound, now time.Time) error {
 		return refuse(ErrCodeRateLimited, "slow down")
 	}
 	uid, name := c.userID, c.username
-	l.addChat(ChatMessage{UserID: &uid, Username: &name, Text: text})
+	msg := ChatMessage{UserID: &uid, Username: &name, Text: text}
+	if m := l.members[c.userID]; m != nil && m.anon > 0 {
+		msg.Anonymous, msg.AnonNumber = true, anonPtr(m.anon)
+	}
+	l.addChat(msg)
 	return nil
 }
 
@@ -577,22 +634,56 @@ func (l *lobby) cmdReaction(c *Client, in *inbound, now time.Time) error {
 	if !l.limiter(l.reactionLimiters, c.userID, l.hub.cfg.ReactionRateLimit).AllowN(now, 1) {
 		return refuse(ErrCodeRateLimited, "slow down")
 	}
-	l.broadcast(reactionMsg{T: msgReaction, UserID: c.userID, Username: c.username, Emote: emote})
+	uid := c.userID
+	m := l.members[c.userID]
+	if m == nil || m.anon == 0 {
+		l.broadcast(reactionMsg{T: msgReaction, UserID: &uid, Username: c.username, Emote: emote})
+		return nil
+	}
+	l.broadcastSplit(func(full bool) any {
+		if full {
+			return reactionMsg{T: msgReaction, UserID: &uid, Username: c.username, Anonymous: true, AnonNumber: anonPtr(m.anon), Emote: emote}
+		}
+		return reactionMsg{T: msgReaction, Username: anonName(m.anon), Anonymous: true, AnonNumber: anonPtr(m.anon), Emote: emote}
+	})
 	return nil
 }
 
 // --- host and moderation ---
+
+// target finds the member a command is about: by anon (the number of an anonymous member)
+// or by user_id. Only moderators may name an anonymous member by user_id: for the others it
+// is "no such member", like a user who is not in the lobby, so that the answer never tells
+// who is behind an anonymous member.
+func (l *lobby) target(c *Client, in *inbound) *member {
+	if in.Anon != nil {
+		for _, m := range l.members {
+			if m.anon > 0 && m.anon == *in.Anon {
+				return m
+			}
+		}
+		return nil
+	}
+	if in.UserID == nil {
+		return nil
+	}
+	m := l.members[*in.UserID]
+	if m != nil && m.anon > 0 && !c.moderate && m.userID != c.userID {
+		return nil
+	}
+	return m
+}
 
 func (l *lobby) handleHost(c *Client, in *inbound, now time.Time) error {
 	switch in.T {
 	case cmdSettings:
 		return l.cmdSettings(in, now)
 	case cmdGrantControl, cmdRevokeControl:
-		if in.UserID == nil || l.members[*in.UserID] == nil {
+		m := l.target(c, in)
+		if m == nil {
 			return refuse(ErrCodeNotFound, "no such member")
 		}
 		grant := in.T == cmdGrantControl
-		m := l.members[*in.UserID]
 		if m.canControl == grant {
 			return nil
 		}
@@ -603,22 +694,39 @@ func (l *lobby) handleHost(c *Client, in *inbound, now time.Time) error {
 		l.broadcastMembers()
 		return nil
 	case cmdTransferHost:
-		if in.UserID == nil || l.members[*in.UserID] == nil {
+		m := l.target(c, in)
+		if m == nil {
 			return refuse(ErrCodeNotFound, "no such member")
 		}
-		if *in.UserID == c.userID {
+		if m.userID == c.userID {
 			return nil
 		}
-		if l.connections(*in.UserID) == 0 {
+		if m.anon > 0 {
+			return refuse(ErrCodeNotAllowed, "an anonymous member cannot be the host")
+		}
+		if l.connections(m.userID) == 0 {
 			return refuse(ErrCodeInvalid, "the new host must be online")
 		}
-		return l.internal(l.setHost(l.members[*in.UserID], now))
+		return l.internal(l.setHost(m, now))
 	}
 	return nil
 }
 
-// setHost gives the host role to a member.
+// setHost gives the host role to a member (never an anonymous one). nil leaves the lobby
+// without host: only anonymous members are left, every member controls until a named
+// member comes (tick).
 func (l *lobby) setHost(m *member, now time.Time) error {
+	if m == nil {
+		if err := l.hub.store.SetHost(l.row.ID, nil); err != nil {
+			return err
+		}
+		l.row.HostUserID = nil
+		l.hostAwaySince = now
+		l.broadcastLobby()
+		l.broadcastMembers()
+		l.system("The lobby has no host now: everyone controls it")
+		return nil
+	}
 	id := m.userID
 	if err := l.hub.store.SetHost(l.row.ID, &id); err != nil {
 		return err
@@ -680,29 +788,35 @@ func (l *lobby) cmdSettings(in *inbound, now time.Time) error {
 }
 
 func (l *lobby) cmdKick(c *Client, in *inbound) error {
-	if in.UserID == nil {
-		return refuse(ErrCodeInvalid, "user_id is required")
+	if in.UserID == nil && in.Anon == nil {
+		return refuse(ErrCodeInvalid, "user_id or anon is required")
 	}
-	if !l.isHost(c.userID) && !l.hub.hasPermission(c.userID, core.PermTogetherModerate) {
+	moderate := l.hub.hasPermission(c.userID, core.PermTogetherModerate)
+	if !l.isHost(c.userID) && !moderate {
 		return refuse(ErrCodeNotAllowed, "only the host or a moderator can do this")
 	}
-	target := *in.UserID
+	m := l.target(c, in)
+	if m == nil {
+		// Moderators may ban a user who is not a member (by user_id)
+		if !in.Ban || !moderate || in.UserID == nil {
+			return refuse(ErrCodeNotFound, "no such member")
+		}
+	}
+	target := uint(0)
+	if m != nil {
+		target = m.userID
+	} else {
+		target = *in.UserID
+	}
 	if target == c.userID || l.isHost(target) {
 		return refuse(ErrCodeNotAllowed, "the host cannot be kicked")
-	}
-	m := l.members[target]
-	if m == nil && !in.Ban {
-		return refuse(ErrCodeNotFound, "no such member")
 	}
 	return l.internal(l.removeMember(target, in.Ban))
 }
 
 // removeMember kicks (or bans) a user: membership removed and connections closed.
 func (l *lobby) removeMember(userID uint, ban bool) error {
-	name := ""
-	if m := l.members[userID]; m != nil {
-		name = m.username
-	}
+	m := l.members[userID]
 	if ban {
 		if err := l.hub.store.BanMember(l.row.ID, userID, l.hub.now().UTC()); err != nil {
 			return err
@@ -718,11 +832,11 @@ func (l *lobby) removeMember(userID uint, ban bool) error {
 	}
 	l.dropUser(userID, reason, code)
 	l.broadcastMembers()
-	if name != "" {
+	if m != nil {
 		if ban {
-			l.system(name + " was banned")
+			l.systemAbout(m, " was banned")
 		} else {
-			l.system(name + " was kicked")
+			l.systemAbout(m, " was kicked")
 		}
 	}
 	return nil

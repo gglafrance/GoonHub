@@ -8,8 +8,8 @@ floating reactions over the video. It is like Watch2Gether or Teleparty, inside 
   (models and repositories), `internal/api/v1/handler/together*.go` (REST and WebSocket).
 - Frontend: `web/app/pages/together/` (lobby browser, room, join by code),
   `web/app/components/together/`, `web/app/composables/useTogether*.ts`.
-- Schema: migration 099 (`lobbies`, `lobby_members`, `lobby_queue_items`, `emotes`), see
-  `docs/DATABASE.md`.
+- Schema: migration 099 (`lobbies`, `lobby_members`, `lobby_queue_items`, `emotes`) and 101
+  (auto-next mode, anonymous members), see `docs/DATABASE.md`.
 
 ## Concepts
 
@@ -21,11 +21,23 @@ floating reactions over the video. It is like Watch2Gether or Teleparty, inside 
   Controlling = play, pause, seek, rate, skip, jump to an item, report the end of an item, and
   manage the queue (add, remove, reorder, accept or reject suggestions).
 - **Queue**: ordered scene items (a scene, optionally a `start`/`end` range and a label, e.g. a
-  marker). The first item of the queue is the item playing. When it ends, it is removed and the
-  next one starts (auto-advance). Members without control **suggest** items instead (the host or
-  a controller accepts or rejects them), unless the lobby has `queue_open` (everyone adds).
+  marker). The first item of the queue is the item playing. What happens when it ends is the
+  lobby's **auto-next mode** (below). Members without control **suggest** items instead (the
+  host or a controller accepts or rejects them), unless the lobby has `queue_open` (everyone
+  adds).
+- **Auto-next mode** (`auto_next`, changed by anyone with control, saved with the lobby):
+  `next` (default: the item leaves the queue and the next one starts), `stop` (playback pauses
+  at the end of the item; playing again starts it over), `repeat_one` (the item, or its range
+  for a marker item, starts over), `repeat_queue` (the item goes to the end of the queue and
+  the next one starts: after the last item, the first one comes back). The server decides
+  (see "End of an item").
 - **Members**: users who joined (a row in `lobby_members`). A banned user stays as a row with
   `banned_at` and cannot join again. "Online" members have at least one open WebSocket.
+- **Anonymous members**: a signed-in user can join a **public** lobby anonymously (lobby
+  browser, join screen of the room). The other members see "Anonymous #N" (N stable for the
+  membership, never reused in the lobby: `lobbies.anon_seq`) with a generic avatar and no
+  profile, in the member list, the chat, the system messages, the reactions and "suggested by" /
+  "added by". See "Anonymous members" below for what the server sends.
 
 ## Permissions
 
@@ -35,7 +47,7 @@ Declared in `internal/core/rbac_catalog.go` (see `docs/RBAC.md`):
 |---|---|---|
 | `goon2gether:use` | Join lobbies, chat, react, suggest; every `/together` route | from `scenes:view` |
 | `goon2gether:host` | Create lobbies | from `scenes:view` |
-| `goon2gether:moderate` | See and close any lobby (also private), kick and ban in any lobby, delete any chat message | moderator |
+| `goon2gether:moderate` | See and close any lobby (also private), kick and ban in any lobby, delete any chat message, see who is behind an anonymous member | moderator |
 | `emotes:manage` | Upload, rename and delete the server custom emotes | moderator |
 
 Adding to a queue also needs `scenes:view`. Queue items carry the scene title and duration
@@ -63,25 +75,28 @@ the lobby UUID. Errors use the usual `{error, code}` body.
   "queue_open": false,
   "wait_for_all": false,
   "max_members": 0,
+  "auto_next": "next",
   "is_member": true,
+  "anonymous": false,
   "invite_code": "K7QW2MZP",
   "created_at": "2026-11-25T20:00:00Z"
 }
 ```
 
-`host` is null while nobody holds it (host account deleted). `now_playing` is null when the
-queue is empty; its `title` is omitted without `scenes:view`. `invite_code` is only sent to
-members (and to `goon2gether:moderate`). `max_members` 0 means the server default
-(`goon2gether.max_members`).
+`host` is null while nobody holds it (host account deleted, or only anonymous members left).
+`now_playing` is null when the queue is empty; its `title` is omitted without `scenes:view`.
+`invite_code` is only sent to members (and to `goon2gether:moderate`). `max_members` 0 means the
+server default (`goon2gether.max_members`). `anonymous`: the user is an anonymous member. The
+summary never lists the members.
 
 ### Routes
 
 | Method and path | Permission | Body | Answer |
 |---|---|---|---|
 | `GET /together/lobbies` | use | query `all=true` (moderate only: every lobby) | `{lobbies: [summary]}`: public lobbies and the lobbies the user is a member of, most recently active first |
-| `POST /together/lobbies` | host | `{name, visibility, control_open, queue_open, wait_for_all, max_members, items: [item]}` (all optional) | `201` summary |
+| `POST /together/lobbies` | host | `{name, visibility, control_open, queue_open, wait_for_all, max_members, auto_next, items: [item]}` (all optional) | `201` summary |
 | `GET /together/lobbies/:id` | use | | summary; `404` for a private lobby the user is not a member of |
-| `POST /together/lobbies/:id/join` | use | | summary; joins a public lobby (`404` private non-member, `403` `LOBBY_BANNED`) |
+| `POST /together/lobbies/:id/join` | use | `{anonymous}` (optional) | summary; joins a public lobby (`404` private non-member, `403` `LOBBY_BANNED`). `anonymous: true`: public lobbies only (`400` for a private lobby or for its creator), `409` when the user is already a member under their name (leave first); an anonymous member joining again stays anonymous |
 | `POST /together/join` | use | `{code}` | summary; joins the lobby of the invite code (`404` unknown code, `403` `LOBBY_BANNED`) |
 | `POST /together/lobbies/:id/leave` | use | | `204`; a leaving host hands the role to the next member, or the lobby closes if nobody is left |
 | `DELETE /together/lobbies/:id` | host of the lobby, or moderate | | `204`; open connections get `bye` (`closed`) |
@@ -91,7 +106,7 @@ members (and to `goon2gether:moderate`). `max_members` 0 means the server defaul
 | `POST /together/emotes` | `emotes:manage` | multipart `name`, `file` | `201` emote |
 | `PUT /together/emotes/:id` | `emotes:manage` | `{name}` | emote |
 | `DELETE /together/emotes/:id` | `emotes:manage` | | `204` (the image file is removed) |
-| `GET /api/v1/together/lobbies/:id/ws` | use, member (a public lobby is joined on connect) | | WebSocket, see below |
+| `GET /api/v1/together/lobbies/:id/ws` | use, member (a public lobby is joined on connect; `anonymous=1`: anonymously) | | WebSocket, see below |
 
 `item` = `{scene_id, start, end, label}`: `start`/`end` in seconds (optional, `end > start`),
 `label` optional (max 100 characters, e.g. the marker label). The scene must exist and not be in
@@ -106,15 +121,22 @@ cached, served from `goon2gether.emote_dir`, outside every media directory). Nam
 ### Service hooks for later features
 
 - `together.Hub.ActiveLobbiesForUser(userID)` lists the lobbies where the user is online (for
-  "watching in lobby X" in the friends presence).
+  "watching in lobby X" in the friends presence). Anonymous memberships are never listed.
 - `together.Hub.InviteUser(lobbyUUID, inviterID, userID)` adds a user as a member of a lobby
   (pre-authorized, like opening the invite link): the future "invite a friend" action calls it.
 
-## WebSocket protocol (version 1)
+## WebSocket protocol (version 2)
 
-Endpoint: `GET /api/v1/together/lobbies/:id/ws?v=1`, same origin, authenticated by the session
-cookie on the upgrade (the same auth middleware as every route). The `Origin` header must match
-the host or one of `server.allowed_origins`. Frames are JSON text messages with a type field `t`.
+Endpoint: `GET /api/v1/together/lobbies/:id/ws?v=2[&anonymous=1]`, same origin, authenticated
+by the session cookie on the upgrade (the same auth middleware as every route). The `Origin`
+header must match the host or one of `server.allowed_origins`. Frames are JSON text messages
+with a type field `t`. Other versions are refused (`400`).
+
+Version 2 (2026-11-26) changes from version 1: `user_id` (members, chat, reactions) and
+`added_by.id` may be null (anonymous members), new fields `anonymous`/`anon_number`, `auto_next`
+in `LobbyInfo`, `closing_at` and `you.anonymous`/`you.anon_number` in `welcome`, the `closing`
+message, the `auto_next` and `keep_open` commands, `anon` to name a member in commands, the bye
+reason `inactive`.
 A client message may carry a `ref` (string, up to 64 characters) echoed back in an `error`.
 Messages larger than `goon2gether.max_message_bytes` close the connection.
 
@@ -129,8 +151,8 @@ messages is full) is disconnected (close code 4008) and resyncs on reconnect.
 |---|---|---|
 | 1000 / 1001 | normal close, server shutdown | yes (1001) |
 | 4001 | kicked | no |
-| 4003 | banned, or no longer allowed (permission removed) | no |
-| 4004 | lobby closed | no |
+| 4003 | banned, no longer allowed (permission removed), or an anonymous join that is not possible | no |
+| 4004 | lobby closed (also for inactivity, or not found) | no |
 | 4005 | the user left the lobby (from another tab) | no |
 | 4008 | too slow (send buffer full) or protocol violation | yes |
 | 4009 | lobby full, or too many connections of the user | no |
@@ -142,12 +164,18 @@ gets a full `welcome` snapshot each time (state resync).
 
 ```text
 LobbyInfo     {id, name, visibility, host_id, control_open, queue_open, wait_for_all,
-               max_members, invite_code}
-Member        {user_id, username, host, control, online, connections, buffering, joined_at}
-QueueItem     {id, scene_id, title, duration, start, end, label, added_by: {id, username} | null}
+               max_members, auto_next, invite_code}
+Member        {user_id, username, anonymous, anon_number, host, control, online, connections,
+               buffering, joined_at}
+QueueItem     {id, scene_id, title, duration, start, end, label,
+               added_by: {id, username, anonymous?, anon_number?} | null}
 State         {item_id, playing, hold, position, server_time, rate, seq}
-ChatMessage   {id, user_id, username, text, at, system}
+ChatMessage   {id, user_id, username, anonymous?, anon_number?, text, at, system}
 ```
+
+- An anonymous member (see "Anonymous members"): `user_id` / `id` null, `username`
+  "Anonymous #N", `anonymous` true, `anon_number` N; moderators get the real `user_id` and
+  `username` with `anonymous` and `anon_number`.
 
 - `Member.control`: the member may control (host, given control, or `control_open`).
   `buffering`: one of its connections reported buffering.
@@ -165,18 +193,19 @@ ChatMessage   {id, user_id, username, text, at, system}
 
 | `t` | Fields | When |
 |---|---|---|
-| `welcome` | `v`, `server_time`, `you: {user_id, username, moderate}`, `config: {drift_threshold, drift_nudge, hold_timeout_ms, chat_max_length, end_grace}`, `lobby`, `members`, `queue`, `suggestions`, `state`, `chat` | first message of each connection (full snapshot) |
+| `welcome` | `v`, `server_time`, `you: {user_id, username, moderate, anonymous, anon_number}`, `config: {drift_threshold, drift_nudge, hold_timeout_ms, chat_max_length, end_grace}`, `lobby`, `members`, `queue`, `suggestions`, `state`, `chat`, `closing_at` (ms or null) | first message of each connection (full snapshot) |
 | `state` | `state` | playback changed (play, pause, seek, rate, item change, hold) |
 | `queue` | `queue`, `suggestions` | queue or suggestions changed. `queue[0]` is the item playing when `state.item_id` is set |
 | `members` | `members` | join, leave, connection change, buffering, control, host |
 | `lobby` | `lobby` | settings or host changed |
 | `chat` | `message` | new chat or system message |
 | `chat_deleted` | `id` | a message was deleted |
-| `reaction` | `user_id`, `username`, `emote` | floating reaction |
+| `reaction` | `user_id`, `username`, `anonymous?`, `anon_number?`, `emote` | floating reaction |
+| `closing` | `at` (Unix ms, or null), `reason` (`inactive`) | the lobby closes at `at` for inactivity unless something happens; `at` null: called off |
 | `emotes` | | the server emotes changed: reload `GET /together/emotes` |
 | `pong` | `id`, `c`, `s` | answer to `ping`: `c` echoed, `s` server time (ms) |
 | `error` | `code`, `message`, `ref` | a message was refused |
-| `bye` | `reason` (`kicked`, `banned`, `closed`, `forbidden`, `left`) | just before the server closes |
+| `bye` | `reason` (`kicked`, `banned`, `closed`, `forbidden`, `left`, `inactive`) | just before the server closes |
 
 Error codes: `not_allowed` (no control, not host, no permission), `invalid` (bad payload),
 `not_found` (unknown item or member), `rate_limited`, `too_long`, `queue_full`, `unknown_type`,
@@ -203,10 +232,16 @@ Error codes: `not_allowed` (no control, not host, no permission), `invalid` (bad
 | `chat` | `text` | anyone (rate limited, max `chat_max_length` characters) |
 | `chat_delete` | `id` | host, `goon2gether:moderate`, or the author |
 | `reaction` | `emote`: an emoji, or `:name:` of a server emote | anyone (rate limited) |
+| `auto_next` | `mode` (`stop`, `next`, `repeat_one`, `repeat_queue`) | control |
+| `keep_open` | | anyone: activity only (calls an announced inactivity close off) |
 | `settings` | `name`, `visibility`, `control_open`, `queue_open`, `wait_for_all`, `max_members` (each optional) | host |
-| `grant_control` / `revoke_control` | `user_id` | host |
-| `transfer_host` | `user_id` (an online member) | host |
-| `kick` | `user_id`, `ban` (bool) | host, `goon2gether:moderate` (never the host) |
+| `grant_control` / `revoke_control` | `user_id` or `anon` | host |
+| `transfer_host` | `user_id` or `anon` (an online, named member) | host |
+| `kick` | `user_id` or `anon`, `ban` (bool) | host, `goon2gether:moderate` (never the host); banning a user who is not a member: moderators only |
+
+`anon` names an anonymous member by number. Only moderators may name an anonymous member by
+`user_id`: for anyone else it answers `not_found`, like a user who is not in the lobby, so that
+trying user IDs never tells who is behind an anonymous member.
 
 A command from a member without the right is refused with `error` `not_allowed` and changes
 nothing: the server state stays the reference, clients that applied a local action revert to it.
@@ -265,9 +300,39 @@ report from a member with control advances, other reports advance once half of t
 members sent one. One item is advanced once (the item id is checked), so clients that disagree
 cannot skip twice. The next item starts playing at its `start`; an empty queue stops playback.
 
+What "advance" does is the auto-next mode: `next` deletes the item and starts the next one;
+`stop` pauses at the end (a later `play` at the end starts the item over); `repeat_one` starts
+the item over at its `start` (a range item loops its range; `ended` reports of the previous loop
+are ignored for 3 s); `repeat_queue` moves the item to the end of the queue and starts the next
+one (a single item loops). `skip` always moves on (in `repeat_queue` the skipped item goes to
+the end of the queue), `play_item` in `repeat_queue` turns the queue until the item is first
+(nothing is dropped), and removing the item playing always drops it.
+
 **Host away.** When the host has no open connection for `goon2gether.host_grace` (60 s), the role
 goes to the next online member (members with control first, then by join date), with a system
-message. A host who leaves the lobby hands it over at once.
+message. A host who leaves the lobby hands it over at once. Anonymous members are never host
+(skipped, and `transfer_host` to one is refused), but they can be given control. When only
+anonymous members are left, the lobby has no host and every member controls it, until a named
+member connects (they get the role at the next tick).
+
+## Anonymous members
+
+- Joining: `POST /together/lobbies/:id/join {anonymous: true}` or the WebSocket with
+  `anonymous=1`, public lobbies only, never by the lobby creator. The flag and the number are on
+  the membership (`lobby_members.anonymous`, `anon_number`); leaving ends it (joining again gives
+  a new number). A member under their name cannot turn anonymous (`409`), and an anonymous
+  member joining again stays anonymous.
+- What the server sends: to every member but the moderators, an anonymous member has a null
+  `user_id` (members, chat, reactions) or `added_by.id` (queue, suggestions), "Anonymous #N" as
+  name, and system messages say "Anonymous #N joined" (moderators: "Anonymous #N (alice)
+  joined"). Queue items keep the adder's number (`lobby_queue_items.added_by_anon`), so the
+  adder stays hidden after leaving or a restart. The anonymous user gets their own identity in
+  `welcome.you` and recognizes their own entries by `anon_number`.
+- `goon2gether:moderate` gets the real `user_id` and `username` with `anonymous: true` (the
+  room shows them with an "Anonymous #N" badge). The payloads are marshaled twice (moderators,
+  others) only while the lobby has anonymous content.
+- Lobby summaries never list members; presence (`ActiveLobbiesForUser`) never lists an
+  anonymous membership; commands cannot be used to probe identities (see the commands table).
 
 **Upgrade through gin.** gin refuses to hijack a response whose header was written, while the
 WebSocket library writes the `101` before hijacking: the handler passes it a small writer
@@ -292,8 +357,25 @@ still offers to resume where the user was, not where the lobby was.
   keeps the last `goon2gether.chat_history` messages per lobby (sent to late joiners); it is
   lost when the lobby is unloaded or the server restarts.
 - A lobby without connections is unloaded from memory after `goon2gether.unload_after` (1 min).
-  A lobby nobody connected to for `goon2gether.idle_timeout` (default 24 h, `last_active_at`)
-  is deleted (cleanup every `goon2gether.cleanup_interval`).
+- **Auto-close.** Closing deletes the lobby rows (lobby, members, queue: lobby state, never a
+  media file), so it leaves the lobby list and its invite link stops working; connected members
+  get `bye` `inactive` (close 4004) and the room shows "closed for inactivity" with a way back to
+  the lobby browser.
+  - **Nobody connected** for `goon2gether.empty_close_after` (15 min): closed. `last_active_at`
+    is the last time someone was connected (touched on connect, on the last disconnect, every
+    `cleanup_interval` while connected, and at shutdown for the lobbies with connections);
+    unloaded lobbies are deleted by the cleanup from it, loaded ones by their tick. It is in
+    the database, so it holds across restarts: a lobby restored after a restart with nobody
+    connected closes on time.
+  - **Members connected but nothing happening** for `goon2gether.inactive_close_after` (60 min):
+    closed, announced `goon2gether.close_warning` (5 min) before with a `closing` message and a
+    system message. Activity is a playback running (playing, also during a hold), and every
+    command of a member but `ping`, `status` and `ended` (chat, reactions, queue changes,
+    control actions, settings, `keep_open`), and a REST queue add; a member connecting to an
+    empty lobby starts the count over. Any activity calls the announce off (`closing` with
+    `at: null`). This timer is in memory: a restart starts it over.
+  - The old `goon2gether.idle_timeout` (24 h) stays as a safety net when `empty_close_after` is
+    0 (the cleanup uses the shorter of the two).
 - One goroutine (lifecycle manager) runs the ticks and the cleanup for every lobby; each
   connection has its reader (the HTTP handler) and one writer goroutine with a bounded send
   buffer. No goroutine or channel is created per message.
@@ -324,7 +406,11 @@ still offers to resume where the user was, not where the lobby was.
 | `host_grace` | `60s` | Host absence before the role is handed over |
 | `tick_interval` | `500ms` | Server tick (auto-advance, holds, host grace) |
 | `unload_after` | `1m` | A lobby without connections leaves memory after this |
-| `idle_timeout` | `24h` | A lobby nobody connected to for this long is deleted |
+| `idle_timeout` | `24h` | Safety net: a lobby nobody connected to for this long is deleted (used when `empty_close_after` is 0) |
+| `empty_close_after` | `15m` | A lobby with nobody connected closes after this (0: off) |
+| `inactive_close_after` | `60m` | A lobby with members connected but no activity closes after this (0: off) |
+| `close_warning` | `5m` | Warning (`closing` message) before an inactivity close (0: none) |
+
 | `cleanup_interval` | `1m` | Idle lobby cleanup period |
 | `send_buffer` | `64` | Messages queued per connection before it is dropped |
 | `ping_interval` | `25s` | WebSocket ping period |

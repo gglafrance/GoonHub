@@ -42,6 +42,20 @@ func (m *MockLobbyRepository) EXPECT() *MockLobbyRepositoryMockRecorder {
 	return m.recorder
 }
 
+// AddAnonymousMember mocks base method.
+func (m *MockLobbyRepository) AddAnonymousMember(member *data.LobbyMember) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddAnonymousMember", member)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddAnonymousMember indicates an expected call of AddAnonymousMember.
+func (mr *MockLobbyRepositoryMockRecorder) AddAnonymousMember(member any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddAnonymousMember", reflect.TypeOf((*MockLobbyRepository)(nil).AddAnonymousMember), member)
+}
+
 // AddMember mocks base method.
 func (m *MockLobbyRepository) AddMember(member *data.LobbyMember) error {
 	m.ctrl.T.Helper()

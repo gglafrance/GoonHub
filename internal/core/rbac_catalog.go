@@ -97,7 +97,7 @@ var PermissionCatalog = []CatalogPermission{
 	{Name: PermPlaylistsPublic, Group: PermGroupPlaylists, Description: "View and like public playlists of other users"},
 	{Name: PermTogetherUse, Group: PermGroupTogether, Description: "Join watch lobbies, chat and react", GrantFrom: PermScenesView},
 	{Name: PermTogetherHost, Group: PermGroupTogether, Description: "Create watch lobbies", GrantFrom: PermScenesView},
-	{Name: PermTogetherModerate, Group: PermGroupTogether, Description: "See and close any lobby, kick and ban, delete chat messages", GrantRoles: []string{"moderator"}},
+	{Name: PermTogetherModerate, Group: PermGroupTogether, Description: "See and close any lobby, kick and ban, delete chat messages, see who anonymous members are", GrantRoles: []string{"moderator"}},
 	{Name: PermEmotesManage, Group: PermGroupTogether, Description: "Upload, rename and delete the custom emotes", GrantRoles: []string{"moderator"}},
 	{Name: PermSocialUse, Group: PermGroupSocial, Description: "Follow users and send or accept friend requests", GrantRoles: []string{"user"}, GrantFrom: PermScenesView},
 	{Name: PermFilesViewSize, Group: PermGroupFileInfo, Description: "File sizes, size filters and sorts, selection and library totals, biggest file", GrantRoles: []string{"moderator"}},

@@ -104,7 +104,7 @@ grant (superuser roles never get a grant row).
 | `social:use` | Social | Follow users, send and accept friend requests (`docs/SOCIAL.md`). Reading the directory, lists and profiles, unfollowing, declining, cancelling and removing a friend only need a signed-in user | `user`, from `scenes:view` |
 | `goon2gether:use` | Goon2gether | Join watch lobbies, chat, react, suggest (every `/together` route; see `docs/GOON2GETHER.md`) | from `scenes:view` |
 | `goon2gether:host` | Goon2gether | Create watch lobbies | from `scenes:view` |
-| `goon2gether:moderate` | Goon2gether | See and close any lobby (private ones too), kick and ban in any lobby, delete any chat message | moderator |
+| `goon2gether:moderate` | Goon2gether | See and close any lobby (private ones too), kick and ban in any lobby, delete any chat message, see who is behind an anonymous member (Anonymous #N) | moderator |
 | `emotes:manage` | Goon2gether | Upload, rename and delete the custom emotes (Settings > Emotes) | moderator |
 | `files:view_size` | File info | File sizes, size filters and sorts, selection and library totals, biggest file | moderator |
 | `files:view_paths` | File info | Stored paths, original file names, storage paths, copies of a scene | moderator |

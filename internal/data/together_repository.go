@@ -27,7 +27,8 @@ type LobbyRepository interface {
 	// most recently active first.
 	List(userID uint, all bool) ([]LobbyListEntry, error)
 	CountHostedBy(userID uint) (int64, error)
-	// UpdateSettings saves name, visibility, control_open, queue_open, wait_for_all, max_members.
+	// UpdateSettings saves name, visibility, control_open, queue_open, wait_for_all,
+	// max_members and auto_next.
 	UpdateSettings(lobby *Lobby) error
 	SetHost(lobbyID uint, userID *uint) error
 	SetInviteCode(lobbyID uint, code string) error
@@ -41,6 +42,9 @@ type LobbyRepository interface {
 	GetMember(lobbyID, userID uint) (*LobbyMember, error)
 	// AddMember inserts the member, or does nothing when the user already has a row.
 	AddMember(member *LobbyMember) error
+	// AddAnonymousMember inserts an anonymous member with the next anonymous number of the
+	// lobby (lobbies.anon_seq), set in member.AnonNumber.
+	AddAnonymousMember(member *LobbyMember) error
 	SetMemberControl(lobbyID, userID uint, canControl bool) error
 	BanMember(lobbyID, userID uint, at time.Time) error
 	RemoveMember(lobbyID, userID uint) error
@@ -122,7 +126,8 @@ func (r *LobbyRepositoryImpl) List(userID uint, all bool) ([]LobbyListEntry, err
 		Select(`l.*, COALESCE(h.username, '') AS host_username,
 			(SELECT COUNT(*) FROM lobby_queue_items q WHERE q.lobby_id = l.id AND q.status = 'queued') AS queue_length,
 			ci.scene_id AS now_scene_id, COALESCE(s.title, '') AS now_scene_title, ci.label AS now_label,
-			(m.user_id IS NOT NULL AND m.banned_at IS NULL) AS is_member, m.banned_at AS member_banned_at`).
+			(m.user_id IS NOT NULL AND m.banned_at IS NULL) AS is_member,
+			COALESCE(m.anonymous, FALSE) AS member_anonymous, m.banned_at AS member_banned_at`).
 		Joins("LEFT JOIN users h ON h.id = l.host_user_id").
 		Joins("LEFT JOIN lobby_queue_items ci ON ci.id = l.current_item_id").
 		Joins("LEFT JOIN scenes s ON s.id = ci.scene_id").
@@ -150,6 +155,7 @@ func (r *LobbyRepositoryImpl) UpdateSettings(lobby *Lobby) error {
 		"queue_open":   lobby.QueueOpen,
 		"wait_for_all": lobby.WaitForAll,
 		"max_members":  lobby.MaxMembers,
+		"auto_next":    lobby.AutoNext,
 		"updated_at":   time.Now().UTC(),
 	})
 	if res.Error != nil {
@@ -239,6 +245,29 @@ func (r *LobbyRepositoryImpl) AddMember(member *LobbyMember) error {
 		member.JoinedAt = time.Now().UTC()
 	}
 	return r.DB.Clauses(clause.OnConflict{DoNothing: true}).Omit("Username").Create(member).Error
+}
+
+func (r *LobbyRepositoryImpl) AddAnonymousMember(member *LobbyMember) error {
+	if member.JoinedAt.IsZero() {
+		member.JoinedAt = time.Now().UTC()
+	}
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		var seq []int
+		if err := tx.Raw(`UPDATE lobbies SET anon_seq = anon_seq + 1 WHERE id = ? RETURNING anon_seq`, member.LobbyID).
+			Scan(&seq).Error; err != nil {
+			return fmt.Errorf("next anonymous number: %w", err)
+		}
+		if len(seq) == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		n := seq[0]
+		member.Anonymous = true
+		member.AnonNumber = &n
+		if err := tx.Omit("Username").Create(member).Error; err != nil {
+			return fmt.Errorf("add anonymous lobby member: %w", err)
+		}
+		return nil
+	})
 }
 
 func (r *LobbyRepositoryImpl) SetMemberControl(lobbyID, userID uint, canControl bool) error {
