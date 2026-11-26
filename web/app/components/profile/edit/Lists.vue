@@ -40,9 +40,14 @@ function startNew(preset?: (typeof CUSTOM_LIST_PRESETS)[number]) {
             title: preset?.title ?? '',
             filters: { ...(preset?.filters ?? {}) },
             audience: 'public',
+            figures: 'auto',
         },
     };
 }
+
+/** The figures a list shows (auto: what the server computed on its effective criteria). */
+const figuresOf = (l: CustomList) =>
+    l.figures === 'auto' ? (l.auto_figures ?? []) : listFigures(l.figures, l.filters);
 
 function startEdit(l: CustomList) {
     editing.value = {
@@ -54,6 +59,7 @@ function startEdit(l: CustomList) {
                 ? (l.saved_search_uuid ?? undefined)
                 : undefined,
             audience: l.audience,
+            figures: l.figures,
         },
     };
 }
@@ -107,6 +113,18 @@ async function remove() {
                             :title="`The list is only shown to who can also see your ${d.label}`"
                         >
                             {{ d.label }}: {{ audienceLabel(d.audience) }}
+                        </span>
+                        <span
+                            v-if="figuresOf(l).length"
+                            class="rounded bg-white/5 px-1.5"
+                            title="Your figures shown under the cards"
+                        >
+                            Figures:
+                            {{
+                                figuresOf(l)
+                                    .map((k) => LIST_FIGURE_LABELS[k])
+                                    .join(', ')
+                            }}
                         </span>
                         <span v-if="l.needs_size" class="rounded bg-white/5 px-1.5">
                             file sizes: viewers with the permission only

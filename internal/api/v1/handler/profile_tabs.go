@@ -62,7 +62,7 @@ func (h *ProfileHandler) listInput(c *gin.Context) (core.CustomListInput, bool) 
 		response.BadRequest(c, "invalid request body")
 		return core.CustomListInput{}, false
 	}
-	return core.CustomListInput{Title: req.Title, Filters: req.Filters, SavedSearchUUID: req.SavedSearchUUID, Audience: req.Audience}, true
+	return core.CustomListInput{Title: req.Title, Filters: req.Filters, SavedSearchUUID: req.SavedSearchUUID, Audience: req.Audience, Figures: req.Figures}, true
 }
 
 func listIDParam(c *gin.Context) (uint, bool) {
@@ -154,6 +154,7 @@ func (h *ProfileHandler) BrowseList(c *gin.Context) {
 		List:         response.CustomListSummary{ID: out.List.ID, Title: out.List.Title},
 		Data:         list.Data,
 		Pagination:   list.Pagination,
+		Figures:      out.Figures,
 		CardSidecars: list.CardSidecars,
 	})
 }

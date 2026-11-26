@@ -42,6 +42,8 @@ type ProfileService struct {
 	searcher      ProfileSceneSearcher
 	tags          ProfileTagResolver
 	savedSearches data.SavedSearchRepository
+	// figures of the custom lists (WithListFigures)
+	figures ProfileFigureReader
 }
 
 func NewProfileService(repo data.ProfileRepository, socialRepo data.SocialRepository, markerRepo data.MarkerRepository, social *SocialService, privacy *PrivacyService, homepage *HomepageService, cfg config.ProfilesConfig, logger *zap.Logger) *ProfileService {
@@ -248,6 +250,12 @@ func (s *ProfileService) Get(ctx context.Context, viewer ProfileViewer, username
 			add(item)
 		}
 	}
+	// The figures a custom list block may show are checked one by one, besides the list
+	if len(lists) > 0 {
+		for _, item := range listFigurePrivacyItems() {
+			add(item)
+		}
+	}
 	// The items of the full lists (tabs)
 	if viewer.Has(PermScenesView) {
 		for _, item := range []string{PrivacyLiked, PrivacyRatings, PrivacyJizz} {
@@ -352,7 +360,11 @@ func (s *ProfileService) Get(ctx context.Context, viewer ProfileViewer, username
 				if !st.show {
 					bv.Locked = true
 				} else {
-					blockData, err := spec.Fetch(ctx, &s.deps, ProfileBlockRequest{OwnerID: ownerID, Viewer: viewer, Config: values, List: st.list})
+					req := ProfileBlockRequest{OwnerID: ownerID, Viewer: viewer, Config: values, List: st.list}
+					if st.list != nil {
+						req.ListFigures = effectiveListFigures(*st.list, values.String("figures"), visible)
+					}
+					blockData, err := spec.Fetch(ctx, &s.deps, req)
 					if err != nil {
 						s.logger.Warn("profile block failed", zap.String("block", spec.Type), zap.Uint("owner_id", ownerID), zap.Error(err))
 						bv.Failed = true

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type {
+    ListFigureKind,
     ProfileListKind,
     ProfileListResponse,
     ProfileScene,
@@ -9,7 +10,8 @@ import type { LoadedPages, PageLoadPlan } from '~/utils/infinitePages';
 
 // A full list of a profile (liked, rated or jizz videos, docs/PROFILES.md "Lists"): the user's
 // card template and grid density, paginated or infinite (user setting), page and sort in the
-// URL. Under each card: the owner's figure; the card badges are the viewer's own interactions.
+// URL. Under each card: the owner's figure (a custom list: the figures it shows, from the
+// response); the card badges are the viewer's own interactions.
 const props = defineProps<{
     username: string;
     /** A list of the profile, or a custom list (`lists/<id>`) */
@@ -33,6 +35,8 @@ const sort = useUrlSort(props.sortOptions[0]?.value ?? '');
 const limit = computed(() => settingsStore.videosPerPage);
 
 const items = ref<ProfileScene[]>([]);
+/** A custom list: the owner's figures the server sends on the items */
+const listFigures = ref<ListFigureKind[] | null>(null);
 const total = ref(0);
 const sidecars = ref(emptyCardSidecars());
 const loading = ref(true);
@@ -75,6 +79,7 @@ async function run(plan: PageLoadPlan) {
         loadedPages.value = commitPageLoad(loadedPages.value, plan);
         emit('total', total.value);
         const last = responses[responses.length - 1];
+        listFigures.value = last?.figures ?? null;
         if (last) emit('loaded', last);
     } catch (e: unknown) {
         if (current !== request) return;
@@ -184,7 +189,13 @@ onMounted(() => load(page.value));
                         :completed="sidecars.watched[item.scene.id]"
                         fluid
                     />
+                    <ProfileListFigures
+                        v-if="listFigures"
+                        :kinds="listFigures"
+                        :figures="item.figures"
+                    />
                     <ProfileSceneFigure
+                        v-else
                         :item="item"
                         :figure="props.figure"
                         :at-label="props.atLabel"

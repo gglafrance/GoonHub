@@ -5,7 +5,8 @@ import type { Audience, PrivacySettings } from '~/types/social';
 
 // Create or edit a custom list (modal): title, who can see it, and its source: criteria defined
 // with the search interface, or one of the owner's saved searches (followed live). Shows which
-// privacy items the criteria depend on and their current audience.
+// privacy items the criteria depend on and their current audience, and the owner's figures
+// shown under the cards (ProfileEditListFigures).
 const props = defineProps<{
     listId: number | null;
     initial: CustomListInput;
@@ -15,7 +16,11 @@ const emit = defineEmits<{ close: []; saved: [list: CustomList] }>();
 
 const api = useApiProfiles();
 const savedApi = useApiSavedSearches();
-const form = ref<CustomListInput>({ ...props.initial, filters: { ...props.initial.filters } });
+const form = ref<CustomListInput>({
+    ...props.initial,
+    filters: { ...props.initial.filters },
+    figures: props.initial.figures ?? 'auto',
+});
 const source = ref<'criteria' | 'saved'>(props.initial.saved_search_uuid ? 'saved' : 'criteria');
 const savedSearches = ref<SavedSearch[]>([]);
 const showCriteria = ref(false);
@@ -73,6 +78,7 @@ async function save() {
         audience: form.value.audience,
         filters: source.value === 'criteria' ? form.value.filters : {},
         saved_search_uuid: source.value === 'saved' ? form.value.saved_search_uuid : undefined,
+        figures: form.value.figures ?? 'auto',
     };
     try {
         const list =
@@ -172,6 +178,12 @@ onUnmounted(() => window.removeEventListener('keydown', onKey));
                         File sizes <span class="text-dim">(viewers with the permission)</span>
                     </div>
                 </div>
+                <ProfileEditListFigures
+                    :model-value="form.figures ?? 'auto'"
+                    :filters="effectiveFilters"
+                    :privacy="props.privacy"
+                    @update:model-value="form.figures = $event"
+                />
                 <p v-if="error" class="text-lava text-[11px]">{{ error }}</p>
                 <div class="flex justify-end gap-2">
                     <button class="text-dim text-xs hover:text-white" @click="emit('close')">

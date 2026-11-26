@@ -82,14 +82,17 @@ func (t *ProfileTabs) Scan(value any) error {
 // with the owner's interactions. SavedSearchUUID, when set, is a saved search of the owner
 // whose current filters replace Filters while it exists.
 type ProfileList struct {
-	ID              uint      `gorm:"primaryKey"`
-	UserID          uint      `gorm:"not null"`
-	Title           string    `gorm:"size:80;not null"`
-	Filters         Filters   `gorm:"type:jsonb;not null"`
-	SavedSearchUUID *string   `gorm:"column:saved_search_uuid;type:uuid"`
-	Audience        string    `gorm:"size:16;not null"`
-	CreatedAt       time.Time `gorm:"not null"`
-	UpdatedAt       time.Time `gorm:"not null"`
+	ID              uint    `gorm:"primaryKey"`
+	UserID          uint    `gorm:"not null"`
+	Title           string  `gorm:"size:80;not null"`
+	Filters         Filters `gorm:"type:jsonb;not null"`
+	SavedSearchUUID *string `gorm:"column:saved_search_uuid;type:uuid"`
+	Audience        string  `gorm:"size:16;not null"`
+	// Figures is which owner figures the cards show: auto, none, jizz, rating, liked, views
+	// (migration 105; "" is read as auto)
+	Figures   string    `gorm:"size:16;not null;default:auto"`
+	CreatedAt time.Time `gorm:"not null"`
+	UpdatedAt time.Time `gorm:"not null"`
 }
 
 func (ProfileList) TableName() string { return "user_profile_lists" }

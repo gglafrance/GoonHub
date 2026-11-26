@@ -53,6 +53,7 @@ func (r *ProfileRepositoryImpl) UpdateList(ctx context.Context, list *ProfileLis
 		"filters":           list.Filters,
 		"saved_search_uuid": list.SavedSearchUUID,
 		"audience":          list.Audience,
+		"figures":           list.Figures,
 		"updated_at":        list.UpdatedAt,
 	}).Error
 }
