@@ -123,6 +123,11 @@ type lobby struct {
 	chat      []ChatMessage
 	nextMsgID int64
 
+	// history of the played items, oldest first (bounded by history_max), and the play of the
+	// current item, recorded when the item changes (history.go)
+	history []*historyEntry
+	play    play
+
 	// wait for everyone: the last sync point (item change, seek) and the one whose hold
 	// timed out (no hold until the next sync point)
 	syncSeq        uint64
@@ -149,7 +154,7 @@ type lobby struct {
 }
 
 // newLobby builds the live lobby from its stored rows.
-func newLobby(h *Hub, row data.Lobby, members []data.LobbyMember, items []data.LobbyQueueItem) *lobby {
+func newLobby(h *Hub, row data.Lobby, members []data.LobbyMember, items []data.LobbyQueueItem, history []data.LobbyHistoryEntry) *lobby {
 	now := h.now()
 	l := &lobby{
 		hub:              h,
@@ -188,6 +193,10 @@ func newLobby(h *Hub, row data.Lobby, members []data.LobbyMember, items []data.L
 			l.queue = append(l.queue, itemFromRow(r))
 		}
 	}
+	// history rows come newest first
+	for i := len(history) - 1; i >= 0; i-- {
+		l.history = append(l.history, historyFromRow(history[i]))
+	}
 	playbackRate := row.PlaybackRate
 	if playbackRate < minRate || playbackRate > maxRate {
 		playbackRate = 1
@@ -203,10 +212,18 @@ func newLobby(h *Hub, row data.Lobby, members []data.LobbyMember, items []data.L
 				l.queue = append([]*item{cur}, append(l.queue[:i:i], l.queue[i+1:]...)...)
 				end, _, _ := itemEnd(cur)
 				pos = clampPosition(row.PositionS, end)
+				// The play of the saved item goes on (recorded once, when the item changes)
+				l.play = play{it: cur, completed: row.PlayCompleted}
+				if row.PlayStartedAt != nil {
+					l.play.startedAt = *row.PlayStartedAt
+				}
 			}
 		}
 		l.state.itemID = l.queue[0].id
 		l.state.position = pos
+		if l.play.it == nil {
+			l.play = play{it: l.queue[0]}
+		}
 	}
 	return l
 }
@@ -346,6 +363,11 @@ func (l *lobby) hasAnonymous() bool {
 			}
 		}
 	}
+	for _, e := range l.history {
+		if e.it.addedAnon > 0 {
+			return true
+		}
+	}
 	return false
 }
 
@@ -420,6 +442,7 @@ func (l *lobby) welcome(c *Client) welcomeMsg {
 
 			ChatMaxReactionKinds:    cfg.ChatMaxReactionKinds,
 			ChatMaxReactionsPerUser: cfg.ChatMaxReactionsPerUser,
+			HistoryMax:              max(cfg.HistoryMax, 0),
 		},
 		Lobby:       l.info(),
 		Members:     l.memberList(full),
@@ -428,6 +451,7 @@ func (l *lobby) welcome(c *Client) welcomeMsg {
 		State:       l.state.snapshot(),
 		Chat:        chat,
 		ClosingAt:   closingAt,
+		History:     l.historyList(full),
 	}
 }
 
@@ -549,8 +573,15 @@ func (l *lobby) savePlayback() {
 		id := l.state.itemID
 		itemID = &id
 	}
-	pos := l.posNow(l.hub.now())
-	if err := l.hub.store.SavePlayback(l.row.ID, itemID, pos, l.state.rate); err != nil {
+	started, completed := l.savedPlay()
+	p := data.LobbyPlayback{
+		ItemID:        itemID,
+		PositionS:     l.posNow(l.hub.now()),
+		Rate:          l.state.rate,
+		PlayStartedAt: started,
+		PlayCompleted: completed,
+	}
+	if err := l.hub.store.SavePlayback(l.row.ID, p); err != nil {
 		l.hub.logger.Warn("Failed to save the lobby playback", zap.Uint("lobby_id", l.row.ID), zap.Error(err))
 	}
 }
@@ -607,6 +638,7 @@ func (l *lobby) startItem(now time.Time, playing bool) {
 		l.state.position = 0
 		l.state.ref = now
 		l.syncPoint()
+		l.trackPlay(now)
 		return
 	}
 	it := l.queue[0]
@@ -617,6 +649,7 @@ func (l *lobby) startItem(now time.Time, playing bool) {
 	l.state.ref = now
 	l.syncPoint()
 	l.applyHold(now)
+	l.trackPlay(now)
 }
 
 // itemTitle is the name of an item in system messages.
@@ -650,6 +683,7 @@ func (l *lobby) finish(now time.Time, kind finishKind) error {
 	}
 	mode := l.row.AutoNext
 	if kind == finishEnded {
+		l.playCompleted(now)
 		switch mode {
 		case data.AutoNextStop:
 			if !l.state.playing {

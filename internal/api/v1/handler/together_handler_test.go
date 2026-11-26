@@ -55,6 +55,7 @@ func togetherServer(t *testing.T) (*httptest.Server, *together.Hub) {
 		UnloadAfter: time.Minute, IdleTimeout: time.Hour, CleanupInterval: time.Minute, SendBuffer: 64,
 		PingInterval: time.Second, WriteTimeout: 5 * time.Second, MaxMessageBytes: 4096,
 		EmoteDir: t.TempDir(), EmoteMaxBytes: 64 << 10, EmoteMaxDimension: 128, EmoteMaxCount: 10,
+		HistoryMax: 10,
 	}
 	hub := together.NewHub(cfg, store, scenes, access, zap.NewNop())
 	emotes := together.NewEmoteService(togethertest.NewEmotes(), cfg, zap.NewNop())
@@ -198,6 +199,9 @@ func TestTogetherWebSocketRoundTrip(t *testing.T) {
 	if welcome["v"] != float64(together.ProtocolVersion) || len(welcome["queue"].([]any)) != 2 {
 		t.Fatalf("welcome %v", welcome)
 	}
+	if h, ok := welcome["history"].([]any); !ok || len(h) != 0 {
+		t.Fatalf("welcome history %v", welcome["history"])
+	}
 	// No file information in the queue items
 	item := welcome["queue"].([]any)[0].(map[string]any)
 	for _, k := range []string{"stored_path", "size", "original_filename", "video_codec"} {
@@ -243,6 +247,18 @@ func TestTogetherWebSocketRoundTrip(t *testing.T) {
 	list, _ := rx["reactions"].([]any)
 	if rx["id"] != chatMsg["id"] || len(list) != 1 || list[0].(map[string]any)["emote"] != "🔥" || list[0].(map[string]any)["count"] != float64(1) {
 		t.Fatalf("chat_reactions %v", rx)
+	}
+
+	// Skipping the item playing adds it to the history of every member (protocol v4)
+	tgWrite(t, host, map[string]any{"t": "skip"})
+	entry := readUntil(t, member, "history_add")["entry"].(map[string]any)
+	if entry["scene_id"] != float64(1) || entry["title"] != "One" || entry["outcome"] != "skipped" || entry["available"] != true {
+		t.Fatalf("history_add %v", entry)
+	}
+	for _, k := range []string{"stored_path", "size", "original_filename", "video_codec"} {
+		if _, ok := entry[k]; ok {
+			t.Fatalf("history entry leaks %q: %v", k, entry)
+		}
 	}
 
 	// Kick: bye, then close code 4001
@@ -293,22 +309,24 @@ func TestTogetherWebSocketRefusals(t *testing.T) {
 	if _, res, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http")+"/api/v1/together/lobbies/"+id+"/ws", nil); err == nil || res.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("no session: %v %v", res, err)
 	}
-	// Versions: 2 (no chat reactions) and 3 are accepted, others refused at the handshake
+	// Versions: 2 (no chat reactions), 3 (no history) and 4 are accepted, others refused at the handshake
 	base := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/together/lobbies/" + id + "/ws?v="
 	hdr := &websocket.DialOptions{HTTPHeader: http.Header{"X-Test-User": {"1"}}}
-	for _, v := range []string{"1", "4", "x"} {
+	for _, v := range []string{"1", "5", "x"} {
 		if _, res, err := websocket.Dial(ctx, base+v, hdr); err == nil || res == nil || res.StatusCode != http.StatusBadRequest {
 			t.Fatalf("version %s accepted: %v %v", v, res, err)
 		}
 	}
-	old, _, err := websocket.Dial(ctx, base+"2", hdr)
-	if err != nil {
-		t.Fatalf("version 2 refused: %v", err)
+	for _, v := range []string{"2", "3"} {
+		old, _, err := websocket.Dial(ctx, base+v, hdr)
+		if err != nil {
+			t.Fatalf("version %s refused: %v", v, err)
+		}
+		if w := readUntil(t, old, "welcome"); w["v"] != float64(together.ProtocolVersion) {
+			t.Fatalf("welcome to a v%s client: %v", v, w)
+		}
+		old.CloseNow()
 	}
-	if w := readUntil(t, old, "welcome"); w["v"] != float64(together.ProtocolVersion) {
-		t.Fatalf("welcome to a v2 client: %v", w)
-	}
-	old.CloseNow()
 
 	// Oversized messages close the connection
 	host, _, err := tgDial(t, srv, id, 1, "")

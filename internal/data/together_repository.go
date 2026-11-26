@@ -34,7 +34,8 @@ type LobbyRepository interface {
 	UpdateSettings(lobby *Lobby) error
 	SetHost(lobbyID uint, userID *uint) error
 	SetInviteCode(lobbyID uint, code string) error
-	SavePlayback(lobbyID uint, itemID *uint, position, rate float64) error
+	// SavePlayback saves the current item, position, rate and the play of the current item.
+	SavePlayback(lobbyID uint, p LobbyPlayback) error
 	Touch(lobbyIDs []uint, at time.Time) error
 	Delete(lobbyID uint) error
 	// DeleteIdle deletes the lobbies last active before the cutoff, except keep.
@@ -57,6 +58,13 @@ type LobbyRepository interface {
 	DeleteQueueItem(lobbyID, itemID uint) error
 	// SetQueueOrder makes itemIDs the queued items of the lobby, in that order.
 	SetQueueOrder(lobbyID uint, itemIDs []uint) error
+
+	// ListHistory gives the newest limit history entries of the lobby, newest first, with the
+	// scene title, duration and availability (not in the trash) and the adder name.
+	ListHistory(lobbyID uint, limit int) ([]LobbyHistoryEntry, error)
+	// AddHistory inserts a history entry (ID filled) and keeps only the newest keep entries
+	// of its lobby (keep <= 0: no trim).
+	AddHistory(entry *LobbyHistoryEntry, keep int) error
 }
 
 // EmoteRepository persists the server custom emotes.
@@ -191,11 +199,13 @@ func (r *LobbyRepositoryImpl) SetInviteCode(lobbyID uint, code string) error {
 	return err
 }
 
-func (r *LobbyRepositoryImpl) SavePlayback(lobbyID uint, itemID *uint, position, rate float64) error {
+func (r *LobbyRepositoryImpl) SavePlayback(lobbyID uint, p LobbyPlayback) error {
 	return r.DB.Model(&Lobby{}).Where("id = ?", lobbyID).Updates(map[string]any{
-		"current_item_id": itemID,
-		"position_s":      position,
-		"playback_rate":   rate,
+		"current_item_id": p.ItemID,
+		"position_s":      p.PositionS,
+		"playback_rate":   p.Rate,
+		"play_started_at": p.PlayStartedAt,
+		"play_completed":  p.PlayCompleted,
 	}).Error
 }
 
@@ -337,6 +347,43 @@ func (r *LobbyRepositoryImpl) SetQueueOrder(lobbyID uint, itemIDs []uint) error 
 			if res.Error != nil {
 				return fmt.Errorf("set queue order: %w", res.Error)
 			}
+		}
+		return nil
+	})
+}
+
+func (r *LobbyRepositoryImpl) ListHistory(lobbyID uint, limit int) ([]LobbyHistoryEntry, error) {
+	var out []LobbyHistoryEntry
+	q := r.DB.Table("lobby_history h").
+		Select(`h.*, COALESCE(s.title, '') AS scene_title, COALESCE(s.duration, 0) AS scene_duration,
+			(s.trashed_at IS NULL AND s.deleted_at IS NULL) AS scene_available,
+			COALESCE(u.username, '') AS added_by_name`).
+		Joins("JOIN scenes s ON s.id = h.scene_id").
+		Joins("LEFT JOIN users u ON u.id = h.added_by").
+		Where("h.lobby_id = ?", lobbyID).
+		Order("h.id DESC")
+	if limit > 0 {
+		q = q.Limit(limit)
+	}
+	if err := q.Scan(&out).Error; err != nil {
+		return nil, fmt.Errorf("list lobby history: %w", err)
+	}
+	return out, nil
+}
+
+func (r *LobbyRepositoryImpl) AddHistory(entry *LobbyHistoryEntry, keep int) error {
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Omit("SceneTitle", "SceneDuration", "SceneAvailable", "AddedByName").Create(entry).Error; err != nil {
+			return fmt.Errorf("add lobby history entry: %w", err)
+		}
+		if keep <= 0 {
+			return nil
+		}
+		err := tx.Exec(`DELETE FROM lobby_history WHERE lobby_id = ? AND id NOT IN
+			(SELECT id FROM lobby_history WHERE lobby_id = ? ORDER BY id DESC LIMIT ?)`,
+			entry.LobbyID, entry.LobbyID, keep).Error
+		if err != nil {
+			return fmt.Errorf("trim lobby history: %w", err)
 		}
 		return nil
 	})

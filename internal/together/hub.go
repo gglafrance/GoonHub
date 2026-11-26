@@ -267,7 +267,13 @@ func (h *Hub) get(id uuid.UUID) (*lobby, error) {
 	if err != nil {
 		return nil, apperrors.NewInternalError("failed to load the lobby queue", err)
 	}
-	l := newLobby(h, *row, members, items)
+	var history []data.LobbyHistoryEntry
+	if h.cfg.HistoryMax > 0 {
+		if history, err = h.store.ListHistory(row.ID, h.cfg.HistoryMax); err != nil {
+			return nil, apperrors.NewInternalError("failed to load the lobby history", err)
+		}
+	}
+	l := newLobby(h, *row, members, items, history)
 	h.lobbies[id] = l
 	return l, nil
 }
@@ -906,6 +912,7 @@ func (h *Hub) Connect(a Actor, id uuid.UUID, anonymous bool) (*Client, error) {
 		if l.isHost(a.ID) {
 			l.hostAwaySince = time.Time{}
 		}
+		l.refreshHistory()
 		l.sendTo(c, l.welcome(c))
 		if existing == 0 {
 			l.broadcastMembers()

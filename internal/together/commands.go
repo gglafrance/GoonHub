@@ -89,6 +89,7 @@ func (l *lobby) handleControl(in *inbound, now time.Time) error {
 		l.state.ref = now
 		l.state.playing = true
 		l.applyHold(now)
+		l.trackPlay(now)
 		l.changed()
 		return nil
 	case cmdPause:

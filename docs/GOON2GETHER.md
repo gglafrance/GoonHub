@@ -11,8 +11,9 @@ Teleparty, inside GoonHub.
   `web/app/components/together/`, `web/app/composables/useTogether*.ts`; the chat message
   reactions use `web/app/components/chat/Reactions.vue` (shared with the messages,
   `docs/MESSAGES.md`) and `web/app/utils/reactions.ts`.
-- Schema: migration 099 (`lobbies`, `lobby_members`, `lobby_queue_items`, `emotes`) and 101
-  (auto-next mode, anonymous members), see `docs/DATABASE.md`.
+- Schema: migration 099 (`lobbies`, `lobby_members`, `lobby_queue_items`, `emotes`), 101
+  (auto-next mode, anonymous members) and 107 (`lobby_history`, the play of the current item),
+  see `docs/DATABASE.md`.
 
 ## Concepts
 
@@ -34,6 +35,9 @@ Teleparty, inside GoonHub.
   for a marker item, starts over), `repeat_queue` (the item goes to the end of the queue and
   the next one starts: after the last item, the first one comes back). The server decides
   (see "End of an item").
+- **History**: the items the lobby played, newest first, bounded (`goon2gether.history_max`),
+  kept with the lobby and deleted with it; members add them to the queue again from the
+  queue panel's History tab. See "History" below.
 - **Members**: users who joined (a row in `lobby_members`). A banned user stays as a row with
   `banned_at` and cannot join again. "Online" members have at least one open WebSocket.
 - **Anonymous members**: a signed-in user can join a **public** lobby anonymously (lobby
@@ -148,15 +152,19 @@ changes.
   banned) and `AcceptInvite` (joins when the invite is still valid). The room's "Invite friends"
   button sends them.
 
-## WebSocket protocol (version 3)
+## WebSocket protocol (version 4)
 
-Endpoint: `GET /api/v1/together/lobbies/:id/ws?v=3[&anonymous=1]`, same origin, authenticated
+Endpoint: `GET /api/v1/together/lobbies/:id/ws?v=4[&anonymous=1]`, same origin, authenticated
 by the session cookie on the upgrade (the same auth middleware as every route). The `Origin`
 header must match the host or one of `server.allowed_origins`. Frames are JSON text messages
-with a type field `t`. The server accepts versions 2 and 3 (`MinProtocolVersion` to
+with a type field `t`. The server accepts versions 2 to 4 (`MinProtocolVersion` to
 `ProtocolVersion`: each version only adds fields and message types, which older clients
 ignore; `welcome.v` is always the server's version); other versions are refused (`400`
 `BAD_VERSION`).
+
+Version 4 (2026-11-27) adds the history of the played items: `welcome.history`,
+`history_max` in `welcome.config` and the `history_add` message. Requeueing uses the existing
+`queue_add`. See "History" below.
 
 Version 3 (2026-11-27) adds reactions on chat messages: `ChatMessage.reactions`, the
 `chat_react` and `chat_unreact` commands, the `chat_reactions` message, the error code
@@ -204,6 +212,9 @@ State         {item_id, playing, hold, position, server_time, rate, seq}
 ChatMessage   {id, user_id, username, anonymous?, anon_number?, text, at, system,
                reactions?: [ChatReaction]}
 ChatReaction  {emote, count, users: [{id, username, anonymous?, anon_number?}]}
+HistoryEntry  {id, scene_id, title, duration, start, end, label,
+               added_by: {id, username, anonymous?, anon_number?} | null,
+               started_at, ended_at, outcome, available}
 ```
 
 - An anonymous member (see "Anonymous members"): `user_id` / `id` null, `username`
@@ -219,6 +230,10 @@ ChatReaction  {emote, count, users: [{id, username, anonymous?, anon_number?}]}
   state, `hold` is true while the lobby waits for buffering members (`wait_for_all`): the
   position does not move during a hold. `rate` is the playback rate. `seq` increases on every
   change.
+- `HistoryEntry`: the queue item fields as they were (`added_by` is who added the item,
+  redacted like the queue), `started_at` / `ended_at` Unix milliseconds of the play, `outcome`
+  `completed` (it reached its end at least once) or `skipped`, `available` false when the scene
+  went to the trash or was deleted since (it cannot be queued).
 - `ChatMessage.at` is Unix milliseconds; `system` messages (joined, left, now playing, host
   changed...) have a null `user_id`. `reactions` is omitted when the message has none; the keys
   come in the order of their first reaction, the users in reaction order (an anonymous reactor
@@ -228,7 +243,7 @@ ChatReaction  {emote, count, users: [{id, username, anonymous?, anon_number?}]}
 
 | `t` | Fields | When |
 |---|---|---|
-| `welcome` | `v`, `server_time`, `you: {user_id, username, moderate, anonymous, anon_number}`, `config: {drift_threshold, drift_nudge, hold_timeout_ms, chat_max_length, end_grace, chat_max_reaction_kinds, chat_max_reactions_per_user}`, `lobby`, `members`, `queue`, `suggestions`, `state`, `chat` (with their reactions), `closing_at` (ms or null) | first message of each connection (full snapshot) |
+| `welcome` | `v`, `server_time`, `you: {user_id, username, moderate, anonymous, anon_number}`, `config: {drift_threshold, drift_nudge, hold_timeout_ms, chat_max_length, end_grace, chat_max_reaction_kinds, chat_max_reactions_per_user, history_max}`, `lobby`, `members`, `queue`, `suggestions`, `state`, `chat` (with their reactions), `closing_at` (ms or null), `history` (newest first, v4) | first message of each connection (full snapshot) |
 | `state` | `state` | playback changed (play, pause, seek, rate, item change, hold) |
 | `queue` | `queue`, `suggestions` | queue or suggestions changed. `queue[0]` is the item playing when `state.item_id` is set |
 | `members` | `members` | join, leave, connection change, buffering, control, host |
@@ -236,6 +251,7 @@ ChatReaction  {emote, count, users: [{id, username, anonymous?, anon_number?}]}
 | `chat` | `message` | new chat or system message |
 | `chat_deleted` | `id` | a message was deleted (its reactions with it) |
 | `chat_reactions` | `id`, `reactions: [ChatReaction]` | the reactions of a chat message changed: the whole list (empty: none left) |
+| `history_add` | `entry: HistoryEntry` | an item finished playing (v4): the newest entry, to put first (clients keep at most `history_max`) |
 | `reaction` | `user_id`, `username`, `anonymous?`, `anon_number?`, `emote` | floating reaction over the video (not a chat message reaction) |
 | `closing` | `at` (Unix ms, or null), `reason` (`inactive`) | the lobby closes at `at` for inactivity unless something happens; `at` null: called off |
 | `emotes` | | the server emotes changed: reload `GET /together/emotes` |
@@ -312,6 +328,49 @@ They are distinct from the floating reactions over the video (`reaction`, unchan
   "Anonymous #N (alice)"). A lobby with anonymous reactions sends two variants of the payloads
   (see "Anonymous members"). The reactor keeps the number of the membership they reacted
   under.
+
+## History
+
+The previously played items of a lobby, to requeue them (protocol v4, migration 107).
+
+- **One entry per play.** A play starts when an item becomes the current one and ends when
+  another item (or none) takes its place: next item at the end, `skip`, `play_item` of another
+  item, `queue_add` with `play_now`, removing the item playing, the queue finishing. The entry
+  is recorded then, once: a `repeat_one` loop, a `stop` at the end then a play again, or
+  `play_item` on the item playing are the same play, so a looping item counts once until the
+  item changes. With `repeat_queue`, every time an item comes back and plays is a new entry.
+- **Outcome.** `completed` when the item reached its end at least once during the play (the
+  server's end of an item, whatever the auto-next mode), else `skipped`.
+- **Not recorded:** an item that never played (current but paused, then skipped, replaced or
+  removed), and a skipped item that played less than `goon2gether.history_min_play` (3 s: a
+  controller skipping through the queue). A completed play is always recorded.
+- **What is kept:** the scene, range and label of the queue item, who added it (with their
+  anonymous number: an anonymous adder stays "Anonymous #N" for everyone but the moderators,
+  also after a reload), when the play started and ended, the outcome. The scene title and
+  duration are read from the scene (no file information, like the queue).
+- **Bounded:** the newest `goon2gether.history_max` entries per lobby (100), in memory and in
+  `lobby_history` (each insert trims the older rows). 0 turns the history off (no entry, no
+  tab).
+- **Persistence:** `lobby_history` is loaded with the lobby and deleted with it (close,
+  auto-close, idle cleanup: CASCADE). The play of the current item (when it first played,
+  whether it completed) is saved with the playback (`lobbies.play_started_at`,
+  `play_completed`), so a play that goes on across an unload or a restart is recorded once,
+  with its real start.
+- **Availability:** each `welcome` checks the history scenes again (one query): a scene in the
+  trash or deleted shows as unavailable, without actions; requeueing it would be refused
+  (`not_found`, like any `queue_add`).
+- **Protocol:** `welcome.history` (newest first) for late joiners and reconnects, then one
+  `history_add` per new entry (the client puts it first and keeps `history_max`). Payloads
+  with an anonymous adder are marshaled twice (moderators, others), like the queue.
+- **Requeue** reuses `queue_add` with the entry's `scene_id`, `start`, `end` and `label`: "Add
+  to the queue" (end of the queue; a suggestion without queue rights, `scenes:view` needed),
+  "Play now" (control, `play_now`), "Requeue all" (asks once more): the available entries in
+  the order they played, each item once (`requeueAllItems` in `utils/togetherHistory.ts`), at
+  most 100 items (one `queue_add`). The item is added by the member who requeues it.
+- **UI:** the queue panel (`components/together/queue/Panel.vue`) has two tabs, Queue and
+  History (with counts), so the left column keeps its height. `queue/History.vue` lists the
+  entries newest first with `queue/HistoryItem.vue` (thumbnail, title, label, range, "by",
+  played or skipped, relative time, the actions on hover).
 
 ## Sync algorithm
 
@@ -428,7 +487,8 @@ still offers to resume where the user was, not where the lobby was.
 
 ## Persistence and lifetime
 
-- Lobbies, settings, members (control, ban), the queue and suggestions are in PostgreSQL. The
+- Lobbies, settings, members (control, ban), the queue, suggestions and the history are in
+  PostgreSQL. The
   current item, the position and the rate are saved on every item change, pause, seek and rate
   change, and when a lobby is unloaded: after a restart a lobby comes back paused where it was.
 - The live state (connections, buffering, holds, chat) is in memory, in one process. The chat
@@ -497,6 +557,8 @@ still offers to resume where the user was, not where the lobby was.
 | `chat_reaction_rate_limit` | `10` | Chat message reactions added or removed per member per `rate_window` |
 | `chat_max_reaction_kinds` | `20` | Distinct reactions per chat message |
 | `chat_max_reactions_per_user` | `10` | Reactions of one member on one chat message |
+| `history_max` | `100` | History entries kept per lobby (0: no history) |
+| `history_min_play` | `3s` | A skipped item that played less than this is not recorded in the history |
 
 ## Limits
 

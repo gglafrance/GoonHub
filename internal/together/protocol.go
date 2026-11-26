@@ -8,10 +8,11 @@ import "encoding/json"
 // ProtocolVersion is the version of the WebSocket protocol (docs/GOON2GETHER.md). Version 2:
 // anonymous members (user_id may be null), auto-next mode, inactivity close. Version 3:
 // reactions on chat messages (chat_react, chat_unreact, chat_reactions, ChatMessage.reactions).
-const ProtocolVersion = 3
+// Version 4: history of the played items (welcome.history, history_add, config.history_max).
+const ProtocolVersion = 4
 
-// MinProtocolVersion is the oldest version the server still accepts: version 3 only adds
-// fields and message types, which version 2 clients ignore.
+// MinProtocolVersion is the oldest version the server still accepts: versions 3 and 4 only
+// add fields and message types, which older clients ignore.
 const MinProtocolVersion = 2
 
 // WebSocket close codes sent by the server.
@@ -57,6 +58,8 @@ const (
 	msgClosing     = "closing"
 	// msgChatReactions: the reactions of a chat message changed (the whole list)
 	msgChatReactions = "chat_reactions"
+	// msgHistoryAdd: an item finished playing, a new history entry (version 4)
+	msgHistoryAdd = "history_add"
 )
 
 // Client to server message types.
@@ -158,6 +161,24 @@ type QueueItem struct {
 	End      *float64   `json:"end"`
 	Label    *string    `json:"label"`
 	AddedBy  *MemberRef `json:"added_by"`
+}
+
+// HistoryEntry is an item the lobby played (version 4): the queue item fields (scene title
+// and duration only, adder redacted like the queue), when its play started and ended (Unix
+// ms), how it ended, and whether the scene can still be queued (not in the trash).
+type HistoryEntry struct {
+	ID        uint       `json:"id"`
+	SceneID   uint       `json:"scene_id"`
+	Title     string     `json:"title"`
+	Duration  int        `json:"duration"`
+	Start     *float64   `json:"start"`
+	End       *float64   `json:"end"`
+	Label     *string    `json:"label"`
+	AddedBy   *MemberRef `json:"added_by"`
+	StartedAt int64      `json:"started_at"`
+	EndedAt   int64      `json:"ended_at"`
+	Outcome   string     `json:"outcome"`
+	Available bool       `json:"available"`
 }
 
 // State is the playback state of a lobby: Position (seconds) at ServerTime (Unix ms).
@@ -264,6 +285,8 @@ type ClientConfig struct {
 	// member on one message
 	ChatMaxReactionKinds    int `json:"chat_max_reaction_kinds"`
 	ChatMaxReactionsPerUser int `json:"chat_max_reactions_per_user"`
+	// History entries kept per lobby (version 4, 0: no history)
+	HistoryMax int `json:"history_max"`
 }
 
 // You is the connected user in the welcome message.
@@ -288,6 +311,8 @@ type welcomeMsg struct {
 	State       State         `json:"state"`
 	Chat        []ChatMessage `json:"chat"`
 	ClosingAt   *int64        `json:"closing_at"`
+	// History is the played items, newest first (version 4)
+	History []HistoryEntry `json:"history"`
 }
 
 type stateMsg struct {
@@ -314,6 +339,12 @@ type lobbyMsg struct {
 type chatMsg struct {
 	T       string      `json:"t"`
 	Message ChatMessage `json:"message"`
+}
+
+// historyAddMsg carries a new history entry (the newest).
+type historyAddMsg struct {
+	T     string       `json:"t"`
+	Entry HistoryEntry `json:"entry"`
 }
 
 type chatDeletedMsg struct {
