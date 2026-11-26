@@ -2,6 +2,7 @@
 import type { SceneListItem } from '~/types/scene';
 import type { WidgetMarker } from '~/types/homepageMarkerWidgets';
 import type { PrivacySettings, SocialProfile, SocialUser } from '~/types/social';
+import type { CardSidecarResponse } from '~/utils/cardSidecars';
 
 export type ProfileBlockType =
     | 'favorite_scenes'
@@ -11,18 +12,28 @@ export type ProfileBlockType =
     | 'recent_markers'
     | 'liked_scenes'
     | 'stats'
+    | 'ratings'
+    | 'jizz'
     | 'activity_calendar'
     | 'playlists'
     | 'friends';
 
 export type ProfileBlockConfig = Record<string, number | string>;
 
-/** A scene of a block with its figure (watched or liked at, views). */
+/**
+ * A scene of a block or list with its figure: watched, liked, rated or last jizzed at, views,
+ * the owner's rating (ratings list) or O count (jizz block and list).
+ */
 export interface ProfileScene {
     scene: SceneListItem;
     at?: string;
     views?: number;
+    rating?: number;
+    jizz_count?: number;
 }
+
+/** The figure shown under the scene cards of a block or list. */
+export type ProfileSceneFigureKind = 'at' | 'views' | 'rating' | 'jizz' | 'none';
 
 /** A block as the viewer gets it. A locked block has no data. */
 export interface ProfileBlock<TWidget = unknown> {
@@ -46,11 +57,29 @@ export interface ProfileBanner {
     scene_id?: number;
 }
 
+/** The full lists of a profile the viewer may open (the tabs). */
+export interface ProfileListsVisibility {
+    liked: boolean;
+    ratings: boolean;
+    jizz: boolean;
+}
+
 /** GET /api/v1/profiles/users/:username */
 export interface Profile extends SocialProfile {
     bio: string;
     banner: ProfileBanner | null;
     blocks: ProfileBlock[];
+    lists: ProfileListsVisibility;
+}
+
+/** A full list of a profile (route segment and API path). */
+export type ProfileListKind = 'likes' | 'ratings' | 'jizz';
+
+/** GET /api/v1/profiles/users/:username/{likes,ratings,jizz} */
+export interface ProfileListResponse extends CardSidecarResponse {
+    data: ProfileScene[];
+    pagination: { page: number; limit: number; total_items: number; total_pages: number };
+    sort: string;
 }
 
 export interface ProfileBlockOption {
@@ -159,4 +188,23 @@ export interface ProfileFriendsPayload {
         avatar_version: number;
         since: string;
     }[];
+}
+
+/** A bar of the ratings chart. */
+export interface ProfileRatingBucket {
+    rating: number;
+    count: number;
+}
+
+/** Ratings block payload and GET /profiles/users/:username/ratings/histogram */
+export interface ProfileRatingsPayload {
+    buckets: ProfileRatingBucket[];
+    total: number;
+    average: number | null;
+}
+
+/** Jizz block payload: the O total and the number of videos (still in the library). */
+export interface ProfileJizzPayload {
+    total: number;
+    scenes: number;
 }

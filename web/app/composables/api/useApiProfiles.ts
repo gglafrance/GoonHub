@@ -1,6 +1,23 @@
 import type { SceneListItem } from '~/types/scene';
 import type { WidgetMarker } from '~/types/homepageMarkerWidgets';
-import type { ImageCrop, Profile, ProfileEdit, ProfileLayoutBlock } from '~/types/profile';
+import type {
+    ImageCrop,
+    Profile,
+    ProfileEdit,
+    ProfileLayoutBlock,
+    ProfileListKind,
+    ProfileListResponse,
+    ProfileRatingsPayload,
+} from '~/types/profile';
+
+/** Parameters of a page of a profile list (rating: the ratings list only). */
+export interface ProfileListParams {
+    page: number;
+    limit: number;
+    sort?: string;
+    rating?: number | null;
+    cardFields?: string;
+}
 
 /**
  * Profile pages API (docs/PROFILES.md): a profile as the viewer sees it, and the edits of the
@@ -44,6 +61,18 @@ export const useApiProfiles = () => {
     const getProfile = (username: string) =>
         request<Profile>(`/users/${encodeURIComponent(username)}`);
 
+    const getRatingHistogram = (username: string) =>
+        request<ProfileRatingsPayload>(`/users/${encodeURIComponent(username)}/ratings/histogram`);
+
+    // The liked, rated or jizz videos of a user (docs/PROFILES.md, "Lists")
+    const listProfileScenes = (username: string, kind: ProfileListKind, p: ProfileListParams) => {
+        const qs = new URLSearchParams({ page: String(p.page), limit: String(p.limit) });
+        if (p.sort) qs.set('sort', p.sort);
+        if (p.rating != null) qs.set('rating', String(p.rating));
+        if (p.cardFields) qs.set('card_fields', p.cardFields);
+        return request<ProfileListResponse>(`/users/${encodeURIComponent(username)}/${kind}?${qs}`);
+    };
+
     const getMyProfile = () => request<ProfileEdit>('/me');
 
     const updateMyProfile = (fields: { display_name?: string; bio?: string }) =>
@@ -81,6 +110,8 @@ export const useApiProfiles = () => {
 
     return {
         getProfile,
+        getRatingHistogram,
+        listProfileScenes,
         getMyProfile,
         updateMyProfile,
         setLayout,
