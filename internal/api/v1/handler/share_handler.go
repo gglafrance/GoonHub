@@ -79,7 +79,7 @@ func (h *ShareHandler) CreateShareLink(c *gin.Context) {
 		return
 	}
 
-	link, err := h.ShareService.CreateShareLink(userID, uint(sceneID), req.ShareType, req.ExpiresIn)
+	link, err := h.ShareService.CreateShareLinkWithOptions(userID, uint(sceneID), req.ShareType, req.ExpiresIn, core.ShareLinkOptions{Start: req.Start, MarkerID: req.MarkerID})
 	if err != nil {
 		response.Error(c, err)
 		return

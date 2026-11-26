@@ -15,7 +15,7 @@ This document provides a comprehensive reference of the GoonHub database schema.
 3. [Content Organization](#content-organization)
 4. [Sharing](#sharing)
 5. [Playlists](#playlists)
-6. [Social Graph](#social-graph)
+6. [Social Graph](#social-graph) (and [Messages](#messages))
 7. [User Profiles](#user-profiles)
 8. [User Interactions](#user-interactions)
 9. [Job System](#job-system)
@@ -489,6 +489,10 @@ Shareable links for scenes with configurable visibility and expiration.
 | `share_type` | VARCHAR(20) | NO | 'public' | Link visibility type |
 | `expires_at` | TIMESTAMPTZ | YES | NULL | Expiration timestamp (NULL = never) |
 | `view_count` | BIGINT | NO | 0 | Number of times link was accessed |
+| `start_s` | INTEGER | YES | NULL | Where the shared player starts, seconds (migration 102, `docs/MESSAGES.md` "Share links") |
+| `end_s` | INTEGER | YES | NULL | End of a shared marker range (the share page loops it) |
+| `label` | VARCHAR(100) | YES | NULL | Label of a shared marker (copied) |
+| `marker_id` | BIGINT | YES | NULL | FK to `user_scene_markers.id` (SET NULL): the marker the range came from (never sent) |
 | `created_at` | TIMESTAMPTZ | NO | NOW() | Link creation timestamp |
 
 **Valid `share_type` values:** `public`, `auth_required`
@@ -500,6 +504,7 @@ Shareable links for scenes with configurable visibility and expiration.
 
 **Constraints:**
 - CHECK `share_type IN ('public', 'auth_required')`
+- CHECK `chk_share_links_start` (`start_s >= 0`), `chk_share_links_range` (`end_s > start_s`, needs a start)
 - FK to `scenes(id)` ON DELETE CASCADE
 - FK to `users(id)` ON DELETE CASCADE
 
@@ -712,10 +717,75 @@ Social preferences of a user. No row = the defaults.
 |--------|------|----------|---------|-------------|
 | `user_id` | BIGINT | NO | - | Primary key, FK to `users.id` (CASCADE) |
 | `friend_request_policy` | VARCHAR(16) | NO | 'everyone' | Who may send friend requests: `everyone`, `mutuals`, `nobody` |
+| `message_policy` | VARCHAR(16) | NO | 'friends' | Who may send messages (migration 102, `docs/MESSAGES.md`): `everyone`, `mutuals` (friends and mutuals), `friends`, `nobody` |
+| `message_toasts` | BOOLEAN | NO | true | Show a toast for incoming messages (migration 102) |
 | `updated_at` | TIMESTAMPTZ | NO | NOW() | Last change |
 
 **Constraints:**
 - CHECK `chk_user_social_settings_friend_request_policy`: `friend_request_policy IN ('everyone', 'mutuals', 'nobody')`
+- CHECK `chk_user_social_settings_message_policy`: `message_policy IN ('everyone', 'mutuals', 'friends', 'nobody')`
+
+---
+
+## Messages
+
+Conversations between users and shares (migration 102, `docs/MESSAGES.md`). Only direct
+(one-to-one) conversations exist; the participants table lets group conversations come later.
+Messages are only read by the participants (no admin access).
+
+### `conversations`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `kind` | VARCHAR(10) | NO | 'direct' | `direct` only for now |
+| `direct_low_id` | BIGINT | YES | NULL | FK to `users.id` (SET NULL): smaller id of the pair of a direct conversation |
+| `direct_high_id` | BIGINT | YES | NULL | FK to `users.id` (SET NULL): larger id |
+| `last_message_at` | TIMESTAMPTZ | YES | NULL | Date of the last message (orders the lists) |
+| `created_at`, `updated_at` | TIMESTAMPTZ | NO | NOW() | |
+
+**Indexes:** `idx_conversations_direct_pair` UNIQUE on `(direct_low_id, direct_high_id)` WHERE `kind = 'direct'` (one conversation per pair; NULLs after a user deletion never conflict).
+**Constraints:** CHECK `chk_conversations_kind` (`direct`), `chk_conversations_direct_pair` (`direct_low_id < direct_high_id`).
+
+A conversation is created with its two participants on the first message. Once nobody takes
+part in it anymore (both users deleted), the periodic cleanup deletes it.
+
+### `conversation_participants`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `conversation_id` | BIGINT | NO | - | FK to `conversations.id` (CASCADE) |
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `last_read_message_id` | BIGINT | YES | NULL | FK to `messages.id` (SET NULL): last message read (unread counts, "seen"); only moves forward |
+| `muted` | BOOLEAN | NO | false | No header badge count nor toast |
+| `joined_at` | TIMESTAMPTZ | NO | NOW() | |
+
+**Indexes:** PRIMARY KEY `(conversation_id, user_id)`, `idx_conversation_participants_user_id`.
+
+### `messages`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key (orders the history) |
+| `conversation_id` | BIGINT | NO | - | FK to `conversations.id` (CASCADE) |
+| `sender_id` | BIGINT | YES | NULL | FK to `users.id` (SET NULL): NULL = deleted user, the other side keeps the history |
+| `body` | TEXT | NO | '' | Text (at most `messages.max_length` characters, enforced by the app) |
+| `attachment_kind` | VARCHAR(16) | YES | NULL | What is shared: `scene`, `marker`, `playlist`, `lobby` |
+| `attachment_scene_id` | BIGINT | YES | NULL | FK to `scenes.id` (SET NULL) |
+| `attachment_marker_id` | BIGINT | YES | NULL | FK to `user_scene_markers.id` (SET NULL) |
+| `attachment_playlist_id` | BIGINT | YES | NULL | FK to `playlists.id` (SET NULL) |
+| `attachment_lobby_uuid` | UUID | YES | NULL | Lobby invited to (no FK: lobbies are deleted when they close) |
+| `attachment_time_s` | DOUBLE PRECISION | YES | NULL | A scene shared at a time (seconds) |
+| `edited_at` | TIMESTAMPTZ | YES | NULL | Last edit |
+| `deleted_at` | TIMESTAMPTZ | YES | NULL | Soft delete: body and attachment cleared, shown as "message deleted" |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | |
+
+**Indexes:** `idx_messages_conversation_id` on `(conversation_id, id DESC)` (history pages, unread counts), `idx_messages_sender_id`, `idx_messages_created_at` (retention).
+**Constraints:** CHECK `chk_messages_attachment_kind`, `chk_messages_attachment_time` (`>= 0`), `chk_messages_body_length` (`<= 10000`).
+
+The attachment stores references, resolved for each reader at read time: an item deleted later
+leaves the kind with a NULL id ("no longer exists"). Retention: none by default
+(`messages.retention_days`).
 
 ---
 
@@ -2023,7 +2093,8 @@ Internal references still use BIGSERIAL `id` for performance.
 
 ### Foreign Key Cascade Rules
 
-- User-owned data: `ON DELETE CASCADE` (settings, interactions, markers, share_links, playlists, follows, friendships, friend requests, privacy settings, presence)
+- User-owned data: `ON DELETE CASCADE` (settings, interactions, markers, share_links, playlists, follows, friendships, friend requests, privacy settings, presence, conversation participants)
+- Messages: `ON DELETE SET NULL` on the sender and the shared items (the other side keeps the history and the card says "not available")
 - Playlist items: `ON DELETE CASCADE` (`playlist_scenes`, `playlist_markers`: a deleted scene or marker leaves the playlists)
 - Content associations: `ON DELETE CASCADE` (scene_tags, scene_actors, share_links)
 - Optional references: `ON DELETE SET NULL` (scenes.studio_id)

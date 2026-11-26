@@ -357,6 +357,18 @@ definePageMeta({
                     <div v-if="scene" class="text-dim hidden truncate text-xs sm:block">
                         {{ scene.title }}
                     </div>
+                    <!-- The Share dialog: send to friends or a link, optionally at the current time -->
+                    <ShareButton
+                        v-if="scene"
+                        variant="bar"
+                        :subject="{
+                            kind: 'scene',
+                            sceneId: scene.id,
+                            title: scene.title,
+                            duration: scene.duration,
+                        }"
+                        :get-time="() => playerRef?.getCurrentTime() ?? 0"
+                    />
                     <button
                         v-if="scene && perms.has('goon2gether:use')"
                         class="border-border bg-panel text-dim hover:border-lava/30 hover:text-lava

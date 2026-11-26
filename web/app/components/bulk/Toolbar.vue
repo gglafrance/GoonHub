@@ -57,6 +57,10 @@ const canProcess = computed(() => perms.has('jobs:manage'));
 const canMatch = computed(() => perms.has('porndb:use') && perms.has('scenes:edit'));
 const canDelete = computed(() => perms.has('scenes:delete'));
 const canTogether = computed(() => perms.has('goon2gether:use'));
+// Send to friends (messages:use): one message per video, at most messages.max_share_items
+const canSend = computed(() => perms.has('messages:use'));
+const showSendModal = ref(false);
+const MAX_SEND = 10;
 const togetherItems = computed(() => props.sceneIds.map((id) => ({ scene_id: id })));
 const selectionSize = computed(() => {
     void sizeVersion.value;
@@ -191,6 +195,24 @@ const handlePornDBMatchComplete = () => {
                     </button>
 
                     <button
+                        v-if="canSend"
+                        class="border-border bg-panel hover:border-lava/30 hover:text-lava flex
+                            items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium
+                            text-white transition-all disabled:cursor-not-allowed
+                            disabled:opacity-40"
+                        :disabled="sceneIds.length > MAX_SEND"
+                        :title="
+                            sceneIds.length > MAX_SEND
+                                ? `Send at most ${MAX_SEND} videos at once`
+                                : 'Send to friends'
+                        "
+                        @click="showSendModal = true"
+                    >
+                        <Icon name="heroicons:paper-airplane" size="14" />
+                        Send
+                    </button>
+
+                    <button
                         v-if="canTogether"
                         class="border-border bg-panel hover:border-lava/30 hover:text-lava flex
                             items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium
@@ -297,6 +319,13 @@ const handlePornDBMatchComplete = () => {
             :prefill-scene-ids="sceneIds"
             @close="showPlaylistModal = false"
             @created="showPlaylistModal = false"
+        />
+
+        <ShareModal
+            v-if="showSendModal"
+            :visible="showSendModal"
+            :subject="{ kind: 'scenes', sceneIds }"
+            @close="showSendModal = false"
         />
 
         <TogetherAddModal

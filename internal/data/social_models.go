@@ -49,10 +49,21 @@ const (
 	FriendRequestPolicyNobody   = "nobody"
 )
 
+// Message policies: who may send a user messages (docs/MESSAGES.md). Ordered from the
+// narrowest: nobody, friends (the default), mutuals (friends and mutuals), everyone.
+const (
+	MessagePolicyEveryone = "everyone"
+	MessagePolicyMutuals  = "mutuals"
+	MessagePolicyFriends  = "friends"
+	MessagePolicyNobody   = "nobody"
+)
+
 // UserSocialSettings holds the social preferences of a user. No row means the defaults.
 type UserSocialSettings struct {
 	UserID              uint      `gorm:"primaryKey;autoIncrement:false"`
 	FriendRequestPolicy string    `gorm:"not null;size:16;default:'everyone'"`
+	MessagePolicy       string    `gorm:"not null;size:16;default:'friends'"`
+	MessageToasts       bool      `gorm:"not null;default:true"`
 	UpdatedAt           time.Time `gorm:"not null;default:now()"`
 }
 
@@ -87,6 +98,7 @@ type UserRelation struct {
 	RequestSent     bool   `gorm:"column:request_sent"`     // the viewer sent the user a pending request
 	RequestReceived bool   `gorm:"column:request_received"` // the user sent the viewer a pending request
 	RequestPolicy   string `gorm:"column:request_policy"`   // the user's friend request policy
+	MessagePolicy   string `gorm:"column:message_policy"`   // the user's message policy (docs/MESSAGES.md)
 }
 
 // SocialCounts are the relation counts of a user.

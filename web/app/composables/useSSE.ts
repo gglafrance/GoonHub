@@ -64,6 +64,7 @@ const LISTENER_EVENT_TYPES: readonly string[] = [
     ...SOCIAL_SSE_EVENTS,
     ...PRESENCE_SSE_EVENTS,
     ...TOGETHER_SSE_EVENTS,
+    ...MESSAGE_SSE_EVENTS,
 ];
 
 export interface SSEListenerEvent {

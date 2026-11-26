@@ -114,6 +114,8 @@ const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
 
                         <HeaderFriendsPresence />
 
+                        <HeaderMessages />
+
                         <HeaderFriendsLink />
 
                         <NuxtLink

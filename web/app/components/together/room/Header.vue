@@ -132,6 +132,18 @@ const close = () => run(() => closeLobby(socket.lobby.value!.id));
                     />
                 </div>
 
+                <!-- Invite friends: a lobby invite message (docs/MESSAGES.md) -->
+                <ShareButton
+                    v-if="socket.lobby.value && !isAnonymous"
+                    variant="bar"
+                    label="Invite friends"
+                    class="!h-7"
+                    :subject="{
+                        kind: 'lobby',
+                        lobbyId: socket.lobby.value.id,
+                        name: socket.lobby.value.name,
+                    }"
+                />
                 <button
                     v-if="isHost"
                     class="border-border bg-panel text-dim hover:border-lava/30 hover:text-lava flex

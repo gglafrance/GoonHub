@@ -2,19 +2,28 @@
 import type { Emote } from '~/types/together';
 
 // Chat input: `:` autocomplete of the server emotes (arrows, Tab/Enter), emoji/emote picker.
+// Shared by the Goon2gether chat and the messages (placeholder, typing, initial text, Escape).
 const props = defineProps<{
     maxLength: number;
     disabled?: boolean;
+    placeholder?: string;
+    // prefilled text (editing a message)
+    initial?: string;
+    autofocus?: boolean;
 }>();
 
 const emit = defineEmits<{
     send: [text: string];
+    // the user typed (for a typing indicator)
+    typing: [];
+    // Escape with nothing to close (cancels an edit)
+    cancel: [];
 }>();
 
 const { emotes, load } = useTogetherEmotes();
 onMounted(() => load());
 
-const text = ref('');
+const text = ref(props.initial ?? '');
 const inputEl = ref<HTMLInputElement | null>(null);
 const root = ref<HTMLElement | null>(null);
 const showPicker = ref(false);
@@ -34,6 +43,7 @@ watch(suggestions, () => {
 const onInput = () => {
     autocompleteOff.value = false;
     syncCaret();
+    if (text.value.trim()) emit('typing');
 };
 
 const syncCaret = () => {
@@ -94,7 +104,9 @@ const onKeydown = (e: KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         submit();
+        return;
     }
+    if (e.key === 'Escape' && !showPicker.value) emit('cancel');
 };
 
 const onDocumentClick = (e: MouseEvent) => {
@@ -102,7 +114,10 @@ const onDocumentClick = (e: MouseEvent) => {
         showPicker.value = false;
     }
 };
-onMounted(() => document.addEventListener('click', onDocumentClick));
+onMounted(() => {
+    document.addEventListener('click', onDocumentClick);
+    if (props.autofocus) inputEl.value?.focus();
+});
 onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
 </script>
 
@@ -140,7 +155,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
                 type="text"
                 :maxlength="maxLength"
                 :disabled="disabled"
-                placeholder="Send a message (: for emotes)"
+                :placeholder="placeholder || 'Send a message (: for emotes)'"
                 class="min-w-0 flex-1 bg-transparent py-2 text-xs text-white outline-none
                     placeholder:text-white/30"
                 @keydown="onKeydown"

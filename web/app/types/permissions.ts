@@ -38,6 +38,7 @@ export type PermissionName =
     | 'import:use'
     | 'stats:view_streams'
     | 'social:use'
+    | 'messages:use'
     | 'goon2gether:use'
     | 'goon2gether:host'
     | 'goon2gether:moderate'

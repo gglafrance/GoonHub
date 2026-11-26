@@ -33,6 +33,21 @@ type Config struct {
 	Social        SocialConfig        `mapstructure:"social"`
 	Presence      PresenceConfig      `mapstructure:"presence"`
 	Profiles      ProfilesConfig      `mapstructure:"profiles"`
+	Messages      MessagesConfig      `mapstructure:"messages"`
+}
+
+// MessagesConfig configures the messages between users and the shares (docs/MESSAGES.md).
+type MessagesConfig struct {
+	MaxLength          int           `mapstructure:"max_length"`           // longest message body (characters)
+	RatePerMinute      int           `mapstructure:"rate_per_minute"`      // messages (and edits) a user can send per minute, a share counting once per recipient (0 = unlimited)
+	RateBurst          int           `mapstructure:"rate_burst"`           // messages a user can send at once before the rate applies
+	PageSize           int           `mapstructure:"page_size"`            // messages per history page (default)
+	MaxPageSize        int           `mapstructure:"max_page_size"`        // largest history page
+	TypingInterval     time.Duration `mapstructure:"typing_interval"`      // a user's typing indicator is relayed at most this often per conversation
+	MaxShareRecipients int           `mapstructure:"max_share_recipients"` // users one share can be sent to
+	MaxShareItems      int           `mapstructure:"max_share_items"`      // items (scenes, markers...) one share can carry
+	RetentionDays      int           `mapstructure:"retention_days"`       // messages older than this are deleted (0 = kept forever)
+	PurgeInterval      time.Duration `mapstructure:"purge_interval"`       // retention and orphan conversation cleanup period
 }
 
 // PresenceConfig sets the timings of the presence (online, idle, now watching, docs/PRESENCE.md).
@@ -434,6 +449,16 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("profiles.max_showcase_items", 4)
 	v.SetDefault("profiles.bio_max_length", 1000)
 	v.SetDefault("profiles.display_name_max_length", 64)
+	v.SetDefault("messages.max_length", 2000)
+	v.SetDefault("messages.rate_per_minute", 30)
+	v.SetDefault("messages.rate_burst", 10)
+	v.SetDefault("messages.page_size", 50)
+	v.SetDefault("messages.max_page_size", 100)
+	v.SetDefault("messages.typing_interval", 3*time.Second)
+	v.SetDefault("messages.max_share_recipients", 20)
+	v.SetDefault("messages.max_share_items", 10)
+	v.SetDefault("messages.retention_days", 0)
+	v.SetDefault("messages.purge_interval", time.Hour)
 	v.SetDefault("presence.disconnect_grace", 30*time.Second)
 	v.SetDefault("presence.idle_after", 5*time.Minute)
 	v.SetDefault("presence.heartbeat_interval", 60*time.Second)

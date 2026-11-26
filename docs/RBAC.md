@@ -92,7 +92,7 @@ grant (superuser roles never get a grant row).
 | `scenes:trash` | Scenes | Move scenes to the trash | existing |
 | `scenes:delete` | Scenes | Delete scenes and their files (explorer bulk delete) | existing |
 | `scenes:reprocess` | Scenes | Reprocess a scene | existing |
-| `scenes:share` | Scenes | Create and delete share links | from `scenes:view` |
+| `scenes:share` | Scenes | Create and delete share links (also starting at a time, or playing a marker range: `docs/MESSAGES.md`, "Share links") | from `scenes:view` |
 | `markers:create` | Markers | Create, edit and delete one's own markers and marker tags | from `scenes:view` |
 | `marker_labels:manage` | Markers | Create, rename, recolor, merge and delete the server-wide marker labels and set their default tags (`/marker-labels`, `PUT /markers/label-tags`); a marker with an unknown label creates it (without the permission: `400`). See `docs/MARKER_LABELS.md` | moderator |
 | `tags:manage` | Library | Create, rename, recolor, merge and delete tags | moderator |
@@ -102,6 +102,7 @@ grant (superuser roles never get a grant row).
 | `studios:merge` | Library | Merge studios | existing |
 | `playlists:create`, `playlists:edit`, `playlists:delete`, `playlists:view_public` | Playlists | as today; they also cover the marker playlists (create, add/remove/reorder markers, delete, like; `docs/MARKER_PLAYLISTS.md`) | existing |
 | `social:use` | Social | Follow users, send and accept friend requests (`docs/SOCIAL.md`). Reading the directory, lists and profiles, unfollowing, declining, cancelling and removing a friend only need a signed-in user | `user`, from `scenes:view` |
+| `messages:use` | Social | Send messages and share videos, markers, playlists and lobby invites with other users (`docs/MESSAGES.md`). Reading one's conversations, marking read, muting and deleting one's own messages only need a signed-in user | `user`, from `scenes:view` |
 | `goon2gether:use` | Goon2gether | Join watch lobbies, chat, react, suggest (every `/together` route; see `docs/GOON2GETHER.md`) | from `scenes:view` |
 | `goon2gether:host` | Goon2gether | Create watch lobbies | from `scenes:view` |
 | `goon2gether:moderate` | Goon2gether | See and close any lobby (private ones too), kick and ban in any lobby, delete any chat message, see who is behind an anonymous member (Anonymous #N) | moderator |
@@ -175,6 +176,12 @@ responses). Admin-only payloads (duplicates, trash, library health, jobs) are no
 
 Resolution (width/height) and duration stay visible to everyone who can view scenes.
 
+Messages (`docs/MESSAGES.md`): the share cards are resolved with the **reader's** permissions:
+scenes and markers need `scenes:view`, someone else's public playlist `playlists:view_public`,
+lobby invites `goon2gether:use` (the playing title `scenes:view`); without them the card is
+"not available". A card never carries file information. A shared marker is shown to the
+recipient even if its owner does not share their markers.
+
 Presence (`docs/PRESENCE.md`): reporting a `watching_scene` activity needs `scenes:view`, and the
 scene of an activity (title, thumbnail, position) is only shown to viewers with `scenes:view`
 (the others see "watching something"); a presence never carries file information.
@@ -194,8 +201,12 @@ events need `jobs:view_status`; `fingerprint_type` of `scene:fingerprint_complet
 What a user shows to other users (profile, friends and followers lists, presence, activity...)
 is not governed by permissions but by that user's privacy settings (`docs/SOCIAL.md`). Privacy
 has **no administrator bypass**: a superuser is a viewer like any other and does not see what a
-user keeps private. Social live events (`social:*`, `presence:*`) are personal: they only reach the user they
+user keeps private. Social live events (`social:*`, `presence:*`, `chat:*`) are personal: they only reach the user they
 are for, superusers included (`EventBus.PublishToUser`).
+
+Messages (`docs/MESSAGES.md`) are private too: only the participants of a conversation read it.
+No permission (not even a superuser role) reads other users' messages, and there is no admin
+endpoint for them.
 
 Profile pages (`docs/PROFILES.md`) add no permission: editing one's own profile only needs a
 signed-in user (picking scenes or markers needs `scenes:view`). Their blocks combine both: the
