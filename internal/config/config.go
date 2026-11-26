@@ -92,8 +92,11 @@ type Goon2getherConfig struct {
 	EndGrace              time.Duration `mapstructure:"end_grace"`       // after the scene duration before advancing
 	HostGrace             time.Duration `mapstructure:"host_grace"`      // host absence before the role is handed over
 	TickInterval          time.Duration `mapstructure:"tick_interval"`
-	UnloadAfter           time.Duration `mapstructure:"unload_after"` // a lobby without connections leaves memory
-	IdleTimeout           time.Duration `mapstructure:"idle_timeout"` // a lobby nobody connected to is deleted
+	UnloadAfter           time.Duration `mapstructure:"unload_after"`         // a lobby without connections leaves memory
+	IdleTimeout           time.Duration `mapstructure:"idle_timeout"`         // safety net: a lobby nobody connected to is deleted
+	EmptyCloseAfter       time.Duration `mapstructure:"empty_close_after"`    // a lobby with nobody connected closes (0: off)
+	InactiveCloseAfter    time.Duration `mapstructure:"inactive_close_after"` // a lobby with members but no activity closes (0: off)
+	CloseWarning          time.Duration `mapstructure:"close_warning"`        // warning before an inactivity close (0: none)
 	CleanupInterval       time.Duration `mapstructure:"cleanup_interval"`
 	SendBuffer            int           `mapstructure:"send_buffer"` // messages queued per connection
 	PingInterval          time.Duration `mapstructure:"ping_interval"`
@@ -467,6 +470,9 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("goon2gether.tick_interval", 500*time.Millisecond)
 	v.SetDefault("goon2gether.unload_after", time.Minute)
 	v.SetDefault("goon2gether.idle_timeout", 24*time.Hour)
+	v.SetDefault("goon2gether.empty_close_after", 15*time.Minute)
+	v.SetDefault("goon2gether.inactive_close_after", 60*time.Minute)
+	v.SetDefault("goon2gether.close_warning", 5*time.Minute)
 	v.SetDefault("goon2gether.cleanup_interval", time.Minute)
 	v.SetDefault("goon2gether.send_buffer", 64)
 	v.SetDefault("goon2gether.ping_interval", 25*time.Second)

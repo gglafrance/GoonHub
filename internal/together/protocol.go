@@ -5,8 +5,9 @@ package together
 
 import "encoding/json"
 
-// ProtocolVersion is the version of the WebSocket protocol (docs/GOON2GETHER.md).
-const ProtocolVersion = 1
+// ProtocolVersion is the version of the WebSocket protocol (docs/GOON2GETHER.md). Version 2:
+// anonymous members (user_id may be null), auto-next mode, inactivity close.
+const ProtocolVersion = 2
 
 // WebSocket close codes sent by the server.
 const (
@@ -44,6 +45,7 @@ const (
 	msgPong        = "pong"
 	msgError       = "error"
 	msgBye         = "bye"
+	msgClosing     = "closing"
 )
 
 // Client to server message types.
@@ -70,6 +72,8 @@ const (
 	cmdRevokeControl    = "revoke_control"
 	cmdTransferHost     = "transfer_host"
 	cmdKick             = "kick"
+	cmdAutoNext         = "auto_next"
+	cmdKeepOpen         = "keep_open"
 )
 
 // Bye reasons.
@@ -79,12 +83,26 @@ const (
 	ByeClosed    = "closed"
 	ByeForbidden = "forbidden"
 	ByeLeft      = "left"
+	ByeInactive  = "inactive" // closed for inactivity
 )
+
+// Reasons of the closing message.
+const closingInactive = "inactive"
 
 // UserRef identifies a user in payloads.
 type UserRef struct {
 	ID       uint   `json:"id"`
 	Username string `json:"username"`
+}
+
+// MemberRef identifies who did something (added a queue item). For an anonymous member, the
+// other members get a null ID and "Anonymous #N" (moderators get the real identity, with
+// anonymous set).
+type MemberRef struct {
+	ID         *uint  `json:"id"`
+	Username   string `json:"username"`
+	Anonymous  bool   `json:"anonymous,omitempty"`
+	AnonNumber *int   `json:"anon_number,omitempty"`
 }
 
 // LobbyInfo is the lobby settings sent to its members.
@@ -97,13 +115,17 @@ type LobbyInfo struct {
 	QueueOpen   bool   `json:"queue_open"`
 	WaitForAll  bool   `json:"wait_for_all"`
 	MaxMembers  int    `json:"max_members"`
+	AutoNext    string `json:"auto_next"`
 	InviteCode  string `json:"invite_code"`
 }
 
-// Member is a lobby member as sent to the room.
+// Member is a lobby member as sent to the room. An anonymous member is sent with a null
+// UserID and "Anonymous #N" as Username, except to moderators (real identity, Anonymous set).
 type Member struct {
-	UserID      uint   `json:"user_id"`
+	UserID      *uint  `json:"user_id"`
 	Username    string `json:"username"`
+	Anonymous   bool   `json:"anonymous"`
+	AnonNumber  *int   `json:"anon_number"`
 	Host        bool   `json:"host"`
 	Control     bool   `json:"control"`
 	Online      bool   `json:"online"`
@@ -115,14 +137,14 @@ type Member struct {
 // QueueItem is a queue item or a suggestion. Only the scene title and duration are sent: no
 // file information.
 type QueueItem struct {
-	ID       uint     `json:"id"`
-	SceneID  uint     `json:"scene_id"`
-	Title    string   `json:"title"`
-	Duration int      `json:"duration"`
-	Start    *float64 `json:"start"`
-	End      *float64 `json:"end"`
-	Label    *string  `json:"label"`
-	AddedBy  *UserRef `json:"added_by"`
+	ID       uint       `json:"id"`
+	SceneID  uint       `json:"scene_id"`
+	Title    string     `json:"title"`
+	Duration int        `json:"duration"`
+	Start    *float64   `json:"start"`
+	End      *float64   `json:"end"`
+	Label    *string    `json:"label"`
+	AddedBy  *MemberRef `json:"added_by"`
 }
 
 // State is the playback state of a lobby: Position (seconds) at ServerTime (Unix ms).
@@ -136,14 +158,35 @@ type State struct {
 	Seq        uint64  `json:"seq"`
 }
 
-// ChatMessage is a chat or system message.
+// ChatMessage is a chat or system message. The history keeps the real author; view redacts
+// it for the members who may not see it.
 type ChatMessage struct {
-	ID       int64   `json:"id"`
-	UserID   *uint   `json:"user_id"`
-	Username *string `json:"username"`
-	Text     string  `json:"text"`
-	At       int64   `json:"at"`
-	System   bool    `json:"system"`
+	ID         int64   `json:"id"`
+	UserID     *uint   `json:"user_id"`
+	Username   *string `json:"username"`
+	Anonymous  bool    `json:"anonymous,omitempty"`
+	AnonNumber *int    `json:"anon_number,omitempty"`
+	Text       string  `json:"text"`
+	At         int64   `json:"at"`
+	System     bool    `json:"system"`
+
+	// modText is the text moderators get (a system message naming an anonymous member)
+	modText string
+}
+
+// view is the message as sent to a member: full (moderators) or redacted.
+func (m ChatMessage) view(full bool) ChatMessage {
+	if full {
+		if m.modText != "" {
+			m.Text = m.modText
+		}
+		return m
+	}
+	if m.Anonymous && m.AnonNumber != nil {
+		name := anonName(*m.AnonNumber)
+		m.UserID, m.Username = nil, &name
+	}
+	return m
 }
 
 // ClientConfig is the part of the configuration the clients need.
@@ -157,9 +200,11 @@ type ClientConfig struct {
 
 // You is the connected user in the welcome message.
 type You struct {
-	UserID   uint   `json:"user_id"`
-	Username string `json:"username"`
-	Moderate bool   `json:"moderate"`
+	UserID     uint   `json:"user_id"`
+	Username   string `json:"username"`
+	Moderate   bool   `json:"moderate"`
+	Anonymous  bool   `json:"anonymous"`
+	AnonNumber *int   `json:"anon_number"`
 }
 
 type welcomeMsg struct {
@@ -174,6 +219,7 @@ type welcomeMsg struct {
 	Suggestions []QueueItem   `json:"suggestions"`
 	State       State         `json:"state"`
 	Chat        []ChatMessage `json:"chat"`
+	ClosingAt   *int64        `json:"closing_at"`
 }
 
 type stateMsg struct {
@@ -208,10 +254,20 @@ type chatDeletedMsg struct {
 }
 
 type reactionMsg struct {
-	T        string `json:"t"`
-	UserID   uint   `json:"user_id"`
-	Username string `json:"username"`
-	Emote    string `json:"emote"`
+	T          string `json:"t"`
+	UserID     *uint  `json:"user_id"`
+	Username   string `json:"username"`
+	Anonymous  bool   `json:"anonymous,omitempty"`
+	AnonNumber *int   `json:"anon_number,omitempty"`
+	Emote      string `json:"emote"`
+}
+
+// closingMsg announces that the lobby closes at At (Unix ms) unless something happens; a null
+// At cancels the announce.
+type closingMsg struct {
+	T      string `json:"t"`
+	At     *int64 `json:"at"`
+	Reason string `json:"reason,omitempty"`
 }
 
 type pongMsg struct {
@@ -262,7 +318,9 @@ type inbound struct {
 	Text        *string         `json:"text"`
 	Emote       *string         `json:"emote"`
 	UserID      *uint           `json:"user_id"`
+	Anon        *int            `json:"anon"`
 	Ban         bool            `json:"ban"`
+	Mode        *string         `json:"mode"`
 	Name        *string         `json:"name"`
 	Visibility  *string         `json:"visibility"`
 	ControlOpen *bool           `json:"control_open"`

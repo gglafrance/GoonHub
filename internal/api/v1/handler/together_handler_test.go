@@ -120,7 +120,7 @@ func tgJSON(t *testing.T, srv *httptest.Server, method, path string, user uint, 
 	return res.StatusCode, out
 }
 
-func tgDial(t *testing.T, srv *httptest.Server, lobby string, user uint, origin string) (*websocket.Conn, *http.Response, error) {
+func tgDial(t *testing.T, srv *httptest.Server, lobby string, user uint, origin string, query ...string) (*websocket.Conn, *http.Response, error) {
 	t.Helper()
 	h := http.Header{"X-Test-User": {strconv.Itoa(int(user))}}
 	if origin != "" {
@@ -128,7 +128,11 @@ func tgDial(t *testing.T, srv *httptest.Server, lobby string, user uint, origin 
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http")+"/api/v1/together/lobbies/"+lobby+"/ws?v=1", &websocket.DialOptions{HTTPHeader: h})
+	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/together/lobbies/" + lobby + "/ws?v=" + strconv.Itoa(together.ProtocolVersion)
+	for _, q := range query {
+		url += "&" + q
+	}
+	return websocket.Dial(ctx, url, &websocket.DialOptions{HTTPHeader: h})
 }
 
 // readUntil reads messages until one of type typ.
@@ -190,7 +194,7 @@ func TestTogetherWebSocketRoundTrip(t *testing.T) {
 	}
 	defer host.CloseNow()
 	welcome := readUntil(t, host, "welcome")
-	if welcome["v"] != float64(1) || len(welcome["queue"].([]any)) != 2 {
+	if welcome["v"] != float64(together.ProtocolVersion) || len(welcome["queue"].([]any)) != 2 {
 		t.Fatalf("welcome %v", welcome)
 	}
 	// No file information in the queue items
@@ -396,7 +400,121 @@ func TestTogetherEmotesRoutes(t *testing.T) {
 	}
 }
 
+// readRaw reads the frames until one of type typ and gives them all, raw.
+func readRaw(t *testing.T, conn *websocket.Conn, typ string) []string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var out []string
+	for {
+		_, b, err := conn.Read(ctx)
+		if err != nil {
+			t.Fatalf("waiting for %q: %v", typ, err)
+		}
+		out = append(out, string(b))
+		var m map[string]any
+		if err := json.Unmarshal(b, &m); err != nil {
+			t.Fatal(err)
+		}
+		if m["t"] == typ {
+			return out
+		}
+	}
+}
+
+// bobLeaks gives the frames that name bob (user 2).
+func bobLeaks(frames []string) []string {
+	var out []string
+	for _, f := range frames {
+		if strings.Contains(f, "bob") || strings.Contains(f, `"user_id":2,`) || strings.Contains(f, `"added_by":{"id":2`) {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+func TestTogetherAnonymousRedaction(t *testing.T) {
+	srv, _ := togetherServer(t)
+	_, created := tgJSON(t, srv, http.MethodPost, "/api/v1/together/lobbies", 1, map[string]any{"name": "Open", "visibility": "public", "items": []map[string]any{{"scene_id": 1}}})
+	id := created["id"].(string)
+
+	// Private lobbies have no anonymous mode
+	_, priv := tgJSON(t, srv, http.MethodPost, "/api/v1/together/lobbies", 1, map[string]any{"name": "Closed"})
+	if status, _ := tgJSON(t, srv, http.MethodPost, "/api/v1/together/lobbies/"+priv["id"].(string)+"/join", 4, map[string]any{"anonymous": true}); status != http.StatusBadRequest {
+		t.Fatalf("anonymous join of a private lobby: %d", status)
+	}
+
+	host, _, err := tgDial(t, srv, id, 1, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer host.CloseNow()
+	readUntil(t, host, "welcome")
+	moderator, _, err := tgDial(t, srv, id, 4, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer moderator.CloseNow()
+	readUntil(t, moderator, "welcome")
+
+	// bob joins anonymously by connecting
+	bob, _, err := tgDial(t, srv, id, 2, "", "anonymous=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer bob.CloseNow()
+	you := readUntil(t, bob, "welcome")["you"].(map[string]any)
+	if you["anonymous"] != true || you["anon_number"] != float64(1) {
+		t.Fatalf("you: %v", you)
+	}
+	tgWrite(t, bob, map[string]any{"t": "chat", "text": "psst"})
+	tgWrite(t, bob, map[string]any{"t": "reaction", "emote": "🔥"})
+	tgWrite(t, bob, map[string]any{"t": "queue_add", "items": []map[string]any{{"scene_id": 2}}})
+
+	frames := readRaw(t, host, "queue") // after the joined line, the chat and the reaction
+	if l := bobLeaks(frames); len(l) > 0 {
+		t.Fatalf("the host got bob's identity: %v", l)
+	}
+	joined := strings.Join(frames, "\n")
+	for _, want := range []string{"Anonymous #1 joined", `"username":"Anonymous #1"`, `"t":"reaction","user_id":null`} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("the host did not get %q: %s", want, joined)
+		}
+	}
+	modFrames := strings.Join(readRaw(t, moderator, "queue"), "\n")
+	if !strings.Contains(modFrames, "Anonymous #1 (bob) joined") || !strings.Contains(modFrames, `"username":"bob","anonymous":true`) {
+		t.Fatalf("the moderator does not see who it is: %s", modFrames)
+	}
+
+	// A late joiner's welcome is redacted too
+	carol, _, err := tgDial(t, srv, id, 3, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer carol.CloseNow()
+	if l := bobLeaks(readRaw(t, carol, "welcome")); len(l) > 0 {
+		t.Fatalf("the welcome leaks bob: %v", l)
+	}
+
+	// REST: bob's summary says anonymous, the others' list never names him
+	if status, s := tgJSON(t, srv, http.MethodGet, "/api/v1/together/lobbies/"+id, 2, nil); status != http.StatusOK || s["anonymous"] != true {
+		t.Fatalf("bob's summary: %d %v", status, s)
+	}
+	for _, user := range []uint{1, 3} {
+		status, list := tgJSON(t, srv, http.MethodGet, "/api/v1/together/lobbies", user, nil)
+		b, _ := json.Marshal(list)
+		if status != http.StatusOK || strings.Contains(string(b), "bob") {
+			t.Fatalf("lobby list of %d: %d %s", user, status, b)
+		}
+	}
+	// Named members cannot turn anonymous
+	if status, _ := tgJSON(t, srv, http.MethodPost, "/api/v1/together/lobbies/"+id+"/join", 3, map[string]any{"anonymous": true}); status != http.StatusConflict {
+		t.Fatalf("a named member turned anonymous: %d", status)
+	}
+}
+
 func TestOriginPatterns(t *testing.T) {
+
 	got := OriginPatterns([]string{"http://localhost:3000", "https://sms.example.dev", "*", " ", "example.org"})
 	want := []string{"localhost:3000", "sms.example.dev", "example.org"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {

@@ -100,9 +100,16 @@ func TestLobbyRepository(t *testing.T) {
 	}
 
 	// Settings and host
+	if got.AutoNext != AutoNextNext {
+		t.Fatalf("default auto_next %q", got.AutoNext)
+	}
 	got.Name, got.Visibility, got.ControlOpen, got.MaxMembers = "Renamed", LobbyVisibilityPublic, true, 4
+	got.AutoNext = AutoNextRepeatQueue
 	if err := repo.UpdateSettings(got); err != nil {
 		t.Fatal(err)
+	}
+	if again, _ := repo.GetByUUID(lobby.UUID); again.AutoNext != AutoNextRepeatQueue || again.Name != "Renamed" {
+		t.Fatalf("settings not saved: %+v", again)
 	}
 	if err := repo.SetHost(lobby.ID, &other.ID); err != nil {
 		t.Fatal(err)
@@ -130,7 +137,56 @@ func TestLobbyRepository(t *testing.T) {
 		t.Fatalf("members: %+v %v", members, err)
 	}
 
+	// Anonymous members get the next number of the lobby; their queue items keep it
+	var anons []User
+	for i := 0; i < 2; i++ {
+		u := User{Username: "lobby-anon-" + string(rune('a'+i)) + "-" + suffix, Password: "x", Role: "admin"}
+		if err := db.Create(&u).Error; err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { db.Delete(&u) })
+		am := &LobbyMember{LobbyID: lobby.ID, UserID: u.ID}
+		if err := repo.AddAnonymousMember(am); err != nil || !am.Anonymous || am.AnonNumber == nil || *am.AnonNumber != i+1 {
+			t.Fatalf("anonymous member %d: %+v %v", i, am, err)
+		}
+		anons = append(anons, u)
+	}
+	if mm, err := repo.GetMember(lobby.ID, anons[1].ID); err != nil || !mm.Anonymous || mm.AnonNumber == nil || *mm.AnonNumber != 2 {
+		t.Fatalf("anonymous member read back: %+v %v", mm, err)
+	}
+	anonNumber := 2
+	anonItem := []LobbyQueueItem{{LobbyID: lobby.ID, SceneID: scenes[1].ID, Status: QueueItemSuggested, AddedBy: &anons[1].ID, AddedByAnon: &anonNumber}}
+	if err := repo.AddQueueItems(anonItem); err != nil {
+		t.Fatal(err)
+	}
+	q, _ = repo.ListQueue(lobby.ID)
+	if last := q[len(q)-1]; last.ID != anonItem[0].ID || last.AddedByAnon == nil || *last.AddedByAnon != 2 {
+		t.Fatalf("anonymous item: %+v", last)
+	}
+	if err := repo.DeleteQueueItem(lobby.ID, anonItem[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if anonList, err := repo.List(anons[0].ID, false); err != nil {
+		t.Fatal(err)
+	} else {
+		found := false
+		for _, e := range anonList {
+			if e.ID == lobby.ID {
+				found = e.IsMember && e.MemberAnonymous
+			}
+		}
+		if !found {
+			t.Fatalf("anonymous membership not listed: %+v", anonList)
+		}
+	}
+	for _, u := range anons {
+		if err := repo.RemoveMember(lobby.ID, u.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	// Listing: public now, with the host name, the item playing and the membership
+
 	if err := repo.SavePlayback(lobby.ID, &items[0].ID, 0, 1); err != nil {
 		t.Fatal(err)
 	}

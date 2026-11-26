@@ -122,6 +122,7 @@ func (s *Store) List(userID uint, all bool) ([]data.LobbyListEntry, error) {
 		e := data.LobbyListEntry{Lobby: *l, IsMember: isMember}
 		if m != nil {
 			e.MemberBannedAt = m.BannedAt
+			e.MemberAnonymous = m.Anonymous
 		}
 		if l.HostUserID != nil {
 			e.HostUsername = s.Users[*l.HostUserID]
@@ -164,6 +165,7 @@ func (s *Store) UpdateSettings(lobby *data.Lobby) error {
 	return s.update(lobby.ID, func(l *data.Lobby) {
 		l.Name, l.Visibility = lobby.Name, lobby.Visibility
 		l.ControlOpen, l.QueueOpen, l.WaitForAll, l.MaxMembers = lobby.ControlOpen, lobby.QueueOpen, lobby.WaitForAll, lobby.MaxMembers
+		l.AutoNext = lobby.AutoNext
 	})
 }
 
@@ -255,6 +257,24 @@ func (s *Store) AddMember(member *data.LobbyMember) error {
 		c := *member
 		s.members[member.LobbyID][member.UserID] = &c
 	}
+	return nil
+}
+
+func (s *Store) AddAnonymousMember(member *data.LobbyMember) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	l, ok := s.lobbies[member.LobbyID]
+	if !ok {
+		return gorm.ErrRecordNotFound
+	}
+	l.AnonSeq++
+	n := l.AnonSeq
+	member.Anonymous, member.AnonNumber = true, &n
+	if s.members[member.LobbyID] == nil {
+		s.members[member.LobbyID] = make(map[uint]*data.LobbyMember)
+	}
+	c := *member
+	s.members[member.LobbyID][member.UserID] = &c
 	return nil
 }
 

@@ -31,8 +31,12 @@ export const useApiTogether = () => {
     const createLobby = (input: CreateLobbyInput) =>
         request<LobbySummary>('/lobbies', json('POST', input));
 
-    const joinLobby = (id: string) =>
-        request<LobbySummary>(`/lobbies/${encodeURIComponent(id)}/join`, json('POST'));
+    /** Joins a lobby; `anonymous` (public lobbies): the others see "Anonymous #N". */
+    const joinLobby = (id: string, anonymous = false) =>
+        request<LobbySummary>(
+            `/lobbies/${encodeURIComponent(id)}/join`,
+            json('POST', anonymous ? { anonymous: true } : undefined),
+        );
 
     const joinByCode = (code: string) =>
         request<LobbySummary>('/join', json('POST', { code: code.trim() }));

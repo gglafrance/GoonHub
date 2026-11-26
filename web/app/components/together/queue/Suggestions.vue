@@ -2,7 +2,7 @@
 // Suggestions of members without queue rights: controllers accept or reject them, authors
 // can withdraw their own.
 const room = useInjectedTogetherRoom();
-const { socket, canControl, myId } = room;
+const { socket, canControl, isMine } = room;
 
 const accept = (id: number) => socket.send({ t: 'suggestion_accept', item_id: id });
 const reject = (id: number) => socket.send({ t: 'suggestion_reject', item_id: id });
@@ -47,7 +47,7 @@ const reject = (id: number) => socket.send({ t: 'suggestion_reject', item_id: id
                 <Icon name="heroicons:check" size="14" />
             </button>
             <button
-                v-if="canControl || s.added_by?.id === myId"
+                v-if="canControl || isMine(s.added_by?.id, s.added_by?.anon_number)"
                 class="text-dim flex h-6 w-6 items-center justify-center rounded hover:bg-white/5
                     hover:text-red-400"
                 :title="canControl ? 'Reject' : 'Withdraw'"

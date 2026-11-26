@@ -105,7 +105,7 @@ func (h *TogetherHandler) GetLobby(c *gin.Context) {
 	response.OK(c, s)
 }
 
-// JoinLobby: POST /together/lobbies/:id/join
+// JoinLobby: POST /together/lobbies/:id/join [{anonymous}]
 func (h *TogetherHandler) JoinLobby(c *gin.Context) {
 	a, ok := h.actor(c)
 	if !ok {
@@ -115,7 +115,16 @@ func (h *TogetherHandler) JoinLobby(c *gin.Context) {
 	if !ok {
 		return
 	}
-	s, err := h.hub.JoinLobby(a, id)
+	var in struct {
+		Anonymous bool `json:"anonymous"`
+	}
+	if c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&in); err != nil {
+			response.Error(c, apperrors.NewValidationError("invalid request body"))
+			return
+		}
+	}
+	s, err := h.hub.JoinLobby(a, id, in.Anonymous)
 	if err != nil {
 		response.Error(c, err)
 		return

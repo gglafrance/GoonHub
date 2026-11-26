@@ -20,6 +20,8 @@ const emoteOnly = computed(
         tokens.value.length > 0 &&
         tokens.value.every((t) => t.kind === 'emote' || t.text.trim() === ''),
 );
+// Anonymous author shown under the alias (a moderator gets the real name and a badge)
+const anonymousAlias = computed(() => !!props.message.anonymous && props.message.user_id === null);
 const time = computed(() =>
     new Date(props.message.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
 );
@@ -36,10 +38,23 @@ const time = computed(() =>
     <div v-else class="group relative rounded-md px-2 py-1 transition-colors hover:bg-white/[0.03]">
         <div class="flex items-baseline gap-1.5">
             <span
-                class="shrink-0 text-[11px] font-semibold"
-                :class="mine ? 'text-lava' : 'text-white'"
+                class="flex shrink-0 items-center gap-1 text-[11px] font-semibold"
+                :class="[mine ? 'text-lava' : 'text-white', { italic: anonymousAlias }]"
             >
+                <Icon
+                    v-if="message.anonymous"
+                    name="heroicons:eye-slash"
+                    size="10"
+                    class="text-dim"
+                />
                 {{ message.username }}
+            </span>
+            <span
+                v-if="message.anonymous && !anonymousAlias"
+                class="border-border text-dim shrink-0 rounded border px-1 py-px text-[9px]"
+                title="Sent anonymously: only moderators see who it is"
+            >
+                Anonymous #{{ message.anon_number }}
             </span>
             <span class="text-dim shrink-0 font-mono text-[9px]">{{ time }}</span>
         </div>

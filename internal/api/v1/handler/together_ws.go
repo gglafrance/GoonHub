@@ -17,7 +17,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// Socket: GET /together/lobbies/:id/ws?v=1 (WebSocket, docs/GOON2GETHER.md). The session is
+// Socket: GET /together/lobbies/:id/ws?v=2[&anonymous=1] (WebSocket, docs/GOON2GETHER.md;
+// anonymous: join a public lobby anonymously when not a member yet). The session is
 // checked by the auth middleware before the upgrade. Refusals (unknown lobby, ban, full)
 // are sent as a close code after the upgrade, since browsers cannot read an HTTP error of a
 // WebSocket handshake.
@@ -51,7 +52,8 @@ func (h *TogetherHandler) Socket(c *gin.Context) {
 		conn.SetReadLimit(cfg.MaxMessageBytes)
 	}
 
-	client, err := h.hub.Connect(a, id)
+	anonymous := c.Query("anonymous") == "1" || c.Query("anonymous") == "true"
+	client, err := h.hub.Connect(a, id, anonymous)
 	if err != nil {
 		code, reason := closeFor(err)
 		_ = conn.Close(code, reason)
@@ -117,7 +119,8 @@ func closeFor(err error) (websocket.StatusCode, string) {
 	switch {
 	case errors.Is(err, together.ErrLobbyFull):
 		return together.CloseFull, "lobby full"
-	case apperrors.IsForbidden(err):
+	case apperrors.IsForbidden(err), apperrors.IsValidation(err), apperrors.IsConflict(err):
+		// banned, or an anonymous join that is not possible (private lobby, creator)
 		return together.CloseForbidden, "forbidden"
 	case apperrors.IsNotFound(err):
 		return together.CloseClosed, "lobby not found"
