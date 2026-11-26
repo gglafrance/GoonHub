@@ -2,7 +2,8 @@
 import type { LobbyMember } from '~/types/together';
 
 // One member: badges (host, control), online and buffering state, actions for the host
-// (control, host transfer, kick, ban) and moderators (kick, ban).
+// (control, host transfer, kick, ban) and moderators (kick, ban). An anonymous member shows as
+// "Anonymous #N" with a generic avatar; moderators get the real name with an anonymous badge.
 const props = defineProps<{
     member: LobbyMember;
     isMe: boolean;
@@ -17,6 +18,9 @@ const emit = defineEmits<{
 
 const open = ref(false);
 const root = ref<HTMLElement | null>(null);
+
+// A moderator sees who is behind an anonymous member
+const revealed = computed(() => props.member.anonymous && props.member.user_id !== null);
 
 const actions = computed(() => {
     const m = props.member;
@@ -34,7 +38,7 @@ const actions = computed(() => {
                 : { kind: 'grant', label: 'Give control', icon: 'heroicons:play-pause' },
         );
     }
-    if (props.asHost && m.online) {
+    if (props.asHost && m.online && !m.anonymous) {
         list.push({ kind: 'host', label: 'Make host', icon: 'heroicons:star' });
     }
     if (props.asHost || props.asModerator) {
@@ -78,7 +82,13 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
                     rounded-full border text-[10px] font-semibold text-white"
                 :class="{ 'opacity-40': !member.online }"
             >
-                {{ member.username.charAt(0).toUpperCase() }}
+                <Icon
+                    v-if="member.anonymous"
+                    name="heroicons:eye-slash"
+                    size="11"
+                    class="text-dim"
+                />
+                <template v-else>{{ member.username.charAt(0).toUpperCase() }}</template>
             </div>
             <span
                 class="border-void absolute -right-0.5 -bottom-0.5 h-2 w-2 rounded-full border"
@@ -94,10 +104,23 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
         </div>
         <div class="min-w-0 flex-1">
             <div class="flex items-center gap-1">
-                <span class="truncate text-xs" :class="member.online ? 'text-white' : 'text-dim'">
+                <span
+                    class="truncate text-xs"
+                    :class="[
+                        member.online ? 'text-white' : 'text-dim',
+                        { italic: member.anonymous && !revealed },
+                    ]"
+                >
                     {{ member.username }}
                 </span>
                 <span v-if="isMe" class="text-dim text-[10px]">(you)</span>
+                <span
+                    v-if="revealed"
+                    class="border-border text-dim shrink-0 rounded border px-1 py-px text-[9px]"
+                    title="Joined anonymously: only moderators see who it is"
+                >
+                    Anonymous #{{ member.anon_number }}
+                </span>
             </div>
             <div v-if="member.buffering && member.online" class="text-[10px] text-amber-400">
                 Buffering...

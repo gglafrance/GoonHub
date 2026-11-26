@@ -1,10 +1,12 @@
 import type {
+    ByeReason,
     ChatMessage,
     ClientMessage,
     LobbyInfo,
     LobbyMember,
     PlaybackState,
     QueueItem,
+    ReactionMessage,
     ServerMessage,
     SocketStatus,
     TogetherConfig,
@@ -12,7 +14,7 @@ import type {
 } from '~/types/together';
 import type { ClockSample } from '~/utils/together';
 
-const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = 2;
 // Clock sync: a burst on connect, then a slow refresh (also keeps proxies busy)
 const PING_BURST = 5;
 const PING_BURST_INTERVAL_MS = 400;
@@ -22,11 +24,7 @@ const SILENCE_TIMEOUT_MS = 45000;
 // Chat lines kept on the client (the server sends its own history on connect)
 const CHAT_KEPT = 200;
 
-export interface ReactionEvent {
-    user_id: number;
-    username: string;
-    emote: string;
-}
+export type ReactionEvent = Omit<ReactionMessage, 't'>;
 
 export interface TogetherError {
     code: string;
@@ -42,7 +40,7 @@ const DEFAULT_CONFIG: TogetherConfig = {
 };
 
 /**
- * WebSocket of a Goon2gether room (protocol v1, docs/GOON2GETHER.md): reactive lobby state
+ * WebSocket of a Goon2gether room (protocol v2, docs/GOON2GETHER.md): reactive lobby state
  * resynced from the `welcome` snapshot on every (re)connect, clock offset from ping/pong,
  * reconnect with backoff unless the close is final (kicked, banned, closed, full).
  */
@@ -51,7 +49,13 @@ export const useTogetherSocket = (lobbyId: Ref<string>) => {
 
     const status = ref<SocketStatus>('connecting');
     const finalReason = ref<string | null>(null);
+    // reason of the server's bye (closed for inactivity, kicked...), null otherwise
+    const byeReason = ref<ByeReason | null>(null);
     const connectedOnce = ref(false);
+    // the lobby closes at this time (server clock, ms) for inactivity unless something happens
+    const closingAt = ref<number | null>(null);
+    // join anonymously when connecting to a public lobby the user is not a member of
+    let anonymous = false;
 
     const you = ref<WelcomeMessage['you'] | null>(null);
     const config = ref<TogetherConfig>({ ...DEFAULT_CONFIG });
@@ -133,6 +137,7 @@ export const useTogetherSocket = (lobbyId: Ref<string>) => {
                 suggestions.value = msg.suggestions ?? [];
                 state.value = msg.state;
                 chat.value = msg.chat ?? [];
+                closingAt.value = msg.closing_at ?? null;
                 // Rough offset until the pongs refine it
                 if (samples.length === 0) clockOffset.value = msg.server_time - Date.now();
                 connectedOnce.value = true;
@@ -161,6 +166,9 @@ export const useTogetherSocket = (lobbyId: Ref<string>) => {
             case 'reaction':
                 for (const fn of reactionHandlers) fn(msg);
                 break;
+            case 'closing':
+                closingAt.value = msg.at ?? null;
+                break;
             case 'emotes':
                 loadEmotes(true);
                 break;
@@ -173,14 +181,9 @@ export const useTogetherSocket = (lobbyId: Ref<string>) => {
                 showError({ code: msg.code, message: msg.message });
                 break;
             case 'bye':
-                finalReason.value =
-                    msg.reason === 'kicked'
-                        ? closeReasonText(4001)
-                        : msg.reason === 'closed'
-                          ? closeReasonText(4004)
-                          : msg.reason === 'left'
-                            ? closeReasonText(4005)
-                            : closeReasonText(4003);
+                byeReason.value = msg.reason;
+                closingAt.value = null;
+                finalReason.value = byeReasonText(msg.reason);
                 break;
         }
     };
@@ -198,7 +201,7 @@ export const useTogetherSocket = (lobbyId: Ref<string>) => {
         const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
         const url = `${proto}//${location.host}/api/v1/together/lobbies/${encodeURIComponent(
             lobbyId.value,
-        )}/ws?v=${PROTOCOL_VERSION}`;
+        )}/ws?v=${PROTOCOL_VERSION}${anonymous ? '&anonymous=1' : ''}`;
         status.value = connectedOnce.value ? 'reconnecting' : 'connecting';
         const socket = new WebSocket(url);
         ws = socket;
@@ -254,9 +257,13 @@ export const useTogetherSocket = (lobbyId: Ref<string>) => {
         }
     };
 
-    const start = () => {
+    /** Connects; `asAnonymous` joins a public lobby anonymously if not a member yet. */
+    const start = (asAnonymous = false) => {
+        anonymous = asAnonymous;
         disposed = false;
         finalReason.value = null;
+        byeReason.value = null;
+        closingAt.value = null;
         connectedOnce.value = false;
         samples = [];
         attempt = 0;
@@ -272,7 +279,10 @@ export const useTogetherSocket = (lobbyId: Ref<string>) => {
     return {
         status,
         finalReason,
+        byeReason,
+        closingAt,
         connectedOnce,
+
         you,
         config,
         lobby,

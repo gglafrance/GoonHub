@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { LobbySummary } from '~/types/together';
 
-// Lobby browser card: name, host, online members, now playing.
+// Lobby browser card: name, host, online members, now playing. Opening a lobby one is not a
+// member of joins it; public lobbies can also be joined anonymously.
 const props = defineProps<{
     lobby: LobbySummary;
     canClose?: boolean;
@@ -11,6 +12,14 @@ const emit = defineEmits<{
     close: [lobby: LobbySummary];
 }>();
 
+const link = computed(
+    () => `/together/${props.lobby.id}${props.lobby.is_member ? '' : '?join=named'}`,
+);
+const canJoinAnonymously = computed(
+    () => !props.lobby.is_member && props.lobby.visibility === 'public',
+);
+const joinAnonymously = () => navigateTo(`/together/${props.lobby.id}?join=anonymous`);
+
 const thumb = computed(() =>
     props.lobby.now_playing ? `/thumbnails/${props.lobby.now_playing.scene_id}?size=sm` : '',
 );
@@ -18,7 +27,7 @@ const thumb = computed(() =>
 
 <template>
     <NuxtLink
-        :to="`/together/${lobby.id}`"
+        :to="link"
         class="group border-border bg-panel/60 hover:border-lava/30 relative flex gap-3
             overflow-hidden rounded-xl border p-3 transition-all"
     >
@@ -55,6 +64,15 @@ const thumb = computed(() =>
                     class="text-dim shrink-0"
                 />
                 <h3 class="truncate text-sm font-semibold text-white">{{ lobby.name }}</h3>
+                <span
+                    v-if="lobby.anonymous"
+                    class="border-border text-dim flex shrink-0 items-center gap-0.5 rounded border
+                        px-1 py-px text-[9px]"
+                    title="You joined this lobby anonymously"
+                >
+                    <Icon name="heroicons:eye-slash" size="9" />
+                    Anonymous
+                </span>
             </div>
             <div class="text-dim mt-0.5 truncate text-[11px]">
                 <template v-if="lobby.host">hosted by {{ lobby.host.username }}</template>
@@ -74,7 +92,18 @@ const thumb = computed(() =>
                 <Icon name="heroicons:play" size="10" class="text-lava mr-0.5 align-[-1px]" />
                 {{ lobby.now_playing.label || lobby.now_playing.title }}
             </div>
+            <button
+                v-if="canJoinAnonymously"
+                class="text-dim hover:text-lava mt-1.5 flex items-center gap-1 text-[10px]
+                    transition-colors"
+                title="The other members see you as Anonymous #N, without your name or profile"
+                @click.prevent.stop="joinAnonymously"
+            >
+                <Icon name="heroicons:eye-slash" size="11" />
+                Join anonymously
+            </button>
         </div>
+
         <button
             v-if="canClose"
             class="text-dim absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded

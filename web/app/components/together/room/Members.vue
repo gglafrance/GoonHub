@@ -3,7 +3,7 @@ import type { LobbyMember } from '~/types/together';
 
 // Member list: online first, then by name. Kick and ban ask for a confirmation.
 const room = useInjectedTogetherRoom();
-const { socket, myId, isHost, canModerate, onlineCount } = room;
+const { socket, isMine, isHost, canModerate, onlineCount } = room;
 
 const sorted = computed(() =>
     [...socket.members.value].sort((a, b) => {
@@ -16,15 +16,17 @@ const sorted = computed(() =>
 const confirm = ref<{ kind: 'kick' | 'ban'; member: LobbyMember } | null>(null);
 
 const onAction = (kind: 'grant' | 'revoke' | 'host' | 'kick' | 'ban', member: LobbyMember) => {
+    const target = memberTarget(member);
+    if (!target) return;
     switch (kind) {
         case 'grant':
-            socket.send({ t: 'grant_control', user_id: member.user_id });
+            socket.send({ t: 'grant_control', ...target });
             break;
         case 'revoke':
-            socket.send({ t: 'revoke_control', user_id: member.user_id });
+            socket.send({ t: 'revoke_control', ...target });
             break;
         case 'host':
-            socket.send({ t: 'transfer_host', user_id: member.user_id });
+            socket.send({ t: 'transfer_host', ...target });
             break;
         default:
             confirm.value = { kind, member };
@@ -33,8 +35,9 @@ const onAction = (kind: 'grant' | 'revoke' | 'host' | 'kick' | 'ban', member: Lo
 
 const doConfirm = () => {
     const c = confirm.value;
-    if (!c) return;
-    socket.send({ t: 'kick', user_id: c.member.user_id, ban: c.kind === 'ban' });
+    const target = c ? memberTarget(c.member) : null;
+    if (!c || !target) return;
+    socket.send({ t: 'kick', ...target, ban: c.kind === 'ban' });
     confirm.value = null;
 };
 </script>
@@ -49,9 +52,9 @@ const doConfirm = () => {
         <div class="max-h-56 overflow-y-auto p-1">
             <TogetherRoomMemberRow
                 v-for="m in sorted"
-                :key="m.user_id"
+                :key="memberKey(m)"
                 :member="m"
-                :is-me="m.user_id === myId"
+                :is-me="isMine(m.user_id, m.anon_number)"
                 :as-host="isHost"
                 :as-moderator="canModerate"
                 :control-open="!!socket.lobby.value?.control_open"

@@ -1,6 +1,9 @@
 <script setup lang="ts">
-// Goon2gether room: joins the lobby (public lobbies are joined on open), then connects the
-// socket. Layout: player, reactions and queue on the left; members and chat on the right.
+import type { LobbySummary } from '~/types/together';
+
+// Goon2gether room: a member connects at once; a non-member gets the join screen (join, or
+// anonymously for a public lobby), or joins directly with ?join=named|anonymous (lobby
+// browser). Layout: player, reactions and queue on the left; members and chat on the right.
 const route = useRoute();
 const settingsStore = useSettingsStore();
 const { getLobby, joinLobby } = useApiTogether();
@@ -13,28 +16,64 @@ const { socket } = room;
 const loadError = ref('');
 const ready = ref(false);
 const showSettings = ref(false);
+// not a member yet: the join screen
+const pending = ref<LobbySummary | null>(null);
+const joining = ref(false);
+const joinError = ref('');
 
-const lobbyName = computed(() => socket.lobby.value?.name ?? 'Together');
+const lobbyName = computed(() => socket.lobby.value?.name ?? pending.value?.name ?? 'Together');
 useHead({ title: lobbyName });
+
+const closedForInactivity = computed(() => socket.byeReason.value === 'inactive');
+
+const errorText = (e: unknown) => {
+    const status = (e as { status?: number }).status;
+    return status === 404
+        ? 'This lobby does not exist anymore, or it is private: ask for an invite link.'
+        : status === 403
+          ? 'You are banned from this lobby.'
+          : e instanceof Error
+            ? e.message
+            : 'Failed to open the lobby';
+};
+
+const join = async (anonymous: boolean) => {
+    joining.value = true;
+    joinError.value = '';
+    try {
+        await joinLobby(lobbyId.value, anonymous);
+        pending.value = null;
+        ready.value = true;
+        socket.start();
+    } catch (e: unknown) {
+        joinError.value = errorText(e);
+    } finally {
+        joining.value = false;
+    }
+};
 
 const enter = async () => {
     ready.value = false;
     loadError.value = '';
+    pending.value = null;
+    joinError.value = '';
     try {
         const summary = await getLobby(lobbyId.value);
-        if (!summary.is_member) await joinLobby(lobbyId.value);
+        if (!summary.is_member) {
+            const how = route.query.join;
+            if (how === 'named' || how === 'anonymous') {
+                pending.value = summary;
+                await join(how === 'anonymous');
+                if (joinError.value) loadError.value = joinError.value;
+                return;
+            }
+            pending.value = summary;
+            return;
+        }
         ready.value = true;
         socket.start();
     } catch (e: unknown) {
-        const status = (e as { status?: number }).status;
-        loadError.value =
-            status === 404
-                ? 'This lobby does not exist, or it is private: ask for an invite link.'
-                : status === 403
-                  ? 'You are banned from this lobby.'
-                  : e instanceof Error
-                    ? e.message
-                    : 'Failed to open the lobby';
+        loadError.value = errorText(e);
     }
 };
 
@@ -62,9 +101,15 @@ definePageMeta({
                     class="border-lava/20 bg-lava/5 flex h-12 w-12 items-center justify-center
                         rounded-xl border"
                 >
-                    <Icon name="heroicons:user-group" size="24" class="text-lava" />
+                    <Icon
+                        :name="closedForInactivity ? 'heroicons:moon' : 'heroicons:user-group'"
+                        size="24"
+                        class="text-lava"
+                    />
                 </div>
-                <h2 class="mt-4 text-lg font-semibold text-white">Lobby unavailable</h2>
+                <h2 class="mt-4 text-lg font-semibold text-white">
+                    {{ closedForInactivity ? 'Lobby closed for inactivity' : 'Lobby unavailable' }}
+                </h2>
                 <p class="text-dim mt-1 max-w-sm text-xs">
                     {{ loadError || socket.finalReason.value }}
                 </p>
@@ -78,6 +123,14 @@ definePageMeta({
                 </NuxtLink>
             </div>
 
+            <TogetherRoomJoinPrompt
+                v-else-if="pending"
+                :lobby="pending"
+                :busy="joining"
+                :error="joinError"
+                @join="join"
+            />
+
             <div
                 v-else-if="!ready || !socket.connectedOnce.value"
                 class="flex h-[60vh] items-center justify-center"
@@ -90,10 +143,15 @@ definePageMeta({
                 :class="['grid gap-5', settingsStore.theaterMode ? '' : 'xl:grid-cols-[1fr_340px]']"
             >
                 <div class="min-w-0 space-y-3">
+                    <TogetherRoomClosingBanner />
                     <TogetherRoomPlayer />
-                    <TogetherRoomReactionBar />
+                    <div class="flex flex-wrap items-start gap-2">
+                        <TogetherRoomReactionBar class="min-w-0 flex-1" />
+                        <TogetherRoomAutoNext />
+                    </div>
                     <TogetherQueuePanel />
                 </div>
+
                 <div class="flex min-w-0 flex-col gap-3 xl:h-[calc(100vh-8rem)]">
                     <TogetherRoomMembers />
                     <TogetherChatPanel class="h-[28rem] xl:h-auto xl:flex-1" />
