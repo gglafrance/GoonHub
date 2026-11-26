@@ -75,28 +75,32 @@ const keepIf = computed(() => {
             </NuxtLink>
         </div>
 
-        <div class="border-border mb-4 flex gap-1 overflow-x-auto border-b">
-            <button
-                v-for="tab in tabs"
-                :key="tab.id"
-                class="-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-xs
-                    font-medium transition-colors"
-                :class="
-                    activeTab === tab.id
-                        ? 'border-lava text-lava'
-                        : 'text-dim border-transparent hover:text-white'
-                "
-                @click="setTab(tab.id)"
-            >
-                <Icon :name="tab.icon" size="14" />
-                {{ tab.label }}
-                <span
-                    v-if="tab.id === 'requests' && socialStore.incomingRequests > 0"
-                    class="bg-lava rounded-full px-1.5 font-mono text-[9px] text-white"
+        <!-- The border is on the outer box and the scroller overlaps it by 1px, so the active tab
+             underline covers the border without any vertical overflow (no stray scrollbar) -->
+        <div class="border-border mb-4 border-b">
+            <div class="scrollbar-none -mb-px flex gap-1 overflow-x-auto overflow-y-hidden">
+                <button
+                    v-for="tab in tabs"
+                    :key="tab.id"
+                    class="flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-xs
+                        font-medium transition-colors"
+                    :class="
+                        activeTab === tab.id
+                            ? 'border-lava text-lava'
+                            : 'text-dim border-transparent hover:text-white'
+                    "
+                    @click="setTab(tab.id)"
                 >
-                    {{ badgeCount(socialStore.incomingRequests) }}
-                </span>
-            </button>
+                    <Icon :name="tab.icon" size="14" />
+                    {{ tab.label }}
+                    <span
+                        v-if="tab.id === 'requests' && socialStore.incomingRequests > 0"
+                        class="bg-lava rounded-full px-1.5 font-mono text-[9px] text-white"
+                    >
+                        {{ badgeCount(socialStore.incomingRequests) }}
+                    </span>
+                </button>
+            </div>
         </div>
 
         <SocialUserList
