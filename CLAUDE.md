@@ -304,3 +304,4 @@ When working on GoonHub, remember:
 - In handlers, use `response.Error(c, err)` for automatic HTTP status and error code mapping
 - Never add a `Co-Authored-By` line to git commit messages
 - Before any database schema change, read `docs/DATABASE.md` for schema reference and conventions
+- Information about a user shown to other users (profile blocks, lists, presence, activity) must go through the privacy framework (`PrivacyService.CanView` / `VisibleTo`, catalog in `core/privacy_catalog.go`, no admin bypass) and personal live events through `EventBus.PublishToUser`; see `docs/SOCIAL.md`. Presence (online, idle, now watching, invisible mode) is in `core/presence_*.go`; add activity types as described in `docs/PRESENCE.md`

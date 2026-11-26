@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// Integration test of the Goon2gether repositories (migration 098). It reuses the import test
+// Integration test of the Goon2gether repositories (migration 099). It reuses the import test
 // database (GOONHUB_TEST_IMPORT_POSTGRES_DSN, disposable) and fixtures.
 func TestLobbyRepository(t *testing.T) {
 	db := importTestDB(t)

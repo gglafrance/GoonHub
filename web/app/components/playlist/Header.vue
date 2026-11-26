@@ -25,6 +25,14 @@ const { formatDuration } = useFormatter();
                         {{ playlist.name }}
                     </h1>
                     <span
+                        v-if="playlist.kind === 'markers'"
+                        class="bg-lava/15 text-lava flex shrink-0 items-center gap-1 rounded px-1.5
+                            py-0.5 text-[10px] font-semibold"
+                    >
+                        <Icon name="heroicons:bookmark" size="10" />
+                        Markers
+                    </span>
+                    <span
                         v-if="playlist.visibility !== 'public'"
                         class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
                         :class="
@@ -79,7 +87,16 @@ const { formatDuration } = useFormatter();
 
         <!-- Stats bar -->
         <div class="text-dim flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-            <span class="flex items-center gap-1">
+            <span v-if="playlist.kind === 'markers'" class="flex items-center gap-1">
+                <Icon name="heroicons:bookmark" size="14" />
+                {{ playlist.marker_count }}
+                {{ playlist.marker_count === 1 ? 'marker' : 'markers' }}
+                <span class="opacity-60">
+                    from {{ playlist.scene_count }}
+                    {{ playlist.scene_count === 1 ? 'scene' : 'scenes' }}
+                </span>
+            </span>
+            <span v-else class="flex items-center gap-1">
                 <Icon name="heroicons:film" size="14" />
                 {{ playlist.scene_count }} {{ playlist.scene_count === 1 ? 'scene' : 'scenes' }}
             </span>

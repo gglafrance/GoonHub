@@ -362,6 +362,8 @@ const props = defineProps<{
     scrubberToggle?: boolean;
     // Views and history are recorded but the resume position is kept (Goon2gether lobbies)
     keepResume?: boolean;
+    // Report the playback to the presence of the signed-in user ("now watching")
+    presence?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -482,6 +484,11 @@ const { hasRecordedView, setupTracking, cleanup } = useWatchTracking({
     player,
     scene: sceneRef,
     keepResume: props.keepResume,
+});
+const { setup: setupPresenceActivity, cleanup: cleanupPresenceActivity } = usePresenceActivity({
+    player,
+    scene: sceneRef,
+    enabled: () => !!props.presence,
 });
 const { setup: setupReplayHeatmap, cleanup: cleanupReplayHeatmap } = useReplayHeatmap({
     player,
@@ -652,6 +659,7 @@ onMounted(async () => {
 
     // Set up watch tracking (handles timeupdate, ended, and beforeunload)
     setupTracking();
+    setupPresenceActivity();
 
     // Emit viewRecorded when first recorded
     watch(hasRecordedView, (recorded) => {
@@ -860,6 +868,7 @@ defineExpose({
 onBeforeUnmount(() => {
     transcode.detach();
     cleanup();
+    cleanupPresenceActivity();
     cleanupThumbnailPreview();
     cleanupMarkerIndicators();
     cleanupGestures();

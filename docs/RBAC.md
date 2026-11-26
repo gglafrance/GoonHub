@@ -94,12 +94,14 @@ grant (superuser roles never get a grant row).
 | `scenes:reprocess` | Scenes | Reprocess a scene | existing |
 | `scenes:share` | Scenes | Create and delete share links | from `scenes:view` |
 | `markers:create` | Markers | Create, edit and delete one's own markers and marker tags | from `scenes:view` |
+| `marker_labels:manage` | Markers | Create, rename, recolor, merge and delete the server-wide marker labels and set their default tags (`/marker-labels`, `PUT /markers/label-tags`); a marker with an unknown label creates it (without the permission: `400`). See `docs/MARKER_LABELS.md` | moderator |
 | `tags:manage` | Library | Create, rename, recolor, merge and delete tags | moderator |
 | `actors:manage` | Library | Create, edit and delete actors and their images | none |
 | `actors:merge` | Library | Merge actors | existing |
 | `studios:manage` | Library | Create, edit and delete studios and their logos | none |
 | `studios:merge` | Library | Merge studios | existing |
-| `playlists:create`, `playlists:edit`, `playlists:delete`, `playlists:view_public` | Playlists | as today | existing |
+| `playlists:create`, `playlists:edit`, `playlists:delete`, `playlists:view_public` | Playlists | as today; they also cover the marker playlists (create, add/remove/reorder markers, delete, like; `docs/MARKER_PLAYLISTS.md`) | existing |
+| `social:use` | Social | Follow users, send and accept friend requests (`docs/SOCIAL.md`). Reading the directory, lists and profiles, unfollowing, declining, cancelling and removing a friend only need a signed-in user | `user`, from `scenes:view` |
 | `goon2gether:use` | Goon2gether | Join watch lobbies, chat, react, suggest (every `/together` route; see `docs/GOON2GETHER.md`) | from `scenes:view` |
 | `goon2gether:host` | Goon2gether | Create watch lobbies | from `scenes:view` |
 | `goon2gether:moderate` | Goon2gether | See and close any lobby (private ones too), kick and ban in any lobby, delete any chat message | moderator |
@@ -161,6 +163,10 @@ refuses the matching parameters (`403`); the UI hides the matching blocks.
   adding to a queue needs `scenes:view`.
 - `library:insights`: the trashed scenes in `GET /scenes/:id/similar` and the details of the
   curation and processing homepage widgets.
+- Marker playlists carry no file information (no size, path nor technical field): a viewer
+  of a public marker playlist gets its markers (also those of users who do not share theirs)
+  with only what playing needs. Only markers the owner sees can be added
+  (`docs/MARKER_PLAYLISTS.md`).
 
 The redaction is done in one place, `internal/api/v1/response/file_visibility.go`:
 `FileVisibility` is built from the request's permissions and passed to every scene DTO
@@ -168,6 +174,10 @@ converter (`ToSceneListItem*`, `NewSceneDetail`, homepage, explorer, playlist, h
 responses). Admin-only payloads (duplicates, trash, library health, jobs) are not redacted.
 
 Resolution (width/height) and duration stay visible to everyone who can view scenes.
+
+Presence (`docs/PRESENCE.md`): reporting a `watching_scene` activity needs `scenes:view`, and the
+scene of an activity (title, thumbnail, position) is only shown to viewers with `scenes:view`
+(the others see "watching something"); a presence never carries file information.
 
 ### Live events (`/events`)
 
@@ -178,6 +188,14 @@ data. Superusers get every event as is. Notable rules: `scan:*` need `storage:ma
 events need `jobs:view_status`; `fingerprint_type` of `scene:fingerprint_complete` needs
 `files:view_technical`; the `error` of `scene:failed` needs `files:view_technical` and
 `files:view_paths`.
+
+### Social privacy
+
+What a user shows to other users (profile, friends and followers lists, presence, activity...)
+is not governed by permissions but by that user's privacy settings (`docs/SOCIAL.md`). Privacy
+has **no administrator bypass**: a superuser is a viewer like any other and does not see what a
+user keeps private. Social live events (`social:*`, `presence:*`) are personal: they only reach the user they
+are for, superusers included (`EventBus.PublishToUser`).
 
 ### Known limitations
 
@@ -221,6 +239,9 @@ events need `jobs:view_status`; `fingerprint_type` of `scene:fingerprint_complet
 
 The rest of `/admin` needs the permission of its area (see the catalog). There is no
 role-name check anymore: `RequireRole("admin")` is gone, a superuser passes every check.
+
+The `/social` routes need a signed-in user; those creating a relation need `social:use`
+(`docs/SOCIAL.md`).
 
 Routes listing scenes need `scenes:view`: `/scenes...`, `/actors/:uuid/scenes`,
 `/studios/:uuid/scenes`, `/history...`, `/homepage...`, `GET /playlists/:uuid`.

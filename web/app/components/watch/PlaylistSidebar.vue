@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import type { PlaylistDetail, PlaylistSceneEntry } from '~/types/playlist';
+import type { PlaylistDetail } from '~/types/playlist';
+import type { PlaylistQueueItem } from '~/utils/playlistQueue';
 
 const props = defineProps<{
     playlist: PlaylistDetail;
+    // Queue items in playlist order (scenes, or markers with their range)
+    items: PlaylistQueueItem[];
     currentIndex: number;
     effectiveOrder: number[];
     isShuffled: boolean;
@@ -14,23 +17,18 @@ const emit = defineEmits<{
     unshuffle: [];
 }>();
 
-const { formatDuration } = useFormatter();
+const { formatDuration, formatMarkerRange } = useFormatter();
 
-const getScene = (orderIndex: number): PlaylistSceneEntry | null => {
-    const sceneIndex = props.effectiveOrder[orderIndex];
-    if (sceneIndex === undefined) return null;
-    return props.playlist.scenes[sceneIndex] ?? null;
+const getItem = (orderIndex: number): PlaylistQueueItem | null => {
+    const itemIndex = props.effectiveOrder[orderIndex];
+    if (itemIndex === undefined) return null;
+    return props.items[itemIndex] ?? null;
 };
 
 const remainingDuration = computed(() => {
     let total = 0;
     for (let i = props.currentIndex + 1; i < props.effectiveOrder.length; i++) {
-        const sceneIndex = props.effectiveOrder[i];
-        if (sceneIndex === undefined) continue;
-        const entry = props.playlist.scenes[sceneIndex];
-        if (entry) {
-            total += entry.scene.duration ?? 0;
-        }
+        total += getItem(i)?.duration ?? 0;
     }
     return total;
 });
@@ -60,9 +58,16 @@ watch(
             <div class="min-w-0">
                 <NuxtLink
                     :to="`/playlists/${playlist.uuid}`"
-                    class="block truncate text-xs font-semibold text-white hover:underline"
+                    class="flex items-center gap-1 truncate text-xs font-semibold text-white
+                        hover:underline"
                 >
-                    {{ playlist.name }}
+                    <Icon
+                        v-if="playlist.kind === 'markers'"
+                        name="heroicons:bookmark"
+                        size="12"
+                        class="text-lava shrink-0"
+                    />
+                    <span class="truncate">{{ playlist.name }}</span>
                 </NuxtLink>
                 <span class="text-dim font-mono text-[10px]">
                     {{ currentIndex + 1 }} of {{ effectiveOrder.length }}
@@ -81,7 +86,7 @@ watch(
             </button>
         </div>
 
-        <!-- Scene list -->
+        <!-- Queue -->
         <div ref="scrollContainer" class="max-h-[50vh] overflow-y-auto">
             <button
                 v-for="(_, orderIdx) in effectiveOrder"
@@ -106,10 +111,10 @@ watch(
                 <!-- Thumbnail -->
                 <div class="bg-void relative h-9 w-14 shrink-0 overflow-hidden rounded">
                     <img
-                        v-if="getScene(orderIdx)?.scene.thumbnail_path"
-                        :src="`/thumbnails/${getScene(orderIdx)!.scene.id}`"
+                        v-if="getItem(orderIdx)?.thumbnailUrl"
+                        :src="getItem(orderIdx)!.thumbnailUrl!"
                         class="h-full w-full object-cover"
-                        :alt="getScene(orderIdx)!.scene.title"
+                        :alt="getItem(orderIdx)!.title"
                         loading="lazy"
                     />
                 </div>
@@ -120,10 +125,20 @@ watch(
                         class="truncate text-[11px] font-medium"
                         :class="orderIdx === currentIndex ? 'text-white' : 'text-white/80'"
                     >
-                        {{ getScene(orderIdx)?.scene.title }}
+                        {{ getItem(orderIdx)?.title }}
+                    </div>
+                    <div v-if="getItem(orderIdx)?.subtitle" class="text-dim truncate text-[10px]">
+                        {{ getItem(orderIdx)?.subtitle }}
                     </div>
                     <div class="text-dim font-mono text-[9px]">
-                        {{ formatDuration(getScene(orderIdx)?.scene.duration ?? 0) }}
+                        <template v-if="getItem(orderIdx)?.start != null">
+                            {{
+                                formatMarkerRange(getItem(orderIdx)!.start!, getItem(orderIdx)!.end)
+                            }}
+                        </template>
+                        <template v-else>
+                            {{ formatDuration(getItem(orderIdx)?.duration ?? 0) }}
+                        </template>
                     </div>
                 </div>
             </button>

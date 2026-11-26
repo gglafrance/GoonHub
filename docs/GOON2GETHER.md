@@ -8,7 +8,7 @@ floating reactions over the video. It is like Watch2Gether or Teleparty, inside 
   (models and repositories), `internal/api/v1/handler/together*.go` (REST and WebSocket).
 - Frontend: `web/app/pages/together/` (lobby browser, room, join by code),
   `web/app/components/together/`, `web/app/composables/useTogether*.ts`.
-- Schema: migration 098 (`lobbies`, `lobby_members`, `lobby_queue_items`, `emotes`), see
+- Schema: migration 099 (`lobbies`, `lobby_members`, `lobby_queue_items`, `emotes`), see
   `docs/DATABASE.md`.
 
 ## Concepts

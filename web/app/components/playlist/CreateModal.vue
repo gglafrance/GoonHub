@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import type { PlaylistListItem, CreatePlaylistInput } from '~/types/playlist';
+import type {
+    CreatePlaylistInput,
+    CreatePlaylistResult,
+    MarkerPlaylistFilter,
+    PlaylistKind,
+    PlaylistListItem,
+} from '~/types/playlist';
 
 interface TagItem {
     id: number;
@@ -7,21 +13,76 @@ interface TagItem {
     color: string;
 }
 
+// Creates a playlist, or adds items to one: scenes (prefillSceneIds) or markers (prefillMarkerIds,
+// or every marker of a listing: markerFilter). The existing playlists offered are those of the
+// items' kind (docs/MARKER_PLAYLISTS.md).
 const props = defineProps<{
     visible: boolean;
     prefillName?: string;
     prefillSceneIds?: number[];
+    prefillMarkerIds?: number[];
+    markerFilter?: MarkerPlaylistFilter | null;
+    // Markers the filter lists (shown only)
+    markerFilterCount?: number;
+    // Kind preselected for a new empty playlist
+    kind?: PlaylistKind;
 }>();
 
 const emit = defineEmits<{
     close: [];
-    created: [playlist: PlaylistListItem];
+    created: [playlist: { uuid: string; name: string }];
 }>();
 
-const { createPlaylist, fetchPlaylists, addScenes } = useApiPlaylists();
+const { createPlaylist, fetchPlaylists, addScenes, addMarkers, addMarkersFromFilter } =
+    useApiPlaylists();
 const { fetchTags } = useApiTags();
 
 const hasScenes = computed(() => (props.prefillSceneIds?.length ?? 0) > 0);
+const hasMarkers = computed(
+    () => (props.prefillMarkerIds?.length ?? 0) > 0 || !!props.markerFilter,
+);
+const hasItems = computed(() => hasScenes.value || hasMarkers.value);
+
+// Kind of a new playlist: the items' kind, else chosen in the form
+const newKind = ref<PlaylistKind>('scenes');
+const effectiveKind = computed<PlaylistKind>(() => {
+    if (hasMarkers.value) return 'markers';
+    if (hasScenes.value) return 'scenes';
+    return newKind.value;
+});
+
+const kindOptions = [
+    { key: 'scenes' as const, label: 'Scenes', icon: 'heroicons:film' },
+    { key: 'markers' as const, label: 'Markers', icon: 'heroicons:bookmark' },
+] as const;
+
+const itemCount = computed(() => {
+    if (hasScenes.value) return props.prefillSceneIds!.length;
+    if (props.prefillMarkerIds?.length) return props.prefillMarkerIds.length;
+    return props.markerFilterCount ?? 0;
+});
+const itemLabel = computed(() => {
+    const n = itemCount.value;
+    const word = effectiveKind.value === 'markers' ? 'marker' : 'scene';
+    if (props.markerFilter && !props.prefillMarkerIds?.length) {
+        return n > 0 ? `${n} ${word}${n === 1 ? '' : 's'} (whole list)` : 'Whole list';
+    }
+    return `${n} ${word}${n === 1 ? '' : 's'}`;
+});
+
+// Adds the markers to a playlist, by ID or by listing
+const addMarkerItems = async (uuid: string) => {
+    if (props.prefillMarkerIds?.length) return addMarkers(uuid, props.prefillMarkerIds);
+    if (props.markerFilter) return addMarkersFromFilter(uuid, props.markerFilter);
+    return { added: 0, skipped: 0 };
+};
+
+const addedMessage = (added: number, skipped: number, name: string) => {
+    const word = effectiveKind.value === 'markers' ? 'marker' : 'scene';
+    let msg = `Added ${added} ${word}${added === 1 ? '' : 's'} to "${name}"`;
+    if (skipped > 0) msg += ` (${skipped} already in it)`;
+    return msg;
+};
 
 // Tab: 'existing' (add to existing) or 'new' (create new)
 const activeTab = ref<'existing' | 'new'>('existing');
@@ -68,7 +129,7 @@ const loadTags = async () => {
 const loadExistingPlaylists = async () => {
     loadingPlaylists.value = true;
     try {
-        const result = await fetchPlaylists({ owner: 'me', limit: 50 });
+        const result = await fetchPlaylists({ owner: 'me', limit: 50, kind: effectiveKind.value });
         existingPlaylists.value = result.data;
         initialLoad.value = false;
     } catch (e: unknown) {
@@ -89,9 +150,10 @@ watch(
             error.value = '';
             success.value = '';
             initialLoad.value = true;
-            activeTab.value = hasScenes.value ? 'existing' : 'new';
+            newKind.value = props.kind ?? 'scenes';
+            activeTab.value = hasItems.value ? 'existing' : 'new';
 
-            if (hasScenes.value) {
+            if (hasItems.value) {
                 await loadExistingPlaylists();
             }
             await loadTags();
@@ -105,20 +167,25 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 const handleAddToExisting = async (playlistUuid: string, playlistName: string) => {
-    if (!props.prefillSceneIds?.length) return;
+    if (!hasItems.value) return;
 
     actionLoading.value = true;
     error.value = '';
     success.value = '';
 
     try {
-        await addScenes(playlistUuid, props.prefillSceneIds);
-        success.value = `Added ${props.prefillSceneIds.length} scene(s) to "${playlistName}"`;
+        if (hasMarkers.value) {
+            const result = await addMarkerItems(playlistUuid);
+            success.value = addedMessage(result.added, result.skipped, playlistName);
+        } else {
+            await addScenes(playlistUuid, props.prefillSceneIds!);
+            success.value = addedMessage(props.prefillSceneIds!.length, 0, playlistName);
+        }
         setTimeout(() => {
-            emit('created', existingPlaylists.value.find((p) => p.uuid === playlistUuid)!);
+            emit('created', { uuid: playlistUuid, name: playlistName });
         }, 800);
     } catch (e: unknown) {
-        error.value = e instanceof Error ? e.message : 'Failed to add scenes';
+        error.value = e instanceof Error ? e.message : 'Failed to add to the playlist';
     } finally {
         actionLoading.value = false;
     }
@@ -137,6 +204,7 @@ const handleSubmit = async () => {
         const input: CreatePlaylistInput = {
             name: name.value.trim(),
             visibility: visibility.value,
+            kind: effectiveKind.value,
         };
         if (description.value.trim()) {
             input.description = description.value.trim();
@@ -147,8 +215,15 @@ const handleSubmit = async () => {
         if (props.prefillSceneIds?.length) {
             input.scene_ids = props.prefillSceneIds;
         }
+        if (props.prefillMarkerIds?.length) {
+            input.marker_ids = props.prefillMarkerIds;
+        }
 
-        const result = await createPlaylist(input);
+        const result: CreatePlaylistResult = await createPlaylist(input);
+        // A whole listing is added once the playlist exists
+        if (props.markerFilter && !props.prefillMarkerIds?.length) {
+            await addMarkersFromFilter(result.uuid, props.markerFilter);
+        }
         emit('created', result);
     } catch (e: unknown) {
         error.value = e instanceof Error ? e.message : 'Failed to create playlist';
@@ -196,7 +271,7 @@ const toggleTag = (tagId: number) => {
                     <div
                         class="border-border bg-panel flex w-full max-w-md flex-col rounded-xl
                             border shadow-2xl"
-                        :class="hasScenes && activeTab === 'existing' ? 'h-[50dvh]' : ''"
+                        :class="hasItems && activeTab === 'existing' ? 'h-[50dvh]' : ''"
                     >
                         <!-- Header -->
                         <div
@@ -212,10 +287,10 @@ const toggleTag = (tagId: number) => {
                                 </div>
                                 <div>
                                     <h2 class="text-sm font-semibold text-white">
-                                        {{ hasScenes ? 'Add to Playlist' : 'Create Playlist' }}
+                                        {{ hasItems ? 'Add to Playlist' : 'Create Playlist' }}
                                     </h2>
-                                    <p v-if="hasScenes" class="text-dim text-[10px] leading-tight">
-                                        {{ prefillSceneIds!.length }} scene(s) selected
+                                    <p v-if="hasItems" class="text-dim text-[10px] leading-tight">
+                                        {{ itemLabel }} selected
                                     </p>
                                 </div>
                             </div>
@@ -229,7 +304,7 @@ const toggleTag = (tagId: number) => {
                         </div>
 
                         <!-- Tab selector (only when scenes provided) -->
-                        <div v-if="hasScenes" class="border-border shrink-0 border-b px-4 py-2.5">
+                        <div v-if="hasItems" class="border-border shrink-0 border-b px-4 py-2.5">
                             <div class="bg-surface flex gap-0.5 rounded-lg p-0.5">
                                 <button
                                     v-for="tab in tabOptions"
@@ -281,7 +356,7 @@ const toggleTag = (tagId: number) => {
 
                         <!-- Existing playlists tab -->
                         <div
-                            v-if="hasScenes && activeTab === 'existing'"
+                            v-if="hasItems && activeTab === 'existing'"
                             class="min-h-0 flex-1 overflow-y-auto px-2 py-2"
                         >
                             <!-- Loading skeleton -->
@@ -315,7 +390,10 @@ const toggleTag = (tagId: number) => {
                                 >
                                     <Icon name="heroicons:queue-list" size="18" class="text-dim" />
                                 </div>
-                                <p class="text-dim text-xs">No playlists yet</p>
+                                <p class="text-dim text-xs">
+                                    No {{ effectiveKind === 'markers' ? 'marker ' : '' }}playlists
+                                    yet
+                                </p>
                                 <button
                                     class="text-lava hover:text-lava-glow mt-1 text-[11px]
                                         font-medium"
@@ -347,7 +425,19 @@ const toggleTag = (tagId: number) => {
                                             ring-white/6 transition-all group-hover:ring-white/10"
                                     >
                                         <img
-                                            v-if="p.thumbnail_scenes.length > 0"
+                                            v-if="p.kind === 'markers' && p.thumbnail_markers?.[0]"
+                                            :src="
+                                                markerThumbnailUrl(
+                                                    p.thumbnail_markers[0].id,
+                                                    p.thumbnail_markers[0].version,
+                                                )
+                                            "
+                                            class="h-full w-full object-cover"
+                                            alt=""
+                                            loading="lazy"
+                                        />
+                                        <img
+                                            v-else-if="p.thumbnail_scenes.length > 0"
                                             :src="`/thumbnails/${p.thumbnail_scenes[0]?.id}`"
                                             class="h-full w-full object-cover"
                                             alt=""
@@ -370,8 +460,14 @@ const toggleTag = (tagId: number) => {
                                             {{ p.name }}
                                         </p>
                                         <p class="text-dim text-[10px]">
-                                            {{ p.scene_count }}
-                                            {{ p.scene_count === 1 ? 'scene' : 'scenes' }}
+                                            <template v-if="p.kind === 'markers'">
+                                                {{ p.marker_count }}
+                                                {{ p.marker_count === 1 ? 'marker' : 'markers' }}
+                                            </template>
+                                            <template v-else>
+                                                {{ p.scene_count }}
+                                                {{ p.scene_count === 1 ? 'scene' : 'scenes' }}
+                                            </template>
                                         </p>
                                     </div>
 
@@ -393,10 +489,39 @@ const toggleTag = (tagId: number) => {
 
                         <!-- Create new playlist form -->
                         <div
-                            v-if="!hasScenes || activeTab === 'new'"
+                            v-if="!hasItems || activeTab === 'new'"
                             class="flex-1 overflow-y-auto p-4"
                         >
                             <form class="space-y-3.5" @submit.prevent="handleSubmit">
+                                <!-- Kind (fixed at creation; set by the items when adding) -->
+                                <div v-if="!hasItems">
+                                    <label
+                                        class="text-dim mb-1.5 block text-[11px] font-medium
+                                            tracking-wider uppercase"
+                                    >
+                                        Holds
+                                    </label>
+                                    <div class="bg-surface flex gap-0.5 rounded-lg p-0.5">
+                                        <button
+                                            v-for="opt in kindOptions"
+                                            :key="opt.key"
+                                            type="button"
+                                            class="flex flex-1 items-center justify-center gap-1.5
+                                                rounded-md py-1.5 text-[11px] font-medium
+                                                transition-all"
+                                            :class="
+                                                newKind === opt.key
+                                                    ? 'bg-lava/15 text-lava shadow-sm'
+                                                    : 'text-dim hover:text-white'
+                                            "
+                                            @click="newKind = opt.key"
+                                        >
+                                            <Icon :name="opt.icon" size="12" />
+                                            {{ opt.label }}
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <!-- Name -->
                                 <div>
                                     <label
@@ -522,17 +647,17 @@ const toggleTag = (tagId: number) => {
 
                                 <!-- Scene count notice -->
                                 <div
-                                    v-if="prefillSceneIds?.length"
+                                    v-if="hasItems"
                                     class="border-border bg-surface/50 flex items-center gap-2
                                         rounded-lg border px-3 py-2"
                                 >
                                     <Icon
-                                        name="heroicons:film"
+                                        :name="hasMarkers ? 'heroicons:bookmark' : 'heroicons:film'"
                                         size="13"
                                         class="text-dim shrink-0"
                                     />
                                     <span class="text-dim text-[11px]">
-                                        {{ prefillSceneIds.length }} scene(s) will be added
+                                        {{ itemLabel }} will be added
                                     </span>
                                 </div>
                             </form>
@@ -544,7 +669,7 @@ const toggleTag = (tagId: number) => {
                                 px-4 py-3"
                         >
                             <span class="text-dim text-[11px]">
-                                <template v-if="hasScenes && activeTab === 'existing'">
+                                <template v-if="hasItems && activeTab === 'existing'">
                                     <span class="text-lava font-medium">
                                         {{ existingPlaylists.length }}
                                     </span>
@@ -557,7 +682,7 @@ const toggleTag = (tagId: number) => {
                                     tag{{ selectedTagIds.length === 1 ? '' : 's' }}
                                 </template>
                                 <template v-else>
-                                    {{ hasScenes && activeTab === 'existing' ? '' : visibility }}
+                                    {{ hasItems && activeTab === 'existing' ? '' : visibility }}
                                 </template>
                             </span>
                             <div class="flex items-center gap-2">
@@ -566,10 +691,10 @@ const toggleTag = (tagId: number) => {
                                         px-3 py-1.5 text-xs font-medium text-white transition-all"
                                     @click="emit('close')"
                                 >
-                                    {{ hasScenes && activeTab === 'existing' ? 'Close' : 'Cancel' }}
+                                    {{ hasItems && activeTab === 'existing' ? 'Close' : 'Cancel' }}
                                 </button>
                                 <button
-                                    v-if="!hasScenes || activeTab === 'new'"
+                                    v-if="!hasItems || activeTab === 'new'"
                                     :disabled="loading || !name.trim()"
                                     class="bg-lava hover:bg-lava-glow rounded-lg px-3 py-1.5 text-xs
                                         font-semibold text-white transition-colors

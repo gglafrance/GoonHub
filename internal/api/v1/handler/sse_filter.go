@@ -16,6 +16,9 @@ type sseEventRule struct {
 	passAll bool
 	// fields maps an allowed data key to the permissions needed to see it (none = everyone)
 	fields map[string][]string
+	// targeted events are personal: only sent when published to one user (EventBus.
+	// PublishToUser), never as a broadcast
+	targeted bool
 }
 
 var (
@@ -50,12 +53,22 @@ var sseEventRules = map[string]sseEventRule{
 	"jobs:bulk_cancelled":   {require: core.PermJobsViewStatus, fields: map[string][]string{"phases": nil, "pending_cancelled": nil, "queued_skipped": nil, "running_cancelled": nil}},
 }
 
+// sseTargetedPrefixes are the event families that are always personal (targeted at one
+// user): a broadcast of such an event is dropped. Presence and other per-user features add
+// their prefix here.
+var sseTargetedPrefixes = []string{"social:", "presence:"}
+
 // sseRuleFor returns the rule of an event type. jobs:* need jobs:view_status, scan:* (absolute
-// paths of the library files) need storage:manage, with their data as is. An unknown type is
-// sent without its data.
+// paths of the library files) need storage:manage, with their data as is; social:* and
+// presence:* are targeted. An unknown type is sent without its data.
 func sseRuleFor(eventType string) sseEventRule {
 	if rule, ok := sseEventRules[eventType]; ok {
 		return rule
+	}
+	for _, prefix := range sseTargetedPrefixes {
+		if strings.HasPrefix(eventType, prefix) {
+			return sseEventRule{targeted: true}
+		}
 	}
 	switch {
 	case strings.HasPrefix(eventType, "scan:"):
@@ -66,16 +79,24 @@ func sseRuleFor(eventType string) sseEventRule {
 	return sseEventRule{}
 }
 
-// eventForUser returns the event as a user may see it, false when it must not be sent. A
-// superuser gets every event as is.
+// eventForUser returns the event as a user may see it, false when it must not be sent. An
+// event targeted at a user (core.SceneEvent.UserID) goes to that user only, data as is; a
+// targeted event type that was broadcast is dropped. Otherwise a superuser gets every event
+// as is.
 func eventForUser(event core.SceneEvent, access *core.UserAccess) (core.SceneEvent, bool) {
 	if access == nil {
+		return event, false
+	}
+	if event.UserID != 0 {
+		return event, event.UserID == access.UserID
+	}
+	rule := sseRuleFor(event.Type)
+	if rule.targeted {
 		return event, false
 	}
 	if access.Superuser {
 		return event, true
 	}
-	rule := sseRuleFor(event.Type)
 	if rule.require != "" && !access.Has(rule.require) {
 		return event, false
 	}

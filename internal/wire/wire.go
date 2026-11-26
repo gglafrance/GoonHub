@@ -88,6 +88,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Marker Repository
 		provideMarkerRepository,
+		provideMarkerLabelRepository,
 
 		// Playlist Repository
 		providePlaylistRepository,
@@ -104,6 +105,11 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Import Repository
 		provideImportRepository,
+
+		// Social Repositories
+		provideSocialRepository,
+		providePrivacyRepository,
+		providePresenceRepository,
 
 		// Remote Worker Repositories
 		provideWorkerRepository,
@@ -197,6 +203,11 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideStreamManager,
 		provideTranscoder,
 
+		// Social Services
+		providePrivacyService,
+		provideSocialService,
+		providePresenceService,
+
 		// Remote Workers
 		provideWorkerService,
 		providePushDispatcher,
@@ -280,6 +291,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Goon2gether Handler
 		provideTogetherHandler,
+		// Social Handler
+		provideSocialHandler,
+		providePresenceHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -423,12 +437,30 @@ func provideMarkerRepository(db *gorm.DB) data.MarkerRepository {
 	return data.NewMarkerRepository(db)
 }
 
+func provideMarkerLabelRepository(db *gorm.DB) data.MarkerLabelRepository {
+	return data.NewMarkerLabelRepository(db)
+}
+
 func providePlaylistRepository(db *gorm.DB) data.PlaylistRepository {
 	return data.NewPlaylistRepository(db)
 }
 
 func provideShareLinkRepository(db *gorm.DB) data.ShareLinkRepository {
 	return data.NewShareLinkRepository(db)
+}
+
+// --- Social Repositories ---
+
+func provideSocialRepository(db *gorm.DB) data.SocialRepository {
+	return data.NewSocialRepository(db)
+}
+
+func providePrivacyRepository(db *gorm.DB) data.PrivacyRepository {
+	return data.NewPrivacyRepository(db)
+}
+
+func providePresenceRepository(db *gorm.DB) data.PresenceRepository {
+	return data.NewPresenceRepository(db)
 }
 
 // ============================================================================
@@ -690,12 +722,12 @@ func provideHomepageService(
 	return svc
 }
 
-func provideMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
-	return core.NewMarkerService(markerRepo, sceneRepo, tagRepo, cfg, logger.Logger)
+func provideMarkerService(markerRepo data.MarkerRepository, labelRepo data.MarkerLabelRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
+	return core.NewMarkerService(markerRepo, labelRepo, sceneRepo, tagRepo, cfg, logger.Logger)
 }
 
-func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, logger *logging.Logger) *core.PlaylistService {
-	return core.NewPlaylistService(repo, sceneRepo, tagRepo, logger.Logger)
+func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.PlaylistService {
+	return core.NewPlaylistService(repo, sceneRepo, tagRepo, cfg.Playlists, logger.Logger)
 }
 
 // --- Share Service ---
@@ -868,8 +900,10 @@ func provideRetryConfigHandler(retryConfigRepo data.RetryConfigRepository, retry
 
 // --- Real-time & Storage Handlers ---
 
-func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, rbacService *core.RBACService, logger *logging.Logger) *handler.SSEHandler {
-	return handler.NewSSEHandler(eventBus, authService, jobStatusService, rbacService, logger.Logger)
+func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, rbacService *core.RBACService, presence *core.PresenceService, logger *logging.Logger) *handler.SSEHandler {
+	h := handler.NewSSEHandler(eventBus, authService, jobStatusService, rbacService, logger.Logger)
+	h.SetPresence(presence)
+	return h
 }
 
 func provideStoragePathHandler(service *core.StoragePathService) *handler.StoragePathHandler {
@@ -898,8 +932,9 @@ func provideHomepageHandler(homepageService *core.HomepageService) *handler.Home
 	return handler.NewHomepageHandler(homepageService)
 }
 
-func provideMarkerHandler(markerService *core.MarkerService, db *gorm.DB, cfg *config.Config, logger *logging.Logger) *handler.MarkerHandler {
+func provideMarkerHandler(markerService *core.MarkerService, labelRepo data.MarkerLabelRepository, tagRepo data.TagRepository, db *gorm.DB, cfg *config.Config, logger *logging.Logger) *handler.MarkerHandler {
 	h := handler.NewMarkerHandler(markerService, cfg.Pagination.MaxItemsPerPage)
+	h.SetLabelService(core.NewMarkerLabelService(labelRepo, tagRepo, logger.Logger))
 	h.SetSavedFilterService(core.NewSavedMarkerFilterService(data.NewSavedMarkerFilterRepository(db), logger.Logger))
 	return h
 }
@@ -935,6 +970,30 @@ func provideShareHandler(shareService *core.ShareService, authService *core.Auth
 	h := handler.NewShareHandler(shareService, authService, streamManager, transcoder, cfg.Sharing.BaseURL)
 	h.Access = rbacService
 	return h
+}
+
+// --- Social ---
+
+func providePrivacyService(repo data.PrivacyRepository, socialRepo data.SocialRepository, logger *logging.Logger) *core.PrivacyService {
+	return core.NewPrivacyService(repo, socialRepo, logger.Logger)
+}
+
+func provideSocialService(repo data.SocialRepository, privacy *core.PrivacyService, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.SocialService {
+	return core.NewSocialService(repo, privacy, eventBus, cfg.Social, logger.Logger)
+}
+
+func provideSocialHandler(social *core.SocialService, privacy *core.PrivacyService, cfg *config.Config) *handler.SocialHandler {
+	return handler.NewSocialHandler(social, privacy, cfg.Pagination.MaxItemsPerPage)
+}
+
+// providePresenceService creates the presence (docs/PRESENCE.md), subscribed to the privacy
+// and social changes. Its loop is started and stopped by the server.
+func providePresenceService(repo data.PresenceRepository, privacy *core.PrivacyService, social *core.SocialService, sceneRepo data.SceneRepository, rbacService *core.RBACService, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.PresenceService {
+	return core.NewPresenceService(repo, privacy, social, sceneRepo, rbacService, eventBus, cfg.Presence, logger.Logger)
+}
+
+func providePresenceHandler(presence *core.PresenceService) *handler.PresenceHandler {
+	return handler.NewPresenceHandler(presence)
 }
 
 // --- Library Health ---
@@ -1002,6 +1061,8 @@ func provideRouter(
 	libraryHealthHandler *handler.LibraryHealthHandler,
 	workerHandler *handler.WorkerHandler,
 	togetherHandler *handler.TogetherHandler,
+	socialHandler *handler.SocialHandler,
+	presenceHandler *handler.PresenceHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -1014,7 +1075,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, togetherHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, presenceHandler, togetherHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 
@@ -1058,14 +1119,17 @@ func provideServer(
 	workerService *workers.Service,
 	pushDispatcher *workers.PushDispatcher,
 	togetherHub *together.Hub,
+	presenceService *core.PresenceService,
 ) *server.Server {
-	return server.NewHTTPServer(
+	srv := server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
 		actorService, studioService, matchingService, duplicateService, markerService, shareServer, transcoder,
 		workerService, pushDispatcher, togetherHub,
 	)
+	srv.SetPresence(presenceService)
+	return srv
 }
 
 // ============================================================================

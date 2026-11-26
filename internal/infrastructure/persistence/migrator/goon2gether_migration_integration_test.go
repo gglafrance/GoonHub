@@ -12,7 +12,7 @@ import (
 )
 
 // goon2getherMigration is the version of the Goon2gether migration (lobbies, emotes).
-const goon2getherMigration = 98
+const goon2getherMigration = 99
 
 // Integration test of the Goon2gether migration: up, down, up again. It needs a disposable
 // database of its own: GOONHUB_TEST_MIGRATION_POSTGRES_DSN.

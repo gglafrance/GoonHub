@@ -18,6 +18,7 @@ type MarkerHandler struct {
 	service         *core.MarkerService
 	maxItemsPerPage int
 	savedFilters    *core.SavedMarkerFilterService
+	labels          *core.MarkerLabelService
 }
 
 func NewMarkerHandler(service *core.MarkerService, maxItemsPerPage int) *MarkerHandler {
@@ -74,7 +75,8 @@ func (h *MarkerHandler) CreateMarker(c *gin.Context) {
 		return
 	}
 
-	marker, err := h.service.CreateMarker(userID, uint(sceneID), req.Timestamp, req.EndTimestamp, req.Label, req.Color)
+	marker, err := h.service.CreateMarker(userID, uint(sceneID), req.Timestamp, req.EndTimestamp, req.Label, req.Color,
+		middleware.HasPermission(c, core.PermMarkerLabelsManage))
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -101,7 +103,8 @@ func (h *MarkerHandler) UpdateMarker(c *gin.Context) {
 		return
 	}
 
-	marker, err := h.service.UpdateMarker(userID, uint(markerID), req.Label, req.Color, req.Timestamp, req.EndTimestamp, req.ClearEndTimestamp)
+	marker, err := h.service.UpdateMarker(userID, uint(markerID), req.Label, req.Color, req.Timestamp, req.EndTimestamp, req.ClearEndTimestamp,
+		middleware.HasPermission(c, core.PermMarkerLabelsManage))
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -136,7 +139,7 @@ func (h *MarkerHandler) ListLabelSuggestions(c *gin.Context) {
 		return
 	}
 
-	suggestions, err := h.service.GetLabelSuggestions(userID, 50)
+	suggestions, err := h.service.GetLabelSuggestions(userID, maxMarkerLabelSuggestions)
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -241,59 +244,50 @@ func (h *MarkerHandler) ListAllMarkers(c *gin.Context) {
 	response.OK(c, response.NewPaginatedResponse(markers, page, limit, total))
 }
 
-// GetLabelTags returns the default tags for a label
+// GetLabelTags returns the default tags of a label, by name (GET /markers/label-tags?label=,
+// ignoring case). Unknown label: 404.
 func (h *MarkerHandler) GetLabelTags(c *gin.Context) {
-	userID, ok := h.requireAuth(c)
-	if !ok {
-		return
-	}
-
 	label := c.Query("label")
-	if label == "" {
+	if strings.TrimSpace(label) == "" {
 		response.BadRequest(c, "label query parameter is required")
 		return
 	}
-
-	tags, err := h.service.GetLabelTags(userID, label)
+	found, err := h.labels.FindByName(label)
 	if err != nil {
 		response.Error(c, err)
 		return
 	}
-
+	tags, err := h.labels.GetDefaultTags(found.ID)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
 	response.OK(c, gin.H{"tags": tags})
 }
 
-// SetLabelTags sets the default tags for a label
+// SetLabelTags sets the default tags of a label, by name (PUT /markers/label-tags?label=,
+// marker_labels:manage). The tags are the same for every user.
 func (h *MarkerHandler) SetLabelTags(c *gin.Context) {
-	userID, ok := h.requireAuth(c)
-	if !ok {
-		return
-	}
-
 	label := c.Query("label")
-	if label == "" {
+	if strings.TrimSpace(label) == "" {
 		response.BadRequest(c, "label query parameter is required")
 		return
 	}
-
 	var req request.SetLabelTagsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request body")
 		return
 	}
-
-	if err := h.service.SetLabelTags(userID, label, req.TagIDs); err != nil {
-		response.Error(c, err)
-		return
-	}
-
-	// Return the updated tags
-	tags, err := h.service.GetLabelTags(userID, label)
+	found, err := h.labels.FindByName(label)
 	if err != nil {
 		response.Error(c, err)
 		return
 	}
-
+	tags, err := h.labels.SetDefaultTags(found.ID, req.TagIDs)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
 	response.OK(c, gin.H{"tags": tags})
 }
 

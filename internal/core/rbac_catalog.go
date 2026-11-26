@@ -2,46 +2,48 @@ package core
 
 // Permission names checked by the code. The catalog below is the reference (docs/RBAC.md).
 const (
-	PermScenesView        = "scenes:view"
-	PermScenesUpload      = "scenes:upload"
-	PermScenesEdit        = "scenes:edit"
-	PermScenesTrash       = "scenes:trash"
-	PermScenesDelete      = "scenes:delete"
-	PermScenesReprocess   = "scenes:reprocess"
-	PermScenesShare       = "scenes:share"
-	PermMarkersCreate     = "markers:create"
-	PermTagsManage        = "tags:manage"
-	PermActorsManage      = "actors:manage"
-	PermActorsMerge       = "actors:merge"
-	PermStudiosManage     = "studios:manage"
-	PermStudiosMerge      = "studios:merge"
-	PermPlaylistsCreate   = "playlists:create"
-	PermPlaylistsEdit     = "playlists:edit"
-	PermPlaylistsDelete   = "playlists:delete"
-	PermPlaylistsPublic   = "playlists:view_public"
-	PermFilesViewSize     = "files:view_size"
-	PermFilesViewPaths    = "files:view_paths"
-	PermFilesViewTech     = "files:view_technical"
-	PermExplorerAccess    = "explorer:access"
-	PermJobsViewStatus    = "jobs:view_status"
-	PermJobsManage        = "jobs:manage"
-	PermUsersManage       = "users:manage"
-	PermRolesManage       = "roles:manage"
-	PermSettingsManage    = "settings:manage"
-	PermStorageManage     = "storage:manage"
-	PermDuplicatesManage  = "duplicates:manage"
-	PermTrashManage       = "trash:manage"
-	PermLibraryHealth     = "library:health"
-	PermLibraryInsights   = "library:insights"
-	PermPornDBUse         = "porndb:use"
-	PermImportUse         = "import:use"
-	PermStatsViewStreams  = "stats:view_streams"
-	PermTogetherUse       = "goon2gether:use"
-	PermTogetherHost      = "goon2gether:host"
-	PermTogetherModerate  = "goon2gether:moderate"
-	PermEmotesManage      = "emotes:manage"
-	permUsersCreateLegacy = "users:create"
-	permUsersDeleteLegacy = "users:delete"
+	PermScenesView         = "scenes:view"
+	PermScenesUpload       = "scenes:upload"
+	PermScenesEdit         = "scenes:edit"
+	PermScenesTrash        = "scenes:trash"
+	PermScenesDelete       = "scenes:delete"
+	PermScenesReprocess    = "scenes:reprocess"
+	PermScenesShare        = "scenes:share"
+	PermMarkersCreate      = "markers:create"
+	PermMarkerLabelsManage = "marker_labels:manage"
+	PermTagsManage         = "tags:manage"
+	PermActorsManage       = "actors:manage"
+	PermActorsMerge        = "actors:merge"
+	PermStudiosManage      = "studios:manage"
+	PermStudiosMerge       = "studios:merge"
+	PermPlaylistsCreate    = "playlists:create"
+	PermPlaylistsEdit      = "playlists:edit"
+	PermPlaylistsDelete    = "playlists:delete"
+	PermPlaylistsPublic    = "playlists:view_public"
+	PermFilesViewSize      = "files:view_size"
+	PermFilesViewPaths     = "files:view_paths"
+	PermFilesViewTech      = "files:view_technical"
+	PermExplorerAccess     = "explorer:access"
+	PermJobsViewStatus     = "jobs:view_status"
+	PermJobsManage         = "jobs:manage"
+	PermUsersManage        = "users:manage"
+	PermRolesManage        = "roles:manage"
+	PermSettingsManage     = "settings:manage"
+	PermStorageManage      = "storage:manage"
+	PermDuplicatesManage   = "duplicates:manage"
+	PermTrashManage        = "trash:manage"
+	PermLibraryHealth      = "library:health"
+	PermLibraryInsights    = "library:insights"
+	PermPornDBUse          = "porndb:use"
+	PermImportUse          = "import:use"
+	PermStatsViewStreams   = "stats:view_streams"
+	PermSocialUse          = "social:use"
+	PermTogetherUse        = "goon2gether:use"
+	PermTogetherHost       = "goon2gether:host"
+	PermTogetherModerate   = "goon2gether:moderate"
+	PermEmotesManage       = "emotes:manage"
+	permUsersCreateLegacy  = "users:create"
+	permUsersDeleteLegacy  = "users:delete"
 )
 
 // Permission groups (shown by the UI).
@@ -50,6 +52,7 @@ const (
 	PermGroupMarkers    = "Markers"
 	PermGroupLibrary    = "Library"
 	PermGroupPlaylists  = "Playlists"
+	PermGroupSocial     = "Social"
 	PermGroupFileInfo   = "File info"
 	PermGroupProcessing = "Processing"
 	PermGroupAdmin      = "Admin"
@@ -82,6 +85,7 @@ var PermissionCatalog = []CatalogPermission{
 	{Name: PermScenesReprocess, Group: PermGroupScenes, Description: "Reprocess a scene"},
 	{Name: PermScenesShare, Group: PermGroupScenes, Description: "Create and delete share links", GrantFrom: PermScenesView},
 	{Name: PermMarkersCreate, Group: PermGroupMarkers, Description: "Create, edit and delete one's own markers and marker tags", GrantFrom: PermScenesView},
+	{Name: PermMarkerLabelsManage, Group: PermGroupMarkers, Description: "Create, rename, recolor, merge and delete marker labels and set their default tags", GrantRoles: []string{"moderator"}},
 	{Name: PermTagsManage, Group: PermGroupLibrary, Description: "Create, rename, recolor, merge and delete tags", GrantRoles: []string{"moderator"}},
 	{Name: PermActorsManage, Group: PermGroupLibrary, Description: "Create, edit and delete actors and their images"},
 	{Name: PermActorsMerge, Group: PermGroupLibrary, Description: "Merge actors"},
@@ -95,6 +99,7 @@ var PermissionCatalog = []CatalogPermission{
 	{Name: PermTogetherHost, Group: PermGroupTogether, Description: "Create watch lobbies", GrantFrom: PermScenesView},
 	{Name: PermTogetherModerate, Group: PermGroupTogether, Description: "See and close any lobby, kick and ban, delete chat messages", GrantRoles: []string{"moderator"}},
 	{Name: PermEmotesManage, Group: PermGroupTogether, Description: "Upload, rename and delete the custom emotes", GrantRoles: []string{"moderator"}},
+	{Name: PermSocialUse, Group: PermGroupSocial, Description: "Follow users and send or accept friend requests", GrantRoles: []string{"user"}, GrantFrom: PermScenesView},
 	{Name: PermFilesViewSize, Group: PermGroupFileInfo, Description: "File sizes, size filters and sorts, selection and library totals, biggest file", GrantRoles: []string{"moderator"}},
 	{Name: PermFilesViewPaths, Group: PermGroupFileInfo, Description: "Stored paths, original file names, storage paths, copies of a scene", GrantRoles: []string{"moderator"}},
 	{Name: PermFilesViewTech, Group: PermGroupFileInfo, Description: "Codecs, bit rate, frame rate, file hash, fingerprint, processing errors", GrantRoles: []string{"moderator"}},

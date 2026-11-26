@@ -824,7 +824,7 @@ func (s *ImportService) ImportMarker(currentUserID uint, in ImportMarkerInput) (
 					return fmt.Errorf("failed to update marker end timestamp: %w", err)
 				}
 			}
-			if err := tx.ApplyLabelTagsToMarker(userID, existing.ID, in.Label); err != nil {
+			if err := tx.ApplyLabelTagsToMarker(existing.ID); err != nil {
 				return fmt.Errorf("failed to apply label tags: %w", err)
 			}
 			if tagIDs != nil {
@@ -844,15 +844,23 @@ func (s *ImportService) ImportMarker(currentUserID uint, in ImportMarkerInput) (
 			SceneID:      in.SceneID,
 			Timestamp:    in.Timestamp,
 			EndTimestamp: in.EndTimestamp,
-			Label:        in.Label,
 			Color:        color,
+		}
+		// An unknown label is created (the import is admin-only and never fails on a label)
+		if name := data.NormalizeMarkerLabelName(in.Label); name != "" {
+			label, err := tx.EnsureMarkerLabel(name)
+			if err != nil {
+				return fmt.Errorf("failed to resolve marker label: %w", err)
+			}
+			marker.LabelID = &label.ID
+			marker.Label = label.Name
 		}
 		if err := tx.CreateMarker(marker); err != nil {
 			return fmt.Errorf("failed to create marker record: %w", err)
 		}
 		result.ID = marker.ID
 		result.Created = true
-		if err := tx.ApplyLabelTagsToMarker(userID, marker.ID, in.Label); err != nil {
+		if err := tx.ApplyLabelTagsToMarker(marker.ID); err != nil {
 			return fmt.Errorf("failed to apply label tags: %w", err)
 		}
 		if len(tagIDs) > 0 {

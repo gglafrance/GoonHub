@@ -39,17 +39,26 @@ func TestTagMergeIntegration(t *testing.T) {
 	}
 
 	// markers: m1 has target (from label) + srcA (manual), m2 has srcB (from label)
+	// (labels are server-wide: unique names, created by the marker label trigger)
+	labelA, labelB := "tm-a-"+uintStr(target.ID), "tm-b-"+uintStr(target.ID)
 	var m1, m2 uint
-	f.db.Raw(`INSERT INTO user_scene_markers (user_id, scene_id, timestamp, label) VALUES (?, ?, 10, 'a') RETURNING id`, u1.ID, s1.ID).Scan(&m1)
-	f.db.Raw(`INSERT INTO user_scene_markers (user_id, scene_id, timestamp, label) VALUES (?, ?, 20, 'b') RETURNING id`, u1.ID, s2.ID).Scan(&m2)
+	f.db.Raw(`INSERT INTO user_scene_markers (user_id, scene_id, timestamp, label) VALUES (?, ?, 10, ?) RETURNING id`, u1.ID, s1.ID, labelA).Scan(&m1)
+	f.db.Raw(`INSERT INTO user_scene_markers (user_id, scene_id, timestamp, label) VALUES (?, ?, 20, ?) RETURNING id`, u1.ID, s2.ID, labelB).Scan(&m2)
 	if m1 == 0 || m2 == 0 {
 		t.Fatal("markers not created")
 	}
+	var labelIDA, labelIDB uint
+	f.db.Raw(`SELECT label_id FROM user_scene_markers WHERE id = ?`, m1).Scan(&labelIDA)
+	f.db.Raw(`SELECT label_id FROM user_scene_markers WHERE id = ?`, m2).Scan(&labelIDB)
+	if labelIDA == 0 || labelIDB == 0 {
+		t.Fatal("marker labels not created")
+	}
+	t.Cleanup(func() { f.db.Exec(`DELETE FROM marker_labels WHERE id IN (?, ?)`, labelIDA, labelIDB) })
 	f.create(t,
 		&MarkerTag{MarkerID: m1, TagID: target.ID, IsFromLabel: true}, &MarkerTag{MarkerID: m1, TagID: srcA.ID, IsFromLabel: false},
 		&MarkerTag{MarkerID: m2, TagID: srcB.ID, IsFromLabel: true},
-		&MarkerLabelTag{UserID: u1.ID, Label: "a", TagID: target.ID}, &MarkerLabelTag{UserID: u1.ID, Label: "a", TagID: srcA.ID},
-		&MarkerLabelTag{UserID: u1.ID, Label: "b", TagID: srcB.ID},
+		&MarkerLabelTag{LabelID: labelIDA, TagID: target.ID}, &MarkerLabelTag{LabelID: labelIDA, TagID: srcA.ID},
+		&MarkerLabelTag{LabelID: labelIDB, TagID: srcB.ID},
 	)
 
 	var playlistID uint
@@ -112,8 +121,8 @@ func TestTagMergeIntegration(t *testing.T) {
 		t.Fatalf("marker tags = %+v", mt)
 	}
 	var lt []MarkerLabelTag
-	f.db.Where("user_id = ?", u1.ID).Order("label").Find(&lt)
-	if len(lt) != 2 || lt[0].Label != "a" || lt[0].TagID != target.ID || lt[1].Label != "b" || lt[1].TagID != target.ID {
+	f.db.Where("label_id IN ?", []uint{labelIDA, labelIDB}).Order("label_id").Find(&lt)
+	if len(lt) != 2 || lt[0].LabelID != labelIDA || lt[0].TagID != target.ID || lt[1].LabelID != labelIDB || lt[1].TagID != target.ID {
 		t.Fatalf("label tags = %+v", lt)
 	}
 	var pt []PlaylistTag

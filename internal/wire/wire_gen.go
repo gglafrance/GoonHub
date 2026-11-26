@@ -47,8 +47,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	}
 	sceneRepository := provideSceneRepository(db)
 	markerRepository := provideMarkerRepository(db)
+	markerLabelRepository := provideMarkerLabelRepository(db)
 	tagRepository := provideTagRepository(db)
-	markerService := provideMarkerService(markerRepository, sceneRepository, tagRepository, configConfig, logger)
+	markerService := provideMarkerService(markerRepository, markerLabelRepository, sceneRepository, tagRepository, configConfig, logger)
 	eventBus := provideEventBus(logger)
 	jobHistoryRepository := provideJobHistoryRepository(db)
 	scenePhaseFailureRepository := provideScenePhaseFailureRepository(db)
@@ -118,7 +119,13 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	retryScheduler := provideRetryScheduler(jobHistoryRepository, dlqRepository, retryConfigRepository, sceneRepository, eventBus, logger, sceneFailureService)
 	retryConfigHandler := provideRetryConfigHandler(retryConfigRepository, retryScheduler)
 	jobStatusService := provideJobStatusService(jobHistoryService, sceneProcessingService, logger)
-	sseHandler := provideSSEHandler(eventBus, authService, jobStatusService, rbacService, logger)
+	presenceRepository := providePresenceRepository(db)
+	privacyRepository := providePrivacyRepository(db)
+	socialRepository := provideSocialRepository(db)
+	privacyService := providePrivacyService(privacyRepository, socialRepository, logger)
+	socialService := provideSocialService(socialRepository, privacyService, eventBus, configConfig, logger)
+	presenceService := providePresenceService(presenceRepository, privacyService, socialService, sceneRepository, rbacService, eventBus, configConfig, logger)
+	sseHandler := provideSSEHandler(eventBus, authService, jobStatusService, rbacService, presenceService, logger)
 	tagHandler := provideTagHandler(tagService)
 	actorService := provideActorService(actorRepository, sceneRepository, logger)
 	actorHandler := provideActorHandler(actorService, configConfig)
@@ -151,11 +158,11 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	savedSearchService := provideSavedSearchService(savedSearchRepository, logger)
 	savedSearchHandler := provideSavedSearchHandler(savedSearchService)
 	playlistRepository := providePlaylistRepository(db)
-	playlistService := providePlaylistService(playlistRepository, sceneRepository, tagRepository, logger)
+	playlistService := providePlaylistService(playlistRepository, sceneRepository, tagRepository, configConfig, logger)
 	duplicateService := provideDuplicateService(duplicateGroupRepository, sceneRepository, tagRepository, actorRepository, markerRepository, interactionRepository, sceneService, duplicationConfigRepository, markerService, logger)
 	homepageService := provideHomepageService(settingsService, searchService, savedSearchService, playlistService, watchHistoryRepository, interactionRepository, sceneRepository, tagRepository, actorRepository, studioRepository, db, markerRepository, relatedScenesService, jobHistoryRepository, duplicateService, storagePathRepository, rbacService, logger)
 	homepageHandler := provideHomepageHandler(homepageService)
-	markerHandler := provideMarkerHandler(markerService, db, configConfig, logger)
+	markerHandler := provideMarkerHandler(markerService, markerLabelRepository, tagRepository, db, configConfig, logger)
 	importRepository := provideImportRepository(db)
 	importService := provideImportService(importRepository, sceneRepository, tagRepository, actorRepository, studioRepository, storagePathRepository, userRepository, interactionRepository, searchService, logger)
 	importHandler := provideImportHandler(importService, logger)
@@ -180,12 +187,14 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	emoteService := provideEmoteService(emoteRepository, configConfig, logger)
 	hub := provideTogetherHub(configConfig, lobbyRepository, sceneRepository, rbacService, emoteService, logger)
 	togetherHandler := provideTogetherHandler(configConfig, hub, emoteService, logger)
+	socialHandler := provideSocialHandler(socialService, privacyService, configConfig)
+	presenceHandler := providePresenceHandler(presenceService)
 	ipRateLimiter := provideRateLimiter(configConfig)
 	ogMiddleware := provideOGMiddleware(sceneRepository, actorRepository, studioRepository, playlistRepository, shareLinkRepository, appSettingsRepository, logger)
-	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, togetherHandler, authService, rbacService, ipRateLimiter, ogMiddleware)
+	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, togetherHandler, socialHandler, presenceHandler, authService, rbacService, ipRateLimiter, ogMiddleware)
 	shareServer := provideShareServer(configConfig, shareHandler, ogMiddleware, logger)
 	pushDispatcher := providePushDispatcher(service)
-	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService, matchingService, duplicateService, markerService, shareServer, transcoder, service, pushDispatcher, hub)
+	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService, matchingService, duplicateService, markerService, shareServer, transcoder, service, pushDispatcher, hub, presenceService)
 	return serverServer, nil
 }
 
@@ -311,12 +320,28 @@ func provideMarkerRepository(db *gorm.DB) data.MarkerRepository {
 	return data.NewMarkerRepository(db)
 }
 
+func provideMarkerLabelRepository(db *gorm.DB) data.MarkerLabelRepository {
+	return data.NewMarkerLabelRepository(db)
+}
+
 func providePlaylistRepository(db *gorm.DB) data.PlaylistRepository {
 	return data.NewPlaylistRepository(db)
 }
 
 func provideShareLinkRepository(db *gorm.DB) data.ShareLinkRepository {
 	return data.NewShareLinkRepository(db)
+}
+
+func provideSocialRepository(db *gorm.DB) data.SocialRepository {
+	return data.NewSocialRepository(db)
+}
+
+func providePrivacyRepository(db *gorm.DB) data.PrivacyRepository {
+	return data.NewPrivacyRepository(db)
+}
+
+func providePresenceRepository(db *gorm.DB) data.PresenceRepository {
+	return data.NewPresenceRepository(db)
 }
 
 func provideMeilisearchClient(cfg *config.Config, searchConfigRepo data.SearchConfigRepository, logger *logging.Logger) (*meilisearch.Client, error) {
@@ -557,12 +582,12 @@ func provideHomepageService(
 	return svc
 }
 
-func provideMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
-	return core.NewMarkerService(markerRepo, sceneRepo, tagRepo, cfg, logger.Logger)
+func provideMarkerService(markerRepo data.MarkerRepository, labelRepo data.MarkerLabelRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
+	return core.NewMarkerService(markerRepo, labelRepo, sceneRepo, tagRepo, cfg, logger.Logger)
 }
 
-func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, logger *logging.Logger) *core.PlaylistService {
-	return core.NewPlaylistService(repo, sceneRepo, tagRepo, logger.Logger)
+func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.PlaylistService {
+	return core.NewPlaylistService(repo, sceneRepo, tagRepo, cfg.Playlists, logger.Logger)
 }
 
 func provideShareService(shareLinkRepo data.ShareLinkRepository, sceneRepo data.SceneRepository, logger *logging.Logger) *core.ShareService {
@@ -711,8 +736,10 @@ func provideRetryConfigHandler(retryConfigRepo data.RetryConfigRepository, retry
 	return handler.NewRetryConfigHandler(retryConfigRepo, retryScheduler)
 }
 
-func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, rbacService *core.RBACService, logger *logging.Logger) *handler.SSEHandler {
-	return handler.NewSSEHandler(eventBus, authService, jobStatusService, rbacService, logger.Logger)
+func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, rbacService *core.RBACService, presence *core.PresenceService, logger *logging.Logger) *handler.SSEHandler {
+	h := handler.NewSSEHandler(eventBus, authService, jobStatusService, rbacService, logger.Logger)
+	h.SetPresence(presence)
+	return h
 }
 
 func provideStoragePathHandler(service *core.StoragePathService) *handler.StoragePathHandler {
@@ -739,8 +766,9 @@ func provideHomepageHandler(homepageService *core.HomepageService) *handler.Home
 	return handler.NewHomepageHandler(homepageService)
 }
 
-func provideMarkerHandler(markerService *core.MarkerService, db *gorm.DB, cfg *config.Config, logger *logging.Logger) *handler.MarkerHandler {
+func provideMarkerHandler(markerService *core.MarkerService, labelRepo data.MarkerLabelRepository, tagRepo data.TagRepository, db *gorm.DB, cfg *config.Config, logger *logging.Logger) *handler.MarkerHandler {
 	h := handler.NewMarkerHandler(markerService, cfg.Pagination.MaxItemsPerPage)
+	h.SetLabelService(core.NewMarkerLabelService(labelRepo, tagRepo, logger.Logger))
 	h.SetSavedFilterService(core.NewSavedMarkerFilterService(data.NewSavedMarkerFilterRepository(db), logger.Logger))
 	return h
 }
@@ -776,6 +804,28 @@ func provideShareHandler(shareService *core.ShareService, authService *core.Auth
 	h := handler.NewShareHandler(shareService, authService, streamManager, transcoder, cfg.Sharing.BaseURL)
 	h.Access = rbacService
 	return h
+}
+
+func providePrivacyService(repo data.PrivacyRepository, socialRepo data.SocialRepository, logger *logging.Logger) *core.PrivacyService {
+	return core.NewPrivacyService(repo, socialRepo, logger.Logger)
+}
+
+func provideSocialService(repo data.SocialRepository, privacy *core.PrivacyService, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.SocialService {
+	return core.NewSocialService(repo, privacy, eventBus, cfg.Social, logger.Logger)
+}
+
+func provideSocialHandler(social *core.SocialService, privacy *core.PrivacyService, cfg *config.Config) *handler.SocialHandler {
+	return handler.NewSocialHandler(social, privacy, cfg.Pagination.MaxItemsPerPage)
+}
+
+// providePresenceService creates the presence (docs/PRESENCE.md), subscribed to the privacy
+// and social changes. Its loop is started and stopped by the server.
+func providePresenceService(repo data.PresenceRepository, privacy *core.PrivacyService, social *core.SocialService, sceneRepo data.SceneRepository, rbacService *core.RBACService, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.PresenceService {
+	return core.NewPresenceService(repo, privacy, social, sceneRepo, rbacService, eventBus, cfg.Presence, logger.Logger)
+}
+
+func providePresenceHandler(presence *core.PresenceService) *handler.PresenceHandler {
+	return handler.NewPresenceHandler(presence)
 }
 
 func provideLibraryHealthRepository(db *gorm.DB) data.LibraryHealthRepository {
@@ -837,6 +887,8 @@ func provideRouter(
 	libraryHealthHandler *handler.LibraryHealthHandler,
 	workerHandler *handler.WorkerHandler,
 	togetherHandler *handler.TogetherHandler,
+	socialHandler *handler.SocialHandler,
+	presenceHandler *handler.PresenceHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -849,7 +901,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, togetherHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, presenceHandler, togetherHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 
@@ -893,14 +945,17 @@ func provideServer(
 	workerService *workers.Service,
 	pushDispatcher *workers.PushDispatcher,
 	togetherHub *together.Hub,
+	presenceService *core.PresenceService,
 ) *server.Server {
-	return server.NewHTTPServer(
+	srv := server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
 		actorService, studioService, matchingService, duplicateService, markerService, shareServer, transcoder,
 		workerService, pushDispatcher, togetherHub,
 	)
+	srv.SetPresence(presenceService)
+	return srv
 }
 
 func provideWorkerRepository(db *gorm.DB) data.WorkerRepository {

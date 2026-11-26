@@ -19,6 +19,14 @@ var SSE_EVENT_TYPES = [
     'scene:cancelled',
     'scene:timed_out',
     'jobs:status',
+    // social events (targeted at the signed-in user, see app/utils/social.ts)
+    'social:friend_request',
+    'social:friend_request_cancelled',
+    'social:friend_request_accepted',
+    'social:followed',
+    'social:friend_requests_changed',
+    // presence (targeted, see app/utils/presence.ts)
+    'presence:update',
 ];
 
 function broadcast(type, payload) {

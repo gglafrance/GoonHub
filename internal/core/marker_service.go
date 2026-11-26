@@ -26,6 +26,7 @@ const maxMarkersPerScene = 50
 
 type MarkerService struct {
 	markerRepo                  data.MarkerRepository
+	labelRepo                   data.MarkerLabelRepository
 	sceneRepo                   data.SceneRepository
 	tagRepo                     data.TagRepository
 	markerThumbnailDir          string
@@ -60,7 +61,7 @@ type markerThumbnailTask struct {
 // thumbnail is made inline (slower answer, but never lost).
 const markerThumbnailQueueSize = 256
 
-func NewMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *zap.Logger) *MarkerService {
+func NewMarkerService(markerRepo data.MarkerRepository, labelRepo data.MarkerLabelRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *zap.Logger) *MarkerService {
 	markerAnimatedDuration := cfg.Processing.MarkerAnimatedDuration
 	if markerAnimatedDuration <= 0 {
 		markerAnimatedDuration = 10
@@ -92,6 +93,7 @@ func NewMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepo
 	return &MarkerService{
 		thumbnailWorkers:            thumbnailWorkers,
 		markerRepo:                  markerRepo,
+		labelRepo:                   labelRepo,
 		sceneRepo:                   sceneRepo,
 		tagRepo:                     tagRepo,
 		markerThumbnailDir:          cfg.Processing.MarkerThumbnailDir,
@@ -174,7 +176,59 @@ func validateMarkerEnd(timestamp int, endTimestamp *int, sceneDuration int) erro
 	return nil
 }
 
-func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, endTimestamp *int, label, color string) (*data.UserSceneMarker, error) {
+// resolveLabel returns the label of the referential named name (ignoring case and
+// surrounding spaces), nil for an empty name. An unknown label is created when canCreate (the
+// user has marker_labels:manage), else refused (400).
+func (s *MarkerService) resolveLabel(name string, canCreate bool) (*data.MarkerLabel, error) {
+	name = data.NormalizeMarkerLabelName(name)
+	if name == "" {
+		return nil, nil
+	}
+	if len(name) > maxMarkerLabelNameLength {
+		return nil, apperrors.NewValidationErrorWithField("label", "label must be 100 characters or fewer")
+	}
+	if s.labelRepo == nil {
+		return nil, apperrors.NewInternalError("marker labels are not available", fmt.Errorf("no marker label repository"))
+	}
+	label, err := s.labelRepo.FindByName(name)
+	if err != nil {
+		s.logger.Error("failed to find marker label", zap.String("label", name), zap.Error(err))
+		return nil, apperrors.NewInternalError("failed to find marker label", err)
+	}
+	if label != nil {
+		return label, nil
+	}
+	if !canCreate {
+		return nil, apperrors.NewValidationErrorWithField("label", fmt.Sprintf(
+			"unknown marker label %q: pick an existing label (creating labels needs the marker_labels:manage permission)", name))
+	}
+	label, created, err := s.labelRepo.Ensure(name)
+	if err != nil {
+		s.logger.Error("failed to create marker label", zap.String("label", name), zap.Error(err))
+		return nil, apperrors.NewInternalError("failed to create marker label", err)
+	}
+	if created {
+		s.logger.Info("Marker label created", zap.Uint("id", label.ID), zap.String("name", label.Name))
+	}
+	return label, nil
+}
+
+// setMarkerLabel points the marker to label (nil: no label).
+func setMarkerLabel(marker *data.UserSceneMarker, label *data.MarkerLabel) {
+	if label == nil {
+		marker.LabelID = nil
+		marker.Label = ""
+		return
+	}
+	id := label.ID
+	marker.LabelID = &id
+	marker.Label = label.Name
+}
+
+// CreateMarker creates a marker. label must be an existing label (ignoring case); an unknown
+// one is created when canCreateLabel, else refused (400). Without color, the marker takes the
+// color of its label (white without label).
+func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, endTimestamp *int, label, color string, canCreateLabel bool) (*data.UserSceneMarker, error) {
 	// Validate scene exists and get duration
 	scene, err := s.sceneRepo.GetByID(sceneID)
 	if err != nil {
@@ -207,16 +261,19 @@ func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, endTim
 	}
 
 	// Validate color format (hex color)
-	if color == "" {
-		color = "#FFFFFF" // default white
-	}
-	if len(color) != 7 || color[0] != '#' {
+	if color != "" && (len(color) != 7 || color[0] != '#') {
 		return nil, apperrors.NewValidationError("color must be a valid hex color (e.g., #FF4D4D)")
 	}
 
-	// Validate label length
-	if len(label) > 100 {
-		return nil, apperrors.NewValidationError("label must be 100 characters or fewer")
+	markerLabel, err := s.resolveLabel(label, canCreateLabel)
+	if err != nil {
+		return nil, err
+	}
+	if color == "" {
+		color = "#FFFFFF" // default white
+		if markerLabel != nil && markerLabel.Color != "" {
+			color = markerLabel.Color
+		}
 	}
 
 	marker := &data.UserSceneMarker{
@@ -224,9 +281,9 @@ func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, endTim
 		SceneID:      sceneID,
 		Timestamp:    timestamp,
 		EndTimestamp: endTimestamp,
-		Label:        label,
 		Color:        color,
 	}
+	setMarkerLabel(marker, markerLabel)
 
 	if err := s.markerRepo.Create(marker); err != nil {
 		s.logger.Error("failed to create marker", zap.Uint("userID", userID), zap.Uint("sceneID", sceneID), zap.Error(err))
@@ -234,11 +291,11 @@ func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, endTim
 	}
 
 	// Apply label tags if the marker has a label
-	if label != "" {
-		if err := s.markerRepo.ApplyLabelTagsToMarker(userID, marker.ID, label); err != nil {
+	if marker.LabelID != nil {
+		if err := s.markerRepo.ApplyLabelTagsToMarker(marker.ID); err != nil {
 			s.logger.Warn("failed to apply label tags to marker",
 				zap.Uint("markerID", marker.ID),
-				zap.String("label", label),
+				zap.String("label", marker.Label),
 				zap.Error(err))
 		}
 	}
@@ -250,8 +307,9 @@ func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, endTim
 }
 
 // UpdateMarker updates the provided fields of a marker. endTimestamp sets the end of the marker
-// range; clearEnd removes it (endTimestamp is then ignored).
-func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color *string, timestamp *int, endTimestamp *int, clearEnd bool) (*data.UserSceneMarker, error) {
+// range; clearEnd removes it (endTimestamp is then ignored). A new label follows the rules of
+// CreateMarker (canCreateLabel) and replaces the marker's tags from label by its default tags.
+func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color *string, timestamp *int, endTimestamp *int, clearEnd bool, canCreateLabel bool) (*data.UserSceneMarker, error) {
 	marker, err := s.markerRepo.GetByID(markerID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -267,11 +325,18 @@ func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color
 	}
 
 	// Update fields if provided
+	var labelChanged bool
 	if label != nil {
-		if len(*label) > 100 {
-			return nil, apperrors.NewValidationError("label must be 100 characters or fewer")
+		markerLabel, err := s.resolveLabel(*label, canCreateLabel)
+		if err != nil {
+			return nil, err
 		}
-		marker.Label = *label
+		var newID *uint
+		if markerLabel != nil {
+			newID = &markerLabel.ID
+		}
+		labelChanged = !sameLabelID(marker.LabelID, newID)
+		setMarkerLabel(marker, markerLabel)
 	}
 
 	if color != nil {
@@ -328,6 +393,13 @@ func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color
 	if err := s.markerRepo.Update(marker); err != nil {
 		s.logger.Error("failed to update marker", zap.Uint("markerID", markerID), zap.Error(err))
 		return nil, apperrors.NewInternalError("failed to update marker", err)
+	}
+
+	if labelChanged {
+		if err := s.markerRepo.ApplyLabelTagsToMarker(marker.ID); err != nil {
+			s.logger.Warn("failed to apply label tags to marker",
+				zap.Uint("markerID", marker.ID), zap.String("label", marker.Label), zap.Error(err))
+		}
 	}
 
 	// Regenerate thumbnail if timestamp changed
@@ -905,55 +977,6 @@ func (s *MarkerService) SetMarkerAnimatedDuration(duration int) {
 	s.markerAnimatedDuration = duration
 }
 
-// GetLabelTags returns the default tags for a label
-func (s *MarkerService) GetLabelTags(userID uint, label string) ([]data.Tag, error) {
-	if label == "" {
-		return nil, apperrors.NewValidationError("label is required")
-	}
-
-	tags, err := s.markerRepo.GetLabelTags(userID, label)
-	if err != nil {
-		s.logger.Error("failed to get label tags", zap.Uint("userID", userID), zap.String("label", label), zap.Error(err))
-		return nil, apperrors.NewInternalError("failed to get label tags", err)
-	}
-	// Ensure non-nil slice for JSON serialization
-	if tags == nil {
-		tags = []data.Tag{}
-	}
-	return tags, nil
-}
-
-// SetLabelTags sets the default tags for a label and syncs to all existing markers
-func (s *MarkerService) SetLabelTags(userID uint, label string, tagIDs []uint) error {
-	if label == "" {
-		return apperrors.NewValidationError("label is required")
-	}
-
-	// Validate that all tag IDs exist
-	if len(tagIDs) > 0 {
-		tags, err := s.tagRepo.GetByIDs(tagIDs)
-		if err != nil {
-			s.logger.Error("failed to validate tags", zap.Uint("userID", userID), zap.Error(err))
-			return apperrors.NewInternalError("failed to validate tags", err)
-		}
-		if len(tags) != len(tagIDs) {
-			return apperrors.NewValidationError("one or more tags do not exist")
-		}
-	}
-
-	if err := s.markerRepo.SetLabelTags(userID, label, tagIDs); err != nil {
-		s.logger.Error("failed to set label tags", zap.Uint("userID", userID), zap.String("label", label), zap.Error(err))
-		return apperrors.NewInternalError("failed to set label tags", err)
-	}
-
-	s.logger.Info("set label tags",
-		zap.Uint("userID", userID),
-		zap.String("label", label),
-		zap.Int("tagCount", len(tagIDs)))
-
-	return nil
-}
-
 // GetMarkerTags returns tags for a specific marker
 func (s *MarkerService) GetMarkerTags(userID, markerID uint) ([]data.MarkerTagInfo, error) {
 	// Verify ownership
@@ -1105,4 +1128,12 @@ func (s *MarkerService) AddMarkerTags(userID, markerID uint, tagIDs []uint) erro
 		return apperrors.NewInternalError("failed to add marker tags", err)
 	}
 	return nil
+}
+
+// sameLabelID tells whether two optional label IDs are the same label (or both none).
+func sameLabelID(a, b *uint) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }

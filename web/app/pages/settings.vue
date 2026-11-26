@@ -499,6 +499,7 @@ definePageMeta({
                 </Transition>
 
                 <SettingsAccount v-if="activeTab === 'account'" />
+                <SettingsPrivacy v-if="activeTab === 'privacy'" />
                 <SettingsPlayer v-if="activeTab === 'player'" />
                 <SettingsApp
                     v-if="activeTab === 'app'"
@@ -507,6 +508,7 @@ definePageMeta({
                 />
                 <SettingsHomepage v-if="activeTab === 'homepage'" />
                 <SettingsTags v-if="activeTab === 'tags'" />
+                <SettingsMarkerLabels v-if="activeTab === 'marker-labels'" />
                 <SettingsParsingRules v-if="activeTab === 'parsing-rules'" />
                 <SettingsUsers v-if="activeTab === 'users'" />
                 <SettingsJobs v-if="activeTab === 'jobs'" :active-sub-tab="activeSubTab" />

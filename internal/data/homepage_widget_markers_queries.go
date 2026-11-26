@@ -1,6 +1,7 @@
 package data
 
 import (
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -49,7 +50,7 @@ func ListWidgetMarkers(db *gorm.DB, userID uint, q WidgetMarkerQuery) ([]WidgetM
 		Joins("JOIN scenes s ON s.id = m.scene_id").
 		Where(VisibleMarkersSQL("m")+" AND s.trashed_at IS NULL AND s.deleted_at IS NULL", userID)
 	if len(q.Labels) > 0 {
-		query = query.Where("m.label IN ?", q.Labels)
+		query = query.Where(markerLabelInSQL("m"), markerLabelKeys(q.Labels))
 	}
 	if q.RangesOnly {
 		query = query.Where("m.end_timestamp IS NOT NULL")
@@ -83,20 +84,22 @@ type WidgetTile struct {
 func ListMarkerLabelTiles(db *gorm.DB, userID uint, labels []string, limit int) ([]WidgetTile, error) {
 	type row struct {
 		Label         string
+		Color         string
 		Count         int64
 		CoverMarkerID *uint
 	}
 	query := db.Table("user_scene_markers AS m").
-		Select(`m.label, COUNT(*) AS count,
+		Select(`m.label, MIN(ml.color) AS color, COUNT(*) AS count,
 			(SELECT m2.id FROM user_scene_markers m2 JOIN scenes s2 ON s2.id = m2.scene_id
 			 WHERE `+VisibleMarkersSQL("m2")+` AND m2.label = m.label AND m2.thumbnail_path <> ''
 			   AND s2.trashed_at IS NULL AND s2.deleted_at IS NULL
 			 ORDER BY RANDOM() LIMIT 1) AS cover_marker_id`, userID).
 		Joins("JOIN scenes s ON s.id = m.scene_id").
-		Where(VisibleMarkersSQL("m")+" AND m.label <> '' AND s.trashed_at IS NULL AND s.deleted_at IS NULL", userID).
+		Joins("JOIN marker_labels ml ON ml.id = m.label_id").
+		Where(VisibleMarkersSQL("m")+" AND s.trashed_at IS NULL AND s.deleted_at IS NULL", userID).
 		Group("m.label")
 	if len(labels) > 0 {
-		query = query.Where("m.label IN ?", labels)
+		query = query.Where(markerLabelInSQL("m"), markerLabelKeys(labels))
 	}
 	var rows []row
 	if err := query.Order("count DESC, m.label ASC").Limit(limit).Scan(&rows).Error; err != nil {
@@ -104,12 +107,12 @@ func ListMarkerLabelTiles(db *gorm.DB, userID uint, labels []string, limit int) 
 	}
 	tiles := make([]WidgetTile, len(rows))
 	for i, r := range rows {
-		tiles[i] = WidgetTile{Key: r.Label, Label: r.Label, Count: r.Count, CoverMarkerID: r.CoverMarkerID}
+		tiles[i] = WidgetTile{Key: r.Label, Label: r.Label, Color: r.Color, Count: r.Count, CoverMarkerID: r.CoverMarkerID}
 	}
 	if err := setCoverMarkerVersions(db, tiles); err != nil {
 		return nil, err
 	}
-	return orderTiles(tiles, labels), nil
+	return orderLabelTiles(tiles, labels), nil
 }
 
 // setCoverMarkerVersions fills the thumbnail version of the tiles' cover markers (picked at
@@ -176,6 +179,26 @@ func ListSceneTagTiles(db *gorm.DB, names []string, limit int) ([]WidgetTile, er
 }
 
 // orderTiles keeps the explicit order of the configured items, when given.
+// orderLabelTiles is orderTiles for marker label tiles: the configured names match the labels
+// ignoring case and surrounding spaces (label names are unique that way).
+func orderLabelTiles(tiles []WidgetTile, order []string) []WidgetTile {
+	if len(order) == 0 {
+		return tiles
+	}
+	byKey := make(map[string]WidgetTile, len(tiles))
+	for _, t := range tiles {
+		byKey[strings.ToLower(t.Key)] = t
+	}
+	ordered := make([]WidgetTile, 0, len(tiles))
+	for _, key := range markerLabelKeys(order) {
+		if t, ok := byKey[key]; ok {
+			ordered = append(ordered, t)
+			delete(byKey, key)
+		}
+	}
+	return ordered
+}
+
 func orderTiles(tiles []WidgetTile, order []string) []WidgetTile {
 	if len(order) == 0 {
 		return tiles

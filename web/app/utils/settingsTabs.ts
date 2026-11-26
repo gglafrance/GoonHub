@@ -5,10 +5,12 @@ import type { PermissionName } from '~/types/permissions';
 
 export type SettingsTabId =
     | 'account'
+    | 'privacy'
     | 'player'
     | 'app'
     | 'homepage'
     | 'tags'
+    | 'marker-labels'
     | 'parsing-rules'
     | 'users'
     | 'jobs'
@@ -36,6 +38,7 @@ export interface SettingsTabConfig {
 
 export const SETTINGS_TABS: SettingsTabConfig[] = [
     { id: 'account', label: 'Account', icon: 'heroicons:user-circle' },
+    { id: 'privacy', label: 'Privacy', icon: 'heroicons:lock-closed' },
     { id: 'player', label: 'Player', icon: 'heroicons:play-circle' },
     {
         id: 'app',
@@ -52,6 +55,12 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     },
     { id: 'homepage', label: 'Homepage', icon: 'heroicons:home' },
     { id: 'tags', label: 'Tags', icon: 'heroicons:tag' },
+    {
+        id: 'marker-labels',
+        label: 'Marker Labels',
+        icon: 'heroicons:bookmark',
+        permissions: ['marker_labels:manage'],
+    },
     { id: 'parsing-rules', label: 'Parsing Rules', icon: 'heroicons:funnel' },
     {
         id: 'users',

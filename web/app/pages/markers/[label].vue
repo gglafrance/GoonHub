@@ -118,6 +118,11 @@ watch(
     },
 );
 
+// "Add all to playlist": every marker of this label with the current filters
+const playlistFilter = computed(() =>
+    markerPlaylistFilter(filterParams.value, { label: label.value }),
+);
+
 // Back to the list with its filters, page and scroll position when coming from it
 const { backTo } = useNavOrigin();
 const goBack = () => backTo('/markers');
@@ -156,6 +161,12 @@ definePageMeta({
                             v-if="filtersEnabled"
                             :snapshot="filterSnapshot"
                             @apply="applySavedFilter"
+                        />
+                        <MarkersPlaylistAddButton
+                            v-if="total > 0"
+                            :filter="playlistFilter"
+                            :count="total"
+                            label="Add all to playlist"
                         />
                         <span
                             class="border-border bg-panel text-dim rounded-full border px-2.5 py-0.5
@@ -239,6 +250,17 @@ definePageMeta({
                         <!-- Thumbnail -->
                         <div class="relative aspect-video w-full overflow-hidden bg-black/40">
                             <MarkersTagsBadge :tags="marker.tags" :label="marker.label" />
+
+                            <!-- Add to a marker playlist -->
+                            <div
+                                class="absolute top-1.5 right-1.5 z-10 opacity-0 transition-opacity
+                                    group-hover:opacity-100 focus-within:opacity-100"
+                            >
+                                <MarkersPlaylistAddButton
+                                    variant="icon"
+                                    :marker-ids="[marker.id]"
+                                />
+                            </div>
                             <video
                                 v-if="
                                     markerThumbnailType === 'animated' &&
