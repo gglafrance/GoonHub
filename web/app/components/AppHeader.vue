@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const authStore = useAuthStore();
 const perms = useMyPermissions();
+const socialStore = useSocialStore();
 const { shortcutsVisible, open: openPalette, modifierLabel } = useCommandPalette();
 const setShortcutsVisible = (value: boolean) => {
     shortcutsVisible.value = value;
@@ -53,18 +54,22 @@ const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
                             </kbd>
                         </button>
 
-                        <div class="flex items-center gap-2">
-                            <div
-                                class="border-border bg-panel flex h-7 w-7 items-center
-                                    justify-center rounded-full border"
-                            >
-                                <span class="text-xs font-semibold text-white">
-                                    {{ authStore.user!.username.charAt(0).toUpperCase() }}
-                                </span>
-                            </div>
+                        <NuxtLink
+                            :to="profilePath(authStore.user!.username)"
+                            class="group flex items-center gap-2"
+                            title="My profile"
+                        >
+                            <SocialUserAvatar
+                                :username="authStore.user!.username"
+                                :display-name="socialStore.me?.display_name"
+                                :user-id="socialStore.me?.id"
+                                :avatar-version="socialStore.me?.avatar_version"
+                                size="xs"
+                                class="group-hover:border-lava/50 !h-7 !w-7"
+                            />
                             <div class="hidden sm:block">
-                                <div class="text-xs font-medium text-white">
-                                    {{ authStore.user!.username }}
+                                <div class="group-hover:text-lava text-xs font-medium text-white">
+                                    {{ socialStore.me?.display_name || authStore.user!.username }}
                                 </div>
                                 <div
                                     class="font-mono text-[10px] tracking-wider uppercase"
@@ -73,7 +78,7 @@ const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
                                     {{ authStore.user!.role }}
                                 </div>
                             </div>
-                        </div>
+                        </NuxtLink>
 
                         <!-- Keyboard shortcuts - hidden on mobile -->
                         <button

@@ -12,7 +12,12 @@ const emit = defineEmits<{ update: [relationship: Relationship] }>();
             bg-white/[0.02] px-3 py-2 transition-colors"
     >
         <NuxtLink :to="profilePath(props.entry.username)" class="shrink-0">
-            <SocialUserAvatar :username="props.entry.username" />
+            <SocialUserAvatar
+                :username="props.entry.username"
+                :display-name="props.entry.display_name"
+                :user-id="props.entry.id"
+                :avatar-version="props.entry.avatar_version"
+            />
         </NuxtLink>
         <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
@@ -21,8 +26,14 @@ const emit = defineEmits<{ update: [relationship: Relationship] }>();
                     class="hover:text-lava truncate text-sm font-medium text-white
                         transition-colors"
                 >
-                    {{ props.entry.username }}
+                    {{ displayNameOf(props.entry) }}
                 </NuxtLink>
+                <span
+                    v-if="props.entry.display_name"
+                    class="text-dim truncate font-mono text-[10px]"
+                >
+                    @{{ props.entry.username }}
+                </span>
                 <span
                     v-if="props.entry.relationship.self"
                     class="text-dim font-mono text-[9px] tracking-wider uppercase"
