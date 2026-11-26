@@ -25,8 +25,10 @@ type UserProfile struct {
 	BannerSceneID *uint         `gorm:"column:banner_scene_id"`
 	BannerVersion int64         `gorm:"not null;default:0"`
 	Layout        ProfileLayout `gorm:"type:jsonb"`
-	CreatedAt     time.Time     `gorm:"not null;default:now()"`
-	UpdatedAt     time.Time     `gorm:"not null;default:now()"`
+	// Tabs (migration 103): nil = derived from Layout
+	Tabs      ProfileTabs `gorm:"type:jsonb"`
+	CreatedAt time.Time   `gorm:"not null;default:now()"`
+	UpdatedAt time.Time   `gorm:"not null;default:now()"`
 }
 
 func (UserProfile) TableName() string { return "user_profiles" }
@@ -39,6 +41,8 @@ func DefaultUserProfile(userID uint) *UserProfile {
 // ProfileBlockConfig is one block of a profile layout: its type, whether it is shown, whether
 // viewers who may not see it get a "private" placeholder, and its options.
 type ProfileBlockConfig struct {
+	// ID identifies the block in its profile (tabs layouts; empty in the older single list)
+	ID                string         `json:"id,omitempty"`
 	Type              string         `json:"type"`
 	Visible           bool           `json:"visible"`
 	LockedPlaceholder bool           `json:"locked_placeholder"`

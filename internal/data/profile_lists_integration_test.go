@@ -161,3 +161,108 @@ func TestProfileListsIntegration(t *testing.T) {
 		t.Fatalf("jizz summary: %+v %v", js, err)
 	}
 }
+
+// Integration test of the tabs column and the custom lists table (migration 103).
+func TestProfileTabsAndCustomListsIntegration(t *testing.T) {
+	db := importTestDB(t)
+	ctx := context.Background()
+	suffix := uuid.NewString()[:8]
+	u := User{Username: "ptabs-" + suffix, Password: "x", Role: "user"}
+	if err := db.Create(&u).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Where("id = ?", u.ID).Delete(&User{}) })
+	repo := NewProfileRepository(db)
+
+	tabs := ProfileTabs{
+		{ID: "profile", Kind: ProfileTabProfile, Visible: true, Sections: []ProfileSection{{ID: "s", Template: "2-1", Columns: [][]ProfileBlockConfig{
+			{{ID: "st", Type: "stats", Visible: true, Config: map[string]any{"period": "year"}}}, {},
+		}}}},
+		{ID: "d", Kind: ProfileTabCustom, Title: "Discover", Slug: "discover", Icon: "heroicons:fire", Visible: true},
+	}
+	if err := repo.SaveLayout(ctx, u.ID, ProfileLayout{{Type: "stats", Visible: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.SaveTabs(ctx, u.ID, tabs); err != nil {
+		t.Fatal(err)
+	}
+	p, err := repo.GetProfile(ctx, u.ID)
+	if err != nil || len(p.Tabs) != 2 || p.Tabs[1].Slug != "discover" || p.Tabs[0].Sections[0].Columns[0][0].Config["period"] != "year" ||
+		len(p.Tabs[0].Sections[0].Columns[1]) != 0 || p.Layout == nil {
+		t.Fatalf("tabs roundtrip: %+v %v", p, err)
+	}
+	// Reset: tabs and the older layout cleared
+	if err := repo.SaveTabs(ctx, u.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	if p, _ = repo.GetProfile(ctx, u.ID); p.Tabs != nil || p.Layout != nil {
+		t.Fatalf("reset: %+v %+v", p.Tabs, p.Layout)
+	}
+
+	min := 2
+	liked := true
+	a := &ProfileList{UserID: u.ID, Title: "Top O", Audience: "public", Filters: Filters{Sort: "jizz_count_desc", MinJizzCount: &min}}
+	b := &ProfileList{UserID: u.ID, Title: "Liked", Audience: "friends", Filters: Filters{Liked: &liked}}
+	for _, l := range []*ProfileList{a, b} {
+		if err := repo.CreateList(ctx, l); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n, err := repo.CountLists(ctx, u.ID); err != nil || n != 2 {
+		t.Fatalf("count: %d %v", n, err)
+	}
+	ssid := uuid.NewString()
+	b.Title, b.SavedSearchUUID = "Liked lately", &ssid
+	if err := repo.UpdateList(ctx, b); err != nil {
+		t.Fatal(err)
+	}
+	got, err := repo.GetList(ctx, u.ID, b.ID)
+	if err != nil || got.Title != "Liked lately" || got.SavedSearchUUID == nil || *got.SavedSearchUUID != ssid || got.Filters.Liked == nil {
+		t.Fatalf("updated: %+v %v", got, err)
+	}
+	if _, err := repo.GetList(ctx, u.ID+1000000, b.ID); err == nil {
+		t.Fatal("someone else read the list")
+	}
+	lists, err := repo.ListsByIDs(ctx, u.ID, []uint{a.ID, 999999})
+	if err != nil || len(lists) != 1 || lists[0].Filters.MinJizzCount == nil || *lists[0].Filters.MinJizzCount != 2 {
+		t.Fatalf("by ids: %+v %v", lists, err)
+	}
+	if all, _ := repo.Lists(ctx, u.ID); len(all) != 2 || all[0].ID != a.ID {
+		t.Fatalf("lists: %+v", all)
+	}
+	if ok, err := repo.DeleteList(ctx, u.ID+1000000, a.ID); ok || err != nil {
+		t.Fatalf("someone else deleted the list: %v %v", ok, err)
+	}
+	if ok, err := repo.DeleteList(ctx, u.ID, a.ID); !ok || err != nil {
+		t.Fatalf("delete: %v %v", ok, err)
+	}
+}
+
+func TestInteractionSortKeysIntegration(t *testing.T) {
+	db := importTestDB(t)
+	suffix := uuid.NewString()[:8]
+	u := User{Username: "psort-" + suffix, Password: "x", Role: "user"}
+	if err := db.Create(&u).Error; err != nil {
+		t.Fatal(err)
+	}
+	s := &Scene{Title: "s-" + suffix, StoredPath: "/psort/" + suffix + ".mp4", Tags: pq.StringArray{}, Actors: pq.StringArray{}}
+	if err := db.Create(s).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		db.Exec("DELETE FROM scenes WHERE id = ?", s.ID)
+		db.Where("id = ?", u.ID).Delete(&User{})
+	})
+	at := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	db.Exec(`INSERT INTO user_scene_likes (user_id, scene_id, created_at) VALUES (?, ?, ?)`, u.ID, s.ID, at)
+	db.Exec(`INSERT INTO user_scene_watches (user_id, scene_id, watched_at) VALUES (?, ?, ?), (?, ?, ?)`, u.ID, s.ID, at, u.ID, s.ID, at.Add(time.Hour))
+	repo := NewInteractionRepository(db)
+	likes, err := repo.GetLikeTimes(u.ID, []uint{s.ID, 999999})
+	if err != nil || len(likes) != 1 || !likes[s.ID].Equal(at) {
+		t.Fatalf("like times: %v %v", likes, err)
+	}
+	stats, err := repo.GetWatchStats(u.ID, []uint{s.ID})
+	if err != nil || stats[s.ID].Count != 2 || !stats[s.ID].Last.Equal(at.Add(time.Hour)) {
+		t.Fatalf("watch stats: %v %v", stats, err)
+	}
+}

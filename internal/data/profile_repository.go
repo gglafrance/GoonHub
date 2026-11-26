@@ -24,6 +24,21 @@ type ProfileRepository interface {
 	SetBanner(ctx context.Context, userID uint, bannerType string, sceneID *uint, version int64) error
 	// SaveLayout stores the block layout (nil = back to the default layout).
 	SaveLayout(ctx context.Context, userID uint, layout ProfileLayout) error
+	// SaveTabs stores the tabs (nil = back to the default tabs: the older layout is cleared
+	// too).
+	SaveTabs(ctx context.Context, userID uint, tabs ProfileTabs) error
+
+	// Custom lists of a user (oldest first)
+	Lists(ctx context.Context, userID uint) ([]ProfileList, error)
+	// ListsByIDs returns the lists of the user among ids (any order).
+	ListsByIDs(ctx context.Context, userID uint, ids []uint) ([]ProfileList, error)
+	// GetList returns a list of the user (gorm.ErrRecordNotFound otherwise).
+	GetList(ctx context.Context, userID, id uint) (*ProfileList, error)
+	CountLists(ctx context.Context, userID uint) (int64, error)
+	CreateList(ctx context.Context, list *ProfileList) error
+	UpdateList(ctx context.Context, list *ProfileList) error
+	// DeleteList deletes a list of the user; false when there was none.
+	DeleteList(ctx context.Context, userID, id uint) (bool, error)
 
 	// FavoriteSceneIDs and FavoriteMarkerIDs return the showcases in order (everything
 	// stored, live or not).

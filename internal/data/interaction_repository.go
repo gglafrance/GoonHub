@@ -45,6 +45,11 @@ type InteractionRepository interface {
 	GetJizzCountsBySceneIDs(userID uint, sceneIDs []uint) (map[uint]int, error)
 	// GetWatchedBySceneIDs returns the scenes of sceneIDs the user watched to the end at least once
 	GetWatchedBySceneIDs(userID uint, sceneIDs []uint) (map[uint]bool, error)
+	// GetLikeTimes returns, for the scenes of sceneIDs the user liked, when they liked them.
+	GetLikeTimes(userID uint, sceneIDs []uint) (map[uint]time.Time, error)
+	// GetWatchStats returns, for the scenes of sceneIDs the user watched, their views and last
+	// watch.
+	GetWatchStats(userID uint, sceneIDs []uint) (map[uint]SceneWatchStat, error)
 
 	// Reassignment methods (for duplicate resolution)
 	ReassignInteractionsToScene(fromSceneID, toSceneID uint) error

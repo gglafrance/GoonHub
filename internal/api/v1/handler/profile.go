@@ -51,13 +51,14 @@ func (h *ProfileHandler) viewer(c *gin.Context) (core.ProfileViewer, bool) {
 	return core.ProfileViewer{UserID: id, Access: middleware.GetAccess(c)}, true
 }
 
-// GetProfile is GET /profiles/users/:username: the profile as the viewer sees it.
+// GetProfile is GET /profiles/users/:username?tab=: the profile as the viewer sees it, with
+// the content of a tab (id or custom tab slug; the profile tab by default).
 func (h *ProfileHandler) GetProfile(c *gin.Context) {
 	viewer, ok := h.viewer(c)
 	if !ok {
 		return
 	}
-	view, err := h.profiles.Get(c.Request.Context(), viewer, c.Param("username"))
+	view, err := h.profiles.Get(c.Request.Context(), viewer, c.Param("username"), c.Query("tab"))
 	if err != nil {
 		response.Error(c, err)
 		return

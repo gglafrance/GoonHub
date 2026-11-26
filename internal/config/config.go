@@ -73,6 +73,10 @@ type ProfilesConfig struct {
 	MaxShowcaseItems     int    `mapstructure:"max_showcase_items"`      // favorite videos and favorite markers per showcase (1-12)
 	BioMaxLength         int    `mapstructure:"bio_max_length"`          // characters
 	DisplayNameMaxLength int    `mapstructure:"display_name_max_length"` // characters (at most 64, the column size)
+	MaxTabs              int    `mapstructure:"max_tabs"`                // tabs of a profile, built-in ones included (4-20)
+	MaxSections          int    `mapstructure:"max_sections"`            // sections per tab (1-40)
+	MaxBlocksPerTab      int    `mapstructure:"max_blocks_per_tab"`      // blocks per tab (1-100)
+	MaxLists             int    `mapstructure:"max_lists"`               // custom lists per user (1-200)
 }
 
 // SocialConfig limits the social actions that notify another user (docs/SOCIAL.md).
@@ -449,6 +453,10 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("profiles.max_showcase_items", 4)
 	v.SetDefault("profiles.bio_max_length", 1000)
 	v.SetDefault("profiles.display_name_max_length", 64)
+	v.SetDefault("profiles.max_tabs", 8)
+	v.SetDefault("profiles.max_sections", 12)
+	v.SetDefault("profiles.max_blocks_per_tab", 24)
+	v.SetDefault("profiles.max_lists", 20)
 	v.SetDefault("messages.max_length", 2000)
 	v.SetDefault("messages.rate_per_minute", 30)
 	v.SetDefault("messages.rate_burst", 10)

@@ -9,7 +9,7 @@ import (
 
 func TestProfileBlockRegistry(t *testing.T) {
 	specs := ProfileBlockSpecs()
-	want := []string{"favorite_scenes", "favorite_markers", "recent_watches", "most_watched", "recent_markers", "liked_scenes", "stats", "ratings", "jizz", "activity_calendar", "playlists", "friends"}
+	want := []string{"favorite_scenes", "favorite_markers", "recent_watches", "most_watched", "recent_markers", "liked_scenes", "stats", "ratings", "jizz", "activity_calendar", "playlists", "friends", "custom_list"}
 	if len(specs) != len(want) {
 		t.Fatalf("%d block types, want %d", len(specs), len(want))
 	}
@@ -22,7 +22,7 @@ func TestProfileBlockRegistry(t *testing.T) {
 		}
 	}
 	layout := DefaultProfileLayout()
-	if len(layout) != len(want) || !layout[0].Visible || layout[3].Visible {
+	if len(layout) != len(want)-1 || !layout[0].Visible || layout[3].Visible {
 		t.Fatalf("default layout: %+v", layout)
 	}
 }
@@ -54,7 +54,7 @@ func TestValidateProfileLayout(t *testing.T) {
 			}
 			continue
 		}
-		if len(out) != len(ProfileBlockSpecs()) {
+		if len(out) != len(DefaultProfileLayout()) {
 			t.Fatalf("%s: missing types not appended: %d", tc.name, len(out))
 		}
 	}

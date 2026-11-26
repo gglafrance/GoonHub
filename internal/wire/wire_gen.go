@@ -190,7 +190,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	togetherHandler := provideTogetherHandler(configConfig, hub, emoteService, logger)
 	socialHandler := provideSocialHandler(socialService, privacyService, configConfig)
 	profileRepository := provideProfileRepository(db)
-	profileService := provideProfileService(profileRepository, socialRepository, markerRepository, socialService, privacyService, homepageService, configConfig, logger)
+	profileService := provideProfileService(profileRepository, socialRepository, markerRepository, socialService, privacyService, homepageService, searchService, tagRepository, savedSearchRepository, configConfig, logger)
 	profileHandler := provideProfileHandler(profileService, configConfig, markerService, interactionRepository, tagRepository, actorRepository)
 	presenceHandler := providePresenceHandler(presenceService)
 	lobbyInvites := provideLobbyInvites(configConfig, hub)
@@ -833,8 +833,8 @@ func provideProfileRepository(db *gorm.DB) data.ProfileRepository {
 	return data.NewProfileRepository(db)
 }
 
-func provideProfileService(repo data.ProfileRepository, socialRepo data.SocialRepository, markerRepo data.MarkerRepository, social *core.SocialService, privacy *core.PrivacyService, homepage *core.HomepageService, cfg *config.Config, logger *logging.Logger) *core.ProfileService {
-	return core.NewProfileService(repo, socialRepo, markerRepo, social, privacy, homepage, cfg.Profiles, logger.Logger)
+func provideProfileService(repo data.ProfileRepository, socialRepo data.SocialRepository, markerRepo data.MarkerRepository, social *core.SocialService, privacy *core.PrivacyService, homepage *core.HomepageService, searchService *core.SearchService, tagRepo data.TagRepository, savedSearchRepo data.SavedSearchRepository, cfg *config.Config, logger *logging.Logger) *core.ProfileService {
+	return core.NewProfileService(repo, socialRepo, markerRepo, social, privacy, homepage, cfg.Profiles, logger.Logger).WithCustomLists(searchService, tagRepo, savedSearchRepo)
 }
 
 func provideProfileHandler(profiles *core.ProfileService, cfg *config.Config, markerService *core.MarkerService, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository) *handler.ProfileHandler {

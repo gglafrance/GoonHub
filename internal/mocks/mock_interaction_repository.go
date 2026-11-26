@@ -159,6 +159,21 @@ func (mr *MockInteractionRepositoryMockRecorder) GetLastJizzTimes(userID, sceneI
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastJizzTimes", reflect.TypeOf((*MockInteractionRepository)(nil).GetLastJizzTimes), userID, sceneIDs)
 }
 
+// GetLikeTimes mocks base method.
+func (m *MockInteractionRepository) GetLikeTimes(userID uint, sceneIDs []uint) (map[uint]time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLikeTimes", userID, sceneIDs)
+	ret0, _ := ret[0].(map[uint]time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLikeTimes indicates an expected call of GetLikeTimes.
+func (mr *MockInteractionRepositoryMockRecorder) GetLikeTimes(userID, sceneIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLikeTimes", reflect.TypeOf((*MockInteractionRepository)(nil).GetLikeTimes), userID, sceneIDs)
+}
+
 // GetLikedSceneIDs mocks base method.
 func (m *MockInteractionRepository) GetLikedSceneIDs(userID uint) ([]uint, error) {
 	m.ctrl.T.Helper()
@@ -247,6 +262,21 @@ func (m *MockInteractionRepository) GetRatingsBySceneIDs(userID uint, sceneIDs [
 func (mr *MockInteractionRepositoryMockRecorder) GetRatingsBySceneIDs(userID, sceneIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRatingsBySceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetRatingsBySceneIDs), userID, sceneIDs)
+}
+
+// GetWatchStats mocks base method.
+func (m *MockInteractionRepository) GetWatchStats(userID uint, sceneIDs []uint) (map[uint]data.SceneWatchStat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWatchStats", userID, sceneIDs)
+	ret0, _ := ret[0].(map[uint]data.SceneWatchStat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWatchStats indicates an expected call of GetWatchStats.
+func (mr *MockInteractionRepositoryMockRecorder) GetWatchStats(userID, sceneIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWatchStats", reflect.TypeOf((*MockInteractionRepository)(nil).GetWatchStats), userID, sceneIDs)
 }
 
 // GetWatchedBySceneIDs mocks base method.
