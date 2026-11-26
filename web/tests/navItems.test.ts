@@ -1,60 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import {
-    NAV_ITEMS,
     isAnyNavItemActive,
     isNavItemActive,
     menuFocusIndex,
     menuPanelLeft,
-    visibleNavItems,
 } from '../app/utils/navItems';
-import type { PermissionName } from '../app/types/permissions';
-
-const hasOnly =
-    (...granted: PermissionName[]) =>
-    (p: PermissionName) =>
-        granted.includes(p);
-
-const labels = (items: { label: string }[]) => items.map((i) => i.label);
-
-describe('visibleNavItems', () => {
-    test('main row order, gated items hidden without their permission', () => {
-        expect(labels(visibleNavItems(NAV_ITEMS, 'main', hasOnly()))).toEqual([
-            'Search',
-            'Markers',
-            'Playlists',
-            'History',
-            'Actors',
-            'Studios',
-        ]);
-        expect(labels(visibleNavItems(NAV_ITEMS, 'main', hasOnly('goon2gether:use')))).toEqual([
-            'Search',
-            'Markers',
-            'Playlists',
-            'Together',
-            'History',
-            'Actors',
-            'Studios',
-        ]);
-    });
-
-    test('manage menu keeps the permission gates', () => {
-        expect(labels(visibleNavItems(NAV_ITEMS, 'manage', hasOnly()))).toEqual(['Triage']);
-        expect(
-            labels(
-                visibleNavItems(
-                    NAV_ITEMS,
-                    'manage',
-                    hasOnly('explorer:access', 'duplicates:manage'),
-                ),
-            ),
-        ).toEqual(['Triage', 'Explorer', 'Duplicates']);
-    });
-
-    test('an empty group when nothing is visible', () => {
-        const gated = NAV_ITEMS.filter((i) => i.permission);
-        expect(visibleNavItems(gated, 'manage', hasOnly())).toEqual([]);
-    });
-});
 
 describe('isNavItemActive', () => {
     test('the page and its sub-pages, not a mere prefix', () => {
@@ -64,8 +14,8 @@ describe('isNavItemActive', () => {
         expect(isNavItemActive('/', '/explorer')).toBe(false);
     });
 
-    test('the manage button is active on one of its pages', () => {
-        const manage = visibleNavItems(NAV_ITEMS, 'manage', () => true);
+    test('a folder button is active on one of its pages', () => {
+        const manage = [{ to: '/triage' }, { to: '/explorer' }, { to: '/duplicates' }, {}];
         expect(isAnyNavItemActive('/duplicates', manage)).toBe(true);
         expect(isAnyNavItemActive('/explorer/1', manage)).toBe(true);
         expect(isAnyNavItemActive('/search', manage)).toBe(false);

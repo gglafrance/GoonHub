@@ -145,7 +145,7 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - `pages/` - Routes: index (scene grid), login, watch/[id], settings
 - `components/` - Organized by feature:
     - Root: `AppHeader`, `SceneCard`, `SceneGrid`, `ScenePlayer`, `SceneUpload`, `SceneMetadata`, `UploadIndicator`, `Pagination`, `ErrorAlert`, `LoadingSpinner`
-    - `header/` - `JobStatus` (real-time job indicator), `JobStatusPopup` (detailed breakdown by phase), `NavBar` (nav row: user pages then the `ManageMenu` dropdown; items and permissions in `utils/navItems.ts`)
+    - `header/` - `JobStatus` (real-time job indicator), `JobStatusPopup` (detailed breakdown by phase), `LayoutBar` (one header bar in three zones from the user's layout), `Entry` (one item), `NavFolder` (dropdown folder, the default one is "Manage"), `LiveSources` (starts the live badges once). Items and permissions in `utils/navRegistry.ts`, layout logic in `utils/navLayout.ts`: see `docs/NAVIGATION.md`
     - `settings/` - `Account`, `Player`, `App`, `Users`, `Jobs` (tab orchestrator)
     - `settings/jobs/` - `HistoryTab`, `QueueStatus`, `ActiveJobs`, `Workers`, `Processing`, `Triggers`, `Retry`, `DLQ`, `Manual`
     - `settings/` modals - `UserCreateModal`, `UserEditRoleModal`, `UserResetPasswordModal`, `UserDeleteModal`
@@ -306,5 +306,6 @@ When working on GoonHub, remember:
 - In handlers, use `response.Error(c, err)` for automatic HTTP status and error code mapping
 - Never add a `Co-Authored-By` line to git commit messages
 - Before any database schema change, read `docs/DATABASE.md` for schema reference and conventions
+- The header bars are laid out per account (`docs/NAVIGATION.md`): a new header item goes in both registries (`web/app/utils/navRegistry.ts` and `internal/core/nav_layout_catalog.go`, a test checks they match) with its permission; its live state is started in `header/LiveSources.vue`, not in the item
 - Messages between users and shares (videos, markers, playlists, lobby invites): `core/message_*.go`, `docs/MESSAGES.md`. Private to the participants (no admin bypass), the recipient's message policy is checked at send time, share cards are resolved for the reader (never file info). The single Share dialog is `components/share/ShareModal.vue` (`ShareButton`): "Send to friends" and "Link". Reactions on messages (both chats, emoji and `:name:` emotes): `core/message_reactions.go`, `together/chat_reactions.go`, `components/chat/Reactions.vue`, `utils/reactions.ts`
 - Information about a user shown to other users (profile blocks, lists, presence, activity) must go through the privacy framework (`PrivacyService.CanView` / `VisibleTo`, catalog in `core/privacy_catalog.go`, no admin bypass) and personal live events through `EventBus.PublishToUser`; see `docs/SOCIAL.md`. Presence (online, away, now watching, invisible mode) is in `core/presence_*.go` and `utils/presenceTracker.ts` (what counts as activity); add activity types as described in `docs/PRESENCE.md`

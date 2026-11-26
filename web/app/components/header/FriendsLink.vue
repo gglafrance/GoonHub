@@ -1,22 +1,13 @@
 <script setup lang="ts">
-// Header entry of the social features, with the pending incoming friend requests (live).
+// Header entry of the social features, with the pending incoming friend requests (live, the
+// social store is started by HeaderLiveSources).
 const socialStore = useSocialStore();
-const jobStatusStore = useJobStatusStore();
 
 const badge = computed(() => badgeCount(socialStore.incomingRequests));
 const title = computed(() =>
     socialStore.incomingRequests > 0
         ? `Friends (${socialStore.incomingRequests} pending request${socialStore.incomingRequests > 1 ? 's' : ''})`
         : 'Friends',
-);
-
-onMounted(() => socialStore.start());
-onBeforeUnmount(() => socialStore.stop());
-
-// Events may have been missed while the stream was down
-watch(
-    () => jobStatusStore.lastReconnectedAt,
-    () => socialStore.refresh(),
 );
 </script>
 

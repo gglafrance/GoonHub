@@ -1,9 +1,8 @@
 <script setup lang="ts">
 // Header entry of the messages: chat bubble with the unread count (muted conversations left
-// out) and a popover of the recent conversations. Starts the live messages of the tab and
-// shows the toasts of incoming messages.
+// out) and a popover of the recent conversations. The live messages of the tab and the toasts
+// of incoming messages are started by HeaderLiveSources.
 const messagesStore = useMessagesStore();
-const jobStatusStore = useJobStatusStore();
 const route = useRoute();
 const showPopup = ref(false);
 const buttonRef = ref<HTMLButtonElement | null>(null);
@@ -15,14 +14,6 @@ const title = computed(() =>
         : 'Messages',
 );
 
-onMounted(() => messagesStore.start());
-onBeforeUnmount(() => messagesStore.stop());
-
-// Events may have been missed while the stream was down
-watch(
-    () => jobStatusStore.lastReconnectedAt,
-    () => messagesStore.reconnected(),
-);
 watch(
     () => route.fullPath,
     () => {
@@ -58,6 +49,5 @@ watch(
             :anchor-el="buttonRef"
             @close="showPopup = false"
         />
-        <MessagesToasts />
     </div>
 </template>

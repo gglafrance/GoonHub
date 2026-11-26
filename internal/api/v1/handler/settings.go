@@ -16,6 +16,8 @@ import (
 type SettingsHandler struct {
 	SettingsService *core.SettingsService
 	MaxItemsPerPage int
+	// NavLayout serves the header layout routes (/settings/navigation, settings_navigation.go)
+	NavLayout *core.NavLayoutService
 }
 
 func NewSettingsHandler(settingsService *core.SettingsService, maxItemsPerPage int) *SettingsHandler {

@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import type { NavItem } from '~/utils/navItems';
+import type { NavFolder } from '~/types/navLayout';
+import type { NavItemDef } from '~/utils/navRegistry';
 
-// "Manage" dropdown at the end of the nav row: the curation/management pages. Opens on click
-// (touch too), under the button and extending to its right; closes on outside click, Esc,
-// Tab out, item click and route change. Arrow keys, Home and End move between the items.
-const props = defineProps<{ items: NavItem[] }>();
+// A folder of the header layout (docs/NAVIGATION.md), shown as a dropdown button; the default
+// layout has one, "Manage" (curation and management pages). Opens on click (touch too), under
+// the button and extending to its right; closes on outside click, Esc, Tab out, item click and
+// route change. Arrow keys, Home and End move between the items. A dot on the button tells
+// that an item inside has a badge (unread messages, friend requests, public lobbies).
+const props = defineProps<{ folder: NavFolder; items: NavItemDef[] }>();
 
+const { badge, route: routeFor } = useHeaderItems();
 const route = useRoute();
 const open = ref(false);
 const buttonRef = ref<HTMLButtonElement | null>(null);
@@ -15,7 +19,14 @@ const menuId = useId();
 
 const PANEL_WIDTH = 192;
 
-const active = computed(() => isAnyNavItemActive(route.path, props.items));
+const icon = computed(() => props.folder.icon || 'heroicons:folder');
+const active = computed(() =>
+    isAnyNavItemActive(
+        route.path,
+        props.items.map((i) => ({ to: routeFor(i) ?? undefined })),
+    ),
+);
+const hasBadge = computed(() => props.items.some((i) => badge(i.id) !== null));
 
 function itemEls(): HTMLElement[] {
     return Array.from(panelRef.value?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
@@ -122,24 +133,31 @@ onBeforeUnmount(teardown);
         <button
             ref="buttonRef"
             type="button"
-            class="text-dim flex items-center justify-center gap-0.5 rounded-md px-2 py-1.5
-                text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
+            class="text-dim relative flex shrink-0 items-center justify-center gap-0.5 rounded-md
+                px-2 py-1.5 text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
                 sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
             :class="{ '!text-lava bg-lava/10': active, 'bg-white/5 text-white': open && !active }"
-            title="Manage"
+            :title="folder.name"
+            :aria-label="folder.name"
             aria-haspopup="menu"
             :aria-expanded="open"
             :aria-controls="open ? menuId : undefined"
             @click="onButtonClick"
             @keydown="onButtonKeydown"
         >
-            <Icon name="heroicons:wrench-screwdriver" size="18" class="sm:!h-3.5 sm:!w-3.5" />
-            <span class="hidden sm:inline">Manage</span>
+            <Icon :name="icon" size="18" class="sm:!h-3.5 sm:!w-3.5" />
+            <span class="hidden sm:inline">{{ folder.name }}</span>
             <Icon
                 name="heroicons:chevron-down"
                 size="12"
                 class="transition-transform duration-150"
                 :class="{ 'rotate-180': open }"
+            />
+            <span
+                v-if="hasBadge"
+                class="bg-lava absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full
+                    shadow-[0_0_6px_rgba(255,77,77,0.6)]"
+                aria-hidden="true"
             />
         </button>
 
@@ -155,7 +173,7 @@ onBeforeUnmount(teardown);
                     :id="menuId"
                     ref="panelRef"
                     role="menu"
-                    aria-label="Manage"
+                    :aria-label="folder.name"
                     class="border-border bg-panel/95 fixed z-[60] rounded-lg border p-1 shadow-2xl
                         backdrop-blur-md"
                     :style="{
@@ -169,25 +187,14 @@ onBeforeUnmount(teardown);
                         class="px-2.5 pt-1.5 pb-1 text-[10px] font-medium tracking-wider
                             text-white/40 uppercase"
                     >
-                        Manage
+                        {{ folder.name }}
                     </div>
-                    <NuxtLink
+                    <HeaderFolderItem
                         v-for="item in items"
-                        :key="item.to"
-                        :to="item.to"
-                        role="menuitem"
-                        class="text-dim focus-visible:ring-lava/40 flex items-center gap-2
-                            rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors
-                            outline-none hover:bg-white/5 hover:text-white focus-visible:bg-white/5
-                            focus-visible:text-white focus-visible:ring-1"
-                        :class="{
-                            '!text-lava bg-lava/10': isNavItemActive(route.path, item.to),
-                        }"
-                        @click="close()"
-                    >
-                        <Icon :name="item.icon" size="14" class="shrink-0" />
-                        {{ item.label }}
-                    </NuxtLink>
+                        :key="item.id"
+                        :item="item"
+                        @select="close()"
+                    />
                 </div>
             </Transition>
         </Teleport>

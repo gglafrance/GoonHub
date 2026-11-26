@@ -179,6 +179,30 @@ Per-user application preferences.
 
 ---
 
+### `user_nav_layouts`
+
+Per-account layout of the two header bars (migration 106, `docs/NAVIGATION.md`): where each
+header item goes (bar and zone, or a folder), the user's folders and the hidden items. One row
+per user who customized the header; no row = the default layout (today's header), so those users
+follow the defaults of later versions. Reset to default deletes the row.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `user_id` | BIGINT | NO | - | Primary key, FK to `users.id` (CASCADE) |
+| `layout` | JSONB | NO | - | `{version: 1, bars: {top, nav: {left, center, right: [entry]}}, folders: [{id, name, icon, items: [item id]}], hidden: [item id]}`; an entry is an item id or `folder:<id>` |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last save |
+
+The layout is validated by the application (`core.NavLayoutService`): known item ids, each item
+and folder once, items in the bars they allow, required items (logo, settings, logout) never
+hidden, at most 12 folders, folder names of 1 to 32 characters. Items the user lacks the
+permission for are never stored, and are left out when a layout is read.
+
+**Constraints:**
+- CHECK `chk_user_nav_layouts_layout`: `jsonb_typeof(layout) = 'object'`
+- FK to `users(id)` ON DELETE CASCADE
+
+---
+
 ## RBAC (Role-Based Access Control)
 
 Roles with several parent roles, `allow`/`deny` settings, per-user overrides and a superuser
@@ -2138,7 +2162,7 @@ Internal references still use BIGSERIAL `id` for performance.
 
 ### Foreign Key Cascade Rules
 
-- User-owned data: `ON DELETE CASCADE` (settings, interactions, markers, share_links, playlists, follows, friendships, friend requests, privacy settings, presence, conversation participants, message reactions)
+- User-owned data: `ON DELETE CASCADE` (settings, header layouts, interactions, markers, share_links, playlists, follows, friendships, friend requests, privacy settings, presence, conversation participants, message reactions)
 - Messages: `ON DELETE SET NULL` on the sender and the shared items (the other side keeps the history and the card says "not available")
 - Playlist items: `ON DELETE CASCADE` (`playlist_scenes`, `playlist_markers`: a deleted scene or marker leaves the playlists)
 - Content associations: `ON DELETE CASCADE` (scene_tags, scene_actors, share_links)
@@ -2148,6 +2172,7 @@ Internal references still use BIGSERIAL `id` for performance.
 
 Used for flexible, user-configurable data:
 - `user_settings.homepage_config` - Homepage section configuration
+- `user_nav_layouts.layout` - Header bars layout (`docs/NAVIGATION.md`)
 - `saved_searches.filters` - Search filter parameters
 
 ### Partial Indexes

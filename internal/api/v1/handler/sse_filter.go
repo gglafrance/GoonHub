@@ -58,11 +58,12 @@ var sseEventRules = map[string]sseEventRule{
 // sseTargetedPrefixes are the event families that are always personal (targeted at one
 // user): a broadcast of such an event is dropped. Presence and other per-user features add
 // their prefix here.
-var sseTargetedPrefixes = []string{"social:", "presence:", "chat:"}
+var sseTargetedPrefixes = []string{"social:", "presence:", "chat:", "settings:"}
 
 // sseRuleFor returns the rule of an event type. jobs:* need jobs:view_status, scan:* (absolute
 // paths of the library files) need storage:manage, with their data as is; social:*,
-// presence:* and chat:* (messages, docs/MESSAGES.md) are targeted. An unknown type is sent without its data.
+// presence:*, chat:* (messages, docs/MESSAGES.md) and settings:* (the header layout,
+// docs/NAVIGATION.md) are targeted. An unknown type is sent without its data.
 func sseRuleFor(eventType string) sseEventRule {
 	if rule, ok := sseEventRules[eventType]; ok {
 		return rule
