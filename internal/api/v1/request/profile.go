@@ -31,3 +31,19 @@ type SetProfileBannerRequest struct {
 	Type    string `json:"type"`
 	SceneID uint   `json:"scene_id"`
 }
+
+// SetProfileTabsRequest is the body of PUT /profiles/me/tabs: the tabs with their sections, or
+// reset to go back to the default tabs.
+type SetProfileTabsRequest struct {
+	Tabs  []data.ProfileTab `json:"tabs"`
+	Reset bool              `json:"reset"`
+}
+
+// CustomListRequest is the body of POST /profiles/me/lists and PUT /profiles/me/lists/:id.
+// The filters are the saved search filters (typed, validated by the service).
+type CustomListRequest struct {
+	Title           string       `json:"title"`
+	Filters         data.Filters `json:"filters"`
+	SavedSearchUUID string       `json:"saved_search_uuid"`
+	Audience        string       `json:"audience"`
+}

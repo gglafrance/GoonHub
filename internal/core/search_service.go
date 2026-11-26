@@ -74,6 +74,7 @@ func (s *SearchService) Search(params data.SceneSearchParams) (*SearchResult, er
 
 	isRandomSort := params.Sort == "random"
 	isJizzSort := isJizzSortOrder(params.Sort)
+	isUserSort := isUserSortOrder(params.Sort)
 
 	// Start with SceneIDs pre-filter if provided (e.g., folder search)
 	var preFilteredIDs []uint
@@ -137,7 +138,7 @@ func (s *SearchService) Search(params data.SceneSearchParams) (*SearchResult, er
 	}
 	meiliParams.ExcludeSceneIDs = excludedIDs
 
-	if isRandomSort || isJizzSort {
+	if isRandomSort || isJizzSort || isUserSort {
 		meiliParams.FetchAllIDs = true
 	}
 
@@ -160,6 +161,11 @@ func (s *SearchService) Search(params data.SceneSearchParams) (*SearchResult, er
 	// O sorts are user specific: order all matching IDs in Go, then paginate
 	if isJizzSort {
 		return s.handleJizzSort(result.IDs, params)
+	}
+
+	// Rating, like, view sorts of the user: same, by the user's interactions
+	if isUserSort {
+		return s.handleUserSort(result.IDs, params)
 	}
 
 	// Fetch full scene records from PostgreSQL

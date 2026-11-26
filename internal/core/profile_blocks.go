@@ -68,6 +68,9 @@ type ProfileBlockSpec struct {
 	DefaultVisible bool
 	// Order is the position in the default layout and in the block library.
 	Order int
+	// Multi: a block type placed as many times as the owner wants, each one configured (the
+	// custom lists); never part of the default layout nor appended to older layouts.
+	Multi bool
 	Fetch func(ctx context.Context, deps *ProfileBlockDeps, req ProfileBlockRequest) (*ProfileBlockData, error)
 }
 
@@ -77,6 +80,8 @@ type ProfileBlockDeps struct {
 	Social   data.SocialRepository
 	Markers  data.MarkerRepository
 	Homepage *HomepageService
+	// RunList runs a custom list for a viewer (ProfileService.runList)
+	RunList func(ctx context.Context, ownerID uint, viewer ProfileViewer, f data.Filters, page, limit int) ([]data.Scene, int64, error)
 	// Now returns the current time (tests).
 	Now func() time.Time
 }
@@ -86,6 +91,8 @@ type ProfileBlockRequest struct {
 	OwnerID uint
 	Viewer  ProfileViewer
 	Config  ProfileBlockValues
+	// List is the custom list of a custom_list block (already checked for the viewer)
+	List *ResolvedProfileList
 }
 
 // ProfileBlockValues are the resolved options of a block (defaults filled in).
@@ -103,11 +110,14 @@ func (v ProfileBlockValues) String(key string) string {
 	return s
 }
 
-// ProfileSceneItem is a scene of a block with its figure (watched or liked at, views).
+// ProfileSceneItem is a scene of a block or list with its figure (watched, liked, rated or
+// last jizzed at, views, the owner's rating, the owner's O count).
 type ProfileSceneItem struct {
-	Scene data.Scene
-	At    *time.Time
-	Views int64
+	Scene     data.Scene
+	At        *time.Time
+	Views     int64
+	Rating    *float64
+	JizzCount int64
 }
 
 // ProfileBlockData is the content of a block. Scenes are redacted by the API layer; Widget is
@@ -120,6 +130,8 @@ type ProfileBlockData struct {
 	Total *int64
 	// Empty: nothing to show (the page hides empty blocks from other viewers)
 	Empty bool
+	// Title replaces the label of the block type (custom lists)
+	Title string
 }
 
 var profileBlocks = map[string]ProfileBlockSpec{}
@@ -165,6 +177,9 @@ func DefaultProfileLayout() data.ProfileLayout {
 	specs := ProfileBlockSpecs()
 	out := make(data.ProfileLayout, 0, len(specs))
 	for _, spec := range specs {
+		if spec.Multi {
+			continue
+		}
 		out = append(out, data.ProfileBlockConfig{Type: spec.Type, Visible: spec.DefaultVisible, Config: map[string]any{}})
 	}
 	return out
@@ -196,7 +211,7 @@ func NormalizeProfileLayout(layout data.ProfileLayout) data.ProfileLayout {
 		out = append(out, data.ProfileBlockConfig{Type: b.Type, Visible: b.Visible, LockedPlaceholder: b.LockedPlaceholder, Config: cfg})
 	}
 	for _, spec := range ProfileBlockSpecs() {
-		if !seen[spec.Type] {
+		if !seen[spec.Type] && !spec.Multi {
 			out = append(out, data.ProfileBlockConfig{Type: spec.Type, Config: map[string]any{}})
 		}
 	}
@@ -358,9 +373,17 @@ func profileSceneItems(ctx context.Context, deps *ProfileBlockDeps, refs []data.
 	items := make([]ProfileSceneItem, len(scenes))
 	for i, s := range scenes {
 		r := byID[s.ID]
-		items[i] = ProfileSceneItem{Scene: s, At: r.At, Views: r.Count}
+		items[i] = ProfileSceneItem{Scene: s, At: r.At, Views: r.Count, Rating: r.Rating}
 	}
 	return items, nil
+}
+
+// asJizzItems moves the count of jizz refs (the O count, not views) to JizzCount.
+func asJizzItems(items []ProfileSceneItem) []ProfileSceneItem {
+	for i := range items {
+		items[i].JizzCount, items[i].Views = items[i].Views, 0
+	}
+	return items
 }
 
 // withMarkerTags adds their tags to markers (best effort: the cards work without them).

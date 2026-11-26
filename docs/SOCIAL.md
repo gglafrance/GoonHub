@@ -92,12 +92,18 @@ audience.
 | `stats` | Profile | friends | watch statistics (stats block) |
 | `activity` | Profile | friends | recent watches, most watched, activity calendar |
 | `recent_markers` | Profile | friends | the markers created recently |
-| `liked` | Profile | friends | the liked videos |
+| `liked` | Profile | friends | the liked videos (block and Likes list) |
+| `ratings` | Profile | friends | the ratings chart and the rated videos with their rating (block and Ratings list) |
+| `jizz` | Profile | friends | the videos the user came to, their O count and dates (block and Jizz list). Sensitive: "Only me" keeps it to oneself |
 | `playlists` | Profile | public | the public playlists listed on the profile |
 | `friends_list` | Connections | public | the friends list (and its count) |
 | `followers_list` | Connections | public | followers and following lists (and their counts) |
 | `online_status` | Presence | friends | whether the user is online, away or offline, and their last seen (`docs/PRESENCE.md`) |
 | `now_watching` | Presence | friends | what the user is watching (also needs `online_status`) |
+
+Custom lists of a profile (`docs/PROFILES.md`, "Custom lists") add no item: a list has its own
+audience and depends on the items of its criteria (`liked`, `ratings`, `jizz`, `activity`,
+`recent_markers`), all checked for every viewer.
 
 `profile` is a gate: a block shown on the profile page needs `profile` and its own item (the
 lists endpoints check both, `CanViewAll`; the profile blocks and their items are listed in

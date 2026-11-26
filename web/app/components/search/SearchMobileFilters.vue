@@ -61,6 +61,8 @@ const allSortOptions = [
     { value: 'last_jizz_asc', label: 'Oldest O' },
     { value: 'view_count_desc', label: 'Most Viewed' },
     { value: 'view_count_asc', label: 'Least Viewed' },
+    // the user's own ratings, likes and views
+    ...USER_SORT_OPTIONS,
 ];
 const sortOptions = computed(() => allowedSortOptions(allSortOptions, perms.has));
 

@@ -110,8 +110,9 @@ func TestProfileHandlerPermissionsAndValidation(t *testing.T) {
 	if w, _ := doAliasRequest(t, e.r, http.MethodPut, "/profiles/me/layout", `{}`); w.Code != http.StatusBadRequest {
 		t.Fatalf("no blocks: %d", w.Code)
 	}
+	e.repo.EXPECT().GetProfile(gomock.Any(), uint(1)).Return(&data.UserProfile{UserID: 1}, nil)
 	e.repo.EXPECT().SaveLayout(gomock.Any(), uint(1), data.ProfileLayout(nil)).Return(nil)
-	if w, body := doAliasRequest(t, e.r, http.MethodPut, "/profiles/me/layout", `{"reset":true}`); w.Code != http.StatusOK || len(body["blocks"].([]any)) != len(core.ProfileBlockSpecs()) {
+	if w, body := doAliasRequest(t, e.r, http.MethodPut, "/profiles/me/layout", `{"reset":true}`); w.Code != http.StatusOK || len(body["blocks"].([]any)) != len(core.DefaultProfileLayout()) {
 		t.Fatalf("reset: %d %v", w.Code, body)
 	}
 	if w, _ := doAliasRequest(t, e.r, http.MethodGet, "/profiles/avatar/3/xl", ""); w.Code != http.StatusBadRequest {

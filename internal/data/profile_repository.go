@@ -24,6 +24,21 @@ type ProfileRepository interface {
 	SetBanner(ctx context.Context, userID uint, bannerType string, sceneID *uint, version int64) error
 	// SaveLayout stores the block layout (nil = back to the default layout).
 	SaveLayout(ctx context.Context, userID uint, layout ProfileLayout) error
+	// SaveTabs stores the tabs (nil = back to the default tabs: the older layout is cleared
+	// too).
+	SaveTabs(ctx context.Context, userID uint, tabs ProfileTabs) error
+
+	// Custom lists of a user (oldest first)
+	Lists(ctx context.Context, userID uint) ([]ProfileList, error)
+	// ListsByIDs returns the lists of the user among ids (any order).
+	ListsByIDs(ctx context.Context, userID uint, ids []uint) ([]ProfileList, error)
+	// GetList returns a list of the user (gorm.ErrRecordNotFound otherwise).
+	GetList(ctx context.Context, userID, id uint) (*ProfileList, error)
+	CountLists(ctx context.Context, userID uint) (int64, error)
+	CreateList(ctx context.Context, list *ProfileList) error
+	UpdateList(ctx context.Context, list *ProfileList) error
+	// DeleteList deletes a list of the user; false when there was none.
+	DeleteList(ctx context.Context, userID, id uint) (bool, error)
 
 	// FavoriteSceneIDs and FavoriteMarkerIDs return the showcases in order (everything
 	// stored, live or not).
@@ -60,6 +75,20 @@ type ProfileRepository interface {
 	TopStudios(ctx context.Context, userID uint, since time.Time, limit int) ([]ProfileTopEntry, error)
 	// PublicPlaylists returns the user's public playlists, last updated first, and their count.
 	PublicPlaylists(ctx context.Context, userID uint, limit int) ([]ProfilePlaylist, int64, error)
+	// RatingSummary returns the user's ratings per half-star bucket (non-empty ones,
+	// ascending) and their average, over live scenes.
+	RatingSummary(ctx context.Context, userID uint) (*ProfileRatingSummary, error)
+	// RatedScenes returns a page of the scenes the user rated (Rating set, At = rating date),
+	// optionally one bucket, and their number.
+	RatedScenes(ctx context.Context, userID uint, q ProfileListQuery) ([]ProfileSceneRef, int64, error)
+	// LikedScenesPage returns a page of the scenes the user liked (At = like date) and their
+	// number.
+	LikedScenesPage(ctx context.Context, userID uint, q ProfileListQuery) ([]ProfileSceneRef, int64, error)
+	// JizzScenes returns a page of the scenes the user jizzed to (Count = O count, At = last
+	// O) and their number.
+	JizzScenes(ctx context.Context, userID uint, q ProfileListQuery) ([]ProfileSceneRef, int64, error)
+	// JizzSummary returns the user's O total and number of scenes, over live scenes.
+	JizzSummary(ctx context.Context, userID uint) (*ProfileJizzSummary, error)
 	// MarkerCandidates lists the markers the user sees (own and shared) on live scenes whose
 	// label or scene title contains the query, newest first (the favorite markers picker).
 	MarkerCandidates(ctx context.Context, userID uint, query string, page, limit int) ([]WidgetMarker, int64, error)
