@@ -181,25 +181,22 @@ onMounted(() => load(page.value));
                 :style="sceneGridStyle"
             >
                 <div v-for="item in items" :key="item.scene.id" class="min-w-0">
-                    <SceneCard
-                        :scene="item.scene"
-                        :rating="sidecars.ratings[item.scene.id]"
-                        :liked="sidecars.likes[item.scene.id]"
-                        :jizz-count="sidecars.jizzCounts[item.scene.id]"
-                        :completed="sidecars.watched[item.scene.id]"
-                        fluid
-                    />
-                    <ProfileListFigures
-                        v-if="listFigures"
-                        :kinds="listFigures"
-                        :figures="item.figures"
-                    />
-                    <ProfileSceneFigure
-                        v-else
-                        :item="item"
-                        :figure="props.figure"
-                        :at-label="props.atLabel"
-                    />
+                    <ProfileListCard v-if="listFigures" :item="item" :figures="listFigures" />
+                    <template v-else>
+                        <SceneCard
+                            :scene="item.scene"
+                            :rating="sidecars.ratings[item.scene.id]"
+                            :liked="sidecars.likes[item.scene.id]"
+                            :jizz-count="sidecars.jizzCounts[item.scene.id]"
+                            :completed="sidecars.watched[item.scene.id]"
+                            fluid
+                        />
+                        <ProfileSceneFigure
+                            :item="item"
+                            :figure="props.figure"
+                            :at-label="props.atLabel"
+                        />
+                    </template>
                 </div>
             </div>
             <SceneListInfiniteLoader

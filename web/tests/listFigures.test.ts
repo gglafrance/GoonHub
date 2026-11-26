@@ -2,7 +2,9 @@ import { describe, expect, test } from 'bun:test';
 import {
     autoFiguresLabel,
     autoListFigures,
-    listFigureLines,
+    listFigureBadges,
+    LIST_FIGURE_ICONS,
+    shortAgo,
     listFigureOptions,
     listFigures,
     sortFigure,
@@ -82,33 +84,60 @@ describe('listFigures', () => {
     });
 });
 
-describe('listFigureLines', () => {
+describe('listFigureBadges', () => {
+    const now = Date.parse('2026-11-23T10:00:00Z');
     const at = '2026-11-20T10:00:00Z';
-    test('formats each kind', () => {
+    test('icon and short value, details in the tooltip (no unit next to the icon)', () => {
         expect(
-            listFigureLines(['jizz', 'rating'], { jizz_count: 12, last_jizz_at: at, rating: 3.5 }),
+            listFigureBadges(
+                ['jizz', 'rating'],
+                { jizz_count: 12, last_jizz_at: at, rating: 3.5 },
+                now,
+            ),
         ).toEqual([
-            { kind: 'jizz', value: '12 O', prefix: 'last', at },
-            { kind: 'rating', stars: '★★★½', title: '3.5 stars' },
+            {
+                kind: 'jizz',
+                icon: LIST_FIGURE_ICONS.jizz,
+                text: '12',
+                title: '12 O, last 3 days ago',
+            },
+            {
+                kind: 'rating',
+                icon: LIST_FIGURE_ICONS.rating,
+                text: '3.5',
+                title: '3.5 stars ★★★½',
+            },
         ]);
-        expect(listFigureLines(['liked'], { liked_at: at })).toEqual([
-            { kind: 'liked', prefix: 'Liked', at },
-        ]);
-        expect(listFigureLines(['views'], { views: 1 })).toEqual([
-            { kind: 'views', value: '1 view', prefix: undefined, at: undefined },
-        ]);
-        expect(listFigureLines(['views'], { views: 34, last_watched_at: at })[0]?.value).toBe(
-            '34 views',
-        );
+        expect(listFigureBadges(['liked'], { liked_at: at }, now)[0]).toMatchObject({
+            text: '3d',
+            title: 'Liked 3 days ago',
+        });
+        expect(listFigureBadges(['views'], { views: 1 }, now)[0]).toMatchObject({
+            text: '1',
+            title: '1 view',
+        });
     });
     test('skips what the scene lacks or the server did not send', () => {
-        expect(listFigureLines(['jizz', 'rating'], { rating: 4 })).toHaveLength(1);
-        expect(listFigureLines(['jizz'], undefined)).toEqual([]);
-        expect(listFigureLines([], { jizz_count: 3 })).toEqual([]);
-        expect(listFigureLines(undefined, { jizz_count: 3 })).toEqual([]);
+        expect(listFigureBadges(['jizz', 'rating'], { rating: 4 })).toHaveLength(1);
+        expect(listFigureBadges(['jizz'], undefined)).toEqual([]);
+        expect(listFigureBadges([], { jizz_count: 3 })).toEqual([]);
+        expect(listFigureBadges(undefined, { jizz_count: 3 })).toEqual([]);
     });
-    test('two lines at most', () => {
+    test('two badges at most', () => {
         const all = { jizz_count: 1, rating: 5, liked_at: at, views: 2 };
-        expect(listFigureLines(['jizz', 'rating', 'liked', 'views'], all)).toHaveLength(2);
+        expect(listFigureBadges(['jizz', 'rating', 'liked', 'views'], all)).toHaveLength(2);
+    });
+});
+
+describe('shortAgo', () => {
+    const now = Date.parse('2026-11-23T10:00:00Z');
+    test('compact units', () => {
+        expect(shortAgo('2026-11-23T09:59:50Z', now)).toBe('now');
+        expect(shortAgo('2026-11-23T09:55:00Z', now)).toBe('5m');
+        expect(shortAgo('2026-11-23T07:00:00Z', now)).toBe('3h');
+        expect(shortAgo('2026-11-21T10:00:00Z', now)).toBe('2d');
+        expect(shortAgo('2026-10-26T10:00:00Z', now)).toBe('4w');
+        expect(shortAgo('2026-05-23T10:00:00Z', now)).toBe('6mo');
+        expect(shortAgo('2025-11-01T10:00:00Z', now)).toBe('1y');
     });
 });

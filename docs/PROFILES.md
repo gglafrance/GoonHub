@@ -270,8 +270,10 @@ stays visible. The items are read in the same `Visibility` call as the rest of t
 dropped figure is never read. Figures are read for the scenes shown only (one or two batched
 queries per figure).
 
-The cards show one line per figure, truncated to the card width (`ProfileListFigures`), in the
-block (grid and compact row) and on the Browse page.
+A custom list uses its own compact card (`ProfileListCard`: thumbnail, duration, title), in the
+block (grid and compact row) and on the Browse page. The figures are badges on the thumbnail: an
+icon and a short value without unit ("12" next to the O icon, "4.5" next to the star, "3d" next to
+the heart, "34" next to the eye), the details in the tooltip ("12 O, last 3 days ago").
 
 ## Images
 
@@ -375,7 +377,7 @@ The social user cards (`/social/...` lists, directory, `GET /social/me` `user`) 
   sharing `ProfileScenesGrid`, `ProfileSceneFigure` and `ProfileMarkersGrid`; the frame shows
   "See all" for the blocks of `PROFILE_BLOCK_LISTS` and "Browse" for a custom list),
   `lists/[id].vue` (a custom list browsed in full; the cards of a custom list, there and in its
-  block, show `ProfileListFigures`, helpers in `utils/listFigures.ts`, tests in
+  block, are `ProfileListCard` with the figures as badges, helpers in `utils/listFigures.ts`, tests in
   `web/tests/listFigures.test.ts`),
   `likes.vue`, `ratings.vue` (the chart, a click on a bar toggles the `?rating=` filter, shown
   as a removable chip) and `jizz.vue`. The lists are `ProfileSceneList` (the user's card

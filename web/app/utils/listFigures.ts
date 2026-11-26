@@ -78,58 +78,114 @@ export function listFigureOptions(
     ];
 }
 
-/** One figure under a card: stars, a value ("12 O", "34 views") and/or a dated part. */
-export interface ListFigureLine {
+/** One figure of a list card: an icon and a short value, the details in the tooltip. */
+export interface ListFigureBadge {
     kind: ListFigureKind;
-    /** Rating stars ("★★★½") */
-    stars?: string;
-    /** Bold value ("12 O", "34 views") */
-    value?: string;
-    /** Text before the date ("last", "Liked") */
-    prefix?: string;
-    /** ISO date shown relative */
-    at?: string;
-    /** Tooltip ("4.5 stars") */
-    title?: string;
+    /** Nuxt Icon name */
+    icon: string;
+    /** Short value: "12", "4.5", "2d" (the icon tells what it is, no unit) */
+    text: string;
+    /** Tooltip: "12 O, last 3 days ago" */
+    title: string;
 }
 
-/** The lines shown under a card for the kinds of a list, skipping figures the scene lacks. */
-export function listFigureLines(
+export const LIST_FIGURE_ICONS: Record<ListFigureKind, string> = {
+    jizz: 'fluent-emoji-high-contrast:sweat-droplets',
+    rating: 'heroicons:star-solid',
+    liked: 'heroicons:heart-solid',
+    views: 'heroicons:eye',
+};
+
+const UNITS: [number, string][] = [
+    [365 * 86400, 'y'],
+    [30 * 86400, 'mo'],
+    [7 * 86400, 'w'],
+    [86400, 'd'],
+    [3600, 'h'],
+    [60, 'm'],
+];
+
+/** Compact age of a date: "now", "5m", "3h", "2d", "4w", "6mo", "1y". */
+export function shortAgo(iso: string, now: number = Date.now()): string {
+    const seconds = Math.max(0, Math.floor((now - new Date(iso).getTime()) / 1000));
+    for (const [size, unit] of UNITS) {
+        if (seconds >= size) return `${Math.floor(seconds / size)}${unit}`;
+    }
+    return 'now';
+}
+
+/** Long age for a tooltip: "3 days ago". */
+function longAgo(iso: string, now: number): string {
+    const s = shortAgo(iso, now);
+    if (s === 'now') return 'just now';
+    const n = parseInt(s, 10);
+    const unit = s.replace(String(n), '');
+    const names: Record<string, string> = {
+        y: 'year',
+        mo: 'month',
+        w: 'week',
+        d: 'day',
+        h: 'hour',
+        m: 'minute',
+    };
+    const name = names[unit] ?? unit;
+    return `${n} ${name}${n === 1 ? '' : 's'} ago`;
+}
+
+/** The badges of a list card for the kinds of the list, skipping figures the scene lacks. */
+export function listFigureBadges(
     kinds: ListFigureKind[] | undefined,
     figures: ProfileSceneFigures | undefined,
-): ListFigureLine[] {
+    now: number = Date.now(),
+): ListFigureBadge[] {
     if (!kinds?.length || !figures) return [];
-    const out: ListFigureLine[] = [];
+    const out: ListFigureBadge[] = [];
     for (const kind of kinds.slice(0, LIST_FIGURE_MAX)) {
+        const icon = LIST_FIGURE_ICONS[kind];
         switch (kind) {
             case 'jizz':
-                if (figures.jizz_count)
+                if (figures.jizz_count) {
+                    const last = figures.last_jizz_at
+                        ? `, last ${longAgo(figures.last_jizz_at, now)}`
+                        : '';
                     out.push({
                         kind,
-                        value: `${figures.jizz_count} O`,
-                        prefix: figures.last_jizz_at ? 'last' : undefined,
-                        at: figures.last_jizz_at,
+                        icon,
+                        text: String(figures.jizz_count),
+                        title: `${figures.jizz_count} O${last}`,
                     });
+                }
                 break;
             case 'rating':
                 if (figures.rating)
                     out.push({
                         kind,
-                        stars: ratingStars(figures.rating),
-                        title: ratingLabel(figures.rating),
+                        icon,
+                        text: String(figures.rating),
+                        title: `${ratingLabel(figures.rating)} ${ratingStars(figures.rating)}`,
                     });
                 break;
             case 'liked':
-                if (figures.liked_at) out.push({ kind, prefix: 'Liked', at: figures.liked_at });
-                break;
-            case 'views':
-                if (figures.views)
+                if (figures.liked_at)
                     out.push({
                         kind,
-                        value: `${figures.views} ${figures.views === 1 ? 'view' : 'views'}`,
-                        prefix: figures.last_watched_at ? 'last' : undefined,
-                        at: figures.last_watched_at,
+                        icon,
+                        text: shortAgo(figures.liked_at, now),
+                        title: `Liked ${longAgo(figures.liked_at, now)}`,
                     });
+                break;
+            case 'views':
+                if (figures.views) {
+                    const last = figures.last_watched_at
+                        ? `, last ${longAgo(figures.last_watched_at, now)}`
+                        : '';
+                    out.push({
+                        kind,
+                        icon,
+                        text: String(figures.views),
+                        title: `${figures.views} ${figures.views === 1 ? 'view' : 'views'}${last}`,
+                    });
+                }
                 break;
         }
     }
