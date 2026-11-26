@@ -92,8 +92,8 @@ audience.
 | `activity` | Profile | friends | recent watches, most watched |
 | `friends_list` | Connections | public | the friends list (and its count) |
 | `followers_list` | Connections | public | followers and following lists (and their counts) |
-| `online_status` | Presence | friends | whether the user is online |
-| `now_watching` | Presence | friends | what the user is watching |
+| `online_status` | Presence | friends | whether the user is online, idle or offline, and their last seen (`docs/PRESENCE.md`) |
+| `now_watching` | Presence | friends | what the user is watching (also needs `online_status`) |
 
 `profile` is a gate: a block shown on the profile page needs `profile` and its own item (the
 lists endpoints check both, `CanViewAll`). Items shown elsewhere (presence in the header, for
@@ -137,6 +137,10 @@ func (s *PrivacyService) UpdateSettings(ctx context.Context, userID uint, in Upd
 
 // AudienceMembers: Everyone (public) or the sorted UserIDs in the audience (owner excluded)
 func (m AudienceMembers) Contains(userID uint) bool
+
+// Change listeners (called synchronously after the change): re-evaluate what someone sees
+func (s *PrivacyService) OnChange(fn func(userID uint, items []string))
+func (s *SocialService) OnRelationChange(fn func(a, b uint)) // follow, unfollow, friendship made or removed
 
 // internal/core/social_service.go
 func (s *SocialService) Relationship(ctx context.Context, viewerID, ownerID uint) (Relationship, error)
@@ -221,6 +225,8 @@ would be broadcast by mistake (`sseTargetedPrefixes`). The stream of a user subs
 | `social:followed` | the followed user | `{user}` (the new follower) |
 | `social:friend_requests_changed` | the user who accepted or declined | `{incoming_requests}` (syncs their other tabs) |
 
+Presence has its own targeted family, `presence:update` (`docs/PRESENCE.md`).
+
 To add a personal event family (presence...): publish with `PublishToUser` /
 `PublishToUsers` (with `PrivacyService.AudienceMembers` to pick the users), add its prefix to
 `sseTargetedPrefixes`, and in the frontend add the types to `LISTENER_EVENT_TYPES`
@@ -238,7 +244,10 @@ then listen with `onSSEEvent(type, fn)`.
   `SocialProfileLists` (friends/followers/following, each behind its privacy). The full profile
   adds its blocks to this page.
 - Settings > Privacy (`SettingsPrivacy`): one audience per catalog item, grouped, and the
-  friend request policy; each change is saved at once.
+  friend request policy; each change is saved at once. The Presence group also has the
+  invisible mode toggle (`SettingsPrivacyInvisibleToggle`, `docs/PRESENCE.md`).
+- Presence (`docs/PRESENCE.md`): `HeaderFriendsPresence` (who is online, watching), presence
+  dots on `SocialUserRow` and the profile header (`SocialPresenceDot`, `SocialPresenceBadge`).
 - Reusable pieces: `SocialUserRow`, `SocialUserList` (paginated, "load more"),
   `SocialRelationshipBadges`, `SocialRelationshipActions`, `useApiSocial()`, `useSocialStore()`,
   `utils/social.ts` (`relationshipBadges`, `friendAction`, `profilePath`). Usernames in lists

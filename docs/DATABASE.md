@@ -504,8 +504,8 @@ Shareable links for scenes with configurable visibility and expiration.
 
 ## Social Graph
 
-Follows, friendships, friend requests and privacy settings (migration 095, `docs/SOCIAL.md`).
-Every table cascades on user deletion.
+Follows, friendships, friend requests and privacy settings (migration 095, `docs/SOCIAL.md`),
+presence (migration 100, `docs/PRESENCE.md`). Every table cascades on user deletion.
 
 ### `user_follows`
 
@@ -590,6 +590,20 @@ default), rows of unknown items are ignored.
 **Constraints:**
 - PRIMARY KEY `(user_id, item)`
 - CHECK `chk_user_privacy_settings_audience`: `audience IN ('public', 'followers', 'mutuals', 'friends', 'private')`
+
+---
+
+### `user_presence`
+
+What outlives the in-memory presence of a user (migration 100, `docs/PRESENCE.md`). The online
+state itself is never stored. No row = never seen online, visible.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `user_id` | BIGINT | NO | - | Primary key, FK to `users.id` (CASCADE) |
+| `last_seen_at` | TIMESTAMPTZ | YES | NULL | Last moment the user was seen online by the others: saved on disconnection (after the grace period), every `presence.last_seen_interval` while online and at shutdown; never moved back, not updated while invisible |
+| `invisible` | BOOLEAN | NO | false | Invisible mode: the user appears offline to everyone |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last change |
 
 ---
 
@@ -1736,7 +1750,7 @@ Internal references still use BIGSERIAL `id` for performance.
 
 ### Foreign Key Cascade Rules
 
-- User-owned data: `ON DELETE CASCADE` (settings, interactions, markers, share_links, follows, friendships, friend requests, privacy settings)
+- User-owned data: `ON DELETE CASCADE` (settings, interactions, markers, share_links, follows, friendships, friend requests, privacy settings, presence)
 - Content associations: `ON DELETE CASCADE` (scene_tags, scene_actors, share_links)
 - Optional references: `ON DELETE SET NULL` (scenes.studio_id)
 

@@ -58,6 +58,15 @@ const resetAll = () =>
         items: Object.fromEntries((settings.value?.items ?? []).map((i) => [i.key, 'default'])),
     });
 
+function onInvisibleSaved(text: string) {
+    clearMessages();
+    message.value = text;
+}
+function onInvisibleFailed(text: string) {
+    clearMessages();
+    error.value = text;
+}
+
 onMounted(load);
 </script>
 
@@ -102,6 +111,11 @@ onMounted(load);
                         {{ g.group }}
                     </h4>
                     <div class="divide-border divide-y">
+                        <SettingsPrivacyInvisibleToggle
+                            v-if="g.group === 'Presence'"
+                            @saved="onInvisibleSaved"
+                            @failed="onInvisibleFailed"
+                        />
                         <SettingsPrivacyAudienceRow
                             v-for="item in g.items"
                             :key="item.key"

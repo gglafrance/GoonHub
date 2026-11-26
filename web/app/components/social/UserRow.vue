@@ -11,8 +11,9 @@ const emit = defineEmits<{ update: [relationship: Relationship] }>();
         class="border-border hover:border-border-hover flex items-center gap-3 rounded-lg border
             bg-white/[0.02] px-3 py-2 transition-colors"
     >
-        <NuxtLink :to="profilePath(props.entry.username)" class="shrink-0">
+        <NuxtLink :to="profilePath(props.entry.username)" class="relative shrink-0">
             <SocialUserAvatar :username="props.entry.username" />
+            <SocialPresenceDot :user-id="props.entry.id" />
         </NuxtLink>
         <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
