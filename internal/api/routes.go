@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, shareHandler *handler.ShareHandler, duplicateHandler *handler.DuplicateHandler, libraryHealthHandler *handler.LibraryHealthHandler, workerHandler *handler.WorkerHandler, socialHandler *handler.SocialHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, shareHandler *handler.ShareHandler, duplicateHandler *handler.DuplicateHandler, libraryHealthHandler *handler.LibraryHealthHandler, workerHandler *handler.WorkerHandler, socialHandler *handler.SocialHandler, profileHandler *handler.ProfileHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	perm := middleware.RequirePermission
 	anyPerm := middleware.RequireAnyPermission
 
@@ -250,6 +250,27 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					social.DELETE("/friend-requests/:userId", socialHandler.CancelFriendRequest)
 					social.GET("/privacy", socialHandler.GetPrivacy)
 					social.PUT("/privacy", socialHandler.UpdatePrivacy)
+				}
+
+				// Profile pages (docs/PROFILES.md): reading needs a signed-in user (privacy and the
+				// viewer's permissions are checked by the service); editing one's own profile too,
+				// picking scenes or markers needs scenes:view.
+				profiles := protected.Group("/profiles")
+				{
+					profiles.GET("/users/:username", profileHandler.GetProfile)
+					profiles.GET("/avatar/:userId/:size", profileHandler.GetAvatar)
+					profiles.GET("/banner/:userId/:size", profileHandler.GetBanner)
+					profiles.GET("/me", profileHandler.GetMyProfile)
+					profiles.PATCH("/me", profileHandler.UpdateMyProfile)
+					profiles.PUT("/me/layout", profileHandler.SetMyLayout)
+					profiles.PUT("/me/showcases/scenes", perm(core.PermScenesView), profileHandler.SetMyFavoriteScenes)
+					profiles.PUT("/me/showcases/markers", perm(core.PermScenesView), profileHandler.SetMyFavoriteMarkers)
+					profiles.GET("/me/marker-candidates", perm(core.PermScenesView), profileHandler.ListMarkerCandidates)
+					profiles.POST("/me/avatar", profileHandler.UploadMyAvatar)
+					profiles.DELETE("/me/avatar", profileHandler.DeleteMyAvatar)
+					profiles.POST("/me/banner", profileHandler.UploadMyBanner)
+					profiles.PUT("/me/banner", profileHandler.SetMyBanner)
+					profiles.DELETE("/me/banner", profileHandler.DeleteMyBanner)
 				}
 
 				markerFilters := protected.Group("/marker-filters")

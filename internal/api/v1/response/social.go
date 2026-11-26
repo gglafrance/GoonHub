@@ -32,15 +32,19 @@ func NewRelationshipResponse(r core.Relationship) RelationshipResponse {
 	}
 }
 
-// SocialUserResponse is the public card of a user: no role, no login dates.
+// SocialUserResponse is the public card of a user: no role, no login dates. DisplayName and
+// AvatarVersion come from the profile (docs/PROFILES.md): the avatar is at
+// /api/v1/profiles/avatar/<id>/<size>?v=<avatar_version>, none when the version is 0.
 type SocialUserResponse struct {
-	ID        uint      `json:"id"`
-	Username  string    `json:"username"`
-	CreatedAt time.Time `json:"created_at"`
+	ID            uint      `json:"id"`
+	Username      string    `json:"username"`
+	CreatedAt     time.Time `json:"created_at"`
+	DisplayName   string    `json:"display_name"`
+	AvatarVersion int64     `json:"avatar_version"`
 }
 
 func NewSocialUserResponse(u data.SocialUser) SocialUserResponse {
-	return SocialUserResponse{ID: u.ID, Username: u.Username, CreatedAt: u.CreatedAt}
+	return SocialUserResponse{ID: u.ID, Username: u.Username, CreatedAt: u.CreatedAt, DisplayName: u.DisplayName, AvatarVersion: u.AvatarVersion}
 }
 
 // SocialUserEntryResponse is a user in a social list. Since is the date of the listed relation
@@ -92,17 +96,25 @@ func NewSocialProfileResponse(p *core.SocialProfile) SocialProfileResponse {
 	return out
 }
 
-// SocialSummaryResponse is GET /social/me.
+// SocialSummaryResponse is GET /social/me. User is the card of the signed-in user (avatar,
+// display name for the header).
 type SocialSummaryResponse struct {
-	IncomingRequests int64 `json:"incoming_requests"`
-	OutgoingRequests int64 `json:"outgoing_requests"`
-	Friends          int64 `json:"friends"`
-	Followers        int64 `json:"followers"`
-	Following        int64 `json:"following"`
+	User             *SocialUserResponse `json:"user,omitempty"`
+	IncomingRequests int64               `json:"incoming_requests"`
+	OutgoingRequests int64               `json:"outgoing_requests"`
+	Friends          int64               `json:"friends"`
+	Followers        int64               `json:"followers"`
+	Following        int64               `json:"following"`
 }
 
 func NewSocialSummaryResponse(s *core.SocialSummary) SocialSummaryResponse {
+	var user *SocialUserResponse
+	if s.User != nil {
+		u := NewSocialUserResponse(*s.User)
+		user = &u
+	}
 	return SocialSummaryResponse{
+		User:             user,
 		IncomingRequests: s.IncomingRequests,
 		OutgoingRequests: s.OutgoingRequests,
 		Friends:          s.Friends,

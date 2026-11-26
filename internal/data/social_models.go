@@ -60,12 +60,23 @@ func (UserSocialSettings) TableName() string { return "user_social_settings" }
 
 // SocialUser is the public card of a user in the social lists: no role, no login dates.
 // Since is the date of the listed relation (follow, friendship, request) when there is one.
+// DisplayName and AvatarVersion come from the profile (user_profiles, docs/PROFILES.md;
+// empty and 0 without one).
 type SocialUser struct {
-	ID        uint      `gorm:"column:id"`
-	Username  string    `gorm:"column:username"`
-	CreatedAt time.Time `gorm:"column:created_at"`
-	Since     time.Time `gorm:"column:since"`
+	ID            uint      `gorm:"column:id"`
+	Username      string    `gorm:"column:username"`
+	CreatedAt     time.Time `gorm:"column:created_at"`
+	Since         time.Time `gorm:"column:since"`
+	DisplayName   string    `gorm:"column:display_name"`
+	AvatarVersion int64     `gorm:"column:avatar_version"`
 }
+
+// socialUserColumns are the SocialUser columns of users aliased u, joined to their profile
+// with socialUserProfileJoin.
+const (
+	socialUserColumns     = `u.id, u.username, u.created_at, COALESCE(up.display_name, '') AS display_name, COALESCE(up.avatar_version, 0) AS avatar_version`
+	socialUserProfileJoin = ` LEFT JOIN user_profiles up ON up.user_id = u.id`
+)
 
 // UserRelation is the raw relation of a viewer toward another user, read in one query.
 type UserRelation struct {

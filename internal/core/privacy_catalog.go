@@ -84,6 +84,11 @@ const (
 	PrivacyFollowersList = "followers_list"
 	PrivacyOnlineStatus  = "online_status"
 	PrivacyNowWatching   = "now_watching"
+	// Profile blocks (docs/PROFILES.md)
+	PrivacyFavoriteMarkers = "favorite_markers"
+	PrivacyRecentMarkers   = "recent_markers"
+	PrivacyLiked           = "liked"
+	PrivacyPlaylists       = "playlists"
 )
 
 // Privacy item groups (shown by the UI, in this order).
@@ -107,9 +112,13 @@ type PrivacyItem struct {
 // every user who did not choose for that item.
 var PrivacyCatalog = []PrivacyItem{
 	{Key: PrivacyProfile, Label: "Profile page", Description: "Seeing your profile page at all. What your profile shows (lists, favorites, stats, activity) also needs its own item.", Group: PrivacyGroupProfile, Default: AudiencePublic},
-	{Key: PrivacyFavorites, Label: "Favorites", Description: "Your favorite videos and markers on your profile", Group: PrivacyGroupProfile, Default: AudienceFriends},
-	{Key: PrivacyStats, Label: "Stats", Description: "Your watch statistics", Group: PrivacyGroupProfile, Default: AudienceFriends},
-	{Key: PrivacyActivity, Label: "Activity", Description: "What you watched recently and your most watched videos", Group: PrivacyGroupProfile, Default: AudienceFriends},
+	{Key: PrivacyFavorites, Label: "Favorite videos", Description: "The favorite videos showcase of your profile", Group: PrivacyGroupProfile, Default: AudienceFriends},
+	{Key: PrivacyFavoriteMarkers, Label: "Favorite markers", Description: "The favorite markers showcase of your profile (it shows these markers, yours or shared with you)", Group: PrivacyGroupProfile, Default: AudienceFriends},
+	{Key: PrivacyStats, Label: "Stats", Description: "Your watch statistics: watch time, views, O, likes, top tags, actors and studios", Group: PrivacyGroupProfile, Default: AudienceFriends},
+	{Key: PrivacyActivity, Label: "Activity", Description: "What you watched recently, your most watched videos and your activity calendar", Group: PrivacyGroupProfile, Default: AudienceFriends},
+	{Key: PrivacyRecentMarkers, Label: "Recent markers", Description: "The markers you created recently", Group: PrivacyGroupProfile, Default: AudienceFriends},
+	{Key: PrivacyLiked, Label: "Liked videos", Description: "The videos you liked", Group: PrivacyGroupProfile, Default: AudienceFriends},
+	{Key: PrivacyPlaylists, Label: "Public playlists", Description: "Your public playlists listed on your profile (they stay reachable from the playlists page)", Group: PrivacyGroupProfile, Default: AudiencePublic},
 	{Key: PrivacyFriendsList, Label: "Friends list", Description: "Who your friends are", Group: PrivacyGroupConnections, Default: AudiencePublic},
 	{Key: PrivacyFollowersList, Label: "Followers and following", Description: "Who follows you and who you follow", Group: PrivacyGroupConnections, Default: AudiencePublic},
 	{Key: PrivacyOnlineStatus, Label: "Online status", Description: "Whether you are online", Group: PrivacyGroupPresence, Default: AudienceFriends},

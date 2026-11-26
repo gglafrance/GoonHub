@@ -179,9 +179,12 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	privacyService := providePrivacyService(privacyRepository, socialRepository, logger)
 	socialService := provideSocialService(socialRepository, privacyService, eventBus, configConfig, logger)
 	socialHandler := provideSocialHandler(socialService, privacyService, configConfig)
+	profileRepository := provideProfileRepository(db)
+	profileService := provideProfileService(profileRepository, socialRepository, markerRepository, socialService, privacyService, homepageService, configConfig, logger)
+	profileHandler := provideProfileHandler(profileService, configConfig)
 	ipRateLimiter := provideRateLimiter(configConfig)
 	ogMiddleware := provideOGMiddleware(sceneRepository, actorRepository, studioRepository, playlistRepository, shareLinkRepository, appSettingsRepository, logger)
-	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, authService, rbacService, ipRateLimiter, ogMiddleware)
+	engine := provideRouter(logger, configConfig, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, profileHandler, authService, rbacService, ipRateLimiter, ogMiddleware)
 	shareServer := provideShareServer(configConfig, shareHandler, ogMiddleware, logger)
 	pushDispatcher := providePushDispatcher(service)
 	serverServer := provideServer(engine, logger, configConfig, sceneProcessingService, userService, jobHistoryService, jobHistoryRepository, jobQueueFeeder, triggerScheduler, sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService, actorService, studioService, matchingService, duplicateService, markerService, shareServer, transcoder, service, pushDispatcher)
@@ -797,6 +800,18 @@ func provideSocialHandler(social *core.SocialService, privacy *core.PrivacyServi
 	return handler.NewSocialHandler(social, privacy, cfg.Pagination.MaxItemsPerPage)
 }
 
+func provideProfileRepository(db *gorm.DB) data.ProfileRepository {
+	return data.NewProfileRepository(db)
+}
+
+func provideProfileService(repo data.ProfileRepository, socialRepo data.SocialRepository, markerRepo data.MarkerRepository, social *core.SocialService, privacy *core.PrivacyService, homepage *core.HomepageService, cfg *config.Config, logger *logging.Logger) *core.ProfileService {
+	return core.NewProfileService(repo, socialRepo, markerRepo, social, privacy, homepage, cfg.Profiles, logger.Logger)
+}
+
+func provideProfileHandler(profiles *core.ProfileService, cfg *config.Config) *handler.ProfileHandler {
+	return handler.NewProfileHandler(profiles, cfg.Pagination.MaxItemsPerPage)
+}
+
 func provideLibraryHealthRepository(db *gorm.DB) data.LibraryHealthRepository {
 	return data.NewLibraryHealthRepository(db)
 }
@@ -856,6 +871,7 @@ func provideRouter(
 	libraryHealthHandler *handler.LibraryHealthHandler,
 	workerHandler *handler.WorkerHandler,
 	socialHandler *handler.SocialHandler,
+	profileHandler *handler.ProfileHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -868,7 +884,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, profileHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 

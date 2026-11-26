@@ -106,6 +106,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Social Repositories
 		provideSocialRepository,
+		provideProfileRepository,
 		providePrivacyRepository,
 
 		// Remote Worker Repositories
@@ -199,6 +200,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Social Services
 		providePrivacyService,
 		provideSocialService,
+		provideProfileService,
 
 		// Remote Workers
 		provideWorkerService,
@@ -279,6 +281,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Social Handler
 		provideSocialHandler,
+		provideProfileHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -960,6 +963,20 @@ func provideSocialHandler(social *core.SocialService, privacy *core.PrivacyServi
 	return handler.NewSocialHandler(social, privacy, cfg.Pagination.MaxItemsPerPage)
 }
 
+// --- Profiles ---
+
+func provideProfileRepository(db *gorm.DB) data.ProfileRepository {
+	return data.NewProfileRepository(db)
+}
+
+func provideProfileService(repo data.ProfileRepository, socialRepo data.SocialRepository, markerRepo data.MarkerRepository, social *core.SocialService, privacy *core.PrivacyService, homepage *core.HomepageService, cfg *config.Config, logger *logging.Logger) *core.ProfileService {
+	return core.NewProfileService(repo, socialRepo, markerRepo, social, privacy, homepage, cfg.Profiles, logger.Logger)
+}
+
+func provideProfileHandler(profiles *core.ProfileService, cfg *config.Config) *handler.ProfileHandler {
+	return handler.NewProfileHandler(profiles, cfg.Pagination.MaxItemsPerPage)
+}
+
 // --- Library Health ---
 
 func provideLibraryHealthRepository(db *gorm.DB) data.LibraryHealthRepository {
@@ -1025,6 +1042,7 @@ func provideRouter(
 	libraryHealthHandler *handler.LibraryHealthHandler,
 	workerHandler *handler.WorkerHandler,
 	socialHandler *handler.SocialHandler,
+	profileHandler *handler.ProfileHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -1037,7 +1055,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, profileHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 
