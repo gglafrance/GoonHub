@@ -507,6 +507,7 @@ definePageMeta({
                     :active-sub-tab="activeSubTab"
                 />
                 <SettingsHomepage v-if="activeTab === 'homepage'" />
+                <SettingsNavigation v-if="activeTab === 'navigation'" />
                 <SettingsTags v-if="activeTab === 'tags'" />
                 <SettingsMarkerLabels v-if="activeTab === 'marker-labels'" />
                 <SettingsParsingRules v-if="activeTab === 'parsing-rules'" />

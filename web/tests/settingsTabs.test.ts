@@ -35,6 +35,7 @@ describe('visibleSettingsTabs', () => {
             'player',
             'app',
             'homepage',
+            'navigation',
             'tags',
             'parsing-rules',
         ]);

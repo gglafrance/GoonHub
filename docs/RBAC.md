@@ -214,6 +214,12 @@ owner's privacy decides whether a block is sent, the viewer's permissions whethe
 (`scenes:view` for the blocks showing scenes or markers, `playlists:view_public` for the
 playlists), and the scenes are redacted with the viewer's file visibility.
 
+The per-account header layout (`docs/NAVIGATION.md`) adds no permission either, and follows the
+existing ones: an item gated by a permission (`jobs:view_status` for the job status,
+`goon2gether:use` for Together, `explorer:access` for Explorer, `duplicates:manage` for
+Duplicates) is left out of `GET /settings/navigation`, stripped from a saved layout, never offered
+in the editor and never shown, wherever the user put it.
+
 ### Known limitations
 
 - `GET /api/v1/scenes/:id/stream` and `/transcode` are not authenticated (unchanged by this
