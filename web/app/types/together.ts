@@ -1,4 +1,4 @@
-// Goon2gether: synchronized watch lobbies (contract: docs/GOON2GETHER.md, protocol v3).
+// Goon2gether: synchronized watch lobbies (contract: docs/GOON2GETHER.md, protocol v4).
 
 export type LobbyVisibility = 'public' | 'private';
 
@@ -112,6 +112,28 @@ export interface QueueItem {
     added_by: TogetherMemberRef | null;
 }
 
+/** How a history entry ended: played to the end at least once, or skipped before. */
+export type HistoryOutcome = 'completed' | 'skipped';
+
+/**
+ * An item the lobby played (protocol v4): the queue item fields, when its play started and
+ * ended (Unix ms), how it ended, and whether its scene can still be queued (not trashed).
+ */
+export interface HistoryEntry {
+    id: number;
+    scene_id: number;
+    title: string;
+    duration: number;
+    start: number | null;
+    end: number | null;
+    label: string | null;
+    added_by: TogetherMemberRef | null;
+    started_at: number;
+    ended_at: number;
+    outcome: HistoryOutcome;
+    available: boolean;
+}
+
 /** Server-authoritative playback state. */
 export interface PlaybackState {
     item_id: number | null;
@@ -156,6 +178,8 @@ export interface TogetherConfig {
     end_grace: number;
     chat_max_reaction_kinds: number;
     chat_max_reactions_per_user: number;
+    /** history entries kept per lobby (protocol v4, 0: no history) */
+    history_max: number;
 }
 
 export interface WelcomeMessage {
@@ -178,6 +202,8 @@ export interface WelcomeMessage {
     chat: ChatMessage[];
     /** the lobby closes at this time (Unix ms) for inactivity unless something happens */
     closing_at: number | null;
+    /** the played items, newest first (protocol v4) */
+    history?: HistoryEntry[];
 }
 
 export type ByeReason = 'kicked' | 'banned' | 'closed' | 'forbidden' | 'left' | 'inactive';
@@ -200,6 +226,7 @@ export type ServerMessage =
     | { t: 'chat'; message: ChatMessage }
     | { t: 'chat_deleted'; id: number }
     | { t: 'chat_reactions'; id: number; reactions: ChatReaction[] }
+    | { t: 'history_add'; entry: HistoryEntry }
     | ReactionMessage
     | { t: 'emotes' }
     | { t: 'pong'; id: number; c: number; s: number }
