@@ -87,6 +87,37 @@ func (mr *MockProfileRepositoryMockRecorder) GetProfile(ctx, userID any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProfile", reflect.TypeOf((*MockProfileRepository)(nil).GetProfile), ctx, userID)
 }
 
+// JizzScenes mocks base method.
+func (m *MockProfileRepository) JizzScenes(ctx context.Context, userID uint, q data.ProfileListQuery) ([]data.ProfileSceneRef, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "JizzScenes", ctx, userID, q)
+	ret0, _ := ret[0].([]data.ProfileSceneRef)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// JizzScenes indicates an expected call of JizzScenes.
+func (mr *MockProfileRepositoryMockRecorder) JizzScenes(ctx, userID, q any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "JizzScenes", reflect.TypeOf((*MockProfileRepository)(nil).JizzScenes), ctx, userID, q)
+}
+
+// JizzSummary mocks base method.
+func (m *MockProfileRepository) JizzSummary(ctx context.Context, userID uint) (*data.ProfileJizzSummary, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "JizzSummary", ctx, userID)
+	ret0, _ := ret[0].(*data.ProfileJizzSummary)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// JizzSummary indicates an expected call of JizzSummary.
+func (mr *MockProfileRepositoryMockRecorder) JizzSummary(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "JizzSummary", reflect.TypeOf((*MockProfileRepository)(nil).JizzSummary), ctx, userID)
+}
+
 // LikedScenes mocks base method.
 func (m *MockProfileRepository) LikedScenes(ctx context.Context, userID uint, limit int) ([]data.ProfileSceneRef, int64, error) {
 	m.ctrl.T.Helper()
@@ -101,6 +132,22 @@ func (m *MockProfileRepository) LikedScenes(ctx context.Context, userID uint, li
 func (mr *MockProfileRepositoryMockRecorder) LikedScenes(ctx, userID, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LikedScenes", reflect.TypeOf((*MockProfileRepository)(nil).LikedScenes), ctx, userID, limit)
+}
+
+// LikedScenesPage mocks base method.
+func (m *MockProfileRepository) LikedScenesPage(ctx context.Context, userID uint, q data.ProfileListQuery) ([]data.ProfileSceneRef, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LikedScenesPage", ctx, userID, q)
+	ret0, _ := ret[0].([]data.ProfileSceneRef)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// LikedScenesPage indicates an expected call of LikedScenesPage.
+func (mr *MockProfileRepositoryMockRecorder) LikedScenesPage(ctx, userID, q any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LikedScenesPage", reflect.TypeOf((*MockProfileRepository)(nil).LikedScenesPage), ctx, userID, q)
 }
 
 // LiveSceneIDs mocks base method.
@@ -163,6 +210,37 @@ func (m *MockProfileRepository) PublicPlaylists(ctx context.Context, userID uint
 func (mr *MockProfileRepositoryMockRecorder) PublicPlaylists(ctx, userID, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PublicPlaylists", reflect.TypeOf((*MockProfileRepository)(nil).PublicPlaylists), ctx, userID, limit)
+}
+
+// RatedScenes mocks base method.
+func (m *MockProfileRepository) RatedScenes(ctx context.Context, userID uint, q data.ProfileListQuery) ([]data.ProfileSceneRef, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RatedScenes", ctx, userID, q)
+	ret0, _ := ret[0].([]data.ProfileSceneRef)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// RatedScenes indicates an expected call of RatedScenes.
+func (mr *MockProfileRepositoryMockRecorder) RatedScenes(ctx, userID, q any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RatedScenes", reflect.TypeOf((*MockProfileRepository)(nil).RatedScenes), ctx, userID, q)
+}
+
+// RatingSummary mocks base method.
+func (m *MockProfileRepository) RatingSummary(ctx context.Context, userID uint) (*data.ProfileRatingSummary, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RatingSummary", ctx, userID)
+	ret0, _ := ret[0].(*data.ProfileRatingSummary)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RatingSummary indicates an expected call of RatingSummary.
+func (mr *MockProfileRepositoryMockRecorder) RatingSummary(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RatingSummary", reflect.TypeOf((*MockProfileRepository)(nil).RatingSummary), ctx, userID)
 }
 
 // RecentMarkers mocks base method.

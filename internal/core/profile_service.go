@@ -123,6 +123,8 @@ type ProfileView struct {
 	Bio    string
 	Banner *ProfileBanner
 	Blocks []ProfileBlockView
+	// Lists are the full lists the viewer may open (profile tabs)
+	Lists ProfileListsVisibility
 }
 
 // ProfileEditState is what the owner edits: the profile, the full layout, the showcases and
@@ -177,10 +179,20 @@ func (s *ProfileService) Get(ctx context.Context, viewer ProfileViewer, username
 			items = append(items, spec.PrivacyItem)
 		}
 	}
+	// The items of the full lists (tabs), read in the same call
+	if viewer.Has(PermScenesView) {
+		for _, item := range []string{PrivacyLiked, PrivacyRatings, PrivacyJizz} {
+			if !seen[item] {
+				seen[item] = true
+				items = append(items, item)
+			}
+		}
+	}
 	visible, err := s.privacy.Visibility(ctx, viewer.UserID, ownerID, items)
 	if err != nil {
 		return nil, err
 	}
+	view.Lists = listsVisibility(viewer, visible)
 	for _, b := range layout {
 		spec, ok := profileBlocks[b.Type]
 		if !ok || !b.Visible {

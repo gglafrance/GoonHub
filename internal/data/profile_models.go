@@ -86,12 +86,13 @@ func (l *ProfileLayout) Scan(value any) error {
 	return nil
 }
 
-// ProfileSceneRef is a scene of a profile block with the figure of the block: when it was
-// watched or liked, or how many times it was watched.
+// ProfileSceneRef is a scene of a profile block or list with its figure: when it was watched,
+// liked, rated or last jizzed to, how many times it was watched (or jizzed to), its rating.
 type ProfileSceneRef struct {
 	SceneID uint       `gorm:"column:scene_id"`
 	At      *time.Time `gorm:"column:at"`
 	Count   int64      `gorm:"column:count"`
+	Rating  *float64   `gorm:"column:rating"`
 }
 
 // ProfileStats are the figures of the stats block, over a period (zero since: all time) for

@@ -103,11 +103,14 @@ func (v ProfileBlockValues) String(key string) string {
 	return s
 }
 
-// ProfileSceneItem is a scene of a block with its figure (watched or liked at, views).
+// ProfileSceneItem is a scene of a block or list with its figure (watched, liked, rated or
+// last jizzed at, views, the owner's rating, the owner's O count).
 type ProfileSceneItem struct {
-	Scene data.Scene
-	At    *time.Time
-	Views int64
+	Scene     data.Scene
+	At        *time.Time
+	Views     int64
+	Rating    *float64
+	JizzCount int64
 }
 
 // ProfileBlockData is the content of a block. Scenes are redacted by the API layer; Widget is
@@ -358,9 +361,17 @@ func profileSceneItems(ctx context.Context, deps *ProfileBlockDeps, refs []data.
 	items := make([]ProfileSceneItem, len(scenes))
 	for i, s := range scenes {
 		r := byID[s.ID]
-		items[i] = ProfileSceneItem{Scene: s, At: r.At, Views: r.Count}
+		items[i] = ProfileSceneItem{Scene: s, At: r.At, Views: r.Count, Rating: r.Rating}
 	}
 	return items, nil
+}
+
+// asJizzItems moves the count of jizz refs (the O count, not views) to JizzCount.
+func asJizzItems(items []ProfileSceneItem) []ProfileSceneItem {
+	for i := range items {
+		items[i].JizzCount, items[i].Views = items[i].Views, 0
+	}
+	return items
 }
 
 // withMarkerTags adds their tags to markers (best effort: the cards work without them).

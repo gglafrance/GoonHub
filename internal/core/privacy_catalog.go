@@ -88,6 +88,8 @@ const (
 	PrivacyFavoriteMarkers = "favorite_markers"
 	PrivacyRecentMarkers   = "recent_markers"
 	PrivacyLiked           = "liked"
+	PrivacyRatings         = "ratings"
+	PrivacyJizz            = "jizz"
 	PrivacyPlaylists       = "playlists"
 )
 
@@ -118,6 +120,8 @@ var PrivacyCatalog = []PrivacyItem{
 	{Key: PrivacyActivity, Label: "Activity", Description: "What you watched recently, your most watched videos and your activity calendar", Group: PrivacyGroupProfile, Default: AudienceFriends},
 	{Key: PrivacyRecentMarkers, Label: "Recent markers", Description: "The markers you created recently", Group: PrivacyGroupProfile, Default: AudienceFriends},
 	{Key: PrivacyLiked, Label: "Liked videos", Description: "The videos you liked", Group: PrivacyGroupProfile, Default: AudienceFriends},
+	{Key: PrivacyRatings, Label: "Ratings", Description: "Your ratings chart and the videos you rated, with their rating", Group: PrivacyGroupProfile, Default: AudienceFriends},
+	{Key: PrivacyJizz, Label: "Jizz", Description: "The videos you came to, how many times and when", Group: PrivacyGroupProfile, Default: AudienceFriends},
 	{Key: PrivacyPlaylists, Label: "Public playlists", Description: "Your public playlists listed on your profile (they stay reachable from the playlists page)", Group: PrivacyGroupProfile, Default: AudiencePublic},
 	{Key: PrivacyFriendsList, Label: "Friends list", Description: "Who your friends are", Group: PrivacyGroupConnections, Default: AudiencePublic},
 	{Key: PrivacyFollowersList, Label: "Followers and following", Description: "Who follows you and who you follow", Group: PrivacyGroupConnections, Default: AudiencePublic},

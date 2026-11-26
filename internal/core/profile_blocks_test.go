@@ -9,7 +9,7 @@ import (
 
 func TestProfileBlockRegistry(t *testing.T) {
 	specs := ProfileBlockSpecs()
-	want := []string{"favorite_scenes", "favorite_markers", "recent_watches", "most_watched", "recent_markers", "liked_scenes", "stats", "activity_calendar", "playlists", "friends"}
+	want := []string{"favorite_scenes", "favorite_markers", "recent_watches", "most_watched", "recent_markers", "liked_scenes", "stats", "ratings", "jizz", "activity_calendar", "playlists", "friends"}
 	if len(specs) != len(want) {
 		t.Fatalf("%d block types, want %d", len(specs), len(want))
 	}

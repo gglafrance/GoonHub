@@ -191,7 +191,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	socialHandler := provideSocialHandler(socialService, privacyService, configConfig)
 	profileRepository := provideProfileRepository(db)
 	profileService := provideProfileService(profileRepository, socialRepository, markerRepository, socialService, privacyService, homepageService, configConfig, logger)
-	profileHandler := provideProfileHandler(profileService, configConfig)
+	profileHandler := provideProfileHandler(profileService, configConfig, markerService, interactionRepository, tagRepository, actorRepository)
 	presenceHandler := providePresenceHandler(presenceService)
 	lobbyInvites := provideLobbyInvites(configConfig, hub)
 	messageService := provideMessageService(messageRepository, socialRepository, socialService, rbacService, lobbyInvites, eventBus, configConfig, logger)
@@ -837,8 +837,8 @@ func provideProfileService(repo data.ProfileRepository, socialRepo data.SocialRe
 	return core.NewProfileService(repo, socialRepo, markerRepo, social, privacy, homepage, cfg.Profiles, logger.Logger)
 }
 
-func provideProfileHandler(profiles *core.ProfileService, cfg *config.Config) *handler.ProfileHandler {
-	return handler.NewProfileHandler(profiles, cfg.Pagination.MaxItemsPerPage)
+func provideProfileHandler(profiles *core.ProfileService, cfg *config.Config, markerService *core.MarkerService, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository) *handler.ProfileHandler {
+	return handler.NewProfileHandler(profiles, cfg.Pagination.MaxItemsPerPage).WithCardData(markerService, interactionRepo, tagRepo, actorRepo)
 }
 
 // providePresenceService creates the presence (docs/PRESENCE.md), subscribed to the privacy

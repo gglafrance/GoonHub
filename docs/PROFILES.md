@@ -73,6 +73,8 @@ share their markers (`users.share_markers`). Marker thumbnails use the versioned
 | `recent_markers` | `recent_markers` | `scenes:view` | `count` (8) | hidden |
 | `liked_scenes` | `liked` | `scenes:view` | `count` (8) | hidden |
 | `stats` | `stats` | `scenes:view` | `period` (all) | shown |
+| `ratings` | `ratings` | `scenes:view` | | shown |
+| `jizz` | `jizz` | `scenes:view` | `count` (6) | shown |
 | `activity_calendar` | `activity` | | `weeks` 4-104 (26), `metric` views/jizz/both (views) | shown |
 | `playlists` | `playlists` | `playlists:view_public` | `count` (6) | shown |
 | `friends` | `friends_list` | | `count` (8) | shown |
@@ -82,6 +84,13 @@ Periods: `week` = last 7 days, `month` = last 30 days, `year` = last 365 days, `
 - `stats`: watch time (sum of the watch durations), views, distinct videos watched, O (dated O
   of the period; all time also counts the undated totals), and as totals liked videos, markers,
   ratings and the average rating; the top 5 tags, actors and studios by views of the period.
+- `ratings`: the Letterboxd-like chart of the owner's ratings: one bar per half star from 0.5
+  to 5 (empty bars included), the number of ratings (`total`) and their average. A bar opens
+  the ratings list filtered on that value. Payload: `{buckets: [{rating, count}], total,
+  average}`.
+- `jizz`: the O total and the number of videos (`{total, scenes}`, block `total` = videos), and
+  the videos jizzed to last with their O count (`jizz_count`) and the date of the last O (`at`).
+- `liked_scenes`, `ratings` and `jizz` have a "See all" link to their full list (below).
 - `activity_calendar` reuses the `activity_calendar` homepage widget for the owner (daily
   counts and streaks only) and its frontend component.
 
@@ -106,6 +115,42 @@ values (`400`), and appends the missing types hidden.
    it: title, locked, failed and empty states), the payload type in `types/profile.ts` and the
    icon in `PROFILE_BLOCK_ICONS` (`utils/profile.ts`).
 3. Document it in the table above. The edit UI lists it from `block_types` (no change).
+
+## Lists
+
+Next to the blocks, a profile has full lists, opened from tabs under the header (Profile, Likes,
+Ratings, Jizz) and from the "See all" links of their blocks:
+
+| List | Page | Privacy item | Sorts (default first) | Figures on each item |
+|---|---|---|---|---|
+| Liked videos | `/u/<name>/likes` | `liked` | `liked_desc`, `liked_asc` | `at` (like date) |
+| Rated videos | `/u/<name>/ratings?rating=` | `ratings` | `rating_desc` (then most recently rated), `rating_asc`, `rated_desc`, `rated_asc` | `rating`, `at` (rating date) |
+| Jizz | `/u/<name>/jizz` | `jizz` | `recent` (last O), `count_desc` (most O, then most recent) | `jizz_count`, `at` (last O) |
+
+Rules (`internal/core/profile_lists.go`, for every viewer, superusers included):
+
+- The viewer needs `scenes:view`, and the owner's `profile` item and the list's item must let
+  them see it (`CanViewAll`), else `403 PRIVACY_RESTRICTED`. Nothing is read before. The ratings
+  chart follows the `ratings` item too: its counts are never sent to someone who may not see it.
+- `GET /profiles/users/:username` tells which lists the viewer may open (`lists: {liked,
+  ratings, jizz}`, the tabs), in the same privacy call as the blocks.
+- Scenes are the live ones only (trashed and deleted ones skipped, in the counts too), redacted
+  with the viewer's file visibility. With `?card_fields=` (the user's card template, as on `GET
+  /scenes`) the items get the template fields and the response the **viewer's** sidecar maps
+  (`ratings`, `likes`, `jizz_counts`, `watched`), so the card badges mean "me" as everywhere
+  else; the owner's figures are on the items (`rating`, `jizz_count`, `at`).
+- Ratings are half stars from 0.5 to 5 (`InteractionService.SetRating`). The chart rounds a
+  rating to its nearest half star (`ROUND(rating * 2) / 2`, for imported ratings with one
+  decimal) and the `rating` filter selects the same bucket, so a bar and its list always match.
+  `rating` must be a half step in 0.5..5 and is only accepted by the ratings list (`400`).
+- Jizz: the videos with a count above 0 (`user_scene_jizzed`); the last O is the last dated
+  event (`user_scene_jizz_events`), else the last change of the count.
+- Pagination: `page`, `limit` (default 24, max `pagination.max_items_per_page`); the UI uses the
+  user's page size and infinite scroll setting.
+
+Choice made: `ratings` and `jizz` default to `friends`, like the other activity items. Jizz is
+the most sensitive one: users who want it for themselves set it to "Only me" in Settings >
+Privacy (or the block's audience in Edit profile > Blocks).
 
 ## Images
 
@@ -147,7 +192,11 @@ that pick scenes or markers need `scenes:view`.
 
 | Route | Permission | Answer |
 |---|---|---|
-| `GET /api/v1/profiles/users/:username` | | the social summary (`user`, `relationship`, `visibility`, `counts`, as `GET /social/users/:username`) + `bio`, `banner: {type, url, url_md, scene_id?} \| null`, `blocks: [...]` |
+| `GET /api/v1/profiles/users/:username` | | the social summary (`user`, `relationship`, `visibility`, `counts`, as `GET /social/users/:username`) + `bio`, `banner: {type, url, url_md, scene_id?} \| null`, `blocks: [...]`, `lists: {liked, ratings, jizz}` |
+| `GET /api/v1/profiles/users/:username/ratings/histogram` | `scenes:view` | `{buckets: [{rating, count}] (10, ascending), total, average}`; `403 PRIVACY_RESTRICTED` unless `profile` and `ratings` |
+| `GET /api/v1/profiles/users/:username/ratings?rating=&sort=&page=&limit=&card_fields=` | `scenes:view` | list (below); needs `profile` and `ratings`; `400` for an unknown sort or a rating off the scale |
+| `GET /api/v1/profiles/users/:username/likes?sort=&page=&limit=&card_fields=` | `scenes:view` | list; needs `profile` and `liked` |
+| `GET /api/v1/profiles/users/:username/jizz?sort=&page=&limit=&card_fields=` | `scenes:view` | list; needs `profile` and `jizz` |
 | `GET /api/v1/profiles/me` | | edit state: `{user, display_name, bio, avatar_version, banner: {type, scene_id?, version, url?}, layout: [...], favorite_scenes: [SceneListItem], favorite_markers: [marker], block_types: [...], privacy: <GET /social/privacy>, limits: {max_showcase_items, bio_max_length, display_name_max_length, max_upload_bytes}}` |
 | `PATCH /api/v1/profiles/me` `{display_name?, bio?}` | | the edit state; `400` over the limits |
 | `PUT /api/v1/profiles/me/layout` `{blocks: [...]}` or `{reset: true}` | | `{blocks}` normalized |
@@ -162,8 +211,12 @@ that pick scenes or markers need `scenes:view`.
 | `GET /api/v1/profiles/avatar/:userId/:size` | | JPEG (`sm`, `md`, `lg`) or `404` |
 | `GET /api/v1/profiles/banner/:userId/:size` | | JPEG (`md`, `lg`); `403 PRIVACY_RESTRICTED` unless the profile is visible |
 
+A list: `{data: [{scene, at?, rating?, jizz_count?}], pagination: {page, limit, total_items,
+total_pages}, sort, ratings?, likes?, jizz_counts?, watched?}` (the sidecar maps: the viewer's
+own interactions, with `card_fields`).
+
 A block: `{type, label, privacy_item, config, locked, failed?, empty, scenes?: [{scene, at?,
-views?}], markers?, widget?, total?}` (`config` with the defaults filled in). A block type:
+views?, rating?, jizz_count?}], markers?, widget?, total?}` (`config` with the defaults filled in). A block type:
 `{type, label, description, privacy_item, viewer_permission?, options: [{key, label, kind:
 "int"|"choice", min?, max?, default, choices?}]}`.
 
@@ -175,11 +228,23 @@ The social user cards (`/social/...` lists, directory, `GET /social/me` `user`) 
 
 ## Frontend
 
-- `pages/u/[username].vue` (orchestrator): `ProfileHeader` (banner, avatar, names, `ProfileBio`,
-  counts, badges and actions, `Edit profile` for the owner, a `presence` slot next to the name
-  for an online / now watching badge), the blocks (`ProfileBlockRenderer` +
-  `components/profile/blocks/<Type>.vue`, sharing `ProfileScenesGrid` and `ProfileMarkersGrid`),
-  and the relation lists (`SocialProfileLists`, opened from the counts).
+- `pages/u/[username].vue` (orchestrator, parent route): loads the profile, `ProfileHeader`
+  (banner, avatar, names, `ProfileBio`, counts, badges and actions, `Edit profile` for the
+  owner, a `presence` slot next to the name for an online / now watching badge), `ProfileTabs`
+  (Profile, Likes, Ratings, Jizz: the lists of `profile.lists`), the child page (`<NuxtPage>`,
+  props `profile` and `owner`) and the relation lists (`SocialProfileLists`, opened from the
+  counts).
+- Child pages in `pages/u/[username]/`: `index.vue` (the blocks: `ProfileBlockRenderer` +
+  `components/profile/blocks/<Type>.vue`, sharing `ProfileScenesGrid`, `ProfileSceneFigure` and
+  `ProfileMarkersGrid`; the frame shows "See all" for the blocks of `PROFILE_BLOCK_LISTS`),
+  `likes.vue`, `ratings.vue` (the chart, a click on a bar toggles the `?rating=` filter, shown
+  as a removable chip) and `jizz.vue`. The lists are `ProfileSceneList` (the user's card
+  template and grid density, pagination or infinite scroll per the user setting, page and sort
+  in the URL, the owner's figure under each card: `ProfileSceneFigure`); `ProfileListLocked`
+  when the list is not visible.
+- The ratings chart is `ProfileRatingHistogram` (muted bars, lava on hover and selection, a star
+  at each end, tooltip "12 ratings of 3.5 stars (8%)", the average under it); its math is in
+  `utils/ratingHistogram.ts` (tests in `web/tests/ratingHistogram.test.ts`).
 - Edit mode (`?edit=1`, owner only): `ProfileEditPanel` with the tabs Profile
   (`ProfileEditIdentity`: display name, bio; `ProfileEditImages`: avatar and banner upload with
   `ProfileEditImageCropper`, remove, banner from a favorite video), Blocks (`ProfileEditLayout`:
@@ -212,6 +277,12 @@ profiles:
 ```
 
 ## Known limitations
+
+- Customized layouts get the `ratings` and `jizz` blocks appended hidden (like every block type
+  added later): their owners turn them on in Edit profile > Blocks. The tabs do not depend on
+  the blocks.
+- The stats block counts every rating (`rated`, `avg_rating`), trashed scenes included; the
+  ratings chart and lists only count the scenes still in the library.
 
 - No permission gates avatar and banner uploads (only the limits above).
 - EXIF orientation is ignored; WebP uploads are refused (no decoder in the standard library).

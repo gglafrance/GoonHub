@@ -261,7 +261,8 @@ The `/social` routes need a signed-in user; those creating a relation need `soci
 (`docs/SOCIAL.md`).
 
 Routes listing scenes need `scenes:view`: `/scenes...`, `/actors/:uuid/scenes`,
-`/studios/:uuid/scenes`, `/history...`, `/homepage...`, `GET /playlists/:uuid`.
+`/studios/:uuid/scenes`, `/history...`, `/homepage...`, `GET /playlists/:uuid`, the profile lists
+(`/profiles/users/:username/likes`, `/ratings`, `/ratings/histogram`, `/jizz`).
 
 The user and role changes answer `403` when they break the delegation rules above.
 

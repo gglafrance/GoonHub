@@ -23,6 +23,8 @@ import (
 type ProfileHandler struct {
 	profiles        *core.ProfileService
 	maxItemsPerPage int
+	// cards: data of the scene cards of the lists (WithCardData)
+	cards profileCardData
 }
 
 func NewProfileHandler(profiles *core.ProfileService, maxItemsPerPage int) *ProfileHandler {

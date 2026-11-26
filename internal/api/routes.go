@@ -310,6 +310,10 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 				profiles := protected.Group("/profiles")
 				{
 					profiles.GET("/users/:username", profileHandler.GetProfile)
+					profiles.GET("/users/:username/ratings/histogram", perm(core.PermScenesView), profileHandler.GetRatingHistogram)
+					profiles.GET("/users/:username/ratings", perm(core.PermScenesView), profileHandler.ListRatedScenes)
+					profiles.GET("/users/:username/likes", perm(core.PermScenesView), profileHandler.ListLikedScenes)
+					profiles.GET("/users/:username/jizz", perm(core.PermScenesView), profileHandler.ListJizzScenes)
 					profiles.GET("/avatar/:userId/:size", profileHandler.GetAvatar)
 					profiles.GET("/banner/:userId/:size", profileHandler.GetBanner)
 					profiles.GET("/me", profileHandler.GetMyProfile)

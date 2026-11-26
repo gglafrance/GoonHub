@@ -48,6 +48,31 @@ type ProfileSceneResponse struct {
 	Scene SceneListItem `json:"scene"`
 	At    *time.Time    `json:"at,omitempty"`
 	Views *int64        `json:"views,omitempty"`
+	// Rating is the owner's rating (ratings list)
+	Rating *float64 `json:"rating,omitempty"`
+	// JizzCount is the owner's O count (jizz block and list)
+	JizzCount *int64 `json:"jizz_count,omitempty"`
+}
+
+// NewProfileSceneResponse converts a scene of a block or list with its figures.
+func NewProfileSceneResponse(s core.ProfileSceneItem, item SceneListItem) ProfileSceneResponse {
+	out := ProfileSceneResponse{Scene: item, At: s.At, Rating: s.Rating}
+	if s.Views > 0 {
+		v := s.Views
+		out.Views = &v
+	}
+	if s.JizzCount > 0 {
+		v := s.JizzCount
+		out.JizzCount = &v
+	}
+	return out
+}
+
+// ProfileListsResponse tells which full lists of a profile the viewer may open.
+type ProfileListsResponse struct {
+	Liked   bool `json:"liked"`
+	Ratings bool `json:"ratings"`
+	Jizz    bool `json:"jizz"`
 }
 
 // ProfileBlockResponse is a block of a profile as the viewer gets it. A locked block (the
@@ -73,6 +98,7 @@ type ProfileResponse struct {
 	Bio    string                 `json:"bio"`
 	Banner *ProfileBannerResponse `json:"banner"`
 	Blocks []ProfileBlockResponse `json:"blocks"`
+	Lists  ProfileListsResponse   `json:"lists"`
 }
 
 func newProfileBlockResponse(b core.ProfileBlockView, vis FileVisibility) ProfileBlockResponse {
@@ -99,12 +125,7 @@ func newProfileBlockResponse(b core.ProfileBlockView, vis FileVisibility) Profil
 	if b.Data.Scenes != nil {
 		out.Scenes = make([]ProfileSceneResponse, len(b.Data.Scenes))
 		for i, s := range b.Data.Scenes {
-			item := ProfileSceneResponse{Scene: ToSceneListItem(s.Scene, vis), At: s.At}
-			if s.Views > 0 {
-				v := s.Views
-				item.Views = &v
-			}
-			out.Scenes[i] = item
+			out.Scenes[i] = NewProfileSceneResponse(s, ToSceneListItem(s.Scene, vis))
 		}
 	}
 	return out
@@ -116,6 +137,7 @@ func NewProfileResponse(v *core.ProfileView, vis FileVisibility) ProfileResponse
 		Bio:                   v.Bio,
 		Banner:                newProfileBannerResponse(v.Banner, v.Social.User.ID),
 		Blocks:                make([]ProfileBlockResponse, len(v.Blocks)),
+		Lists:                 ProfileListsResponse{Liked: v.Lists.Liked, Ratings: v.Lists.Ratings, Jizz: v.Lists.Jizz},
 	}
 	for i, b := range v.Blocks {
 		out.Blocks[i] = newProfileBlockResponse(b, vis)
@@ -248,4 +270,14 @@ func NewProfileEditResponse(s *core.ProfileEditState, cfg config.ProfilesConfig,
 		Privacy:         NewPrivacySettingsResponse(s.Privacy),
 		Limits:          NewProfileLimitsResponse(cfg),
 	}
+}
+
+// ProfileListResponse is a page of a full list of a profile (liked, rated, jizz videos): the
+// scenes with the owner's figures, the sort used, and the viewer's own card sidecars (ratings,
+// likes, jizz_counts, watched maps, as on the scene lists, when card_fields asks for them).
+type ProfileListResponse struct {
+	Data       []ProfileSceneResponse `json:"data"`
+	Pagination Pagination             `json:"pagination"`
+	Sort       string                 `json:"sort"`
+	CardSidecars
 }
