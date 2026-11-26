@@ -66,6 +66,13 @@ const scrubberMode = computed({
     },
 });
 
+const scrubberWheel = computed({
+    get: () => settingsStore.draft?.scrubber_wheel ?? false,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.scrubber_wheel = v;
+    },
+});
+
 const scrubberModeOptions: { value: ScrubberMode; label: string; desc: string }[] = [
     {
         value: 'free',
@@ -175,8 +182,8 @@ const autoAdvanceOptions: { value: PlaylistAutoAdvance; label: string; desc: str
                     <div>
                         <div class="text-sm text-white">Thumbnail Scrubber</div>
                         <div class="text-dim text-xs">
-                            Show a strip of the scene thumbnails under the player: drag or scroll it
-                            and click a thumbnail to jump to that moment
+                            Show a strip of the scene thumbnails under the player: drag it and click
+                            a thumbnail to jump to that moment
                         </div>
                     </div>
                     <UiToggle v-model="showScrubber" />
@@ -215,6 +222,18 @@ const autoAdvanceOptions: { value: PlaylistAutoAdvance; label: string; desc: str
                             </div>
                         </button>
                     </div>
+                </div>
+
+                <!-- Scrubber mouse wheel -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-sm text-white">Mouse wheel scrubs the thumbnail strip</div>
+                        <div class="text-dim text-xs">
+                            The wheel over the strip scrolls it (free mode) or seeks (centered
+                            mode); off, the wheel scrolls the page as usual
+                        </div>
+                    </div>
+                    <UiToggle v-model="scrubberWheel" />
                 </div>
 
                 <!-- Volume Slider -->

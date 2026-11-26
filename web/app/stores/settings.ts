@@ -75,6 +75,8 @@ export const useSettingsStore = defineStore(
         const scrubberMode = computed<ScrubberMode>(() =>
             normalizeScrubberMode(settings.value?.scrubber_mode),
         );
+        // Whether the mouse wheel over the scrubber moves it (off by default: the page scrolls)
+        const scrubberWheel = computed(() => settings.value?.scrubber_wheel ?? false);
         // Maximum width of the scene list pages (default, wide or full)
         const contentWidth = computed<ContentWidth>(() =>
             normalizeContentWidth(settings.value?.content_width),
@@ -392,6 +394,7 @@ export const useSettingsStore = defineStore(
             setShowScrubber,
             scrubberMode,
             setScrubberMode,
+            scrubberWheel,
             contentWidth,
             setContentWidth,
             videosPerPage,

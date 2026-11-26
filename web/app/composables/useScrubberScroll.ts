@@ -1,5 +1,5 @@
-// Scrolling of the thumbnail scrubber strip: mouse drag with inertia, wheel (vertical wheel
-// scrolls sideways), smooth programmatic scrolls (page buttons, following playback). Touch
+// Scrolling of the thumbnail scrubber strip: mouse drag with inertia, wheel when the user turned
+// it on (vertical wheel scrolls sideways; off, the wheel is left to the page), smooth programmatic scrolls (page buttons, following playback). Touch
 // devices keep the native horizontal swipe. The math lives in utils/scrubber.ts.
 
 interface Options {
@@ -7,6 +7,8 @@ interface Options {
     contentWidth: Ref<number>;
     // the user scrolled the strip (drag, wheel, swipe, scrollbar): playback following pauses
     onUserScroll: () => void;
+    // the scrubber wheel setting: off, wheel events are not handled (no preventDefault)
+    wheelEnabled: () => boolean;
 }
 
 export function useScrubberScroll(el: Ref<HTMLElement | null>, options: Options) {
@@ -128,8 +130,7 @@ export function useScrubberScroll(el: Ref<HTMLElement | null>, options: Options)
     };
 
     const onWheel = (e: WheelEvent) => {
-        if (e.ctrlKey) return; // pinch zoom
-        const delta = wheelScrollDelta(e.deltaX, e.deltaY, e.deltaMode, viewWidth.value);
+        const delta = scrubberWheelDelta(e, options.wheelEnabled(), viewWidth.value);
         if (delta === 0) return;
         const max = bounds();
         const base = target ?? el.value?.scrollLeft ?? 0;

@@ -46,6 +46,7 @@ func storedSettings() *data.UserSettings {
 		SceneListView:            data.SceneListView{Pages: map[string]string{"search": "table"}, Columns: []string{"title", "duration"}},
 		ShowScrubber:             true,
 		ScrubberMode:             "centered",
+		ScrubberWheel:            true,
 		ContentWidth:             "wide",
 	}
 }
@@ -60,6 +61,7 @@ func TestUpdateSettings_AbsentFieldsUntouched(t *testing.T) {
 	}{
 		{"scrubber", WithScrubber(&off), func(s *data.UserSettings) { s.ShowScrubber = false }},
 		{"scrubber mode", WithScrubberMode(&free), func(s *data.UserSettings) { s.ScrubberMode = "free" }},
+		{"scrubber wheel", WithScrubberWheel(&off), func(s *data.UserSettings) { s.ScrubberWheel = false }},
 		{"content width", WithContentWidth(ptr(ContentWidthFull)), func(s *data.UserSettings) { s.ContentWidth = "full" }},
 		{"infinite scroll", WithInfiniteScroll(&off), func(s *data.UserSettings) { s.InfiniteScroll = false }},
 		{"grid density", WithGridDensity("large"), func(s *data.UserSettings) { s.GridDensity = "large" }},

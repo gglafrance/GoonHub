@@ -5,7 +5,8 @@ import type { VttCue } from '~/composables/useVttParser';
 
 type Player = ReturnType<typeof videojs>;
 
-// Free mode of the scrubber strip: dragged with inertia or wheeled sideways on its own, a click
+// Free mode of the scrubber strip: dragged with inertia or (scrubber wheel setting on) wheeled
+// sideways on its own, a click
 // seeks to a thumbnail, a red line marks the playback position, and the strip follows playback
 // (paused while the user scrolls it, resumed after a few seconds or by the Follow button).
 const props = defineProps<{
@@ -38,7 +39,12 @@ const pauseFollow = () => {
     lastUserScroll = performance.now();
 };
 
-const scroll = useScrubberScroll(scroller, { contentWidth, onUserScroll: pauseFollow });
+const settingsStore = useSettingsStore();
+const scroll = useScrubberScroll(scroller, {
+    contentWidth,
+    onUserScroll: pauseFollow,
+    wheelEnabled: () => settingsStore.scrubberWheel,
+});
 
 // Thumbnails to render (the visible ones plus a few on each side)
 const range = computed(() =>
