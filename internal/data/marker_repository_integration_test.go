@@ -75,6 +75,9 @@ func TestMarkerRepositoryListingFilters(t *testing.T) {
 		{"random sort", MarkerListOptions{SortBy: "random", Seed: 42}, 3},
 		{"one marker tag", MarkerListOptions{MarkerTags: []string{tagA}}, 2},
 		{"all marker tags required", MarkerListOptions{MarkerTags: []string{tagA, tagB}}, 1},
+		{"query on the label, ignoring case", MarkerListOptions{Query: "hUG"}, 1},
+		{"query on the scene title", MarkerListOptions{Query: "b"}, 1},
+		{"live scenes only", MarkerListOptions{LiveScenesOnly: true}, 3},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -87,6 +90,25 @@ func TestMarkerRepositoryListingFilters(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("live scenes only drops trashed scenes", func(t *testing.T) {
+		if err := db.Model(&Scene{}).Where("id = ?", sceneB.ID).Update("trashed_at", time.Now()).Error; err != nil {
+			t.Fatalf("trash scene: %v", err)
+		}
+		defer db.Model(&Scene{}).Where("id = ?", sceneB.ID).Update("trashed_at", nil)
+		got, total, err := repo.GetAllMarkersForUser(f.user.ID, 0, 10, MarkerListOptions{LiveScenesOnly: true})
+		if err != nil {
+			t.Fatalf("GetAllMarkersForUser: %v", err)
+		}
+		if total != 2 || len(got) != 2 {
+			t.Fatalf("got %d markers (total %d), want 2", len(got), total)
+		}
+		for _, m := range got {
+			if m.SceneID == sceneB.ID {
+				t.Fatalf("marker of a trashed scene listed: %+v", m)
+			}
+		}
+	})
 
 	t.Run("random order is stable for a seed", func(t *testing.T) {
 		opts := MarkerListOptions{SortBy: "random", Seed: 7}

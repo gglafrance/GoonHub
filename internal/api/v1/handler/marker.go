@@ -149,7 +149,8 @@ func (h *MarkerHandler) ListLabelSuggestions(c *gin.Context) {
 }
 
 // markerListOptions reads the sort, seed (random sort) and filter query parameters
-// (ranges_only, and comma-separated labels, tags (scene), marker_tags, actors, plus studio).
+// (ranges_only, and comma-separated labels, tags (scene), marker_tags, actors, plus studio,
+// q (label or scene title contains) and live_only).
 func markerListOptions(c *gin.Context, defaultSort string) data.MarkerListOptions {
 	seed, _ := strconv.ParseInt(c.Query("seed"), 10, 64)
 	return data.MarkerListOptions{
@@ -161,6 +162,9 @@ func markerListOptions(c *gin.Context, defaultSort string) data.MarkerListOption
 		Actors:     splitQueryList(c.Query("actors")),
 		Studio:     strings.TrimSpace(c.Query("studio")),
 		MarkerTags: splitQueryList(c.Query("marker_tags")),
+		Query:      strings.TrimSpace(c.Query("q")),
+		// The search picker lists only the markers of scenes still in the library
+		LiveScenesOnly: c.Query("live_only") == "true",
 	}
 }
 

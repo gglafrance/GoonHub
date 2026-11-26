@@ -12,7 +12,6 @@ useSeoMeta({
 
 const { fetchLabelGroups, fetchAllMarkers } = useApiMarkers();
 const { fetchProcessingConfig } = useApiJobs();
-const { formatMarkerRange } = useFormatter();
 const { observe } = useAnimatedMarkerPreview();
 const { sceneGridClass, sceneGridStyle } = useGridDensity();
 const { containerClass } = useContentWidth();
@@ -464,100 +463,22 @@ definePageMeta({
                         :class="sceneGridClass"
                         :style="sceneGridStyle"
                     >
-                        <NuxtLink
+                        <MarkersMarkerCard
                             v-for="marker in allMarkers"
                             :key="marker.id"
+                            :marker="marker"
                             :to="markerWatchUrl(marker)"
-                            class="group relative block overflow-hidden rounded-lg
-                                transition-transform duration-200"
+                            :animated="markerThumbnailType === 'animated'"
+                            :observe="observe"
                         >
-                            <!-- Thumbnail -->
-                            <div class="relative aspect-video w-full overflow-hidden bg-black/40">
-                                <video
-                                    v-if="
-                                        markerThumbnailType === 'animated' &&
-                                        marker.animated_thumbnail_path
-                                    "
-                                    :ref="(el) => observe(el as HTMLVideoElement)"
-                                    :src="markerThumbnailUrl(marker.id, marker.updated_at, true)"
-                                    muted
-                                    loop
-                                    playsinline
-                                    preload="none"
-                                    class="h-full w-full object-contain transition-transform
-                                        duration-300 group-hover:scale-105"
-                                />
-                                <img
-                                    v-else
-                                    :src="markerThumbnailUrl(marker.id, marker.updated_at)"
-                                    :alt="marker.scene_title"
-                                    class="h-full w-full object-cover transition-transform
-                                        duration-300 group-hover:scale-105"
-                                    loading="lazy"
-                                />
-
-                                <!-- Gradient overlay -->
-                                <div
-                                    class="pointer-events-none absolute inset-0 bg-linear-to-t
-                                        from-black/80 via-black/20 to-transparent"
-                                />
-
-                                <!-- Timestamp badge -->
-                                <div
-                                    class="absolute right-1.5 bottom-1.5 rounded bg-black/80 px-1.5
-                                        py-0.5 text-[10px] font-semibold text-white/90 tabular-nums
-                                        backdrop-blur-sm"
-                                >
-                                    {{ formatMarkerRange(marker.timestamp, marker.end_timestamp) }}
-                                </div>
-
+                            <template #actions>
                                 <!-- Add to a marker playlist -->
-                                <div
-                                    class="absolute top-1.5 right-1.5 z-10 opacity-0
-                                        transition-opacity group-hover:opacity-100
-                                        focus-within:opacity-100"
-                                >
-                                    <MarkersPlaylistAddButton
-                                        variant="icon"
-                                        :marker-ids="[marker.id]"
-                                    />
-                                </div>
-
-                                <!-- Label badge -->
-                                <div
-                                    class="absolute top-1.5 left-1.5 flex max-w-[80%] items-center
-                                        gap-1"
-                                >
-                                    <span
-                                        v-if="marker.label"
-                                        class="truncate rounded bg-black/70 px-1.5 py-0.5
-                                            text-[10px] font-medium text-white/90 backdrop-blur-sm"
-                                    >
-                                        {{ marker.label }}
-                                    </span>
-                                    <MarkersTagsBadge
-                                        inline
-                                        :tags="marker.tags"
-                                        :label="marker.label"
-                                    />
-                                </div>
-                            </div>
-
-                            <!-- Info -->
-                            <div class="border-border bg-surface border-t px-2 py-1.5">
-                                <p
-                                    class="truncate text-xs font-medium text-white
-                                        group-hover:text-white"
-                                >
-                                    {{ marker.scene_title }}
-                                </p>
-                                <NuxtTime
-                                    :datetime="marker.created_at"
-                                    class="text-dim mt-0.5 text-[10px]"
-                                    relative
+                                <MarkersPlaylistAddButton
+                                    variant="icon"
+                                    :marker-ids="[marker.id]"
                                 />
-                            </div>
-                        </NuxtLink>
+                            </template>
+                        </MarkersMarkerCard>
                     </div>
 
                     <Pagination

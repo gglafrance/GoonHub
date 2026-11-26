@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Source filter: the sites scenes come from (multi-select, OR) and source presence.
-const searchStore = useSearchStore();
+const searchStore = useSearchContext();
 
 const collapsed = ref(true);
 const searchQuery = ref('');

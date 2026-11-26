@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // File size filter (bounds stored in megabytes; inputs in MB or GB).
-const searchStore = useSearchStore();
+const searchStore = useSearchContext();
 
 const collapsed = ref(true);
 const unit = ref<'MB' | 'GB'>('GB');
