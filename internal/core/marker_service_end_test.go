@@ -80,6 +80,60 @@ func TestUpdateMarker_ClearEnd(t *testing.T) {
 	}
 }
 
+// Updating another field (here the color) without end_timestamp nor clear_end_timestamp
+// keeps the end of the range.
+func TestUpdateMarker_OmittedEndUnchanged(t *testing.T) {
+	svc, markerRepo, _ := newTestMarkerService(t)
+	marker := &data.UserSceneMarker{ID: 3, UserID: 1, SceneID: 2, Timestamp: 10, EndTimestamp: ptr(25)}
+	markerRepo.EXPECT().GetByID(uint(3)).Return(marker, nil)
+	markerRepo.EXPECT().Update(marker).Return(nil)
+
+	color := "#00FF00"
+	got, err := svc.UpdateMarker(1, 3, nil, &color, nil, nil, false, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.EndTimestamp == nil || *got.EndTimestamp != 25 {
+		t.Fatalf("expected end 25 kept, got %v", got.EndTimestamp)
+	}
+}
+
+// Clearing the end while moving the start past the old end is valid: the old end is gone.
+func TestUpdateMarker_ClearEndWithStartPastOldEnd(t *testing.T) {
+	svc, markerRepo, sceneRepo := newTestMarkerService(t)
+	marker := &data.UserSceneMarker{ID: 3, UserID: 1, SceneID: 2, Timestamp: 10, EndTimestamp: ptr(25)}
+	markerRepo.EXPECT().GetByID(uint(3)).Return(marker, nil)
+	sceneRepo.EXPECT().GetByID(uint(2)).Return(&data.Scene{ID: 2, Duration: 100}, nil)
+	markerRepo.EXPECT().Update(marker).Return(nil)
+	// The start moved: the new thumbnail is queued (not made inline)
+	svc.thumbnailQueue = make(chan markerThumbnailTask, 1)
+
+	got, err := svc.UpdateMarker(1, 3, nil, nil, ptr(30), nil, true, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Timestamp != 30 || got.EndTimestamp != nil {
+		t.Fatalf("expected start 30 without end, got %d %v", got.Timestamp, got.EndTimestamp)
+	}
+	if len(svc.thumbnailQueue) != 1 {
+		t.Fatalf("expected the thumbnail to be queued, got %d tasks", len(svc.thumbnailQueue))
+	}
+}
+
+func TestUpdateMarker_ClearEndOfOtherUsersMarker(t *testing.T) {
+	svc, markerRepo, _ := newTestMarkerService(t)
+	marker := &data.UserSceneMarker{ID: 3, UserID: 2, SceneID: 2, Timestamp: 10, EndTimestamp: ptr(25)}
+	markerRepo.EXPECT().GetByID(uint(3)).Return(marker, nil)
+
+	_, err := svc.UpdateMarker(1, 3, nil, nil, nil, nil, true, false)
+	if !apperrors.IsForbidden(err) {
+		t.Fatalf("expected forbidden error, got %v", err)
+	}
+	if marker.EndTimestamp == nil {
+		t.Fatal("end of the other user's marker was cleared")
+	}
+}
+
 func TestUpdateMarker_StartMovedPastExistingEnd(t *testing.T) {
 	svc, markerRepo, sceneRepo := newTestMarkerService(t)
 	marker := &data.UserSceneMarker{ID: 3, UserID: 1, SceneID: 2, Timestamp: 10, EndTimestamp: ptr(25)}
