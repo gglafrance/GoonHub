@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import type { PickedItem } from '~/utils/picker';
+
 // Playing queue: now playing, upcoming items (drag to reorder for controllers), suggestions
-// and the library search to add scenes.
+// and the search picker to add videos and markers (or suggest them, without queue rights).
 const room = useInjectedTogetherRoom();
 const { socket, canControl, canQueue, canAddScenes, currentItem, upcoming } = room;
 
@@ -8,7 +10,24 @@ const showPicker = ref(false);
 const dragFrom = ref<number | null>(null);
 const dropAt = ref<number | null>(null);
 
-const add = (sceneId: number) => socket.send({ t: 'queue_add', items: [{ scene_id: sceneId }] });
+// Videos already queued whole are marked in the picker (they can still be queued again)
+const queuedScenes = computed(() => ({
+    scenes: socket.queue.value
+        .filter((i) => i.start == null && i.end == null)
+        .map((i) => i.scene_id),
+}));
+// "Play now": controllers only (the server refuses it otherwise)
+const pickerActions = computed(() =>
+    canControl.value ? [{ id: 'play', label: 'Play now', icon: 'heroicons:play' }] : [],
+);
+// Picked videos are queued whole, markers as their range with their label
+const onPicked = (items: PickedItem[], action: string) => {
+    const queueItems = pickedToQueueItems(items);
+    if (queueItems.length === 0) return;
+    if (action === 'play') socket.send({ t: 'queue_add', items: queueItems, play_now: true });
+    else socket.send({ t: 'queue_add', items: queueItems });
+    showPicker.value = false;
+};
 const remove = (id: number) => socket.send({ t: 'queue_remove', item_id: id });
 const playNow = (id: number) => socket.send({ t: 'play_item', item_id: id });
 const skip = () => socket.send({ t: 'skip' });
@@ -62,25 +81,17 @@ const onDragEnd = () => {
                 </button>
                 <button
                     v-if="canAddScenes"
-                    class="border-border text-dim hover:border-lava/30 hover:text-lava flex h-6
-                        items-center gap-1 rounded-md border px-2 text-[10px] font-medium
-                        transition-all"
-                    @click="showPicker = !showPicker"
+                    class="bg-lava hover:bg-lava/90 flex h-7 items-center gap-1.5 rounded-md px-2.5
+                        text-[11px] font-semibold text-white transition-colors"
+                    @click="showPicker = true"
                 >
-                    <Icon name="heroicons:plus" size="11" />
-                    {{ canQueue ? 'Add' : 'Suggest' }}
+                    <Icon name="heroicons:plus" size="13" />
+                    {{ canQueue ? 'Add to queue' : 'Suggest' }}
                 </button>
             </div>
         </div>
 
         <div class="space-y-2 p-2">
-            <TogetherQueueScenePicker
-                v-if="showPicker"
-                :suggest="!canQueue"
-                @add="add"
-                @close="showPicker = false"
-            />
-
             <div v-if="currentItem">
                 <div class="text-dim mb-1 px-1 text-[10px] font-semibold tracking-wider uppercase">
                     Now playing
@@ -122,14 +133,41 @@ const onDragEnd = () => {
                 </div>
             </div>
 
-            <p
+            <div
                 v-if="!currentItem && upcoming.length === 0"
-                class="text-dim py-3 text-center text-[11px]"
+                class="flex flex-col items-center gap-2 py-5 text-center"
             >
-                Nothing queued yet.
-            </p>
+                <p class="text-dim text-[11px]">Nothing queued yet.</p>
+                <button
+                    v-if="canAddScenes"
+                    class="border-lava/30 bg-lava/10 hover:bg-lava/20 flex items-center gap-1.5
+                        rounded-lg border px-3 py-1.5 text-xs font-medium text-white
+                        transition-colors"
+                    @click="showPicker = true"
+                >
+                    <Icon name="heroicons:magnifying-glass" size="13" class="text-lava" />
+                    {{
+                        canQueue ? 'Find videos and markers to queue' : 'Suggest videos and markers'
+                    }}
+                </button>
+            </div>
 
             <TogetherQueueSuggestions />
         </div>
+
+        <PickerModal
+            :visible="showPicker"
+            multiple
+            :max="100"
+            :exclude="queuedScenes"
+            excluded-selectable
+            excluded-label="In queue"
+            :title="canQueue ? 'Add to the queue' : 'Suggest to the queue'"
+            :confirm-label="canQueue ? 'Add' : 'Suggest'"
+            :actions="pickerActions"
+            :hint="canQueue ? undefined : 'The host or a controller accepts suggestions'"
+            @picked="onPicked"
+            @close="showPicker = false"
+        />
     </div>
 </template>

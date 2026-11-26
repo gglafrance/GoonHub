@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const searchStore = useSearchStore();
+const searchStore = useSearchContext();
 
 const collapsed = ref(true);
 const showHelp = ref(false);

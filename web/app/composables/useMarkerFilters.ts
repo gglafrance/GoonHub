@@ -28,32 +28,40 @@ const URL_KEYS: Record<(typeof LIST_KEYS)[number], string> = {
  *
  * @param sortBy - the page sort ref (a new seed is drawn each time "random" is selected)
  * @param withLabels - whether the marker label filter applies (not on a single-label page)
+ * @param config - `url: false` keeps the filters out of the URL (the search picker modal);
+ *   `alwaysEnabled` applies them whatever the "Advanced Marker Filters" setting
  */
-export function useMarkerFilters(sortBy: Ref<string>, withLabels = true) {
+export function useMarkerFilters(
+    sortBy: Ref<string>,
+    withLabels = true,
+    config: { url?: boolean; alwaysEnabled?: boolean } = {},
+) {
+    const inUrl = config.url !== false;
     const route = useRoute();
     const patchQuery = useUrlQueryPatch();
     const settingsStore = useSettingsStore();
     const { fetchFilterOptions } = useApiScenes();
 
-    const enabled = computed(() => settingsStore.advancedMarkerFilters);
+    const enabled = computed(() => !!config.alwaysEnabled || settingsStore.advancedMarkerFilters);
 
     const readList = (key: string): string[] => {
+        if (!inUrl) return [];
         const raw = route.query[key];
         return typeof raw === 'string' && raw ? raw.split(',').filter(Boolean) : [];
     };
 
     const state = reactive<MarkerFilterState>({
-        rangesOnly: route.query.ranges === '1',
+        rangesOnly: inUrl && route.query.ranges === '1',
         labels: withLabels ? readList('labels') : [],
         markerTags: readList('marker_tags'),
         tags: readList('tags'),
         actors: readList('actors'),
-        studio: typeof route.query.studio === 'string' ? route.query.studio : '',
+        studio: inUrl && typeof route.query.studio === 'string' ? route.query.studio : '',
     });
 
     const newSeed = newRandomSeed;
     // Random sort seed, kept in the URL (`seed`) so that a reload keeps the same order
-    const urlSeed = Number(route.query.seed);
+    const urlSeed = inUrl ? Number(route.query.seed) : 0;
     const seed = ref(Number.isInteger(urlSeed) && urlSeed > 0 ? urlSeed : newSeed());
 
     /** Draws a new random order (the listing reloads through the params watcher). */
@@ -119,6 +127,7 @@ export function useMarkerFilters(sortBy: Ref<string>, withLabels = true) {
     watch(
         () => ({ ...state }),
         () => {
+            if (!inUrl) return;
             const values: Record<string, string | undefined> = {
                 ranges: state.rangesOnly ? '1' : undefined,
                 studio: state.studio || undefined,
@@ -136,7 +145,10 @@ export function useMarkerFilters(sortBy: Ref<string>, withLabels = true) {
     // Seed in the URL only while the random sort is active
     watch(
         [sortBy, seed],
-        () => patchQuery({ seed: sortBy.value === 'random' ? String(seed.value) : undefined }),
+        () => {
+            if (inUrl)
+                patchQuery({ seed: sortBy.value === 'random' ? String(seed.value) : undefined });
+        },
         { immediate: true },
     );
 

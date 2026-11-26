@@ -166,7 +166,8 @@ export type ClientMessage =
     | { t: 'play_item'; item_id: number }
     | { t: 'ended'; item_id: number }
     | { t: 'status'; buffering: boolean; seq: number; item_id: number | null }
-    | { t: 'queue_add'; items: QueueItemInput[] }
+    // play_now (control): the items go first and the first one plays at once
+    | { t: 'queue_add'; items: QueueItemInput[]; play_now?: boolean }
     | { t: 'queue_remove'; item_id: number }
     | { t: 'queue_move'; item_id: number; index: number }
     | { t: 'suggestion_accept'; item_id: number }

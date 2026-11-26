@@ -186,7 +186,11 @@ The social user cards (`/social/...` lists, directory, `GET /social/me` `user`) 
   drag and drop or arrows, shown toggle, "Private" placeholder toggle, options, and who can see
   the block: its privacy item's audience, saved at once through `PUT /social/privacy`, shared by
   the blocks of the same item), Favorite videos and Favorite markers (`ProfileEditShowcase`:
-  drag and drop, remove, search to add; saved on each change).
+  drag and drop, remove, replace, and "Add" with the search picker `PickerModal`, Videos or
+  Markers tab, multi-select up to the free slots, single select to replace a slot; saved on each
+  change). The picker's Markers tab lists `GET /markers/all?live_only=true`: the markers the user
+  sees on scenes still in the library, the same rule as `marker-candidates` (still used by
+  nothing else in the UI).
 - Avatars everywhere a user is shown: `SocialUserAvatar` (`userId`, `avatarVersion`,
   `displayName`, initials fallback), used by the user rows, the friends block and the header,
   where the avatar and name link to "My profile" (`useSocialStore().me`, from `/social/me`).
