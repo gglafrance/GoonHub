@@ -123,6 +123,7 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - `internal/infrastructure/persistence/migrator/` - golang-migrate based schema migrations (35 migrations)
 - `internal/jobs/` - Worker pool and scene processing jobs (metadata, thumbnail, sprites)
 - `internal/workers/` - Server side of the remote workers (goonhub-worker): leases with fencing generations, claim/push, artifact staging and verified commit, expiry sweep, phase routing. Contract: `docs/REMOTE_WORKERS.md`
+- `internal/together/` - Goon2gether (synchronized watch lobbies): the hub holding the live lobbies (playback state, queue, members, chat, WebSocket clients with bounded send buffers, one tick goroutine) and the custom emotes. Contract and protocol: `docs/GOON2GETHER.md`
 - `internal/apperrors/` - Typed error system with domain-specific errors:
     - `errors.go` - Base AppError interface and common error types (NotFoundError, ValidationError, ConflictError, InternalError, ForbiddenError, UnauthorizedError)
     - `scene.go` - Scene-specific errors (ErrSceneNotFound, ErrInvalidFileExtension, ErrSceneDimensionsNotAvailable)
@@ -303,4 +304,4 @@ When working on GoonHub, remember:
 - In handlers, use `response.Error(c, err)` for automatic HTTP status and error code mapping
 - Never add a `Co-Authored-By` line to git commit messages
 - Before any database schema change, read `docs/DATABASE.md` for schema reference and conventions
-- Information about a user shown to other users (profile blocks, lists, presence, activity) must go through the privacy framework (`PrivacyService.CanView` / `VisibleTo`, catalog in `core/privacy_catalog.go`, no admin bypass) and personal live events through `EventBus.PublishToUser`; see `docs/SOCIAL.md`
+- Information about a user shown to other users (profile blocks, lists, presence, activity) must go through the privacy framework (`PrivacyService.CanView` / `VisibleTo`, catalog in `core/privacy_catalog.go`, no admin bypass) and personal live events through `EventBus.PublishToUser`; see `docs/SOCIAL.md`. Presence (online, idle, now watching, invisible mode) is in `core/presence_*.go`; add activity types as described in `docs/PRESENCE.md`

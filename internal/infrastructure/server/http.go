@@ -9,6 +9,7 @@ import (
 	"goonhub/internal/data"
 	"goonhub/internal/infrastructure/logging"
 	"goonhub/internal/streaming"
+	"goonhub/internal/together"
 	"goonhub/internal/workers"
 	"net/http"
 	"os"
@@ -45,7 +46,15 @@ type Server struct {
 	transcoder        *streaming.Transcoder
 	workerService     *workers.Service
 	pushDispatcher    *workers.PushDispatcher
+	togetherHub       *together.Hub
+	presenceService   *core.PresenceService
 	srv               *http.Server
+}
+
+// SetPresence sets the presence service (its loop runs while the server runs; the last seen
+// times are saved at shutdown).
+func (s *Server) SetPresence(p *core.PresenceService) {
+	s.presenceService = p
 }
 
 func NewHTTPServer(
@@ -74,6 +83,7 @@ func NewHTTPServer(
 	transcoder *streaming.Transcoder,
 	workerService *workers.Service,
 	pushDispatcher *workers.PushDispatcher,
+	togetherHub *together.Hub,
 ) *Server {
 	return &Server{
 		router:            router,
@@ -101,6 +111,7 @@ func NewHTTPServer(
 		transcoder:        transcoder,
 		workerService:     workerService,
 		pushDispatcher:    pushDispatcher,
+		togetherHub:       togetherHub,
 	}
 }
 
@@ -192,8 +203,17 @@ func (s *Server) Start() error {
 		s.jobHistoryService.StartCleanupTicker()
 	}
 
+	// Goon2gether: lobby ticks (auto-advance, holds, host grace) and idle lobby cleanup
+	if s.togetherHub != nil && s.cfg.Goon2gether.Enabled {
+		s.togetherHub.Start()
+	}
+
 	if s.triggerScheduler != nil {
 		s.triggerScheduler.Start()
+	}
+
+	if s.presenceService != nil {
+		s.presenceService.Start()
 	}
 
 	// Apply the scheduled deletions of resolved duplicates, and classify the duplicate group
@@ -382,6 +402,16 @@ func (s *Server) Start() error {
 
 	if s.jobHistoryService != nil {
 		s.jobHistoryService.StopCleanupTicker()
+	}
+
+	// Goon2gether: save the lobby playback and close the WebSockets (hijacked connections are
+	// not closed by the HTTP shutdown)
+	if s.togetherHub != nil {
+		s.togetherHub.Stop()
+	}
+
+	if s.presenceService != nil {
+		s.presenceService.Stop()
 	}
 
 	// Kill the on-the-fly conversions: their streams would hold the HTTP shutdown

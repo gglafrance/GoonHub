@@ -508,6 +508,7 @@ definePageMeta({
                 />
                 <SettingsHomepage v-if="activeTab === 'homepage'" />
                 <SettingsTags v-if="activeTab === 'tags'" />
+                <SettingsMarkerLabels v-if="activeTab === 'marker-labels'" />
                 <SettingsParsingRules v-if="activeTab === 'parsing-rules'" />
                 <SettingsUsers v-if="activeTab === 'users'" />
                 <SettingsJobs v-if="activeTab === 'jobs'" :active-sub-tab="activeSubTab" />
@@ -516,6 +517,7 @@ definePageMeta({
                 <SettingsDuplicates v-if="activeTab === 'duplicates'" />
                 <SettingsHealth v-if="activeTab === 'health'" />
                 <SettingsTrash v-if="activeTab === 'trash'" />
+                <SettingsEmotes v-if="activeTab === 'emotes'" />
             </div>
         </main>
 

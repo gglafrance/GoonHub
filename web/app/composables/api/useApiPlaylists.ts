@@ -3,13 +3,16 @@ import type {
     PlaylistDetail,
     PlaylistListResponse,
     CreatePlaylistInput,
+    CreatePlaylistResult,
     UpdatePlaylistInput,
     PlaylistTag,
     PlaylistResume,
+    MarkerPlaylistFilter,
+    AddPlaylistMarkersResult,
 } from '~/types/playlist';
 
 /**
- * Playlist API operations: CRUD, scenes, tags, likes, progress.
+ * Playlist API operations: CRUD, scenes, markers (marker playlists), tags, likes, progress.
  */
 export const useApiPlaylists = () => {
     const { fetchOptions, getAuthHeaders, handleResponse, handleResponseWithNoContent } =
@@ -41,7 +44,7 @@ export const useApiPlaylists = () => {
         return handleResponse(response);
     };
 
-    const createPlaylist = async (data: CreatePlaylistInput): Promise<PlaylistListItem> => {
+    const createPlaylist = async (data: CreatePlaylistInput): Promise<CreatePlaylistResult> => {
         const response = await fetch('/api/v1/playlists', {
             method: 'POST',
             headers: getAuthHeaders(),
@@ -107,6 +110,58 @@ export const useApiPlaylists = () => {
         await handleResponseWithNoContent(response);
     };
 
+    // Marker playlists: markers are identified by their marker ID (once per playlist)
+    const addMarkers = async (
+        uuid: string,
+        markerIDs: number[],
+    ): Promise<AddPlaylistMarkersResult> => {
+        const response = await fetch(`/api/v1/playlists/${uuid}/markers`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ marker_ids: markerIDs }),
+        });
+        return handleResponse(response);
+    };
+
+    const addMarkersFromFilter = async (
+        uuid: string,
+        filter: MarkerPlaylistFilter,
+    ): Promise<AddPlaylistMarkersResult> => {
+        const response = await fetch(`/api/v1/playlists/${uuid}/markers/from-filter`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(filter),
+        });
+        return handleResponse(response);
+    };
+
+    const removeMarker = async (uuid: string, markerID: number): Promise<void> => {
+        const response = await fetch(`/api/v1/playlists/${uuid}/markers/${markerID}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        await handleResponseWithNoContent(response);
+    };
+
+    const removeMarkers = async (uuid: string, markerIDs: number[]): Promise<void> => {
+        const response = await fetch(`/api/v1/playlists/${uuid}/markers/remove`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ marker_ids: markerIDs }),
+        });
+        await handleResponseWithNoContent(response);
+    };
+
+    const reorderMarkers = async (uuid: string, markerIDs: number[]): Promise<void> => {
+        const response = await fetch(`/api/v1/playlists/${uuid}/markers/reorder`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ marker_ids: markerIDs }),
+        });
+        await handleResponseWithNoContent(response);
+    };
+
     const fetchPlaylistTags = async (uuid: string): Promise<PlaylistTag[]> => {
         const response = await fetch(`/api/v1/playlists/${uuid}/tags`, {
             headers: getAuthHeaders(),
@@ -149,15 +204,19 @@ export const useApiPlaylists = () => {
         return handleResponse(response);
     };
 
+    // markerID: the marker played, in a marker playlist (its scene is stored by the server)
     const updateProgress = async (
         uuid: string,
         sceneID: number,
         positionS: number,
+        markerID?: number,
     ): Promise<void> => {
+        const body: Record<string, number> = { scene_id: sceneID, position_s: positionS };
+        if (markerID !== undefined) body.marker_id = markerID;
         const response = await fetch(`/api/v1/playlists/${uuid}/progress`, {
             method: 'PUT',
             headers: getAuthHeaders(),
-            body: JSON.stringify({ scene_id: sceneID, position_s: positionS }),
+            body: JSON.stringify(body),
         });
         await handleResponseWithNoContent(response);
     };
@@ -172,6 +231,11 @@ export const useApiPlaylists = () => {
         removeScene,
         removeScenes,
         reorderScenes,
+        addMarkers,
+        addMarkersFromFilter,
+        removeMarker,
+        removeMarkers,
+        reorderMarkers,
         fetchPlaylistTags,
         setPlaylistTags,
         toggleLike,

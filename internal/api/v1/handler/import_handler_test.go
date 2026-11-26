@@ -194,8 +194,9 @@ func TestImportMarkerHandler(t *testing.T) {
 		d.sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{ID: 1}, nil)
 		d.expectTx()
 		d.importRepo.EXPECT().FindMarker(uint(1), uint(1), 5, "Intro").Return(nil, nil)
+		d.importRepo.EXPECT().EnsureMarkerLabel("Intro").Return(&data.MarkerLabel{ID: 2, Name: "Intro"}, nil)
 		d.importRepo.EXPECT().CreateMarker(gomock.Any()).DoAndReturn(func(m *data.UserSceneMarker) error { m.ID = 9; return nil })
-		d.importRepo.EXPECT().ApplyLabelTagsToMarker(uint(1), uint(9), "Intro").Return(nil)
+		d.importRepo.EXPECT().ApplyLabelTagsToMarker(uint(9)).Return(nil)
 
 		w, out := doImportRequest(t, r, http.MethodPost, "/import/markers", `{"scene_id":1,"timestamp":5,"label":"Intro"}`)
 		if w.Code != http.StatusCreated {
@@ -224,7 +225,7 @@ func TestImportMarkerHandler(t *testing.T) {
 		d.sceneRepo.EXPECT().GetByID(uint(1)).Return(&data.Scene{ID: 1}, nil)
 		d.expectTx()
 		d.importRepo.EXPECT().FindMarker(uint(1), uint(1), 5, "Intro").Return(&data.UserSceneMarker{ID: 9, SceneID: 1, Color: "#FFFFFF"}, nil)
-		d.importRepo.EXPECT().ApplyLabelTagsToMarker(uint(1), uint(9), "Intro").Return(nil)
+		d.importRepo.EXPECT().ApplyLabelTagsToMarker(uint(9)).Return(nil)
 
 		w, out := doImportRequest(t, r, http.MethodPost, "/import/markers",
 			`{"scene_id":1,"timestamp":5,"label":"Intro","color":"#FFFFFF","update_existing":true}`)

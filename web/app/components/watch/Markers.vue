@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Marker, MarkerLabelSuggestion } from '~/types/marker';
+import type { QueueItemInput } from '~/types/together';
 import type { MarkerTimeField } from '~/utils/markerTime';
 import type { MarkerListSort } from '~/utils/markerList';
 import type { WatchPageData } from '~/composables/useWatchPageData';
@@ -31,6 +32,23 @@ const isOwn = (marker: Marker) => marker.user_id === authStore.user?.id;
 const perms = useMyPermissions();
 const canCreateMarkers = computed(() => perms.has('markers:create'));
 const canEdit = (marker: Marker) => canCreateMarkers.value && isOwn(marker);
+// "Watch together": queue the marker (its range and label) in a Goon2gether lobby
+const canTogether = computed(() => perms.has('goon2gether:use'));
+const togetherItems = ref<QueueItemInput[] | null>(null);
+const watchTogether = (marker: Marker) => {
+    togetherItems.value = [
+        {
+            scene_id: sceneId.value,
+            start: marker.timestamp,
+            end: marker.end_timestamp ?? null,
+            label: marker.label || null,
+        },
+    ];
+};
+// Labels are server-wide: creating one needs marker_labels:manage (else pick an existing one)
+const canCreateLabels = computed(() => perms.has('marker_labels:manage'));
+// Every marker shown (own and shared), for "Add all to playlist"
+const allMarkerIds = computed(() => markers.value.map((m) => m.id));
 // The 50 markers limit counts the user's own markers only
 const ownMarkerCount = computed(() => markers.value.filter(isOwn).length);
 // List order (by time or grouped by label), remembered in this browser
@@ -85,6 +103,36 @@ const filteredSuggestions = computed(() => {
     const lowerQuery = query.toLowerCase();
     return labelSuggestions.value.filter((s) => s.label.toLowerCase().includes(lowerQuery));
 });
+
+// What the typed label resolves to (existing, new for a label manager, or unknown)
+const labelPick = computed(() =>
+    pickMarkerLabel(
+        showEditSuggestions.value ? editingLabel.value : newMarkerLabel.value,
+        labelSuggestions.value,
+        canCreateLabels.value,
+    ),
+);
+const pickerCreateName = computed(() =>
+    labelPick.value.kind === 'create' ? labelPick.value.name : null,
+);
+const pickerUnknownName = computed(() =>
+    labelPick.value.kind === 'unknown' && suggestionsLoaded.value ? labelPick.value.name : null,
+);
+
+// The label to send: the canonical spelling of an existing label; null (with the error set)
+// for a label that does not exist and that the user cannot create
+const resolveTypedLabel = (typed: string): string | null => {
+    const pick = pickMarkerLabel(typed, labelSuggestions.value, canCreateLabels.value);
+    if (pick.kind === 'unknown' && suggestionsLoaded.value) {
+        error.value = unknownMarkerLabelMessage(pick.name);
+        return null;
+    }
+    return pick.kind === 'empty' ? '' : pick.name;
+};
+
+const createLabelFromPicker = (name: string) => {
+    selectSuggestion({ label: name, count: 0 });
+};
 
 const handleNewMarkerFocus = () => {
     loadSuggestions();
@@ -219,13 +267,15 @@ const handleAddMarker = async () => {
     if (saving.value) return;
 
     const currentTime = getPlayerTime?.() ?? 0;
-    saving.value = true;
     error.value = null;
+    const label = resolveTypedLabel(newMarkerLabel.value);
+    if (label === null) return;
+    saving.value = true;
 
     try {
         const marker = await createMarker(sceneId.value, {
             timestamp: Math.floor(currentTime),
-            label: newMarkerLabel.value.trim() || undefined,
+            label: label || undefined,
         });
         newMarkerLabel.value = '';
         // Show the new marker at once (list and timeline), without waiting for a refetch
@@ -288,10 +338,10 @@ const handleSaveEdit = async (marker: Marker) => {
     }
 
     error.value = null;
+    const label = resolveTypedLabel(editingLabel.value);
+    if (label === null) return;
     try {
-        const updated = await updateMarker(sceneId.value, marker.id, {
-            label: editingLabel.value.trim(),
-        });
+        const updated = await updateMarker(sceneId.value, marker.id, { label });
         applyMarkerUpdate(marker, updated);
         cancelEditing();
         // Refresh parent markers for timeline indicators
@@ -470,7 +520,13 @@ onMounted(async () => {
 
         <!-- Markers Grid: one headerless group by time, or one group per label -->
         <div v-else class="space-y-4">
-            <WatchMarkersSortToggle v-model="listSort" class="w-fit" />
+            <div class="flex items-center justify-between gap-2">
+                <WatchMarkersSortToggle v-model="listSort" class="w-fit" />
+                <MarkersPlaylistAddButton
+                    :marker-ids="allMarkerIds"
+                    :label="allMarkerIds.length === 1 ? 'Add to playlist' : 'Add all to playlist'"
+                />
+            </div>
             <section v-for="group in markerGroups" :key="group.key">
                 <div v-if="listSort === 'label'" class="mb-2 flex items-center gap-2 text-[11px]">
                     <span
@@ -701,6 +757,24 @@ onMounted(async () => {
                                 <Icon name="heroicons:arrow-right-end-on-rectangle" size="12" />
                             </button>
 
+                            <!-- Watch the marker in a Goon2gether lobby -->
+                            <button
+                                v-if="canTogether && editingMarkerId !== marker.id"
+                                class="text-dim hover:bg-surface-hover flex shrink-0 items-center
+                                    justify-center rounded p-1.5 opacity-0 transition-all
+                                    group-hover:opacity-100 hover:text-white"
+                                title="Watch together"
+                                @click.stop="watchTogether(marker)"
+                            >
+                                <Icon name="heroicons:users" size="12" />
+                            </button>
+                            <!-- Add to a marker playlist -->
+                            <MarkersPlaylistAddButton
+                                v-if="editingMarkerId !== marker.id"
+                                variant="row"
+                                :marker-ids="[marker.id]"
+                            />
+
                             <!-- Delete Button -->
                             <button
                                 v-if="canEdit(marker) && editingMarkerId !== marker.id"
@@ -736,7 +810,10 @@ onMounted(async () => {
             :suggestions="filteredSuggestions"
             :anchor-el="newMarkerInputRef"
             :selected-index="selectedSuggestionIndex"
+            :create-name="pickerCreateName"
+            :unknown-name="pickerUnknownName"
             @select="selectSuggestion"
+            @create="createLabelFromPicker"
             @close="showNewMarkerSuggestions = false"
         />
         <WatchMarkerLabelPicker
@@ -744,7 +821,10 @@ onMounted(async () => {
             :suggestions="filteredSuggestions"
             :anchor-el="editInputRef?.[0] ?? null"
             :selected-index="selectedSuggestionIndex"
+            :create-name="pickerCreateName"
+            :unknown-name="pickerUnknownName"
             @select="selectSuggestion"
+            @create="createLabelFromPicker"
             @close="showEditSuggestions = false"
         />
 
@@ -798,5 +878,11 @@ onMounted(async () => {
                 </div>
             </div>
         </Teleport>
+        <TogetherAddModal
+            v-if="togetherItems"
+            :visible="!!togetherItems"
+            :items="togetherItems"
+            @close="togetherItems = null"
+        />
     </div>
 </template>

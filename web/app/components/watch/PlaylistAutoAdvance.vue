@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { PlaylistSceneEntry } from '~/types/playlist';
+import type { PlaylistQueueItem } from '~/utils/playlistQueue';
 
 defineProps<{
     visible: boolean;
-    nextScene: PlaylistSceneEntry | null;
+    nextItem: PlaylistQueueItem | null;
     countdownRemaining: number;
 }>();
 
@@ -25,7 +25,7 @@ const { formatDuration } = useFormatter();
         leave-to-class="opacity-0 translate-y-4"
     >
         <div
-            v-if="visible && nextScene"
+            v-if="visible && nextItem"
             class="glass-panel border-border fixed right-4 bottom-4 z-50 w-80 border p-4"
         >
             <div class="mb-3 flex items-center justify-between">
@@ -39,18 +39,18 @@ const { formatDuration } = useFormatter();
                 <!-- Thumbnail -->
                 <div class="bg-void relative h-12 w-20 shrink-0 overflow-hidden rounded">
                     <img
-                        v-if="nextScene.scene.thumbnail_path"
-                        :src="`/thumbnails/${nextScene.scene.id}`"
+                        v-if="nextItem.thumbnailUrl"
+                        :src="nextItem.thumbnailUrl"
                         class="h-full w-full object-cover"
-                        :alt="nextScene.scene.title"
+                        :alt="nextItem.title"
                     />
                 </div>
                 <div class="min-w-0 flex-1">
                     <div class="truncate text-xs font-medium text-white">
-                        {{ nextScene.scene.title }}
+                        {{ nextItem.title }}
                     </div>
                     <div class="text-dim font-mono text-[10px]">
-                        {{ formatDuration(nextScene.scene.duration) }}
+                        {{ formatDuration(nextItem.duration) }}
                     </div>
                 </div>
             </div>

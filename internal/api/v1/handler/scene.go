@@ -282,6 +282,10 @@ func (h *SceneHandler) GetFilterOptions(c *gin.Context) {
 		labels, err := h.MarkerService.GetLabelSuggestions(payload.UserID, 100)
 		if err == nil {
 			for _, label := range labels {
+				// the referential lists unused labels too: a filter only offers labels in use
+				if label.Count == 0 {
+					continue
+				}
 				markerLabels = append(markerLabels, gin.H{
 					"label": label.Label,
 					"count": label.Count,

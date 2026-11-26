@@ -70,6 +70,21 @@ export const useQuickMarker = ({ player, sceneId, onSaved }: Options) => {
 
     // Creating a marker tag that does not exist yet needs tags:manage
     const canCreateTags = computed(() => perms.has('tags:manage'));
+    // Labels are server-wide: a new label needs marker_labels:manage (the API creates it)
+    const canCreateLabels = computed(() => perms.has('marker_labels:manage'));
+
+    // The label to save for the typed name: the canonical spelling of an existing label, or
+    // the name itself for a label manager; null (with the error set) for an unknown label.
+    // Before the labels are loaded the name is sent as is (the API checks it).
+    const checkLabel = (name: string): string | null => {
+        const pick = pickMarkerLabel(name, labels.value, canCreateLabels.value);
+        if (pick.kind === 'empty') return null;
+        if (pick.kind === 'unknown' && labelsLoaded) {
+            error.value = unknownMarkerLabelMessage(pick.name);
+            return null;
+        }
+        return pick.name;
+    };
 
     const loadLabels = async () => {
         if (labelsLoaded) return;
@@ -155,8 +170,10 @@ export const useQuickMarker = ({ player, sceneId, onSaved }: Options) => {
             error.value = 'Type a label';
             return;
         }
-        label.value = resolved;
         error.value = null;
+        const checked = checkLabel(resolved);
+        if (!checked) return;
+        label.value = checked;
         step.value = 'tags';
     };
 
@@ -197,7 +214,7 @@ export const useQuickMarker = ({ player, sceneId, onSaved }: Options) => {
     const rememberLabel = (name: string) => {
         lastLabel.value = name;
         writeLastLabel(name);
-        const known = labels.value.find((l) => l.label === name);
+        const known = findMarkerLabel(labels.value, name);
         labels.value = known
             ? labels.value.map((l) => (l === known ? { ...l, count: l.count + 1 } : l))
             : [...labels.value, { label: name, count: 1 }];
@@ -211,10 +228,15 @@ export const useQuickMarker = ({ player, sceneId, onSaved }: Options) => {
         try {
             let marker = savedMarker.value;
             if (!marker) {
-                const name = resolveQuickMarkerLabel(label.value, lastLabel.value);
-                if (!name) {
+                const typed = resolveQuickMarkerLabel(label.value, lastLabel.value);
+                if (!typed) {
                     step.value = 'label';
                     error.value = 'Type a label';
+                    return;
+                }
+                const name = checkLabel(typed);
+                if (!name) {
+                    step.value = 'label';
                     return;
                 }
                 marker = await createMarker(sceneId(), { timestamp: time.value, label: name });
@@ -256,6 +278,7 @@ export const useQuickMarker = ({ player, sceneId, onSaved }: Options) => {
         labels,
         tags,
         canCreateTags,
+        canCreateLabels,
         labelLocked: computed(() => savedMarker.value !== null),
         open,
         close,

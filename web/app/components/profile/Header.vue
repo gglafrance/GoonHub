@@ -42,18 +42,26 @@ const counts = computed(() =>
         </div>
         <div class="relative px-4 pb-4 sm:px-5">
             <div class="-mt-10 flex flex-col gap-3 sm:-mt-12 sm:flex-row sm:items-end">
-                <SocialUserAvatar
-                    :username="user.username"
-                    :display-name="user.display_name"
-                    :user-id="user.id"
-                    :avatar-version="user.avatar_version"
-                    size="xl"
-                    class="ring-void ring-4"
-                />
+                <div class="relative shrink-0 self-start sm:self-auto">
+                    <SocialUserAvatar
+                        :username="user.username"
+                        :display-name="user.display_name"
+                        :user-id="user.id"
+                        :avatar-version="user.avatar_version"
+                        size="xl"
+                        class="ring-void ring-4"
+                    />
+                    <SocialPresenceDot :user-id="user.id" size="lg" />
+                </div>
                 <div class="min-w-0 flex-1">
                     <div class="flex flex-wrap items-center gap-2">
                         <h1 class="truncate text-lg font-semibold text-white">{{ name }}</h1>
-                        <slot name="presence" />
+                        <slot name="presence">
+                            <SocialPresenceBadge
+                                v-if="!profile.relationship.self"
+                                :user-id="user.id"
+                            />
+                        </slot>
                         <span
                             v-if="profile.relationship.self"
                             class="text-dim font-mono text-[9px] tracking-wider uppercase"

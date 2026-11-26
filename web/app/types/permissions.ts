@@ -10,6 +10,7 @@ export type PermissionName =
     | 'scenes:reprocess'
     | 'scenes:share'
     | 'markers:create'
+    | 'marker_labels:manage'
     | 'tags:manage'
     | 'actors:manage'
     | 'actors:merge'
@@ -36,7 +37,11 @@ export type PermissionName =
     | 'porndb:use'
     | 'import:use'
     | 'stats:view_streams'
-    | 'social:use';
+    | 'social:use'
+    | 'goon2gether:use'
+    | 'goon2gether:host'
+    | 'goon2gether:moderate'
+    | 'emotes:manage';
 
 /** GET /api/v1/auth/permissions: the signed-in user's effective permissions. */
 export interface MyPermissionsResponse {

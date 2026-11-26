@@ -10,8 +10,13 @@ type UserSceneMarker struct {
 	SceneID   uint `gorm:"not null;column:scene_id" json:"scene_id"`
 	Timestamp int  `gorm:"not null" json:"timestamp"` // seconds
 	// EndTimestamp is the optional end of the marked range, in seconds (> Timestamp).
-	EndTimestamp          *int      `gorm:"column:end_timestamp" json:"end_timestamp"`
-	Label                 string    `gorm:"size:100" json:"label"`
+	EndTimestamp *int `gorm:"column:end_timestamp" json:"end_timestamp"`
+	// LabelID is the marker's label (marker_labels), nil without label. It is the source of
+	// truth: Label is the label name, kept in sync by the database (see docs/MARKER_LABELS.md).
+	// Label is only written on create (a legacy writer may give the name only, the database
+	// resolves it); later changes go through LabelID.
+	LabelID               *uint     `gorm:"column:label_id" json:"label_id"`
+	Label                 string    `gorm:"size:100;<-:create" json:"label"`
 	Color                 string    `gorm:"size:7;default:'#FFFFFF'" json:"color"`
 	ThumbnailPath         string    `gorm:"size:255" json:"thumbnail_path"`
 	AnimatedThumbnailPath string    `gorm:"size:255" json:"animated_thumbnail_path"`
@@ -23,8 +28,12 @@ func (UserSceneMarker) TableName() string {
 	return "user_scene_markers"
 }
 
+// MarkerLabelSuggestion is a label of the referential with the number of markers the user
+// sees with it (own and shared).
 type MarkerLabelSuggestion struct {
+	ID    uint   `json:"id"`
 	Label string `json:"label"`
+	Color string `json:"color"`
 	Count int64  `json:"count"`
 }
 
@@ -67,11 +76,11 @@ type MarkerWithTags struct {
 	Tags []MarkerTagInfo `json:"tags" gorm:"-"`
 }
 
-// MarkerLabelTag represents the default tags for a marker label (per user)
+// MarkerLabelTag is a default tag of a marker label (the same for every user): the markers of
+// the label get it as a tag "from label".
 type MarkerLabelTag struct {
 	ID        uint      `gorm:"primarykey" json:"id"`
-	UserID    uint      `gorm:"not null" json:"user_id"`
-	Label     string    `gorm:"size:100;not null" json:"label"`
+	LabelID   uint      `gorm:"not null" json:"label_id"`
 	TagID     uint      `gorm:"not null" json:"tag_id"`
 	CreatedAt time.Time `json:"created_at"`
 }

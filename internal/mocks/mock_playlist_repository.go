@@ -40,6 +40,21 @@ func (m *MockPlaylistRepository) EXPECT() *MockPlaylistRepositoryMockRecorder {
 	return m.recorder
 }
 
+// AddMarkers mocks base method.
+func (m *MockPlaylistRepository) AddMarkers(playlistID uint, markerIDs []uint, maxItems int) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddMarkers", playlistID, markerIDs, maxItems)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddMarkers indicates an expected call of AddMarkers.
+func (mr *MockPlaylistRepositoryMockRecorder) AddMarkers(playlistID, markerIDs, maxItems any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddMarkers", reflect.TypeOf((*MockPlaylistRepository)(nil).AddMarkers), playlistID, markerIDs, maxItems)
+}
+
 // AddScenes mocks base method.
 func (m *MockPlaylistRepository) AddScenes(playlistID uint, sceneIDs []uint) error {
 	m.ctrl.T.Helper()
@@ -80,6 +95,21 @@ func (m *MockPlaylistRepository) Delete(id uint) error {
 func (mr *MockPlaylistRepositoryMockRecorder) Delete(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockPlaylistRepository)(nil).Delete), id)
+}
+
+// FilterVisibleMarkerIDs mocks base method.
+func (m *MockPlaylistRepository) FilterVisibleMarkerIDs(userID uint, markerIDs []uint) ([]uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FilterVisibleMarkerIDs", userID, markerIDs)
+	ret0, _ := ret[0].([]uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FilterVisibleMarkerIDs indicates an expected call of FilterVisibleMarkerIDs.
+func (mr *MockPlaylistRepositoryMockRecorder) FilterVisibleMarkerIDs(userID, markerIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilterVisibleMarkerIDs", reflect.TypeOf((*MockPlaylistRepository)(nil).FilterVisibleMarkerIDs), userID, markerIDs)
 }
 
 // GetByID mocks base method.
@@ -142,6 +172,21 @@ func (mr *MockPlaylistRepositoryMockRecorder) GetLikeStatus(userID, playlistID a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLikeStatus", reflect.TypeOf((*MockPlaylistRepository)(nil).GetLikeStatus), userID, playlistID)
 }
 
+// GetMarkerStats mocks base method.
+func (m *MockPlaylistRepository) GetMarkerStats(playlistID uint, defaultDuration int) (data.PlaylistMarkerStats, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMarkerStats", playlistID, defaultDuration)
+	ret0, _ := ret[0].(data.PlaylistMarkerStats)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMarkerStats indicates an expected call of GetMarkerStats.
+func (mr *MockPlaylistRepositoryMockRecorder) GetMarkerStats(playlistID, defaultDuration any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMarkerStats", reflect.TypeOf((*MockPlaylistRepository)(nil).GetMarkerStats), playlistID, defaultDuration)
+}
+
 // GetMaxPosition mocks base method.
 func (m *MockPlaylistRepository) GetMaxPosition(playlistID uint) (int, error) {
 	m.ctrl.T.Helper()
@@ -155,6 +200,21 @@ func (m *MockPlaylistRepository) GetMaxPosition(playlistID uint) (int, error) {
 func (mr *MockPlaylistRepositoryMockRecorder) GetMaxPosition(playlistID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMaxPosition", reflect.TypeOf((*MockPlaylistRepository)(nil).GetMaxPosition), playlistID)
+}
+
+// GetPlaylistMarkers mocks base method.
+func (m *MockPlaylistRepository) GetPlaylistMarkers(playlistID uint) ([]data.PlaylistMarkerRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPlaylistMarkers", playlistID)
+	ret0, _ := ret[0].([]data.PlaylistMarkerRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPlaylistMarkers indicates an expected call of GetPlaylistMarkers.
+func (mr *MockPlaylistRepositoryMockRecorder) GetPlaylistMarkers(playlistID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPlaylistMarkers", reflect.TypeOf((*MockPlaylistRepository)(nil).GetPlaylistMarkers), playlistID)
 }
 
 // GetPlaylistScenes mocks base method.
@@ -217,6 +277,21 @@ func (mr *MockPlaylistRepositoryMockRecorder) GetSceneCount(playlistID any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSceneCount", reflect.TypeOf((*MockPlaylistRepository)(nil).GetSceneCount), playlistID)
 }
 
+// GetThumbnailMarkers mocks base method.
+func (m *MockPlaylistRepository) GetThumbnailMarkers(playlistID uint, limit int) ([]data.MarkerThumbnailRef, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetThumbnailMarkers", playlistID, limit)
+	ret0, _ := ret[0].([]data.MarkerThumbnailRef)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetThumbnailMarkers indicates an expected call of GetThumbnailMarkers.
+func (mr *MockPlaylistRepositoryMockRecorder) GetThumbnailMarkers(playlistID, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetThumbnailMarkers", reflect.TypeOf((*MockPlaylistRepository)(nil).GetThumbnailMarkers), playlistID, limit)
+}
+
 // GetThumbnailScenes mocks base method.
 func (m *MockPlaylistRepository) GetThumbnailScenes(playlistID uint, limit int) ([]data.Scene, error) {
 	m.ctrl.T.Helper()
@@ -247,6 +322,22 @@ func (mr *MockPlaylistRepositoryMockRecorder) GetTotalDuration(playlistID any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTotalDuration", reflect.TypeOf((*MockPlaylistRepository)(nil).GetTotalDuration), playlistID)
 }
 
+// HasMarker mocks base method.
+func (m *MockPlaylistRepository) HasMarker(playlistID, markerID uint) (bool, uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasMarker", playlistID, markerID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(uint)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// HasMarker indicates an expected call of HasMarker.
+func (mr *MockPlaylistRepositoryMockRecorder) HasMarker(playlistID, markerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasMarker", reflect.TypeOf((*MockPlaylistRepository)(nil).HasMarker), playlistID, markerID)
+}
+
 // List mocks base method.
 func (m *MockPlaylistRepository) List(params data.PlaylistListParams) ([]data.Playlist, int64, error) {
 	m.ctrl.T.Helper()
@@ -261,6 +352,21 @@ func (m *MockPlaylistRepository) List(params data.PlaylistListParams) ([]data.Pl
 func (mr *MockPlaylistRepositoryMockRecorder) List(params any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockPlaylistRepository)(nil).List), params)
+}
+
+// RemoveMarkers mocks base method.
+func (m *MockPlaylistRepository) RemoveMarkers(playlistID uint, markerIDs []uint) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveMarkers", playlistID, markerIDs)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RemoveMarkers indicates an expected call of RemoveMarkers.
+func (mr *MockPlaylistRepositoryMockRecorder) RemoveMarkers(playlistID, markerIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMarkers", reflect.TypeOf((*MockPlaylistRepository)(nil).RemoveMarkers), playlistID, markerIDs)
 }
 
 // RemoveScene mocks base method.
@@ -291,6 +397,20 @@ func (mr *MockPlaylistRepositoryMockRecorder) RemoveScenes(playlistID, sceneIDs 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveScenes", reflect.TypeOf((*MockPlaylistRepository)(nil).RemoveScenes), playlistID, sceneIDs)
 }
 
+// ReorderMarkers mocks base method.
+func (m *MockPlaylistRepository) ReorderMarkers(playlistID uint, markerIDs []uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReorderMarkers", playlistID, markerIDs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReorderMarkers indicates an expected call of ReorderMarkers.
+func (mr *MockPlaylistRepositoryMockRecorder) ReorderMarkers(playlistID, markerIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReorderMarkers", reflect.TypeOf((*MockPlaylistRepository)(nil).ReorderMarkers), playlistID, markerIDs)
+}
+
 // ReorderScenes mocks base method.
 func (m *MockPlaylistRepository) ReorderScenes(playlistID uint, sceneIDs []uint) error {
 	m.ctrl.T.Helper()
@@ -303,6 +423,21 @@ func (m *MockPlaylistRepository) ReorderScenes(playlistID uint, sceneIDs []uint)
 func (mr *MockPlaylistRepositoryMockRecorder) ReorderScenes(playlistID, sceneIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReorderScenes", reflect.TypeOf((*MockPlaylistRepository)(nil).ReorderScenes), playlistID, sceneIDs)
+}
+
+// ResolveVisibleMarkerIDs mocks base method.
+func (m *MockPlaylistRepository) ResolveVisibleMarkerIDs(userID uint, label string, opts data.MarkerListOptions, limit int) ([]uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResolveVisibleMarkerIDs", userID, label, opts, limit)
+	ret0, _ := ret[0].([]uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResolveVisibleMarkerIDs indicates an expected call of ResolveVisibleMarkerIDs.
+func (mr *MockPlaylistRepositoryMockRecorder) ResolveVisibleMarkerIDs(userID, label, opts, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveVisibleMarkerIDs", reflect.TypeOf((*MockPlaylistRepository)(nil).ResolveVisibleMarkerIDs), userID, label, opts, limit)
 }
 
 // SetPlaylistTags mocks base method.
@@ -349,15 +484,15 @@ func (mr *MockPlaylistRepositoryMockRecorder) Update(playlist any) *gomock.Call 
 }
 
 // UpsertProgress mocks base method.
-func (m *MockPlaylistRepository) UpsertProgress(userID, playlistID, sceneID uint, positionS float64) error {
+func (m *MockPlaylistRepository) UpsertProgress(userID, playlistID, sceneID uint, markerID *uint, positionS float64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertProgress", userID, playlistID, sceneID, positionS)
+	ret := m.ctrl.Call(m, "UpsertProgress", userID, playlistID, sceneID, markerID, positionS)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpsertProgress indicates an expected call of UpsertProgress.
-func (mr *MockPlaylistRepositoryMockRecorder) UpsertProgress(userID, playlistID, sceneID, positionS any) *gomock.Call {
+func (mr *MockPlaylistRepositoryMockRecorder) UpsertProgress(userID, playlistID, sceneID, markerID, positionS any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertProgress", reflect.TypeOf((*MockPlaylistRepository)(nil).UpsertProgress), userID, playlistID, sceneID, positionS)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertProgress", reflect.TypeOf((*MockPlaylistRepository)(nil).UpsertProgress), userID, playlistID, sceneID, markerID, positionS)
 }

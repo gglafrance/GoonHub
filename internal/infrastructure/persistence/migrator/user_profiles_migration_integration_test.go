@@ -11,10 +11,10 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// Integration test of migration 000099 (user profiles): up, down, up again, and the
+// Integration test of migration 000100 (user profiles): up, down, up again, and the
 // constraints. It migrates the database down and up, so it needs a disposable database of its
 // own: GOONHUB_TEST_MIGRATION_POSTGRES_DSN.
-func TestMigration099UserProfiles(t *testing.T) {
+func TestMigration100UserProfiles(t *testing.T) {
 	dsn := os.Getenv("GOONHUB_TEST_MIGRATION_POSTGRES_DSN")
 	if dsn == "" {
 		t.Skip("GOONHUB_TEST_MIGRATION_POSTGRES_DSN not set")
@@ -42,8 +42,8 @@ func TestMigration099UserProfiles(t *testing.T) {
 		}
 		return n > 0
 	}
-	if err := m.Migrate(99); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		t.Fatalf("migrate to 99: %v", err)
+	if err := m.Migrate(100); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		t.Fatalf("migrate to 100: %v", err)
 	}
 	for _, step := range []struct {
 		down    bool
@@ -53,7 +53,7 @@ func TestMigration099UserProfiles(t *testing.T) {
 			if err := m.Steps(-1); err != nil {
 				t.Fatalf("down: %v", err)
 			}
-		} else if err := m.Migrate(99); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		} else if err := m.Migrate(100); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 			t.Fatalf("up: %v", err)
 		}
 		for _, name := range tables {
@@ -64,11 +64,11 @@ func TestMigration099UserProfiles(t *testing.T) {
 	}
 
 	var userID, sceneID, markerID int64
-	if err := db.QueryRow(`INSERT INTO users (username, password) VALUES ('mig099-a', 'x') RETURNING id`).Scan(&userID); err != nil {
+	if err := db.QueryRow(`INSERT INTO users (username, password) VALUES ('mig100-a', 'x') RETURNING id`).Scan(&userID); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if _, err := db.Exec(`DELETE FROM users WHERE username LIKE 'mig099-%'`); err != nil {
+		if _, err := db.Exec(`DELETE FROM users WHERE username LIKE 'mig100-%'`); err != nil {
 			t.Logf("cleanup: %v", err)
 		}
 		if _, err := db.Exec(`DELETE FROM scenes WHERE stored_path = '/mig099/a.mp4'`); err != nil {

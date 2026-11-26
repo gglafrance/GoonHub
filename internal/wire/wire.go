@@ -20,6 +20,7 @@ import (
 	"goonhub/internal/infrastructure/server"
 	"goonhub/internal/jobs"
 	"goonhub/internal/streaming"
+	"goonhub/internal/together"
 	"goonhub/internal/workers"
 
 	"github.com/gin-gonic/gin"
@@ -87,6 +88,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Marker Repository
 		provideMarkerRepository,
+		provideMarkerLabelRepository,
 
 		// Playlist Repository
 		providePlaylistRepository,
@@ -108,10 +110,15 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideSocialRepository,
 		provideProfileRepository,
 		providePrivacyRepository,
+		providePresenceRepository,
 
 		// Remote Worker Repositories
 		provideWorkerRepository,
 		provideJobLeaseRepository,
+
+		// Goon2gether Repositories
+		provideLobbyRepository,
+		provideEmoteRepository,
 
 		// ============================================================
 		// EXTERNAL SERVICES
@@ -201,10 +208,15 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		providePrivacyService,
 		provideSocialService,
 		provideProfileService,
+		providePresenceService,
 
 		// Remote Workers
 		provideWorkerService,
 		providePushDispatcher,
+
+		// Goon2gether (watch lobbies, emotes)
+		provideEmoteService,
+		provideTogetherHub,
 
 		// ============================================================
 		// API LAYER - MIDDLEWARE
@@ -279,9 +291,12 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Remote Worker Handler
 		provideWorkerHandler,
 
+		// Goon2gether Handler
+		provideTogetherHandler,
 		// Social Handler
 		provideSocialHandler,
 		provideProfileHandler,
+		providePresenceHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -425,6 +440,10 @@ func provideMarkerRepository(db *gorm.DB) data.MarkerRepository {
 	return data.NewMarkerRepository(db)
 }
 
+func provideMarkerLabelRepository(db *gorm.DB) data.MarkerLabelRepository {
+	return data.NewMarkerLabelRepository(db)
+}
+
 func providePlaylistRepository(db *gorm.DB) data.PlaylistRepository {
 	return data.NewPlaylistRepository(db)
 }
@@ -441,6 +460,10 @@ func provideSocialRepository(db *gorm.DB) data.SocialRepository {
 
 func providePrivacyRepository(db *gorm.DB) data.PrivacyRepository {
 	return data.NewPrivacyRepository(db)
+}
+
+func providePresenceRepository(db *gorm.DB) data.PresenceRepository {
+	return data.NewPresenceRepository(db)
 }
 
 // ============================================================================
@@ -702,12 +725,12 @@ func provideHomepageService(
 	return svc
 }
 
-func provideMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
-	return core.NewMarkerService(markerRepo, sceneRepo, tagRepo, cfg, logger.Logger)
+func provideMarkerService(markerRepo data.MarkerRepository, labelRepo data.MarkerLabelRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
+	return core.NewMarkerService(markerRepo, labelRepo, sceneRepo, tagRepo, cfg, logger.Logger)
 }
 
-func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, logger *logging.Logger) *core.PlaylistService {
-	return core.NewPlaylistService(repo, sceneRepo, tagRepo, logger.Logger)
+func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.PlaylistService {
+	return core.NewPlaylistService(repo, sceneRepo, tagRepo, cfg.Playlists, logger.Logger)
 }
 
 // --- Share Service ---
@@ -880,8 +903,10 @@ func provideRetryConfigHandler(retryConfigRepo data.RetryConfigRepository, retry
 
 // --- Real-time & Storage Handlers ---
 
-func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, rbacService *core.RBACService, logger *logging.Logger) *handler.SSEHandler {
-	return handler.NewSSEHandler(eventBus, authService, jobStatusService, rbacService, logger.Logger)
+func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, rbacService *core.RBACService, presence *core.PresenceService, logger *logging.Logger) *handler.SSEHandler {
+	h := handler.NewSSEHandler(eventBus, authService, jobStatusService, rbacService, logger.Logger)
+	h.SetPresence(presence)
+	return h
 }
 
 func provideStoragePathHandler(service *core.StoragePathService) *handler.StoragePathHandler {
@@ -910,8 +935,9 @@ func provideHomepageHandler(homepageService *core.HomepageService) *handler.Home
 	return handler.NewHomepageHandler(homepageService)
 }
 
-func provideMarkerHandler(markerService *core.MarkerService, db *gorm.DB, cfg *config.Config, logger *logging.Logger) *handler.MarkerHandler {
+func provideMarkerHandler(markerService *core.MarkerService, labelRepo data.MarkerLabelRepository, tagRepo data.TagRepository, db *gorm.DB, cfg *config.Config, logger *logging.Logger) *handler.MarkerHandler {
 	h := handler.NewMarkerHandler(markerService, cfg.Pagination.MaxItemsPerPage)
+	h.SetLabelService(core.NewMarkerLabelService(labelRepo, tagRepo, logger.Logger))
 	h.SetSavedFilterService(core.NewSavedMarkerFilterService(data.NewSavedMarkerFilterRepository(db), logger.Logger))
 	return h
 }
@@ -975,6 +1001,16 @@ func provideProfileService(repo data.ProfileRepository, socialRepo data.SocialRe
 
 func provideProfileHandler(profiles *core.ProfileService, cfg *config.Config) *handler.ProfileHandler {
 	return handler.NewProfileHandler(profiles, cfg.Pagination.MaxItemsPerPage)
+}
+
+// providePresenceService creates the presence (docs/PRESENCE.md), subscribed to the privacy
+// and social changes. Its loop is started and stopped by the server.
+func providePresenceService(repo data.PresenceRepository, privacy *core.PrivacyService, social *core.SocialService, sceneRepo data.SceneRepository, rbacService *core.RBACService, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.PresenceService {
+	return core.NewPresenceService(repo, privacy, social, sceneRepo, rbacService, eventBus, cfg.Presence, logger.Logger)
+}
+
+func providePresenceHandler(presence *core.PresenceService) *handler.PresenceHandler {
+	return handler.NewPresenceHandler(presence)
 }
 
 // --- Library Health ---
@@ -1041,8 +1077,10 @@ func provideRouter(
 	duplicateHandler *handler.DuplicateHandler,
 	libraryHealthHandler *handler.LibraryHealthHandler,
 	workerHandler *handler.WorkerHandler,
+	togetherHandler *handler.TogetherHandler,
 	socialHandler *handler.SocialHandler,
 	profileHandler *handler.ProfileHandler,
+	presenceHandler *handler.PresenceHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -1055,7 +1093,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, profileHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, presenceHandler, togetherHandler, profileHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 
@@ -1098,14 +1136,18 @@ func provideServer(
 	transcoder *streaming.Transcoder,
 	workerService *workers.Service,
 	pushDispatcher *workers.PushDispatcher,
+	togetherHub *together.Hub,
+	presenceService *core.PresenceService,
 ) *server.Server {
-	return server.NewHTTPServer(
+	srv := server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
 		actorService, studioService, matchingService, duplicateService, markerService, shareServer, transcoder,
-		workerService, pushDispatcher,
+		workerService, pushDispatcher, togetherHub,
 	)
+	srv.SetPresence(presenceService)
+	return srv
 }
 
 // ============================================================================
@@ -1203,4 +1245,35 @@ func providePushDispatcher(svc *workers.Service) *workers.PushDispatcher {
 
 func provideWorkerHandler(svc *workers.Service, logger *logging.Logger) *handler.WorkerHandler {
 	return handler.NewWorkerHandler(svc, logger.Logger)
+}
+
+// ============================================================================
+// GOON2GETHER
+// ============================================================================
+
+func provideLobbyRepository(db *gorm.DB) data.LobbyRepository {
+	return data.NewLobbyRepository(db)
+}
+
+func provideEmoteRepository(db *gorm.DB) data.EmoteRepository {
+	return data.NewEmoteRepository(db)
+}
+
+func provideEmoteService(repo data.EmoteRepository, cfg *config.Config, logger *logging.Logger) *together.EmoteService {
+	return together.NewEmoteService(repo, cfg.Goon2gether, logger.Logger)
+}
+
+func provideTogetherHub(cfg *config.Config, lobbyRepo data.LobbyRepository, sceneRepo data.SceneRepository, rbacService *core.RBACService, emotes *together.EmoteService, logger *logging.Logger) *together.Hub {
+	hub := together.NewHub(cfg.Goon2gether, lobbyRepo, sceneRepo, rbacService, logger.Logger)
+	hub.SetEmotes(emotes)
+	emotes.OnChange(hub.BroadcastEmotesChanged)
+	return hub
+}
+
+// provideTogetherHandler is nil when Goon2gether is disabled (no routes).
+func provideTogetherHandler(cfg *config.Config, hub *together.Hub, emotes *together.EmoteService, logger *logging.Logger) *handler.TogetherHandler {
+	if !cfg.Goon2gether.Enabled {
+		return nil
+	}
+	return handler.NewTogetherHandler(hub, emotes, handler.OriginPatterns(cfg.Server.AllowedOrigins), logger.Logger)
 }

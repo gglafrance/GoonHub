@@ -11,9 +11,9 @@ const emit = defineEmits<{
 
 const { fetchLabelTags, setLabelTags } = useApiMarkers();
 const { fetchTags } = useApiTags();
-// Label tags are the user's own marker tags: markers:create
+// Labels and their default tags are server-wide: editing them needs marker_labels:manage
 const perms = useMyPermissions();
-const canEdit = computed(() => perms.has('markers:create'));
+const canEdit = computed(() => perms.has('marker_labels:manage'));
 
 const loading = ref(false);
 const saving = ref(false);
@@ -119,7 +119,8 @@ defineExpose({ reload });
             <div>
                 <h3 class="text-sm font-medium text-white">Default Tags</h3>
                 <p class="text-dim mt-0.5 text-[11px]">
-                    These tags are automatically applied to all markers with this label.
+                    These tags are automatically applied to all markers with this label, for every
+                    user.
                 </p>
             </div>
             <div v-if="saving" class="text-dim flex items-center gap-1 text-[10px]">

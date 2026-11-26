@@ -31,6 +31,7 @@ mocks: setup-test
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_scene_phase_failure_repository.go -package=mocks goonhub/internal/data ScenePhaseFailureRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_saved_search_repository.go -package=mocks goonhub/internal/data SavedSearchRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_marker_repository.go -package=mocks goonhub/internal/data MarkerRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_marker_label_repository.go -package=mocks goonhub/internal/data MarkerLabelRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_search_config_repository.go -package=mocks goonhub/internal/data SearchConfigRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_playlist_repository.go -package=mocks goonhub/internal/data PlaylistRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_app_settings_repository.go -package=mocks goonhub/internal/data AppSettingsRepository
@@ -45,6 +46,7 @@ mocks: setup-test
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_social_repository.go -package=mocks goonhub/internal/data SocialRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_privacy_repository.go -package=mocks goonhub/internal/data PrivacyRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_profile_repository.go -package=mocks goonhub/internal/data ProfileRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_presence_repository.go -package=mocks goonhub/internal/data PresenceRepository
 
 test: mocks
 	go test ./...

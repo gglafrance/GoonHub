@@ -14,15 +14,17 @@ This document provides a comprehensive reference of the GoonHub database schema.
 2. [RBAC (Role-Based Access Control)](#rbac-role-based-access-control)
 3. [Content Organization](#content-organization)
 4. [Sharing](#sharing)
-5. [Social Graph](#social-graph)
-   - [User Profiles](#user-profiles)
-6. [User Interactions](#user-interactions)
-7. [Job System](#job-system)
-8. [Storage & Scanning](#storage--scanning)
-9. [Duplicate Detection](#duplicate-detection)
-10. [Application Settings](#application-settings)
-11. [Entity Relationship Diagram](#entity-relationship-diagram)
-12. [Key Patterns & Conventions](#key-patterns--conventions)
+5. [Playlists](#playlists)
+6. [Social Graph](#social-graph)
+7. [User Profiles](#user-profiles)
+8. [User Interactions](#user-interactions)
+9. [Job System](#job-system)
+10. [Storage & Scanning](#storage--scanning)
+11. [Duplicate Detection](#duplicate-detection)
+12. [Goon2gether](#goon2gether)
+13. [Application Settings](#application-settings)
+14. [Entity Relationship Diagram](#entity-relationship-diagram)
+15. [Key Patterns & Conventions](#key-patterns--conventions)
 
 ---
 
@@ -503,10 +505,104 @@ Shareable links for scenes with configurable visibility and expiration.
 
 ---
 
+## Playlists
+
+Playlists of scenes or of markers (migrations 046, 096; see `docs/MARKER_PLAYLISTS.md`). The
+kind is fixed at creation; the items live in `playlist_scenes` or `playlist_markers`.
+
+### `playlists`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `uuid` | UUID | NO | gen_random_uuid() | Public identifier (unique) |
+| `user_id` | BIGINT | NO | - | Owner, FK to `users.id` (CASCADE) |
+| `name` | VARCHAR(255) | NO | - | Name |
+| `description` | TEXT | YES | NULL | Description |
+| `visibility` | VARCHAR(20) | NO | 'private' | `private` or `public` |
+| `kind` | VARCHAR(20) | NO | 'scenes' | `scenes` or `markers` (migration 096) |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last update timestamp |
+
+**Indexes:** `idx_playlists_uuid` UNIQUE on `uuid`, `idx_playlists_user_id` on `user_id`,
+`idx_playlists_visibility` on `visibility` WHERE `visibility = 'public'`, `idx_playlists_kind`
+on `kind`.
+
+**Constraints:** CHECK `visibility IN ('private', 'public')`, CHECK `chk_playlists_kind`:
+`kind IN ('scenes', 'markers')`.
+
+---
+
+### `playlist_scenes`
+
+Scenes of a scene playlist.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `playlist_id` | BIGINT | NO | - | FK to `playlists.id` (CASCADE) |
+| `scene_id` | BIGINT | NO | - | FK to `scenes.id` (CASCADE) |
+| `position` | INT | NO | - | Order in the playlist |
+| `added_at` | TIMESTAMPTZ | NO | NOW() | When the scene was added |
+
+**Indexes:** UNIQUE `(playlist_id, scene_id)`, `(playlist_id)`, `(playlist_id, position)`.
+
+---
+
+### `playlist_markers`
+
+Markers of a marker playlist (migration 096). A marker is in a playlist once; a deleted marker
+leaves every playlist. Markers of trashed or deleted scenes are kept but not listed.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `playlist_id` | BIGINT | NO | - | FK to `playlists.id` (CASCADE) |
+| `marker_id` | BIGINT | NO | - | FK to `user_scene_markers.id` (CASCADE) |
+| `position` | INT | NO | - | Order in the playlist |
+| `added_at` | TIMESTAMPTZ | NO | NOW() | When the marker was added |
+
+**Indexes:** `idx_playlist_markers_unique` UNIQUE on `(playlist_id, marker_id)`,
+`idx_playlist_markers_position` on `(playlist_id, position)`, `idx_playlist_markers_marker_id`
+on `marker_id`.
+
+---
+
+### `playlist_tags`
+
+Tags of a playlist (the `tags` table). UNIQUE `(playlist_id, tag_id)`, both FK CASCADE.
+
+### `playlist_likes`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `playlist_id` | BIGINT | NO | - | FK to `playlists.id` (CASCADE) |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Like timestamp |
+
+**Indexes:** UNIQUE `(user_id, playlist_id)`.
+
+### `playlist_progress`
+
+Resume point of a user in a playlist (one row per user and playlist).
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `playlist_id` | BIGINT | NO | - | FK to `playlists.id` (CASCADE) |
+| `last_scene_id` | BIGINT | YES | NULL | Scene played, FK to `scenes.id` (SET NULL) |
+| `last_marker_id` | BIGINT | YES | NULL | Marker played (marker playlists), FK to `user_scene_markers.id` (SET NULL; migration 096) |
+| `last_position_s` | DOUBLE PRECISION | NO | 0 | Time in the scene, in seconds |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last save |
+
+**Indexes:** UNIQUE `(user_id, playlist_id)` (upsert target).
+
+---
+
 ## Social Graph
 
-Follows, friendships, friend requests and privacy settings (migration 095, `docs/SOCIAL.md`).
-Every table cascades on user deletion.
+Follows, friendships, friend requests and privacy settings (migration 095, `docs/SOCIAL.md`),
+presence (migration 098, `docs/PRESENCE.md`). Every table cascades on user deletion.
 
 ### `user_follows`
 
@@ -594,6 +690,20 @@ default), rows of unknown items are ignored.
 
 ---
 
+### `user_presence`
+
+What outlives the in-memory presence of a user (migration 098, `docs/PRESENCE.md`). The online
+state itself is never stored. No row = never seen online, visible.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `user_id` | BIGINT | NO | - | Primary key, FK to `users.id` (CASCADE) |
+| `last_seen_at` | TIMESTAMPTZ | YES | NULL | Last moment the user was seen online by the others: saved on disconnection (after the grace period), every `presence.last_seen_interval` while online and at shutdown; never moved back, not updated while invisible |
+| `invisible` | BOOLEAN | NO | false | Invisible mode: the user appears offline to everyone |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last change |
+
+---
+
 ### `user_social_settings`
 
 Social preferences of a user. No row = the defaults.
@@ -611,7 +721,7 @@ Social preferences of a user. No row = the defaults.
 
 ## User Profiles
 
-Profile pages (migration 099, `docs/PROFILES.md`). Every table cascades on user deletion. Who
+Profile pages (migration 100, `docs/PROFILES.md`). Every table cascades on user deletion. Who
 sees what is decided by the privacy settings (`user_privacy_settings`), not here.
 
 ### `user_profiles`
@@ -838,8 +948,9 @@ Video bookmarks/markers created by users. A user sees their own markers plus tho
 | `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
 | `scene_id` | BIGINT | NO | - | FK to `scenes.id` (CASCADE) |
 | `timestamp` | INTEGER | NO | - | Position in seconds |
-| `end_timestamp` | INTEGER | YES | NULL | Optional end of the marked range in seconds (looped on click when `user_settings.marker_loop` is on) |
-| `label` | VARCHAR(100) | YES | NULL | Marker label/name |
+| `end_timestamp` | INTEGER | YES | NULL | Optional end of the marked range in seconds (looped on click when `user_settings.marker_loop` is on; played up to it in a marker playlist) |
+| `label_id` | BIGINT | YES | NULL | FK to `marker_labels.id` (SET NULL): the marker's label, NULL without label. Source of truth (migration 097) |
+| `label` | VARCHAR(100) | NO | '' | Name of the label, a copy kept by the trigger `trg_user_scene_markers_sync_label` (`''` without label). A write of the text alone is resolved to the label of that name (ignoring case), created when missing |
 | `color` | VARCHAR(7) | NO | '#FFFFFF' | Hex color code |
 | `thumbnail_path` | VARCHAR(255) | YES | NULL | Generated thumbnail path |
 | `created_at` | TIMESTAMPTZ | NO | NOW() | Marker creation timestamp |
@@ -848,7 +959,8 @@ Video bookmarks/markers created by users. A user sees their own markers plus tho
 **Indexes:**
 - `idx_user_scene_markers_user_scene` on `(user_id, scene_id)`
 - `idx_user_scene_markers_timestamp` on `(scene_id, timestamp)`
-- `idx_user_scene_markers_user_label` on `(user_id, label)`
+- `idx_user_scene_markers_user_label` on `(user_id, label)` (named `idx_user_video_markers_user_label`)
+- `idx_user_scene_markers_label_id` on `label_id`
 
 **Constraints:**
 - CHECK `timestamp >= 0`
@@ -896,24 +1008,48 @@ Tags associated with individual markers.
 
 ---
 
+### `marker_labels`
+
+Server-wide marker labels (migration 097, `docs/MARKER_LABELS.md`), managed with
+`marker_labels:manage`.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `name` | VARCHAR(100) | NO | - | Label name, trimmed, unique ignoring case |
+| `color` | VARCHAR(7) | NO | '#FFFFFF' | Hex color |
+| `description` | TEXT | NO | '' | Optional description |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last update timestamp |
+
+**Indexes:**
+- `idx_marker_labels_name_lower` UNIQUE on `lower(name)`
+
+**Constraints:**
+- CHECK `chk_marker_labels_name_not_blank`: `btrim(name) <> ''`
+
+**Triggers:** `trg_marker_labels_propagate_name` (AFTER UPDATE OF name) renames the
+`user_scene_markers.label` copy of the label's markers.
+
+---
+
 ### `marker_label_tags`
 
-Default tags associated with marker labels (per user).
+Default tags of the marker labels, the same for every user (migration 097; per user before).
+Every marker of the label carries them as `marker_tags.is_from_label = true`.
 
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|
 | `id` | SERIAL | NO | auto | Primary key |
-| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
-| `label` | VARCHAR(100) | NO | - | Marker label name |
+| `label_id` | BIGINT | NO | - | FK to `marker_labels.id` (CASCADE) |
 | `tag_id` | BIGINT | NO | - | FK to `tags.id` (CASCADE) |
 | `created_at` | TIMESTAMPTZ | NO | NOW() | Association timestamp |
 
 **Indexes:**
-- `idx_marker_label_tags_user_label` on `(user_id, label)`
 - `idx_marker_label_tags_tag_id` on `tag_id`
 
 **Constraints:**
-- UNIQUE on `(user_id, label, tag_id)`
+- UNIQUE `uq_marker_label_tags_label_tag` on `(label_id, tag_id)`
 
 ---
 
@@ -1604,6 +1740,86 @@ from the same group have no pair between them and can group again.
 
 ---
 
+## Goon2gether
+
+Synchronized watch lobbies and custom emotes (migration 099, `docs/GOON2GETHER.md`). The live
+state (connections, buffering, holds, chat) is in memory; these tables keep what must survive a
+restart.
+
+### `lobbies`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `uuid` | UUID | NO | - | Public identifier (unique) |
+| `invite_code` | VARCHAR(16) | NO | - | Code of the invite link `/together/join/<code>` (unique, 8 characters without ambiguous ones; can be changed by the host) |
+| `name` | VARCHAR(100) | NO | - | Display name |
+| `visibility` | VARCHAR(10) | NO | 'private' | `public` (listed) or `private` (invite only) |
+| `host_user_id` | BIGINT | YES | NULL | FK to `users.id` (SET NULL): the host (handed over when the host leaves or is away) |
+| `created_by` | BIGINT | YES | NULL | FK to `users.id` (SET NULL) |
+| `control_open` | BOOLEAN | NO | FALSE | Every member controls playback and the queue |
+| `queue_open` | BOOLEAN | NO | FALSE | Every member adds to the queue (else suggestions) |
+| `wait_for_all` | BOOLEAN | NO | FALSE | Hold playback while members buffer |
+| `max_members` | INTEGER | NO | 0 | Most online members (0 = `goon2gether.max_members`) |
+| `current_item_id` | BIGINT | YES | NULL | FK to `lobby_queue_items.id` (SET NULL): item playing, last saved |
+| `position_s` | DOUBLE PRECISION | NO | 0 | Last saved position in the current item (seconds) |
+| `playback_rate` | DOUBLE PRECISION | NO | 1 | Last saved playback rate |
+| `last_active_at` | TIMESTAMPTZ | NO | NOW() | Last time someone was connected; lobbies idle for `goon2gether.idle_timeout` are deleted |
+| `created_at`, `updated_at` | TIMESTAMPTZ | NO | NOW() | |
+
+**Indexes:** `idx_lobbies_uuid` UNIQUE, `idx_lobbies_invite_code` UNIQUE, `idx_lobbies_public_active` on `last_active_at DESC` WHERE `visibility = 'public'`, `idx_lobbies_host_user_id`, `idx_lobbies_last_active_at`.
+
+**Constraints:** CHECK `chk_lobbies_visibility` (`public`, `private`), `chk_lobbies_max_members` (`>= 0`), `chk_lobbies_playback_rate` (`> 0`); `fk_lobbies_current_item` ON DELETE SET NULL.
+
+### `lobby_members`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `lobby_id` | BIGINT | NO | - | FK to `lobbies.id` (CASCADE) |
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `can_control` | BOOLEAN | NO | FALSE | Control given by the host |
+| `banned_at` | TIMESTAMPTZ | YES | NULL | Banned from the lobby (the row stays, the user cannot join again) |
+| `joined_at` | TIMESTAMPTZ | NO | NOW() | Join date (orders the host hand-over) |
+
+**Indexes:** PRIMARY KEY `(lobby_id, user_id)`, `idx_lobby_members_user_id`.
+
+### `lobby_queue_items`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `lobby_id` | BIGINT | NO | - | FK to `lobbies.id` (CASCADE) |
+| `scene_id` | BIGINT | NO | - | FK to `scenes.id` (CASCADE) |
+| `status` | VARCHAR(10) | NO | 'queued' | `queued` (in the queue; the first one is playing) or `suggested` (waiting for the host or a controller) |
+| `position` | INTEGER | NO | 0 | Order within its status |
+| `start_s`, `end_s` | DOUBLE PRECISION | YES | NULL | Optional range (a marker) in seconds |
+| `label` | VARCHAR(100) | YES | NULL | Optional label (e.g. the marker label) |
+| `added_by` | BIGINT | YES | NULL | FK to `users.id` (SET NULL) |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | |
+
+An item that finished playing is deleted. **Indexes:** `idx_lobby_queue_items_lobby_status_position` on `(lobby_id, status, position)`, `idx_lobby_queue_items_scene_id`. **Constraints:** CHECK `chk_lobby_queue_items_status`, `chk_lobby_queue_items_start` (`start_s >= 0`), `chk_lobby_queue_items_range` (`end_s > COALESCE(start_s, 0)`).
+
+### `emotes`
+
+Server custom emotes (`:name:` in the chat). The image is stored in `goon2gether.emote_dir`
+under `filename` (random hex name, never a media directory) and served at `/emotes/<filename>`.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `name` | VARCHAR(32) | NO | - | `^[A-Za-z0-9_]{2,32}$`, unique without regard to case |
+| `filename` | VARCHAR(64) | NO | - | Stored file name (unique) |
+| `content_type` | VARCHAR(32) | NO | - | `image/png`, `image/gif` or `image/webp` |
+| `width`, `height` | INTEGER | NO | - | Pixels |
+| `size_bytes` | INTEGER | NO | - | File size |
+| `animated` | BOOLEAN | NO | FALSE | Animated GIF, WebP or APNG |
+| `created_by` | BIGINT | YES | NULL | FK to `users.id` (SET NULL) |
+| `created_at`, `updated_at` | TIMESTAMPTZ | NO | NOW() | |
+
+**Indexes:** `idx_emotes_name_lower` UNIQUE on `LOWER(name)`, `idx_emotes_filename` UNIQUE. **Constraints:** CHECK `chk_emotes_name`, `chk_emotes_content_type`.
+
+---
+
 ## Application Settings
 
 ### `app_settings`
@@ -1702,20 +1918,6 @@ Sharing:
 | view_count       |
 +------------------+
 
-Social graph (users <-> users):
-+--------------------+   +--------------------+   +--------------------+
-| user_follows       |   | user_friendships   |   | friend_requests    |
-+--------------------+   +--------------------+   +--------------------+
-| follower_id (FK)   |   | user_low_id (FK)   |   | sender_id (FK)     |
-| followed_id (FK)   |   | user_high_id (FK)  |   | receiver_id (FK)   |
-+--------------------+   +--------------------+   +--------------------+
-+-----------------------+   +----------------------+
-| user_privacy_settings |   | user_social_settings |
-+-----------------------+   +----------------------+
-| user_id (FK), item    |   | user_id (PK, FK)     |
-| audience              |   | friend_request_policy|
-+-----------------------+   +----------------------+
-
 User Interactions (scenes):
 +------------------------+   +------------------------+   +------------------------+
 | user_scene_ratings     |   | user_scene_likes       |   | user_scene_jizzed      |
@@ -1727,11 +1929,11 @@ User Interactions (scenes):
 
 +------------------------+   +------------------------+
 | user_scene_watches     |   | user_scene_markers     |-------> marker_tags
-+------------------------+   +------------------------+         marker_label_tags
++------------------------+   +------------------------+         marker_labels <- marker_label_tags
 | user_id (FK)           |   | user_id (FK)           |
 | scene_id (FK)          |   | scene_id (FK)          |
 | last_position          |   | timestamp              |
-| completed              |   | label                  |
+| completed              |   | label_id (FK), label   |
 +------------------------+   +------------------------+
 
 Job System:
@@ -1812,7 +2014,8 @@ Internal references still use BIGSERIAL `id` for performance.
 
 ### Foreign Key Cascade Rules
 
-- User-owned data: `ON DELETE CASCADE` (settings, interactions, markers, share_links, follows, friendships, friend requests, privacy settings)
+- User-owned data: `ON DELETE CASCADE` (settings, interactions, markers, share_links, playlists, follows, friendships, friend requests, privacy settings, presence)
+- Playlist items: `ON DELETE CASCADE` (`playlist_scenes`, `playlist_markers`: a deleted scene or marker leaves the playlists)
 - Content associations: `ON DELETE CASCADE` (scene_tags, scene_actors, share_links)
 - Optional references: `ON DELETE SET NULL` (scenes.studio_id)
 

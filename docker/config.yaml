@@ -105,6 +105,10 @@ shutdown:
 pagination:
   max_items_per_page: 100     # maximum items per page for all paginated endpoints
 
+playlists:
+  max_markers: 1000           # most markers in a marker playlist (0 = no limit)
+  marker_default_duration: 30 # seconds a marker without an end plays in a marker playlist
+
 social:                       # docs/SOCIAL.md (0 = unlimited)
   friend_requests_per_hour: 30  # friend requests a user can send per hour
   follows_per_hour: 60          # follows a user can make per hour
@@ -118,6 +122,18 @@ profiles:                       # docs/PROFILES.md
   max_showcase_items: 4         # favorite videos / markers per showcase (1-12)
   bio_max_length: 1000          # characters
   display_name_max_length: 64   # characters (64 at most)
+
+presence:                       # docs/PRESENCE.md
+  disconnect_grace: 30s         # still online this long after the last live connection closed
+  idle_after: 5m                # no input nor playback for this long = idle
+  heartbeat_interval: 60s       # the client reports input at most this often
+  activity_interval: 15s        # the client reports the playback position this often
+  activity_ttl: 60s             # an activity not reported for this long ends
+  paused_after: 20s             # a playback paused this long shows as paused
+  seek_threshold: 15s           # a jump this big in the position is pushed
+  flush_interval: 2s            # presence changes are coalesced and pushed at this interval
+  last_seen_interval: 5m        # last seen of online users saved this often
+  max_tabs_per_user: 8          # activities kept per user (one per tab)
 
 streaming:
   max_global_streams: 100     # total concurrent streams allowed

@@ -42,6 +42,30 @@ type SocialService struct {
 	mu              sync.Mutex
 	requestLimiters map[uint]*rate.Limiter
 	followLimiters  map[uint]*rate.Limiter
+
+	listenersMu sync.RWMutex
+	listeners   []RelationChangeListener
+}
+
+// RelationChangeListener is called after the relation between two users changed (follow,
+// unfollow, friendship made or removed), e.g. to re-evaluate what each may see of the other.
+type RelationChangeListener func(a, b uint)
+
+// OnRelationChange registers a listener of the relation changes (called synchronously after
+// the change: keep it short).
+func (s *SocialService) OnRelationChange(fn RelationChangeListener) {
+	s.listenersMu.Lock()
+	defer s.listenersMu.Unlock()
+	s.listeners = append(s.listeners, fn)
+}
+
+func (s *SocialService) relationChanged(a, b uint) {
+	s.listenersMu.RLock()
+	listeners := append([]RelationChangeListener(nil), s.listeners...)
+	s.listenersMu.RUnlock()
+	for _, fn := range listeners {
+		fn(a, b)
+	}
 }
 
 func NewSocialService(repo data.SocialRepository, privacy *PrivacyService, eventBus *EventBus, cfg config.SocialConfig, logger *zap.Logger) *SocialService {
@@ -365,6 +389,7 @@ func (s *SocialService) Follow(ctx context.Context, userID, targetID uint) (Rela
 		return Relationship{}, fmt.Errorf("failed to follow: %w", err)
 	}
 	if created {
+		s.relationChanged(userID, targetID)
 		s.notify(ctx, targetID, EventSocialFollowed, userID, nil)
 	}
 	return s.Relationship(ctx, userID, targetID)
@@ -375,8 +400,12 @@ func (s *SocialService) Unfollow(ctx context.Context, userID, targetID uint) (Re
 	if _, err := s.checkTarget(ctx, userID, targetID); err != nil {
 		return Relationship{}, err
 	}
-	if _, err := s.repo.Unfollow(ctx, userID, targetID); err != nil {
+	removed, err := s.repo.Unfollow(ctx, userID, targetID)
+	if err != nil {
 		return Relationship{}, fmt.Errorf("failed to unfollow: %w", err)
+	}
+	if removed {
+		s.relationChanged(userID, targetID)
 	}
 	return s.Relationship(ctx, userID, targetID)
 }
@@ -426,6 +455,7 @@ func (s *SocialService) SendFriendRequest(ctx context.Context, userID, targetID 
 		return false, Relationship{}, apperrors.ErrFriendRequestPending()
 	case data.FriendRequestAccepted:
 		accepted = true
+		s.relationChanged(userID, targetID)
 		s.notify(ctx, targetID, EventSocialFriendRequestAccepted, userID, nil)
 		s.notifyRequestsChanged(ctx, userID)
 	default:
@@ -447,6 +477,7 @@ func (s *SocialService) AcceptFriendRequest(ctx context.Context, userID, senderI
 	if !ok {
 		return Relationship{}, apperrors.ErrFriendRequestNotFound()
 	}
+	s.relationChanged(userID, senderID)
 	s.notify(ctx, senderID, EventSocialFriendRequestAccepted, userID, nil)
 	s.notifyRequestsChanged(ctx, userID)
 	return s.Relationship(ctx, userID, senderID)
@@ -498,6 +529,7 @@ func (s *SocialService) RemoveFriend(ctx context.Context, userID, friendID uint)
 	if !ok {
 		return Relationship{}, apperrors.NewNotFoundError("friend", friendID)
 	}
+	s.relationChanged(userID, friendID)
 	return s.Relationship(ctx, userID, friendID)
 }
 

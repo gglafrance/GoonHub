@@ -23,3 +23,22 @@ type SetLabelTagsRequest struct {
 type SetMarkerTagsRequest struct {
 	TagIDs []uint `json:"tag_ids" binding:"required"`
 }
+
+// MarkerLabelRequest is the body of POST /marker-labels (name required) and
+// PUT /marker-labels/:id (absent fields unchanged).
+type MarkerLabelRequest struct {
+	Name        *string `json:"name"`
+	Color       *string `json:"color"`
+	Description *string `json:"description"`
+}
+
+type DeleteMarkerLabelsRequest struct {
+	IDs []uint `json:"ids" binding:"required"`
+}
+
+type MergeMarkerLabelsRequest struct {
+	TargetID  uint   `json:"target_id" binding:"required"`
+	SourceIDs []uint `json:"source_ids" binding:"required"`
+	// DryRun only counts what the merge would change.
+	DryRun bool `json:"dry_run"`
+}

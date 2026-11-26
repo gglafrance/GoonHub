@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import type { VttCue } from '~/composables/useVttParser';
 import type { Marker } from '~/types/marker';
+import type { PlaylistQueueItem } from '~/utils/playlistQueue';
 import type ScenePlayer from '~/components/ScenePlayer.vue';
 import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
 const route = useRoute();
 const router = useRouter();
 const settingsStore = useSettingsStore();
+const perms = useMyPermissions();
+// "Watch together" (Goon2gether): start a lobby with this scene or add it to one
+const showTogether = ref(false);
 
 const sceneId = computed(() => parseInt(route.params.id as string));
 
@@ -179,14 +183,16 @@ async function loadPage() {
     }
 }
 
-// Playlist navigation helpers
-const navigateToPlaylistScene = (entry: { scene: { id: number } } | null, index: number) => {
+// Playlist navigation helpers: a scene plays from its start, a marker from its start time
+const navigateToPlaylistScene = (entry: PlaylistQueueItem | null, index: number) => {
     if (!entry || !playlistUuid.value) return;
-    const query: Record<string, string> = { playlist: playlistUuid.value, pos: String(index) };
-    if (playlistPlayer.shuffleSeed.value) {
-        query.shuffle = String(playlistPlayer.shuffleSeed.value);
-    }
-    router.push({ path: `/watch/${entry.scene.id}`, query });
+    const query = playlistItemQuery(
+        playlistUuid.value,
+        entry,
+        index,
+        playlistPlayer.shuffleSeed.value,
+    );
+    router.push({ path: `/watch/${entry.sceneId}`, query });
 };
 
 // Register callback for countdown-triggered navigation
@@ -194,16 +200,37 @@ playlistPlayer.onNavigate((entry, index) => {
     navigateToPlaylistScene(entry, index);
 });
 
-const handlePlaylistSceneEnd = () => {
-    if (!isPlaylistMode.value) return;
+// End of the current item: the next one, or (manual advance, end of the playlist) a stop
+const advancePlaylist = () => {
     const next = playlistPlayer.onSceneEnd();
     if (next) {
         navigateToPlaylistScene(next, playlistPlayer.currentIndex.value);
+    } else if (playlistPlayer.isMarkerPlaylist.value && !playlistPlayer.showCountdown.value) {
+        playerRef.value?.player?.pause();
     }
 };
 
+// Marker playlists: each marker plays its range, then the next one; resume points for both
+const playlistItemPlayback = usePlaylistItemPlayback({
+    player: () => playerRef.value?.player ?? null,
+    item: () => (isPlaylistMode.value ? playlistPlayer.currentItem.value : null),
+    sceneId: () => sceneId.value,
+    onMarkerEnd: advancePlaylist,
+    save: (item, positionS) => playlistPlayer.saveProgress(item, positionS),
+});
+
+const handlePlaylistSceneEnd = () => {
+    if (!isPlaylistMode.value) return;
+    // The scene ended before the end of the marker range
+    if (playlistPlayer.isMarkerPlaylist.value) {
+        playlistItemPlayback.finishMarker();
+        return;
+    }
+    advancePlaylist();
+};
+
 const handlePlaylistGoToScene = (orderIndex: number) => {
-    const entry = playlistPlayer.goToScene(orderIndex);
+    const entry = playlistPlayer.goToItem(orderIndex);
     if (entry) {
         navigateToPlaylistScene(entry, orderIndex);
     }
@@ -326,8 +353,21 @@ definePageMeta({
                     <span class="text-xs font-medium">{{ backLabel }}</span>
                 </button>
 
-                <div v-if="scene" class="text-dim hidden truncate text-xs sm:block">
-                    {{ scene.title }}
+                <div class="flex min-w-0 items-center gap-3">
+                    <div v-if="scene" class="text-dim hidden truncate text-xs sm:block">
+                        {{ scene.title }}
+                    </div>
+                    <button
+                        v-if="scene && perms.has('goon2gether:use')"
+                        class="border-border bg-panel text-dim hover:border-lava/30 hover:text-lava
+                            flex h-6 shrink-0 items-center gap-1.5 rounded-md border px-2
+                            text-[11px] font-medium transition-all"
+                        title="Watch this scene with others"
+                        @click="showTogether = true"
+                    >
+                        <Icon name="heroicons:users" size="12" />
+                        Watch together
+                    </button>
                 </div>
             </div>
         </div>
@@ -484,6 +524,7 @@ definePageMeta({
                                     :has-next="playlistPlayer.hasNext.value"
                                     :has-previous="playlistPlayer.hasPrevious.value"
                                     scrubber-toggle
+                                    presence
                                     @play="isScenePlaying = true"
                                     @pause="isScenePlaying = false"
                                     @error="playerError = $event"
@@ -542,6 +583,7 @@ definePageMeta({
                     <WatchPlaylistSidebar
                         v-if="isPlaylistMode && playlistPlayer.playlist.value"
                         :playlist="playlistPlayer.playlist.value"
+                        :items="playlistPlayer.items.value"
                         :current-index="playlistPlayer.currentIndex.value"
                         :effective-order="playlistPlayer.effectiveOrder.value"
                         :is-shuffled="playlistPlayer.isShuffled.value"
@@ -561,6 +603,7 @@ definePageMeta({
         <WatchPlaylistMobileBar
             v-if="isPlaylistMode && playlistPlayer.playlist.value && scene && !isProcessing"
             :playlist="playlistPlayer.playlist.value"
+            :items="playlistPlayer.items.value"
             :current-index="playlistPlayer.currentIndex.value"
             :effective-order="playlistPlayer.effectiveOrder.value"
             :is-shuffled="playlistPlayer.isShuffled.value"
@@ -574,11 +617,18 @@ definePageMeta({
             @unshuffle="playlistPlayer.unshuffle()"
         />
 
+        <TogetherAddModal
+            v-if="scene"
+            :visible="showTogether"
+            :items="[{ scene_id: scene.id }]"
+            @close="showTogether = false"
+        />
+
         <!-- Playlist Auto-Advance Overlay -->
         <WatchPlaylistAutoAdvance
             v-if="isPlaylistMode"
             :visible="playlistPlayer.showCountdown.value"
-            :next-scene="playlistPlayer.nextScene.value"
+            :next-item="playlistPlayer.nextItem.value"
             :countdown-remaining="playlistPlayer.countdownRemaining.value"
             @play-now="handlePlaylistCountdownPlayNow"
             @cancel="playlistPlayer.cancelCountdown()"

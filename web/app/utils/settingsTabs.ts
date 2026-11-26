@@ -10,6 +10,7 @@ export type SettingsTabId =
     | 'app'
     | 'homepage'
     | 'tags'
+    | 'marker-labels'
     | 'parsing-rules'
     | 'users'
     | 'jobs'
@@ -17,7 +18,8 @@ export type SettingsTabId =
     | 'workers'
     | 'duplicates'
     | 'health'
-    | 'trash';
+    | 'trash'
+    | 'emotes';
 
 export interface SettingsSubTabConfig {
     id: string;
@@ -53,6 +55,12 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     },
     { id: 'homepage', label: 'Homepage', icon: 'heroicons:home' },
     { id: 'tags', label: 'Tags', icon: 'heroicons:tag' },
+    {
+        id: 'marker-labels',
+        label: 'Marker Labels',
+        icon: 'heroicons:bookmark',
+        permissions: ['marker_labels:manage'],
+    },
     { id: 'parsing-rules', label: 'Parsing Rules', icon: 'heroicons:funnel' },
     {
         id: 'users',
@@ -113,6 +121,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
         icon: 'heroicons:trash',
         admin: true,
         permissions: ['trash:manage'],
+    },
+    {
+        id: 'emotes',
+        label: 'Emotes',
+        icon: 'heroicons:face-smile',
+        admin: true,
+        permissions: ['emotes:manage'],
     },
 ];
 

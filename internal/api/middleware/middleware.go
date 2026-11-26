@@ -30,6 +30,8 @@ func Setup(r *gin.Engine, logger *logging.Logger, allowedOrigins []string, envir
 		`/api/v1/shares/[^/]+/transcode`,
 		// Remote workers: media served with Range, uploads without a read deadline
 		`/api/v1/workers/`,
+		// Goon2gether WebSocket: the connection is hijacked
+		`/api/v1/together/lobbies/[^/]+/ws`,
 	})))
 
 	// Security Headers

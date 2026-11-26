@@ -40,12 +40,30 @@ describe('visibleSettingsTabs', () => {
         ]);
     });
 
+    test('marker labels need marker_labels:manage (not an admin tab)', () => {
+        const tabs = visibleSettingsTabs(
+            SETTINGS_TABS,
+            withPermissions('scenes:view', 'marker_labels:manage'),
+        );
+        expect(ids(tabs)).toContain('marker-labels');
+        expect(tabs.find((t) => t.id === 'marker-labels')?.admin).toBeUndefined();
+    });
+
     test('each admin tab follows its own permission', () => {
         const tabs = visibleSettingsTabs(
             SETTINGS_TABS,
             withPermissions('jobs:manage', 'trash:manage', 'roles:manage'),
         );
         expect(ids(tabs.filter((t) => t.admin))).toEqual(['users', 'jobs', 'workers', 'trash']);
+    });
+
+    test('the emotes tab needs emotes:manage', () => {
+        expect(
+            ids(visibleSettingsTabs(SETTINGS_TABS, withPermissions('scenes:view'))),
+        ).not.toContain('emotes');
+        expect(ids(visibleSettingsTabs(SETTINGS_TABS, withPermissions('emotes:manage')))).toContain(
+            'emotes',
+        );
     });
 
     test('every permission shows every tab', () => {

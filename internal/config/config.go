@@ -23,13 +23,30 @@ type Config struct {
 	Shutdown      ShutdownConfig      `mapstructure:"shutdown"`
 	Streaming     StreamingConfig     `mapstructure:"streaming"`
 	Pagination    PaginationConfig    `mapstructure:"pagination"`
+	Playlists     PlaylistsConfig     `mapstructure:"playlists"`
 	Sharing       SharingConfig       `mapstructure:"sharing"`
 	Duplication   DuplicationConfig   `mapstructure:"duplication"`
 	ClickHouse    ClickHouseConfig    `mapstructure:"clickhouse"`
 	LibraryHealth LibraryHealthConfig `mapstructure:"library_health"`
 	Workers       WorkersConfig       `mapstructure:"workers"`
+	Goon2gether   Goon2getherConfig   `mapstructure:"goon2gether"`
 	Social        SocialConfig        `mapstructure:"social"`
+	Presence      PresenceConfig      `mapstructure:"presence"`
 	Profiles      ProfilesConfig      `mapstructure:"profiles"`
+}
+
+// PresenceConfig sets the timings of the presence (online, idle, now watching, docs/PRESENCE.md).
+type PresenceConfig struct {
+	DisconnectGrace   time.Duration `mapstructure:"disconnect_grace"`   // a user stays online this long after their last live connection closed (page reloads)
+	IdleAfter         time.Duration `mapstructure:"idle_after"`         // no activity (input, playback) for this long = idle
+	HeartbeatInterval time.Duration `mapstructure:"heartbeat_interval"` // the client reports input at most this often (sent to the client)
+	ActivityInterval  time.Duration `mapstructure:"activity_interval"`  // the client reports the playback position this often (sent to the client)
+	ActivityTTL       time.Duration `mapstructure:"activity_ttl"`       // an activity not reported for this long ends (closed tab, crash)
+	PausedAfter       time.Duration `mapstructure:"paused_after"`       // a playback paused for this long shows as paused
+	SeekThreshold     time.Duration `mapstructure:"seek_threshold"`     // a position this far from the expected one is a seek (pushed)
+	FlushInterval     time.Duration `mapstructure:"flush_interval"`     // changes are coalesced and pushed at this interval
+	LastSeenInterval  time.Duration `mapstructure:"last_seen_interval"` // last_seen_at of online users is saved this often (also on disconnect)
+	MaxTabsPerUser    int           `mapstructure:"max_tabs_per_user"`  // activities kept per user (one per tab), the oldest is dropped
 }
 
 // ProfilesConfig configures the user profile pages (docs/PROFILES.md).
@@ -52,6 +69,38 @@ type SocialConfig struct {
 
 // LibraryHealthConfig configures the background tasks of the library health page.
 // WorkersConfig configures the remote workers (goonhub-worker, docs/REMOTE_WORKERS.md).
+// Goon2getherConfig configures the synchronized watch lobbies (docs/GOON2GETHER.md).
+type Goon2getherConfig struct {
+	Enabled               bool          `mapstructure:"enabled"`
+	EmoteDir              string        `mapstructure:"emote_dir"`           // emote images (GoonHub data, never a media directory)
+	EmoteMaxBytes         int64         `mapstructure:"emote_max_bytes"`     // largest emote file
+	EmoteMaxDimension     int           `mapstructure:"emote_max_dimension"` // largest emote width and height (px)
+	EmoteMaxCount         int           `mapstructure:"emote_max_count"`
+	MaxMembers            int           `mapstructure:"max_members"` // online members per lobby (cap of a lobby's own limit)
+	MaxLobbiesPerUser     int           `mapstructure:"max_lobbies_per_user"`
+	MaxQueueItems         int           `mapstructure:"max_queue_items"`
+	MaxSuggestions        int           `mapstructure:"max_suggestions"`
+	MaxConnectionsPerUser int           `mapstructure:"max_connections_per_user"` // per lobby
+	ChatHistory           int           `mapstructure:"chat_history"`             // messages kept per lobby
+	ChatMaxLength         int           `mapstructure:"chat_max_length"`          // characters
+	ChatRateLimit         int           `mapstructure:"chat_rate_limit"`          // messages per rate_window
+	ReactionRateLimit     int           `mapstructure:"reaction_rate_limit"`      // reactions per rate_window
+	RateWindow            time.Duration `mapstructure:"rate_window"`
+	DriftThreshold        float64       `mapstructure:"drift_threshold"` // seconds, clients seek over it
+	DriftNudge            bool          `mapstructure:"drift_nudge"`     // small drifts corrected with the playback rate
+	HoldTimeout           time.Duration `mapstructure:"hold_timeout"`    // longest "wait for everyone" hold
+	EndGrace              time.Duration `mapstructure:"end_grace"`       // after the scene duration before advancing
+	HostGrace             time.Duration `mapstructure:"host_grace"`      // host absence before the role is handed over
+	TickInterval          time.Duration `mapstructure:"tick_interval"`
+	UnloadAfter           time.Duration `mapstructure:"unload_after"` // a lobby without connections leaves memory
+	IdleTimeout           time.Duration `mapstructure:"idle_timeout"` // a lobby nobody connected to is deleted
+	CleanupInterval       time.Duration `mapstructure:"cleanup_interval"`
+	SendBuffer            int           `mapstructure:"send_buffer"` // messages queued per connection
+	PingInterval          time.Duration `mapstructure:"ping_interval"`
+	WriteTimeout          time.Duration `mapstructure:"write_timeout"`
+	MaxMessageBytes       int64         `mapstructure:"max_message_bytes"`
+}
+
 type WorkersConfig struct {
 	Enabled              bool          `mapstructure:"enabled"`                 // enables the worker API
 	HeartbeatInterval    time.Duration `mapstructure:"heartbeat_interval"`      // sent to the workers
@@ -109,6 +158,15 @@ type SharingConfig struct {
 
 type PaginationConfig struct {
 	MaxItemsPerPage int `mapstructure:"max_items_per_page"`
+}
+
+// PlaylistsConfig configures the playlists (marker playlists: docs/MARKER_PLAYLISTS.md).
+type PlaylistsConfig struct {
+	// MaxMarkers is the most markers a marker playlist holds (0 = no limit).
+	MaxMarkers int `mapstructure:"max_markers"`
+	// MarkerDefaultDuration is how long, in seconds, a marker without an end plays in a marker
+	// playlist before the next one.
+	MarkerDefaultDuration int `mapstructure:"marker_default_duration"`
 }
 
 type StreamingConfig struct {
@@ -358,6 +416,8 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("shutdown.orphan_timeout", 30*time.Second)
 	v.SetDefault("shutdown.stuck_pending_time", 10*time.Minute)
 	v.SetDefault("pagination.max_items_per_page", 100)
+	v.SetDefault("playlists.max_markers", 1000)
+	v.SetDefault("playlists.marker_default_duration", 30)
 	v.SetDefault("sharing.base_url", "")
 	v.SetDefault("sharing.port", "")
 
@@ -371,9 +431,47 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("profiles.max_showcase_items", 4)
 	v.SetDefault("profiles.bio_max_length", 1000)
 	v.SetDefault("profiles.display_name_max_length", 64)
+	v.SetDefault("presence.disconnect_grace", 30*time.Second)
+	v.SetDefault("presence.idle_after", 5*time.Minute)
+	v.SetDefault("presence.heartbeat_interval", 60*time.Second)
+	v.SetDefault("presence.activity_interval", 15*time.Second)
+	v.SetDefault("presence.activity_ttl", 60*time.Second)
+	v.SetDefault("presence.paused_after", 20*time.Second)
+	v.SetDefault("presence.seek_threshold", 15*time.Second)
+	v.SetDefault("presence.flush_interval", 2*time.Second)
+	v.SetDefault("presence.last_seen_interval", 5*time.Minute)
+	v.SetDefault("presence.max_tabs_per_user", 8)
 	v.SetDefault("duplication.enabled", false)
 	v.SetDefault("library_health.stat_concurrency", 8)
 	v.SetDefault("workers.enabled", false)
+	v.SetDefault("goon2gether.enabled", true)
+	v.SetDefault("goon2gether.emote_dir", "./data/emotes")
+	v.SetDefault("goon2gether.emote_max_bytes", int64(512<<10))
+	v.SetDefault("goon2gether.emote_max_dimension", 256)
+	v.SetDefault("goon2gether.emote_max_count", 500)
+	v.SetDefault("goon2gether.max_members", 20)
+	v.SetDefault("goon2gether.max_lobbies_per_user", 5)
+	v.SetDefault("goon2gether.max_queue_items", 200)
+	v.SetDefault("goon2gether.max_suggestions", 50)
+	v.SetDefault("goon2gether.max_connections_per_user", 4)
+	v.SetDefault("goon2gether.chat_history", 100)
+	v.SetDefault("goon2gether.chat_max_length", 500)
+	v.SetDefault("goon2gether.chat_rate_limit", 5)
+	v.SetDefault("goon2gether.reaction_rate_limit", 10)
+	v.SetDefault("goon2gether.rate_window", 10*time.Second)
+	v.SetDefault("goon2gether.drift_threshold", 0.75)
+	v.SetDefault("goon2gether.drift_nudge", true)
+	v.SetDefault("goon2gether.hold_timeout", 10*time.Second)
+	v.SetDefault("goon2gether.end_grace", 1500*time.Millisecond)
+	v.SetDefault("goon2gether.host_grace", 60*time.Second)
+	v.SetDefault("goon2gether.tick_interval", 500*time.Millisecond)
+	v.SetDefault("goon2gether.unload_after", time.Minute)
+	v.SetDefault("goon2gether.idle_timeout", 24*time.Hour)
+	v.SetDefault("goon2gether.cleanup_interval", time.Minute)
+	v.SetDefault("goon2gether.send_buffer", 64)
+	v.SetDefault("goon2gether.ping_interval", 25*time.Second)
+	v.SetDefault("goon2gether.write_timeout", 10*time.Second)
+	v.SetDefault("goon2gether.max_message_bytes", int64(16<<10))
 	v.SetDefault("workers.heartbeat_interval", 10*time.Second)
 	v.SetDefault("workers.lease_duration", 60*time.Second)
 	v.SetDefault("workers.expiry_sweep_interval", 5*time.Second)

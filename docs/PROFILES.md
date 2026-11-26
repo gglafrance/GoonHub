@@ -7,7 +7,7 @@ privacy framework (`docs/SOCIAL.md`): read "Privacy framework" there first.
 
 ## Model
 
-- **Profile** (`user_profiles`, migration 099, one row per user who edited theirs; no row = the
+- **Profile** (`user_profiles`, migration 100, one row per user who edited theirs; no row = the
   defaults): display name, bio, avatar version, banner (none, a scene thumbnail, or an uploaded
   image), block layout.
 - **Showcases**: the favorite videos (`user_profile_favorite_scenes`) and the favorite markers

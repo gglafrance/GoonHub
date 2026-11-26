@@ -2,6 +2,7 @@ package core
 
 import (
 	"goonhub/internal/apperrors"
+	"goonhub/internal/config"
 	"goonhub/internal/data"
 	"goonhub/internal/mocks"
 	"strings"
@@ -19,7 +20,7 @@ func newTestPlaylistService(t *testing.T) (*PlaylistService, *mocks.MockPlaylist
 	sceneRepo := mocks.NewMockSceneRepository(ctrl)
 	tagRepo := mocks.NewMockTagRepository(ctrl)
 
-	svc := NewPlaylistService(playlistRepo, sceneRepo, tagRepo, zap.NewNop())
+	svc := NewPlaylistService(playlistRepo, sceneRepo, tagRepo, config.PlaylistsConfig{MaxMarkers: 3, MarkerDefaultDuration: 30}, zap.NewNop())
 	return svc, playlistRepo, sceneRepo, tagRepo
 }
 
@@ -450,9 +451,9 @@ func TestProgress_UpsertAndGet(t *testing.T) {
 
 	// Update progress
 	playlistRepo.EXPECT().GetByUUID(testUUID.String()).Return(playlist, nil)
-	playlistRepo.EXPECT().UpsertProgress(uint(1), uint(1), uint(42), 125.5).Return(nil)
+	playlistRepo.EXPECT().UpsertProgress(uint(1), uint(1), uint(42), (*uint)(nil), 125.5).Return(nil)
 
-	err := svc.UpdateProgress(1, testUUID.String(), 42, 125.5)
+	err := svc.UpdateProgress(1, testUUID.String(), 42, nil, 125.5)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}

@@ -28,6 +28,10 @@ const (
 	// Storage errors
 	CodeStoragePathReadOnly = "STORAGE_PATH_READ_ONLY"
 
+	// Goon2gether errors
+	CodeLobbyBanned = "LOBBY_BANNED"
+	CodeLobbyFull   = "LOBBY_FULL"
+
 	// Processing errors
 	CodeProcessingFailed = "PROCESSING_FAILED"
 	CodeProcessingQueued = "PROCESSING_QUEUED"
