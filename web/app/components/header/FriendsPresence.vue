@@ -1,16 +1,21 @@
 <script setup lang="ts">
 // Header entry of the presence: how many friends and followed users are online, and a popover
-// listing them (watching, online, idle, offline). Starts the live presence of the tab.
+// listing them (watching, online, away, offline). Starts the live presence of the tab.
 const presenceStore = usePresenceStore();
 const jobStatusStore = useJobStatusStore();
 const route = useRoute();
 const showPopup = ref(false);
 const buttonRef = ref<HTMLButtonElement | null>(null);
 
+// online, watching and away contacts; the dot is green when one of them is active, amber
+// when they are all away
 const count = computed(() => presenceStore.presentCount);
-const title = computed(() =>
-    count.value > 0 ? `${count.value} online` : 'Nobody online among your friends',
-);
+const active = computed(() => presenceStore.activeCount);
+const title = computed(() => {
+    if (count.value === 0) return 'Nobody online among your friends';
+    const away = count.value - active.value;
+    return away > 0 ? `${active.value} online, ${away} away` : `${count.value} online`;
+});
 
 onMounted(() => presenceStore.start());
 onBeforeUnmount(() => presenceStore.stop());
@@ -44,7 +49,11 @@ watch(
             <span
                 class="h-1.5 w-1.5 rounded-full"
                 :class="
-                    count > 0 ? 'bg-emerald shadow-[0_0_6px_rgba(16,185,129,0.6)]' : 'bg-white/20'
+                    active > 0
+                        ? 'bg-emerald shadow-[0_0_6px_rgba(16,185,129,0.6)]'
+                        : count > 0
+                          ? 'bg-amber-400'
+                          : 'bg-white/20'
                 "
             />
             <span class="font-mono text-[10px]">{{ count }}</span>

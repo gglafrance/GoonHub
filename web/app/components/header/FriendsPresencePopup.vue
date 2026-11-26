@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Popover of the friends presence: contacts grouped Watching / Online / Idle / Offline.
+// Popover of the friends presence: contacts grouped Watching / Online / Away / Offline.
 const props = defineProps<{ visible: boolean; anchorEl: HTMLElement | null }>();
 const emit = defineEmits<{ close: [] }>();
 

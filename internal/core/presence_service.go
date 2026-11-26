@@ -57,10 +57,19 @@ type presenceUser struct {
 	conns     int
 	offlineAt time.Time
 	// online: connected, or disconnected for less than the grace period
-	online     bool
+	online bool
+	// loaded: username, invisible mode and last seen were read from the database
+	loaded bool
+	// lastActive: the last real input (heartbeats carry the time since the last input) or
+	// moment of playback (a playing report whose position moved)
 	lastActive time.Time
-	invisible  bool
-	lastSeen   *time.Time
+	// heard: a heartbeat was received for this state. Until then a fresh connection counts as
+	// activity (connectActive), so that a client that has not reported yet is not shown away;
+	// the first heartbeat replaces it with the real input time.
+	heard         bool
+	connectActive time.Time
+	invisible     bool
+	lastSeen      *time.Time
 	// lastSeenSaved: last write of last_seen_at while online (throttled)
 	lastSeenSaved time.Time
 	tabs          map[string]*presenceActivity
@@ -101,11 +110,11 @@ type presenceOwner struct {
 	paused    bool              // the activity shows as paused
 }
 
-// PresenceService tracks who is online, idle or offline and what they are doing, and pushes
+// PresenceService tracks who is online, away or offline and what they are doing, and pushes
 // the changes to the users allowed to see them (docs/PRESENCE.md). Everything is in memory
 // (one process) but last_seen_at and the invisible mode (user_presence). One goroutine
-// (lifecycle) expires the grace periods, idles and activities, and flushes the coalesced
-// changes at flush_interval.
+// (lifecycle) expires the grace periods, the activity (away) and the tab activities, and
+// flushes the coalesced changes at flush_interval.
 type PresenceService struct {
 	repo     data.PresenceRepository
 	privacy  presencePrivacy
@@ -227,56 +236,72 @@ func (s *PresenceService) touchViewerLocked(userID uint, now time.Time) {
 	v.touched = now
 }
 
+func newPresenceUser() *presenceUser {
+	return &presenceUser{tabs: make(map[string]*presenceActivity)}
+}
+
+// userLocked returns the state of the user, created when missing (a heartbeat or an activity
+// may arrive before the stream opens).
+func (s *PresenceService) userLocked(userID uint) *presenceUser {
+	u, ok := s.users[userID]
+	if !ok {
+		u = newPresenceUser()
+		s.users[userID] = u
+	}
+	return u
+}
+
 // Connect records a live connection of the user (an SSE stream opened).
 func (s *PresenceService) Connect(userID uint) {
 	if userID == 0 {
 		return
 	}
 	s.mu.Lock()
-	if s.connectLocked(userID) {
+	if u, ok := s.users[userID]; ok && u.loaded {
+		s.connectLocked(userID, u)
 		s.mu.Unlock()
 		return
 	}
 	s.mu.Unlock()
 
-	// first connection: read the username and the invisible mode (outside the lock)
-	u := &presenceUser{tabs: make(map[string]*presenceActivity)}
+	// first connection: read the username and the invisible mode (outside the lock). A state
+	// created by a heartbeat or an activity received before the stream is completed too.
+	var info *data.PresenceContact
 	if s.repo != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		info, err := s.repo.GetUser(ctx, userID)
+		c, err := s.repo.GetUser(ctx, userID)
 		cancel()
 		if err != nil {
 			s.logger.Warn("Failed to read the presence of a connecting user", zap.Uint("user_id", userID), zap.Error(err))
 		} else {
-			u.username = info.Username
-			u.invisible = info.Invisible
-			u.lastSeen = info.LastSeenAt
+			info = c
 		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.connectLocked(userID) {
-		return
+	u := s.userLocked(userID)
+	if !u.loaded && info != nil {
+		u.username = info.Username
+		u.invisible = info.Invisible
+		u.lastSeen = info.LastSeenAt
+		u.loaded = true
 	}
-	s.users[userID] = u
-	s.connectLocked(userID)
+	s.connectLocked(userID, u)
 }
 
-// connectLocked adds a connection to a known user; false when the user has no state yet.
-func (s *PresenceService) connectLocked(userID uint) bool {
-	u, ok := s.users[userID]
-	if !ok {
-		return false
-	}
+// connectLocked adds a connection to the user. A user coming online who never sent a
+// heartbeat counts as active until their first one (it carries the real input time).
+func (s *PresenceService) connectLocked(userID uint, u *presenceUser) {
 	now := s.now()
 	u.conns++
 	u.offlineAt = time.Time{}
 	if !u.online {
 		u.online = true
-		u.lastActive = now
+		if !u.heard {
+			u.connectActive = now
+		}
 	}
 	s.touchViewerLocked(userID, now)
-	return true
 }
 
 // Disconnect records that a live connection of the user closed. The user stays online for
@@ -294,17 +319,32 @@ func (s *PresenceService) Disconnect(userID uint) {
 	}
 }
 
-// Heartbeat records that the user is active (input in a tab). Ignored while the user has no
-// live connection.
-func (s *PresenceService) Heartbeat(userID uint, active bool) {
-	if !active {
+// presenceMaxIdleReport bounds the time since the last input a heartbeat may report.
+const presenceMaxIdleReport = 7 * 24 * time.Hour
+
+// Heartbeat records the last real input in a tab of the user: idle is the time since that
+// input (0: now). The latest input of all the tabs counts (a heartbeat never moves it back).
+// The first heartbeat also ends the "just connected" activity (connectActive): a tab that
+// reconnects after a long time without input (server restart, network loss) reports its real
+// idle time and the user is away at once. Accepted before the stream opens (kept for it).
+func (s *PresenceService) Heartbeat(userID uint, active bool, idle time.Duration) {
+	if !active || userID == 0 {
 		return
+	}
+	if idle < 0 {
+		idle = 0
+	}
+	if idle > presenceMaxIdleReport {
+		idle = presenceMaxIdleReport
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if u, ok := s.users[userID]; ok && u.online {
-		u.lastActive = s.now()
+	u := s.userLocked(userID)
+	if at := s.now().Add(-idle); at.After(u.lastActive) {
+		u.lastActive = at
 	}
+	u.heard = true
+	u.connectActive = time.Time{}
 }
 
 var presenceTabIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
@@ -362,7 +402,8 @@ func (s *PresenceService) sceneCard(sceneID uint) (*PresenceScene, error) {
 
 // UpdateActivity records the activity of a tab of the user (start, progress, pause). The
 // caller checks that the user may do the activity (scenes:view for watching_scene). A playback
-// that is not paused counts as activity (no idle while watching).
+// that really plays counts as activity (not away while watching): not paused, and started,
+// resumed or moved since the previous report (a stalled playback reports the same position).
 func (s *PresenceService) UpdateActivity(userID uint, in PresenceActivityInput) error {
 	tabID, err := normalizeTabID(in.TabID)
 	if err != nil {
@@ -395,14 +436,12 @@ func (s *PresenceService) UpdateActivity(userID uint, in PresenceActivityInput) 
 	now := s.now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	u, ok := s.users[userID]
-	if !ok {
-		// no live connection yet (the stream opens meanwhile): kept, shown once online
-		u = &presenceUser{tabs: make(map[string]*presenceActivity)}
-		s.users[userID] = u
-	}
+	// no live connection yet (the stream opens meanwhile): kept, shown once online
+	u := s.userLocked(userID)
+	playing := false
 	a, ok := u.tabs[tabID]
 	if !ok || a.Type != in.Type || a.SceneID != in.SceneID {
+		playing = !in.Paused
 		a = &presenceActivity{Type: in.Type, SceneID: in.SceneID, Scene: card, StartedAt: now}
 		if in.Paused {
 			a.PausedSince = now
@@ -412,6 +451,7 @@ func (s *PresenceService) UpdateActivity(userID uint, in PresenceActivityInput) 
 		}
 		u.tabs[tabID] = a
 	} else {
+		playing = !in.Paused && (a.Paused || math.Abs(in.Position-a.Position) >= presenceMinProgress)
 		expected := a.Position
 		if !a.Paused {
 			expected += now.Sub(a.PositionAt).Seconds()
@@ -427,11 +467,15 @@ func (s *PresenceService) UpdateActivity(userID uint, in PresenceActivityInput) 
 	a.PositionAt = now
 	a.Paused = in.Paused
 	a.UpdatedAt = now
-	if !in.Paused && u.online {
+	if playing {
 		u.lastActive = now
 	}
 	return nil
 }
+
+// presenceMinProgress (seconds): a playing report whose position moved less than this since
+// the previous one is a stalled playback (the client rounds positions to 0.1 s).
+const presenceMinProgress = 0.05
 
 // evictOldestTabLocked makes room for a new tab activity (max_tabs_per_user).
 func (s *PresenceService) evictOldestTabLocked(u *presenceUser) {
@@ -543,13 +587,18 @@ func (s *PresenceService) onRelationChange(a, b uint) {
 
 // --- state ----------------------------------------------------------------------------------
 
-// statusLocked is the real status of a user.
+// statusLocked is the real status of a user: away when connected without input nor playback
+// for idle_after.
 func (s *PresenceService) statusLocked(u *presenceUser, now time.Time) string {
 	if !u.online {
 		return PresenceOffline
 	}
-	if now.Sub(u.lastActive) >= s.cfg.IdleAfter {
-		return PresenceIdle
+	last := u.lastActive
+	if u.connectActive.After(last) {
+		last = u.connectActive
+	}
+	if now.Sub(last) >= s.cfg.IdleAfter {
+		return PresenceAway
 	}
 	return PresenceOnline
 }

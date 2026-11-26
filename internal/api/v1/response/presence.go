@@ -9,6 +9,8 @@ type PresenceSnapshotResponse struct {
 	Invisible                bool                `json:"invisible"`
 	HeartbeatIntervalSeconds int                 `json:"heartbeat_interval_seconds"`
 	ActivityIntervalSeconds  int                 `json:"activity_interval_seconds"`
+	IdleAfterSeconds         int                 `json:"idle_after_seconds"`
+	StalledAfterSeconds      int                 `json:"stalled_after_seconds"`
 }
 
 func NewPresenceSnapshotResponse(s *core.PresenceSnapshot) PresenceSnapshotResponse {
@@ -21,6 +23,8 @@ func NewPresenceSnapshotResponse(s *core.PresenceSnapshot) PresenceSnapshotRespo
 		Invisible:                s.Invisible,
 		HeartbeatIntervalSeconds: int(s.HeartbeatInterval.Seconds()),
 		ActivityIntervalSeconds:  int(s.ActivityInterval.Seconds()),
+		IdleAfterSeconds:         int(s.IdleAfter.Seconds()),
+		StalledAfterSeconds:      int(s.StalledAfter.Seconds()),
 	}
 }
 

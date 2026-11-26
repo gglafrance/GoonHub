@@ -6,16 +6,16 @@ import (
 	"goonhub/internal/config"
 )
 
-// Presence (docs/PRESENCE.md): who is online, idle or offline, and what they are doing.
+// Presence (docs/PRESENCE.md): who is online, away or offline, and what they are doing.
 
 // EventPresenceUpdate is the presence SSE event: the presence of one user as the receiving
 // viewer may see it (PresenceView). Always targeted (EventBus.PublishToUser).
 const EventPresenceUpdate = "presence:update"
 
-// Presence statuses.
+// Presence statuses. Away: connected, but no input nor playing video for idle_after.
 const (
 	PresenceOnline  = "online"
-	PresenceIdle    = "idle"
+	PresenceAway    = "away"
 	PresenceOffline = "offline"
 )
 
@@ -85,6 +85,11 @@ type PresenceSnapshot struct {
 	// HeartbeatInterval, ActivityInterval: how often the client reports input and playback.
 	HeartbeatInterval time.Duration
 	ActivityInterval  time.Duration
+	// IdleAfter: no input nor playback for this long = away (the client then reports the next
+	// input at once). StalledAfter: a playback that has not progressed for this long
+	// (buffering) no longer counts as playing.
+	IdleAfter    time.Duration
+	StalledAfter time.Duration
 }
 
 // normalizePresenceConfig fills the unset timings with the defaults.
@@ -100,6 +105,7 @@ func normalizePresenceConfig(cfg config.PresenceConfig) config.PresenceConfig {
 	def(&cfg.ActivityInterval, 15*time.Second)
 	def(&cfg.ActivityTTL, 60*time.Second)
 	def(&cfg.PausedAfter, 20*time.Second)
+	def(&cfg.StalledAfter, 30*time.Second)
 	def(&cfg.SeekThreshold, 15*time.Second)
 	def(&cfg.FlushInterval, 2*time.Second)
 	def(&cfg.LastSeenInterval, 5*time.Minute)

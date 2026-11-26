@@ -96,7 +96,7 @@ audience.
 | `playlists` | Profile | public | the public playlists listed on the profile |
 | `friends_list` | Connections | public | the friends list (and its count) |
 | `followers_list` | Connections | public | followers and following lists (and their counts) |
-| `online_status` | Presence | friends | whether the user is online, idle or offline, and their last seen (`docs/PRESENCE.md`) |
+| `online_status` | Presence | friends | whether the user is online, away or offline, and their last seen (`docs/PRESENCE.md`) |
 | `now_watching` | Presence | friends | what the user is watching (also needs `online_status`) |
 
 `profile` is a gate: a block shown on the profile page needs `profile` and its own item (the

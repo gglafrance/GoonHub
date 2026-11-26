@@ -1,9 +1,10 @@
 package request
 
 // PresenceHeartbeatRequest is the body of POST /social/presence/heartbeat: active is true when
-// the user used the tab (input) since the last heartbeat.
+// the tab reports an input; idle_seconds is the time since that input (0 or absent: now).
 type PresenceHeartbeatRequest struct {
-	Active bool `json:"active"`
+	Active      bool    `json:"active"`
+	IdleSeconds float64 `json:"idle_seconds"`
 }
 
 // PresenceActivityRequest is the body of PUT /social/presence/activity: the activity of one tab

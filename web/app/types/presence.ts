@@ -1,9 +1,13 @@
 // Presence API shapes (contract: docs/PRESENCE.md).
 
-export type PresenceStatus = 'online' | 'idle' | 'offline';
+/** away: connected, but no input nor playing video for idle_after. */
+export type PresenceStatus = 'online' | 'away' | 'offline';
 
-/** How a contact is listed: watching (online with an activity), online, idle, offline. */
-export type PresenceGroupKey = 'watching' | 'online' | 'idle' | 'offline';
+/**
+ * How a contact is listed: watching (online with an activity), online, away (with or without
+ * an activity, e.g. a paused video), offline.
+ */
+export type PresenceGroupKey = 'watching' | 'online' | 'away' | 'offline';
 
 /** Scene of a watching_scene activity: title and thumbnail only. */
 export interface PresenceScene {
@@ -45,6 +49,8 @@ export interface PresenceSnapshot {
     invisible: boolean;
     heartbeat_interval_seconds: number;
     activity_interval_seconds: number;
+    idle_after_seconds: number;
+    stalled_after_seconds: number;
 }
 
 /** PUT /api/v1/social/presence/activity body */

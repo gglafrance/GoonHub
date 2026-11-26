@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Presence of a user in words (profile header): watching (with a link), online, idle, or last
-// seen. Nothing when hidden by the user's privacy. Loaded once, then kept live by the store.
+// Presence of a user in words (profile header): watching (with a link), online, away (with
+// what was left open, e.g. "Paused on X"), or last seen. Nothing when hidden by the user's privacy. Loaded once, then kept live by the store.
 const props = defineProps<{ userId: number }>();
 
 const presenceStore = usePresenceStore();
@@ -30,7 +30,7 @@ watch(() => props.userId, load);
             :class="{
                 'bg-lava': group === 'watching',
                 'bg-emerald': group === 'online',
-                'bg-amber-400': group === 'idle',
+                'bg-amber-400': group === 'away',
                 'bg-white/25': group === 'offline',
             }"
         />
@@ -46,7 +46,22 @@ watch(() => props.userId, load);
             <span v-else class="text-dim">something</span>
         </template>
         <span v-else-if="group === 'online'" class="text-emerald">Online</span>
-        <span v-else-if="group === 'idle'" class="text-amber-400">Idle</span>
+        <template v-else-if="group === 'away'">
+            <span class="shrink-0 text-amber-400">Away</span>
+            <template v-if="view.activity">
+                <span class="text-dim shrink-0">&middot;</span>
+                <NuxtLink
+                    v-if="watchPath"
+                    :to="watchPath"
+                    class="text-dim hover:text-lava truncate transition-colors"
+                >
+                    {{ awayActivityLabel(view.activity) }}
+                </NuxtLink>
+                <span v-else class="text-dim truncate">
+                    {{ awayActivityLabel(view.activity) }}
+                </span>
+            </template>
+        </template>
         <span v-else class="text-dim">
             Offline<template v-if="view.last_seen_at">
                 , last seen <NuxtTime :datetime="view.last_seen_at" relative />

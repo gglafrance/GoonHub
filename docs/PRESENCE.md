@@ -1,12 +1,13 @@
 # Presence
 
-Who among my friends and the people I follow is online, idle or offline, and what they are
+Who among my friends and the people I follow is online, away or offline, and what they are
 watching. Built on the social graph and its privacy framework (`docs/SOCIAL.md`).
 
 Code: `internal/core/presence_service.go` (state, reports), `internal/core/presence_push.go`
 (loop, pushes, snapshot), `internal/core/presence_types.go` (types, JSON shapes, activity types),
 `internal/data/presence_repository.go`, `internal/api/v1/handler/presence.go`. Frontend:
-`stores/presence.ts`, `composables/usePresenceActivity.ts`, `utils/presence.ts`,
+`stores/presence.ts`, `utils/presenceTracker.ts` (what counts as activity in a tab),
+`composables/usePresenceActivity.ts`, `utils/presence.ts`,
 `components/header/FriendsPresence*.vue`, `components/social/Presence*.vue`.
 
 ## Model
@@ -14,20 +15,72 @@ Code: `internal/core/presence_service.go` (state, reports), `internal/core/prese
 Everything lives in memory (one process), except `user_presence.last_seen_at` and the invisible
 mode (migration 098, `docs/DATABASE.md`).
 
-| Status | When |
-|---|---|
-| `online` | the user has at least one live connection (an SSE stream `/api/v1/events`), or the last one closed less than `disconnect_grace` ago |
-| `idle` | online, but no activity for `idle_after`: no input heartbeat and no playing scene |
-| `offline` | otherwise; shown with `last_seen_at` |
+| Status | Shown as | When |
+|---|---|---|
+| `online` | Online (green), or Watching (red) with an activity | connected, and a real input or a playing video less than `idle_after` ago |
+| `away` | Away (amber), with the activity left open if any ("Paused on X") | connected, but no real input and no playing video for `idle_after` |
+| `offline` | Offline, "last seen" | no live connection (after `disconnect_grace`), or invisible |
+
+Connected: at least one live connection (an SSE stream `/api/v1/events`), or the last one closed
+less than `disconnect_grace` ago. The API value `away` replaces the former `idle` (the server and
+the web app ship together).
 
 - **Connections.** The SSE handler calls `PresenceService.Connect` when a stream opens and
   `Disconnect` when it closes. Connections are counted per user (several devices or browsers;
   the tabs of one browser share one stream through the shared worker or the leader tab). When
   the count drops to 0 the user stays online for `disconnect_grace` (a page reload reconnects
-  within it: nothing is pushed).
-- **Activity (not idle).** Each tab sends `POST /social/presence/heartbeat {active: true}` on
-  user input (pointer, key, wheel, touch, tab shown), at most every `heartbeat_interval`. A
-  playing (not paused) scene report counts as activity too.
+  within it: nothing is pushed). A connection is **not** an activity, except as a fallback: a
+  user coming online who never sent a heartbeat counts as active until their first one.
+
+### Online and away: the exact rules
+
+The server keeps, per user, the time of the last activity (`lastActive`); the user is away once
+it is `idle_after` old (checked at every flush, so the switch shows within `idle_after` +
+`flush_interval`). It moves forward on:
+
+1. **A heartbeat** `POST /social/presence/heartbeat {active: true, idle_seconds}`: the last
+   real input in that tab was `idle_seconds` ago. The latest of all the tabs and devices counts
+   (a heartbeat never moves it back). The first heartbeat after a connection also ends the
+   connection fallback above.
+2. **A playing report** `PUT /social/presence/activity` with `paused: false` whose position
+   moved since the previous report of the tab (or that starts or resumes the playback). A paused
+   or ended playback, or a stalled one (same position), does not count.
+
+Nothing else counts: no SSE (re)connection (but the fallback), no other API call, no tab
+shown or focused, no paused video kept alive by its periodic reports.
+
+The client (`PresenceTracker`, one per tab, started with the header) decides what it reports:
+
+- **Real input**: `pointerdown`, `keydown`, `wheel`, `touchstart` (window, capture phase), only
+  when trusted (`isTrusted`, not dispatched by a script) and the tab visible; `mousemove` only
+  once the pointer moved `PRESENCE_MOUSE_MOVE_MIN_PX` (12 px, screen coordinates) from where it
+  was last counted (the browser fires mousemove without any move when the page changes under a
+  still pointer; jitter). `scroll` does not count (programmatic scrolls fire it too: a scroll by
+  the user comes with a wheel, key, touch or pointer down). A tab shown again
+  (`visibilitychange`), a focus or a reconnection is not an input.
+- **Playing video**: every `ScenePlayer` (watch page, playlist, Goon2gether lobby, share page
+  when signed in) registers a probe (`presenceStore.registerPlayback`): playing = not paused, not
+  ended and the position moved less than `stalled_after` ago (`isPlaybackActive`). A playing
+  video counts in any tab, visible or not; the moment it stops counts too (away is measured from
+  the pause). The probe is checked every `PRESENCE_TICK_MS` (5 s).
+- **Throttle**: the first activity is sent at once, the next ones within the same period
+  (`min(heartbeat_interval, idle_after / 2)`) at the end of it (trailing heartbeat with the time
+  since the last activity), so the server always knows the real last input within one period.
+- **Back from away**: when the last activity this tab reported is about `idle_after` old (the
+  server may show the user away), the next input is sent at once, without the throttle: the user
+  is back online at the next flush.
+- **Sync**: at start and whenever the live stream connects again (`jobStatus.isConnected` back
+  to true: server restart, network loss), the tab sends its real idle time at once, so that a
+  reconnection is not taken for an activity.
+
+Watching then pausing: the activity shows as paused after `paused_after`; the user stays
+`online` (Watching, paused) until `idle_after` after the pause or the last input, then is `away`
+with the paused activity ("Away, Paused on X"). Several tabs: the user is online while any tab
+has input or plays; a background tab with nothing playing adds nothing.
+
+Each transition (online to away, away to online) changes the pushed key: it is pushed once to
+every viewer allowed to see it (targeted, privacy unchanged), never repeated while nothing
+changes.
 - **Last seen.** Saved when the grace period ends (the disconnection time), every
   `last_seen_interval` while online (cheap, survives a crash) and for every online user at
   shutdown. `SaveLastSeen` never moves it back. Not saved while invisible.
@@ -110,7 +163,7 @@ override a newer push and an old push cannot bring a revoked presence back.
 
 Coalescing: reports only change the memory state. One goroutine (lifecycle manager, started and
 stopped by the server) runs every `flush_interval`: it ends the grace periods, expires the
-activities, detects idle and paused transitions, then, for each user whose visible state changed
+activities, detects away and paused transitions, then, for each user whose visible state changed
 (or marked by a privacy/relation change), computes the view of every live viewer and pushes only
 the ones that differ from what that viewer was last sent. Heartbeats and normal progress push
 nothing. Per flushed user: two audience queries (`AudienceMembers`), plus the permissions of the
@@ -125,9 +178,9 @@ Every route needs a signed-in user.
 
 | Route | Answer |
 |---|---|
-| `GET /api/v1/social/presence` | `{users: [view], invisible, heartbeat_interval_seconds, activity_interval_seconds}`: my friends and the users I follow whose presence I may see (hidden ones left out), by username |
+| `GET /api/v1/social/presence` | `{users: [view], invisible, heartbeat_interval_seconds, activity_interval_seconds, idle_after_seconds, stalled_after_seconds}`: my friends and the users I follow whose presence I may see (hidden ones left out), by username |
 | `GET /api/v1/social/presence/users/:userId` | one view (`{visible: false}` when hidden; `404` unknown user) |
-| `POST /api/v1/social/presence/heartbeat` `{active}` | `204` |
+| `POST /api/v1/social/presence/heartbeat` `{active, idle_seconds?}` | `204` (`active: false` is ignored; `idle_seconds`: time since the last input, default 0, capped at a week); `400` negative `idle_seconds`. Accepted before the stream opens |
 | `PUT /api/v1/social/presence/activity` `{tab_id?, type, scene_id, position, paused}` | `204`; `400` invalid (type, scene_id, negative position, tab_id not `[A-Za-z0-9_-]{1,64}`), `403` without `scenes:view`, `404` unknown or trashed scene |
 | `DELETE /api/v1/social/presence/activity?tab_id=` | `204` |
 | `GET /api/v1/social/presence/settings` | `{invisible}` |
@@ -135,12 +188,19 @@ Every route needs a signed-in user.
 
 ## Frontend
 
-- Header: `HeaderFriendsPresence` (count of contacts online or idle, popover "Friends online"
-  grouped Watching / Online / Idle / Offline with last seen). A watching entry shows the
-  thumbnail, title, progress, "Paused", and "Watch this too": from the start or at their
-  position (`/watch/:id?t=`), not synchronized.
-- `SocialPresenceDot` on the avatars of the user rows (friends page, lists) and of the profile
-  header; `SocialPresenceBadge` in the profile header (loads `GET .../users/:id` once).
+- Groups (`presenceGroupOf`): offline; `away` (even with an activity: a video left paused);
+  watching (online with an activity); online. Labels in `PRESENCE_GROUP_LABELS`, colors: watching
+  red, online green, away amber, offline grey.
+- Header: `HeaderFriendsPresence` (count of contacts online, watching or away; its dot is green
+  when one is active, amber when all are away; the title says "N online, M away"), popover
+  "Friends online" grouped Watching / Online / Away / Offline with last seen. A watching entry
+  shows the thumbnail, title, progress, "Paused", and "Watch this too": from the start or at
+  their position (`/watch/:id?t=`), not synchronized. An away entry shows "Away" and what was
+  left open (`awayActivityLabel`: "Paused on X", linked to the scene).
+- `SocialPresenceDot` on the avatars of the user rows (friends page, lists, messages list and
+  thread, share recipients) and of the profile header (title "Away, Paused on X");
+  `SocialPresenceBadge` in the profile header (loads `GET .../users/:id` once); the messages
+  thread header says Watching / Online / Away.
 - Settings > Privacy: the "Invisible" toggle at the top of the Presence group.
 - The store (`usePresenceStore`) loads the snapshot at start, after an SSE reconnection and
   after a social change (`useSocialStore().version`), and applies the `presence:update` events.
@@ -150,18 +210,24 @@ Every route needs a signed-in user.
 ```yaml
 presence:
   disconnect_grace: 30s     # still online this long after the last live connection closed
-  idle_after: 5m            # no input nor playback for this long = idle
-  heartbeat_interval: 60s   # the client reports input at most this often
+  idle_after: 5m            # no real input nor playing video for this long = away
+  heartbeat_interval: 60s   # the client reports input at most this often (and half of idle_after)
   activity_interval: 15s    # the client reports the playback position this often
   activity_ttl: 60s         # an activity not reported for this long ends (> activity_interval)
   paused_after: 20s         # a playback paused this long shows as paused
+  stalled_after: 30s        # a playback not progressing (buffering) this long no longer counts as playing
   seek_threshold: 15s       # a jump this big in the position is pushed
   flush_interval: 2s        # changes are coalesced and pushed at this interval
   last_seen_interval: 5m    # last seen of online users saved this often
   max_tabs_per_user: 8      # activities kept per user (one per tab)
 ```
 
-`heartbeat_interval` and `activity_interval` are sent to the clients by the snapshot.
+`heartbeat_interval`, `activity_interval`, `idle_after` and `stalled_after` are sent to the
+clients by the snapshot. Client constants (`utils/presenceTracker.ts`): the mouse move threshold
+(12 px) and the tick of the tracker (5 s). Timings of the switch, with the defaults: away 5 min
+after the last input or playback (+ up to 2 s of flush); back online at the next flush after an
+input; a stalled playback stops counting after 30 s (client) or at its next report with the same
+position (server).
 
 ## Adding an activity type
 
