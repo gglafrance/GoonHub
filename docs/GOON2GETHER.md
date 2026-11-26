@@ -1,13 +1,16 @@
 # Goon2gether: synchronized watch lobbies
 
 Goon2gether lets several users watch the same scenes at the same time, in a **lobby**: a shared
-playing queue, playback kept in sync by the server, a chat with emoji and custom emotes, and
-floating reactions over the video. It is like Watch2Gether or Teleparty, inside GoonHub.
+playing queue, playback kept in sync by the server, a chat with emoji and custom emotes and
+reactions on its messages, and floating reactions over the video. It is like Watch2Gether or
+Teleparty, inside GoonHub.
 
 - Backend: `internal/together` (hub, lobbies, playback, emotes), `internal/data/together_*.go`
   (models and repositories), `internal/api/v1/handler/together*.go` (REST and WebSocket).
 - Frontend: `web/app/pages/together/` (lobby browser, room, join by code),
-  `web/app/components/together/`, `web/app/composables/useTogether*.ts`.
+  `web/app/components/together/`, `web/app/composables/useTogether*.ts`; the chat message
+  reactions use `web/app/components/chat/Reactions.vue` (shared with the messages,
+  `docs/MESSAGES.md`) and `web/app/utils/reactions.ts`.
 - Schema: migration 099 (`lobbies`, `lobby_members`, `lobby_queue_items`, `emotes`) and 101
   (auto-next mode, anonymous members), see `docs/DATABASE.md`.
 
@@ -145,12 +148,20 @@ changes.
   banned) and `AcceptInvite` (joins when the invite is still valid). The room's "Invite friends"
   button sends them.
 
-## WebSocket protocol (version 2)
+## WebSocket protocol (version 3)
 
-Endpoint: `GET /api/v1/together/lobbies/:id/ws?v=2[&anonymous=1]`, same origin, authenticated
+Endpoint: `GET /api/v1/together/lobbies/:id/ws?v=3[&anonymous=1]`, same origin, authenticated
 by the session cookie on the upgrade (the same auth middleware as every route). The `Origin`
 header must match the host or one of `server.allowed_origins`. Frames are JSON text messages
-with a type field `t`. Other versions are refused (`400`).
+with a type field `t`. The server accepts versions 2 and 3 (`MinProtocolVersion` to
+`ProtocolVersion`: each version only adds fields and message types, which older clients
+ignore; `welcome.v` is always the server's version); other versions are refused (`400`
+`BAD_VERSION`).
+
+Version 3 (2026-11-27) adds reactions on chat messages: `ChatMessage.reactions`, the
+`chat_react` and `chat_unreact` commands, the `chat_reactions` message, the error code
+`reaction_limit`, and `chat_max_reaction_kinds` / `chat_max_reactions_per_user` in
+`welcome.config`. See "Chat message reactions" below.
 
 Version 2 (2026-11-26) changes from version 1: `user_id` (members, chat, reactions) and
 `added_by.id` may be null (anonymous members), new fields `anonymous`/`anon_number`, `auto_next`
@@ -190,7 +201,9 @@ Member        {user_id, username, anonymous, anon_number, host, control, online,
 QueueItem     {id, scene_id, title, duration, start, end, label,
                added_by: {id, username, anonymous?, anon_number?} | null}
 State         {item_id, playing, hold, position, server_time, rate, seq}
-ChatMessage   {id, user_id, username, anonymous?, anon_number?, text, at, system}
+ChatMessage   {id, user_id, username, anonymous?, anon_number?, text, at, system,
+               reactions?: [ChatReaction]}
+ChatReaction  {emote, count, users: [{id, username, anonymous?, anon_number?}]}
 ```
 
 - An anonymous member (see "Anonymous members"): `user_id` / `id` null, `username`
@@ -207,20 +220,23 @@ ChatMessage   {id, user_id, username, anonymous?, anon_number?, text, at, system
   position does not move during a hold. `rate` is the playback rate. `seq` increases on every
   change.
 - `ChatMessage.at` is Unix milliseconds; `system` messages (joined, left, now playing, host
-  changed...) have a null `user_id`.
+  changed...) have a null `user_id`. `reactions` is omitted when the message has none; the keys
+  come in the order of their first reaction, the users in reaction order (an anonymous reactor
+  like an anonymous member: null `id`, "Anonymous #N", except for moderators).
 
 ### Server to client
 
 | `t` | Fields | When |
 |---|---|---|
-| `welcome` | `v`, `server_time`, `you: {user_id, username, moderate, anonymous, anon_number}`, `config: {drift_threshold, drift_nudge, hold_timeout_ms, chat_max_length, end_grace}`, `lobby`, `members`, `queue`, `suggestions`, `state`, `chat`, `closing_at` (ms or null) | first message of each connection (full snapshot) |
+| `welcome` | `v`, `server_time`, `you: {user_id, username, moderate, anonymous, anon_number}`, `config: {drift_threshold, drift_nudge, hold_timeout_ms, chat_max_length, end_grace, chat_max_reaction_kinds, chat_max_reactions_per_user}`, `lobby`, `members`, `queue`, `suggestions`, `state`, `chat` (with their reactions), `closing_at` (ms or null) | first message of each connection (full snapshot) |
 | `state` | `state` | playback changed (play, pause, seek, rate, item change, hold) |
 | `queue` | `queue`, `suggestions` | queue or suggestions changed. `queue[0]` is the item playing when `state.item_id` is set |
 | `members` | `members` | join, leave, connection change, buffering, control, host |
 | `lobby` | `lobby` | settings or host changed |
 | `chat` | `message` | new chat or system message |
-| `chat_deleted` | `id` | a message was deleted |
-| `reaction` | `user_id`, `username`, `anonymous?`, `anon_number?`, `emote` | floating reaction |
+| `chat_deleted` | `id` | a message was deleted (its reactions with it) |
+| `chat_reactions` | `id`, `reactions: [ChatReaction]` | the reactions of a chat message changed: the whole list (empty: none left) |
+| `reaction` | `user_id`, `username`, `anonymous?`, `anon_number?`, `emote` | floating reaction over the video (not a chat message reaction) |
 | `closing` | `at` (Unix ms, or null), `reason` (`inactive`) | the lobby closes at `at` for inactivity unless something happens; `at` null: called off |
 | `emotes` | | the server emotes changed: reload `GET /together/emotes` |
 | `pong` | `id`, `c`, `s` | answer to `ping`: `c` echoed, `s` server time (ms) |
@@ -228,7 +244,8 @@ ChatMessage   {id, user_id, username, anonymous?, anon_number?, text, at, system
 | `bye` | `reason` (`kicked`, `banned`, `closed`, `forbidden`, `left`, `inactive`) | just before the server closes |
 
 Error codes: `not_allowed` (no control, not host, no permission), `invalid` (bad payload),
-`not_found` (unknown item or member), `rate_limited`, `too_long`, `queue_full`, `unknown_type`,
+`not_found` (unknown item, member, chat message or emote), `rate_limited`, `too_long`,
+`queue_full`, `reaction_limit` (caps of the chat message reactions), `unknown_type`,
 `internal`.
 
 ### Client to server
@@ -251,7 +268,9 @@ Error codes: `not_allowed` (no control, not host, no permission), `invalid` (bad
 | `suggestion_reject` | `item_id` | control (also: one's own suggestion) |
 | `chat` | `text` | anyone (rate limited, max `chat_max_length` characters) |
 | `chat_delete` | `id` | host, `goon2gether:moderate`, or the author |
-| `reaction` | `emote`: an emoji, or `:name:` of a server emote | anyone (rate limited) |
+| `chat_react` | `id` (chat message), `emote`: an emoji, or `:name:` of a server emote | anyone: adds my reaction to the message (rate limited, capped) |
+| `chat_unreact` | `id`, `emote` | anyone: removes my reaction (rate limited) |
+| `reaction` | `emote`: an emoji, or `:name:` of a server emote | anyone (rate limited): a floating reaction over the video |
 | `auto_next` | `mode` (`stop`, `next`, `repeat_one`, `repeat_queue`) | control |
 | `keep_open` | | anyone: activity only (calls an announced inactivity close off) |
 | `settings` | `name`, `visibility`, `control_open`, `queue_open`, `wait_for_all`, `max_members` (each optional) | host |
@@ -265,6 +284,34 @@ trying user IDs never tells who is behind an anonymous member.
 
 A command from a member without the right is refused with `error` `not_allowed` and changes
 nothing: the server state stays the reference, clients that applied a local action revert to it.
+
+## Chat message reactions
+
+Members react to the chat messages like in Discord (hover a message, or a long press on touch
+screens, then "Add reaction": the emoji and emote picker of the chat; pills under the message
+with the count, highlighted when I reacted; a click toggles my reaction; hovering tells who).
+They are distinct from the floating reactions over the video (`reaction`, unchanged).
+
+- In memory with the message (`ChatMessage.reactions` in the hub), so bounded by
+  `chat_history` and lost with the chat (unload, restart); deleting a message deletes them.
+  Late joiners and reconnects get them in the `welcome` chat snapshot.
+- Only members react (every connection is one; kicked and banned users are disconnected), on
+  messages still in the history (`not_found` otherwise), not on system messages
+  (`not_allowed`). The key is an emoji or `:name:` of an existing server emote (`invalid`,
+  `not_found`), the same check as the messages (`core.CheckReactionKey`).
+- Caps: `chat_max_reaction_kinds` distinct keys per message (default 20) and
+  `chat_max_reactions_per_user` reactions of one member on one message (default 10):
+  `reaction_limit`. Rate limit: `chat_reaction_rate_limit` adds and removals per
+  `rate_window` (default 10 per 10 s), separate from the chat and floating reaction limits:
+  `rate_limited`. Adding a reaction that is there, or removing one that is not, changes
+  nothing and sends nothing. A reaction counts as activity (inactivity close).
+- Every change broadcasts `chat_reactions` with the whole list of the message.
+- **Anonymous reactors** are redacted like the rest of the protocol: members get a null `id`,
+  "Anonymous #N" and `anon_number` (the anonymous user recognizes their own reactions by
+  number), moderators get the real `id` and `username` with `anonymous: true` (shown as
+  "Anonymous #N (alice)"). A lobby with anonymous reactions sends two variants of the payloads
+  (see "Anonymous members"). The reactor keeps the number of the membership they reacted
+  under.
 
 ## Sync algorithm
 
@@ -343,7 +390,8 @@ member connects (they get the role at the next tick).
   a new number). A member under their name cannot turn anonymous (`409`), and an anonymous
   member joining again stays anonymous.
 - What the server sends: to every member but the moderators, an anonymous member has a null
-  `user_id` (members, chat, reactions) or `added_by.id` (queue, suggestions), "Anonymous #N" as
+  `user_id` (members, chat, reactions) or `id` (queue and suggestions `added_by`, chat message
+  reactions `users`), "Anonymous #N" as
   name, and system messages say "Anonymous #N joined" (moderators: "Anonymous #N (alice)
   joined"). Queue items keep the adder's number (`lobby_queue_items.added_by_anon`), so the
   adder stays hidden after leaving or a restart. The anonymous user gets their own identity in
@@ -446,12 +494,15 @@ still offers to resume where the user was, not where the lobby was.
 | `ping_interval` | `25s` | WebSocket ping period |
 | `write_timeout` | `10s` | Longest write of one message |
 | `max_message_bytes` | `16384` | Largest client message |
+| `chat_reaction_rate_limit` | `10` | Chat message reactions added or removed per member per `rate_window` |
+| `chat_max_reaction_kinds` | `20` | Distinct reactions per chat message |
+| `chat_max_reactions_per_user` | `10` | Reactions of one member on one chat message |
 
 ## Limits
 
 - One process: the hub is in memory, several GoonHub instances behind a load balancer would each
   have their own lobbies.
-- The chat history is not persisted.
+- The chat history is not persisted (nor its reactions).
 - Sync precision depends on the browsers: usually under 0.2 s with direct streams; with
   on-the-fly conversion, seeks are slower (the conversion restarts).
 - The scene stream endpoints are not authenticated (unchanged, see `docs/RBAC.md`): being in a

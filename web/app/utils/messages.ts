@@ -18,6 +18,7 @@ export const MESSAGE_SSE_EVENTS = [
     'chat:read',
     'chat:typing',
     'chat:conversation_updated',
+    'chat:reaction',
 ] as const;
 
 export type MessageSseEvent = (typeof MESSAGE_SSE_EVENTS)[number];

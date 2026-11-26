@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { ChatMessage } from '~/types/together';
+import type { ReactionLimits } from '~/utils/reactions';
 
 // Room chat: recent messages (sent by the server on connect), new ones, deletion for the
-// host, moderators and the author.
+// host, moderators and the author, reactions on the messages (chat_react / chat_unreact).
 const room = useInjectedTogetherRoom();
 const { socket, isMine, isHost, canModerate } = room;
 
@@ -17,7 +18,8 @@ const onScroll = () => {
 };
 
 watch(
-    () => socket.chat.value.length,
+    // a new array on every change (new message, reactions): follow while at the bottom
+    () => socket.chat.value,
     async () => {
         if (!stick.value) return;
         await nextTick();
@@ -31,6 +33,15 @@ const canDelete = (m: ChatMessage) =>
 
 const send = (text: string) => socket.send({ t: 'chat', text });
 const remove = (id: number) => socket.send({ t: 'chat_delete', id });
+
+const connected = computed(() => socket.status.value === 'open');
+const reactionLimits = computed<ReactionLimits>(() => ({
+    maxKinds: socket.config.value.chat_max_reaction_kinds,
+    maxPerUser: socket.config.value.chat_max_reactions_per_user,
+}));
+const pills = (m: ChatMessage) => lobbyReactionPills(m.reactions, isMine);
+const react = (id: number, emote: string, add: boolean) =>
+    socket.send({ t: add ? 'chat_react' : 'chat_unreact', id, emote });
 </script>
 
 <template>
@@ -53,7 +64,11 @@ const remove = (id: number) => socket.send({ t: 'chat_delete', id });
                 :message="m"
                 :mine="!m.system && isMine(m.user_id, m.anon_number)"
                 :can-delete="!m.system && canDelete(m)"
+                :pills="pills(m)"
+                :can-react="connected"
+                :reaction-limits="reactionLimits"
                 @delete="remove"
+                @react="react"
             />
         </div>
         <div class="border-border border-t p-2">
