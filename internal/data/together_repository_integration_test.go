@@ -85,11 +85,12 @@ func TestLobbyRepository(t *testing.T) {
 	}
 
 	// The current item is cleared when its row goes
-	if err := repo.SavePlayback(lobby.ID, &items[1].ID, 12.5, 1.5); err != nil {
+	if err := repo.SavePlayback(lobby.ID, LobbyPlayback{ItemID: &items[1].ID, PositionS: 12.5, Rate: 1.5, PlayStartedAt: &now, PlayCompleted: true}); err != nil {
 		t.Fatal(err)
 	}
 	got, _ = repo.GetByUUID(lobby.UUID)
-	if got.CurrentItemID == nil || *got.CurrentItemID != items[1].ID || got.PositionS != 12.5 || got.PlaybackRate != 1.5 {
+	if got.CurrentItemID == nil || *got.CurrentItemID != items[1].ID || got.PositionS != 12.5 || got.PlaybackRate != 1.5 ||
+		got.PlayStartedAt == nil || !got.PlayStartedAt.Equal(now) || !got.PlayCompleted {
 		t.Fatalf("playback: %+v", got)
 	}
 	if err := repo.DeleteQueueItem(lobby.ID, items[1].ID); err != nil {
@@ -194,7 +195,7 @@ func TestLobbyRepository(t *testing.T) {
 
 	// Listing: public now, with the host name, the item playing and the membership
 
-	if err := repo.SavePlayback(lobby.ID, &items[0].ID, 0, 1); err != nil {
+	if err := repo.SavePlayback(lobby.ID, LobbyPlayback{ItemID: &items[0].ID, Rate: 1}); err != nil {
 		t.Fatal(err)
 	}
 	list, err := repo.List(other.ID, false)
@@ -231,6 +232,45 @@ func TestLobbyRepository(t *testing.T) {
 		t.Fatalf("member not removed: %v", err)
 	}
 
+	// History: newest first with the scene and adder, trimmed to keep, availability follows the trash
+	anon := 2
+	for i := 0; i < 4; i++ {
+		e := &LobbyHistoryEntry{LobbyID: lobby.ID, SceneID: scenes[i%2].ID, AddedBy: &host,
+			StartedAt: now.Add(time.Duration(i) * time.Minute), EndedAt: now.Add(time.Duration(i)*time.Minute + 30*time.Second),
+			Outcome: HistoryCompleted}
+		if i == 3 {
+			e.StartS, e.EndS, e.Label, e.AddedByAnon, e.Outcome = &start, &end, &label, &anon, HistorySkipped
+		}
+		if err := repo.AddHistory(e, 3); err != nil || e.ID == 0 {
+			t.Fatalf("add history %d: %v", i, err)
+		}
+	}
+	hist, err := repo.ListHistory(lobby.ID, 0)
+	if err != nil || len(hist) != 3 {
+		t.Fatalf("history not trimmed to 3: %+v %v", hist, err)
+	}
+	h0 := hist[0]
+	if h0.SceneID != scenes[1].ID || h0.SceneTitle != "Lobby B" || h0.SceneDuration != 50 || !h0.SceneAvailable ||
+		h0.AddedByName != f.user.Username || h0.Outcome != HistorySkipped || *h0.StartS != 5 || *h0.EndS != 20 ||
+		*h0.Label != "Marker" || h0.AddedByAnon == nil || *h0.AddedByAnon != 2 || !h0.StartedAt.Equal(now.Add(3*time.Minute)) {
+		t.Fatalf("newest history entry: %+v", h0)
+	}
+	if hist[2].StartedAt.Equal(now) {
+		t.Fatal("the oldest entry was not trimmed")
+	}
+	if two, _ := repo.ListHistory(lobby.ID, 2); len(two) != 2 || two[0].ID != h0.ID {
+		t.Fatalf("history limit: %+v", two)
+	}
+	if err := db.Model(&Scene{}).Where("id = ?", scenes[1].ID).Update("trashed_at", now).Error; err != nil {
+		t.Fatal(err)
+	}
+	if hist, _ = repo.ListHistory(lobby.ID, 0); hist[0].SceneAvailable || !hist[1].SceneAvailable {
+		t.Fatalf("availability: %+v", hist)
+	}
+	if err := db.Model(&Scene{}).Where("id = ?", scenes[1].ID).Update("trashed_at", nil).Error; err != nil {
+		t.Fatal(err)
+	}
+
 	// Idle cleanup keeps the loaded lobbies and recent ones
 	old := now.Add(-48 * time.Hour)
 	if err := repo.Touch([]uint{lobby.ID}, old); err != nil {
@@ -246,6 +286,10 @@ func TestLobbyRepository(t *testing.T) {
 	db.Model(&LobbyQueueItem{}).Where("lobby_id = ?", lobby.ID).Count(&left)
 	if left != 0 {
 		t.Fatalf("queue items left after the lobby deletion: %d", left)
+	}
+	db.Model(&LobbyHistoryEntry{}).Where("lobby_id = ?", lobby.ID).Count(&left)
+	if left != 0 {
+		t.Fatalf("history entries left after the lobby deletion: %d", left)
 	}
 }
 

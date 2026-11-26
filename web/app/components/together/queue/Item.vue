@@ -16,13 +16,7 @@ const emit = defineEmits<{
     remove: [id: number];
 }>();
 
-const range = computed(() => {
-    const { start, end, duration } = props.item;
-    if (start != null || end != null) {
-        return `${formatClock(start ?? 0)} - ${end != null ? formatClock(end) : formatClock(duration)}`;
-    }
-    return duration > 0 ? formatClock(duration) : '';
-});
+const range = computed(() => itemRangeText(props.item));
 </script>
 
 <template>
