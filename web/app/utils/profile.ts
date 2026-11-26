@@ -137,6 +137,7 @@ export const PROFILE_BLOCK_ICONS: Record<string, string> = {
     activity_calendar: 'heroicons:calendar-days',
     playlists: 'heroicons:queue-list',
     friends: 'heroicons:user-group',
+    custom_list: 'heroicons:queue-list',
 };
 
 /** The full list a block opens with its "See all" link. */

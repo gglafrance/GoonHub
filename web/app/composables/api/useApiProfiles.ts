@@ -1,6 +1,8 @@
 import type { SceneListItem } from '~/types/scene';
 import type { WidgetMarker } from '~/types/homepageMarkerWidgets';
 import type {
+    CustomList,
+    CustomListInput,
     ImageCrop,
     Profile,
     ProfileEdit,
@@ -8,6 +10,7 @@ import type {
     ProfileListKind,
     ProfileListResponse,
     ProfileRatingsPayload,
+    ProfileTabConfig,
 } from '~/types/profile';
 
 /** Parameters of a page of a profile list (rating: the ratings list only). */
@@ -58,14 +61,21 @@ export const useApiProfiles = () => {
         return (await handleResponse(response)) as { version: number };
     };
 
-    const getProfile = (username: string) =>
-        request<Profile>(`/users/${encodeURIComponent(username)}`);
+    // tab: a tab id or custom tab slug ('' = the profile tab, '-' = none)
+    const getProfile = (username: string, tab = '') =>
+        request<Profile>(
+            `/users/${encodeURIComponent(username)}${tab ? `?tab=${encodeURIComponent(tab)}` : ''}`,
+        );
 
     const getRatingHistogram = (username: string) =>
         request<ProfileRatingsPayload>(`/users/${encodeURIComponent(username)}/ratings/histogram`);
 
-    // The liked, rated or jizz videos of a user (docs/PROFILES.md, "Lists")
-    const listProfileScenes = (username: string, kind: ProfileListKind, p: ProfileListParams) => {
+    // The liked, rated or jizz videos of a user, or a custom list (`lists/<id>`)
+    const listProfileScenes = (
+        username: string,
+        kind: ProfileListKind | `lists/${number}`,
+        p: ProfileListParams,
+    ) => {
         const qs = new URLSearchParams({ page: String(p.page), limit: String(p.limit) });
         if (p.sort) qs.set('sort', p.sort);
         if (p.rating != null) qs.set('rating', String(p.rating));
@@ -74,6 +84,19 @@ export const useApiProfiles = () => {
     };
 
     const getMyProfile = () => request<ProfileEdit>('/me');
+
+    const setTabs = (tabs: ProfileTabConfig[]) =>
+        request<{ tabs: ProfileTabConfig[] }>('/me/tabs', json('PUT', { tabs }));
+
+    const resetTabs = () =>
+        request<{ tabs: ProfileTabConfig[] }>('/me/tabs', json('PUT', { reset: true }));
+
+    const listMyLists = () => request<{ lists: CustomList[] }>('/me/lists');
+    const createList = (input: CustomListInput) =>
+        request<CustomList>('/me/lists', json('POST', input));
+    const updateList = (id: number, input: CustomListInput) =>
+        request<CustomList>(`/me/lists/${id}`, json('PUT', input));
+    const deleteList = (id: number) => request<null>(`/me/lists/${id}`, { method: 'DELETE' });
 
     const updateMyProfile = (fields: { display_name?: string; bio?: string }) =>
         request<ProfileEdit>('/me', json('PATCH', fields));
@@ -113,6 +136,12 @@ export const useApiProfiles = () => {
         getRatingHistogram,
         listProfileScenes,
         getMyProfile,
+        setTabs,
+        resetTabs,
+        listMyLists,
+        createList,
+        updateList,
+        deleteList,
         updateMyProfile,
         setLayout,
         resetLayout,

@@ -1,38 +1,21 @@
 <script setup lang="ts">
-import type { Profile, ProfileListKind } from '~/types/profile';
+import type { Profile } from '~/types/profile';
 
-// Tabs of a profile page (Letterboxd style): the profile, then the full lists the viewer may
-// open (each behind its privacy item and scenes:view, `profile.lists`).
+// Tabs of a profile page (Letterboxd style), in the owner's order: the profile, the list tabs
+// and the custom tabs the viewer may open (`profile.tabs`, decided by the server).
 const props = defineProps<{ profile: Profile }>();
 
 const route = useRoute();
 
-const tabs = computed(() => {
-    const username = props.profile.user.username;
-    const lists = props.profile.lists;
-    const items: { id: 'profile' | ProfileListKind; label: string; icon: string }[] = [
-        { id: 'profile', label: 'Profile', icon: 'heroicons:user' },
-    ];
-    if (lists?.liked) items.push({ id: 'likes', label: 'Likes', icon: 'heroicons:heart' });
-    if (lists?.ratings) items.push({ id: 'ratings', label: 'Ratings', icon: 'heroicons:star' });
-    if (lists?.jizz) {
-        items.push({
-            id: 'jizz',
-            label: 'Jizz',
-            icon: 'fluent-emoji-high-contrast:sweat-droplets',
-        });
-    }
-    return items.map((t) => ({
+const tabs = computed(() =>
+    (props.profile.tabs ?? []).map((t) => ({
         ...t,
-        to: profileTabPath(username, t.id === 'profile' ? undefined : t.id),
-    }));
-});
+        icon: t.icon || 'heroicons:squares-2x2',
+        to: tabPath(props.profile.user.username, t),
+    })),
+);
 
-// The last path segment names the tab (/u/<name> is the profile)
-const active = computed(() => {
-    const segment = route.path.split('/').filter(Boolean)[2];
-    return segment ?? 'profile';
-});
+const active = computed(() => activeTabId(route.path, props.profile.tabs ?? []));
 </script>
 
 <template>
@@ -52,7 +35,7 @@ const active = computed(() => {
                 :aria-current="active === tab.id ? 'page' : undefined"
             >
                 <Icon :name="tab.icon" size="14" />
-                {{ tab.label }}
+                {{ tab.title }}
             </NuxtLink>
         </div>
     </nav>

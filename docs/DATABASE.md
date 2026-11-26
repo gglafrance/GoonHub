@@ -808,7 +808,8 @@ initials avatar, no banner, default layout).
 | `banner_type` | VARCHAR(16) | NO | 'none' | `none`, `scene` (thumbnail of `banner_scene_id`) or `upload` |
 | `banner_scene_id` | BIGINT | YES | NULL | FK to `scenes.id` (SET NULL), for the `scene` banner |
 | `banner_version` | BIGINT | NO | 0 | Version of the uploaded banner (files in `profiles.image_dir/banners`) |
-| `layout` | JSONB | YES | NULL | Ordered blocks `[{type, visible, locked_placeholder, config}]`, validated by the server (`core/profile_blocks.go`); NULL = the default layout |
+| `layout` | JSONB | YES | NULL | Ordered blocks `[{type, visible, locked_placeholder, config}]`, validated by the server (`core/profile_blocks.go`); NULL = the default layout. Read only while `tabs` is NULL |
+| `tabs` | JSONB | YES | NULL | Migration 103: tabs `[{id, kind, title, icon, slug, visible, sections: [{id, template, columns: [[block]]}]}]`, validated by the server (`core/profile_tabs.go`); NULL = derived from `layout` |
 | `created_at` | TIMESTAMPTZ | NO | NOW() | Row creation |
 | `updated_at` | TIMESTAMPTZ | NO | NOW() | Last change |
 
@@ -819,6 +820,33 @@ initials avatar, no banner, default layout).
 - CHECK `chk_user_profiles_banner_type`: `banner_type IN ('none', 'scene', 'upload')`
 - CHECK `chk_user_profiles_bio_length`: `char_length(bio) <= 5000`
 - CHECK `chk_user_profiles_layout_array`: `layout IS NULL OR jsonb_typeof(layout) = 'array'`
+- CHECK `chk_user_profiles_tabs_array`: `tabs IS NULL OR jsonb_typeof(tabs) = 'array'`
+
+---
+
+### `user_profile_lists`
+
+Custom lists of the profiles (migration 103, `docs/PROFILES.md`): search criteria run with the
+owner's interactions. At most `profiles.max_lists` per user (application rule).
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key |
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
+| `title` | VARCHAR(80) | NO | - | 1-80 characters |
+| `filters` | JSONB | NO | '{}' | The saved search filters shape (`data.Filters`), validated by the server |
+| `saved_search_uuid` | UUID | YES | NULL | A saved search of the owner the list follows (its current filters while it exists); no FK, a missing one falls back to `filters` |
+| `audience` | VARCHAR(16) | NO | 'public' | Who may see the list (besides the items its criteria depend on) |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Creation |
+| `updated_at` | TIMESTAMPTZ | NO | NOW() | Last change |
+
+**Indexes:**
+- `idx_user_profile_lists_user_id` on `user_id`
+
+**Constraints:**
+- CHECK `chk_user_profile_lists_audience`: `audience IN ('public', 'followers', 'mutuals', 'friends', 'private')`
+- CHECK `chk_user_profile_lists_filters_object`: `jsonb_typeof(filters) = 'object'`
+- CHECK `chk_user_profile_lists_title`: `char_length(title) BETWEEN 1 AND 80`
 
 ---
 

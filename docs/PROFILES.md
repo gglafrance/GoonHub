@@ -14,8 +14,12 @@ privacy framework (`docs/SOCIAL.md`): read "Privacy framework" there first.
   (`user_profile_favorite_markers`), ordered, at most `profiles.max_showcase_items` (default 4)
   each. The owner picks scenes still in the library and markers they see (their own, or those of
   users who share theirs, `users.share_markers`).
-- **Layout**: the ordered list of blocks, each `{type, visible, locked_placeholder, config}`,
-  stored as JSONB and validated by the server. NULL = the default layout.
+- **Tabs** (`user_profiles.tabs`, migration 103): the ordered tabs, each made of **sections**
+  (rows with a column template) holding **blocks** (`{id, type, visible, locked_placeholder,
+  config}`), see "Tabs and sections". NULL = derived from the older **layout** column (one list
+  of blocks, migration 100), itself NULL for the default layout.
+- **Custom lists** (`user_profile_lists`, migration 103): search criteria run with the owner's
+  interactions, see "Custom lists".
 
 Display names and avatars are identity, like usernames: every signed-in user sees them (lists,
 directory, header), whatever the privacy settings. The bio and the banner are part of the
@@ -30,7 +34,8 @@ included, no administrator bypass):
    /social/users/:username` gives it.
 2. If the viewer may not see the `profile` item: nothing else (no bio, banner nor block).
 3. Else the bio, the banner (a scene banner only for viewers with `scenes:view` and a scene still
-   in the library), and the visible blocks of the layout, in order:
+   in the library), the tabs the viewer may open, and the visible blocks of the asked tab
+   (`?tab=`), section by section, column by column:
    - a block whose `ViewerPermission` the viewer lacks is omitted (e.g. no scene block without
      `scenes:view`);
    - a block whose privacy item the viewer may not see is omitted, or, when the owner turned on
@@ -78,6 +83,7 @@ share their markers (`users.share_markers`). Marker thumbnails use the versioned
 | `activity_calendar` | `activity` | | `weeks` 4-104 (26), `metric` views/jizz/both (views) | shown |
 | `playlists` | `playlists` | `playlists:view_public` | `count` (6) | shown |
 | `friends` | `friends_list` | | `count` (8) | shown |
+| `custom_list` | the list's (below) | `scenes:view` | `list_id`, `count` 2-24 (6), `display` grid/row (grid) | never (placed by the owner, several times) |
 
 Periods: `week` = last 7 days, `month` = last 30 days, `year` = last 365 days, `all`.
 
@@ -152,6 +158,88 @@ Choice made: `ratings` and `jizz` default to `friends`, like the other activity 
 the most sensitive one: users who want it for themselves set it to "Only me" in Settings >
 Privacy (or the block's audience in Edit profile > Blocks).
 
+## Tabs and sections
+
+A profile has tabs, in the owner's order:
+
+- built-in: `profile` (the main tab, always shown, made of sections), `likes`, `ratings`, `jizz`
+  (the full lists above; each can be hidden). Each built-in tab appears once, its id is its kind,
+  its title and icon are fixed;
+- custom tabs (`kind: custom`): a title (1-40 characters), an optional Nuxt icon name
+  (`set:name`), a slug (from the title when empty; unique, `[a-z0-9-]`), shown or hidden, made of
+  sections like the profile tab.
+
+A section is `{id, template, columns}`: the template is one of `1` (one column), `1-1` (two
+equal), `1-1-1` (three equal), `2-1` (2/3 + 1/3), `1-2` (1/3 + 2/3) (`core.ProfileSectionTemplates`,
+widths in twelfths); `columns` holds the blocks of each column. Columns stack on small screens.
+A block id is unique in the profile (`[a-z0-9][a-z0-9_-]{0,31}`, like tab and section ids); the
+same block type may appear several times (one stats block per period, a custom list block per
+list).
+
+Saving (`PUT /profiles/me/tabs`) refuses (`400`) unknown kinds, templates, block types or
+options, invalid or duplicate ids or slugs, a built-in tab twice or with another id, a custom tab
+without title, sections on a list tab, a column count that does not match the template, a
+custom list block without one of the owner's lists, more than `profiles.max_tabs` tabs (8, the
+built-in ones included), `profiles.max_sections` sections per tab (12) or
+`profiles.max_blocks_per_tab` blocks per tab (24); missing built-in tabs are appended. Reading
+never fails: unknown kinds, blocks and options are dropped, extra columns join the last one.
+
+Migration of older profiles (in code, `NormalizeProfileTabs`): a profile without tabs is read as
+the profile tab holding one full-width section with the blocks of its layout in order (the
+older normalization: missing types appended hidden, block ids = their type), followed by the
+list tabs: it renders exactly as before. `PUT /profiles/me/layout` (the older API) still works:
+it replaces the profile tab with one such section.
+
+Who sees a tab (choice made: tabs have no audience of their own, they follow their blocks):
+
+- the profile tab: every viewer of the profile;
+- a list tab: shown by its owner and visible to the viewer (its privacy item and
+  `scenes:view`);
+- a custom tab: shown by its owner and holding at least one block the viewer gets (visible, or
+  sent as a locked placeholder). Its owner always sees it. A hidden or unknown tab asked with
+  `?tab=` answers the profile with `tab_missing: true` and no sections.
+
+One `Visibility` call reads every privacy item of all the tabs (blocks, custom list
+dependencies, list tabs); only the blocks of the served tab are fetched.
+
+## Custom lists
+
+A custom list is a title, search criteria and an audience. The criteria are the saved search
+filters (`data.Filters`: text, tags, actors, studio, resolution, duration, size, dates, status,
+liked, rating, O and marker filters) and a sort among the search sorts, which include sorts on
+the user's own interactions (`core/search_user_sorts.go`): `my_rating_desc`, `my_rating_asc`,
+`liked_at_desc`, `my_views_desc`, `last_watched_desc` besides the O sorts (`jizz_count_*`,
+`last_jizz_*`). A list may also follow one of the owner's saved searches (`saved_search_uuid`):
+while it exists its current filters are used (a copy is kept in `filters`). The criteria are
+stored typed and validated (lengths, known sorts, resolutions, match types, dates, ranges; no
+query text reaches SQL). At most `profiles.max_lists` lists per user (20).
+
+The list runs with the **owner's** interactions (their likes, ratings, O, views, markers) through
+the search (`SearchService`), so a criterion on them reveals owner data. Each one depends on a
+privacy item:
+
+| Criterion | Privacy item |
+|---|---|
+| liked, `liked_at_desc` | `liked` |
+| rating range, rated / unrated, `my_rating_*` | `ratings` |
+| O range, `jizz_count_*`, `last_jizz_*` | `jizz` |
+| watched / unwatched, `my_views_desc`, `last_watched_desc` | `activity` |
+| with / without markers, marker labels | `recent_markers` |
+
+A viewer gets a list (its block, or `GET .../lists/:id`) only when they have `scenes:view`, pass
+the `profile` item, the list's own audience (default `public`) and every item its criteria
+depend on (no administrator bypass), and have `files:view_size` when the criteria use sizes
+(size bounds or sorts). Otherwise the block is omitted or locked and the page answers `403
+PRIVACY_RESTRICTED`. The search runs with the viewer's file permissions: without
+`files:view_paths` the text is not matched on paths. Trashed scenes are skipped and the scenes
+redacted for the viewer. A viewer never gets the criteria, only the title. Tags that do not
+exist make the list empty (never wider). The editor shows the dependencies of a list and their
+current audiences (`dependencies` of `GET /profiles/me/lists`).
+
+The `custom_list` block shows the first `count` videos (grid or compact row) with a "Browse"
+link to `/u/<name>/lists/<id>` (the whole list, paginated, the user's card template). A deleted
+list leaves its blocks empty: they are shown to nobody.
+
 ## Images
 
 Avatars and uploaded banners are GoonHub data, stored in `profiles.image_dir` (default
@@ -192,12 +280,18 @@ that pick scenes or markers need `scenes:view`.
 
 | Route | Permission | Answer |
 |---|---|---|
-| `GET /api/v1/profiles/users/:username` | | the social summary (`user`, `relationship`, `visibility`, `counts`, as `GET /social/users/:username`) + `bio`, `banner: {type, url, url_md, scene_id?} \| null`, `blocks: [...]`, `lists: {liked, ratings, jizz}` |
+| `GET /api/v1/profiles/users/:username` | | the social summary (`user`, `relationship`, `visibility`, `counts`, as `GET /social/users/:username`) + `bio`, `banner: {type, url, url_md, scene_id?} \| null`, `blocks: [...]` (the blocks of the served tab), `lists: {liked, ratings, jizz}`, `tabs: [{id, kind, title, icon?, slug?}]` (those the viewer may open), `tab`, `tab_missing?`, `sections: [{id, template, columns: [[block]]}]`; `?tab=` a tab id or custom tab slug (default the profile tab) |
 | `GET /api/v1/profiles/users/:username/ratings/histogram` | `scenes:view` | `{buckets: [{rating, count}] (10, ascending), total, average}`; `403 PRIVACY_RESTRICTED` unless `profile` and `ratings` |
 | `GET /api/v1/profiles/users/:username/ratings?rating=&sort=&page=&limit=&card_fields=` | `scenes:view` | list (below); needs `profile` and `ratings`; `400` for an unknown sort or a rating off the scale |
 | `GET /api/v1/profiles/users/:username/likes?sort=&page=&limit=&card_fields=` | `scenes:view` | list; needs `profile` and `liked` |
 | `GET /api/v1/profiles/users/:username/jizz?sort=&page=&limit=&card_fields=` | `scenes:view` | list; needs `profile` and `jizz` |
-| `GET /api/v1/profiles/me` | | edit state: `{user, display_name, bio, avatar_version, banner: {type, scene_id?, version, url?}, layout: [...], favorite_scenes: [SceneListItem], favorite_markers: [marker], block_types: [...], privacy: <GET /social/privacy>, limits: {max_showcase_items, bio_max_length, display_name_max_length, max_upload_bytes}}` |
+| `GET /api/v1/profiles/users/:username/lists/:id?page=&limit=&card_fields=` | `scenes:view` | `{list: {id, title}, data: [{scene}], pagination, ratings?, likes?, jizz_counts?, watched?}`; `403 PRIVACY_RESTRICTED` unless visible (above); `404` unknown list |
+| `PUT /api/v1/profiles/me/tabs` `{tabs}` or `{reset: true}` | | `{tabs}` normalized; `400` (see "Tabs and sections") |
+| `GET /api/v1/profiles/me/lists` | `scenes:view` | `{lists: [list]}` |
+| `POST /api/v1/profiles/me/lists` `{title, filters, saved_search_uuid?, audience?}` | `scenes:view` | `201` list; `400` invalid criteria, title, audience, unknown saved search or over the cap; `403` size criteria without `files:view_size` |
+| `PUT /api/v1/profiles/me/lists/:id` (same body) | `scenes:view` | the list |
+| `DELETE /api/v1/profiles/me/lists/:id` | | `204`; `404` |
+| `GET /api/v1/profiles/me` | | edit state: `{user, display_name, bio, avatar_version, banner: {type, scene_id?, version, url?}, layout: [...] (the blocks of the profile tab), tabs: [...], lists: [list], section_templates: [{id, label, widths}], favorite_scenes: [SceneListItem], favorite_markers: [marker], block_types: [...], privacy: <GET /social/privacy>, limits: {max_showcase_items, bio_max_length, display_name_max_length, max_upload_bytes}}` |
 | `PATCH /api/v1/profiles/me` `{display_name?, bio?}` | | the edit state; `400` over the limits |
 | `PUT /api/v1/profiles/me/layout` `{blocks: [...]}` or `{reset: true}` | | `{blocks}` normalized |
 | `PUT /api/v1/profiles/me/showcases/scenes` `{scene_ids}` | `scenes:view` | `{scenes: [SceneListItem]}`; `400` too many, duplicate, unknown or trashed scene |
@@ -210,6 +304,11 @@ that pick scenes or markers need `scenes:view`.
 | `DELETE /api/v1/profiles/me/banner` | | `204` |
 | `GET /api/v1/profiles/avatar/:userId/:size` | | JPEG (`sm`, `md`, `lg`) or `404` |
 | `GET /api/v1/profiles/banner/:userId/:size` | | JPEG (`md`, `lg`); `403 PRIVACY_RESTRICTED` unless the profile is visible |
+
+A custom list (owner): `{id, title, filters, saved_search_uuid, follows_saved_search, audience,
+dependencies: [{key, label, audience}], needs_size, updated_at}`. The limits also carry
+`max_tabs`, `max_sections`, `max_blocks_per_tab`, `max_lists`; a block type `multi: true`
+(custom_list).
 
 A list: `{data: [{scene, at?, rating?, jizz_count?}], pagination: {page, limit, total_items,
 total_pages}, sort, ratings?, likes?, jizz_counts?, watched?}` (the sidecar maps: the viewer's
@@ -228,15 +327,18 @@ The social user cards (`/social/...` lists, directory, `GET /social/me` `user`) 
 
 ## Frontend
 
-- `pages/u/[username].vue` (orchestrator, parent route): loads the profile, `ProfileHeader`
-  (banner, avatar, names, `ProfileBio`, counts, badges and actions, `Edit profile` for the
-  owner, a `presence` slot next to the name for an online / now watching badge), `ProfileTabs`
-  (Profile, Likes, Ratings, Jizz: the lists of `profile.lists`), the child page (`<NuxtPage>`,
-  props `profile` and `owner`) and the relation lists (`SocialProfileLists`, opened from the
-  counts).
-- Child pages in `pages/u/[username]/`: `index.vue` (the blocks: `ProfileBlockRenderer` +
-  `components/profile/blocks/<Type>.vue`, sharing `ProfileScenesGrid`, `ProfileSceneFigure` and
-  `ProfileMarkersGrid`; the frame shows "See all" for the blocks of `PROFILE_BLOCK_LISTS`),
+- `pages/u/[username].vue` (orchestrator, parent route): loads the profile with the tab of the
+  route (`tabKeyOfPath`), `ProfileHeader` (banner, avatar, names, `ProfileBio`, counts, badges
+  and actions, `Edit profile` for the owner, a `presence` slot next to the name for an online /
+  now watching badge), `ProfileTabs` (the tabs of `profile.tabs`, `tabPath`), the child page
+  (`<NuxtPage>`, props `profile` and `owner`) and the relation lists (`SocialProfileLists`,
+  opened from the counts).
+- Child pages in `pages/u/[username]/`: `index.vue` and `t/[tab].vue` (a custom tab,
+  `/u/<name>/t/<slug>`) render `ProfileSections` (the sections as 12-column grids from `md`,
+  stacked below; the blocks: `ProfileBlockRenderer` + `components/profile/blocks/<Type>.vue`,
+  sharing `ProfileScenesGrid`, `ProfileSceneFigure` and `ProfileMarkersGrid`; the frame shows
+  "See all" for the blocks of `PROFILE_BLOCK_LISTS` and "Browse" for a custom list),
+  `lists/[id].vue` (a custom list browsed in full),
   `likes.vue`, `ratings.vue` (the chart, a click on a bar toggles the `?rating=` filter, shown
   as a removable chip) and `jizz.vue`. The lists are `ProfileSceneList` (the user's card
   template and grid density, pagination or infinite scroll per the user setting, page and sort
@@ -247,10 +349,18 @@ The social user cards (`/social/...` lists, directory, `GET /social/me` `user`) 
   `utils/ratingHistogram.ts` (tests in `web/tests/ratingHistogram.test.ts`).
 - Edit mode (`?edit=1`, owner only): `ProfileEditPanel` with the tabs Profile
   (`ProfileEditIdentity`: display name, bio; `ProfileEditImages`: avatar and banner upload with
-  `ProfileEditImageCropper`, remove, banner from a favorite video), Blocks (`ProfileEditLayout`:
-  drag and drop or arrows, shown toggle, "Private" placeholder toggle, options, and who can see
-  the block: its privacy item's audience, saved at once through `PUT /social/privacy`, shared by
-  the blocks of the same item), Favorite videos and Favorite markers (`ProfileEditShowcase`:
+  `ProfileEditImageCropper`, remove, banner from a favorite video), Tabs & layout
+  (`ProfileEditTabs`: `ProfileEditTabList` to reorder (drag and drop or arrows), show, rename,
+  pick an icon, add and delete custom tabs; `ProfileEditSections` / `ProfileEditSection` for the
+  sections of the selected tab: add, remove, reorder, template, and the blocks moved by drag and
+  drop between columns and sections or with the arrows of `ProfileEditBlock` (up, down, left,
+  right), shown toggle, "Private" placeholder, options, and who can see the block: its privacy
+  item's audience, saved at once through `PUT /social/privacy`, shared by the blocks of the same
+  item; a custom list block picks a list and shows its audience and dependencies; saved with the
+  button), Custom lists (`ProfileEditLists`: presets Top O, Top rated, Recently liked, Most
+  watched, Newest; `ProfileEditListForm`: title, audience, criteria or a saved search, the
+  dependencies and their audiences; `ProfileEditListCriteria`: the search interface on its own
+  store, `useProfileListSearchStore`, with a preview of the first results), Favorite videos and Favorite markers (`ProfileEditShowcase`:
   drag and drop, remove, replace, and "Add" with the search picker `PickerModal`, Videos or
   Markers tab, multi-select up to the free slots, single select to replace a slot; saved on each
   change). The picker's Markers tab lists `GET /markers/all?live_only=true`: the markers the user
@@ -261,7 +371,9 @@ The social user cards (`/social/...` lists, directory, `GET /social/me` `user`) 
   where the avatar and name link to "My profile" (`useSocialStore().me`, from `/social/me`).
 - Helpers: `useApiProfiles()`, `useDragReorder()`, `utils/profile.ts` (`avatarUrl`,
   `bioSegments` (links as text nodes, http(s) only), `cropFromView`, `moveItem`...), tests in
-  `web/tests/profile.test.ts`.
+  `web/tests/profile.test.ts`; `utils/profileLayout.ts` (templates and column classes, ids,
+  `moveBlock`, `neighbourPosition`, `setSectionTemplate`, tab paths, `criteriaDependencies`
+  mirroring the server, presets), tests in `web/tests/profileLayout.test.ts`.
 
 ## Configuration
 
@@ -274,13 +386,20 @@ profiles:
   max_showcase_items: 4                # 1-12
   bio_max_length: 1000                 # characters (5000 at most, the database check)
   display_name_max_length: 64          # characters (64 at most, the column)
+  max_tabs: 8                          # tabs of a profile, built-in ones included (4-20)
+  max_sections: 12                     # sections per tab (1-40)
+  max_blocks_per_tab: 24               # blocks per tab (1-100)
+  max_lists: 20                        # custom lists per user (1-200)
 ```
 
 ## Known limitations
 
 - Customized layouts get the `ratings` and `jizz` blocks appended hidden (like every block type
-  added later): their owners turn them on in Edit profile > Blocks. The tabs do not depend on
-  the blocks.
+  added later): their owners turn them on in Edit profile > Tabs & layout. The list tabs do not
+  depend on the blocks.
+- A custom list whose source saved search is deleted falls back to the copy of its filters taken
+  when it was saved. A list with a random sort draws a new order on each load.
+- Custom lists run a Meilisearch search per block on each profile view (a few per page).
 - The stats block counts every rating (`rated`, `avg_rating`), trashed scenes included; the
   ratings chart and lists only count the scenes still in the library.
 

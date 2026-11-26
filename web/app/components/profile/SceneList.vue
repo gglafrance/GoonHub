@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import type { ProfileListKind, ProfileScene, ProfileSceneFigureKind } from '~/types/profile';
+import type {
+    ProfileListKind,
+    ProfileListResponse,
+    ProfileScene,
+    ProfileSceneFigureKind,
+} from '~/types/profile';
 import type { LoadedPages, PageLoadPlan } from '~/utils/infinitePages';
 
 // A full list of a profile (liked, rated or jizz videos, docs/PROFILES.md "Lists"): the user's
@@ -7,7 +12,8 @@ import type { LoadedPages, PageLoadPlan } from '~/utils/infinitePages';
 // URL. Under each card: the owner's figure; the card badges are the viewer's own interactions.
 const props = defineProps<{
     username: string;
-    kind: ProfileListKind;
+    /** A list of the profile, or a custom list (`lists/<id>`) */
+    kind: ProfileListKind | `lists/${number}`;
     sortOptions: { value: string; label: string }[];
     figure: ProfileSceneFigureKind;
     atLabel?: string;
@@ -16,7 +22,7 @@ const props = defineProps<{
     emptyText: string;
 }>();
 
-const emit = defineEmits<{ total: [total: number] }>();
+const emit = defineEmits<{ total: [total: number]; loaded: [response: ProfileListResponse] }>();
 
 const api = useApiProfiles();
 const settingsStore = useSettingsStore();
@@ -68,6 +74,8 @@ async function run(plan: PageLoadPlan) {
         sidecars.value = mergeCardSidecars(sidecars.value, responses, partial);
         loadedPages.value = commitPageLoad(loadedPages.value, plan);
         emit('total', total.value);
+        const last = responses[responses.length - 1];
+        if (last) emit('loaded', last);
     } catch (e: unknown) {
         if (current !== request) return;
         error.value = e instanceof Error ? e.message : 'Failed to load the videos';
@@ -123,7 +131,12 @@ onMounted(() => load(page.value));
                 <span class="font-mono text-white">{{ total }}</span>
                 {{ total === 1 ? 'video' : 'videos' }}
             </span>
-            <UiSortSelect v-model="sort" :options="props.sortOptions" class="ml-auto" />
+            <UiSortSelect
+                v-if="props.sortOptions.length > 0"
+                v-model="sort"
+                :options="props.sortOptions"
+                class="ml-auto"
+            />
         </div>
 
         <div

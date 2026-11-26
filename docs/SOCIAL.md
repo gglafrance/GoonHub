@@ -101,6 +101,10 @@ audience.
 | `online_status` | Presence | friends | whether the user is online, idle or offline, and their last seen (`docs/PRESENCE.md`) |
 | `now_watching` | Presence | friends | what the user is watching (also needs `online_status`) |
 
+Custom lists of a profile (`docs/PROFILES.md`, "Custom lists") add no item: a list has its own
+audience and depends on the items of its criteria (`liked`, `ratings`, `jizz`, `activity`,
+`recent_markers`), all checked for every viewer.
+
 `profile` is a gate: a block shown on the profile page needs `profile` and its own item (the
 lists endpoints check both, `CanViewAll`; the profile blocks and their items are listed in
 `docs/PROFILES.md`). Items shown elsewhere (presence in the header, for
