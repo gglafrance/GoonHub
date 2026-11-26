@@ -77,6 +77,7 @@ func togetherServer(t *testing.T) (*httptest.Server, *together.Hub) {
 	perm := middleware.RequirePermission
 	tg := r.Group("/api/v1/together", auth, perm(core.PermTogetherUse))
 	tg.GET("/lobbies", h.ListLobbies)
+	tg.GET("/public-count", h.PublicCount)
 	tg.POST("/lobbies", perm(core.PermTogetherHost), h.CreateLobby)
 	tg.GET("/lobbies/:id", h.GetLobby)
 	tg.DELETE("/lobbies/:id", h.CloseLobby)
@@ -345,6 +346,30 @@ func TestTogetherRESTFlow(t *testing.T) {
 	}
 	if status, _ := tgJSON(t, srv, http.MethodGet, "/api/v1/together/lobbies/not-a-uuid", 1, nil); status != http.StatusNotFound {
 		t.Fatalf("bad id: %d", status)
+	}
+}
+
+func TestTogetherPublicCount(t *testing.T) {
+	srv, _ := togetherServer(t)
+	count := func(user uint) (int, any) {
+		status, out := tgJSON(t, srv, http.MethodGet, "/api/v1/together/public-count", user, nil)
+		return status, out["count"]
+	}
+	if status, n := count(3); status != http.StatusOK || n != float64(0) {
+		t.Fatalf("empty count: %d %v", status, n)
+	}
+	tgJSON(t, srv, http.MethodPost, "/api/v1/together/lobbies", 1, map[string]any{"name": "Private"})
+	tgJSON(t, srv, http.MethodPost, "/api/v1/together/lobbies", 1, map[string]any{"name": "Public", "visibility": "public"})
+	tgJSON(t, srv, http.MethodPost, "/api/v1/together/lobbies", 2, map[string]any{"name": "Public 2", "visibility": "public"})
+	// Every user with goon2gether:use sees the same count (private lobbies never count)
+	for _, user := range []uint{1, 3} {
+		if status, n := count(user); status != http.StatusOK || n != float64(2) {
+			t.Fatalf("count for %d: %d %v", user, status, n)
+		}
+	}
+	// Without goon2gether:use
+	if status, _ := count(5); status != http.StatusForbidden {
+		t.Fatalf("count without goon2gether:use: %d", status)
 	}
 }
 

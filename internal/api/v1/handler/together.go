@@ -66,6 +66,20 @@ func (h *TogetherHandler) ListLobbies(c *gin.Context) {
 	response.OK(c, gin.H{"lobbies": lobbies})
 }
 
+// PublicCount: GET /together/public-count, the number of public lobbies (nav badge, kept live
+// by the together:public_count SSE event).
+func (h *TogetherHandler) PublicCount(c *gin.Context) {
+	if _, ok := h.actor(c); !ok {
+		return
+	}
+	n, err := h.hub.PublicLobbyCount()
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, gin.H{"count": n})
+}
+
 // CreateLobby: POST /together/lobbies
 func (h *TogetherHandler) CreateLobby(c *gin.Context) {
 	a, ok := h.actor(c)

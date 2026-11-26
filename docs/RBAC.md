@@ -187,7 +187,7 @@ a field added later stays private until it is listed. An unknown event type is s
 data. Superusers get every event as is. Notable rules: `scan:*` need `storage:manage`; job
 events need `jobs:view_status`; `fingerprint_type` of `scene:fingerprint_complete` needs
 `files:view_technical`; the `error` of `scene:failed` needs `files:view_technical` and
-`files:view_paths`.
+`files:view_paths`; `together:public_count` (number of public lobbies) needs `goon2gether:use`.
 
 ### Social privacy
 

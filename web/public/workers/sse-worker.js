@@ -27,6 +27,8 @@ var SSE_EVENT_TYPES = [
     'social:friend_requests_changed',
     // presence (targeted, see app/utils/presence.ts)
     'presence:update',
+    // public lobby count of Goon2gether (broadcast, see app/utils/together.ts)
+    'together:public_count',
 ];
 
 function broadcast(type, payload) {

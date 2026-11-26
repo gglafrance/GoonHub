@@ -27,6 +27,8 @@ type LobbyRepository interface {
 	// most recently active first.
 	List(userID uint, all bool) ([]LobbyListEntry, error)
 	CountHostedBy(userID uint) (int64, error)
+	// CountPublic counts the public lobbies (the nav badge of the lobby browser).
+	CountPublic() (int64, error)
 	// UpdateSettings saves name, visibility, control_open, queue_open, wait_for_all,
 	// max_members and auto_next.
 	UpdateSettings(lobby *Lobby) error
@@ -145,6 +147,14 @@ func (r *LobbyRepositoryImpl) CountHostedBy(userID uint) (int64, error) {
 	var n int64
 	err := r.DB.Model(&Lobby{}).Where("host_user_id = ?", userID).Count(&n).Error
 	return n, err
+}
+
+func (r *LobbyRepositoryImpl) CountPublic() (int64, error) {
+	var n int64
+	if err := r.DB.Model(&Lobby{}).Where("visibility = ?", LobbyVisibilityPublic).Count(&n).Error; err != nil {
+		return 0, fmt.Errorf("count public lobbies: %w", err)
+	}
+	return n, nil
 }
 
 func (r *LobbyRepositoryImpl) UpdateSettings(lobby *Lobby) error {

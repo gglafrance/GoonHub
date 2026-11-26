@@ -26,6 +26,9 @@ export const useApiTogether = () => {
     const listLobbies = (all = false) =>
         request<{ lobbies: LobbySummary[] }>(`/lobbies${all ? '?all=true' : ''}`);
 
+    /** Number of public lobbies (nav badge). */
+    const getPublicCount = () => request<{ count: number }>('/public-count');
+
     const getLobby = (id: string) => request<LobbySummary>(`/lobbies/${encodeURIComponent(id)}`);
 
     const createLobby = (input: CreateLobbyInput) =>
@@ -81,6 +84,7 @@ export const useApiTogether = () => {
 
     return {
         listLobbies,
+        getPublicCount,
         getLobby,
         createLobby,
         joinLobby,
