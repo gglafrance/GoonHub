@@ -17,6 +17,8 @@ func TestSSETargetedEvents(t *testing.T) {
 	broadcastPresence := core.SceneEvent{Type: core.EventPresenceUpdate, Data: map[string]any{"user": map[string]any{"id": 2}}}
 	chatToAlice := core.SceneEvent{Type: core.EventChatMessage, UserID: 1, Data: map[string]any{"conversation_id": 4, "message": map[string]any{"id": 9}}}
 	broadcastChat := core.SceneEvent{Type: core.EventChatTyping, Data: map[string]any{"conversation_id": 4, "user_id": 2}}
+	reactionToAlice := core.SceneEvent{Type: core.EventChatReaction, UserID: 1, Data: map[string]any{"conversation_id": 4, "message_id": 9, "reactions": []any{}}}
+	broadcastReaction := core.SceneEvent{Type: core.EventChatReaction, Data: map[string]any{"conversation_id": 4, "message_id": 9, "reactions": []any{}}}
 
 	tests := []struct {
 		name   string
@@ -38,6 +40,11 @@ func TestSSETargetedEvents(t *testing.T) {
 		{"a message event never reaches a superuser", chatToAlice, admin, false},
 		{"broadcast chat events are dropped", broadcastChat, alice, false},
 		{"broadcast chat events are dropped for superusers", broadcastChat, admin, false},
+		{"a reaction event goes to its participant", reactionToAlice, alice, true},
+		{"a reaction event never reaches another user", reactionToAlice, bob, false},
+		{"a reaction event never reaches a superuser", reactionToAlice, admin, false},
+		{"broadcast reaction events are dropped", broadcastReaction, alice, false},
+		{"broadcast reaction events are dropped for superusers", broadcastReaction, admin, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

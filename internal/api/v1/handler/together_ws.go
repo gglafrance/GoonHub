@@ -31,7 +31,9 @@ func (h *TogetherHandler) Socket(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if v := c.Query("v"); v != "" && v != strconv.Itoa(together.ProtocolVersion) {
+	// Versions MinProtocolVersion to ProtocolVersion are accepted (each one only adds to the
+	// previous one, see docs/GOON2GETHER.md)
+	if v := c.Query("v"); v != "" && !supportedProtocolVersion(v) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported protocol version", "code": "BAD_VERSION"})
 		return
 	}
@@ -177,4 +179,10 @@ func (h *TogetherHandler) writeLoop(ctx context.Context, conn *websocket.Conn, c
 			}
 		}
 	}
+}
+
+// supportedProtocolVersion tells whether the server speaks the protocol version a client asks.
+func supportedProtocolVersion(v string) bool {
+	n, err := strconv.Atoi(v)
+	return err == nil && n >= together.MinProtocolVersion && n <= together.ProtocolVersion
 }

@@ -232,8 +232,17 @@ func TestTogetherWebSocketRoundTrip(t *testing.T) {
 	}
 
 	tgWrite(t, member, map[string]any{"t": "chat", "text": "hello :pog:"})
-	if m := readUntil(t, host, "chat")["message"].(map[string]any); m["username"] != "bob" {
-		t.Fatalf("chat %v", m)
+	chatMsg := readUntil(t, host, "chat")["message"].(map[string]any)
+	if chatMsg["username"] != "bob" {
+		t.Fatalf("chat %v", chatMsg)
+	}
+
+	// A reaction on the chat message reaches every member with the whole list (protocol v3)
+	tgWrite(t, host, map[string]any{"t": "chat_react", "id": chatMsg["id"], "emote": "🔥"})
+	rx := readUntil(t, member, "chat_reactions")
+	list, _ := rx["reactions"].([]any)
+	if rx["id"] != chatMsg["id"] || len(list) != 1 || list[0].(map[string]any)["emote"] != "🔥" || list[0].(map[string]any)["count"] != float64(1) {
+		t.Fatalf("chat_reactions %v", rx)
 	}
 
 	// Kick: bye, then close code 4001
@@ -284,6 +293,22 @@ func TestTogetherWebSocketRefusals(t *testing.T) {
 	if _, res, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http")+"/api/v1/together/lobbies/"+id+"/ws", nil); err == nil || res.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("no session: %v %v", res, err)
 	}
+	// Versions: 2 (no chat reactions) and 3 are accepted, others refused at the handshake
+	base := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/together/lobbies/" + id + "/ws?v="
+	hdr := &websocket.DialOptions{HTTPHeader: http.Header{"X-Test-User": {"1"}}}
+	for _, v := range []string{"1", "4", "x"} {
+		if _, res, err := websocket.Dial(ctx, base+v, hdr); err == nil || res == nil || res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("version %s accepted: %v %v", v, res, err)
+		}
+	}
+	old, _, err := websocket.Dial(ctx, base+"2", hdr)
+	if err != nil {
+		t.Fatalf("version 2 refused: %v", err)
+	}
+	if w := readUntil(t, old, "welcome"); w["v"] != float64(together.ProtocolVersion) {
+		t.Fatalf("welcome to a v2 client: %v", w)
+	}
+	old.CloseNow()
 
 	// Oversized messages close the connection
 	host, _, err := tgDial(t, srv, id, 1, "")

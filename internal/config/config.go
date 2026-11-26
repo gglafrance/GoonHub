@@ -48,6 +48,11 @@ type MessagesConfig struct {
 	MaxShareItems      int           `mapstructure:"max_share_items"`      // items (scenes, markers...) one share can carry
 	RetentionDays      int           `mapstructure:"retention_days"`       // messages older than this are deleted (0 = kept forever)
 	PurgeInterval      time.Duration `mapstructure:"purge_interval"`       // retention and orphan conversation cleanup period
+	// Reactions (emoji and server emotes on messages)
+	MaxReactionKinds      int `mapstructure:"max_reaction_kinds"`       // distinct reactions per message (0 = default 20)
+	MaxReactionsPerUser   int `mapstructure:"max_reactions_per_user"`   // reactions of one user on one message (0 = default 10)
+	ReactionRatePerMinute int `mapstructure:"reaction_rate_per_minute"` // reactions added or removed per user per minute (0 = unlimited)
+	ReactionRateBurst     int `mapstructure:"reaction_rate_burst"`      // reactions at once before the rate applies
 }
 
 // PresenceConfig sets the timings of the presence (online, idle, now watching, docs/PRESENCE.md).
@@ -117,6 +122,11 @@ type Goon2getherConfig struct {
 	PingInterval          time.Duration `mapstructure:"ping_interval"`
 	WriteTimeout          time.Duration `mapstructure:"write_timeout"`
 	MaxMessageBytes       int64         `mapstructure:"max_message_bytes"`
+
+	// Reactions on chat messages (not the floating reactions over the video)
+	ChatReactionRateLimit   int `mapstructure:"chat_reaction_rate_limit"`    // chat message reactions added or removed per rate_window
+	ChatMaxReactionKinds    int `mapstructure:"chat_max_reaction_kinds"`     // distinct reactions per chat message
+	ChatMaxReactionsPerUser int `mapstructure:"chat_max_reactions_per_user"` // reactions of one member on one chat message
 }
 
 type WorkersConfig struct {
@@ -459,6 +469,10 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("messages.max_share_items", 10)
 	v.SetDefault("messages.retention_days", 0)
 	v.SetDefault("messages.purge_interval", time.Hour)
+	v.SetDefault("messages.max_reaction_kinds", 20)
+	v.SetDefault("messages.max_reactions_per_user", 10)
+	v.SetDefault("messages.reaction_rate_per_minute", 60)
+	v.SetDefault("messages.reaction_rate_burst", 20)
 	v.SetDefault("presence.disconnect_grace", 30*time.Second)
 	v.SetDefault("presence.idle_after", 5*time.Minute)
 	v.SetDefault("presence.heartbeat_interval", 60*time.Second)
@@ -486,6 +500,9 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("goon2gether.chat_max_length", 500)
 	v.SetDefault("goon2gether.chat_rate_limit", 5)
 	v.SetDefault("goon2gether.reaction_rate_limit", 10)
+	v.SetDefault("goon2gether.chat_reaction_rate_limit", 10)
+	v.SetDefault("goon2gether.chat_max_reaction_kinds", 20)
+	v.SetDefault("goon2gether.chat_max_reactions_per_user", 10)
 	v.SetDefault("goon2gether.rate_window", 10*time.Second)
 	v.SetDefault("goon2gether.drift_threshold", 0.75)
 	v.SetDefault("goon2gether.drift_nudge", true)

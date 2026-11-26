@@ -39,6 +39,8 @@ func (l *lobby) handle(c *Client, in *inbound, now time.Time) error {
 		return l.cmdChatDelete(c, in)
 	case cmdReaction:
 		return l.cmdReaction(c, in, now)
+	case cmdChatReact, cmdChatUnreact:
+		return l.cmdChatReact(c, in, now, in.T == cmdChatReact)
 	case cmdQueueAdd:
 		if !l.hub.hasPermission(c.userID, core.PermScenesView) {
 			return refuse(ErrCodeNotAllowed, "you cannot view scenes")
@@ -660,28 +662,6 @@ func (l *lobby) cmdChatDelete(c *Client, in *inbound) error {
 	return refuse(ErrCodeNotFound, "no such message")
 }
 
-// validEmoji accepts a short emoji sequence: non-ASCII, no whitespace nor markup.
-func validEmoji(s string) bool {
-	if s == "" || len(s) > 32 || !utf8.ValidString(s) {
-		return false
-	}
-	nonASCII := false
-	for _, r := range s {
-		switch {
-		case r >= 0x80:
-			nonASCII = true
-		case r == '#' || r == '*' || (r >= '0' && r <= '9'):
-			// keycap emoji
-		default:
-			return false
-		}
-		if unicode.IsSpace(r) || (unicode.IsControl(r) && r != 0x200d) {
-			return false
-		}
-	}
-	return nonASCII
-}
-
 func (l *lobby) cmdReaction(c *Client, in *inbound, now time.Time) error {
 	if in.Emote == nil {
 		return refuse(ErrCodeInvalid, "emote is required")
@@ -691,7 +671,7 @@ func (l *lobby) cmdReaction(c *Client, in *inbound, now time.Time) error {
 		if l.hub.emotes == nil || !l.hub.emotes.HasEmote(emote[1:len(emote)-1]) {
 			return refuse(ErrCodeNotFound, "no such emote")
 		}
-	} else if !validEmoji(emote) {
+	} else if !core.ValidEmoji(emote) {
 		return refuse(ErrCodeInvalid, "not an emoji")
 	}
 	if !l.limiter(l.reactionLimiters, c.userID, l.hub.cfg.ReactionRateLimit).AllowN(now, 1) {

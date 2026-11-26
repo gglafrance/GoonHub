@@ -156,3 +156,40 @@ type SharePlaylistRow struct {
 	ThumbnailMarkerID *uint      `gorm:"column:thumbnail_marker_id"`
 	ThumbnailMarkerAt *time.Time `gorm:"column:thumbnail_marker_at"`
 }
+
+// MessageReaction is a reaction of a user to a message: a Unicode emoji, or ":name:" of a
+// server custom emote (docs/MESSAGES.md, "Reactions").
+type MessageReaction struct {
+	MessageID uint      `gorm:"primaryKey;autoIncrement:false"`
+	UserID    uint      `gorm:"primaryKey;autoIncrement:false"`
+	Emoji     string    `gorm:"primaryKey;size:64"`
+	CreatedAt time.Time `gorm:"not null;default:now()"`
+}
+
+func (MessageReaction) TableName() string { return "message_reactions" }
+
+// MessageReactionRow is a reaction with the name of its user, as the history lists them.
+type MessageReactionRow struct {
+	MessageID   uint      `gorm:"column:message_id"`
+	UserID      uint      `gorm:"column:user_id"`
+	Emoji       string    `gorm:"column:emoji"`
+	CreatedAt   time.Time `gorm:"column:created_at"`
+	Username    string    `gorm:"column:username"`
+	DisplayName string    `gorm:"column:display_name"`
+}
+
+// ReactionAddResult is the outcome of MessageRepository.AddReaction.
+type ReactionAddResult int
+
+const (
+	// ReactionAdded: the reaction was saved.
+	ReactionAdded ReactionAddResult = iota
+	// ReactionExists: the user already reacted with this key (nothing changed).
+	ReactionExists
+	// ReactionMessageGone: the message does not exist or is deleted.
+	ReactionMessageGone
+	// ReactionTooManyKinds: the message already has the most distinct keys.
+	ReactionTooManyKinds
+	// ReactionTooManyForUser: the user already has the most reactions on the message.
+	ReactionTooManyForUser
+)
