@@ -24,6 +24,7 @@ const showPlaylistModal = ref(false);
 const showProcessModal = ref(false);
 const showDeleteModal = ref(false);
 const showPornDBMatchModal = ref(false);
+const showTogetherModal = ref(false);
 
 defineExpose({
     showDeleteModal,
@@ -55,6 +56,8 @@ const canEdit = computed(() => perms.has('scenes:edit'));
 const canProcess = computed(() => perms.has('jobs:manage'));
 const canMatch = computed(() => perms.has('porndb:use') && perms.has('scenes:edit'));
 const canDelete = computed(() => perms.has('scenes:delete'));
+const canTogether = computed(() => perms.has('goon2gether:use'));
+const togetherItems = computed(() => props.sceneIds.map((id) => ({ scene_id: id })));
 const selectionSize = computed(() => {
     void sizeVersion.value;
     if (!perms.has('files:view_size')) return null;
@@ -188,6 +191,18 @@ const handlePornDBMatchComplete = () => {
                     </button>
 
                     <button
+                        v-if="canTogether"
+                        class="border-border bg-panel hover:border-lava/30 hover:text-lava flex
+                            items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium
+                            text-white transition-all"
+                        title="Watch together"
+                        @click="showTogetherModal = true"
+                    >
+                        <Icon name="heroicons:users" size="14" />
+                        Together
+                    </button>
+
+                    <button
                         v-if="canProcess"
                         class="border-border bg-panel hover:border-lava/30 hover:text-lava flex
                             items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium
@@ -282,6 +297,13 @@ const handlePornDBMatchComplete = () => {
             :prefill-scene-ids="sceneIds"
             @close="showPlaylistModal = false"
             @created="showPlaylistModal = false"
+        />
+
+        <TogetherAddModal
+            v-if="showTogetherModal"
+            :visible="showTogetherModal"
+            :items="togetherItems"
+            @close="showTogetherModal = false"
         />
 
         <ExplorerBulkDeleteConfirmModal

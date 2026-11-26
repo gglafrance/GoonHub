@@ -47,6 +47,15 @@ describe('visibleSettingsTabs', () => {
         expect(ids(tabs.filter((t) => t.admin))).toEqual(['users', 'jobs', 'workers', 'trash']);
     });
 
+    test('the emotes tab needs emotes:manage', () => {
+        expect(
+            ids(visibleSettingsTabs(SETTINGS_TABS, withPermissions('scenes:view'))),
+        ).not.toContain('emotes');
+        expect(ids(visibleSettingsTabs(SETTINGS_TABS, withPermissions('emotes:manage')))).toContain(
+            'emotes',
+        );
+    });
+
     test('every permission shows every tab', () => {
         expect(visibleSettingsTabs(SETTINGS_TABS, () => true)).toHaveLength(SETTINGS_TABS.length);
     });

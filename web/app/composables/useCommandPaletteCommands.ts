@@ -78,6 +78,15 @@ export function useCommandPaletteCommands() {
                 to: '/playlists',
             },
             {
+                id: 'page:/together',
+                group: 'pages',
+                label: 'Together',
+                icon: 'heroicons:users',
+                to: '/together',
+                keywords: ['lobby', 'watch party', 'goon2gether', 'sync'],
+                permissions: ['goon2gether:use'],
+            },
+            {
                 id: 'page:/markers',
                 group: 'pages',
                 label: 'Markers',

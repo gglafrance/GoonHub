@@ -515,6 +515,7 @@ definePageMeta({
                 <SettingsDuplicates v-if="activeTab === 'duplicates'" />
                 <SettingsHealth v-if="activeTab === 'health'" />
                 <SettingsTrash v-if="activeTab === 'trash'" />
+                <SettingsEmotes v-if="activeTab === 'emotes'" />
             </div>
         </main>
 

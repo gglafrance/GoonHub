@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Marker, MarkerLabelSuggestion } from '~/types/marker';
+import type { QueueItemInput } from '~/types/together';
 import type { MarkerTimeField } from '~/utils/markerTime';
 import type { MarkerListSort } from '~/utils/markerList';
 import type { WatchPageData } from '~/composables/useWatchPageData';
@@ -31,6 +32,19 @@ const isOwn = (marker: Marker) => marker.user_id === authStore.user?.id;
 const perms = useMyPermissions();
 const canCreateMarkers = computed(() => perms.has('markers:create'));
 const canEdit = (marker: Marker) => canCreateMarkers.value && isOwn(marker);
+// "Watch together": queue the marker (its range and label) in a Goon2gether lobby
+const canTogether = computed(() => perms.has('goon2gether:use'));
+const togetherItems = ref<QueueItemInput[] | null>(null);
+const watchTogether = (marker: Marker) => {
+    togetherItems.value = [
+        {
+            scene_id: sceneId.value,
+            start: marker.timestamp,
+            end: marker.end_timestamp ?? null,
+            label: marker.label || null,
+        },
+    ];
+};
 // The 50 markers limit counts the user's own markers only
 const ownMarkerCount = computed(() => markers.value.filter(isOwn).length);
 // List order (by time or grouped by label), remembered in this browser
@@ -701,6 +715,18 @@ onMounted(async () => {
                                 <Icon name="heroicons:arrow-right-end-on-rectangle" size="12" />
                             </button>
 
+                            <!-- Watch the marker in a Goon2gether lobby -->
+                            <button
+                                v-if="canTogether && editingMarkerId !== marker.id"
+                                class="text-dim hover:bg-surface-hover flex shrink-0 items-center
+                                    justify-center rounded p-1.5 opacity-0 transition-all
+                                    group-hover:opacity-100 hover:text-white"
+                                title="Watch together"
+                                @click.stop="watchTogether(marker)"
+                            >
+                                <Icon name="heroicons:users" size="12" />
+                            </button>
+
                             <!-- Delete Button -->
                             <button
                                 v-if="canEdit(marker) && editingMarkerId !== marker.id"
@@ -798,5 +824,11 @@ onMounted(async () => {
                 </div>
             </div>
         </Teleport>
+        <TogetherAddModal
+            v-if="togetherItems"
+            :visible="!!togetherItems"
+            :items="togetherItems"
+            @close="togetherItems = null"
+        />
     </div>
 </template>
