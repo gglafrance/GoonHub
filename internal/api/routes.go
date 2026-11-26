@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, shareHandler *handler.ShareHandler, duplicateHandler *handler.DuplicateHandler, libraryHealthHandler *handler.LibraryHealthHandler, workerHandler *handler.WorkerHandler, socialHandler *handler.SocialHandler, presenceHandler *handler.PresenceHandler, togetherHandler *handler.TogetherHandler, profileHandler *handler.ProfileHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
+func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, shareHandler *handler.ShareHandler, duplicateHandler *handler.DuplicateHandler, libraryHealthHandler *handler.LibraryHealthHandler, workerHandler *handler.WorkerHandler, socialHandler *handler.SocialHandler, presenceHandler *handler.PresenceHandler, togetherHandler *handler.TogetherHandler, profileHandler *handler.ProfileHandler, messageHandler *handler.MessageHandler, authService *core.AuthService, rbacService *core.RBACService, logger *logging.Logger, rateLimiter *middleware.IPRateLimiter) {
 	perm := middleware.RequirePermission
 	anyPerm := middleware.RequireAnyPermission
 
@@ -322,6 +322,31 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					profiles.POST("/me/banner", profileHandler.UploadMyBanner)
 					profiles.PUT("/me/banner", profileHandler.SetMyBanner)
 					profiles.DELETE("/me/banner", profileHandler.DeleteMyBanner)
+				}
+
+				// Messages between users and shares (docs/MESSAGES.md): reading needs a signed-in
+				// participant (checked by the service, no admin access to others' messages),
+				// sending needs messages:use. Deleting one's own message is always allowed.
+				if messageHandler != nil {
+					msgs := protected.Group("/messages")
+					{
+						msgs.GET("/conversations", messageHandler.ListConversations)
+						msgs.GET("/unread", messageHandler.Unread)
+						msgs.GET("/with/:username", messageHandler.WithUser)
+						msgs.GET("/settings", messageHandler.GetSettings)
+						msgs.PUT("/settings", messageHandler.UpdateSettings)
+						msgs.POST("/share", perm(core.PermMessagesUse), messageHandler.Share)
+						msgs.POST("/direct/:userId/messages", perm(core.PermMessagesUse), messageHandler.SendDirect)
+						msgs.GET("/conversations/:id", messageHandler.GetConversation)
+						msgs.GET("/conversations/:id/messages", messageHandler.History)
+						msgs.POST("/conversations/:id/messages", perm(core.PermMessagesUse), messageHandler.Send)
+						msgs.PATCH("/conversations/:id/messages/:messageId", perm(core.PermMessagesUse), messageHandler.Edit)
+						msgs.DELETE("/conversations/:id/messages/:messageId", messageHandler.Delete)
+						msgs.POST("/conversations/:id/messages/:messageId/join-lobby", messageHandler.JoinLobby)
+						msgs.POST("/conversations/:id/read", messageHandler.MarkRead)
+						msgs.POST("/conversations/:id/typing", perm(core.PermMessagesUse), messageHandler.Typing)
+						msgs.PUT("/conversations/:id/mute", messageHandler.Mute)
+					}
 				}
 
 				markerFilters := protected.Group("/marker-filters")

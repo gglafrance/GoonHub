@@ -17,6 +17,7 @@ type RelationshipResponse struct {
 	RequestSent          bool `json:"request_sent"`
 	RequestReceived      bool `json:"request_received"`
 	CanSendFriendRequest bool `json:"can_send_friend_request"`
+	CanMessage           bool `json:"can_message"`
 }
 
 func NewRelationshipResponse(r core.Relationship) RelationshipResponse {
@@ -29,6 +30,7 @@ func NewRelationshipResponse(r core.Relationship) RelationshipResponse {
 		RequestSent:          r.RequestSent,
 		RequestReceived:      r.RequestReceived,
 		CanSendFriendRequest: r.CanSendFriendRequest,
+		CanMessage:           r.CanMessage,
 	}
 }
 

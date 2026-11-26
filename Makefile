@@ -47,6 +47,7 @@ mocks: setup-test
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_privacy_repository.go -package=mocks goonhub/internal/data PrivacyRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_profile_repository.go -package=mocks goonhub/internal/data ProfileRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_presence_repository.go -package=mocks goonhub/internal/data PresenceRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_message_repository.go -package=mocks goonhub/internal/data MessageRepository
 
 test: mocks
 	go test ./...
