@@ -1,4 +1,4 @@
-// Goon2gether: synchronized watch lobbies (contract: docs/GOON2GETHER.md, protocol v2).
+// Goon2gether: synchronized watch lobbies (contract: docs/GOON2GETHER.md, protocol v3).
 
 export type LobbyVisibility = 'public' | 'private';
 
@@ -125,6 +125,16 @@ export interface PlaybackState {
     seq: number;
 }
 
+/**
+ * One reaction key of a chat message (protocol v3): an emoji or `:name:` of a server emote,
+ * the count and who reacted (anonymous members redacted like elsewhere).
+ */
+export interface ChatReaction {
+    emote: string;
+    count: number;
+    users: TogetherMemberRef[];
+}
+
 export interface ChatMessage {
     id: number;
     user_id: number | null;
@@ -134,6 +144,8 @@ export interface ChatMessage {
     text: string;
     at: number;
     system: boolean;
+    // omitted when there is none
+    reactions?: ChatReaction[];
 }
 
 export interface TogetherConfig {
@@ -142,6 +154,8 @@ export interface TogetherConfig {
     hold_timeout_ms: number;
     chat_max_length: number;
     end_grace: number;
+    chat_max_reaction_kinds: number;
+    chat_max_reactions_per_user: number;
 }
 
 export interface WelcomeMessage {
@@ -185,6 +199,7 @@ export type ServerMessage =
     | { t: 'lobby'; lobby: LobbyInfo }
     | { t: 'chat'; message: ChatMessage }
     | { t: 'chat_deleted'; id: number }
+    | { t: 'chat_reactions'; id: number; reactions: ChatReaction[] }
     | ReactionMessage
     | { t: 'emotes' }
     | { t: 'pong'; id: number; c: number; s: number }
@@ -219,6 +234,8 @@ export type ClientMessage =
     | { t: 'suggestion_reject'; item_id: number }
     | { t: 'chat'; text: string }
     | { t: 'chat_delete'; id: number }
+    | { t: 'chat_react'; id: number; emote: string }
+    | { t: 'chat_unreact'; id: number; emote: string }
     | { t: 'reaction'; emote: string }
     | ({ t: 'settings' } & LobbySettingsInput)
     | ({ t: 'grant_control' } & MemberTarget)

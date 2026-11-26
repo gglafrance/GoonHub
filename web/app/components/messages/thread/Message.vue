@@ -1,20 +1,31 @@
 <script setup lang="ts">
 import type { ThreadItem } from '~/utils/messages';
+import type { ReactionLimits } from '~/utils/reactions';
+import type ChatReactions from '~/components/chat/Reactions.vue';
 
 type MessageItem = Extract<ThreadItem, { kind: 'message' }>;
 
 // One message of a thread: bubble (mine on the right), share card, time, edited mark, "seen",
-// and for my messages edit (inline) and delete (confirmed).
-const props = defineProps<{ item: MessageItem; otherName: string; canEdit: boolean }>();
+// reactions (pills under the bubble, "Add reaction" on hover or long press), and for my
+// messages edit (inline) and delete (confirmed).
+const props = defineProps<{
+    item: MessageItem;
+    otherName: string;
+    // may write in the conversation: edit, and add reactions (removing mine is always allowed)
+    canEdit: boolean;
+    reactionLimits: ReactionLimits;
+}>();
 const emit = defineEmits<{
     edit: [id: number, body: string];
     delete: [id: number];
     joinLobby: [messageId: number];
+    react: [id: number, key: string, add: boolean];
 }>();
 
 const messagesStore = useMessagesStore();
+const authStore = useAuthStore();
 const editing = ref(false);
-const confirmDelete = ref(false);
+const reactionsEl = ref<InstanceType<typeof ChatReactions> | null>(null);
 const m = computed(() => props.item.message);
 const time = computed(() =>
     new Date(m.value.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -22,16 +33,22 @@ const time = computed(() =>
 const author = computed(() =>
     props.item.mine ? 'You' : m.value.sender_id === null ? 'Deleted user' : props.otherName,
 );
-
-const doDelete = () => {
-    confirmDelete.value = false;
-    emit('delete', m.value.id);
-};
+const pills = computed(() =>
+    m.value.deleted ? [] : messageReactionPills(m.value.reactions, authStore.user?.id ?? 0),
+);
+const canAddNew = computed(
+    () => props.canEdit && !m.value.deleted && canAddReaction(pills.value, props.reactionLimits),
+);
 
 const saveEdit = (body: string) => {
     editing.value = false;
     if (body.trim() !== m.value.body) emit('edit', m.value.id, body);
 };
+
+const openPicker = (anchor: HTMLElement) => reactionsEl.value?.openPicker(anchor);
+const longPress = useLongPress((el) => {
+    if (!m.value.deleted && !editing.value) openPicker(el);
+});
 </script>
 
 <template>
@@ -59,6 +76,7 @@ const saveEdit = (body: string) => {
                           : 'border-border bg-surface/70 text-white/85',
                 ]"
                 :title="item.groupStart ? undefined : time"
+                v-on="longPress"
             >
                 <template v-if="m.deleted">Message deleted</template>
                 <template v-else>
@@ -84,45 +102,26 @@ const saveEdit = (body: string) => {
                     </span>
                 </template>
             </div>
-            <div
-                v-if="item.mine && !m.deleted && !editing"
-                class="flex shrink-0 items-center opacity-0 transition-opacity
-                    group-hover:opacity-100 focus-within:opacity-100"
-            >
-                <button
-                    v-if="canEdit && m.body"
-                    class="text-dim flex h-6 w-6 items-center justify-center rounded
-                        hover:text-white"
-                    title="Edit"
-                    @click="editing = true"
-                >
-                    <Icon name="heroicons:pencil" size="11" />
-                </button>
-                <button
-                    v-if="!confirmDelete"
-                    class="text-dim hover:text-lava flex h-6 w-6 items-center justify-center
-                        rounded"
-                    title="Delete"
-                    @click="confirmDelete = true"
-                >
-                    <Icon name="heroicons:trash" size="11" />
-                </button>
-                <template v-else>
-                    <button
-                        class="bg-lava/15 text-lava rounded px-1.5 py-0.5 text-[10px] font-medium"
-                        @click="doDelete"
-                    >
-                        Delete
-                    </button>
-                    <button
-                        class="text-dim px-1 text-[10px] hover:text-white"
-                        @click="confirmDelete = false"
-                    >
-                        Keep
-                    </button>
-                </template>
-            </div>
+            <MessagesThreadActions
+                v-if="!m.deleted && !editing && (item.mine || canAddNew)"
+                :mine="item.mine"
+                :can-react="canAddNew"
+                :can-edit="canEdit && !!m.body"
+                @react="openPicker"
+                @edit="editing = true"
+                @delete="emit('delete', m.id)"
+            />
         </div>
+        <ChatReactions
+            v-if="!m.deleted"
+            ref="reactionsEl"
+            class="max-w-[85%]"
+            :pills="pills"
+            :can-react="canEdit"
+            :limits="reactionLimits"
+            :align="item.mine ? 'end' : 'start'"
+            @toggle="(key, add) => emit('react', m.id, key, add)"
+        />
         <span v-if="item.seen" class="text-dim mt-0.5 flex items-center gap-0.5 px-1 text-[9px]">
             <Icon name="heroicons:check" size="9" class="text-emerald" />
             Seen

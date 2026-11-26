@@ -69,6 +69,23 @@ export interface MessageAttachment {
     lobby?: LobbyInviteCard;
 }
 
+/** A user who reacted to a message (a participant). */
+export interface ReactionUser {
+    id: number;
+    username: string;
+    display_name: string;
+}
+
+/**
+ * One reaction key of a message: an emoji or `:name:` of a server emote, how many reacted and
+ * who (in reaction order). The keys come in the order of their first reaction.
+ */
+export interface MessageReaction {
+    emoji: string;
+    count: number;
+    users: ReactionUser[];
+}
+
 export interface Message {
     id: number;
     conversation_id: number;
@@ -76,6 +93,8 @@ export interface Message {
     sender_id: number | null;
     body: string;
     attachment: MessageAttachment | null;
+    // empty for a deleted message (older payloads may omit it)
+    reactions?: MessageReaction[];
     edited_at: string | null;
     deleted: boolean;
     created_at: string;
@@ -158,6 +177,8 @@ export interface MessageSettings {
     policies: MessagePolicyOption[];
     max_length: number;
     typing_interval_ms: number;
+    max_reaction_kinds: number;
+    max_reactions_per_user: number;
 }
 
 export interface UnreadCounts {
@@ -184,4 +205,11 @@ export interface ChatTypingEvent {
 
 export interface ChatConversationEvent {
     conversation_id: number;
+}
+
+/** chat:reaction, also the answer of the reaction routes: the whole list of the message. */
+export interface ChatReactionEvent {
+    conversation_id: number;
+    message_id: number;
+    reactions: MessageReaction[];
 }

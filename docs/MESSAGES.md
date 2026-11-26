@@ -5,16 +5,22 @@ inside the platform. Built on the social graph (`docs/SOCIAL.md`) and its live e
 
 - Backend: `internal/core/message_service.go` (conversations, sending, edits, read state,
   typing, shares, settings), `internal/core/message_cards.go` (share cards resolved for the
-  viewer), `internal/core/message_types.go` (views, inputs, events), `internal/data/message_*.go`
-  (models, repository), `internal/api/v1/handler/message.go`, `internal/together/invites.go`
-  (lobby invites, `core.LobbyInvites`).
+  viewer), `internal/core/message_reactions.go` (reactions), `internal/core/reaction_keys.go`
+  (emoji and emote keys, shared with Goon2gether), `internal/core/message_types.go` (views,
+  inputs, events), `internal/data/message_*.go` (models, repository),
+  `internal/api/v1/handler/message.go`, `internal/together/invites.go` (lobby invites,
+  `core.LobbyInvites`).
 - Frontend: `pages/messages/[[username]].vue`, `components/messages/` (conversation list and
   items, thread, share cards, toasts), `components/header/Messages*.vue`, `components/share/`
   (the one Share dialog, see below), `components/chat/RichText.vue` (shared with the
-  Goon2gether chat), `stores/messages.ts`, `composables/api/useApiMessages.ts`,
-  `utils/messages.ts` (tests: `web/tests/messages.test.ts`).
+  Goon2gether chat), `components/chat/Reactions.vue`, `ReactionPicker.vue`,
+  `ReactionEmote.vue` (reactions, shared with the Goon2gether chat), `stores/messages.ts`,
+  `composables/api/useApiMessages.ts`, `composables/useMessageReactions.ts`,
+  `utils/messages.ts`, `utils/reactions.ts` (tests: `web/tests/messages.test.ts`,
+  `web/tests/reactions.test.ts`).
 - Schema: migration 102 (`conversations`, `conversation_participants`, `messages`, two columns
-  of `user_social_settings`, the range columns of `share_links`), see `docs/DATABASE.md`.
+  of `user_social_settings`, the range columns of `share_links`) and 104
+  (`message_reactions`), see `docs/DATABASE.md`.
 
 ## Model
 
@@ -35,6 +41,8 @@ inside the platform. Built on the social graph (`docs/SOCIAL.md`) and its live e
 - **Typing**: ephemeral, never stored. Relayed to the other participant at most once per
   `messages.typing_interval` per user and conversation; the client shows it for 6 s after the
   last event, and clears it when a message arrives.
+
+- **Reactions**: emoji and server emotes under a message, see "Reactions" below.
 
 ## Who may write to whom
 
@@ -80,6 +88,43 @@ Blocking a user is **not** implemented (follow-up); the `nobody` policy exists.
 - Rate limit: `messages.rate_per_minute` per user (token bucket, burst `messages.rate_burst`,
   in memory), counting messages, edits, and a share once per recipient. `429
   MESSAGE_RATE_LIMITED`.
+
+## Reactions
+
+Like Discord or Slack: hovering a message (a long press on touch screens) shows "Add
+reaction", which opens the emoji and emote picker of the chats (Unicode emoji and the server
+custom emotes of Goon2gether, `:name:`). The reactions show under the message as pills (the
+emoji or emote and the count), highlighted when I reacted; clicking a pill adds or removes my
+reaction; hovering it tells who reacted ("You and Bobby reacted with 🔥").
+
+- **Stored** in `message_reactions` (migration 104): one row per message, user and key (an
+  emoji, or `:name:` of a server emote, kept as text). The keys are listed in the order of their
+  first reaction, the users in reaction order.
+- **Who may react**: the participants of the conversation only (`404 CONVERSATION_NOT_FOUND`
+  otherwise, like every message route). **Adding** follows the rules of sending: `messages:use`
+  and the other participant's message policy (`canSendTo`), so a read-only conversation (no
+  longer friends, deleted user, no permission) takes no new reaction (`403 MESSAGES_CLOSED`).
+  **Removing** one's own reaction is always allowed, like deleting one's own message.
+- **Keys**: a short Unicode emoji sequence (no ASCII text, no whitespace or markup; keycaps,
+  skin tones, joiners allowed; at most 32 bytes), or `:name:` of an existing server emote
+  (Goon2gether's emotes, `together.EmoteService`; refused when Goon2gether is disabled). An
+  emote deleted later stays as a key and renders as its `:name:` text.
+- **Caps** (`messages.max_reaction_kinds`, default 20 distinct keys per message;
+  `messages.max_reactions_per_user`, default 10 reactions of one user on one message): `409
+  REACTION_LIMIT`. They are checked with the message row locked, so concurrent reactions
+  respect them. Reacting again with the same key changes nothing.
+- **Rate limit**: `messages.reaction_rate_per_minute` (default 60, burst
+  `messages.reaction_rate_burst` 20) per user, adds and removals, in memory: `429
+  REACTION_RATE_LIMITED`.
+- **Deleted messages lose their reactions** (deleted with the soft delete, none can be added:
+  `404 MESSAGE_NOT_FOUND`); a hard deleted message (retention) and a deleted account take
+  theirs with them (`CASCADE`).
+- **In the payloads**: every `message` carries `reactions: [{emoji, count, users: [{id,
+  username, display_name}]}]` (empty for a deleted message, and for a message just sent). Only
+  participants read them, like the messages.
+- **Live**: `chat:reaction` to every participant (targeted, never broadcast) with the whole
+  list of the message; the open thread replaces it. The client applies my toggle at once and
+  replaces it with the server's answer (reverted on an error).
 
 ## Shares
 
@@ -150,7 +195,8 @@ username, display_name, avatar_version} | null, last_message: {id, sender_id, bo
 attachment_kind, deleted, created_at} | null, unread_count, muted, last_read_message_id,
 other_last_read_message_id, can_send, read_only_reason?, updated_at}`. `message` = `{id,
 conversation_id, sender_id | null, body, attachment: {kind, available, reason?, time?,
-scene?|marker?|playlist?|lobby?} | null, edited_at, deleted, created_at}`.
+scene?|marker?|playlist?|lobby?} | null, reactions: [reaction], edited_at, deleted,
+created_at}`. `reaction` = `{emoji, count, users: [{id, username, display_name}]}`.
 
 | Route | Permission | Answer |
 |---|---|---|
@@ -164,11 +210,13 @@ scene?|marker?|playlist?|lobby?} | null, edited_at, deleted, created_at}`.
 | `PATCH /conversations/:id/messages/:messageId` `{body}` | `messages:use` | `message` |
 | `DELETE /conversations/:id/messages/:messageId` | | `204` |
 | `POST /conversations/:id/messages/:messageId/join-lobby` | | `{lobby_id}` |
+| `POST /conversations/:id/messages/:messageId/reactions` `{emoji}` | `messages:use` | `{conversation_id, message_id, reactions}` (adds mine) |
+| `DELETE /conversations/:id/messages/:messageId/reactions?emoji=` | | `{conversation_id, message_id, reactions}` (removes mine) |
 | `POST /conversations/:id/read` `{message_id}` | | `204` (only moves forward) |
 | `POST /conversations/:id/typing` | `messages:use` | `204` |
 | `PUT /conversations/:id/mute` `{muted}` | | `conversation` |
 | `POST /share` `{user_ids, items: [attachment], body}` | `messages:use` | `{results: [{user_id, ok, conversation_id?, code?, error?}]}` |
-| `GET /settings`, `PUT /settings` `{policy?, toasts?}` | | `{policy, toasts, policies, max_length, typing_interval_ms}` |
+| `GET /settings`, `PUT /settings` `{policy?, toasts?}` | | `{policy, toasts, policies, max_length, typing_interval_ms, max_reaction_kinds, max_reactions_per_user}` |
 
 `attachment` (request) = `{kind: scene, scene_id, time?}`, `{kind: marker, marker_id}`,
 `{kind: playlist, playlist_uuid}`, `{kind: lobby, lobby_id}`.
@@ -176,7 +224,8 @@ scene?|marker?|playlist?|lobby?} | null, edited_at, deleted, created_at}`.
 Errors: `403 MESSAGES_CLOSED` (policy, deleted user), `403` without permission, `404
 CONVERSATION_NOT_FOUND`, `404 MESSAGE_NOT_FOUND`, `403 NOT_MESSAGE_AUTHOR`, `400
 SHARE_NOT_AVAILABLE` (an item the sender may not share, a stale lobby invite), `429
-MESSAGE_RATE_LIMITED`, `400` validation (empty, too long, unknown kind or policy).
+MESSAGE_RATE_LIMITED`, `409 REACTION_LIMIT`, `429 REACTION_RATE_LIMITED`, `400` validation
+(empty, too long, unknown kind or policy, not an emoji or emote).
 
 ## Live events (SSE)
 
@@ -191,6 +240,7 @@ thread after an SSE reconnection.
 | `chat:read` | every participant | `{conversation_id, user_id, last_read_message_id}` |
 | `chat:typing` | the other participant | `{conversation_id, user_id}` |
 | `chat:conversation_updated` | the user(s) concerned | `{conversation_id}`: reload it (mute, relation change) |
+| `chat:reaction` | every participant | `{conversation_id, message_id, reactions}`: the whole list of the message |
 
 ## Users deleted, retention
 
@@ -214,12 +264,17 @@ thread after an SSE reconnection.
 | `max_share_items` | `10` | Items per share |
 | `retention_days` | `0` | Delete older messages (0: keep) |
 | `purge_interval` | `1h` | Retention and orphan cleanup period |
+| `max_reaction_kinds` | `20` | Distinct reactions per message |
+| `max_reactions_per_user` | `10` | Reactions of one user on one message |
+| `reaction_rate_per_minute` | `60` | Reactions added or removed per user per minute (0: unlimited) |
+| `reaction_rate_burst` | `20` | Reactions at once before the rate applies |
 
 ## Limits and follow-ups
 
 - No blocking (the `nobody` policy exists), no group conversations, no attachments other than
   shares (no file upload), no message search.
-- The rate limit and the typing throttle are in memory (one process).
+- The rate limits and the typing throttle are in memory (one process).
+- Reactions are not shown in the conversation lists nor notified (no toast, no unread count).
 - Rendering a lobby invite card loads the lobby in the Goon2gether hub (unloaded again after
   `goon2gether.unload_after`).
 - The header toast setting is per user (`message_toasts`); a muted conversation never toasts.

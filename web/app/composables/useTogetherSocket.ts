@@ -14,7 +14,7 @@ import type {
 } from '~/types/together';
 import type { ClockSample } from '~/utils/together';
 
-const PROTOCOL_VERSION = 2;
+const PROTOCOL_VERSION = 3;
 // Clock sync: a burst on connect, then a slow refresh (also keeps proxies busy)
 const PING_BURST = 5;
 const PING_BURST_INTERVAL_MS = 400;
@@ -37,10 +37,12 @@ const DEFAULT_CONFIG: TogetherConfig = {
     hold_timeout_ms: 10000,
     chat_max_length: 500,
     end_grace: 1.5,
+    chat_max_reaction_kinds: 20,
+    chat_max_reactions_per_user: 10,
 };
 
 /**
- * WebSocket of a Goon2gether room (protocol v2, docs/GOON2GETHER.md): reactive lobby state
+ * WebSocket of a Goon2gether room (protocol v3, docs/GOON2GETHER.md): reactive lobby state
  * resynced from the `welcome` snapshot on every (re)connect, clock offset from ping/pong,
  * reconnect with backoff unless the close is final (kicked, banned, closed, full).
  */
@@ -162,6 +164,11 @@ export const useTogetherSocket = (lobbyId: Ref<string>) => {
                 break;
             case 'chat_deleted':
                 chat.value = chat.value.filter((m) => m.id !== msg.id);
+                break;
+            case 'chat_reactions':
+                chat.value = chat.value.map((m) =>
+                    m.id === msg.id ? { ...m, reactions: msg.reactions ?? [] } : m,
+                );
                 break;
             case 'reaction':
                 for (const fn of reactionHandlers) fn(msg);

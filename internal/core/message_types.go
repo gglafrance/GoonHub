@@ -24,6 +24,9 @@ const (
 	// the other user's relation, so whether one can still send), data {conversation_id}:
 	// reload it.
 	EventChatConversationUpdated = "chat:conversation_updated"
+	// EventChatReaction: the reactions of a message changed, to every participant, data
+	// {conversation_id, message_id, reactions} (the whole list of the message).
+	EventChatReaction = "chat:reaction"
 )
 
 // Read-only reasons of a conversation (ConversationView.ReadOnlyReason).
@@ -135,17 +138,41 @@ type AttachmentView struct {
 	Lobby    *LobbyInviteCard   `json:"lobby,omitempty"`
 }
 
+// ReactionUser is a user who reacted to a message (a participant of the conversation).
+type ReactionUser struct {
+	ID          uint   `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+}
+
+// MessageReactionView is one reaction key of a message: the emoji (or ":name:" of a server
+// emote), how many reacted with it and who, in the order they reacted. The keys are in the
+// order of their first reaction.
+type MessageReactionView struct {
+	Emoji string         `json:"emoji"`
+	Count int            `json:"count"`
+	Users []ReactionUser `json:"users"`
+}
+
+// MessageReactions is the answer of the reaction routes and the chat:reaction event.
+type MessageReactions struct {
+	ConversationID uint                  `json:"conversation_id"`
+	MessageID      uint                  `json:"message_id"`
+	Reactions      []MessageReactionView `json:"reactions"`
+}
+
 // MessageView is a message as a participant sees it. SenderID is nil for a deleted user; a
-// deleted message has no body nor attachment.
+// deleted message has no body, attachment nor reactions.
 type MessageView struct {
-	ID             uint            `json:"id"`
-	ConversationID uint            `json:"conversation_id"`
-	SenderID       *uint           `json:"sender_id"`
-	Body           string          `json:"body"`
-	Attachment     *AttachmentView `json:"attachment"`
-	EditedAt       *time.Time      `json:"edited_at"`
-	Deleted        bool            `json:"deleted"`
-	CreatedAt      time.Time       `json:"created_at"`
+	ID             uint                  `json:"id"`
+	ConversationID uint                  `json:"conversation_id"`
+	SenderID       *uint                 `json:"sender_id"`
+	Body           string                `json:"body"`
+	Attachment     *AttachmentView       `json:"attachment"`
+	Reactions      []MessageReactionView `json:"reactions"`
+	EditedAt       *time.Time            `json:"edited_at"`
+	Deleted        bool                  `json:"deleted"`
+	CreatedAt      time.Time             `json:"created_at"`
 }
 
 // MessagePreview is the last message of a conversation in the lists.
@@ -266,6 +293,10 @@ type MessageSettingsView struct {
 	MaxLength int `json:"max_length"`
 	// TypingIntervalMs: send the typing indicator at most this often
 	TypingIntervalMs int64 `json:"typing_interval_ms"`
+	// MaxReactionKinds: distinct reactions per message; MaxReactionsPerUser: reactions of one
+	// user on one message
+	MaxReactionKinds    int `json:"max_reaction_kinds"`
+	MaxReactionsPerUser int `json:"max_reactions_per_user"`
 }
 
 // UnreadView is GET /messages/unread (muted conversations excluded).

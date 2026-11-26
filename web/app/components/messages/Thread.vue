@@ -1,9 +1,16 @@
 <script setup lang="ts">
-import type { DirectThread, Message, MessageHistory, SendMessageBody } from '~/types/messages';
+import type {
+    ChatReactionEvent,
+    DirectThread,
+    Message,
+    MessageHistory,
+    SendMessageBody,
+} from '~/types/messages';
 import type { MessageEventType } from '~/stores/messages';
 
 // The thread with a user: header, history (older pages when scrolled up, live messages),
 // composer. Reads the messages as they arrive while visible; reloads after a reconnection.
+// Reactions: useMessageReactions (toggle, chat:reaction events).
 const props = defineProps<{ username: string }>();
 
 const api = useApiMessages();
@@ -37,6 +44,11 @@ const items = computed(() =>
 );
 const name = computed(() =>
     thread.value ? thread.value.user.display_name || thread.value.user.username : props.username,
+);
+const reactions = useMessageReactions(
+    messages,
+    () => conversation.value?.id ?? null,
+    (message) => (sendError.value = message),
 );
 
 function applyHistory(h: MessageHistory, older: boolean) {
@@ -132,7 +144,7 @@ async function remove(id: number) {
     try {
         await api.deleteMessage(conv.id, id);
         messages.value = messages.value.map((m) =>
-            m.id === id ? { ...m, deleted: true, body: '', attachment: null } : m,
+            m.id === id ? { ...m, deleted: true, body: '', attachment: null, reactions: [] } : m,
         );
     } catch (e: unknown) {
         sendError.value = e instanceof Error ? e.message : 'Failed to delete';
@@ -162,6 +174,10 @@ function typing() {
 function onEvent(type: MessageEventType, data: unknown) {
     if (type === 'reconnect') {
         load();
+        return;
+    }
+    if (type === 'chat:reaction') {
+        reactions.apply(data as ChatReactionEvent);
         return;
     }
     const conv = conversation.value;
@@ -220,7 +236,9 @@ onBeforeUnmount(() => {
                 :conversation-id="conversation?.id ?? null"
                 :other-name="name"
                 :can-edit="canSend"
+                :reaction-limits="reactions.limits.value"
                 @load-older="loadOlder"
+                @react="reactions.react"
                 @edit="edit"
                 @delete="remove"
                 @join-lobby="joinLobby"

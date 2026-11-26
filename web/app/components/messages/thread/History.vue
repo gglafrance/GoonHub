@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ThreadItem } from '~/utils/messages';
+import type { ReactionLimits } from '~/utils/reactions';
 
 // Scrolling history of a thread: day separators, grouped messages, older pages loaded when
 // scrolled near the top (the scroll position is kept), stuck to the bottom for new messages
@@ -10,13 +11,16 @@ const props = defineProps<{
     loadingOlder: boolean;
     conversationId: number | null;
     otherName: string;
+    // may write: edit, and add reactions
     canEdit: boolean;
+    reactionLimits: ReactionLimits;
 }>();
 const emit = defineEmits<{
     loadOlder: [];
     edit: [id: number, body: string];
     delete: [id: number];
     joinLobby: [messageId: number];
+    react: [id: number, key: string, add: boolean];
 }>();
 
 const messagesStore = useMessagesStore();
@@ -109,7 +113,9 @@ onBeforeUnmount(() => {
                 :item="item"
                 :other-name="otherName"
                 :can-edit="canEdit"
+                :reaction-limits="reactionLimits"
                 @edit="(id, body) => emit('edit', id, body)"
+                @react="(id, key, add) => emit('react', id, key, add)"
                 @delete="emit('delete', $event)"
                 @join-lobby="emit('joinLobby', $event)"
             />

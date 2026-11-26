@@ -35,14 +35,16 @@ type MessageService struct {
 	social   data.SocialRepository
 	access   MessageAccessResolver
 	lobbies  LobbyInvites
+	emotes   EmoteLookup
 	eventBus *EventBus
 	cfg      config.MessagesConfig
 	logger   *zap.Logger
 	now      func() time.Time
 
-	mu       sync.Mutex
-	limiters map[uint]*rate.Limiter
-	typing   map[typingKey]time.Time
+	mu               sync.Mutex
+	limiters         map[uint]*rate.Limiter
+	reactionLimiters map[uint]*rate.Limiter
+	typing           map[typingKey]time.Time
 
 	lifecycle *lifecycle.Manager
 	stopOnce  sync.Once
@@ -97,6 +99,15 @@ func normalizeMessagesConfig(cfg config.MessagesConfig) config.MessagesConfig {
 	if cfg.PurgeInterval <= 0 {
 		cfg.PurgeInterval = defaultMessagePurgeInterval
 	}
+	if cfg.MaxReactionKinds <= 0 {
+		cfg.MaxReactionKinds = defaultMaxReactionKinds
+	}
+	if cfg.MaxReactionsPerUser <= 0 {
+		cfg.MaxReactionsPerUser = defaultMaxReactionsPerUser
+	}
+	if cfg.ReactionRateBurst <= 0 {
+		cfg.ReactionRateBurst = defaultReactionRateBurst
+	}
 	return cfg
 }
 
@@ -117,6 +128,8 @@ func NewMessageService(repo data.MessageRepository, social data.SocialRepository
 		limiters:  make(map[uint]*rate.Limiter),
 		typing:    make(map[typingKey]time.Time),
 		lifecycle: lifecycle.NewManager(logger),
+
+		reactionLimiters: make(map[uint]*rate.Limiter),
 	}
 	if socialService != nil {
 		socialService.OnRelationChange(s.onRelationChange)
@@ -361,19 +374,32 @@ func (s *MessageService) prepareAttachment(ctx context.Context, sender MessageAc
 	return nil
 }
 
-// view builds the view of a message for a viewer (attachment resolved).
-func (s *MessageService) view(ctx context.Context, m data.Message, viewer *UserAccess) (MessageView, error) {
-	views, err := s.views(ctx, []data.Message{m}, viewer)
+// view builds the view of a message for a viewer (attachment resolved). withReactions reads
+// its reactions (a message just sent has none).
+func (s *MessageService) view(ctx context.Context, m data.Message, viewer *UserAccess, withReactions bool) (MessageView, error) {
+	views, err := s.views(ctx, []data.Message{m}, viewer, withReactions)
 	if err != nil {
 		return MessageView{}, err
 	}
 	return views[0], nil
 }
 
-func (s *MessageService) views(ctx context.Context, msgs []data.Message, viewer *UserAccess) ([]MessageView, error) {
+func (s *MessageService) views(ctx context.Context, msgs []data.Message, viewer *UserAccess, withReactions bool) ([]MessageView, error) {
 	attachments, err := s.resolveAttachments(ctx, msgs, viewer)
 	if err != nil {
 		return nil, err
+	}
+	var reactions map[uint][]MessageReactionView
+	if withReactions {
+		ids := make([]uint, 0, len(msgs))
+		for _, m := range msgs {
+			if m.DeletedAt == nil {
+				ids = append(ids, m.ID)
+			}
+		}
+		if reactions, err = s.reactionsOf(ctx, ids); err != nil {
+			return nil, err
+		}
 	}
 	out := make([]MessageView, len(msgs))
 	for i, m := range msgs {
@@ -382,6 +408,7 @@ func (s *MessageService) views(ctx context.Context, msgs []data.Message, viewer 
 			ConversationID: m.ConversationID,
 			SenderID:       m.SenderID,
 			Body:           m.Body,
+			Reactions:      []MessageReactionView{},
 			EditedAt:       m.EditedAt,
 			Deleted:        m.DeletedAt != nil,
 			CreatedAt:      m.CreatedAt,
@@ -390,14 +417,18 @@ func (s *MessageService) views(ctx context.Context, msgs []data.Message, viewer 
 			v.Body = ""
 		} else {
 			v.Attachment = attachments[m.ID]
+			if r := reactions[m.ID]; r != nil {
+				v.Reactions = r
+			}
 		}
 		out[i] = v
 	}
 	return out, nil
 }
 
-// publish sends an event to each participant, the message resolved with each one's access.
-func (s *MessageService) publishMessage(ctx context.Context, eventType string, participants []uint, m data.Message, senderAccess *UserAccess) {
+// publishMessage sends an event to each participant, the message resolved with each one's
+// access (withReactions: read the message's reactions, not needed for a new message).
+func (s *MessageService) publishMessage(ctx context.Context, eventType string, participants []uint, m data.Message, senderAccess *UserAccess, withReactions bool) {
 	if s.eventBus == nil {
 		return
 	}
@@ -410,7 +441,7 @@ func (s *MessageService) publishMessage(ctx context.Context, eventType string, p
 				continue
 			}
 		}
-		v, err := s.view(ctx, m, access)
+		v, err := s.view(ctx, m, access, withReactions)
 		if err != nil {
 			s.logger.Warn("Failed to build a message event", zap.Uint("user_id", uid), zap.Error(err))
 			continue
@@ -608,7 +639,7 @@ func (s *MessageService) History(ctx context.Context, viewer MessageActor, conve
 	for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
 		msgs[i], msgs[j] = msgs[j], msgs[i]
 	}
-	views, err := s.views(ctx, msgs, viewer.Access)
+	views, err := s.views(ctx, msgs, viewer.Access, true)
 	if err != nil {
 		return nil, err
 	}
@@ -704,8 +735,8 @@ func (s *MessageService) insert(ctx context.Context, sender MessageActor, conver
 		return nil, err
 	}
 	s.clearTyping(conversationID, sender.ID)
-	s.publishMessage(ctx, EventChatMessage, participants, *msg, sender.Access)
-	v, err := s.view(ctx, *msg, sender.Access)
+	s.publishMessage(ctx, EventChatMessage, participants, *msg, sender.Access, false)
+	v, err := s.view(ctx, *msg, sender.Access, false)
 	if err != nil {
 		return nil, err
 	}
@@ -849,7 +880,7 @@ func (s *MessageService) Edit(ctx context.Context, sender MessageActor, conversa
 		return nil, apperrors.NewValidationErrorWithField("body", "a message cannot be empty (delete it instead)")
 	}
 	if clean == m.Body {
-		v, err := s.view(ctx, *m, sender.Access)
+		v, err := s.view(ctx, *m, sender.Access, true)
 		return &v, err
 	}
 	if !s.allow(sender.ID, 1) {
@@ -865,8 +896,8 @@ func (s *MessageService) Edit(ctx context.Context, sender MessageActor, conversa
 	}
 	m.Body = clean
 	m.EditedAt = &at
-	s.publishMessage(ctx, EventChatMessageUpdated, participants, *m, sender.Access)
-	v, err := s.view(ctx, *m, sender.Access)
+	s.publishMessage(ctx, EventChatMessageUpdated, participants, *m, sender.Access, true)
+	v, err := s.view(ctx, *m, sender.Access, true)
 	if err != nil {
 		return nil, err
 	}
@@ -892,7 +923,7 @@ func (s *MessageService) Delete(ctx context.Context, user MessageActor, conversa
 		return nil
 	}
 	m.DeletedAt = &at
-	s.publishMessage(ctx, EventChatMessageUpdated, participants, *m, user.Access)
+	s.publishMessage(ctx, EventChatMessageUpdated, participants, *m, user.Access, false)
 	return nil
 }
 
@@ -1017,6 +1048,9 @@ func (s *MessageService) Settings(ctx context.Context, userID uint) (*MessageSet
 		Policies:         MessagePolicies,
 		MaxLength:        s.cfg.MaxLength,
 		TypingIntervalMs: s.cfg.TypingInterval.Milliseconds(),
+
+		MaxReactionKinds:    s.cfg.MaxReactionKinds,
+		MaxReactionsPerUser: s.cfg.MaxReactionsPerUser,
 	}, nil
 }
 

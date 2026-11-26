@@ -327,7 +327,8 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 
 				// Messages between users and shares (docs/MESSAGES.md): reading needs a signed-in
 				// participant (checked by the service, no admin access to others' messages),
-				// sending needs messages:use. Deleting one's own message is always allowed.
+				// sending needs messages:use (also adding a reaction). Deleting one's own message and
+				// removing one's own reaction are always allowed.
 				if messageHandler != nil {
 					msgs := protected.Group("/messages")
 					{
@@ -344,6 +345,8 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 						msgs.PATCH("/conversations/:id/messages/:messageId", perm(core.PermMessagesUse), messageHandler.Edit)
 						msgs.DELETE("/conversations/:id/messages/:messageId", messageHandler.Delete)
 						msgs.POST("/conversations/:id/messages/:messageId/join-lobby", messageHandler.JoinLobby)
+						msgs.POST("/conversations/:id/messages/:messageId/reactions", perm(core.PermMessagesUse), messageHandler.AddReaction)
+						msgs.DELETE("/conversations/:id/messages/:messageId/reactions", messageHandler.RemoveReaction)
 						msgs.POST("/conversations/:id/read", messageHandler.MarkRead)
 						msgs.POST("/conversations/:id/typing", perm(core.PermMessagesUse), messageHandler.Typing)
 						msgs.PUT("/conversations/:id/mute", messageHandler.Mute)

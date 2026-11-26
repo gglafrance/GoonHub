@@ -35,6 +35,7 @@ var SSE_EVENT_TYPES = [
     'chat:read',
     'chat:typing',
     'chat:conversation_updated',
+    'chat:reaction',
 ];
 
 function broadcast(type, payload) {
