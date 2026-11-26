@@ -202,7 +202,7 @@ func TestProfileTabsAndCustomListsIntegration(t *testing.T) {
 	min := 2
 	liked := true
 	a := &ProfileList{UserID: u.ID, Title: "Top O", Audience: "public", Filters: Filters{Sort: "jizz_count_desc", MinJizzCount: &min}}
-	b := &ProfileList{UserID: u.ID, Title: "Liked", Audience: "friends", Filters: Filters{Liked: &liked}}
+	b := &ProfileList{UserID: u.ID, Title: "Liked", Audience: "friends", Figures: "auto", Filters: Filters{Liked: &liked}}
 	for _, l := range []*ProfileList{a, b} {
 		if err := repo.CreateList(ctx, l); err != nil {
 			t.Fatal(err)
@@ -212,19 +212,21 @@ func TestProfileTabsAndCustomListsIntegration(t *testing.T) {
 		t.Fatalf("count: %d %v", n, err)
 	}
 	ssid := uuid.NewString()
-	b.Title, b.SavedSearchUUID = "Liked lately", &ssid
+	b.Title, b.SavedSearchUUID, b.Figures = "Liked lately", &ssid, "rating"
 	if err := repo.UpdateList(ctx, b); err != nil {
 		t.Fatal(err)
 	}
 	got, err := repo.GetList(ctx, u.ID, b.ID)
-	if err != nil || got.Title != "Liked lately" || got.SavedSearchUUID == nil || *got.SavedSearchUUID != ssid || got.Filters.Liked == nil {
+	if err != nil || got.Title != "Liked lately" || got.SavedSearchUUID == nil || *got.SavedSearchUUID != ssid || got.Filters.Liked == nil ||
+		got.Figures != "rating" {
 		t.Fatalf("updated: %+v %v", got, err)
 	}
 	if _, err := repo.GetList(ctx, u.ID+1000000, b.ID); err == nil {
 		t.Fatal("someone else read the list")
 	}
 	lists, err := repo.ListsByIDs(ctx, u.ID, []uint{a.ID, 999999})
-	if err != nil || len(lists) != 1 || lists[0].Filters.MinJizzCount == nil || *lists[0].Filters.MinJizzCount != 2 {
+	// a list created without figures gets the column default (auto)
+	if err != nil || len(lists) != 1 || lists[0].Filters.MinJizzCount == nil || *lists[0].Filters.MinJizzCount != 2 || lists[0].Figures != "auto" {
 		t.Fatalf("by ids: %+v %v", lists, err)
 	}
 	if all, _ := repo.Lists(ctx, u.ID); len(all) != 2 || all[0].ID != a.ID {

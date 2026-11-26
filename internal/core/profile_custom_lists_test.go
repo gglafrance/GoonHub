@@ -156,13 +156,23 @@ func TestCustomListSearchParams(t *testing.T) {
 
 // bob (5) has a "Top O" list (jizz: friends by default) placed on his profile tab.
 func (e *profileTestEnv) bobWithList(audience string) *fakeSearcher {
+	return e.bobWithListBlock(audience, "", map[string]any{"list_id": 7.0, "count": 6.0})
+}
+
+// bobWithListFigures: the same list with a figures setting.
+func (e *profileTestEnv) bobWithListFigures(audience, figures string) *fakeSearcher {
+	return e.bobWithListBlock(audience, figures, map[string]any{"list_id": 7.0, "count": 6.0})
+}
+
+// bobWithListBlock: the same list with a figures setting and a block config.
+func (e *profileTestEnv) bobWithListBlock(audience, figures string, config map[string]any) *fakeSearcher {
 	searcher := &fakeSearcher{scenes: []data.Scene{{ID: 10}, {ID: 11, TrashedAt: ptrTime()}}, total: 40}
 	e.svc.WithCustomLists(searcher, nil, nil)
 	tabs := data.ProfileTabs{{ID: "profile", Kind: "profile", Visible: true, Sections: []data.ProfileSection{{ID: "s", Template: "1", Columns: [][]data.ProfileBlockConfig{
-		{{ID: "top", Type: customListBlockType, Visible: true, LockedPlaceholder: true, Config: map[string]any{"list_id": 7.0, "count": 6.0}}},
+		{{ID: "top", Type: customListBlockType, Visible: true, LockedPlaceholder: true, Config: config}},
 	}}}}}
 	e.repo.EXPECT().GetProfile(gomock.Any(), uint(5)).Return(&data.UserProfile{UserID: 5, Tabs: tabs}, nil).AnyTimes()
-	list := data.ProfileList{ID: 7, UserID: 5, Title: "Top O", Audience: audience, Filters: data.Filters{Sort: sortJizzCountDesc}}
+	list := data.ProfileList{ID: 7, UserID: 5, Title: "Top O", Audience: audience, Figures: figures, Filters: data.Filters{Sort: sortJizzCountDesc}}
 	e.repo.EXPECT().ListsByIDs(gomock.Any(), uint(5), []uint{7}).Return([]data.ProfileList{list}, nil).AnyTimes()
 	e.repo.EXPECT().GetList(gomock.Any(), uint(5), uint(7)).Return(&list, nil).AnyTimes()
 	return searcher

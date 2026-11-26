@@ -26,7 +26,11 @@ type CustomListResponse struct {
 	Audience           string                         `json:"audience"`
 	Dependencies       []CustomListDependencyResponse `json:"dependencies"`
 	NeedsSize          bool                           `json:"needs_size"`
-	UpdatedAt          time.Time                      `json:"updated_at"`
+	// Figures is the setting (auto, none, jizz, rating, liked, views); AutoFigures what auto
+	// shows for the current criteria, main first
+	Figures     string    `json:"figures"`
+	AutoFigures []string  `json:"auto_figures"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 func NewCustomListResponse(l core.CustomListInfo) CustomListResponse {
@@ -34,6 +38,10 @@ func NewCustomListResponse(l core.CustomListInfo) CustomListResponse {
 		ID: l.List.ID, Title: l.List.Title, Filters: l.Filters, SavedSearchUUID: l.List.SavedSearchUUID,
 		FollowsSavedSearch: l.FollowsSavedSearch, Audience: l.List.Audience, NeedsSize: l.NeedsSize,
 		Dependencies: make([]CustomListDependencyResponse, len(l.Dependencies)), UpdatedAt: l.List.UpdatedAt,
+		Figures: l.List.Figures, AutoFigures: core.AutoListFigures(l.Filters),
+	}
+	if out.Figures == "" {
+		out.Figures = core.ListFiguresAuto
 	}
 	for i, d := range l.Dependencies {
 		out.Dependencies[i] = CustomListDependencyResponse{Key: d.Key, Label: d.Label, Audience: string(d.Audience)}
@@ -70,6 +78,8 @@ type CustomListBrowseResponse struct {
 	List       CustomListSummary      `json:"list"`
 	Data       []ProfileSceneResponse `json:"data"`
 	Pagination Pagination             `json:"pagination"`
+	// Figures are the owner's figures on the items, main first (those the viewer may see)
+	Figures []string `json:"figures"`
 	CardSidecars
 }
 

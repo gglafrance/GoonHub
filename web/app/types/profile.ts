@@ -32,10 +32,28 @@ export interface ProfileScene {
     views?: number;
     rating?: number;
     jizz_count?: number;
+    /** The owner's figures of a custom list scene (the kinds the list shows) */
+    figures?: ProfileSceneFigures;
 }
 
 /** The figure shown under the scene cards of a block or list. */
 export type ProfileSceneFigureKind = 'at' | 'views' | 'rating' | 'jizz' | 'none';
+
+/** A figure of a custom list: O count (and last O), rating, like date, views (and last watch). */
+export type ListFigureKind = 'jizz' | 'rating' | 'liked' | 'views';
+
+/** The figures setting of a custom list: from the sort and filters, none, or one kind. */
+export type ListFiguresSetting = 'auto' | 'none' | ListFigureKind;
+
+/** The owner's figures of a custom list scene; absent: not shown, or no such interaction. */
+export interface ProfileSceneFigures {
+    jizz_count?: number;
+    last_jizz_at?: string;
+    rating?: number;
+    liked_at?: string;
+    views?: number;
+    last_watched_at?: string;
+}
 
 /** A block as the viewer gets it. A locked block has no data. */
 export interface ProfileBlock<TWidget = unknown> {
@@ -141,6 +159,10 @@ export interface CustomList {
     audience: Audience;
     dependencies: CustomListDependency[];
     needs_size: boolean;
+    /** Which owner figures the cards show */
+    figures: ListFiguresSetting;
+    /** What "auto" shows for the current criteria, main first */
+    auto_figures: ListFigureKind[];
     updated_at: string;
 }
 
@@ -150,6 +172,7 @@ export interface CustomListInput {
     filters: SavedSearchFilters;
     saved_search_uuid?: string;
     audience: Audience;
+    figures?: ListFiguresSetting;
 }
 
 /** Payload of a custom_list block. */
@@ -158,6 +181,8 @@ export interface ProfileCustomListPayload {
     title: string;
     display: 'grid' | 'row';
     total: number;
+    /** The owner's figures under the cards, main first (those the viewer may see) */
+    figures?: ListFigureKind[];
 }
 
 /** A full list of a profile (route segment and API path). */
@@ -172,6 +197,8 @@ export interface ProfileListResponse extends CardSidecarResponse {
     pagination: { page: number; limit: number; total_items: number; total_pages: number };
     sort?: string;
     list?: { id: number; title: string };
+    /** A custom list: the owner's figures on the items, main first */
+    figures?: ListFigureKind[];
 }
 
 export interface ProfileBlockOption {

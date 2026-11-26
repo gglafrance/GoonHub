@@ -35,7 +35,8 @@ func newProfileTabsRouter(t *testing.T, access *core.UserAccess) *profileListsEn
 	privacy := core.NewPrivacyService(e.privacy, e.social, zap.NewNop())
 	social := core.NewSocialService(e.social, privacy, core.NewEventBus(zap.NewNop()), config.SocialConfig{}, zap.NewNop())
 	profiles := core.NewProfileService(e.repo, e.social, nil, social, privacy, nil, config.ProfilesConfig{ImageDir: t.TempDir()}, zap.NewNop()).
-		WithCustomLists(stubSearcher{scenes: []data.Scene{{ID: 10, Size: 999, StoredPath: "/media/x.mp4"}}}, nil, nil)
+		WithCustomLists(stubSearcher{scenes: []data.Scene{{ID: 10, Size: 999, StoredPath: "/media/x.mp4"}}}, nil, nil).
+		WithListFigures(e.interaction)
 	h := NewProfileHandler(profiles, 50)
 
 	e.r = gin.New()
@@ -132,5 +133,63 @@ func TestBrowseListHandlerRedacts(t *testing.T) {
 	e.repo.EXPECT().GetList(gomock.Any(), uint(5), uint(7)).Return(&list, nil)
 	if w, _ := doAliasRequest(t, e.r, http.MethodGet, "/profiles/users/bob/lists/7", ""); w.Code != http.StatusForbidden {
 		t.Fatalf("hidden list: %d", w.Code)
+	}
+}
+
+func TestBrowseListHandlerFigures(t *testing.T) {
+	e := newProfileTabsRouter(t, core.NewUserAccess(1, "user", false, core.PermScenesView))
+	e.expectBob() // ratings public, jizz friends (default)
+	// Top rated, auto figures: the owner's rating under each card
+	list := data.ProfileList{ID: 7, UserID: 5, Title: "Top rated", Audience: "public", Figures: "auto", Filters: data.Filters{Sort: core.SortMyRatingDesc}}
+	e.repo.EXPECT().GetList(gomock.Any(), uint(5), uint(7)).Return(&list, nil)
+	e.interaction.EXPECT().GetRatingsBySceneIDs(uint(5), []uint{10}).Return(map[uint]float64{10: 4.5}, nil)
+	w, body := doAliasRequest(t, e.r, http.MethodGet, "/profiles/users/bob/lists/7", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("browse: %d %s", w.Code, w.Body.String())
+	}
+	if figs := body["figures"].([]any); len(figs) != 1 || figs[0] != "rating" {
+		t.Fatalf("figures: %v", body["figures"])
+	}
+	item := body["data"].([]any)[0].(map[string]any)
+	if f := item["figures"].(map[string]any); f["rating"] != 4.5 || f["jizz_count"] != nil {
+		t.Fatalf("item figures: %v", f)
+	}
+
+	// The O count asked on that list: jizz is hidden from the viewer, nothing is read nor sent
+	list.Figures = "jizz"
+	e.repo.EXPECT().GetList(gomock.Any(), uint(5), uint(7)).Return(&list, nil)
+	w, body = doAliasRequest(t, e.r, http.MethodGet, "/profiles/users/bob/lists/7", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("browse: %d %s", w.Code, w.Body.String())
+	}
+	if figs := body["figures"].([]any); len(figs) != 0 {
+		t.Fatalf("hidden figure sent: %v", figs)
+	}
+	if _, ok := body["data"].([]any)[0].(map[string]any)["figures"]; ok {
+		t.Fatalf("hidden figure on the item: %v", body["data"])
+	}
+}
+
+func TestCustomListHandlerFiguresSetting(t *testing.T) {
+	e := newProfileTabsRouter(t, core.NewUserAccess(1, "user", false, core.PermScenesView))
+	e.repo.EXPECT().CountLists(gomock.Any(), uint(1)).Return(int64(0), nil).AnyTimes()
+	if w, _ := doAliasRequest(t, e.r, http.MethodPost, "/profiles/me/lists", `{"title":"x","figures":"everything"}`); w.Code != http.StatusBadRequest {
+		t.Fatalf("bad figures: %d", w.Code)
+	}
+	e.privacy.EXPECT().ListSettings(gomock.Any(), uint(1)).Return(nil, nil).AnyTimes()
+	e.social.EXPECT().GetFriendRequestPolicy(gomock.Any(), uint(1)).Return("everyone", nil).AnyTimes()
+	e.repo.EXPECT().CreateList(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, l *data.ProfileList) error {
+		if l.Figures != "none" {
+			t.Fatalf("stored figures: %q", l.Figures)
+		}
+		l.ID = 4
+		return nil
+	})
+	w, body := doAliasRequest(t, e.r, http.MethodPost, "/profiles/me/lists", `{"title":"Top O","filters":{"sort":"jizz_count_desc"},"figures":"none"}`)
+	if w.Code != http.StatusCreated || body["figures"] != "none" {
+		t.Fatalf("create: %d %v", w.Code, body)
+	}
+	if auto := body["auto_figures"].([]any); len(auto) != 1 || auto[0] != "jizz" {
+		t.Fatalf("auto figures: %v", body["auto_figures"])
 	}
 }

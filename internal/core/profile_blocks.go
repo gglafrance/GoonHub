@@ -82,6 +82,8 @@ type ProfileBlockDeps struct {
 	Homepage *HomepageService
 	// RunList runs a custom list for a viewer (ProfileService.runList)
 	RunList func(ctx context.Context, ownerID uint, viewer ProfileViewer, f data.Filters, page, limit int) ([]data.Scene, int64, error)
+	// ListFigures fills the owner's figures of the given kinds (already checked for the viewer)
+	ListFigures func(ctx context.Context, ownerID uint, items []ProfileSceneItem, kinds []string) error
 	// Now returns the current time (tests).
 	Now func() time.Time
 }
@@ -93,6 +95,8 @@ type ProfileBlockRequest struct {
 	Config  ProfileBlockValues
 	// List is the custom list of a custom_list block (already checked for the viewer)
 	List *ResolvedProfileList
+	// ListFigures are the figure kinds of a custom_list block the viewer may see (main first)
+	ListFigures []string
 }
 
 // ProfileBlockValues are the resolved options of a block (defaults filled in).
@@ -118,6 +122,8 @@ type ProfileSceneItem struct {
 	Views     int64
 	Rating    *float64
 	JizzCount int64
+	// Figures are the owner's figures of a custom list scene (profile_list_figures.go)
+	Figures *ProfileSceneFigures
 }
 
 // ProfileBlockData is the content of a block. Scenes are redacted by the API layer; Widget is
