@@ -40,8 +40,7 @@ func (l *lobby) handle(c *Client, in *inbound, now time.Time) error {
 		if !l.hub.hasPermission(c.userID, core.PermScenesView) {
 			return refuse(ErrCodeNotAllowed, "you cannot view scenes")
 		}
-		_, _, err := l.addItems(c.userID, c.username, in.Items, now)
-		return err
+		return l.cmdQueueAdd(c, in, now)
 	case cmdQueueRemove:
 		return l.cmdQueueRemove(c, in, now)
 	case cmdSuggestionReject:
@@ -235,6 +234,70 @@ func (l *lobby) cmdPlayItem(in *inbound, now time.Time) error {
 	l.broadcastState()
 	l.system("Now playing: " + itemTitle(target))
 	return nil
+}
+
+// cmdQueueAdd adds items to the queue (or suggests them). With play_now (control only), the
+// items go to the front of the queue and the first one starts at once: the item playing is
+// dropped, like play_item does.
+func (l *lobby) cmdQueueAdd(c *Client, in *inbound, now time.Time) error {
+	if in.PlayNow && !l.canControl(c.userID) {
+		return refuse(ErrCodeNotAllowed, "you do not have control of the lobby")
+	}
+	cur := l.current()
+	before := len(l.queue)
+	queued, _, err := l.addItems(c.userID, c.username, in.Items, now)
+	if err != nil || !in.PlayNow || queued == 0 {
+		return err
+	}
+	return l.playAdded(cur, l.queue[before:before+queued], now)
+}
+
+// playAdded moves the items just added to the front of the queue, drops the item that was
+// playing (cur, may be nil) and starts the first added item.
+func (l *lobby) playAdded(cur *item, added []*item, now time.Time) error {
+	isAdded := make(map[uint]bool, len(added))
+	for _, it := range added {
+		isAdded[it.id] = true
+	}
+	next := make([]*item, 0, len(l.queue))
+	next = append(next, added...)
+	for _, it := range l.queue {
+		if !isAdded[it.id] && it != cur {
+			next = append(next, it)
+		}
+	}
+	if cur != nil {
+		if err := l.hub.store.DeleteQueueItem(l.row.ID, cur.id); err != nil {
+			return l.internal(err)
+		}
+	}
+	if err := l.hub.store.SetQueueOrder(l.row.ID, itemIDs(next)); err != nil {
+		return l.internal(err)
+	}
+	l.queue = next
+	l.startItem(now, true)
+	l.savePlayback()
+	l.broadcastQueue()
+	l.broadcastState()
+	l.system("Now playing: " + itemTitle(next[0]))
+	return nil
+}
+
+// clampItemEnd keeps the end of a range inside the scene when its duration is known (a marker
+// without an end is queued with a default length that may pass the end of the scene).
+func clampItemEnd(in ItemInput, duration int) *float64 {
+	if in.End == nil || duration <= 0 || *in.End <= float64(duration) {
+		return in.End
+	}
+	start := 0.0
+	if in.Start != nil {
+		start = *in.Start
+	}
+	if float64(duration) <= start {
+		return nil // plays to the end of the scene
+	}
+	d := float64(duration)
+	return &d
 }
 
 func itemIDs(items []*item) []uint {
@@ -438,7 +501,7 @@ func (l *lobby) addItems(userID uint, username string, inputs []ItemInput, now t
 			Status:   status,
 			Position: have + i,
 			StartS:   in.Start,
-			EndS:     in.End,
+			EndS:     clampItemEnd(in, scenes[in.SceneID].Duration),
 			Label:    in.Label,
 			AddedBy:  &adder,
 		}

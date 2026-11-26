@@ -441,6 +441,73 @@ func TestQueueOpsAndSuggestions(t *testing.T) {
 	e.expectError(member, map[string]any{"t": "queue_add", "items": []map[string]any{{"scene_id": 1}}}, ErrCodeNotAllowed)
 }
 
+func TestQueueAddPlayNow(t *testing.T) {
+	e := newEnv(t)
+	id := e.lobby(CreateInput{Visibility: data.LobbyVisibilityPublic}, 1, 2)
+	host := e.connect(id, alice)
+	member := e.connect(id, bob)
+	q, _ := e.queue(id)
+
+	// Without control, play_now is refused and nothing is added (not even as a suggestion)
+	e.expectError(member, map[string]any{"t": "queue_add", "play_now": true, "items": []map[string]any{{"scene_id": 3}}}, ErrCodeNotAllowed)
+	if got, sug := e.queue(id); len(got) != 2 || len(sug) != 0 {
+		t.Fatalf("refused play_now changed the queue: %v %v", got, sug)
+	}
+	// queue_open lets members add, not play now
+	e.send(host, map[string]any{"t": "settings", "queue_open": true})
+	e.expectError(member, map[string]any{"t": "queue_add", "play_now": true, "items": []map[string]any{{"scene_id": 3}}}, ErrCodeNotAllowed)
+
+	// The added items go first and the first one plays; the item playing is dropped, the
+	// upcoming ones follow
+	e.send(host, map[string]any{"t": "queue_add", "play_now": true, "items": []map[string]any{
+		{"scene_id": 2, "start": 20, "end": 40, "label": "Kiss"}, {"scene_id": 3},
+	}})
+	got, _ := e.queue(id)
+	if len(got) != 3 || got[2] != q[1] {
+		t.Fatalf("play_now order: got %v (old queue %v)", got, q)
+	}
+	st := e.state(id)
+	if st.itemID != got[0] || !st.playing || !near(e.pos(id), 20) {
+		t.Fatalf("play_now did not start the first added item: %+v", st)
+	}
+	if stored := e.store.Queue(e.loaded(id).row.ID); fmt.Sprint(stored) != fmt.Sprint(got) {
+		t.Fatalf("stored order %v want %v", stored, got)
+	}
+
+	// Into an empty queue, play_now starts playing (a plain add stays paused)
+	id2 := e.lobby(CreateInput{Visibility: data.LobbyVisibilityPublic})
+	host2 := e.connect(id2, alice)
+	e.send(host2, map[string]any{"t": "queue_add", "play_now": true, "items": []map[string]any{{"scene_id": 1}}})
+	if q2, _ := e.queue(id2); len(q2) != 1 || e.state(id2).itemID != q2[0] || !e.state(id2).playing {
+		t.Fatalf("play_now into an empty queue: %v %+v", q2, e.state(id2))
+	}
+}
+
+func TestQueueAddClampsEndToTheScene(t *testing.T) {
+	e := newEnv(t)
+	id := e.lobby(CreateInput{Visibility: data.LobbyVisibilityPublic})
+	host := e.connect(id, alice)
+	// Scene 1 lasts 100 s, scene 3 has no known duration
+	e.send(host, map[string]any{"t": "queue_add", "items": []map[string]any{
+		{"scene_id": 1, "start": 90, "end": 120},
+		{"scene_id": 1, "start": 100, "end": 130},
+		{"scene_id": 3, "start": 10, "end": 40},
+		{"scene_id": 1, "start": 10, "end": 40},
+	}})
+	l := e.loaded(id)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	ends := make([]any, len(l.queue))
+	for i, it := range l.queue {
+		if it.end != nil {
+			ends[i] = *it.end
+		}
+	}
+	if fmt.Sprint(ends) != fmt.Sprint([]any{100.0, nil, 40.0, 40.0}) {
+		t.Fatalf("ends: %v", ends)
+	}
+}
+
 func TestQueueLimits(t *testing.T) {
 	e := newEnv(t, func(c *config.Goon2getherConfig) { c.MaxQueueItems = 2; c.MaxSuggestions = 1 })
 	id := e.lobby(CreateInput{Visibility: data.LobbyVisibilityPublic}, 1, 2)

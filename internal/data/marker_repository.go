@@ -3,6 +3,7 @@ package data
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -184,6 +185,10 @@ type MarkerListOptions struct {
 	Studio string
 	// MarkerTags keeps markers having all these marker tags (by name).
 	MarkerTags []string
+	// Query keeps markers whose label or scene title contains this text (ignoring case).
+	Query string
+	// LiveScenesOnly drops the markers of trashed or deleted scenes.
+	LiveScenesOnly bool
 }
 
 // HasSceneFilters reports whether a filter on the marker's scene is set.
@@ -237,6 +242,16 @@ func markerFilterSQL(opts MarkerListOptions, alias string, withLabels bool) (str
 			SELECT sc.id FROM scenes sc LEFT JOIN studios so ON so.id = sc.studio_id
 			WHERE so.name = ? OR (sc.studio_id IS NULL AND sc.studio = ?))`
 		args = append(args, opts.Studio, opts.Studio)
+	}
+	if q := strings.TrimSpace(opts.Query); q != "" {
+		like := "%" + escapeLike(q) + "%"
+		sql += " AND (" + alias + ".label ILIKE ? OR " + alias + `.scene_id IN (
+			SELECT qs.id FROM scenes qs WHERE qs.title ILIKE ?))`
+		args = append(args, like, like)
+	}
+	if opts.LiveScenesOnly {
+		sql += " AND " + alias + `.scene_id IN (
+			SELECT ls.id FROM scenes ls WHERE ls.deleted_at IS NULL AND ls.trashed_at IS NULL)`
 	}
 	return sql, args
 }
