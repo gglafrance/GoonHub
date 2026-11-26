@@ -18,7 +18,10 @@ const counts = computed(() =>
 
 <template>
     <div class="glass-panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
-        <SocialUserAvatar :username="profile.user.username" size="lg" />
+        <div class="relative shrink-0 self-start sm:self-auto">
+            <SocialUserAvatar :username="profile.user.username" size="lg" />
+            <SocialPresenceDot :user-id="profile.user.id" size="lg" />
+        </div>
         <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
                 <h1 class="truncate text-lg font-semibold text-white">
@@ -35,6 +38,11 @@ const counts = computed(() =>
             <div class="text-dim mt-0.5 text-[11px]">
                 Member since <UiFormattedDate :datetime="profile.user.created_at" />
             </div>
+            <SocialPresenceBadge
+                v-if="!profile.relationship.self"
+                :user-id="profile.user.id"
+                class="mt-1"
+            />
             <div v-if="counts.length" class="mt-2 flex gap-4">
                 <button
                     v-for="c in counts"

@@ -168,6 +168,10 @@ responses). Admin-only payloads (duplicates, trash, library health, jobs) are no
 
 Resolution (width/height) and duration stay visible to everyone who can view scenes.
 
+Presence (`docs/PRESENCE.md`): reporting a `watching_scene` activity needs `scenes:view`, and the
+scene of an activity (title, thumbnail, position) is only shown to viewers with `scenes:view`
+(the others see "watching something"); a presence never carries file information.
+
 ### Live events (`/events`)
 
 Every event type has an allowlist (`internal/api/v1/handler/sse_filter.go`): who receives
@@ -183,7 +187,7 @@ events need `jobs:view_status`; `fingerprint_type` of `scene:fingerprint_complet
 What a user shows to other users (profile, friends and followers lists, presence, activity...)
 is not governed by permissions but by that user's privacy settings (`docs/SOCIAL.md`). Privacy
 has **no administrator bypass**: a superuser is a viewer like any other and does not see what a
-user keeps private. Social live events (`social:*`) are personal: they only reach the user they
+user keeps private. Social live events (`social:*`, `presence:*`) are personal: they only reach the user they
 are for, superusers included (`EventBus.PublishToUser`).
 
 ### Known limitations

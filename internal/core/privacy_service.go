@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"sync"
 
 	"goonhub/internal/apperrors"
 	"goonhub/internal/data"
@@ -18,6 +19,30 @@ type PrivacyService struct {
 	repo   data.PrivacyRepository
 	social data.SocialRepository
 	logger *zap.Logger
+
+	listenersMu sync.RWMutex
+	listeners   []PrivacyChangeListener
+}
+
+// PrivacyChangeListener is called after a user changed the audience of some items (keys of
+// the changed items), e.g. to re-evaluate who sees their presence at once.
+type PrivacyChangeListener func(userID uint, items []string)
+
+// OnChange registers a listener of the privacy changes (called synchronously after the
+// change is saved: keep it short).
+func (s *PrivacyService) OnChange(fn PrivacyChangeListener) {
+	s.listenersMu.Lock()
+	defer s.listenersMu.Unlock()
+	s.listeners = append(s.listeners, fn)
+}
+
+func (s *PrivacyService) notifyChange(userID uint, items []string) {
+	s.listenersMu.RLock()
+	listeners := append([]PrivacyChangeListener(nil), s.listeners...)
+	s.listenersMu.RUnlock()
+	for _, fn := range listeners {
+		fn(userID, items)
+	}
 }
 
 func NewPrivacyService(repo data.PrivacyRepository, social data.SocialRepository, logger *zap.Logger) *PrivacyService {
@@ -322,6 +347,12 @@ func (s *PrivacyService) UpdateSettings(ctx context.Context, userID uint, in Upd
 		if err := s.repo.SaveSettings(ctx, userID, set, reset); err != nil {
 			return nil, err
 		}
+		changed := append([]string(nil), reset...)
+		for key := range set {
+			changed = append(changed, key)
+		}
+		sort.Strings(changed)
+		s.notifyChange(userID, changed)
 	}
 	if in.FriendRequestPolicy != nil {
 		if err := s.social.SetFriendRequestPolicy(ctx, userID, *in.FriendRequestPolicy); err != nil {

@@ -25,6 +25,8 @@ var SSE_EVENT_TYPES = [
     'social:friend_request_accepted',
     'social:followed',
     'social:friend_requests_changed',
+    // presence (targeted, see app/utils/presence.ts)
+    'presence:update',
 ];
 
 function broadcast(type, payload) {

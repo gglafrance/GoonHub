@@ -508,6 +508,7 @@ definePageMeta({
                                     :has-next="playlistPlayer.hasNext.value"
                                     :has-previous="playlistPlayer.hasPrevious.value"
                                     scrubber-toggle
+                                    presence
                                     @play="isScenePlaying = true"
                                     @pause="isScenePlaying = false"
                                     @error="playerError = $event"

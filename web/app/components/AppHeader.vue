@@ -107,6 +107,8 @@ const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
 
                         <HeaderJobStatus v-if="perms.has('jobs:view_status')" />
 
+                        <HeaderFriendsPresence />
+
                         <HeaderFriendsLink />
 
                         <NuxtLink

@@ -113,7 +113,7 @@ var PrivacyCatalog = []PrivacyItem{
 	{Key: PrivacyFriendsList, Label: "Friends list", Description: "Who your friends are", Group: PrivacyGroupConnections, Default: AudiencePublic},
 	{Key: PrivacyFollowersList, Label: "Followers and following", Description: "Who follows you and who you follow", Group: PrivacyGroupConnections, Default: AudiencePublic},
 	{Key: PrivacyOnlineStatus, Label: "Online status", Description: "Whether you are online", Group: PrivacyGroupPresence, Default: AudienceFriends},
-	{Key: PrivacyNowWatching, Label: "Now watching", Description: "What you are watching right now", Group: PrivacyGroupPresence, Default: AudienceFriends},
+	{Key: PrivacyNowWatching, Label: "Now watching", Description: "What you are watching right now (only shown to who also sees your online status)", Group: PrivacyGroupPresence, Default: AudienceFriends},
 }
 
 // privacyItemByKey returns the catalog item of a key.

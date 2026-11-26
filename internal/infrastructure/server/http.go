@@ -45,7 +45,14 @@ type Server struct {
 	transcoder        *streaming.Transcoder
 	workerService     *workers.Service
 	pushDispatcher    *workers.PushDispatcher
+	presenceService   *core.PresenceService
 	srv               *http.Server
+}
+
+// SetPresence sets the presence service (its loop runs while the server runs; the last seen
+// times are saved at shutdown).
+func (s *Server) SetPresence(p *core.PresenceService) {
+	s.presenceService = p
 }
 
 func NewHTTPServer(
@@ -194,6 +201,10 @@ func (s *Server) Start() error {
 
 	if s.triggerScheduler != nil {
 		s.triggerScheduler.Start()
+	}
+
+	if s.presenceService != nil {
+		s.presenceService.Start()
 	}
 
 	// Apply the scheduled deletions of resolved duplicates, and classify the duplicate group
@@ -382,6 +393,10 @@ func (s *Server) Start() error {
 
 	if s.jobHistoryService != nil {
 		s.jobHistoryService.StopCleanupTicker()
+	}
+
+	if s.presenceService != nil {
+		s.presenceService.Stop()
 	}
 
 	// Kill the on-the-fly conversions: their streams would hold the HTTP shutdown

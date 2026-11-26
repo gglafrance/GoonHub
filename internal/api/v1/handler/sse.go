@@ -18,7 +18,20 @@ type SSEHandler struct {
 	authService      *core.AuthService
 	jobStatusService *core.JobStatusService
 	access           middleware.AccessResolver
+	presence         PresenceTracker
 	logger           *zap.Logger
+}
+
+// PresenceTracker is told when a live stream of a user opens and closes (core.PresenceService:
+// a user is online while they have one, docs/PRESENCE.md).
+type PresenceTracker interface {
+	Connect(userID uint)
+	Disconnect(userID uint)
+}
+
+// SetPresence sets the presence tracker of the streams (nil: none).
+func (h *SSEHandler) SetPresence(p PresenceTracker) {
+	h.presence = p
 }
 
 func NewSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, access middleware.AccessResolver, logger *zap.Logger) *SSEHandler {
@@ -99,6 +112,12 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 	// the stream belongs to the user: it also receives the events targeted at them
 	subscriberID, eventCh := h.eventBus.SubscribeUser(payload.UserID)
 	defer h.eventBus.Unsubscribe(subscriberID)
+
+	// an open stream makes the user online (a grace period follows its end)
+	if h.presence != nil {
+		h.presence.Connect(payload.UserID)
+		defer h.presence.Disconnect(payload.UserID)
+	}
 
 	h.logger.Debug("SSE client connected", zap.String("subscriber_id", subscriberID))
 
