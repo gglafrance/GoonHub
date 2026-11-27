@@ -46,4 +46,6 @@ type CustomListRequest struct {
 	Filters         data.Filters `json:"filters"`
 	SavedSearchUUID string       `json:"saved_search_uuid"`
 	Audience        string       `json:"audience"`
+	// Figures: auto (default), none, jizz, rating, liked, views
+	Figures string `json:"figures"`
 }

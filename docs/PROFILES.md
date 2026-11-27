@@ -83,7 +83,7 @@ share their markers (`users.share_markers`). Marker thumbnails use the versioned
 | `activity_calendar` | `activity` | | `weeks` 4-104 (26), `metric` views/jizz/both (views) | shown |
 | `playlists` | `playlists` | `playlists:view_public` | `count` (6) | shown |
 | `friends` | `friends_list` | | `count` (8) | shown |
-| `custom_list` | the list's (below) | `scenes:view` | `list_id`, `count` 2-24 (6), `display` grid/row (grid) | never (placed by the owner, several times) |
+| `custom_list` | the list's (below) | `scenes:view` | `list_id`, `count` 2-24 (6), `display` grid/row (grid), `figures` list/auto/jizz/rating/liked/views/none (list) | never (placed by the owner, several times) |
 
 Periods: `week` = last 7 days, `month` = last 30 days, `year` = last 365 days, `all`.
 
@@ -240,6 +240,39 @@ The `custom_list` block shows the first `count` videos (grid or compact row) wit
 link to `/u/<name>/lists/<id>` (the whole list, paginated, the user's card template). A deleted
 list leaves its blocks empty: they are shown to nobody.
 
+### Figures
+
+Under each card, a list may show the owner's figures behind it, like the built-in lists
+(`core/profile_list_figures.go`, `user_profile_lists.figures`, migration 105):
+
+| Figure | Shows | Privacy item |
+|---|---|---|
+| `jizz` | "12 O · last 2 days ago" (O count, last dated O) | `jizz` |
+| `rating` | the owner's rating as stars | `ratings` |
+| `liked` | "Liked 2 days ago" | `liked` |
+| `views` | "34 views · last 3 days ago" (views, last watch) | `activity` |
+
+The list setting `figures` is `auto` (default), `none` or one figure. `auto` takes the main
+figure from the sort (`jizz_count_*`, `last_jizz_*` -> `jizz`; `my_rating_*` -> `rating`;
+`liked_at_desc` -> `liked`; `my_views_desc`, `last_watched_desc` -> `views`) and adds one from
+the filters on the owner's interactions (O range -> `jizz`, rating range or rated -> `rating`,
+liked -> `liked`, watched -> `views`; unrated and unwatched have nothing to show), two figures
+at most. So the presets (Top O, Top rated, Recently liked, Most watched) show theirs and a list
+on library data only (Newest) shows none. A `custom_list` block may override the setting
+(`figures` option; `list` = the list's). The editor (Edit profile > Custom lists) has a toggle
+and the choice (auto names what it picks); `auto_figures` of `GET /profiles/me/lists` is what
+auto shows for the current criteria.
+
+Privacy, for every viewer (no administrator bypass): a figure is sent only when the viewer
+passes its privacy item, checked on its own even if the list does not depend on it (a rating
+shown on a Top O list needs `ratings` as well as `jizz`); otherwise it is dropped and the list
+stays visible. The items are read in the same `Visibility` call as the rest of the page, and a
+dropped figure is never read. Figures are read for the scenes shown only (one or two batched
+queries per figure).
+
+The cards show one line per figure, truncated to the card width (`ProfileListFigures`), in the
+block (grid and compact row) and on the Browse page.
+
 ## Images
 
 Avatars and uploaded banners are GoonHub data, stored in `profiles.image_dir` (default
@@ -285,10 +318,10 @@ that pick scenes or markers need `scenes:view`.
 | `GET /api/v1/profiles/users/:username/ratings?rating=&sort=&page=&limit=&card_fields=` | `scenes:view` | list (below); needs `profile` and `ratings`; `400` for an unknown sort or a rating off the scale |
 | `GET /api/v1/profiles/users/:username/likes?sort=&page=&limit=&card_fields=` | `scenes:view` | list; needs `profile` and `liked` |
 | `GET /api/v1/profiles/users/:username/jizz?sort=&page=&limit=&card_fields=` | `scenes:view` | list; needs `profile` and `jizz` |
-| `GET /api/v1/profiles/users/:username/lists/:id?page=&limit=&card_fields=` | `scenes:view` | `{list: {id, title}, data: [{scene}], pagination, ratings?, likes?, jizz_counts?, watched?}`; `403 PRIVACY_RESTRICTED` unless visible (above); `404` unknown list |
+| `GET /api/v1/profiles/users/:username/lists/:id?page=&limit=&card_fields=` | `scenes:view` | `{list: {id, title}, data: [{scene, figures?}], figures: [kind], pagination, ratings?, likes?, jizz_counts?, watched?}` (`figures`: see "Figures"); `403 PRIVACY_RESTRICTED` unless visible (above); `404` unknown list |
 | `PUT /api/v1/profiles/me/tabs` `{tabs}` or `{reset: true}` | | `{tabs}` normalized; `400` (see "Tabs and sections") |
 | `GET /api/v1/profiles/me/lists` | `scenes:view` | `{lists: [list]}` |
-| `POST /api/v1/profiles/me/lists` `{title, filters, saved_search_uuid?, audience?}` | `scenes:view` | `201` list; `400` invalid criteria, title, audience, unknown saved search or over the cap; `403` size criteria without `files:view_size` |
+| `POST /api/v1/profiles/me/lists` `{title, filters, saved_search_uuid?, audience?, figures?}` | `scenes:view` | `201` list; `400` invalid criteria, title, audience, figures, unknown saved search or over the cap; `403` size criteria without `files:view_size` |
 | `PUT /api/v1/profiles/me/lists/:id` (same body) | `scenes:view` | the list |
 | `DELETE /api/v1/profiles/me/lists/:id` | | `204`; `404` |
 | `GET /api/v1/profiles/me` | | edit state: `{user, display_name, bio, avatar_version, banner: {type, scene_id?, version, url?}, layout: [...] (the blocks of the profile tab), tabs: [...], lists: [list], section_templates: [{id, label, widths}], favorite_scenes: [SceneListItem], favorite_markers: [marker], block_types: [...], privacy: <GET /social/privacy>, limits: {max_showcase_items, bio_max_length, display_name_max_length, max_upload_bytes}}` |
@@ -306,7 +339,10 @@ that pick scenes or markers need `scenes:view`.
 | `GET /api/v1/profiles/banner/:userId/:size` | | JPEG (`md`, `lg`); `403 PRIVACY_RESTRICTED` unless the profile is visible |
 
 A custom list (owner): `{id, title, filters, saved_search_uuid, follows_saved_search, audience,
-dependencies: [{key, label, audience}], needs_size, updated_at}`. The limits also carry
+dependencies: [{key, label, audience}], needs_size, figures, auto_figures, updated_at}`. The
+figures of a custom list scene: `figures: {jizz_count?, last_jizz_at?, rating?, liked_at?,
+views?, last_watched_at?}` (only the kinds sent); the `custom_list` block widget carries
+`figures: [kind]` too. The limits also carry
 `max_tabs`, `max_sections`, `max_blocks_per_tab`, `max_lists`; a block type `multi: true`
 (custom_list).
 
@@ -338,7 +374,9 @@ The social user cards (`/social/...` lists, directory, `GET /social/me` `user`) 
   stacked below; the blocks: `ProfileBlockRenderer` + `components/profile/blocks/<Type>.vue`,
   sharing `ProfileScenesGrid`, `ProfileSceneFigure` and `ProfileMarkersGrid`; the frame shows
   "See all" for the blocks of `PROFILE_BLOCK_LISTS` and "Browse" for a custom list),
-  `lists/[id].vue` (a custom list browsed in full),
+  `lists/[id].vue` (a custom list browsed in full; the cards of a custom list, there and in its
+  block, show `ProfileListFigures`, helpers in `utils/listFigures.ts`, tests in
+  `web/tests/listFigures.test.ts`),
   `likes.vue`, `ratings.vue` (the chart, a click on a bar toggles the `?rating=` filter, shown
   as a removable chip) and `jizz.vue`. The lists are `ProfileSceneList` (the user's card
   template and grid density, pagination or infinite scroll per the user setting, page and sort
@@ -359,7 +397,7 @@ The social user cards (`/social/...` lists, directory, `GET /social/me` `user`) 
   item; a custom list block picks a list and shows its audience and dependencies; saved with the
   button), Custom lists (`ProfileEditLists`: presets Top O, Top rated, Recently liked, Most
   watched, Newest; `ProfileEditListForm`: title, audience, criteria or a saved search, the
-  dependencies and their audiences; `ProfileEditListCriteria`: the search interface on its own
+  dependencies and their audiences, the figures (`ProfileEditListFigures`); `ProfileEditListCriteria`: the search interface on its own
   store, `useProfileListSearchStore`, with a preview of the first results), Favorite videos and Favorite markers (`ProfileEditShowcase`:
   drag and drop, remove, replace, and "Add" with the search picker `PickerModal`, Videos or
   Markers tab, multi-select up to the free slots, single select to replace a slot; saved on each

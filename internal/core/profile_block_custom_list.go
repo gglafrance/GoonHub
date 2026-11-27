@@ -19,6 +19,9 @@ type ProfileCustomListPayload struct {
 	Title   string `json:"title"`
 	Display string `json:"display"`
 	Total   int64  `json:"total"`
+	// Figures are the owner's figures shown under the cards, main first (those the viewer
+	// may see)
+	Figures []string `json:"figures"`
 }
 
 func init() {
@@ -33,6 +36,10 @@ func init() {
 			{Key: "count", Label: "Items", Kind: ProfileOptionInt, Min: 2, Max: 24, Default: 6},
 			{Key: "display", Label: "Display", Kind: ProfileOptionChoice, DefaultChoice: "grid", Choices: []ProfileBlockChoice{
 				{"grid", "Grid"}, {"row", "Compact row"},
+			}},
+			{Key: "figures", Label: "Figures", Kind: ProfileOptionChoice, DefaultChoice: ListFiguresList, Choices: []ProfileBlockChoice{
+				{ListFiguresList, "As the list"}, {ListFiguresAuto, "Auto (from the sort)"}, {ListFigureJizz, "O count"},
+				{ListFigureRating, "Rating"}, {ListFigureLiked, "Like date"}, {ListFigureViews, "Views"}, {ListFiguresNone, "None"},
 			}},
 		},
 		Order: 110,
@@ -56,9 +63,19 @@ func fetchCustomListBlock(ctx context.Context, deps *ProfileBlockDeps, req Profi
 	for i, s := range scenes {
 		items[i] = ProfileSceneItem{Scene: s}
 	}
+	// No figure reader (tests, a partial setup): the cards show no figure
+	figures := req.ListFigures
+	if figures == nil || deps.ListFigures == nil {
+		figures = []string{}
+	}
+	if len(figures) > 0 && len(items) > 0 {
+		if err := deps.ListFigures(ctx, req.OwnerID, items, figures); err != nil {
+			return nil, err
+		}
+	}
 	return &ProfileBlockData{
 		Scenes: items,
-		Widget: ProfileCustomListPayload{ListID: req.List.List.ID, Title: req.List.List.Title, Display: req.Config.String("display"), Total: total},
+		Widget: ProfileCustomListPayload{ListID: req.List.List.ID, Title: req.List.List.Title, Display: req.Config.String("display"), Total: total, Figures: figures},
 		Total:  &total,
 		Empty:  len(items) == 0,
 		Title:  req.List.List.Title,

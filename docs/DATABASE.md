@@ -854,6 +854,7 @@ owner's interactions. At most `profiles.max_lists` per user (application rule).
 | `filters` | JSONB | NO | '{}' | The saved search filters shape (`data.Filters`), validated by the server |
 | `saved_search_uuid` | UUID | YES | NULL | A saved search of the owner the list follows (its current filters while it exists); no FK, a missing one falls back to `filters` |
 | `audience` | VARCHAR(16) | NO | 'public' | Who may see the list (besides the items its criteria depend on) |
+| `figures` | VARCHAR(16) | NO | 'auto' | Owner figures under the cards (migration 105): `auto` (from the sort and filters), `none`, `jizz`, `rating`, `liked`, `views`; each one is sent only to viewers passing its privacy item |
 | `created_at` | TIMESTAMPTZ | NO | NOW() | Creation |
 | `updated_at` | TIMESTAMPTZ | NO | NOW() | Last change |
 
@@ -864,6 +865,7 @@ owner's interactions. At most `profiles.max_lists` per user (application rule).
 - CHECK `chk_user_profile_lists_audience`: `audience IN ('public', 'followers', 'mutuals', 'friends', 'private')`
 - CHECK `chk_user_profile_lists_filters_object`: `jsonb_typeof(filters) = 'object'`
 - CHECK `chk_user_profile_lists_title`: `char_length(title) BETWEEN 1 AND 80`
+- CHECK `chk_user_profile_lists_figures`: `figures IN ('auto', 'none', 'jizz', 'rating', 'liked', 'views')`
 
 ---
 

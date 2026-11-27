@@ -103,7 +103,9 @@ audience.
 
 Custom lists of a profile (`docs/PROFILES.md`, "Custom lists") add no item: a list has its own
 audience and depends on the items of its criteria (`liked`, `ratings`, `jizz`, `activity`,
-`recent_markers`), all checked for every viewer.
+`recent_markers`), all checked for every viewer. The figures shown on its cards (O count,
+rating, like date, views) are each checked against their own item (`jizz`, `ratings`, `liked`,
+`activity`) and dropped when hidden.
 
 `profile` is a gate: a block shown on the profile page needs `profile` and its own item (the
 lists endpoints check both, `CanViewAll`; the profile blocks and their items are listed in

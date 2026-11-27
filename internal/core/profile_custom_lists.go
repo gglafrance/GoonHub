@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -317,6 +318,9 @@ type CustomListInput struct {
 	Filters         data.Filters
 	SavedSearchUUID string
 	Audience        string
+	// Figures: which owner figures the cards show (auto, none, jizz, rating, liked, views;
+	// "" = auto)
+	Figures string
 }
 
 // CustomListDependency is a privacy item a list depends on, with the owner's audience.
@@ -375,6 +379,13 @@ func (s *ProfileService) checkListInput(owner ProfileViewer, in *CustomListInput
 	if !audience.Valid() {
 		return customListError("audience", "unknown audience")
 	}
+	figures := in.Figures
+	if figures == "" {
+		figures = ListFiguresAuto
+	}
+	if !ValidListFiguresSetting(figures) {
+		return customListError("figures", "unknown figures (auto, none, jizz, rating, liked, views)")
+	}
 	list.SavedSearchUUID = nil
 	filters := in.Filters
 	if in.SavedSearchUUID != "" {
@@ -393,7 +404,7 @@ func (s *ProfileService) checkListInput(owner ProfileViewer, in *CustomListInput
 	if err != nil {
 		return err
 	}
-	list.Title, list.Filters, list.Audience = title, f, string(audience)
+	list.Title, list.Filters, list.Audience, list.Figures = title, f, string(audience), figures
 	return nil
 }
 
@@ -472,6 +483,8 @@ type CustomListPage struct {
 	Total int64
 	Page  int
 	Limit int
+	// Figures are the owner's figures on the items, main first (those the viewer may see)
+	Figures []string
 }
 
 // BrowseList returns a page of a list of username, if the viewer may see it (profile item,
@@ -490,7 +503,13 @@ func (s *ProfileService) BrowseList(ctx context.Context, viewer ProfileViewer, u
 		return nil, err
 	}
 	rl := s.resolveList(*list)
-	visible, err := s.privacy.Visibility(ctx, viewer.UserID, owner.ID, append([]string{PrivacyProfile}, rl.Deps...))
+	items := append([]string{PrivacyProfile}, rl.Deps...)
+	for _, item := range listFigurePrivacyItems() {
+		if !slices.Contains(items, item) {
+			items = append(items, item)
+		}
+	}
+	visible, err := s.privacy.Visibility(ctx, viewer.UserID, owner.ID, items)
 	if err != nil {
 		return nil, err
 	}
@@ -505,11 +524,18 @@ func (s *ProfileService) BrowseList(ctx context.Context, viewer ProfileViewer, u
 	if err != nil {
 		return nil, err
 	}
-	items := make([]ProfileSceneItem, len(scenes))
+	sceneItems := make([]ProfileSceneItem, len(scenes))
 	for i, sc := range scenes {
-		items[i] = ProfileSceneItem{Scene: sc}
+		sceneItems[i] = ProfileSceneItem{Scene: sc}
 	}
-	return &CustomListPage{List: *list, Items: items, Total: total, Page: page, Limit: limit}, nil
+	figures := []string{}
+	if s.figures != nil {
+		figures = effectiveListFigures(rl, "", visible)
+	}
+	if err := s.fillListFigures(ctx, owner.ID, sceneItems, figures); err != nil {
+		return nil, err
+	}
+	return &CustomListPage{List: *list, Items: sceneItems, Total: total, Page: page, Limit: limit, Figures: figures}, nil
 }
 
 // customListIDs returns the list ids of the custom_list blocks of tabs.

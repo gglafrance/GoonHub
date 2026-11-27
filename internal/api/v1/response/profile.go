@@ -52,11 +52,41 @@ type ProfileSceneResponse struct {
 	Rating *float64 `json:"rating,omitempty"`
 	// JizzCount is the owner's O count (jizz block and list)
 	JizzCount *int64 `json:"jizz_count,omitempty"`
+	// Figures are the owner's figures of a custom list scene (the kinds the list shows and
+	// the viewer may see)
+	Figures *ProfileSceneFiguresResponse `json:"figures,omitempty"`
+}
+
+// ProfileSceneFiguresResponse are the owner's figures of a custom list scene; absent fields:
+// not shown, or no such interaction.
+type ProfileSceneFiguresResponse struct {
+	JizzCount     *int64     `json:"jizz_count,omitempty"`
+	LastJizzAt    *time.Time `json:"last_jizz_at,omitempty"`
+	Rating        *float64   `json:"rating,omitempty"`
+	LikedAt       *time.Time `json:"liked_at,omitempty"`
+	Views         *int64     `json:"views,omitempty"`
+	LastWatchedAt *time.Time `json:"last_watched_at,omitempty"`
+}
+
+func newProfileSceneFiguresResponse(f *core.ProfileSceneFigures) *ProfileSceneFiguresResponse {
+	if f == nil {
+		return nil
+	}
+	out := &ProfileSceneFiguresResponse{LastJizzAt: f.LastJizzAt, Rating: f.Rating, LikedAt: f.LikedAt, LastWatchedAt: f.LastWatchedAt}
+	if f.JizzCount > 0 {
+		v := f.JizzCount
+		out.JizzCount = &v
+	}
+	if f.Views > 0 {
+		v := f.Views
+		out.Views = &v
+	}
+	return out
 }
 
 // NewProfileSceneResponse converts a scene of a block or list with its figures.
 func NewProfileSceneResponse(s core.ProfileSceneItem, item SceneListItem) ProfileSceneResponse {
-	out := ProfileSceneResponse{Scene: item, At: s.At, Rating: s.Rating}
+	out := ProfileSceneResponse{Scene: item, At: s.At, Rating: s.Rating, Figures: newProfileSceneFiguresResponse(s.Figures)}
 	if s.Views > 0 {
 		v := s.Views
 		out.Views = &v
