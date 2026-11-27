@@ -389,3 +389,59 @@ func (h *MessageHandler) UpdateSettings(c *gin.Context) {
 	}
 	response.OK(c, v)
 }
+
+// AddReaction is POST /messages/conversations/:id/messages/:messageId/reactions {emoji}
+// (messages:use): the reactions of the message after the change.
+func (h *MessageHandler) AddReaction(c *gin.Context) {
+	actor, ok := h.actor(c)
+	if !ok {
+		return
+	}
+	id, ok := conversationID(c)
+	if !ok {
+		return
+	}
+	mid, ok := messageID(c)
+	if !ok {
+		return
+	}
+	var req request.ReactionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request: "+err.Error())
+		return
+	}
+	v, err := h.messages.React(c.Request.Context(), actor, id, mid, req.Emoji)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, v)
+}
+
+// RemoveReaction is DELETE /messages/conversations/:id/messages/:messageId/reactions?emoji=
+// (always allowed to a participant, like deleting one's own message).
+func (h *MessageHandler) RemoveReaction(c *gin.Context) {
+	actor, ok := h.actor(c)
+	if !ok {
+		return
+	}
+	id, ok := conversationID(c)
+	if !ok {
+		return
+	}
+	mid, ok := messageID(c)
+	if !ok {
+		return
+	}
+	emoji := c.Query("emoji")
+	if emoji == "" {
+		response.BadRequest(c, "emoji is required")
+		return
+	}
+	v, err := h.messages.Unreact(c.Request.Context(), actor, id, mid, emoji)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, v)
+}

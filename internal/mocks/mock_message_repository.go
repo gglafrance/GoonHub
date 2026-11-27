@@ -43,6 +43,21 @@ func (m *MockMessageRepository) EXPECT() *MockMessageRepositoryMockRecorder {
 	return m.recorder
 }
 
+// AddReaction mocks base method.
+func (m *MockMessageRepository) AddReaction(ctx context.Context, messageID, userID uint, emoji string, maxKinds, maxPerUser int) (data.ReactionAddResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddReaction", ctx, messageID, userID, emoji, maxKinds, maxPerUser)
+	ret0, _ := ret[0].(data.ReactionAddResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddReaction indicates an expected call of AddReaction.
+func (mr *MockMessageRepositoryMockRecorder) AddReaction(ctx, messageID, userID, emoji, maxKinds, maxPerUser any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddReaction", reflect.TypeOf((*MockMessageRepository)(nil).AddReaction), ctx, messageID, userID, emoji, maxKinds, maxPerUser)
+}
+
 // DeleteOrphanConversations mocks base method.
 func (m *MockMessageRepository) DeleteOrphanConversations(ctx context.Context) (int64, error) {
 	m.ctrl.T.Helper()
@@ -194,6 +209,21 @@ func (mr *MockMessageRepositoryMockRecorder) ListMessages(ctx, conversationID, b
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMessages", reflect.TypeOf((*MockMessageRepository)(nil).ListMessages), ctx, conversationID, beforeID, limit)
 }
 
+// ListReactions mocks base method.
+func (m *MockMessageRepository) ListReactions(ctx context.Context, messageIDs []uint) ([]data.MessageReactionRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListReactions", ctx, messageIDs)
+	ret0, _ := ret[0].([]data.MessageReactionRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListReactions indicates an expected call of ListReactions.
+func (mr *MockMessageRepositoryMockRecorder) ListReactions(ctx, messageIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListReactions", reflect.TypeOf((*MockMessageRepository)(nil).ListReactions), ctx, messageIDs)
+}
+
 // MarkRead mocks base method.
 func (m *MockMessageRepository) MarkRead(ctx context.Context, conversationID, userID, messageID uint) (bool, error) {
 	m.ctrl.T.Helper()
@@ -297,6 +327,21 @@ func (m *MockMessageRepository) PurgeBefore(ctx context.Context, before time.Tim
 func (mr *MockMessageRepositoryMockRecorder) PurgeBefore(ctx, before any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PurgeBefore", reflect.TypeOf((*MockMessageRepository)(nil).PurgeBefore), ctx, before)
+}
+
+// RemoveReaction mocks base method.
+func (m *MockMessageRepository) RemoveReaction(ctx context.Context, messageID, userID uint, emoji string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveReaction", ctx, messageID, userID, emoji)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RemoveReaction indicates an expected call of RemoveReaction.
+func (mr *MockMessageRepositoryMockRecorder) RemoveReaction(ctx, messageID, userID, emoji any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveReaction", reflect.TypeOf((*MockMessageRepository)(nil).RemoveReaction), ctx, messageID, userID, emoji)
 }
 
 // SaveSettings mocks base method.

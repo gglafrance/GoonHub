@@ -13,6 +13,8 @@ const (
 	CodeMessageNotFound      = "MESSAGE_NOT_FOUND"
 	CodeNotMessageAuthor     = "NOT_MESSAGE_AUTHOR"
 	CodeShareNotAvailable    = "SHARE_NOT_AVAILABLE"
+	CodeReactionLimit        = "REACTION_LIMIT"
+	CodeReactionRateLimited  = "REACTION_RATE_LIMITED"
 )
 
 // MessageError is an error of the messages, with its own code and HTTP status.
@@ -60,6 +62,20 @@ func ErrShareNotAvailable(message string) *MessageError {
 		message = "this item cannot be shared"
 	}
 	return newMessageError(CodeShareNotAvailable, http.StatusBadRequest, message)
+}
+
+// ErrReactionLimit: the message already has the most distinct reactions, or the user the most
+// reactions on it.
+func ErrReactionLimit(message string) *MessageError {
+	if message == "" {
+		message = "this message has too many reactions"
+	}
+	return newMessageError(CodeReactionLimit, http.StatusConflict, message)
+}
+
+// ErrReactionRateLimited: the user reacted too many times recently.
+func ErrReactionRateLimited() *MessageError {
+	return newMessageError(CodeReactionRateLimited, http.StatusTooManyRequests, "you are reacting too fast, try again in a moment")
 }
 
 // IsMessagesClosed checks if an error is ErrMessagesClosed.

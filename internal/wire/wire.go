@@ -1037,9 +1037,14 @@ func provideLobbyInvites(cfg *config.Config, hub *together.Hub) core.LobbyInvite
 }
 
 // provideMessageService creates the messages (docs/MESSAGES.md), subscribed to the relation
-// changes (whether one can still write).
-func provideMessageService(repo data.MessageRepository, socialRepo data.SocialRepository, social *core.SocialService, rbacService *core.RBACService, lobbies core.LobbyInvites, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.MessageService {
-	return core.NewMessageService(repo, socialRepo, social, rbacService, lobbies, eventBus, cfg.Messages, logger.Logger)
+// changes (whether one can still write). The server emotes of Goon2gether are accepted as
+// reactions while it is enabled.
+func provideMessageService(repo data.MessageRepository, socialRepo data.SocialRepository, social *core.SocialService, rbacService *core.RBACService, lobbies core.LobbyInvites, emotes *together.EmoteService, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.MessageService {
+	s := core.NewMessageService(repo, socialRepo, social, rbacService, lobbies, eventBus, cfg.Messages, logger.Logger)
+	if cfg.Goon2gether.Enabled && emotes != nil {
+		s.SetEmotes(emotes)
+	}
+	return s
 }
 
 func provideMessageHandler(messages *core.MessageService, cfg *config.Config) *handler.MessageHandler {

@@ -70,6 +70,8 @@ type messageTestEnv struct {
 	lobbies *fakeLobbies
 	access  fakeMessageAccess
 	nextID  uint
+	// reactions answered by ListReactions (a fake table, see message_reactions_test.go)
+	reactions *fakeReactions
 }
 
 func newMessageTestEnv(t *testing.T, cfg config.MessagesConfig) *messageTestEnv {
@@ -84,6 +86,7 @@ func newMessageTestEnv(t *testing.T, cfg config.MessagesConfig) *messageTestEnv 
 		nextID:  100,
 	}
 	e.svc = NewMessageService(e.repo, e.social, nil, e.access, e.lobbies, e.bus, cfg, zap.NewNop())
+	e.reactions = newFakeReactions(e.repo)
 	return e
 }
 
@@ -382,7 +385,7 @@ func TestShareCardsAreResolvedForTheViewer(t *testing.T) {
 	}, nil).AnyTimes()
 
 	full := NewUserAccess(1, "user", false, PermScenesView, PermPlaylistsPublic, PermTogetherUse)
-	got, err := e.svc.views(ctx, msgs, full)
+	got, err := e.svc.views(ctx, msgs, full, false)
 	if err != nil {
 		t.Fatalf("views: %v", err)
 	}
@@ -411,7 +414,7 @@ func TestShareCardsAreResolvedForTheViewer(t *testing.T) {
 
 	// Without scenes:view nor the other permissions: nothing is read, nothing is shown
 	bare := NewUserAccess(1, "user", false, PermMessagesUse)
-	got, err = e.svc.views(ctx, msgs[:10], bare)
+	got, err = e.svc.views(ctx, msgs[:10], bare, false)
 	if err != nil {
 		t.Fatalf("views: %v", err)
 	}
@@ -425,7 +428,7 @@ func TestShareCardsAreResolvedForTheViewer(t *testing.T) {
 	}
 	// a public playlist of someone else needs playlists:view_public
 	noPublic := NewUserAccess(1, "user", false, PermScenesView)
-	got, _ = e.svc.views(ctx, msgs[5:6], noPublic)
+	got, _ = e.svc.views(ctx, msgs[5:6], noPublic, false)
 	if got[0].Attachment.Available || got[0].Attachment.Reason != ShareReasonNoPermission {
 		t.Fatalf("public playlist without view_public: %+v", got[0].Attachment)
 	}

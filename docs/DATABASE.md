@@ -729,7 +729,8 @@ Social preferences of a user. No row = the defaults.
 
 ## Messages
 
-Conversations between users and shares (migration 102, `docs/MESSAGES.md`). Only direct
+Conversations between users and shares (migration 102, `docs/MESSAGES.md`), reactions on the
+messages (migration 104). Only direct
 (one-to-one) conversations exist; the participants table lets group conversations come later.
 Messages are only read by the participants (no admin access).
 
@@ -786,6 +787,22 @@ part in it anymore (both users deleted), the periodic cleanup deletes it.
 The attachment stores references, resolved for each reader at read time: an item deleted later
 leaves the kind with a NULL id ("no longer exists"). Retention: none by default
 (`messages.retention_days`).
+
+### `message_reactions`
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `message_id` | BIGINT | NO | - | FK to `messages.id` (CASCADE) |
+| `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE): who reacted |
+| `emoji` | VARCHAR(64) | NO | - | The key: a Unicode emoji, or `:name:` of a server emote (text: a deleted emote shows as its `:name:`) |
+| `created_at` | TIMESTAMPTZ | NO | NOW() | Orders the users of a key, and the keys by their first reaction |
+
+**Indexes:** PRIMARY KEY `(message_id, user_id, emoji)` (one reaction per user and key; also the lookups by message), `idx_message_reactions_user_id`.
+**Constraints:** CHECK `chk_message_reactions_emoji` (`char_length(emoji) BETWEEN 1 AND 64`).
+
+The soft delete of a message deletes its reactions (same transaction); the caps (distinct keys
+per message, reactions per user) are checked by the application with the message row locked
+(`SELECT ... FOR UPDATE`). Goon2gether chat reactions are not stored (in memory).
 
 ---
 
@@ -2093,7 +2110,7 @@ Internal references still use BIGSERIAL `id` for performance.
 
 ### Foreign Key Cascade Rules
 
-- User-owned data: `ON DELETE CASCADE` (settings, interactions, markers, share_links, playlists, follows, friendships, friend requests, privacy settings, presence, conversation participants)
+- User-owned data: `ON DELETE CASCADE` (settings, interactions, markers, share_links, playlists, follows, friendships, friend requests, privacy settings, presence, conversation participants, message reactions)
 - Messages: `ON DELETE SET NULL` on the sender and the shared items (the other side keeps the history and the card says "not available")
 - Playlist items: `ON DELETE CASCADE` (`playlist_scenes`, `playlist_markers`: a deleted scene or marker leaves the playlists)
 - Content associations: `ON DELETE CASCADE` (scene_tags, scene_actors, share_links)

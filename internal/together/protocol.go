@@ -6,8 +6,13 @@ package together
 import "encoding/json"
 
 // ProtocolVersion is the version of the WebSocket protocol (docs/GOON2GETHER.md). Version 2:
-// anonymous members (user_id may be null), auto-next mode, inactivity close.
-const ProtocolVersion = 2
+// anonymous members (user_id may be null), auto-next mode, inactivity close. Version 3:
+// reactions on chat messages (chat_react, chat_unreact, chat_reactions, ChatMessage.reactions).
+const ProtocolVersion = 3
+
+// MinProtocolVersion is the oldest version the server still accepts: version 3 only adds
+// fields and message types, which version 2 clients ignore.
+const MinProtocolVersion = 2
 
 // WebSocket close codes sent by the server.
 const (
@@ -29,6 +34,10 @@ const (
 	ErrCodeQueueFull   = "queue_full"
 	ErrCodeUnknownType = "unknown_type"
 	ErrCodeInternal    = "internal"
+
+	// ErrCodeReactionLimit: the chat message has the most distinct reactions, or the member
+	// the most reactions on it
+	ErrCodeReactionLimit = "reaction_limit"
 )
 
 // Server to client message types.
@@ -46,6 +55,8 @@ const (
 	msgError       = "error"
 	msgBye         = "bye"
 	msgClosing     = "closing"
+	// msgChatReactions: the reactions of a chat message changed (the whole list)
+	msgChatReactions = "chat_reactions"
 )
 
 // Client to server message types.
@@ -74,6 +85,8 @@ const (
 	cmdKick             = "kick"
 	cmdAutoNext         = "auto_next"
 	cmdKeepOpen         = "keep_open"
+	cmdChatReact        = "chat_react"
+	cmdChatUnreact      = "chat_unreact"
 )
 
 // Bye reasons.
@@ -169,13 +182,64 @@ type ChatMessage struct {
 	Text       string  `json:"text"`
 	At         int64   `json:"at"`
 	System     bool    `json:"system"`
+	// Reactions of the members (version 3), omitted when there is none
+	Reactions []ChatReaction `json:"reactions,omitempty"`
 
 	// modText is the text moderators get (a system message naming an anonymous member)
 	modText string
+	// reactions are the live reactions, by key in the order of their first reaction
+	reactions []*chatReaction
+}
+
+// ChatReaction is one reaction key of a chat message: an emoji or ":name:" of a server emote,
+// how many members reacted with it and who (anonymous members redacted like everywhere).
+type ChatReaction struct {
+	Emote string      `json:"emote"`
+	Count int         `json:"count"`
+	Users []MemberRef `json:"users"`
+}
+
+// reactor is a member who reacted (anon > 0: as "Anonymous #anon").
+type reactor struct {
+	userID   uint
+	username string
+	anon     int
+}
+
+// ref is the reactor as sent: full (moderators) or redacted.
+func (r reactor) ref(full bool) MemberRef {
+	if r.anon > 0 && !full {
+		return MemberRef{Username: anonName(r.anon), Anonymous: true, AnonNumber: anonPtr(r.anon)}
+	}
+	id := r.userID
+	return MemberRef{ID: &id, Username: r.username, Anonymous: r.anon > 0, AnonNumber: anonPtr(r.anon)}
+}
+
+// chatReaction is a reaction key of a chat message with its reactors, in reaction order.
+type chatReaction struct {
+	emote string
+	users []reactor
+}
+
+// reactionViews is the reaction list as sent (nil when there is none).
+func reactionViews(list []*chatReaction, full bool) []ChatReaction {
+	if len(list) == 0 {
+		return nil
+	}
+	out := make([]ChatReaction, 0, len(list))
+	for _, r := range list {
+		users := make([]MemberRef, 0, len(r.users))
+		for _, u := range r.users {
+			users = append(users, u.ref(full))
+		}
+		out = append(out, ChatReaction{Emote: r.emote, Count: len(r.users), Users: users})
+	}
+	return out
 }
 
 // view is the message as sent to a member: full (moderators) or redacted.
 func (m ChatMessage) view(full bool) ChatMessage {
+	m.Reactions = reactionViews(m.reactions, full)
 	if full {
 		if m.modText != "" {
 			m.Text = m.modText
@@ -196,6 +260,10 @@ type ClientConfig struct {
 	HoldTimeoutMs  int64   `json:"hold_timeout_ms"`
 	ChatMaxLength  int     `json:"chat_max_length"`
 	EndGrace       float64 `json:"end_grace"`
+	// Reactions on chat messages (version 3): distinct keys per message, reactions of one
+	// member on one message
+	ChatMaxReactionKinds    int `json:"chat_max_reaction_kinds"`
+	ChatMaxReactionsPerUser int `json:"chat_max_reactions_per_user"`
 }
 
 // You is the connected user in the welcome message.
@@ -251,6 +319,13 @@ type chatMsg struct {
 type chatDeletedMsg struct {
 	T  string `json:"t"`
 	ID int64  `json:"id"`
+}
+
+// chatReactionsMsg carries the whole reaction list of a chat message after a change.
+type chatReactionsMsg struct {
+	T         string         `json:"t"`
+	ID        int64          `json:"id"`
+	Reactions []ChatReaction `json:"reactions"`
 }
 
 type reactionMsg struct {

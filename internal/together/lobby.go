@@ -141,6 +141,8 @@ type lobby struct {
 
 	chatLimiters     map[uint]*rate.Limiter
 	reactionLimiters map[uint]*rate.Limiter
+	// reactions on chat messages (not the floating reactions)
+	chatReactionLimiters map[uint]*rate.Limiter
 
 	closed   bool // deleted: no longer usable
 	unloaded bool // dropped from memory: load it again
@@ -162,6 +164,8 @@ func newLobby(h *Hub, row data.Lobby, members []data.LobbyMember, items []data.L
 		hostAwaySince:    now,
 		lastActivity:     now,
 		syncSeq:          1,
+
+		chatReactionLimiters: make(map[uint]*rate.Limiter),
 	}
 	// Nobody connected since last_active_at (restart, reload): the empty close counts from it
 	if !row.LastActiveAt.IsZero() && row.LastActiveAt.Before(now) {
@@ -327,6 +331,13 @@ func (l *lobby) hasAnonymous() bool {
 		if m.Anonymous || m.modText != "" {
 			return true
 		}
+		for _, r := range m.reactions {
+			for _, u := range r.users {
+				if u.anon > 0 {
+					return true
+				}
+			}
+		}
 	}
 	for _, list := range [][]*item{l.queue, l.suggestions} {
 		for _, it := range list {
@@ -406,6 +417,9 @@ func (l *lobby) welcome(c *Client) welcomeMsg {
 			HoldTimeoutMs:  cfg.HoldTimeout.Milliseconds(),
 			ChatMaxLength:  cfg.ChatMaxLength,
 			EndGrace:       cfg.EndGrace.Seconds(),
+
+			ChatMaxReactionKinds:    cfg.ChatMaxReactionKinds,
+			ChatMaxReactionsPerUser: cfg.ChatMaxReactionsPerUser,
 		},
 		Lobby:       l.info(),
 		Members:     l.memberList(full),

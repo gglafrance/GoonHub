@@ -75,8 +75,24 @@ type Hub struct {
 	onPublicCount func(count int64)
 }
 
+// Defaults of the chat reaction settings when the configuration leaves them unset.
+const (
+	defaultChatReactionRateLimit   = 10
+	defaultChatMaxReactionKinds    = 20
+	defaultChatMaxReactionsPerUser = 10
+)
+
 // NewHub creates the hub (Start runs its loop).
 func NewHub(cfg config.Goon2getherConfig, store data.LobbyRepository, scenes SceneLookup, access AccessResolver, logger *zap.Logger) *Hub {
+	if cfg.ChatReactionRateLimit <= 0 {
+		cfg.ChatReactionRateLimit = defaultChatReactionRateLimit
+	}
+	if cfg.ChatMaxReactionKinds <= 0 {
+		cfg.ChatMaxReactionKinds = defaultChatMaxReactionKinds
+	}
+	if cfg.ChatMaxReactionsPerUser <= 0 {
+		cfg.ChatMaxReactionsPerUser = defaultChatMaxReactionsPerUser
+	}
 	return &Hub{
 		cfg:     cfg,
 		store:   store,

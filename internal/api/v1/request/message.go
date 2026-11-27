@@ -36,3 +36,9 @@ type UpdateMessageSettingsRequest struct {
 	Policy *string `json:"policy"`
 	Toasts *bool   `json:"toasts"`
 }
+
+// ReactionRequest is the body of POST /messages/conversations/:id/messages/:messageId/reactions:
+// an emoji, or ":name:" of a server emote.
+type ReactionRequest struct {
+	Emoji string `json:"emoji" binding:"required"`
+}

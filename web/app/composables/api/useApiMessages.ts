@@ -1,4 +1,5 @@
 import type {
+    ChatReactionEvent,
     Conversation,
     ConversationPage,
     DirectThread,
@@ -91,6 +92,20 @@ export const useApiMessages = () => {
             { method: 'POST' },
         );
 
+    // Reactions (an emoji or `:name:` of a server emote): the whole list of the message after
+    // the change
+    const addReaction = (conversationId: number, messageId: number, emoji: string) =>
+        request<ChatReactionEvent>(
+            `/conversations/${conversationId}/messages/${messageId}/reactions`,
+            json('POST', { emoji }),
+        );
+
+    const removeReaction = (conversationId: number, messageId: number, emoji: string) =>
+        request<ChatReactionEvent>(
+            `/conversations/${conversationId}/messages/${messageId}/reactions?emoji=${encodeURIComponent(emoji)}`,
+            { method: 'DELETE' },
+        );
+
     const share = (userIds: number[], items: ShareTarget[], body = '') =>
         request<{ results: ShareResult[] }>(
             '/share',
@@ -116,6 +131,8 @@ export const useApiMessages = () => {
         sendTyping,
         setMuted,
         joinLobby,
+        addReaction,
+        removeReaction,
         share,
         getSettings,
         updateSettings,

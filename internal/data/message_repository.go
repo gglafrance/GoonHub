@@ -44,9 +44,18 @@ type MessageRepository interface {
 	// UpdateMessageBody changes the body of a message that is not deleted; updated is false
 	// otherwise.
 	UpdateMessageBody(ctx context.Context, id uint, body string, at time.Time) (updated bool, err error)
-	// SoftDeleteMessage clears the body and attachment of a message and marks it deleted;
-	// deleted is false when it already was.
+	// SoftDeleteMessage clears the body and attachment of a message, removes its reactions and
+	// marks it deleted; deleted is false when it already was.
 	SoftDeleteMessage(ctx context.Context, id uint, at time.Time) (deleted bool, err error)
+	// ListReactions returns the reactions of the messages, with the name of their user, oldest
+	// first.
+	ListReactions(ctx context.Context, messageIDs []uint) ([]MessageReactionRow, error)
+	// AddReaction saves a reaction of a user to a message that is not deleted, unless the
+	// message already has maxKinds distinct keys (a new key) or the user maxPerUser reactions
+	// on it (0: no limit). The message row is locked, so concurrent reactions respect the caps.
+	AddReaction(ctx context.Context, messageID, userID uint, emoji string, maxKinds, maxPerUser int) (ReactionAddResult, error)
+	// RemoveReaction removes a reaction of a user; removed is false when there was none.
+	RemoveReaction(ctx context.Context, messageID, userID uint, emoji string) (removed bool, err error)
 	// MarkRead moves the last read message of a participant forward to messageID (a message of
 	// the conversation); changed is false when it was already there or past it.
 	MarkRead(ctx context.Context, conversationID, userID, messageID uint) (changed bool, err error)
@@ -244,11 +253,102 @@ func (r *MessageRepositoryImpl) UpdateMessageBody(ctx context.Context, id uint, 
 }
 
 func (r *MessageRepositoryImpl) SoftDeleteMessage(ctx context.Context, id uint, at time.Time) (bool, error) {
-	res := r.DB.WithContext(ctx).Exec(`UPDATE messages SET body = '', attachment_kind = NULL, attachment_scene_id = NULL,
-		attachment_marker_id = NULL, attachment_playlist_id = NULL, attachment_lobby_uuid = NULL, attachment_time_s = NULL,
-		deleted_at = ? WHERE id = ? AND deleted_at IS NULL`, at, id)
+	deleted := false
+	err := r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Exec(`UPDATE messages SET body = '', attachment_kind = NULL, attachment_scene_id = NULL,
+			attachment_marker_id = NULL, attachment_playlist_id = NULL, attachment_lobby_uuid = NULL, attachment_time_s = NULL,
+			deleted_at = ? WHERE id = ? AND deleted_at IS NULL`, at, id)
+		if res.Error != nil {
+			return fmt.Errorf("failed to delete the message: %w", res.Error)
+		}
+		deleted = res.RowsAffected > 0
+		if !deleted {
+			return nil
+		}
+		if err := tx.Exec(`DELETE FROM message_reactions WHERE message_id = ?`, id).Error; err != nil {
+			return fmt.Errorf("failed to delete the reactions of the message: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return deleted, nil
+}
+
+func (r *MessageRepositoryImpl) ListReactions(ctx context.Context, messageIDs []uint) ([]MessageReactionRow, error) {
+	if len(messageIDs) == 0 {
+		return nil, nil
+	}
+	var rows []MessageReactionRow
+	if err := r.DB.WithContext(ctx).Raw(`SELECT r.message_id, r.user_id, r.emoji, r.created_at,
+		COALESCE(u.username, '') AS username, COALESCE(p.display_name, '') AS display_name
+		FROM message_reactions r
+		JOIN users u ON u.id = r.user_id
+		LEFT JOIN user_profiles p ON p.user_id = r.user_id
+		WHERE r.message_id = ANY(?)
+		ORDER BY r.message_id, r.created_at, r.user_id, r.emoji`, uintsToInt64Array(messageIDs)).Scan(&rows).Error; err != nil {
+		return nil, fmt.Errorf("failed to list the reactions: %w", err)
+	}
+	return rows, nil
+}
+
+// reactionCounts is what AddReaction checks the caps with.
+type reactionCounts struct {
+	Kinds    int64 `gorm:"column:kinds"`
+	Mine     int64 `gorm:"column:mine"`
+	KeyUsed  bool  `gorm:"column:key_used"`
+	MineSame bool  `gorm:"column:mine_same"`
+}
+
+func (r *MessageRepositoryImpl) AddReaction(ctx context.Context, messageID, userID uint, emoji string, maxKinds, maxPerUser int) (ReactionAddResult, error) {
+	result := ReactionAdded
+	err := r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Lock the message: reactions to one message are serialized (caps), and a message
+		// deleted meanwhile is seen
+		var ids []uint
+		if err := tx.Raw(`SELECT id FROM messages WHERE id = ? AND deleted_at IS NULL FOR UPDATE`, messageID).Scan(&ids).Error; err != nil {
+			return fmt.Errorf("failed to lock the message: %w", err)
+		}
+		if len(ids) == 0 {
+			result = ReactionMessageGone
+			return nil
+		}
+		var c reactionCounts
+		if err := tx.Raw(`SELECT COUNT(DISTINCT emoji) AS kinds,
+			COUNT(*) FILTER (WHERE user_id = ?) AS mine,
+			COALESCE(BOOL_OR(emoji = ?), false) AS key_used,
+			COALESCE(BOOL_OR(user_id = ? AND emoji = ?), false) AS mine_same
+			FROM message_reactions WHERE message_id = ?`, userID, emoji, userID, emoji, messageID).Scan(&c).Error; err != nil {
+			return fmt.Errorf("failed to count the reactions: %w", err)
+		}
+		switch {
+		case c.MineSame:
+			result = ReactionExists
+			return nil
+		case maxKinds > 0 && !c.KeyUsed && c.Kinds >= int64(maxKinds):
+			result = ReactionTooManyKinds
+			return nil
+		case maxPerUser > 0 && c.Mine >= int64(maxPerUser):
+			result = ReactionTooManyForUser
+			return nil
+		}
+		if err := tx.Exec(`INSERT INTO message_reactions (message_id, user_id, emoji, created_at) VALUES (?, ?, ?, NOW())
+			ON CONFLICT DO NOTHING`, messageID, userID, emoji).Error; err != nil {
+			return fmt.Errorf("failed to save the reaction: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return result, nil
+}
+
+func (r *MessageRepositoryImpl) RemoveReaction(ctx context.Context, messageID, userID uint, emoji string) (bool, error) {
+	res := r.DB.WithContext(ctx).Exec(`DELETE FROM message_reactions WHERE message_id = ? AND user_id = ? AND emoji = ?`, messageID, userID, emoji)
 	if res.Error != nil {
-		return false, fmt.Errorf("failed to delete the message: %w", res.Error)
+		return false, fmt.Errorf("failed to remove the reaction: %w", res.Error)
 	}
 	return res.RowsAffected > 0, nil
 }
