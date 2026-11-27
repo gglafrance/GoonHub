@@ -76,6 +76,9 @@ const aspectRatio = computed(() =>
         ? `${scene.value.width} / ${scene.value.height}`
         : '16 / 9',
 );
+const isPortrait = computed(
+    () => !!scene.value?.width && !!scene.value?.height && scene.value.height > scene.value.width,
+);
 const streamUrl = computed(() => (scene.value ? `/api/v1/scenes/${scene.value.id}/stream` : ''));
 const transcodeUrl = computed(() =>
     scene.value ? `/api/v1/scenes/${scene.value.id}/transcode` : '',
@@ -91,9 +94,12 @@ const skip = () => socket.send({ t: 'skip' });
 </script>
 
 <template>
+    <!-- A portrait video is capped at 80vh by ScenePlayer: cap this frame the same way (and keep
+         it narrow, like the watch page) so no empty space is left under the player -->
     <div
         class="border-border bg-void relative overflow-hidden rounded-xl border"
-        :style="{ aspectRatio }"
+        :class="{ 'mx-auto max-w-xl': isPortrait }"
+        :style="{ aspectRatio, maxHeight: isPortrait ? '80vh' : undefined }"
     >
         <div
             v-if="!currentItem"

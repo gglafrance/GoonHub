@@ -494,7 +494,10 @@ definePageMeta({
                             <div
                                 class="border-border bg-void relative z-10 overflow-hidden
                                     rounded-xl border"
-                                :style="{ aspectRatio: playerAspectRatio }"
+                                :style="{
+                                    aspectRatio: playerAspectRatio,
+                                    maxHeight: isPortrait ? '80vh' : undefined,
+                                }"
                             >
                                 <!-- Resume Prompt (overlaid on scene player) -->
                                 <WatchResumePrompt
