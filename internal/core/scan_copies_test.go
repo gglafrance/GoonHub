@@ -357,3 +357,40 @@ func TestMatchCopyIgnoresUnreadableCandidates(t *testing.T) {
 		t.Fatalf("flush called %d times, want 1", flushed)
 	}
 }
+
+// A file whose scene is in the trash is skipped: the trash keeps the file until the scene is
+// deleted for good, and a scan must not add it again as a new scene.
+func TestScanSkipsFilesOfTrashedScenes(t *testing.T) {
+	root := t.TempDir()
+	trashedFile := content(120*1024, 11)
+	path := filepath.Join(root, "trashed.mp4")
+	writeScanFile(t, path, trashedFile)
+
+	const spID = 1
+	sceneRepo := newFakeScanSceneRepo()
+	trashedAt := time.Now()
+	trashed := sceneRepo.add(path, int64(len(trashedFile)), spID)
+	trashed.TrashedAt = &trashedAt
+
+	copyRepo := &fakeSceneCopyRepo{copies: map[string]data.SceneCopy{}}
+	storage := NewStoragePathService(fakeStoragePathRepo{paths: []data.StoragePath{{ID: spID, Path: root}}}, zap.NewNop())
+	svc := NewScanService(storage, sceneRepo, copyRepo, fakeScanHistoryRepo{}, nil, nil, zap.NewNop())
+
+	for i := 0; i < 2; i++ {
+		scan := &data.ScanHistory{Status: "running"}
+		svc.runScan(context.Background(), scan)
+		if scan.Status != "completed" || scan.Errors != 0 {
+			t.Fatalf("scan %d: status %s, errors %d", i+1, scan.Status, scan.Errors)
+		}
+		if scan.VideosAdded != 0 || scan.VideosSkipped != 1 || scan.CopiesFound != 0 {
+			t.Fatalf("scan %d: added %d skipped %d copies %d, want 0 1 0",
+				i+1, scan.VideosAdded, scan.VideosSkipped, scan.CopiesFound)
+		}
+	}
+	if len(sceneRepo.scenes) != 1 {
+		t.Fatalf("%d scenes after the scans, want only the trashed one", len(sceneRepo.scenes))
+	}
+	if sceneRepo.deleted[trashed.ID] || trashed.TrashedAt == nil {
+		t.Fatal("the trashed scene changed")
+	}
+}
