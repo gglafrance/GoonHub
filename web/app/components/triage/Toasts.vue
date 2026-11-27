@@ -14,8 +14,8 @@ const emit = defineEmits<{
 <template>
     <Teleport to="body">
         <div
-            class="pointer-events-none fixed bottom-4 left-1/2 z-90 flex w-full max-w-sm
-                -translate-x-1/2 flex-col items-center gap-2 px-4"
+            class="pointer-events-none fixed bottom-[calc(1rem+var(--app-bottom-clear))] left-1/2
+                z-90 flex w-full max-w-sm -translate-x-1/2 flex-col items-center gap-2 px-4"
             aria-live="polite"
         >
             <TransitionGroup

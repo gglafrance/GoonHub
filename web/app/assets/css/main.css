@@ -19,6 +19,19 @@
 
 :root {
     color-scheme: dark;
+    /* Height of the app chrome, kept up to date by AppHeader and the mobile tab bar
+       (docs/NAVIGATION.md, "Mobile"): the sticky header, and the bottom tab bar (0px when it
+       is not shown). --app-bottom-clear is what to keep free at the bottom of the viewport:
+       the tab bar (it includes the safe area) or the safe area. */
+    --app-header-h: 3rem;
+    --app-bottom-nav-h: 0px;
+    --app-bottom-clear: max(var(--app-bottom-nav-h), env(safe-area-inset-bottom));
+}
+
+@media (min-width: 768px) {
+    :root {
+        --app-header-h: 5.25rem;
+    }
 }
 
 * {
@@ -32,6 +45,8 @@ body {
     font-family: var(--font-sans);
     font-size: 13px;
     line-height: 1.5;
+    /* Room for the mobile tab bar under the last content */
+    padding-bottom: var(--app-bottom-nav-h);
 }
 
 /* Scrollbar styling */

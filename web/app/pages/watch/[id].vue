@@ -334,8 +334,8 @@ definePageMeta({
     <div class="min-h-screen">
         <!-- Back Navigation Bar -->
         <div
-            class="border-border bg-void/10 sticky top-12 z-40 border-b px-4 py-2.5 backdrop-blur-md
-                sm:px-5"
+            class="border-border bg-void/80 md:bg-void/10 sticky top-[var(--app-header-h)] z-40
+                border-b px-4 py-2.5 backdrop-blur-md sm:px-5"
         >
             <div class="mx-auto flex max-w-415 items-center justify-between">
                 <button

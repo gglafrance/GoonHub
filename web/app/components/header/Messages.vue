@@ -2,6 +2,8 @@
 // Header entry of the messages: chat bubble with the unread count (muted conversations left
 // out) and a popover of the recent conversations. The live messages of the tab and the toasts
 // of incoming messages are started by HeaderLiveSources.
+// touch: larger button for the mobile top bar
+const props = defineProps<{ touch?: boolean }>();
 const messagesStore = useMessagesStore();
 const route = useRoute();
 const showPopup = ref(false);
@@ -26,15 +28,18 @@ watch(
     <div class="relative">
         <button
             ref="buttonRef"
-            class="border-border text-dim hover:border-lava/30 hover:text-lava relative flex h-7 w-7
+            class="border-border text-dim hover:border-lava/30 hover:text-lava relative flex
                 items-center justify-center rounded-md border transition-all"
-            :class="{ '!border-lava/30 !text-lava': showPopup }"
+            :class="[
+                props.touch ? 'h-9 w-9 rounded-lg' : 'h-7 w-7',
+                { '!border-lava/30 !text-lava': showPopup },
+            ]"
             :title="title"
             :aria-label="title"
             :aria-expanded="showPopup"
             @click="showPopup = !showPopup"
         >
-            <Icon name="heroicons:chat-bubble-oval-left-ellipsis" size="16" />
+            <Icon name="heroicons:chat-bubble-oval-left-ellipsis" :size="props.touch ? 18 : 16" />
             <span
                 v-if="badge"
                 class="bg-lava absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center

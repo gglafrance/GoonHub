@@ -15,9 +15,9 @@ const emit = defineEmits<{
 <template>
     <nav
         v-if="tabs.length > 1"
-        class="border-border bg-void/70 sticky top-[5.5rem] z-30 -mx-4 mb-4 flex gap-1
-            overflow-x-auto border-b px-4 py-2 backdrop-blur-md sm:top-[5.25rem] sm:mx-0
-            sm:rounded-lg sm:border sm:px-2"
+        class="border-border bg-void/70 sticky top-[var(--app-header-h)] z-30 -mx-4 mb-4 flex gap-1
+            overflow-x-auto border-b px-4 py-2 backdrop-blur-md sm:mx-0 sm:rounded-lg sm:border
+            sm:px-2"
         aria-label="Homepage tabs"
     >
         <button

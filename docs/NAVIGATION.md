@@ -119,7 +119,32 @@ Storage: table `user_nav_layouts` (migration 106, `docs/DATABASE.md`).
 
 ## Mobile
 
-On small screens the zones collapse: in the top bar the left and center zones stay together at
-the start and the right zone at the end; the nav row lays every entry out in one row (spread out
-and scrolling horizontally when it does not fit, as before). Labels are hidden as before (icons
-only) and folders stay dropdowns.
+Below the `md` breakpoint (768 px, `MOBILE_NAV_QUERY`) the two bars are replaced by a phone
+layout built from the same resolved layout (`utils/mobileNav.ts`, `buildMobileNav`, tests in
+`web/tests/mobileNav.test.ts`), so the order and the hidden items of Settings > Navigation
+apply on phones too:
+
+- **Top bar** (`header/mobile/TopBar.vue`): the logo, then the quick icons the layout shows
+  (search and commands, job status, messages with its popover). It slides away while scrolling
+  down and comes back on the way up (never near the top of the page or while the Menu is open).
+- **Bottom tab bar** (`header/mobile/TabBar.vue`): Home, the first `MOBILE_TAB_PAGES` (3) pages of
+  the layout (pages placed directly in a bar first, then those in folders, in header order), and
+  Menu. Live badges on the tabs; a dot on Menu when an item inside has one. It steps aside while
+  a text field has the focus (on-screen keyboard).
+- **Menu sheet** (`header/mobile/MenuSheet.vue`): slides up above the tab bar. The profile, the
+  other pages as tiles (loose pages under "Pages", then one grid per folder with its name and
+  icon), then rows: Friends, Messages (when not in the top bar), Friends online (expands the
+  contacts online), the Safe mode and Preview sound switches, Settings and Logout. Closes on the
+  Menu tab, the backdrop, Esc, a swipe down on its handle and any navigation.
+- Keyboard shortcuts are left out on phones. Settings > Navigation shows what the edited layout
+  gives on phones ("On phones").
+
+`useMobileNav()` holds the shared state (mobile or not, Menu open, typing). The app chrome is
+exposed as CSS variables on `<html>`: `--app-header-h` (height of the sticky header, measured;
+`0px` while the mobile top bar is slid away), `--app-bottom-nav-h` (the tab bar, safe area
+included, `0px` when not shown) and `--app-bottom-clear` (what to keep free at the bottom: the tab
+bar or the safe area). Sticky bars use `top-[var(--app-header-h)]`; fixed bottom bars, toasts and
+floating panels sit at `var(--app-bottom-nav-h)` or `calc(1rem + var(--app-bottom-clear))`; the
+body is padded by the tab bar. On phones the app root clips its horizontal overflow
+(`overflow-x: clip`, not `hidden`, which made it the scroll container of the sticky elements:
+they never stuck).

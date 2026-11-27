@@ -145,7 +145,7 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - `pages/` - Routes: index (scene grid), login, watch/[id], settings
 - `components/` - Organized by feature:
     - Root: `AppHeader`, `SceneCard`, `SceneGrid`, `ScenePlayer`, `SceneUpload`, `SceneMetadata`, `UploadIndicator`, `Pagination`, `ErrorAlert`, `LoadingSpinner`
-    - `header/` - `JobStatus` (real-time job indicator), `JobStatusPopup` (detailed breakdown by phase), `LayoutBar` (one header bar in three zones from the user's layout), `Entry` (one item), `NavFolder` (dropdown folder, the default one is "Manage"), `LiveSources` (starts the live badges once). Items and permissions in `utils/navRegistry.ts`, layout logic in `utils/navLayout.ts`: see `docs/NAVIGATION.md`
+    - `header/` - `JobStatus` (real-time job indicator), `JobStatusPopup` (detailed breakdown by phase), `LayoutBar` (one header bar in three zones from the user's layout), `Entry` (one item), `NavFolder` (dropdown folder, the default one is "Manage"), `LiveSources` (starts the live badges once), `mobile/` (phones below md: `TopBar`, bottom `TabBar`, `MenuSheet`, built by `utils/mobileNav.ts`; chrome heights in the CSS variables `--app-header-h` / `--app-bottom-nav-h`, use them for sticky and fixed-bottom elements). Items and permissions in `utils/navRegistry.ts`, layout logic in `utils/navLayout.ts`: see `docs/NAVIGATION.md`
     - `settings/` - `Account`, `Player`, `App`, `Users`, `Jobs` (tab orchestrator)
     - `settings/jobs/` - `HistoryTab`, `QueueStatus`, `ActiveJobs`, `Workers`, `Processing`, `Triggers`, `Retry`, `DLQ`, `Manual`
     - `settings/` modals - `UserCreateModal`, `UserEditRoleModal`, `UserResetPasswordModal`, `UserDeleteModal`

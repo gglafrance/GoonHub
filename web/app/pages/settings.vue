@@ -181,7 +181,10 @@ definePageMeta({
 </script>
 
 <template>
-    <div class="flex h-[calc(100vh-6rem)] flex-col overflow-hidden lg:flex-row">
+    <div
+        class="flex h-[calc(100dvh-var(--app-header-h)-var(--app-bottom-nav-h))] flex-col
+            overflow-hidden lg:h-[calc(100vh-6rem)] lg:flex-row"
+    >
         <!-- Mobile: Horizontal scrollable tabs -->
         <div class="border-border bg-surface/50 shrink-0 border-b backdrop-blur-sm lg:hidden">
             <!-- Main tabs row -->
@@ -533,8 +536,8 @@ definePageMeta({
         >
             <div
                 v-if="hasAnyUnsavedChanges && isSettingsTab"
-                class="bg-surface/95 fixed inset-x-0 bottom-0 z-50 border-t border-white/8 p-3
-                    backdrop-blur-xl lg:hidden"
+                class="bg-surface/95 fixed inset-x-0 bottom-[var(--app-bottom-nav-h)] z-50 border-t
+                    border-white/8 p-3 backdrop-blur-xl lg:hidden"
             >
                 <div class="flex items-center gap-3">
                     <span class="text-lava flex flex-1 items-center gap-1.5 text-xs font-medium">

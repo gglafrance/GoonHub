@@ -23,8 +23,8 @@ const { formatSize } = useFormatter();
 
 <template>
     <div
-        class="border-border bg-panel/80 sticky top-14 z-30 mb-3 flex flex-wrap items-center
-            justify-between gap-2 rounded-lg border px-3 py-2 backdrop-blur-md"
+        class="border-border bg-panel/80 sticky top-[var(--app-header-h)] z-30 mb-3 flex flex-wrap
+            items-center justify-between gap-2 rounded-lg border px-3 py-2 backdrop-blur-md"
     >
         <div class="flex flex-wrap items-center gap-3 text-[11px]">
             <span class="text-white">

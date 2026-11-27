@@ -26,7 +26,9 @@ const { formatDuration } = useFormatter();
     >
         <div
             v-if="visible && nextItem"
-            class="glass-panel border-border fixed right-4 bottom-4 z-50 w-80 border p-4"
+            class="glass-panel border-border fixed right-4
+                bottom-[calc(1rem+var(--app-bottom-clear))] z-50 w-80 max-w-[calc(100vw-2rem)]
+                border p-4"
         >
             <div class="mb-3 flex items-center justify-between">
                 <span class="text-xs font-semibold text-white">Up Next</span>

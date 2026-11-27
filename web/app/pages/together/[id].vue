@@ -196,8 +196,9 @@ definePageMeta({
         >
             <div
                 v-if="socket.lastError.value"
-                class="border-lava/30 bg-void/90 fixed bottom-6 left-1/2 z-50 -translate-x-1/2
-                    rounded-lg border px-4 py-2 text-xs text-white shadow-2xl backdrop-blur-md"
+                class="border-lava/30 bg-void/90 fixed bottom-[calc(1.5rem+var(--app-bottom-clear))]
+                    left-1/2 z-50 -translate-x-1/2 rounded-lg border px-4 py-2 text-xs text-white
+                    shadow-2xl backdrop-blur-md"
             >
                 <Icon name="heroicons:exclamation-triangle" size="13" class="text-lava mr-1.5" />
                 {{ socket.lastError.value.message }}
