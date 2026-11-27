@@ -7,6 +7,7 @@ useHead({ title: 'Together' });
 
 const perms = useMyPermissions();
 const { listLobbies, closeLobby } = useApiTogether();
+const togetherLobbies = useTogetherLobbiesStore();
 
 const lobbies = ref<LobbySummary[]>([]);
 const loading = ref(true);
@@ -45,6 +46,8 @@ onBeforeUnmount(() => {
     if (refresh) clearInterval(refresh);
 });
 watch(showAll, load);
+// A public lobby opened or closed elsewhere (live count of the nav badge)
+watch(() => togetherLobbies.publicCount, load);
 
 const doClose = async () => {
     const lobby = closing.value;

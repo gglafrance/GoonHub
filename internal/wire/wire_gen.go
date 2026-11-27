@@ -185,7 +185,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	lobbyRepository := provideLobbyRepository(db)
 	emoteRepository := provideEmoteRepository(db)
 	emoteService := provideEmoteService(emoteRepository, configConfig, logger)
-	hub := provideTogetherHub(configConfig, lobbyRepository, sceneRepository, rbacService, emoteService, logger)
+	hub := provideTogetherHub(configConfig, lobbyRepository, sceneRepository, rbacService, emoteService, eventBus, logger)
 	togetherHandler := provideTogetherHandler(configConfig, hub, emoteService, logger)
 	socialHandler := provideSocialHandler(socialService, privacyService, configConfig)
 	profileRepository := provideProfileRepository(db)
@@ -1079,10 +1079,14 @@ func provideEmoteService(repo data.EmoteRepository, cfg *config.Config, logger *
 	return together.NewEmoteService(repo, cfg.Goon2gether, logger.Logger)
 }
 
-func provideTogetherHub(cfg *config.Config, lobbyRepo data.LobbyRepository, sceneRepo data.SceneRepository, rbacService *core.RBACService, emotes *together.EmoteService, logger *logging.Logger) *together.Hub {
+func provideTogetherHub(cfg *config.Config, lobbyRepo data.LobbyRepository, sceneRepo data.SceneRepository, rbacService *core.RBACService, emotes *together.EmoteService, eventBus *core.EventBus, logger *logging.Logger) *together.Hub {
 	hub := together.NewHub(cfg.Goon2gether, lobbyRepo, sceneRepo, rbacService, logger.Logger)
 	hub.SetEmotes(emotes)
 	emotes.OnChange(hub.BroadcastEmotesChanged)
+
+	hub.OnPublicCountChange(func(count int64) {
+		eventBus.Publish(core.SceneEvent{Type: "together:public_count", Data: map[string]any{"count": count}})
+	})
 	return hub
 }
 

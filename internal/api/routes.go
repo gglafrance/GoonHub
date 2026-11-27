@@ -113,6 +113,7 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					tg.Use(perm(core.PermTogetherUse))
 					{
 						tg.GET("/lobbies", togetherHandler.ListLobbies)
+						tg.GET("/public-count", togetherHandler.PublicCount)
 						tg.POST("/lobbies", perm(core.PermTogetherHost), togetherHandler.CreateLobby)
 						tg.GET("/lobbies/:id", togetherHandler.GetLobby)
 						tg.DELETE("/lobbies/:id", togetherHandler.CloseLobby)

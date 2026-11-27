@@ -144,7 +144,7 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - `pages/` - Routes: index (scene grid), login, watch/[id], settings
 - `components/` - Organized by feature:
     - Root: `AppHeader`, `SceneCard`, `SceneGrid`, `ScenePlayer`, `SceneUpload`, `SceneMetadata`, `UploadIndicator`, `Pagination`, `ErrorAlert`, `LoadingSpinner`
-    - `header/` - `JobStatus` (real-time job indicator), `JobStatusPopup` (detailed breakdown by phase)
+    - `header/` - `JobStatus` (real-time job indicator), `JobStatusPopup` (detailed breakdown by phase), `NavBar` (nav row: user pages then the `ManageMenu` dropdown; items and permissions in `utils/navItems.ts`)
     - `settings/` - `Account`, `Player`, `App`, `Users`, `Jobs` (tab orchestrator)
     - `settings/jobs/` - `HistoryTab`, `QueueStatus`, `ActiveJobs`, `Workers`, `Processing`, `Triggers`, `Retry`, `DLQ`, `Manual`
     - `settings/` modals - `UserCreateModal`, `UserEditRoleModal`, `UserResetPasswordModal`, `UserDeleteModal`

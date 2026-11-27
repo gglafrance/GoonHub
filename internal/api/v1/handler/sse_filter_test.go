@@ -14,6 +14,7 @@ func TestSSEEventForUser(t *testing.T) {
 	jobs := core.NewUserAccess(4, "jobs", false, core.PermJobsViewStatus)
 	storage := core.NewUserAccess(5, "storage", false, core.PermStorageManage)
 	admin := core.NewUserAccess(6, "admin", true)
+	together := core.NewUserAccess(7, "together", false, core.PermTogetherUse)
 
 	scanProgress := core.SceneEvent{Type: "scan:progress", Data: map[string]any{"current_path": "/media/a", "current_file": "/media/a/x.mp4"}}
 	scanStarted := core.SceneEvent{Type: "scan:started", Data: &data.ScanHistory{Status: "running"}}
@@ -21,6 +22,7 @@ func TestSSEEventForUser(t *testing.T) {
 	fingerprint := core.SceneEvent{Type: "scene:fingerprint_complete", Data: map[string]any{"fingerprint_type": "audio"}}
 	metadata := core.SceneEvent{Type: "scene:metadata_complete", Data: map[string]any{"duration": 60, "width": 1920, "height": 1080, "stored_path": "/media/new-field.mp4"}}
 	unknown := core.SceneEvent{Type: "scene:something_new", Data: map[string]any{"path": "/media/a.mp4"}}
+	publicCount := core.SceneEvent{Type: "together:public_count", Data: map[string]any{"count": int64(2), "extra": "x"}}
 
 	tests := []struct {
 		name       string
@@ -48,6 +50,8 @@ func TestSSEEventForUser(t *testing.T) {
 		{"unlisted fields never leak", metadata, techPaths, true, []string{"duration", "width", "height"}, []string{"stored_path"}},
 		{"unknown event without data", unknown, techPaths, true, nil, []string{"path"}},
 		{"superuser gets everything", metadata, admin, true, []string{"stored_path"}, nil},
+		{"public lobby count needs goon2gether:use", publicCount, viewer, false, nil, nil},
+		{"public lobby count with goon2gether:use", publicCount, together, true, []string{"count"}, []string{"extra"}},
 		{"no access, nothing", core.SceneEvent{Type: "scene:completed"}, nil, false, nil, nil},
 	}
 	for _, tc := range tests {

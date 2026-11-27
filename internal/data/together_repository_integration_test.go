@@ -103,10 +103,17 @@ func TestLobbyRepository(t *testing.T) {
 	if got.AutoNext != AutoNextNext {
 		t.Fatalf("default auto_next %q", got.AutoNext)
 	}
+	publicBefore, err := repo.CountPublic()
+	if err != nil {
+		t.Fatalf("count public: %v", err)
+	}
 	got.Name, got.Visibility, got.ControlOpen, got.MaxMembers = "Renamed", LobbyVisibilityPublic, true, 4
 	got.AutoNext = AutoNextRepeatQueue
 	if err := repo.UpdateSettings(got); err != nil {
 		t.Fatal(err)
+	}
+	if n, err := repo.CountPublic(); err != nil || n != publicBefore+1 {
+		t.Fatalf("public count after making the lobby public: %d (before %d) %v", n, publicBefore, err)
 	}
 	if again, _ := repo.GetByUUID(lobby.UUID); again.AutoNext != AutoNextRepeatQueue || again.Name != "Renamed" {
 		t.Fatalf("settings not saved: %+v", again)

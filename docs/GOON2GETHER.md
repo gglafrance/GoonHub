@@ -94,6 +94,7 @@ summary never lists the members.
 | Method and path | Permission | Body | Answer |
 |---|---|---|---|
 | `GET /together/lobbies` | use | query `all=true` (moderate only: every lobby) | `{lobbies: [summary]}`: public lobbies and the lobbies the user is a member of, most recently active first |
+| `GET /together/public-count` | use | | `{count}`: number of public lobbies (the badge of the Together nav link; banned users count them too). Kept live by the `together:public_count` SSE event, see below |
 | `POST /together/lobbies` | host | `{name, visibility, control_open, queue_open, wait_for_all, max_members, auto_next, items: [item]}` (all optional) | `201` summary |
 | `GET /together/lobbies/:id` | use | | summary; `404` for a private lobby the user is not a member of |
 | `POST /together/lobbies/:id/join` | use | `{anonymous}` (optional) | summary; joins a public lobby (`404` private non-member, `403` `LOBBY_BANNED`). `anonymous: true`: public lobbies only (`400` for a private lobby or for its creator), `409` when the user is already a member under their name (leave first); an anonymous member joining again stays anonymous |
@@ -119,6 +120,18 @@ cached, served from `goon2gether.emote_dir`, outside every media directory). Nam
 `^[A-Za-z0-9_]{2,32}$` and are unique without regard to case. Accepted files: PNG, GIF, WebP
 (animated GIF and WebP allowed), at most `goon2gether.emote_max_bytes` and
 `goon2gether.emote_max_dimension` pixels on each side.
+
+### Public lobby count (SSE)
+
+`together:public_count` is a broadcast event of `GET /api/v1/events` with `data: {count}`, the
+number of public lobbies. It carries no personal data; the SSE filter sends it to users with
+`goon2gether:use` only. The hub marks the count as possibly changed when a public lobby is
+created or closed (host, last member leaving, inactivity, empty close), when a lobby changes
+visibility, and when the idle cleanup deletes lobbies; the next tick (`tick_interval`) counts
+the public lobbies again (one `COUNT` query) and publishes the event only when the count
+changed. Clients load the initial value with `GET /together/public-count` and again after an
+SSE reconnect (`stores/togetherLobbies.ts`); the lobby browser reloads its list when the count
+changes.
 
 ### Service hooks for later features
 

@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -65,6 +66,13 @@ type Hub struct {
 
 	lc       *lifecycle.Manager
 	stopOnce sync.Once
+
+	// Public lobby count (nav badge): marked dirty where it may change, counted again and
+	// reported by the next tick when it did change.
+	publicDirty   atomic.Bool
+	publicMu      sync.Mutex
+	publicLast    int64 // last reported count, -1 = none yet
+	onPublicCount func(count int64)
 }
 
 // NewHub creates the hub (Start runs its loop).
@@ -77,11 +85,57 @@ func NewHub(cfg config.Goon2getherConfig, store data.LobbyRepository, scenes Sce
 		logger:  logger.With(zap.String("component", "goon2gether")),
 		now:     func() time.Time { return time.Now() },
 		lobbies: make(map[uuid.UUID]*lobby),
+
+		publicLast: -1,
 	}
 }
 
 // SetEmotes wires the emote names used to validate reactions.
 func (h *Hub) SetEmotes(e EmoteNames) { h.emotes = e }
+
+// OnPublicCountChange sets the function told the number of public lobbies when it changes
+// (the SSE together:public_count event). It runs on the tick goroutine, no lock held.
+func (h *Hub) OnPublicCountChange(fn func(count int64)) {
+	h.publicMu.Lock()
+	defer h.publicMu.Unlock()
+	h.onPublicCount = fn
+}
+
+// PublicLobbyCount counts the public lobbies (GET /together/public-count).
+func (h *Hub) PublicLobbyCount() (int64, error) {
+	n, err := h.store.CountPublic()
+	if err != nil {
+		return 0, apperrors.NewInternalError("failed to count the public lobbies", err)
+	}
+	return n, nil
+}
+
+// publicChanged marks the public lobby count as possibly changed (any lock may be held).
+func (h *Hub) publicChanged() { h.publicDirty.Store(true) }
+
+// flushPublicCount counts the public lobbies again when marked, and reports a changed count.
+func (h *Hub) flushPublicCount() {
+	if !h.publicDirty.Swap(false) {
+		return
+	}
+	n, err := h.store.CountPublic()
+	if err != nil {
+		h.publicDirty.Store(true) // retried on the next tick
+		h.logger.Warn("Failed to count the public lobbies", zap.Error(err))
+		return
+	}
+	h.publicMu.Lock()
+	if n == h.publicLast {
+		h.publicMu.Unlock()
+		return
+	}
+	h.publicLast = n
+	fn := h.onPublicCount
+	h.publicMu.Unlock()
+	if fn != nil {
+		fn(n)
+	}
+}
 
 // Config is the Goon2gether configuration.
 func (h *Hub) Config() config.Goon2getherConfig { return h.cfg }
@@ -443,6 +497,9 @@ func (h *Hub) CreateLobby(a Actor, in CreateInput) (*Summary, error) {
 	if err != nil {
 		return nil, apperrors.NewInternalError("failed to create the lobby", err)
 	}
+	if visibility == data.LobbyVisibilityPublic {
+		h.publicChanged()
+	}
 	var summary Summary
 	err = h.withLobby(row.UUID, func(l *lobby) error {
 		if len(in.Items) > 0 {
@@ -690,6 +747,9 @@ func (l *lobby) closeWith(reason string) error {
 		delete(l.clients, c)
 	}
 	l.closed = true
+	if l.row.Visibility == data.LobbyVisibilityPublic {
+		l.hub.publicChanged()
+	}
 	return nil
 }
 
@@ -929,7 +989,7 @@ func isActivity(t string) bool {
 // --- ticks ---
 
 // Tick runs the periodic work of every loaded lobby: auto-advance, hold timeout, host grace,
-// unloading, and the idle lobby cleanup.
+// unloading, the idle lobby cleanup, and reports a changed public lobby count.
 func (h *Hub) Tick() {
 	now := h.now()
 	h.mu.Lock()
@@ -958,6 +1018,7 @@ func (h *Hub) Tick() {
 		h.lastCleanup = now
 		h.cleanup(now)
 	}
+	h.flushPublicCount()
 }
 
 // tick runs the periodic work of a lobby and tells whether it can be unloaded. It may close
@@ -1115,6 +1176,7 @@ func (h *Hub) cleanup(now time.Time) {
 		return
 	}
 	if n > 0 {
+		h.publicChanged()
 		h.logger.Info("Deleted idle lobbies", zap.Int64("count", n))
 	}
 }

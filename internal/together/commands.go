@@ -841,6 +841,9 @@ func (l *lobby) cmdSettings(in *inbound, now time.Time) error {
 	if err := l.hub.store.UpdateSettings(&next); err != nil {
 		return l.internal(err)
 	}
+	if next.Visibility != l.row.Visibility {
+		l.hub.publicChanged()
+	}
 	l.row = next
 	l.broadcastLobby()
 	l.broadcastMembers()

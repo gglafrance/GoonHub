@@ -113,6 +113,21 @@ func (mr *MockLobbyRepositoryMockRecorder) CountHostedBy(userID any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountHostedBy", reflect.TypeOf((*MockLobbyRepository)(nil).CountHostedBy), userID)
 }
 
+// CountPublic mocks base method.
+func (m *MockLobbyRepository) CountPublic() (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountPublic")
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountPublic indicates an expected call of CountPublic.
+func (mr *MockLobbyRepositoryMockRecorder) CountPublic() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountPublic", reflect.TypeOf((*MockLobbyRepository)(nil).CountPublic))
+}
+
 // Create mocks base method.
 func (m *MockLobbyRepository) Create(lobby *data.Lobby, host *data.LobbyMember, items []data.LobbyQueueItem) error {
 	m.ctrl.T.Helper()

@@ -10,6 +10,12 @@ import type {
     QueueItem,
 } from '~/types/together';
 
+/** Broadcast count of the public lobbies (nav badge, also listed in sse-worker.js). */
+export const TOGETHER_PUBLIC_COUNT_EVENT = 'together:public_count';
+
+/** Goon2gether SSE events dispatched to the onSSEEvent listeners. */
+export const TOGETHER_SSE_EVENTS = [TOGETHER_PUBLIC_COUNT_EVENT] as const;
+
 // ---------------------------------------------------------------------------
 // Clock offset
 // ---------------------------------------------------------------------------
