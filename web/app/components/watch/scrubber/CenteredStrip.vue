@@ -89,19 +89,15 @@ const sync = () => {
     render(time);
 };
 
-// Smooth movement while playing; timeupdate keeps it going where rAF is throttled
-let playing = false;
-let rafId = 0;
-const loop = () => {
-    sync();
-    rafId = playing ? requestAnimationFrame(loop) : 0;
-};
-const onPlay = () => {
-    playing = true;
-    if (!rafId) rafId = requestAnimationFrame(loop);
-};
+// Smooth movement while playing, once per video frame (not per display frame: a 360 Hz screen
+// ran it 360 times a second); timeupdate keeps it going where frames are throttled
+const frameLoop = usePlaybackFrameLoop(
+    () => (props.player?.el()?.querySelector('video.vjs-tech') as HTMLVideoElement | null) ?? null,
+    () => sync(),
+);
+const onPlay = () => frameLoop.start();
 const onPause = () => {
-    playing = false;
+    frameLoop.stop();
     sync();
 };
 
@@ -120,10 +116,10 @@ watch(
     () => props.player,
     (p, old) => {
         if (old) for (const [ev, fn] of playerEvents) old.off(ev, fn);
+        frameLoop.stop();
         if (!p) return;
         for (const [ev, fn] of playerEvents) p.on(ev, fn);
-        playing = !p.paused();
-        if (playing) onPlay();
+        if (!p.paused()) onPlay();
         sync();
     },
     { immediate: true },
@@ -284,7 +280,7 @@ watch([() => props.cues, () => props.tileWidth], async () => {
 });
 
 onBeforeUnmount(() => {
-    if (rafId) cancelAnimationFrame(rafId);
+    frameLoop.stop();
     if (wheelTimer) clearTimeout(wheelTimer);
     viewport.value?.removeEventListener('wheel', onWheel);
     resizeObserver?.disconnect();

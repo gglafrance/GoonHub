@@ -90,18 +90,19 @@ const tick = () => {
     followTo(false);
 };
 
-// Smooth position while playing; timeupdate keeps it going where rAF is throttled
-let rafId = 0;
-const loop = () => {
-    tick();
-    rafId = playing.value ? requestAnimationFrame(loop) : 0;
-};
+// Smooth position while playing, once per video frame (not per display frame: a 360 Hz screen
+// ran it 360 times a second); timeupdate keeps it going where frames are throttled
+const frameLoop = usePlaybackFrameLoop(
+    () => (props.player?.el()?.querySelector('video.vjs-tech') as HTMLVideoElement | null) ?? null,
+    () => tick(),
+);
 const onPlay = () => {
     playing.value = true;
-    if (!rafId) rafId = requestAnimationFrame(loop);
+    frameLoop.start();
 };
 const onPause = () => {
     playing.value = false;
+    frameLoop.stop();
     tick();
 };
 
@@ -120,6 +121,7 @@ watch(
     () => props.player,
     (p, old) => {
         if (old) for (const [ev, fn] of playerEvents) old.off(ev, fn);
+        frameLoop.stop();
         if (!p) return;
         for (const [ev, fn] of playerEvents) p.on(ev, fn);
         playing.value = !p.paused();
@@ -204,7 +206,7 @@ const resumeFollow = () => {
 };
 
 onBeforeUnmount(() => {
-    if (rafId) cancelAnimationFrame(rafId);
+    frameLoop.stop();
     const p = props.player;
     if (p) for (const [ev, fn] of playerEvents) p.off(ev, fn);
 });
