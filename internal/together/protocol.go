@@ -258,6 +258,7 @@ type inbound struct {
 	Buffering   *bool           `json:"buffering"`
 	Seq         *uint64         `json:"seq"`
 	Items       []ItemInput     `json:"items"`
+	PlayNow     bool            `json:"play_now"`
 	Text        *string         `json:"text"`
 	Emote       *string         `json:"emote"`
 	UserID      *uint           `json:"user_id"`

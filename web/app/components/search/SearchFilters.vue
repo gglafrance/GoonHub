@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const searchStore = useSearchStore();
+const searchStore = useSearchContext();
 // The size filter needs files:view_size
 const perms = useMyPermissions();
 

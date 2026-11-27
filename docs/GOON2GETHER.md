@@ -95,7 +95,9 @@ members (and to `goon2gether:moderate`). `max_members` 0 means the server defaul
 
 `item` = `{scene_id, start, end, label}`: `start`/`end` in seconds (optional, `end > start`),
 `label` optional (max 100 characters, e.g. the marker label). The scene must exist and not be in
-the trash.
+the trash. An `end` past the scene duration (when known) is cut to it (no end at all when the
+start is already past it): a marker without an end is queued with a default length (30 s, like
+the marker playlists' `playlists.marker_default_duration`) that may pass the end of the scene.
 
 `emote` = `{id, name, url, width, height, animated, size}` (`size` in bytes); `url` is `/emotes/<file>` (static,
 cached, served from `goon2gether.emote_dir`, outside every media directory). Names match
@@ -195,7 +197,7 @@ Error codes: `not_allowed` (no control, not host, no permission), `invalid` (bad
 | `play_item` | `item_id` | control: plays that queue item now (the current one is dropped) |
 | `ended` | `item_id` | anyone: the player reached the end of the item |
 | `status` | `buffering` (bool), `seq` (last state applied), `item_id` | anyone: buffering or ready |
-| `queue_add` | `items: [{scene_id, start, end, label}]` | `scenes:view`; without queue rights they become suggestions |
+| `queue_add` | `items: [{scene_id, start, end, label}]`, `play_now` (bool, optional) | `scenes:view`; without queue rights they become suggestions. `play_now` needs control: the items go to the front of the queue and the first one plays at once (the item playing is dropped, like `play_item`) |
 | `queue_remove` | `item_id` | control (also: one's own suggestion) |
 | `queue_move` | `item_id`, `index` (position among the upcoming items, 0 = next) | control |
 | `suggestion_accept` | `item_id` | control |
@@ -273,6 +275,16 @@ message. A host who leaves the lobby hands it over at once.
 WebSocket library writes the `101` before hijacking: the handler passes it a small writer
 (`upgradeWriter`) that sends the `101` to the `net/http` writer and hijacks through gin. The
 WebSocket path is excluded from the gzip middleware.
+
+## Adding to the queue (frontend)
+
+The queue panel's "Add to queue" button (or "Suggest" without queue rights) opens the search
+picker (`components/picker/PickerModal.vue`): the search page interface with a Videos tab and a
+Markers tab, multi-select. Picked videos are queued whole; picked markers as range items (marker
+start, its end or 30 s, its label; `pickedToQueueItems` in `utils/picker.ts`). Videos already
+queued whole are marked "In queue" (they can be queued again). Members with control also get
+"Play now" (`queue_add` with `play_now`). Members without queue rights get the same picker and
+their picks become suggestions.
 
 ## Watch progress
 

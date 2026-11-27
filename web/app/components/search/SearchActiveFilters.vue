@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { SearchStatusKey } from '~/stores/search';
 import { SEARCH_STATUS_KEYS } from '~/stores/search';
-const searchStore = useSearchStore();
+const searchStore = useSearchContext();
 // Size filters are not applied without files:view_size (see the search store)
 const perms = useMyPermissions();
 

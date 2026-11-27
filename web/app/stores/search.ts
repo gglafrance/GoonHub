@@ -31,7 +31,14 @@ const emptyStatus = (): SearchStatus => ({
     has_source: null,
 });
 
-export const useSearchStore = defineStore('search', () => {
+/**
+ * State and actions of a scene search (filters, sort, results, infinite scroll pages). Shared by
+ * two store instances: the search page (`useSearchStore`, synced with the URL by the page) and
+ * the search picker modal (`usePickerSearchStore`, never in the URL), so that opening the picker
+ * does not change the search page. The search components read the instance of their context
+ * (`useSearchContext`, see composables/useSearchContext.ts).
+ */
+function searchStoreSetup() {
     const api = useApi();
     const settingsStore = useSettingsStore();
     const perms = useMyPermissions();
@@ -514,4 +521,14 @@ export const useSearchStore = defineStore('search', () => {
         getCurrentFilters,
         loadFilters,
     };
-});
+}
+
+export const useSearchStore = defineStore('search', searchStoreSetup);
+
+/** Search of the picker modal (components/picker): same state as the search page, isolated. */
+export const usePickerSearchStore = defineStore('search-picker', searchStoreSetup);
+
+/** Either search store instance (they only differ by their id). */
+export type SearchStore =
+    | ReturnType<typeof useSearchStore>
+    | ReturnType<typeof usePickerSearchStore>;

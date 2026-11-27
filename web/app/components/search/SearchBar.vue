@@ -1,5 +1,14 @@
 <script setup lang="ts">
-const searchStore = useSearchStore();
+const searchStore = useSearchContext();
+
+// sortOnMobile: the sort select also shows on small screens (the search page has it in its
+// mobile filters drawer instead)
+defineProps<{ sortOnMobile?: boolean }>();
+
+// Enter: search at once (the search page searches as the user types, debounced)
+const emit = defineEmits<{ submit: [] }>();
+const input = ref<HTMLInputElement | null>(null);
+defineExpose({ focus: () => input.value?.focus() });
 
 const allSortOptions = [
     { value: '', label: 'Default' },
@@ -34,6 +43,7 @@ const sortOptions = computed(() => allowedSortOptions(allSortOptions, perms.has)
                 class="text-dim absolute top-1/2 left-3 -translate-y-1/2"
             />
             <input
+                ref="input"
                 v-model="searchStore.query"
                 type="text"
                 placeholder="Search videos..."
@@ -41,10 +51,15 @@ const sortOptions = computed(() => allowedSortOptions(allSortOptions, perms.has)
                     py-2 pr-3 pl-9 text-sm text-white transition-colors focus:border-white/20
                     focus:outline-none"
                 enterkeyhint="search"
+                @keydown.enter="emit('submit')"
             />
         </div>
 
-        <UiSortSelect v-model="searchStore.sort" :options="sortOptions" class="hidden sm:block" />
+        <UiSortSelect
+            v-model="searchStore.sort"
+            :options="sortOptions"
+            :class="sortOnMobile ? '' : 'hidden sm:block'"
+        />
 
         <button
             v-if="searchStore.sort === 'random'"

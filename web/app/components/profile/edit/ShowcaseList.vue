@@ -2,10 +2,10 @@
 import type { ShowcaseItem } from '~/types/profile';
 
 // The items of a showcase being edited: thumbnails in order, drag and drop (or arrows) to
-// reorder, remove. Emits the new order of ids.
+// reorder, replace (the parent opens the picker), remove. Emits the new order of ids.
 
 const props = defineProps<{ items: ShowcaseItem[]; max: number; disabled?: boolean }>();
-const emit = defineEmits<{ change: [ids: number[]] }>();
+const emit = defineEmits<{ change: [ids: number[]]; replace: [index: number] }>();
 
 const ids = () => props.items.map((i) => i.id);
 const move = (from: number, to: number) => emit('change', moveItem(ids(), from, to));
@@ -67,6 +67,13 @@ const remove = (id: number) =>
                     </button>
                     <button
                         class="hover:text-lava rounded bg-black/70 p-0.5 text-white"
+                        title="Replace"
+                        @click="emit('replace', i)"
+                    >
+                        <Icon name="heroicons:arrow-path" size="12" />
+                    </button>
+                    <button
+                        class="hover:text-lava rounded bg-black/70 p-0.5 text-white"
                         title="Remove"
                         @click="remove(item.id)"
                     >
@@ -80,7 +87,7 @@ const remove = (id: number) =>
             class="text-dim border-border rounded-lg border border-dashed px-3 py-4 text-center
                 text-[11px]"
         >
-            Nothing picked yet: search below.
+            Nothing picked yet.
         </p>
     </div>
 </template>

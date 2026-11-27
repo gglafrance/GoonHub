@@ -152,6 +152,7 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
     - `watch/details/` - `TitleEditor`, `DescriptionEditor`, `ReleaseDateEditor`, `RatingPanel`, `InteractionsBar`, `TagManager`, `PornDBStatus`
     - `search/` - `SearchFilters` (orchestrator), `SearchBar`, `SearchResults`
     - `search/filters/` - `FilterSection`, `FilterTags`, `FilterActors`, `FilterDuration`, `FilterDateRange`, `FilterSelect`, `FilterLiked`, `FilterRatingRange`, `FilterJizzRange`
+    - `picker/` - `PickerModal`: search picker (Videos and Markers tabs, the search page interface on its own store instance) to pick scenes or markers; see `docs/SEARCH_PICKER.md`. Search components read their store with `useSearchContext()`
     - `ui/` - Reusable `ErrorAlert`, `LoadingSpinner`
 - `stores/` - Pinia stores: `auth` (sessionStorage), `scenes`, `upload`, `settings`, `search`, `jobStatus` (real-time job counts via SSE)
 - `composables/` - Organized by domain:

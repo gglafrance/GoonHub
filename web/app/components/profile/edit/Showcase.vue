@@ -1,22 +1,24 @@
 <script setup lang="ts">
-import type { SceneListItem, SceneListResponse } from '~/types/scene';
+import type { SceneListItem } from '~/types/scene';
 import type { WidgetMarker } from '~/types/homepageMarkerWidgets';
 import type { ProfileEdit, ShowcaseItem } from '~/types/profile';
+import type { PickedItem } from '~/utils/picker';
 
-// Editor of a showcase (favorite videos or favorite markers): the picked items in order and a
-// search to add more. Each change is saved at once.
+// Editor of a showcase (favorite videos or favorite markers): the picked items in order, and the
+// search picker to add some (up to the free slots) or replace one. Each change is saved at once.
+// The Markers tab of the picker lists the markers the user sees on scenes still in the library:
+// the showcase rule of the server (GET /profiles/me/marker-candidates).
 const props = defineProps<{ state: ProfileEdit; kind: 'scenes' | 'markers' }>();
 const emit = defineEmits<{ saved: [] }>();
 
 const api = useApiProfiles();
-const scenesApi = useApiScenes();
 const scenes = ref<SceneListItem[]>([]);
 const markers = ref<WidgetMarker[]>([]);
-const query = ref('');
-const results = ref<ShowcaseItem[]>([]);
-const searching = ref(false);
 const saving = ref(false);
 const error = ref('');
+const pickerOpen = ref(false);
+// Slot being replaced (single select), null when adding
+const replaceIndex = ref<number | null>(null);
 
 const max = computed(() => props.state.limits.max_showcase_items);
 
@@ -41,14 +43,18 @@ const markerItem = (m: WidgetMarker): ShowcaseItem => ({
 const items = computed(() =>
     props.kind === 'scenes' ? scenes.value.map(sceneItem) : markers.value.map(markerItem),
 );
-const picked = computed(() => new Set(items.value.map((i) => i.id)));
+const ids = computed(() => items.value.map((i) => i.id));
+const free = computed(() => Math.max(0, max.value - items.value.length));
+const exclude = computed(() =>
+    props.kind === 'scenes' ? { scenes: ids.value } : { markers: ids.value },
+);
 
-async function save(ids: number[]) {
+async function save(next: number[]) {
     saving.value = true;
     error.value = '';
     try {
-        if (props.kind === 'scenes') scenes.value = (await api.setFavoriteScenes(ids)).scenes;
-        else markers.value = (await api.setFavoriteMarkers(ids)).markers;
+        if (props.kind === 'scenes') scenes.value = (await api.setFavoriteScenes(next)).scenes;
+        else markers.value = (await api.setFavoriteMarkers(next)).markers;
         emit('saved');
     } catch (e: unknown) {
         error.value = e instanceof Error ? e.message : 'Failed to save the showcase';
@@ -57,77 +63,68 @@ async function save(ids: number[]) {
     }
 }
 
-function add(id: number) {
-    if (picked.value.has(id) || items.value.length >= max.value) return;
-    save([...items.value.map((i) => i.id), id]);
-}
+const openPicker = (index: number | null) => {
+    replaceIndex.value = index;
+    pickerOpen.value = true;
+};
 
-let timer: ReturnType<typeof setTimeout> | undefined;
-let searchSeq = 0;
-async function search() {
-    const seq = ++searchSeq;
-    searching.value = true;
-    try {
-        let found: ShowcaseItem[];
-        if (props.kind === 'scenes') {
-            const res = (await scenesApi.searchScenes({
-                q: query.value,
-                limit: 12,
-            })) as SceneListResponse;
-            found = res.data.map(sceneItem);
-        } else {
-            found = (await api.listMarkerCandidates(query.value, 1, 12)).data.map(markerItem);
-        }
-        if (seq === searchSeq) results.value = found;
-    } catch (e: unknown) {
-        if (seq === searchSeq) error.value = e instanceof Error ? e.message : 'Search failed';
-    } finally {
-        if (seq === searchSeq) searching.value = false;
+function onPicked(picked: PickedItem[]) {
+    const pickedIds =
+        props.kind === 'scenes'
+            ? pickedScenes(picked).map((s) => s.id)
+            : pickedMarkers(picked).map((m) => m.id);
+    pickerOpen.value = false;
+    const first = pickedIds[0];
+    if (first === undefined) return;
+    const index = replaceIndex.value;
+    if (index !== null) {
+        const next = [...ids.value];
+        next[index] = first;
+        save(next);
+    } else {
+        save([...ids.value, ...pickedIds].slice(0, max.value));
     }
 }
-watch(query, () => {
-    clearTimeout(timer);
-    timer = setTimeout(search, 300);
-});
-onMounted(search);
-onBeforeUnmount(() => clearTimeout(timer));
 </script>
 
 <template>
     <div class="space-y-3">
-        <ProfileEditShowcaseList :items="items" :max="max" :disabled="saving" @change="save" />
-        <input
-            v-model="query"
-            type="search"
-            :placeholder="
-                kind === 'scenes' ? 'Search videos to add' : 'Search markers by label or video'
-            "
-            class="border-border focus:border-lava/50 w-full rounded-md border bg-white/[0.03] px-3
-                py-1.5 text-xs text-white outline-none"
+        <ProfileEditShowcaseList
+            :items="items"
+            :max="max"
+            :disabled="saving"
+            @change="save"
+            @replace="openPicker"
         />
-        <div class="grid grid-cols-3 gap-2 sm:grid-cols-6" :class="searching ? 'opacity-60' : ''">
-            <button
-                v-for="r in results"
-                :key="r.id"
-                class="border-border hover:border-lava/50 overflow-hidden rounded-md border
-                    bg-black/40 text-left transition-colors disabled:opacity-40"
-                :disabled="picked.has(r.id) || items.length >= max || saving"
-                :title="r.title"
-                @click="add(r.id)"
-            >
-                <div class="aspect-video w-full">
-                    <img
-                        v-if="r.thumb"
-                        :src="r.thumb"
-                        alt=""
-                        loading="lazy"
-                        class="h-full w-full object-cover"
-                    />
-                </div>
-                <div class="truncate px-1.5 py-1 text-[10px] text-white">{{ r.title }}</div>
-            </button>
-        </div>
-        <p v-if="!searching && results.length === 0" class="text-dim text-[11px]">No match.</p>
+        <button
+            class="border-lava/30 bg-lava/10 hover:bg-lava/20 flex items-center gap-1.5 rounded-lg
+                border px-3 py-1.5 text-xs font-medium text-white transition-colors
+                disabled:opacity-40"
+            :disabled="free === 0 || saving"
+            @click="openPicker(null)"
+        >
+            <Icon name="heroicons:plus" size="13" class="text-lava" />
+            {{ kind === 'scenes' ? 'Add favorite videos' : 'Add favorite markers' }}
+            <span class="text-dim font-mono text-[10px]">{{ free }} free</span>
+        </button>
         <p v-if="error" class="text-lava text-[11px]">{{ error }}</p>
+
+        <PickerModal
+            :visible="pickerOpen"
+            :tabs="[kind]"
+            :multiple="replaceIndex === null"
+            :max="free"
+            :exclude="exclude"
+            :title="
+                replaceIndex !== null
+                    ? 'Replace a favorite'
+                    : kind === 'scenes'
+                      ? 'Add favorite videos'
+                      : 'Add favorite markers'
+            "
+            :confirm-label="replaceIndex !== null ? 'Replace' : 'Add'"
+            @picked="onPicked"
+            @close="pickerOpen = false"
+        />
     </div>
 </template>

@@ -21,6 +21,9 @@ func TestMarkerFilterSQL(t *testing.T) {
 		{"actors", MarkerListOptions{Actors: []string{"z"}}, true, []string{"scene_actors"}, 2},
 		{"studio", MarkerListOptions{Studio: "S"}, true, []string{"studios"}, 2},
 		{"marker tags need all", MarkerListOptions{MarkerTags: []string{"Cum", "Suck"}}, true, []string{"marker_tags", "m.id IN"}, 2},
+		{"query on label or scene title", MarkerListOptions{Query: " 50%_off "}, true, []string{"m.label ILIKE ?", "qs.title ILIKE ?"}, 2},
+		{"blank query ignored", MarkerListOptions{Query: "  "}, true, nil, 0},
+		{"live scenes only", MarkerListOptions{LiveScenesOnly: true}, true, []string{"ls.deleted_at IS NULL AND ls.trashed_at IS NULL"}, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -38,6 +41,9 @@ func TestMarkerFilterSQL(t *testing.T) {
 			}
 			if tt.name == "tags need all" && args[1] != 2 {
 				t.Fatalf("expected distinct tag count 2, got %v", args[1])
+			}
+			if tt.name == "query on label or scene title" && args[0] != `%50\%\_off%` {
+				t.Fatalf("expected the trimmed, escaped pattern, got %v", args[0])
 			}
 		})
 	}

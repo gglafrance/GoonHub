@@ -2,7 +2,7 @@
 import type { SearchStatusKey } from '~/stores/search';
 
 // Library status filters: each criterion is "any", "yes" or "no".
-const searchStore = useSearchStore();
+const searchStore = useSearchContext();
 
 const collapsed = ref(true);
 
