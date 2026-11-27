@@ -3,9 +3,16 @@ import type { LobbySummary } from '~/types/together';
 
 // Goon2gether room: a member connects at once; a non-member gets the join screen (join, or
 // anonymously for a public lobby), or joins directly with ?join=named|anonymous (lobby
-// browser). Layout: player, reactions and queue on the left; members and chat on the right.
+// browser). Layout: see the template; the chat must stay visible with the player.
 const route = useRoute();
 const settingsStore = useSettingsStore();
+
+// Player and queue on the left, members and chat in a side column from lg (not in theater mode,
+// where the player takes the whole width). The side column sticks under the headers and fits
+// the viewport: app header 5.25rem + 2px (sm+), room header 3rem + 1px, page padding 1.5rem
+// (lg:py-6) above and below. Otherwise one column: player, chat, members, then the queue, so
+// that the chat comes right under the player and not after the whole queue.
+const sideBySide = computed(() => !settingsStore.theaterMode);
 const { getLobby, joinLobby } = useApiTogether();
 
 const lobbyId = computed(() => String(route.params.id ?? ''));
@@ -140,22 +147,43 @@ definePageMeta({
 
             <div
                 v-else
-                :class="['grid gap-5', settingsStore.theaterMode ? '' : 'xl:grid-cols-[1fr_340px]']"
+                :class="[
+                    'grid gap-x-5 gap-y-3',
+                    sideBySide &&
+                        'lg:grid-cols-[1fr_300px] lg:grid-rows-[auto_1fr] xl:grid-cols-[1fr_340px]',
+                ]"
             >
-                <div class="min-w-0 space-y-3">
+                <div :class="['min-w-0 space-y-3', sideBySide && 'lg:col-start-1 lg:row-start-1']">
                     <TogetherRoomClosingBanner />
                     <TogetherRoomPlayer />
                     <div class="flex flex-wrap items-start gap-2">
                         <TogetherRoomReactionBar class="min-w-0 flex-1" />
                         <TogetherRoomAutoNext />
                     </div>
-                    <TogetherQueuePanel />
                 </div>
 
-                <div class="flex min-w-0 flex-col gap-3 xl:h-[calc(100vh-8rem)]">
-                    <TogetherRoomMembers />
-                    <TogetherChatPanel class="h-[28rem] xl:h-auto xl:flex-1" />
+                <!-- Side column: members (foldable, short) then the chat taking the rest; in one
+                     column, the chat first -->
+                <div
+                    :class="[
+                        'flex min-w-0 flex-col gap-3',
+                        sideBySide &&
+                            `lg:sticky lg:top-[calc(9.75rem+3px)] lg:col-start-2 lg:row-span-2
+                            lg:row-start-1 lg:h-[calc(100vh-11.25rem-3px)] lg:self-start`,
+                    ]"
+                >
+                    <TogetherChatPanel
+                        :class="[
+                            'h-[min(28rem,60svh)]',
+                            sideBySide && 'lg:h-auto lg:min-h-0 lg:flex-1',
+                        ]"
+                    />
+                    <TogetherRoomMembers :class="['shrink-0', sideBySide && 'lg:order-first']" />
                 </div>
+
+                <TogetherQueuePanel
+                    :class="['min-w-0 self-start', sideBySide && 'lg:col-start-1 lg:row-start-2']"
+                />
             </div>
         </div>
 

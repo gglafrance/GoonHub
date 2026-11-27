@@ -96,6 +96,14 @@ export function validateMarkerTimeEdit(
 }
 
 /**
+ * True when the typed text of the end editor asks to remove the end (an empty field): the
+ * marker becomes a point marker. The start can't be removed.
+ */
+export function isMarkerEndClear(field: MarkerTimeField, text: string): boolean {
+    return field === 'end' && text.trim() === '';
+}
+
+/**
  * Typed time moved by `delta` seconds (nudge buttons, ArrowUp/ArrowDown), kept between 0 and the
  * scene duration when it is known. An unreadable text starts from `fallback`.
  */

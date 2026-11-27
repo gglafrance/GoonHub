@@ -3,7 +3,7 @@ import type { Marker } from '~/types/marker';
 import type { MarkerTimeField } from '~/utils/markerTime';
 
 // Time of a marker card (bottom-right of its thumbnail): the start, and the end of a range
-// marker, each clickable to type a new time
+// marker, each clickable to type a new time. The x after the end removes it (point marker).
 const props = defineProps<{
     marker: Pick<Marker, 'timestamp' | 'end_timestamp'>;
     // Time being edited on this card, if any
@@ -14,6 +14,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     edit: [field: MarkerTimeField];
+    'clear-end': [];
 }>();
 
 const hasEnd = computed(() => markerHasRange(props.marker));
@@ -57,6 +58,17 @@ const partClass = (field: MarkerTimeField) => [
                 @click.stop="emit('edit', 'end')"
             >
                 {{ formatMarkerTime(marker.end_timestamp ?? 0) }}
+            </button>
+            <button
+                type="button"
+                class="hover:bg-lava/40 ml-0.5 flex items-center rounded text-white/50
+                    transition-colors hover:text-white focus:outline-none focus-visible:ring-1
+                    focus-visible:ring-white/40"
+                title="Remove the end (point marker)"
+                aria-label="Remove the marker end"
+                @click.stop="emit('clear-end')"
+            >
+                <Icon name="heroicons:x-mark" size="10" />
             </button>
         </template>
     </div>

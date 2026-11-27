@@ -3,7 +3,8 @@ import type { MarkerTimeField, MarkerTimeRange } from '~/utils/markerTime';
 
 // Typed start or end of a marker card: ss, mm:ss or h:mm:ss, with -1s/+1s nudges (also
 // ArrowDown/ArrowUp). Enter saves, Escape cancels. The time is checked like the API does before
-// it is sent; the API error is shown when the save fails.
+// it is sent; the API error is shown when the save fails. The end can be removed (point marker):
+// "No end" button, or an empty field and Enter.
 const props = defineProps<{
     field: MarkerTimeField;
     marker: MarkerTimeRange;
@@ -16,6 +17,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     save: [seconds: number];
+    // Remove the end of the marker (end editor only)
+    clear: [];
     cancel: [];
 }>();
 
@@ -29,8 +32,12 @@ const submitted = ref<string | null>(null);
 const inputRef = ref<HTMLInputElement | null>(null);
 
 const value = computed(() => parseMarkerTime(draft.value));
+// Empty end field: Enter (or the check button) removes the end
+const clearing = computed(() => isMarkerEndClear(props.field, draft.value));
 const invalid = computed(() =>
-    validateMarkerTimeEdit(props.field, value.value, props.marker, props.duration),
+    clearing.value
+        ? null
+        : validateMarkerTimeEdit(props.field, value.value, props.marker, props.duration),
 );
 const message = computed(
     () => invalid.value ?? (submitted.value === draft.value ? props.serverError : null),
@@ -46,7 +53,17 @@ const nudge = (delta: number) => {
     draft.value = nudgeMarkerTime(draft.value, delta, current.value, props.duration);
 };
 
+const clearEnd = () => {
+    if (props.saving || props.field !== 'end') return;
+    submitted.value = draft.value;
+    emit('clear');
+};
+
 const save = () => {
+    if (clearing.value) {
+        clearEnd();
+        return;
+    }
     if (props.saving || invalid.value || value.value == null) return;
     submitted.value = draft.value;
     emit('save', value.value);
@@ -84,7 +101,9 @@ onMounted(focusInput);
     <div class="border-border bg-panel/60 space-y-1 border-b px-2 py-1.5" @click.stop>
         <div class="text-dim flex items-center justify-between text-[10px]">
             <span class="font-medium text-white">{{ field === 'start' ? 'Start' : 'End' }}</span>
-            <span>ss, mm:ss or h:mm:ss</span>
+            <span>{{
+                field === 'end' ? 'ss, mm:ss or h:mm:ss, empty: no end' : 'ss, mm:ss or h:mm:ss'
+            }}</span>
         </div>
         <div class="flex items-center gap-1">
             <button
@@ -125,12 +144,25 @@ onMounted(focusInput);
                 :disabled="saving || !!invalid"
                 class="text-emerald hover:bg-emerald/10 shrink-0 rounded p-1 transition-colors
                     disabled:cursor-not-allowed disabled:opacity-40"
-                title="Save (Enter)"
+                :title="clearing ? 'Remove the end (Enter)' : 'Save (Enter)'"
                 @mousedown.prevent
                 @click="save"
             >
                 <Icon v-if="saving" name="svg-spinners:ring-resize" size="12" />
                 <Icon v-else name="heroicons:check" size="12" />
+            </button>
+            <button
+                v-if="field === 'end'"
+                type="button"
+                :disabled="saving"
+                class="text-dim hover:text-lava hover:bg-lava/10 shrink-0 rounded px-1 py-0.5
+                    text-[10px] whitespace-nowrap transition-colors disabled:cursor-not-allowed
+                    disabled:opacity-40"
+                title="Remove the end: back to a point marker (or empty the field and press Enter)"
+                @mousedown.prevent
+                @click="clearEnd"
+            >
+                No end
             </button>
             <button
                 type="button"

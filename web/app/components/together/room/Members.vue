@@ -1,9 +1,21 @@
 <script setup lang="ts">
 import type { LobbyMember } from '~/types/together';
 
-// Member list: online first, then by name. Kick and ban ask for a confirmation.
+// Member list: online first, then by name. Kick and ban ask for a confirmation. The list can be
+// folded to its header (remembered on this device) and scrolls inside a short box, so that it
+// never pushes the chat out of the room's side column.
 const room = useInjectedTogetherRoom();
 const { socket, isMine, isHost, canModerate, onlineCount } = room;
+
+const COLLAPSED_KEY = 'goonhub:together:members-collapsed';
+const collapsed = ref(false);
+onMounted(() => {
+    collapsed.value = localStorage.getItem(COLLAPSED_KEY) === 'true';
+});
+const toggle = () => {
+    collapsed.value = !collapsed.value;
+    localStorage.setItem(COLLAPSED_KEY, String(collapsed.value));
+};
 
 const sorted = computed(() =>
     [...socket.members.value].sort((a, b) => {
@@ -44,12 +56,26 @@ const doConfirm = () => {
 
 <template>
     <div class="border-border bg-panel/40 rounded-xl border">
-        <div class="border-border flex items-center gap-2 border-b px-3 py-2">
+        <button
+            type="button"
+            class="group flex w-full items-center gap-2 px-3 py-2 text-left"
+            :class="{ 'border-border border-b': !collapsed }"
+            :aria-expanded="!collapsed"
+            :title="collapsed ? 'Show the members' : 'Hide the members'"
+            @click="toggle"
+        >
             <Icon name="heroicons:users" size="13" class="text-lava" />
             <span class="text-xs font-semibold text-white">Members</span>
-            <span class="text-dim ml-auto font-mono text-[10px]"> {{ onlineCount }} online </span>
-        </div>
-        <div class="max-h-56 overflow-y-auto p-1">
+            <span class="text-dim font-mono text-[10px]">{{ socket.members.value.length }}</span>
+            <span class="text-dim ml-auto font-mono text-[10px]">{{ onlineCount }} online</span>
+            <Icon
+                name="heroicons:chevron-down"
+                size="12"
+                class="text-dim transition-transform group-hover:text-white"
+                :class="{ '-rotate-90': collapsed }"
+            />
+        </button>
+        <div v-if="!collapsed" class="max-h-40 overflow-y-auto p-1">
             <TogetherRoomMemberRow
                 v-for="m in sorted"
                 :key="memberKey(m)"

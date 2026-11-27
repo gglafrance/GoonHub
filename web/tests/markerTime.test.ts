@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
     MARKER_TIME_FORMAT_HINT,
     formatMarkerTime,
+    isMarkerEndClear,
     nudgeMarkerTime,
     parseMarkerTime,
     validateMarkerEnd,
@@ -151,5 +152,17 @@ describe('nudgeMarkerTime', () => {
     });
     test('an unreadable text starts from the fallback', () => {
         expect(nudgeMarkerTime('oops', 1, 75, 600)).toBe('01:16');
+    });
+});
+
+describe('isMarkerEndClear', () => {
+    test('an empty end field removes the end', () => {
+        expect(isMarkerEndClear('end', '')).toBe(true);
+        expect(isMarkerEndClear('end', '   ')).toBe(true);
+    });
+    test('a typed end or the start never clears', () => {
+        expect(isMarkerEndClear('end', '1:30')).toBe(false);
+        expect(isMarkerEndClear('end', 'abc')).toBe(false);
+        expect(isMarkerEndClear('start', '')).toBe(false);
     });
 });

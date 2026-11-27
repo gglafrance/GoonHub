@@ -395,8 +395,9 @@ const handleSetEnd = async (marker: Marker, event: Event) => {
     if (!result.ok && !('stale' in result)) error.value = result.error;
 };
 
-const handleClearEnd = async (marker: Marker, event: Event) => {
-    event.stopPropagation();
+// Removes the end of a range marker (row button, x of the time badge, end editor)
+const handleClearEnd = async (marker: Marker, event?: Event) => {
+    event?.stopPropagation();
     error.value = null;
     if (editingTime.value?.id === marker.id && editingTime.value.field === 'end') {
         cancelEditingTime();
@@ -613,6 +614,7 @@ onMounted(async () => {
                                 :editing="editingTime?.id === marker.id ? editingTime.field : null"
                                 :readonly="!canEdit(marker)"
                                 @edit="startEditingTime(marker, $event)"
+                                @clear-end="handleClearEnd(marker)"
                             />
                         </div>
 
@@ -626,6 +628,7 @@ onMounted(async () => {
                             :saving="timeSaving"
                             :server-error="timeError"
                             @save="handleSaveTime(marker, editingTime.field, $event)"
+                            @clear="handleClearEnd(marker)"
                             @cancel="cancelEditingTime"
                         />
 
