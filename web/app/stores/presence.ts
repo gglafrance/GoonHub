@@ -5,7 +5,7 @@ import type { PresenceInputEvent } from '~/utils/presenceTracker';
  * Presence of the signed-in user's contacts (friends and followed users), kept live by the
  * presence:update SSE events, and the reports of this tab: heartbeats of the real activity
  * (input, playing videos: `PresenceTracker`, online or away) and the invisible mode. Started by
- * the header (HeaderFriendsPresence).
+ * the header (HeaderLiveSources).
  */
 export const usePresenceStore = defineStore('presence', () => {
     // every view received, by user id (hidden ones too, to keep the most recent seq)

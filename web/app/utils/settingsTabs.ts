@@ -9,6 +9,7 @@ export type SettingsTabId =
     | 'player'
     | 'app'
     | 'homepage'
+    | 'navigation'
     | 'tags'
     | 'marker-labels'
     | 'parsing-rules'
@@ -54,6 +55,7 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
         ],
     },
     { id: 'homepage', label: 'Homepage', icon: 'heroicons:home' },
+    { id: 'navigation', label: 'Navigation', icon: 'heroicons:bars-3' },
     { id: 'tags', label: 'Tags', icon: 'heroicons:tag' },
     {
         id: 'marker-labels',

@@ -111,6 +111,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideProfileRepository,
 		providePrivacyRepository,
 		providePresenceRepository,
+		provideNavLayoutRepository,
 		provideMessageRepository,
 
 		// Remote Worker Repositories
@@ -138,6 +139,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideAuthService,
 		provideUserService,
 		provideSettingsService,
+		provideNavLayoutService,
 		provideRBACService,
 		provideAdminService,
 
@@ -466,6 +468,10 @@ func providePrivacyRepository(db *gorm.DB) data.PrivacyRepository {
 	return data.NewPrivacyRepository(db)
 }
 
+func provideNavLayoutRepository(db *gorm.DB) data.NavLayoutRepository {
+	return data.NewNavLayoutRepository(db)
+}
+
 func providePresenceRepository(db *gorm.DB) data.PresenceRepository {
 	return data.NewPresenceRepository(db)
 }
@@ -519,6 +525,10 @@ func provideAuthService(userRepo data.UserRepository, revokedRepo data.RevokedTo
 
 func provideUserService(userRepo data.UserRepository, logger *logging.Logger) *core.UserService {
 	return core.NewUserService(userRepo, logger.Logger)
+}
+
+func provideNavLayoutService(repo data.NavLayoutRepository, eventBus *core.EventBus, logger *logging.Logger) *core.NavLayoutService {
+	return core.NewNavLayoutService(repo, eventBus, logger.Logger)
 }
 
 func provideSettingsService(settingsRepo data.UserSettingsRepository, userRepo data.UserRepository, logger *logging.Logger) *core.SettingsService {
@@ -841,8 +851,10 @@ func provideAdminHandler(adminService *core.AdminService, rbacService *core.RBAC
 	return handler.NewAdminHandler(adminService, rbacService, sceneService, appSettingsRepo)
 }
 
-func provideSettingsHandler(settingsService *core.SettingsService, cfg *config.Config) *handler.SettingsHandler {
-	return handler.NewSettingsHandler(settingsService, cfg.Pagination.MaxItemsPerPage)
+func provideSettingsHandler(settingsService *core.SettingsService, navLayoutService *core.NavLayoutService, cfg *config.Config) *handler.SettingsHandler {
+	h := handler.NewSettingsHandler(settingsService, cfg.Pagination.MaxItemsPerPage)
+	h.NavLayout = navLayoutService
+	return h
 }
 
 // --- Scene & Content Handlers ---

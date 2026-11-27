@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // Header entry of the presence: how many friends and followed users are online, and a popover
-// listing them (watching, online, away, offline). Starts the live presence of the tab.
+// listing them (watching, online, away, offline). The live presence of the tab is started by
+// HeaderLiveSources.
 const presenceStore = usePresenceStore();
-const jobStatusStore = useJobStatusStore();
 const route = useRoute();
 const showPopup = ref(false);
 const buttonRef = ref<HTMLButtonElement | null>(null);
@@ -17,14 +17,6 @@ const title = computed(() => {
     return away > 0 ? `${active.value} online, ${away} away` : `${count.value} online`;
 });
 
-onMounted(() => presenceStore.start());
-onBeforeUnmount(() => presenceStore.stop());
-
-// Events may have been missed while the stream was down
-watch(
-    () => jobStatusStore.lastReconnectedAt,
-    () => presenceStore.refresh(),
-);
 watch(
     () => route.fullPath,
     () => {

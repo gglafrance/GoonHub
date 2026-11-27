@@ -1,7 +1,7 @@
 /**
  * Number of public Goon2gether lobbies (badge of the Together nav link): loaded once from
  * GET /together/public-count, then kept live by the together:public_count SSE event (sent to
- * users with goon2gether:use). Started by the nav bar for those users only.
+ * users with goon2gether:use). Started by the header (HeaderLiveSources) for those users only.
  */
 export const useTogetherLobbiesStore = defineStore('togetherLobbies', () => {
     const publicCount = ref(0);

@@ -24,7 +24,7 @@ export interface MessageToast {
  * Messages of the signed-in user (docs/MESSAGES.md): the recent conversations (header popover,
  * /messages list), the unread counts (header badge) and the typing indicators, kept live by
  * the chat:* SSE events. The open thread subscribes to the events of its conversation.
- * Started by the header (HeaderMessages).
+ * Started by the header (HeaderLiveSources).
  */
 export const useMessagesStore = defineStore('messages', () => {
     const conversations = ref<Conversation[]>([]);

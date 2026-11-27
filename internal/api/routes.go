@@ -202,6 +202,10 @@ func RegisterRoutes(r *gin.Engine, sceneHandler *handler.SceneHandler, authHandl
 					settings.PUT("/username", settingsHandler.ChangeUsername)
 					settings.GET("/parsing-rules", settingsHandler.GetParsingRules)
 					settings.PUT("/parsing-rules", settingsHandler.UpdateParsingRules)
+					// Per-account header layout (docs/NAVIGATION.md): items gated by permission
+					settings.GET("/navigation", settingsHandler.GetNavLayout)
+					settings.PUT("/navigation", settingsHandler.UpdateNavLayout)
+					settings.DELETE("/navigation", settingsHandler.ResetNavLayout)
 				}
 
 				homepage := protected.Group("/homepage")

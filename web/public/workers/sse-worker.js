@@ -36,6 +36,8 @@ var SSE_EVENT_TYPES = [
     'chat:typing',
     'chat:conversation_updated',
     'chat:reaction',
+    // header layout changed (targeted, see app/utils/navRegistry.ts)
+    'settings:nav_layout',
 ];
 
 function broadcast(type, payload) {

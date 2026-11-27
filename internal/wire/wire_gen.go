@@ -99,7 +99,9 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 	authHandler := provideAuthHandler(authService, userService, configConfig)
 	userSettingsRepository := provideUserSettingsRepository(db)
 	settingsService := provideSettingsService(userSettingsRepository, userRepository, logger)
-	settingsHandler := provideSettingsHandler(settingsService, configConfig)
+	navLayoutRepository := provideNavLayoutRepository(db)
+	navLayoutService := provideNavLayoutService(navLayoutRepository, eventBus, logger)
+	settingsHandler := provideSettingsHandler(settingsService, navLayoutService, configConfig)
 	roleRepository := provideRoleRepository(db)
 	permissionRepository := providePermissionRepository(db)
 	rbacService := provideRBACService(roleRepository, permissionRepository, userRepository, logger)
@@ -347,6 +349,10 @@ func providePrivacyRepository(db *gorm.DB) data.PrivacyRepository {
 	return data.NewPrivacyRepository(db)
 }
 
+func provideNavLayoutRepository(db *gorm.DB) data.NavLayoutRepository {
+	return data.NewNavLayoutRepository(db)
+}
+
 func providePresenceRepository(db *gorm.DB) data.PresenceRepository {
 	return data.NewPresenceRepository(db)
 }
@@ -388,6 +394,10 @@ func provideAuthService(userRepo data.UserRepository, revokedRepo data.RevokedTo
 
 func provideUserService(userRepo data.UserRepository, logger *logging.Logger) *core.UserService {
 	return core.NewUserService(userRepo, logger.Logger)
+}
+
+func provideNavLayoutService(repo data.NavLayoutRepository, eventBus *core.EventBus, logger *logging.Logger) *core.NavLayoutService {
+	return core.NewNavLayoutService(repo, eventBus, logger.Logger)
 }
 
 func provideSettingsService(settingsRepo data.UserSettingsRepository, userRepo data.UserRepository, logger *logging.Logger) *core.SettingsService {
@@ -683,8 +693,10 @@ func provideAdminHandler(adminService *core.AdminService, rbacService *core.RBAC
 	return handler.NewAdminHandler(adminService, rbacService, sceneService, appSettingsRepo)
 }
 
-func provideSettingsHandler(settingsService *core.SettingsService, cfg *config.Config) *handler.SettingsHandler {
-	return handler.NewSettingsHandler(settingsService, cfg.Pagination.MaxItemsPerPage)
+func provideSettingsHandler(settingsService *core.SettingsService, navLayoutService *core.NavLayoutService, cfg *config.Config) *handler.SettingsHandler {
+	h := handler.NewSettingsHandler(settingsService, cfg.Pagination.MaxItemsPerPage)
+	h.NavLayout = navLayoutService
+	return h
 }
 
 func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, transcoder *streaming.Transcoder, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, cfg *config.Config) *handler.SceneHandler {

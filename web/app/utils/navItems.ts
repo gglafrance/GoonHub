@@ -1,67 +1,15 @@
-// Items of the top navigation (components/header/NavBar.vue): the user pages in the main row,
-// the curation/management pages in the "Manage" menu at its end. Tests in web/tests/navItems.test.ts.
-import type { PermissionName } from '~/types/permissions';
-
-export type NavGroup = 'main' | 'manage';
-
-export interface NavItem {
-    to: string;
-    label: string;
-    icon: string;
-    group: NavGroup;
-    /** Permission needed to see the item (none: every signed-in user). */
-    permission?: PermissionName;
-}
-
-/** Every nav item, in display order within its group. */
-export const NAV_ITEMS: readonly NavItem[] = [
-    { to: '/search', label: 'Search', icon: 'heroicons:magnifying-glass', group: 'main' },
-    { to: '/markers', label: 'Markers', icon: 'heroicons:bookmark', group: 'main' },
-    { to: '/playlists', label: 'Playlists', icon: 'heroicons:queue-list', group: 'main' },
-    {
-        to: '/together',
-        label: 'Together',
-        icon: 'heroicons:users',
-        group: 'main',
-        permission: 'goon2gether:use',
-    },
-    { to: '/history', label: 'History', icon: 'heroicons:clock', group: 'main' },
-    { to: '/actors', label: 'Actors', icon: 'heroicons:user-group', group: 'main' },
-    { to: '/studios', label: 'Studios', icon: 'heroicons:building-office-2', group: 'main' },
-    { to: '/triage', label: 'Triage', icon: 'heroicons:bolt', group: 'manage' },
-    {
-        to: '/explorer',
-        label: 'Explorer',
-        icon: 'heroicons:folder',
-        group: 'manage',
-        permission: 'explorer:access',
-    },
-    {
-        to: '/duplicates',
-        label: 'Duplicates',
-        icon: 'heroicons:document-duplicate',
-        group: 'manage',
-        permission: 'duplicates:manage',
-    },
-];
-
-/** The items of a group the user may see, in order. */
-export function visibleNavItems(
-    items: readonly NavItem[],
-    group: NavGroup,
-    has: (permission: PermissionName) => boolean,
-): NavItem[] {
-    return items.filter((i) => i.group === group && (!i.permission || has(i.permission)));
-}
+// Helpers of the header links and dropdown folders (components/header/NavLink.vue, NavFolder.vue).
+// The items themselves are in utils/navRegistry.ts, their placement in utils/navLayout.ts.
+// Tests in web/tests/navItems.test.ts.
 
 /** Whether the current path is the item's page or one of its sub-pages. */
 export function isNavItemActive(path: string, to: string): boolean {
     return path === to || path.startsWith(`${to}/`);
 }
 
-/** Whether the current path belongs to one of the items (the Manage button looks active). */
-export function isAnyNavItemActive(path: string, items: readonly NavItem[]): boolean {
-    return items.some((i) => isNavItemActive(path, i.to));
+/** Whether the current path belongs to one of the items (the folder button looks active). */
+export function isAnyNavItemActive(path: string, items: readonly { to?: string }[]): boolean {
+    return items.some((i) => !!i.to && isNavItemActive(path, i.to));
 }
 
 /**
