@@ -2,14 +2,14 @@
 // Room bar: back, lobby name and visibility, connection state, invite link, settings (host),
 // leave, close (host and moderators).
 const room = useInjectedTogetherRoom();
-const { socket, isHost, canModerate } = room;
+const { socket, isHost, canModerate, isAnonymous } = room;
 const { leaveLobby, closeLobby } = useApiTogether();
 
 const emit = defineEmits<{
     settings: [];
 }>();
 
-const copied = ref(false);
+const { copied, manualText, copy, dismiss } = useClipboard();
 const confirmClose = ref(false);
 const confirmLeave = ref(false);
 const busy = ref(false);
@@ -27,16 +27,11 @@ const statusInfo = computed(() => {
     }
 });
 
-const copyInvite = async () => {
+// Plain http (LAN address) has no Clipboard API: copy falls back to execCommand, and when
+// that fails too the link is shown selected to be copied by hand
+const copyInvite = () => {
     const code = socket.lobby.value?.invite_code;
-    if (!code) return;
-    try {
-        await navigator.clipboard.writeText(inviteLink(location.origin, code));
-        copied.value = true;
-        setTimeout(() => (copied.value = false), 2000);
-    } catch {
-        socket.showError({ code: 'invalid', message: 'Could not copy the invite link' });
-    }
+    if (code) copy(inviteLink(location.origin, code));
 };
 
 const run = async (fn: () => Promise<unknown>) => {
@@ -104,20 +99,37 @@ const close = () => run(() => closeLobby(socket.lobby.value!.id));
                     <span class="h-1.5 w-1.5 rounded-full" :class="statusInfo.class" />
                     {{ statusInfo.label }}
                 </span>
+                <span
+                    v-if="isAnonymous"
+                    class="border-border text-dim hidden items-center gap-1 rounded border px-1.5
+                        py-px text-[10px] sm:flex"
+                    title="The other members see you under this name, without your profile"
+                >
+                    <Icon name="heroicons:eye-slash" size="10" />
+                    You are Anonymous #{{ socket.you.value?.anon_number }}
+                </span>
             </div>
 
             <div class="ml-auto flex items-center gap-1.5">
-                <button
-                    v-if="socket.lobby.value?.invite_code"
-                    class="border-border bg-panel hover:border-lava/30 hover:text-lava flex h-7
-                        items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-medium
-                        text-white transition-all"
-                    title="Copy the invite link"
-                    @click="copyInvite"
-                >
-                    <Icon :name="copied ? 'heroicons:check' : 'heroicons:link'" size="13" />
-                    <span class="hidden sm:inline">{{ copied ? 'Copied' : 'Invite' }}</span>
-                </button>
+                <div v-if="socket.lobby.value?.invite_code" class="relative">
+                    <button
+                        class="border-border bg-panel hover:border-lava/30 hover:text-lava flex h-7
+                            items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-medium
+                            text-white transition-all"
+                        title="Copy the invite link"
+                        @click="copyInvite"
+                    >
+                        <Icon :name="copied ? 'heroicons:check' : 'heroicons:link'" size="13" />
+                        <span class="hidden sm:inline">{{ copied ? 'Copied' : 'Invite' }}</span>
+                    </button>
+                    <UiCopyFallback
+                        v-if="manualText"
+                        :text="manualText"
+                        label="Invite link"
+                        @close="dismiss"
+                    />
+                </div>
+
                 <button
                     v-if="isHost"
                     class="border-border bg-panel text-dim hover:border-lava/30 hover:text-lava flex

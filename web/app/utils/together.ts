@@ -1,7 +1,14 @@
 // Pure Goon2gether logic (docs/GOON2GETHER.md "Sync algorithm"): clock offset, expected
 // position, drift correction, reconnect backoff, chat emote tokens. Tests in
 // web/tests/together*.test.ts.
-import type { PlaybackState, QueueItem } from '~/types/together';
+import type {
+    AutoNextMode,
+    ByeReason,
+    LobbyMember,
+    MemberTarget,
+    PlaybackState,
+    QueueItem,
+} from '~/types/together';
 
 // ---------------------------------------------------------------------------
 // Clock offset
@@ -250,6 +257,90 @@ export function completeEmote(
 /** A reaction value is a custom emote (`:name:`) rather than an emoji. */
 export function isCustomEmoteReaction(value: string): boolean {
     return /^:[A-Za-z0-9_]{2,32}:$/.test(value);
+}
+
+/** User-facing text of the server's bye. */
+export function byeReasonText(reason: ByeReason): string {
+    switch (reason) {
+        case 'kicked':
+            return closeReasonText(4001);
+        case 'closed':
+            return closeReasonText(4004);
+        case 'left':
+            return closeReasonText(4005);
+        case 'inactive':
+            return 'This lobby was closed for inactivity: nothing happened in it for a while.';
+        default:
+            return closeReasonText(4003);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Members (anonymous members have a null user_id for everyone but the moderators)
+// ---------------------------------------------------------------------------
+
+/** Stable key of a member in a list. */
+export function memberKey(m: Pick<LobbyMember, 'user_id' | 'anon_number'>): string {
+    return m.user_id != null ? `u${m.user_id}` : `a${m.anon_number ?? 0}`;
+}
+
+/** How a command names a member: anonymous members by their number. */
+export function memberTarget(
+    m: Pick<LobbyMember, 'user_id' | 'anonymous' | 'anon_number'>,
+): MemberTarget | null {
+    if (m.anonymous && m.anon_number != null) return { anon: m.anon_number };
+    return m.user_id != null ? { user_id: m.user_id } : null;
+}
+
+/**
+ * Whether a user reference (a member, a chat author, who added an item) is the signed-in
+ * user: by user id, or by anonymous number when the user is anonymous in the lobby.
+ */
+export function isSelf(
+    id: number | null | undefined,
+    anon: number | null | undefined,
+    you: { user_id: number; anon_number: number | null } | null | undefined,
+): boolean {
+    if (!you) return false;
+    if (id != null && id === you.user_id) return true;
+    return you.anon_number != null && anon != null && anon === you.anon_number;
+}
+
+// ---------------------------------------------------------------------------
+// Auto-next
+// ---------------------------------------------------------------------------
+
+export const AUTO_NEXT_MODES: { value: AutoNextMode; label: string; hint: string; icon: string }[] =
+    [
+        {
+            value: 'next',
+            label: 'Play next',
+            hint: 'The next queue item starts',
+            icon: 'heroicons:forward',
+        },
+        {
+            value: 'stop',
+            label: 'Stop',
+            hint: 'Pause at the end of each item',
+            icon: 'heroicons:stop',
+        },
+        {
+            value: 'repeat_one',
+            label: 'Repeat item',
+            hint: 'Loop the item playing (its range for a marker)',
+            icon: 'heroicons:arrow-path-rounded-square',
+        },
+        {
+            value: 'repeat_queue',
+            label: 'Repeat queue',
+            hint: 'Start over at the first item after the last one',
+            icon: 'heroicons:arrow-path',
+        },
+    ];
+
+/** The auto-next mode entry, `next` for an unknown value. */
+export function autoNextMode(value: string | null | undefined) {
+    return AUTO_NEXT_MODES.find((m) => m.value === value) ?? AUTO_NEXT_MODES[0]!;
 }
 
 // ---------------------------------------------------------------------------

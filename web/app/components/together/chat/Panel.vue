@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import type { ChatMessage } from '~/types/together';
+
 // Room chat: recent messages (sent by the server on connect), new ones, deletion for the
 // host, moderators and the author.
 const room = useInjectedTogetherRoom();
-const { socket, myId, isHost, canModerate } = room;
+const { socket, isMine, isHost, canModerate } = room;
 
 const list = ref<HTMLElement | null>(null);
 // Auto-scroll only while the user is at the bottom
@@ -24,8 +26,8 @@ watch(
     { immediate: true },
 );
 
-const canDelete = (userId: number | null) =>
-    isHost.value || canModerate.value || (userId !== null && userId === myId.value);
+const canDelete = (m: ChatMessage) =>
+    isHost.value || canModerate.value || isMine(m.user_id, m.anon_number);
 
 const send = (text: string) => socket.send({ t: 'chat', text });
 const remove = (id: number) => socket.send({ t: 'chat_delete', id });
@@ -49,8 +51,8 @@ const remove = (id: number) => socket.send({ t: 'chat_delete', id });
                 v-for="m in socket.chat.value"
                 :key="m.id"
                 :message="m"
-                :mine="m.user_id !== null && m.user_id === myId"
-                :can-delete="!m.system && canDelete(m.user_id)"
+                :mine="!m.system && isMine(m.user_id, m.anon_number)"
+                :can-delete="!m.system && canDelete(m)"
                 @delete="remove"
             />
         </div>

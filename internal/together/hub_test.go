@@ -130,7 +130,7 @@ func (e *env) lobby(in CreateInput, sceneIDs ...uint) uuid.UUID {
 
 func (e *env) connect(id uuid.UUID, user uint) *Client {
 	e.t.Helper()
-	c, err := e.hub.Connect(e.actor(user), id)
+	c, err := e.hub.Connect(e.actor(user), id, false)
 	if err != nil {
 		e.t.Fatalf("connect %s: %v", names[user], err)
 	}
@@ -566,7 +566,7 @@ func TestLeaveHandsOverOrCloses(t *testing.T) {
 	e := newEnv(t)
 	id := e.lobby(CreateInput{Visibility: data.LobbyVisibilityPublic}, 1)
 	other := e.connect(id, alice)
-	if _, err := e.hub.JoinLobby(e.actor(bob), id); err != nil {
+	if _, err := e.hub.JoinLobby(e.actor(bob), id, false); err != nil {
 		t.Fatal(err)
 	}
 	if err := e.hub.LeaveLobby(e.actor(alice), id); err != nil {
@@ -620,10 +620,10 @@ func TestKickBanAndModeration(t *testing.T) {
 	if code, _ := bobC.CloseStatus(); code != CloseForbidden {
 		t.Fatalf("ban close code %d", code)
 	}
-	if _, err := e.hub.Connect(e.actor(bob), id); !apperrors.IsForbidden(err) {
+	if _, err := e.hub.Connect(e.actor(bob), id, false); !apperrors.IsForbidden(err) {
 		t.Fatalf("a banned user reconnected: %v", err)
 	}
-	if _, err := e.hub.JoinLobby(e.actor(bob), id); !apperrors.IsForbidden(err) {
+	if _, err := e.hub.JoinLobby(e.actor(bob), id, false); !apperrors.IsForbidden(err) {
 		t.Fatalf("a banned user joined: %v", err)
 	}
 	list, err := e.hub.ListLobbies(e.actor(bob), false)
@@ -783,7 +783,7 @@ func TestVisibilityAndInviteCodes(t *testing.T) {
 	if _, err := e.hub.GetLobby(e.actor(bob), id); !apperrors.IsNotFound(err) {
 		t.Fatalf("a private lobby is visible to non-members: %v", err)
 	}
-	if _, err := e.hub.Connect(e.actor(bob), id); !apperrors.IsNotFound(err) {
+	if _, err := e.hub.Connect(e.actor(bob), id, false); !apperrors.IsNotFound(err) {
 		t.Fatalf("a non-member connected to a private lobby: %v", err)
 	}
 	if s, err := e.hub.GetLobby(e.actor(mod), id); err != nil || s.InviteCode == "" {
@@ -816,7 +816,7 @@ func TestVisibilityAndInviteCodes(t *testing.T) {
 	if err := e.hub.InviteUser(id, bob, carol, "carol"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.hub.Connect(e.actor(carol), id); err != nil {
+	if _, err := e.hub.Connect(e.actor(carol), id, false); err != nil {
 		t.Fatalf("an invited user cannot connect: %v", err)
 	}
 	active := e.hub.ActiveLobbiesForUser(carol)
@@ -884,11 +884,11 @@ func TestMemberLimits(t *testing.T) {
 	id := e.lobby(CreateInput{Visibility: data.LobbyVisibilityPublic, MaxMembers: 2}, 1)
 	e.connect(id, alice)
 	e.connect(id, bob)
-	if _, err := e.hub.Connect(e.actor(carol), id); err != ErrLobbyFull {
+	if _, err := e.hub.Connect(e.actor(carol), id, false); err != ErrLobbyFull {
 		t.Fatalf("a third member got in: %v", err)
 	}
 	e.connect(id, bob)
-	if _, err := e.hub.Connect(e.actor(bob), id); err != ErrLobbyFull {
+	if _, err := e.hub.Connect(e.actor(bob), id, false); err != ErrLobbyFull {
 		t.Fatalf("a third connection of a user got in: %v", err)
 	}
 }
@@ -977,7 +977,7 @@ func TestConcurrentClientsRace(t *testing.T) {
 		go func(u uint) {
 			defer wg.Done()
 			for round := 0; round < 5; round++ {
-				c, err := e.hub.Connect(e.actor(u), id)
+				c, err := e.hub.Connect(e.actor(u), id, false)
 				if err != nil {
 					t.Errorf("connect: %v", err)
 					return

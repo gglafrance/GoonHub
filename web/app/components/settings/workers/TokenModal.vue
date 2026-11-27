@@ -10,23 +10,18 @@ const emit = defineEmits<{
     close: [];
 }>();
 
-const copied = ref(false);
+const { copied, manualText, copy: copyToClipboard, dismiss } = useClipboard();
 
 watch(
     () => props.visible,
     () => {
         copied.value = false;
+        dismiss();
     },
 );
 
-async function copy() {
-    if (!props.created) return;
-    try {
-        await navigator.clipboard.writeText(props.created.token);
-        copied.value = true;
-    } catch {
-        copied.value = false;
-    }
+function copy() {
+    if (props.created) copyToClipboard(props.created.token);
 }
 </script>
 
@@ -50,6 +45,10 @@ async function copy() {
                 >
                     {{ created.token }}
                 </div>
+                <p v-if="manualText" class="mt-2 text-[11px] text-amber-400">
+                    The browser blocked copying here: select the token above and copy it by hand.
+                </p>
+
                 <div class="mt-4 flex justify-end gap-2">
                     <button
                         class="border-border rounded-lg border px-3 py-1.5 text-xs text-white

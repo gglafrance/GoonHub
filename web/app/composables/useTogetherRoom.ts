@@ -11,9 +11,14 @@ export const useTogetherRoom = (lobbyId: Ref<string>) => {
     const perms = useMyPermissions();
 
     const myId = computed(() => socket.you.value?.user_id ?? null);
+    // Is a member, chat author or adder the signed-in user? (by number when anonymous: the
+    // other payloads carry no user id for an anonymous member)
+    const isMine = (id: number | null | undefined, anon?: number | null) =>
+        isSelf(id, anon, socket.you.value);
     const me = computed<LobbyMember | null>(
-        () => socket.members.value.find((m) => m.user_id === myId.value) ?? null,
+        () => socket.members.value.find((m) => isMine(m.user_id, m.anon_number)) ?? null,
     );
+    const isAnonymous = computed(() => !!socket.you.value?.anonymous);
     const isHost = computed(
         () => myId.value !== null && socket.lobby.value?.host_id === myId.value,
     );
@@ -39,7 +44,10 @@ export const useTogetherRoom = (lobbyId: Ref<string>) => {
     return {
         socket,
         myId,
+        isMine,
+        isAnonymous,
         me,
+
         isHost,
         canControl,
         canQueue,

@@ -1742,7 +1742,7 @@ from the same group have no pair between them and can group again.
 
 ## Goon2gether
 
-Synchronized watch lobbies and custom emotes (migration 099, `docs/GOON2GETHER.md`). The live
+Synchronized watch lobbies and custom emotes (migrations 099 and 101, `docs/GOON2GETHER.md`). The live
 state (connections, buffering, holds, chat) is in memory; these tables keep what must survive a
 restart.
 
@@ -1764,12 +1764,17 @@ restart.
 | `current_item_id` | BIGINT | YES | NULL | FK to `lobby_queue_items.id` (SET NULL): item playing, last saved |
 | `position_s` | DOUBLE PRECISION | NO | 0 | Last saved position in the current item (seconds) |
 | `playback_rate` | DOUBLE PRECISION | NO | 1 | Last saved playback rate |
-| `last_active_at` | TIMESTAMPTZ | NO | NOW() | Last time someone was connected; lobbies idle for `goon2gether.idle_timeout` are deleted |
+| `auto_next` | VARCHAR(16) | NO | 'next' | What happens at the end of an item: `stop`, `next`, `repeat_one`, `repeat_queue` (migration 101) |
+| `anon_seq` | INTEGER | NO | 0 | Last anonymous number given in the lobby ("Anonymous #N", never reused; migration 101) |
+| `last_active_at` | TIMESTAMPTZ | NO | NOW() | Last time someone was connected; unloaded lobbies with nobody connected for `goon2gether.empty_close_after` (else `idle_timeout`) are deleted, also after a restart |
 | `created_at`, `updated_at` | TIMESTAMPTZ | NO | NOW() | |
 
 **Indexes:** `idx_lobbies_uuid` UNIQUE, `idx_lobbies_invite_code` UNIQUE, `idx_lobbies_public_active` on `last_active_at DESC` WHERE `visibility = 'public'`, `idx_lobbies_host_user_id`, `idx_lobbies_last_active_at`.
 
-**Constraints:** CHECK `chk_lobbies_visibility` (`public`, `private`), `chk_lobbies_max_members` (`>= 0`), `chk_lobbies_playback_rate` (`> 0`); `fk_lobbies_current_item` ON DELETE SET NULL.
+**Constraints:** CHECK `chk_lobbies_visibility` (`public`, `private`), `chk_lobbies_max_members` (`>= 0`), `chk_lobbies_playback_rate` (`> 0`), `chk_lobbies_auto_next`, `chk_lobbies_anon_seq` (`>= 0`); `fk_lobbies_current_item` ON DELETE SET NULL.
+
+A closed lobby (by its host, a moderator, or automatically for inactivity) is deleted with its
+members and queue (CASCADE): it is lobby state, never a media file.
 
 ### `lobby_members`
 
@@ -1778,10 +1783,12 @@ restart.
 | `lobby_id` | BIGINT | NO | - | FK to `lobbies.id` (CASCADE) |
 | `user_id` | BIGINT | NO | - | FK to `users.id` (CASCADE) |
 | `can_control` | BOOLEAN | NO | FALSE | Control given by the host |
+| `anonymous` | BOOLEAN | NO | FALSE | Joined anonymously (public lobbies): the other members see "Anonymous #`anon_number`" (migration 101) |
+| `anon_number` | INTEGER | YES | NULL | Number of an anonymous member, from `lobbies.anon_seq` (migration 101) |
 | `banned_at` | TIMESTAMPTZ | YES | NULL | Banned from the lobby (the row stays, the user cannot join again) |
 | `joined_at` | TIMESTAMPTZ | NO | NOW() | Join date (orders the host hand-over) |
 
-**Indexes:** PRIMARY KEY `(lobby_id, user_id)`, `idx_lobby_members_user_id`.
+**Indexes:** PRIMARY KEY `(lobby_id, user_id)`, `idx_lobby_members_user_id`, `idx_lobby_members_anon_number` UNIQUE on `(lobby_id, anon_number)` WHERE `anon_number IS NOT NULL`. **Constraints:** CHECK `chk_lobby_members_anon` (`anonymous` with a positive `anon_number`, else no number).
 
 ### `lobby_queue_items`
 
@@ -1795,9 +1802,11 @@ restart.
 | `start_s`, `end_s` | DOUBLE PRECISION | YES | NULL | Optional range (a marker) in seconds |
 | `label` | VARCHAR(100) | YES | NULL | Optional label (e.g. the marker label) |
 | `added_by` | BIGINT | YES | NULL | FK to `users.id` (SET NULL) |
+| `added_by_anon` | INTEGER | YES | NULL | Anonymous number of the member who added it (NULL: added under their name), so the adder stays hidden after leaving (migration 101) |
 | `created_at` | TIMESTAMPTZ | NO | NOW() | |
 
-An item that finished playing is deleted. **Indexes:** `idx_lobby_queue_items_lobby_status_position` on `(lobby_id, status, position)`, `idx_lobby_queue_items_scene_id`. **Constraints:** CHECK `chk_lobby_queue_items_status`, `chk_lobby_queue_items_start` (`start_s >= 0`), `chk_lobby_queue_items_range` (`end_s > COALESCE(start_s, 0)`).
+An item that finished playing is deleted (auto-next `next`; with `repeat_queue` it goes back to the end of the queue). **Indexes:** `idx_lobby_queue_items_lobby_status_position` on `(lobby_id, status, position)`, `idx_lobby_queue_items_scene_id`. **Constraints:** CHECK `chk_lobby_queue_items_status`, `chk_lobby_queue_items_start` (`start_s >= 0`), `chk_lobby_queue_items_range` (`end_s > COALESCE(start_s, 0)`), `chk_lobby_queue_items_added_by_anon` (`> 0`).
+
 
 ### `emotes`
 
