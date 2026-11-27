@@ -4,6 +4,7 @@ import {
     compactOrderOf,
     compactSlotOf,
     isCompactPlayer,
+    playerControlsMode,
 } from '../app/utils/playerCompactLayout';
 
 const cls = (s: string) => s.split(' ');
@@ -47,5 +48,14 @@ describe('player compact layout', () => {
         expect(isCompactPlayer(360)).toBe(true);
         expect(isCompactPlayer(COMPACT_PLAYER_WIDTH - 1)).toBe(true);
         expect(isCompactPlayer(COMPACT_PLAYER_WIDTH)).toBe(false);
+    });
+
+    test('spread layout on phones and touch screens only', () => {
+        // a portrait video on desktop: narrow player, the bar stays
+        expect(playerControlsMode(480, false)).toBe('narrow');
+        expect(playerControlsMode(480, true)).toBe('compact');
+        expect(playerControlsMode(900, true)).toBe('full');
+        expect(playerControlsMode(900, false)).toBe('full');
+        expect(playerControlsMode(0, true)).toBe('full');
     });
 });

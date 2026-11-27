@@ -1,10 +1,20 @@
-// Compact layout of the scene player controls (composables/usePlayerCompactLayout.ts): on a
-// narrow player the single control bar does not fit (with the A/B loop it is about twice the
-// width of a phone), so the controls are spread over the player. Tests in
+// Layout of the scene player controls (composables/usePlayerCompactLayout.ts). On a narrow
+// player the single control bar does not fit (with the A/B loop it is about twice the width of
+// a phone): on phones and touch screens the controls are spread over the player (compact); on
+// desktop the bar stays one bar, tightened (narrow), e.g. for a portrait video. Tests in
 // web/tests/playerCompactLayout.test.ts.
 
-/** Below this player width (px) the controls use the compact layout. */
+/** Below this player width (px) the controls no longer fit the full bar. */
 export const COMPACT_PLAYER_WIDTH = 640;
+
+/**
+ * Devices that get the spread layout: touch screens, and small viewports (below md, the
+ * mobile navigation). A desktop with a narrow player (portrait video) keeps the bar.
+ */
+export const COMPACT_DEVICE_QUERY = '(pointer: coarse), (max-width: 767.98px)';
+
+/** full: the single bar; narrow: the single bar, tightened; compact: spread over the player. */
+export type PlayerControlsMode = 'full' | 'narrow' | 'compact';
 
 export type CompactSlot = 'top' | 'center' | 'bottom';
 
@@ -46,7 +56,13 @@ export function compactOrderOf(classList: Iterable<string>): number {
     return Number.MAX_SAFE_INTEGER;
 }
 
-/** Whether a player of this width uses the compact layout. */
+/** Whether a player of this width is too narrow for the full bar. */
 export function isCompactPlayer(width: number): boolean {
     return width > 0 && width < COMPACT_PLAYER_WIDTH;
+}
+
+/** Layout of the controls for a player width, on a compact device (touch or small) or not. */
+export function playerControlsMode(width: number, compactDevice: boolean): PlayerControlsMode {
+    if (!isCompactPlayer(width)) return 'full';
+    return compactDevice ? 'compact' : 'narrow';
 }
