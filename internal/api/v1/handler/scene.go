@@ -486,7 +486,13 @@ func (h *SceneHandler) StreamScene(c *gin.Context) {
 	buf := h.StreamManager.BufferPool().Get()
 	defer h.StreamManager.BufferPool().Put(buf)
 
-	streaming.ServeVideo(c.Writer, c.Request, filepath.Base(filePath), fileInfo.ModTime(), file, buf)
+	// Playback gets bounded range responses (connections shared between the playing videos);
+	// a download gets the whole range it asks for
+	maxRange := h.StreamManager.MaxRangeSize()
+	if c.Query("download") == "1" {
+		maxRange = 0
+	}
+	streaming.ServeVideo(c.Writer, c.Request, filepath.Base(filePath), fileInfo.ModTime(), file, buf, maxRange)
 }
 
 func (h *SceneHandler) ExtractThumbnail(c *gin.Context) {

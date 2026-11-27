@@ -154,6 +154,8 @@ streaming:
   buffer_size: 262144         # 256KB buffer for streaming
   path_cache_ttl: 5m          # cache scene paths for 5 minutes
   path_cache_max_size: 10000  # max cached entries
+  max_range_size: 8388608    # bytes per range response of a direct stream (0 = whole range):
+                              # playing videos then share the browser's 6 HTTP/1.1 connections
   # On-the-fly conversion of the files browsers can't play (AVI, MPEG-2, MKV, HEVC, WMV...)
   # into H.264 + AAC fragmented MP4 (CPU ffmpeg). H.264/AAC in another container is only
   # remuxed. Admins can turn it off in Settings > App > Advanced.
