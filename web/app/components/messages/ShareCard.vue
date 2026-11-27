@@ -11,6 +11,9 @@ const info = computed(() => shareCardInfo(props.attachment));
 const link = computed(() => shareCardLink(props.attachment));
 const lobby = computed(() => props.attachment.lobby);
 const thumbFailed = ref(false);
+// Resolved in setup: resolveComponent does not work from a template expression (the card was
+// never rendered as a link, so it could not be opened)
+const NuxtLinkComponent = resolveComponent('NuxtLink');
 </script>
 
 <template>
@@ -23,7 +26,7 @@ const thumbFailed = ref(false);
         {{ unavailableShareText(attachment) }}
     </div>
     <component
-        :is="link ? resolveComponent('NuxtLink') : 'div'"
+        :is="link ? NuxtLinkComponent : 'div'"
         v-else
         :to="link ?? undefined"
         class="group/card border-border bg-void/60 hover:border-lava/30 flex w-72 max-w-full
