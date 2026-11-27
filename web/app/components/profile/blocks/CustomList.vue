@@ -2,8 +2,8 @@
 import type { ProfileBlock, ProfileCustomListPayload } from '~/types/profile';
 
 // custom_list: the first videos of one of the owner's custom lists, as a grid or a compact row
-// (profile block), with the owner's figures the list shows under each card (O count, rating,
-// like date, views: those the viewer may see, decided by the server). The frame shows the list
+// (profile block), as compact cards (ProfileListCard) with the owner's figures the list shows as
+// badges (O count, rating, like date, views: those the viewer may see, decided by the server). The frame shows the list
 // title and the "Browse" link.
 const props = defineProps<{ block: ProfileBlock<ProfileCustomListPayload>; owner: boolean }>();
 
@@ -18,8 +18,7 @@ const figures = computed(() => props.block.widget?.figures ?? []);
             :key="item.scene.id"
             class="w-44 shrink-0 snap-start sm:w-52"
         >
-            <SceneCard :scene="item.scene" fluid />
-            <ProfileListFigures :kinds="figures" :figures="item.figures" />
+            <ProfileListCard :item="item" :figures="figures" />
         </div>
     </div>
     <ProfileScenesGrid
