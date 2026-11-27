@@ -126,7 +126,7 @@ const posterUrl = computed(() => {
 // Ambient glow effect
 const playerVttCues = ref<VttCue[]>([]);
 const isScenePlaying = ref(false);
-const { glowStyle } = useAmbientGlow(playerRef, playerVttCues, posterUrl, isScenePlaying);
+const { glowLayers } = useAmbientGlow(playerRef, playerVttCues, posterUrl, isScenePlaying);
 
 // Sync vttCues when they become available (loaded asynchronously by ScenePlayer)
 watch(
@@ -497,11 +497,18 @@ definePageMeta({
                         <div
                             class="player-glow-container relative"
                             :class="{ 'mx-auto max-w-xl': isPortrait }"
-                            :style="glowStyle"
                         >
-                            <!-- Glow layers -->
-                            <div class="player-glow player-glow--primary" aria-hidden="true" />
-                            <div class="player-glow player-glow--secondary" aria-hidden="true" />
+                            <!-- Glow layers, crossfaded when the colours change -->
+                            <div
+                                v-for="(layerStyle, i) in glowLayers"
+                                :key="i"
+                                class="player-glow-layer"
+                                :style="layerStyle"
+                                aria-hidden="true"
+                            >
+                                <div class="player-glow player-glow--primary" />
+                                <div class="player-glow player-glow--secondary" />
+                            </div>
 
                             <div
                                 class="border-border bg-void relative z-10 overflow-hidden
@@ -652,10 +659,18 @@ definePageMeta({
 </template>
 
 <style scoped>
-.player-glow-container {
+/* Each layer is its own compositor layer: the crossfade only changes its opacity, the blurred
+   gradients are painted once per colour change */
+.player-glow-layer {
     --glow-color-primary: rgb(255, 77, 77);
     --glow-color-secondary: rgb(255, 45, 45);
     --glow-opacity: 1;
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    transition: opacity 1.2s ease-in-out;
+    will-change: opacity;
 }
 
 .player-glow {
@@ -663,11 +678,7 @@ definePageMeta({
     inset: -60px;
     border-radius: 32px;
     pointer-events: none;
-    z-index: 0;
     filter: blur(40px);
-    transition:
-        background 0.3s ease-out,
-        opacity 0.3s ease-out;
 }
 
 .player-glow--primary {
