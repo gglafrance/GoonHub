@@ -133,6 +133,9 @@ type UserSettings struct {
 	// ScrubberMode: how the scrubber strip behaves, free (scrolled on its own, click to seek) or
 	// centered (like Stash: the centre line is the playback position, moving the strip seeks)
 	ScrubberMode string `gorm:"size:10;not null;default:'free'" json:"scrubber_mode"`
+	// ScrubberWheel: the mouse wheel over a thumbnail scrubber scrolls it (free mode) or seeks
+	// (centered mode); off by default so the wheel scrolls the page
+	ScrubberWheel bool `gorm:"not null;default:false" json:"scrubber_wheel"`
 	// ContentWidth: maximum width of the scene list pages, default (today's width), wide or full
 	// (edge to edge); the grids get more columns when it is wider
 	ContentWidth    string `gorm:"size:10;not null;default:'default'" json:"content_width"`

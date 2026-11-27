@@ -73,6 +73,7 @@ func existingSettings() *data.UserSettings {
 		SceneListView:            data.DefaultSceneListView(),
 		ShowScrubber:             true,
 		ScrubberMode:             "free",
+		ScrubberWheel:            true,
 		ContentWidth:             "wide",
 	}
 }
@@ -161,6 +162,7 @@ func TestPatchSettings_EveryField(t *testing.T) {
 			}},
 		{`{"show_scrubber": false}`, func(s *data.UserSettings) bool { return !s.ShowScrubber }},
 		{`{"scrubber_mode": "centered"}`, func(s *data.UserSettings) bool { return s.ScrubberMode == "centered" && s.ShowScrubber }},
+		{`{"scrubber_wheel": false}`, func(s *data.UserSettings) bool { return !s.ScrubberWheel && s.ShowScrubber }},
 		{`{"content_width": "full"}`, func(s *data.UserSettings) bool { return s.ContentWidth == "full" && s.GridDensity == "large" }},
 	}
 	for _, tt := range tests {
@@ -291,7 +293,7 @@ func TestUpdateAllSettings_PutUnchanged(t *testing.T) {
 			t.Fatalf("full body not applied: %+v", saved)
 		}
 		// Optional fields of PUT left out keep their value
-		if !saved.ShowScrubber || !saved.InfiniteScroll || saved.GestureSeekStep != 15 || !saved.PlayerGestures || saved.ScrubberMode != "free" || saved.ContentWidth != "wide" {
+		if !saved.ShowScrubber || !saved.InfiniteScroll || saved.GestureSeekStep != 15 || !saved.PlayerGestures || saved.ScrubberMode != "free" || !saved.ScrubberWheel || saved.ContentWidth != "wide" {
 			t.Fatalf("optional fields reset: %+v", saved)
 		}
 	})
@@ -378,6 +380,34 @@ func TestUpdateAllSettings_ContentWidth(t *testing.T) {
 			t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 		}
 	})
+}
+
+// scrubber_wheel through PUT: set when sent (on and off), kept when left out (fullPutBody).
+func TestUpdateAllSettings_ScrubberWheel(t *testing.T) {
+	for _, tt := range []struct {
+		value string
+		want  bool
+	}{{"false", false}, {"true", true}} {
+		t.Run(tt.value, func(t *testing.T) {
+			r, settingsRepo := newSettingsTestRouter(t)
+			stored := existingSettings()
+			stored.ScrubberWheel = !tt.want
+			settingsRepo.EXPECT().GetByUserID(uint(1)).Return(stored, nil)
+			var saved *data.UserSettings
+			settingsRepo.EXPECT().Upsert(gomock.Any()).DoAndReturn(func(s *data.UserSettings) error {
+				saved = s
+				return nil
+			})
+			body := strings.Replace(fullPutBody, `"grid_density": "comfortable"`, `"grid_density": "comfortable", "scrubber_wheel": `+tt.value, 1)
+			w := doSettingsRequest(r, http.MethodPut, body)
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+			}
+			if saved.ScrubberWheel != tt.want || !strings.Contains(w.Body.String(), `"scrubber_wheel":`+tt.value) {
+				t.Fatalf("wheel not applied: %+v / %s", saved, w.Body.String())
+			}
+		})
+	}
 }
 
 // columns of the card badge zones through PUT and PATCH: stored and returned when sent, absent

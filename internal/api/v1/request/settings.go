@@ -140,6 +140,8 @@ type UpdateAllSettingsRequest struct {
 	ShowScrubber *bool `json:"show_scrubber"`
 	// ScrubberMode: free or centered, nil keeps the current value
 	ScrubberMode *string `json:"scrubber_mode"`
+	// ScrubberWheel: the mouse wheel scrubs the thumbnail strip, nil keeps the current value
+	ScrubberWheel *bool `json:"scrubber_wheel"`
 	// ContentWidth: default, wide or full, nil keeps the current value
 	ContentWidth *string `json:"content_width"`
 }

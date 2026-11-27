@@ -76,6 +76,8 @@ export interface UserSettings {
     infinite_scroll: boolean;
     show_scrubber: boolean;
     scrubber_mode: ScrubberMode;
+    // the mouse wheel over the scrubber scrolls it (free) or seeks (centered); off: the page scrolls
+    scrubber_wheel: boolean;
     content_width: ContentWidth;
     max_items_per_page: number;
     created_at: string;

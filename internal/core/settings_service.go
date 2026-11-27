@@ -434,6 +434,17 @@ func WithScrubber(show *bool) SettingsOption {
 	}
 }
 
+// WithScrubberWheel sets whether the mouse wheel over a thumbnail scrubber scrolls it or seeks;
+// nil keeps the current value (off for a new row, so the wheel scrolls the page).
+func WithScrubberWheel(enabled *bool) SettingsOption {
+	return func(settings *data.UserSettings) error {
+		if enabled != nil {
+			settings.ScrubberWheel = *enabled
+		}
+		return nil
+	}
+}
+
 // Modes of the thumbnail scrubber strip: free scrolls on its own (click to seek, follows
 // playback), centered keeps the playback position under the centre line and seeks when the
 // strip is moved (like Stash).

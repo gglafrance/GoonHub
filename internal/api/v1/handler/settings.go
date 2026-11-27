@@ -222,6 +222,7 @@ func (h *SettingsHandler) UpdateAllSettings(c *gin.Context) {
 		core.WithReplayHeatmap(req.ShowReplayHeatmap, req.RecordReplayHeatmap),
 		core.WithScrubber(req.ShowScrubber),
 		core.WithScrubberMode(req.ScrubberMode),
+		core.WithScrubberWheel(req.ScrubberWheel),
 		core.WithContentWidth(req.ContentWidth),
 	)
 	if err != nil {
@@ -341,6 +342,9 @@ func (h *SettingsHandler) patchOptions(req *request.PatchSettingsRequest) []core
 	}
 	if req.ScrubberMode != nil {
 		opts = append(opts, core.WithScrubberMode(req.ScrubberMode))
+	}
+	if req.ScrubberWheel != nil {
+		opts = append(opts, core.WithScrubberWheel(req.ScrubberWheel))
 	}
 	if req.ContentWidth != nil {
 		opts = append(opts, core.WithContentWidth(req.ContentWidth))

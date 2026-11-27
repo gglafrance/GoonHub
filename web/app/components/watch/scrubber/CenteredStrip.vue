@@ -7,7 +7,7 @@ type Player = ReturnType<typeof videojs>;
 
 // Centered mode of the scrubber strip (like Stash): a fixed line in the middle is the playback
 // position, the strip moves under it while the video plays. Dragging the strip (mouse, touch) or
-// scrolling it (wheel, trackpad) seeks the video to the time under the line, so the strip works
+// scrolling it (wheel, trackpad, when the scrubber wheel setting is on) seeks the video to the time under the line, so the strip works
 // as a fine-grained progress bar; a click on a thumbnail brings it to the centre.
 const props = defineProps<{
     player: Player | null;
@@ -206,10 +206,12 @@ const consumeDrag = () => {
     return was;
 };
 
-// Wheel and trackpad: the dominant axis moves the strip (playback goes on)
+// Wheel and trackpad, when the scrubber wheel setting is on: the dominant axis moves the strip
+// (playback goes on); off, the wheel is left to the page
+const settingsStore = useSettingsStore();
 const onWheel = (e: WheelEvent) => {
-    if (e.ctrlKey || dragging.value || !props.player) return; // ctrl: pinch zoom
-    const delta = wheelScrollDelta(e.deltaX, e.deltaY, e.deltaMode, viewWidth.value);
+    if (dragging.value || !props.player) return;
+    const delta = scrubberWheelDelta(e, settingsStore.scrubberWheel, viewWidth.value);
     if (delta === 0) return;
     // At an end, let the page scroll instead of trapping the wheel
     if ((offset <= 0 && delta < 0) || (offset >= contentWidth.value && delta > 0)) return;

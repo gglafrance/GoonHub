@@ -50,6 +50,7 @@ type PatchSettingsRequest struct {
 	SceneListView            *SceneListViewRequest         `json:"scene_list_view"`
 	ShowScrubber             *bool                         `json:"show_scrubber"`
 	ScrubberMode             *string                       `json:"scrubber_mode"`
+	ScrubberWheel            *bool                         `json:"scrubber_wheel"`
 	ContentWidth             *string                       `json:"content_width"`
 }
 

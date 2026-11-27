@@ -165,6 +165,18 @@ export function wheelScrollDelta(
     return delta;
 }
 
+// Horizontal scroll a wheel event over a scrubber strip asks for, in pixels, or 0 when the wheel
+// is left to the page: the scrubber wheel setting is off (the default, so scrolling the page over
+// the strip does not scrub or seek) or ctrl is held (pinch zoom).
+export function scrubberWheelDelta(
+    e: Pick<WheelEvent, 'ctrlKey' | 'deltaX' | 'deltaY' | 'deltaMode'>,
+    enabled: boolean,
+    pageWidth: number,
+): number {
+    if (!enabled || e.ctrlKey) return 0;
+    return wheelScrollDelta(e.deltaX, e.deltaY, e.deltaMode, pageWidth);
+}
+
 export interface DragSample {
     x: number;
     t: number;
