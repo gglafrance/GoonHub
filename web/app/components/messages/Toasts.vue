@@ -6,7 +6,10 @@ const messagesStore = useMessagesStore();
 
 <template>
     <Teleport to="body">
-        <div class="pointer-events-none fixed right-4 bottom-4 z-[60] flex w-72 flex-col gap-2">
+        <div
+            class="pointer-events-none fixed right-4 bottom-[calc(1rem+var(--app-bottom-clear))]
+                z-[60] flex w-72 flex-col gap-2"
+        >
             <TransitionGroup
                 enter-from-class="translate-y-2 opacity-0"
                 leave-to-class="opacity-0"

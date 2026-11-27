@@ -42,7 +42,10 @@ definePageMeta({
 </script>
 
 <template>
-    <div class="min-h-[calc(100svh-5.25rem)] px-4 py-4 sm:min-h-[calc(100vh-5.25rem)] sm:py-6">
+    <div
+        class="min-h-[calc(100svh-var(--app-header-h)-var(--app-bottom-nav-h))] px-4 py-4 sm:py-6
+            md:min-h-[calc(100vh-5.25rem)]"
+    >
         <div class="mx-auto max-w-415">
             <!-- Upload Section -->
             <SceneUpload

@@ -93,7 +93,7 @@ onUnmounted(() => {
         <div
             v-if="!countdownVisible && !expanded"
             class="glass-panel border-border fixed inset-x-0 bottom-0 z-40 mx-3 border xl:hidden"
-            :style="{ marginBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }"
+            :style="{ marginBottom: 'calc(0.75rem + var(--app-bottom-clear))' }"
         >
             <div class="flex items-center gap-3 px-3 py-2.5" @click="openDrawer">
                 <!-- Current scene thumbnail -->

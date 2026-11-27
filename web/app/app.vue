@@ -32,7 +32,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="cosmic-bg min-h-screen overflow-x-hidden">
+    <!-- overflow-x clip on phones (hidden would make this div the scroll container of the sticky
+         header and bars, which then never stick); the safe-area insets matter in landscape -->
+    <div
+        class="cosmic-bg min-h-screen overflow-x-clip pr-[env(safe-area-inset-right)]
+            pl-[env(safe-area-inset-left)] md:overflow-x-hidden"
+    >
         <AppHeader />
         <NuxtPage />
         <UploadIndicator v-if="perms.has('scenes:upload')" />

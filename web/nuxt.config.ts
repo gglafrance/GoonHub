@@ -8,6 +8,9 @@ export default defineNuxtConfig({
     app: {
         head: {
             title: 'GoonHub',
+            // viewport-fit=cover: the notch and home indicator insets are exposed through
+            // env(safe-area-inset-*) (header, mobile tab bar)
+            viewport: 'width=device-width, initial-scale=1, viewport-fit=cover',
             titleTemplate: '%s - GoonHub',
             htmlAttrs: {
                 style: 'background-color:#050505',

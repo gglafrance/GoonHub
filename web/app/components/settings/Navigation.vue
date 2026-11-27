@@ -143,6 +143,8 @@ onMounted(load);
 
             <SettingsNavigationToolbar />
 
+            <SettingsNavigationMobileSummary :layout="draft" />
+
             <SettingsNavigationSaveBar
                 v-if="dirty"
                 :saving="saving"

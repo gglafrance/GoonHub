@@ -115,8 +115,8 @@ const handlePornDBMatchComplete = () => {
 <template>
     <Teleport to="body">
         <div
-            class="from-void to-void/95 fixed right-0 bottom-0 left-0 z-40 border-t border-white/10
-                bg-gradient-to-t px-4 py-3 backdrop-blur-lg"
+            class="from-void to-void/95 fixed right-0 bottom-[var(--app-bottom-nav-h)] left-0 z-40
+                border-t border-white/10 bg-gradient-to-t px-4 py-3 backdrop-blur-lg"
         >
             <div class="flex items-center justify-between" :class="containerClass">
                 <!-- Selection Info -->

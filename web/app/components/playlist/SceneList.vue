@@ -339,7 +339,7 @@ const moveScene = (index: number, direction: 'up' | 'down') => {
                 <div
                     v-if="selectMode && selectedIds.size > 0"
                     class="glass-panel border-border fixed inset-x-0 bottom-0 z-40 mx-3 border"
-                    :style="{ marginBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }"
+                    :style="{ marginBottom: 'calc(0.75rem + var(--app-bottom-clear))' }"
                 >
                     <div class="flex items-center justify-between px-4 py-3">
                         <span class="text-sm font-medium text-white">
