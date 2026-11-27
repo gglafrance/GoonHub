@@ -16,6 +16,7 @@ type Manager struct {
 	limiter    *StreamLimiter
 	bufferPool *BufferPool
 	pathCache  *PathCache
+	maxRange   int64
 	sceneRepo  data.SceneRepository
 	logger     *zap.Logger
 }
@@ -26,6 +27,7 @@ func NewManager(cfg *config.StreamingConfig, sceneRepo data.SceneRepository, log
 		limiter:    NewStreamLimiter(cfg.MaxGlobalStreams, cfg.MaxStreamsPerIP),
 		bufferPool: NewBufferPool(cfg.BufferSize),
 		pathCache:  NewPathCache(cfg.PathCacheTTL, cfg.PathCacheMaxSize),
+		maxRange:   max(cfg.MaxRangeSize, 0),
 		sceneRepo:  sceneRepo,
 		logger:     logger,
 	}
@@ -39,6 +41,11 @@ func (m *Manager) Limiter() *StreamLimiter {
 // BufferPool returns the buffer pool for efficient streaming.
 func (m *Manager) BufferPool() *BufferPool {
 	return m.bufferPool
+}
+
+// MaxRangeSize returns the cap of one range response of a direct stream (0 = no cap).
+func (m *Manager) MaxRangeSize() int64 {
+	return m.maxRange
 }
 
 // PathCache returns the path cache for scene file paths.
@@ -120,5 +127,6 @@ func DefaultConfig() *config.StreamingConfig {
 		BufferSize:       262144, // 256KB
 		PathCacheTTL:     5 * time.Minute,
 		PathCacheMaxSize: 10000,
+		MaxRangeSize:     8 << 20,
 	}
 }

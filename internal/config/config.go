@@ -212,6 +212,10 @@ type StreamingConfig struct {
 	BufferSize       int           `mapstructure:"buffer_size"`
 	PathCacheTTL     time.Duration `mapstructure:"path_cache_ttl"`
 	PathCacheMaxSize int           `mapstructure:"path_cache_max_size"`
+	// MaxRangeSize caps the bytes of one range response of a direct stream (0 = no cap): the
+	// player asks for the next part when it needs it, so a playing video does not hold a
+	// browser connection the whole time (6 per server over HTTP/1.1).
+	MaxRangeSize int64 `mapstructure:"max_range_size"`
 	// On-the-fly conversion of files browsers can't play (see streaming.Transcoder).
 	Transcode TranscodeConfig `mapstructure:"transcode"`
 }
@@ -574,6 +578,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("streaming.buffer_size", 262144) // 256KB (8x default 32KB)
 	v.SetDefault("streaming.path_cache_ttl", 5*time.Minute)
 	v.SetDefault("streaming.path_cache_max_size", 10000)
+	v.SetDefault("streaming.max_range_size", 8<<20) // 8 MiB per range response
 	v.SetDefault("streaming.transcode.max_concurrent", 4)
 	v.SetDefault("streaming.transcode.preset", "veryfast")
 	v.SetDefault("streaming.transcode.crf", 23)

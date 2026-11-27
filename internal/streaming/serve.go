@@ -13,7 +13,14 @@ import (
 // provided buffer for io.CopyBuffer. It handles single byte-range requests directly
 // (the 99%+ case for video streaming) and falls back to http.ServeContent for
 // multipart ranges or other edge cases.
-func ServeVideo(w http.ResponseWriter, r *http.Request, name string, modtime time.Time, content io.ReadSeeker, buf []byte) {
+//
+// maxRange caps the bytes sent for a single range (0 = no cap). Browsers ask a video for
+// "bytes=N-" (to the end of the file) and keep that connection open as long as it plays; over
+// HTTP/1.1 they allow 6 connections per server, so five playing videos left nothing for the
+// rest of the app (pages, API, other videos, seeks). With a cap the answer is a shorter 206
+// (valid for a range request: Content-Range tells what was sent) and the player asks for the
+// next part when it needs it, releasing the connection in between.
+func ServeVideo(w http.ResponseWriter, r *http.Request, name string, modtime time.Time, content io.ReadSeeker, buf []byte, maxRange int64) {
 	// Determine content size
 	size, err := content.Seek(0, io.SeekEnd)
 	if err != nil {
@@ -61,6 +68,10 @@ func ServeVideo(w http.ResponseWriter, r *http.Request, name string, modtime tim
 		}
 		http.ServeContent(w, r, name, modtime, content)
 		return
+	}
+
+	if maxRange > 0 && length > maxRange {
+		length = maxRange
 	}
 
 	if _, err := content.Seek(start, io.SeekStart); err != nil {
