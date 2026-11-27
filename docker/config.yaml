@@ -125,11 +125,12 @@ profiles:                       # docs/PROFILES.md
 
 presence:                       # docs/PRESENCE.md
   disconnect_grace: 30s         # still online this long after the last live connection closed
-  idle_after: 5m                # no input nor playback for this long = idle
+  idle_after: 5m                # no real input nor playing video for this long = away
   heartbeat_interval: 60s       # the client reports input at most this often
   activity_interval: 15s        # the client reports the playback position this often
   activity_ttl: 60s             # an activity not reported for this long ends
   paused_after: 20s             # a playback paused this long shows as paused
+  stalled_after: 30s            # a playback not progressing (buffering) this long no longer counts as playing
   seek_threshold: 15s           # a jump this big in the position is pushed
   flush_interval: 2s            # presence changes are coalesced and pushed at this interval
   last_seen_interval: 5m        # last seen of online users saved this often

@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// tick runs the time based transitions (grace period over, idle, paused, activities expired),
+// tick runs the time based transitions (grace period over, away, paused, activities expired),
 // saves the last seen times and pushes the presences that changed. Called by the loop every
 // flush_interval (and directly by the tests, with a fake clock).
 func (s *PresenceService) tick(ctx context.Context) {
@@ -196,6 +196,8 @@ func (s *PresenceService) Snapshot(ctx context.Context, viewerID uint) (*Presenc
 		Invisible:         invisible,
 		HeartbeatInterval: s.cfg.HeartbeatInterval,
 		ActivityInterval:  s.cfg.ActivityInterval,
+		IdleAfter:         s.cfg.IdleAfter,
+		StalledAfter:      s.cfg.StalledAfter,
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

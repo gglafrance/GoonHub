@@ -7,15 +7,19 @@ type Player = ReturnType<typeof videojs>;
 interface PresenceActivityOptions {
     player: ShallowRef<Player | null>;
     scene: Ref<Scene | undefined>;
-    /** Reports only when true (the watch page; not a share link). */
+    /** Reports the "now watching" activity only when true (the watch page; not a share link). */
     enabled: () => boolean;
 }
 
 /**
- * Reports what this tab is watching to the presence (docs/PRESENCE.md): once playback started,
- * the scene, position and pause state on play, pause, seek and scene change, and every
- * activity interval meanwhile (also while paused, to keep the activity alive). Cleared when the
- * player is destroyed or the page unloads.
+ * Presence of a player (docs/PRESENCE.md):
+ * - every player tells the presence store whether it really plays (not paused, not ended, not
+ *   stalled for `stalled_after`): a playing video keeps the user online without input, in any
+ *   tab (watch page, Goon2gether lobby...);
+ * - when enabled, it also reports what this tab is watching: once playback started, the scene,
+ *   position and pause state on play, pause, seek, end and scene change, and every activity
+ *   interval meanwhile (also while paused, to keep the activity alive). Cleared when the player
+ *   is destroyed or the page unloads.
  */
 export const usePresenceActivity = (options: PresenceActivityOptions) => {
     const { player, scene, enabled } = options;
@@ -27,6 +31,10 @@ export const usePresenceActivity = (options: PresenceActivityOptions) => {
     let reportedSceneId: number | null = null;
     let lastReport = 0;
     let timer: ReturnType<typeof setInterval> | null = null;
+    // the last time the position moved (a buffering player is not paused but does not play)
+    let lastProgressAt = 0;
+    let lastPosition = -1;
+    let unregisterPlayback: (() => void) | null = null;
 
     const report = (force: boolean) => {
         if (!enabled() || !authStore.isAuthenticated) return;
@@ -42,7 +50,8 @@ export const usePresenceActivity = (options: PresenceActivityOptions) => {
             type: 'watching_scene',
             scene_id: s.id,
             position: Math.max(0, Math.round((p.currentTime() ?? 0) * 10) / 10),
-            paused: p.paused(),
+            // an ended video does not play
+            paused: p.paused() || p.ended(),
         }).catch(() => {
             // presence is not critical
         });
@@ -54,11 +63,34 @@ export const usePresenceActivity = (options: PresenceActivityOptions) => {
         api.clearActivity(presenceStore.tabId).catch(() => {});
     };
 
-    const onPlay = () => report(true);
+    const isPlaying = () => {
+        const p = player.value;
+        if (!p) return false;
+        return isPlaybackActive({
+            paused: p.paused(),
+            ended: p.ended(),
+            lastProgressAt,
+            now: Date.now(),
+            stalledAfterMs: presenceStore.stalledAfterMs,
+        });
+    };
+
+    const onPlay = () => {
+        lastProgressAt = Date.now();
+        report(true);
+    };
+    const onPlaying = () => {
+        lastProgressAt = Date.now();
+    };
     const onChange = () => {
         if (reportedSceneId !== null) report(true);
     };
     const onTimeUpdate = () => {
+        const position = player.value?.currentTime() ?? 0;
+        if (position !== lastPosition) {
+            lastPosition = position;
+            lastProgressAt = Date.now();
+        }
         if (reportedSceneId !== null) report(false);
     };
 
@@ -74,18 +106,22 @@ export const usePresenceActivity = (options: PresenceActivityOptions) => {
         const p = player.value;
         if (!p) return;
         p.on('play', onPlay);
+        p.on('playing', onPlaying);
         p.on('pause', onChange);
         p.on('seeked', onChange);
         p.on('ended', onChange);
         p.on('timeupdate', onTimeUpdate);
         timer = setInterval(onChange, presenceStore.activityIntervalMs);
         window.addEventListener('pagehide', clear);
+        unregisterPlayback?.();
+        unregisterPlayback = presenceStore.registerPlayback(isPlaying);
     };
 
     const cleanup = () => {
         const p = player.value;
         if (p) {
             p.off('play', onPlay);
+            p.off('playing', onPlaying);
             p.off('pause', onChange);
             p.off('seeked', onChange);
             p.off('ended', onChange);
@@ -94,6 +130,8 @@ export const usePresenceActivity = (options: PresenceActivityOptions) => {
         if (timer) clearInterval(timer);
         timer = null;
         window.removeEventListener('pagehide', clear);
+        unregisterPlayback?.();
+        unregisterPlayback = null;
         clear();
     };
 

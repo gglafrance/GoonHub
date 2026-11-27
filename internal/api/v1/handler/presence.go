@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"time"
+
 	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/request"
 	"goonhub/internal/api/v1/response"
@@ -68,7 +70,8 @@ func (h *PresenceHandler) GetUser(c *gin.Context) {
 	response.OK(c, view)
 }
 
-// Heartbeat is POST /social/presence/heartbeat {active}: the tab was used (not idle).
+// Heartbeat is POST /social/presence/heartbeat {active, idle_seconds}: the last real input in
+// the tab (idle_seconds ago), or a video playing in it.
 func (h *PresenceHandler) Heartbeat(c *gin.Context) {
 	userID, ok := presenceUserID(c)
 	if !ok {
@@ -80,7 +83,13 @@ func (h *PresenceHandler) Heartbeat(c *gin.Context) {
 		response.BadRequest(c, "invalid request: "+err.Error())
 		return
 	}
-	h.presence.Heartbeat(userID, req.Active)
+	if req.IdleSeconds < 0 {
+		response.BadRequest(c, "idle_seconds must be a positive number of seconds")
+		return
+	}
+	// bounded by the service (a week at most)
+	idle := time.Duration(min(req.IdleSeconds, 7*24*3600) * float64(time.Second))
+	h.presence.Heartbeat(userID, req.Active, idle)
 	response.NoContent(c)
 }
 

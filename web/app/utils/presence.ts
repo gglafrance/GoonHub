@@ -22,34 +22,47 @@ export interface PresenceGroup {
     views: PresenceView[];
 }
 
-const GROUP_LABELS: Record<PresenceGroupKey, string> = {
+/** The label of each group (dots, badges, popover headings). */
+export const PRESENCE_GROUP_LABELS: Record<PresenceGroupKey, string> = {
     watching: 'Watching',
     online: 'Online',
-    idle: 'Idle',
+    away: 'Away',
     offline: 'Offline',
 };
 
-/** Group of a visible view: watching (online with an activity), online, idle or offline. */
+/**
+ * Group of a visible view: away (even with an activity: a paused video left open), watching
+ * (online with an activity), online or offline.
+ */
 export function presenceGroupOf(view: PresenceView): PresenceGroupKey {
     if (!view.visible || !view.status || view.status === 'offline') return 'offline';
+    if (view.status === 'away') return 'away';
     if (view.activity) return 'watching';
-    return view.status === 'idle' ? 'idle' : 'online';
+    return 'online';
 }
 
-/** Whether the user is online or idle (not offline, nor hidden). */
+/** Whether the user is online or away (not offline, nor hidden). */
 export function isPresent(view: PresenceView | undefined): boolean {
     return !!view && view.visible && !!view.status && view.status !== 'offline';
 }
 
+/** "Paused on X" / "On X" / "Watching something": the activity left open by an away user. */
+export function awayActivityLabel(activity: PresenceActivity): string {
+    if (activity.type === 'watching_scene' && activity.scene) {
+        return `${activity.paused ? 'Paused on' : 'On'} ${activityLabel(activity)}`;
+    }
+    return activityLabel(activity);
+}
+
 /**
- * Groups the visible views: Watching, Online, Idle (by username), then Offline (most recently
+ * Groups the visible views: Watching, Online, Away (by username), then Offline (most recently
  * seen first). Empty groups are left out.
  */
 export function groupPresence(views: PresenceView[]): PresenceGroup[] {
     const byKey: Record<PresenceGroupKey, PresenceView[]> = {
         watching: [],
         online: [],
-        idle: [],
+        away: [],
         offline: [],
     };
     for (const v of views) {
@@ -59,7 +72,7 @@ export function groupPresence(views: PresenceView[]): PresenceGroup[] {
         a.user.username.localeCompare(b.user.username, undefined, { sensitivity: 'base' });
     byKey.watching.sort(byName);
     byKey.online.sort(byName);
-    byKey.idle.sort(byName);
+    byKey.away.sort(byName);
     byKey.offline.sort((a, b) => {
         const ta = a.last_seen_at ? Date.parse(a.last_seen_at) : 0;
         const tb = b.last_seen_at ? Date.parse(b.last_seen_at) : 0;
@@ -67,7 +80,7 @@ export function groupPresence(views: PresenceView[]): PresenceGroup[] {
     });
     return (Object.keys(byKey) as PresenceGroupKey[])
         .filter((k) => byKey[k].length > 0)
-        .map((k) => ({ key: k, label: GROUP_LABELS[k], views: byKey[k] }));
+        .map((k) => ({ key: k, label: PRESENCE_GROUP_LABELS[k], views: byKey[k] }));
 }
 
 /**

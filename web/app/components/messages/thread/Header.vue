@@ -20,7 +20,7 @@ const status = computed(() => {
     const v = presenceStore.viewOf(props.user.id);
     if (!v) return '';
     const g = presenceGroupOf(v);
-    return g === 'watching' ? 'Watching' : g === 'online' ? 'Online' : g === 'idle' ? 'Idle' : '';
+    return g === 'offline' ? '' : PRESENCE_GROUP_LABELS[g];
 });
 
 async function toggleMute() {

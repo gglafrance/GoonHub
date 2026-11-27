@@ -79,6 +79,12 @@ func TestPresenceActivityEndpoints(t *testing.T) {
 	if w, _ := doAliasRequest(t, r, http.MethodPost, "/social/presence/heartbeat", `{"active":true}`); w.Code != http.StatusNoContent {
 		t.Fatalf("heartbeat: %d", w.Code)
 	}
+	if w, _ := doAliasRequest(t, r, http.MethodPost, "/social/presence/heartbeat", `{"active":true,"idle_seconds":42.5}`); w.Code != http.StatusNoContent {
+		t.Fatalf("heartbeat with idle time: %d", w.Code)
+	}
+	if w, _ := doAliasRequest(t, r, http.MethodPost, "/social/presence/heartbeat", `{"active":true,"idle_seconds":-1}`); w.Code != http.StatusBadRequest {
+		t.Fatalf("negative idle time: %d", w.Code)
+	}
 }
 
 func TestPresenceSnapshotAndSettingsEndpoints(t *testing.T) {
@@ -91,7 +97,8 @@ func TestPresenceSnapshotAndSettingsEndpoints(t *testing.T) {
 		t.Fatalf("snapshot: %d", w.Code)
 	}
 	if users, ok := body["users"].([]any); !ok || len(users) != 0 || body["invisible"] != false ||
-		body["heartbeat_interval_seconds"] != float64(60) || body["activity_interval_seconds"] != float64(15) {
+		body["heartbeat_interval_seconds"] != float64(60) || body["activity_interval_seconds"] != float64(15) ||
+		body["idle_after_seconds"] != float64(300) || body["stalled_after_seconds"] != float64(30) {
 		t.Fatalf("snapshot body: %v", body)
 	}
 

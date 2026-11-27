@@ -25,8 +25,12 @@ export const useApiPresence = () => {
 
     const getUserPresence = (userId: number) => request<PresenceView>(`/users/${userId}`);
 
-    const sendHeartbeat = (active: boolean) =>
-        request<null>('/heartbeat', { method: 'POST', body: JSON.stringify({ active }) });
+    /** The last input (or playback) of this tab was `idleSeconds` ago. */
+    const sendHeartbeat = (active: boolean, idleSeconds = 0) =>
+        request<null>('/heartbeat', {
+            method: 'POST',
+            body: JSON.stringify({ active, idle_seconds: idleSeconds }),
+        });
 
     const reportActivity = (report: PresenceActivityReport) =>
         request<null>('/activity', { method: 'PUT', body: JSON.stringify(report) });

@@ -1,13 +1,11 @@
 import type { PresenceView } from '~/types/presence';
-
-// Input events that count as activity (the tab is used): a heartbeat is sent at most every
-// heartbeat interval, so the frequent ones (mousemove) cost nothing more.
-const INPUT_EVENTS = ['pointerdown', 'keydown', 'wheel', 'touchstart', 'mousemove'] as const;
+import type { PresenceInputEvent } from '~/utils/presenceTracker';
 
 /**
  * Presence of the signed-in user's contacts (friends and followed users), kept live by the
- * presence:update SSE events, and the reports of this tab: input heartbeats (not idle) and the
- * invisible mode. Started by the header (HeaderFriendsPresence).
+ * presence:update SSE events, and the reports of this tab: heartbeats of the real activity
+ * (input, playing videos: `PresenceTracker`, online or away) and the invisible mode. Started by
+ * the header (HeaderFriendsPresence).
  */
 export const usePresenceStore = defineStore('presence', () => {
     // every view received, by user id (hidden ones too, to keep the most recent seq)
@@ -18,13 +16,27 @@ export const usePresenceStore = defineStore('presence', () => {
     const loaded = ref(false);
     const heartbeatIntervalMs = ref(60_000);
     const activityIntervalMs = ref(15_000);
+    const idleAfterMs = ref(300_000);
+    const stalledAfterMs = ref(30_000);
     // this tab's id: each tab reports its own activity
     const tabId = newPresenceTabId();
 
     let unsubscribers: (() => void)[] = [];
     let stopSocialWatch: (() => void) | null = null;
     let reloadTimer: ReturnType<typeof setTimeout> | null = null;
-    let lastHeartbeat = 0;
+    let tickTimer: ReturnType<typeof setInterval> | null = null;
+    let stopConnectionWatch: (() => void) | null = null;
+    // the activity of this tab (input, players), reported by heartbeats once started
+    let started = false;
+    const tracker = new PresenceTracker({
+        now: () => Date.now(),
+        send: (idleSeconds) => {
+            if (!started || !useAuthStore().isAuthenticated) return;
+            useApiPresence()
+                .sendHeartbeat(true, idleSeconds)
+                .catch(() => {});
+        },
+    });
 
     const contacts = computed(() =>
         contactIds.value
@@ -32,6 +44,10 @@ export const usePresenceStore = defineStore('presence', () => {
             .filter((v): v is PresenceView => !!v && v.visible),
     );
     const presentCount = computed(() => contacts.value.filter((v) => isPresent(v)).length);
+    // online or watching (present but not away)
+    const activeCount = computed(
+        () => contacts.value.filter((v) => isPresent(v) && v.status !== 'away').length,
+    );
 
     /** The visible presence of a user, undefined when unknown or hidden. */
     function viewOf(userId: number): PresenceView | undefined {
@@ -53,6 +69,14 @@ export const usePresenceStore = defineStore('presence', () => {
             if (snap.activity_interval_seconds > 0) {
                 activityIntervalMs.value = snap.activity_interval_seconds * 1000;
             }
+            if (snap.idle_after_seconds > 0) idleAfterMs.value = snap.idle_after_seconds * 1000;
+            if (snap.stalled_after_seconds > 0) {
+                stalledAfterMs.value = snap.stalled_after_seconds * 1000;
+            }
+            tracker.configure({
+                heartbeatMs: heartbeatIntervalMs.value,
+                idleAfterMs: idleAfterMs.value,
+            });
             loaded.value = true;
         } catch {
             // the list keeps its last state; the next event or reconnect refreshes it
@@ -73,17 +97,17 @@ export const usePresenceStore = defineStore('presence', () => {
         applyPresenceView(views.value, view);
     }
 
-    function onInput() {
-        const now = Date.now();
-        if (now - lastHeartbeat < heartbeatIntervalMs.value) return;
-        lastHeartbeat = now;
-        useApiPresence()
-            .sendHeartbeat(true)
-            .catch(() => {});
+    // a hidden tab gets no input; a tab shown again is not an input by itself
+    function onInput(e: Event) {
+        tracker.handleEvent(e as PresenceInputEvent, document.visibilityState === 'visible');
     }
 
-    function onVisibility() {
-        if (document.visibilityState === 'visible') onInput();
+    /**
+     * Registers a player of this tab: `probe` tells whether it really plays (a playing video
+     * keeps the user online). Returns the unregister function.
+     */
+    function registerPlayback(probe: () => boolean): () => void {
+        return tracker.addPlayback(probe);
     }
 
     /** Starts the live presence (idempotent). */
@@ -95,10 +119,21 @@ export const usePresenceStore = defineStore('presence', () => {
                 if (view?.user?.id) apply(view);
             }),
         );
-        for (const ev of INPUT_EVENTS) {
-            window.addEventListener(ev, onInput, { passive: true });
+        // capture: an input handled (and stopped) by a component still counts
+        for (const ev of PRESENCE_INPUT_EVENTS) {
+            window.addEventListener(ev, onInput, { passive: true, capture: true });
         }
-        document.addEventListener('visibilitychange', onVisibility);
+        started = true;
+        tickTimer = setInterval(() => tracker.tick(), PRESENCE_TICK_MS);
+        // the real idle time at once: at start, and when the live stream is back (server
+        // restart, network loss), so that a reconnection is not taken for an activity
+        tracker.sync();
+        stopConnectionWatch = watch(
+            () => useJobStatusStore().isConnected,
+            (connected, was) => {
+                if (connected && !was) tracker.sync();
+            },
+        );
         // friends added or removed, follows: the contacts change
         stopSocialWatch = watch(() => useSocialStore().version, scheduleRefresh);
         refresh();
@@ -108,9 +143,15 @@ export const usePresenceStore = defineStore('presence', () => {
         for (const off of unsubscribers) off();
         unsubscribers = [];
         if (import.meta.client) {
-            for (const ev of INPUT_EVENTS) window.removeEventListener(ev, onInput);
-            document.removeEventListener('visibilitychange', onVisibility);
+            for (const ev of PRESENCE_INPUT_EVENTS) {
+                window.removeEventListener(ev, onInput, { capture: true });
+            }
         }
+        started = false;
+        if (tickTimer) clearInterval(tickTimer);
+        tickTimer = null;
+        stopConnectionWatch?.();
+        stopConnectionWatch = null;
         stopSocialWatch?.();
         stopSocialWatch = null;
         if (reloadTimer) clearTimeout(reloadTimer);
@@ -130,10 +171,13 @@ export const usePresenceStore = defineStore('presence', () => {
         contactIds,
         contacts,
         presentCount,
+        activeCount,
         invisible,
         loaded,
         heartbeatIntervalMs,
         activityIntervalMs,
+        idleAfterMs,
+        stalledAfterMs,
         tabId,
         viewOf,
         refresh,
@@ -141,6 +185,7 @@ export const usePresenceStore = defineStore('presence', () => {
         apply,
         start,
         stop,
+        registerPlayback,
         setInvisible,
     };
 });

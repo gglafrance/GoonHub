@@ -50,14 +50,15 @@ type MessagesConfig struct {
 	PurgeInterval      time.Duration `mapstructure:"purge_interval"`       // retention and orphan conversation cleanup period
 }
 
-// PresenceConfig sets the timings of the presence (online, idle, now watching, docs/PRESENCE.md).
+// PresenceConfig sets the timings of the presence (online, away, now watching, docs/PRESENCE.md).
 type PresenceConfig struct {
 	DisconnectGrace   time.Duration `mapstructure:"disconnect_grace"`   // a user stays online this long after their last live connection closed (page reloads)
-	IdleAfter         time.Duration `mapstructure:"idle_after"`         // no activity (input, playback) for this long = idle
+	IdleAfter         time.Duration `mapstructure:"idle_after"`         // no real input nor playing video for this long = away (sent to the client)
 	HeartbeatInterval time.Duration `mapstructure:"heartbeat_interval"` // the client reports input at most this often (sent to the client)
 	ActivityInterval  time.Duration `mapstructure:"activity_interval"`  // the client reports the playback position this often (sent to the client)
 	ActivityTTL       time.Duration `mapstructure:"activity_ttl"`       // an activity not reported for this long ends (closed tab, crash)
 	PausedAfter       time.Duration `mapstructure:"paused_after"`       // a playback paused for this long shows as paused
+	StalledAfter      time.Duration `mapstructure:"stalled_after"`      // a playback not progressing (buffering) for this long no longer counts as playing (sent to the client)
 	SeekThreshold     time.Duration `mapstructure:"seek_threshold"`     // a position this far from the expected one is a seek (pushed)
 	FlushInterval     time.Duration `mapstructure:"flush_interval"`     // changes are coalesced and pushed at this interval
 	LastSeenInterval  time.Duration `mapstructure:"last_seen_interval"` // last_seen_at of online users is saved this often (also on disconnect)
@@ -465,6 +466,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("presence.activity_interval", 15*time.Second)
 	v.SetDefault("presence.activity_ttl", 60*time.Second)
 	v.SetDefault("presence.paused_after", 20*time.Second)
+	v.SetDefault("presence.stalled_after", 30*time.Second)
 	v.SetDefault("presence.seek_threshold", 15*time.Second)
 	v.SetDefault("presence.flush_interval", 2*time.Second)
 	v.SetDefault("presence.last_seen_interval", 5*time.Minute)

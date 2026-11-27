@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
     activityLabel,
     applyPresenceView,
+    awayActivityLabel,
     formatPresenceTime,
     groupPresence,
     isPresent,
@@ -36,10 +37,10 @@ describe('applyPresenceView', () => {
     test('keeps the most recent view', () => {
         const map: Record<number, PresenceView> = {};
         expect(applyPresenceView(map, view(1, { seq: 5 }))).toBe(true);
-        expect(applyPresenceView(map, view(1, { seq: 3, status: 'idle' }))).toBe(false);
+        expect(applyPresenceView(map, view(1, { seq: 3, status: 'away' }))).toBe(false);
         expect(map[1]!.status).toBe('online');
-        expect(applyPresenceView(map, view(1, { seq: 6, status: 'idle' }))).toBe(true);
-        expect(map[1]!.status).toBe('idle');
+        expect(applyPresenceView(map, view(1, { seq: 6, status: 'away' }))).toBe(true);
+        expect(map[1]!.status).toBe('away');
     });
 
     test('a hidden view is kept so that an older one cannot bring it back', () => {
@@ -53,10 +54,14 @@ describe('applyPresenceView', () => {
 describe('groups', () => {
     test('group of a view', () => {
         expect(presenceGroupOf(view(1))).toBe('online');
-        expect(presenceGroupOf(view(1, { status: 'idle' }))).toBe('idle');
+        expect(presenceGroupOf(view(1, { status: 'away' }))).toBe('away');
         expect(presenceGroupOf(view(1, { activity: watching() }))).toBe('watching');
+        // a video left paused: away, not watching
+        expect(
+            presenceGroupOf(view(1, { status: 'away', activity: watching({ paused: true }) })),
+        ).toBe('away');
         expect(presenceGroupOf(view(1, { status: 'offline' }))).toBe('offline');
-        expect(isPresent(view(1, { status: 'idle' }))).toBe(true);
+        expect(isPresent(view(1, { status: 'away' }))).toBe(true);
         expect(isPresent(view(1, { status: 'offline' }))).toBe(false);
         expect(isPresent(view(1, { visible: false }))).toBe(false);
         expect(isPresent(undefined)).toBe(false);
@@ -76,12 +81,13 @@ describe('groups', () => {
             }),
             view(3, { user: { id: 3, username: 'Bob' } }),
             view(4, { user: { id: 4, username: 'al' } }),
-            view(5, { status: 'idle' }),
+            view(5, { status: 'away' }),
             view(6, { activity: watching() }),
             view(7, { visible: false }),
             view(8, { status: 'offline' }),
         ]);
-        expect(groups.map((g) => g.key)).toEqual(['watching', 'online', 'idle', 'offline']);
+        expect(groups.map((g) => g.key)).toEqual(['watching', 'online', 'away', 'offline']);
+        expect(groups.map((g) => g.label)).toEqual(['Watching', 'Online', 'Away', 'Offline']);
         expect(groups[1]!.views.map((v) => v.user.username)).toEqual(['al', 'Bob']);
         expect(groups[3]!.views.map((v) => v.user.id)).toEqual([2, 1, 8]);
         expect(groups.flatMap((g) => g.views).some((v) => v.user.id === 7)).toBe(false);
@@ -111,6 +117,11 @@ describe('playback position', () => {
 
     test('labels and links', () => {
         expect(activityLabel(watching())).toBe('Seven');
+        expect(awayActivityLabel(watching({ paused: true }))).toBe('Paused on Seven');
+        expect(awayActivityLabel(watching())).toBe('On Seven');
+        expect(
+            awayActivityLabel({ type: 'watching_scene', started_at: '2026-11-26T12:00:00Z' }),
+        ).toBe('Watching something');
         expect(activityLabel(watching({ scene: { id: 7, title: '', duration: 0 } }))).toBe(
             'Untitled scene',
         );

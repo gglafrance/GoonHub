@@ -7,6 +7,7 @@ const props = defineProps<{ view: PresenceView; now: number }>();
 const emit = defineEmits<{ navigate: [] }>();
 
 const activity = computed(() => props.view.activity);
+const group = computed(() => presenceGroupOf(props.view));
 const progress = computed(() =>
     activity.value ? presenceProgress(activity.value, props.now) : null,
 );
@@ -41,7 +42,7 @@ const atPosition = computed(() =>
                 {{ view.user.username }}
             </NuxtLink>
 
-            <template v-if="activity && view.status !== 'offline'">
+            <template v-if="activity && group === 'watching'">
                 <div v-if="activity.scene" class="mt-1 flex gap-2">
                     <div
                         class="border-border bg-surface relative h-9 w-16 shrink-0 overflow-hidden
@@ -105,8 +106,24 @@ const atPosition = computed(() =>
                     </NuxtLink>
                 </div>
             </template>
-            <div v-else-if="view.status === 'idle'" class="mt-0.5 text-[11px] text-amber-400/80">
-                Idle
+            <div
+                v-else-if="group === 'away'"
+                class="mt-0.5 flex min-w-0 items-center gap-1 text-[11px]"
+            >
+                <span class="shrink-0 text-amber-400/80">Away</span>
+                <template v-if="activity">
+                    <span class="text-dim shrink-0">&middot;</span>
+                    <NuxtLink
+                        v-if="fromStart"
+                        :to="fromStart"
+                        class="text-dim hover:text-lava truncate transition-colors"
+                        :title="awayActivityLabel(activity)"
+                        @click="emit('navigate')"
+                    >
+                        {{ awayActivityLabel(activity) }}
+                    </NuxtLink>
+                    <span v-else class="text-dim truncate">{{ awayActivityLabel(activity) }}</span>
+                </template>
             </div>
             <div v-else-if="view.status === 'online'" class="text-emerald/80 mt-0.5 text-[11px]">
                 Online

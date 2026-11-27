@@ -31,6 +31,12 @@ func (c *presenceClock) Now() time.Time {
 	return c.t
 }
 
+func (c *presenceClock) Set(t time.Time) {
+	c.mu.Lock()
+	c.t = t
+	c.mu.Unlock()
+}
+
 func (c *presenceClock) Advance(d time.Duration) {
 	c.mu.Lock()
 	c.t = c.t.Add(d)
@@ -326,44 +332,312 @@ func TestPresenceMultiTab(t *testing.T) {
 	env.svc.Disconnect(pAlice)
 }
 
-func TestPresenceIdle(t *testing.T) {
+// watch reports the playback of a tab of alice (scene 10).
+func (e *presenceEnv) watch(t *testing.T, tab string, position float64, paused bool) {
+	t.Helper()
+	if err := e.svc.UpdateActivity(pAlice, PresenceActivityInput{TabID: tab, Type: ActivityWatchingScene, SceneID: 10, Position: position, Paused: paused}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// statuses returns the statuses pushed about alice.
+func statuses(ch <-chan SceneEvent) []string {
+	var out []string
+	for _, v := range drain(ch) {
+		if v.User.ID == pAlice {
+			out = append(out, v.Status)
+		}
+	}
+	return out
+}
+
+func TestPresenceAwayAfterNoInput(t *testing.T) {
 	env := newPresenceEnv(t)
 	env.privacy.allowBoth(pAlice, pBob)
 	bob := env.stream(t, pBob)
 	env.svc.Connect(pAlice)
+	env.svc.Heartbeat(pAlice, true, 0)
 	env.tick()
 	drain(bob)
 
+	// a heartbeat that is not an input does not count
 	env.clock.Advance(4 * time.Minute)
-	env.svc.Heartbeat(pAlice, false) // no input: does not count
-	env.clock.Advance(time.Minute)
+	env.svc.Heartbeat(pAlice, false, 0)
+	env.clock.Advance(59 * time.Second)
 	env.tick()
-	if v := only(t, bob, pAlice); v.Status != PresenceIdle {
-		t.Fatalf("want idle, got %+v", v)
-	}
+	none(t, bob)
 
-	env.svc.Heartbeat(pAlice, true)
+	// away exactly idle_after after the last input, pushed once
+	env.clock.Advance(time.Second)
+	env.tick()
+	if v := only(t, bob, pAlice); v.Status != PresenceAway || !v.Visible {
+		t.Fatalf("want away, got %+v", v)
+	}
+	for i := 0; i < 5; i++ {
+		env.clock.Advance(time.Minute)
+		env.tick()
+	}
+	none(t, bob)
+
+	// the next input brings the user back at the next flush, pushed once
+	env.svc.Heartbeat(pAlice, true, 0)
 	env.tick()
 	if v := only(t, bob, pAlice); v.Status != PresenceOnline {
 		t.Fatalf("want online after input, got %+v", v)
 	}
+	env.tick()
+	none(t, bob)
+}
 
-	// a playing scene keeps the user active without input
-	for i := 0; i < 30; i++ {
+func TestPresenceHeartbeatReportsTheInputTime(t *testing.T) {
+	env := newPresenceEnv(t)
+	env.privacy.allowBoth(pAlice, pBob)
+	bob := env.stream(t, pBob)
+	env.svc.Connect(pAlice)
+	env.svc.Heartbeat(pAlice, true, 0)
+	env.tick()
+	drain(bob)
+
+	// a trailing heartbeat: the input was 50 s ago, away 5 min after that input
+	env.clock.Advance(time.Minute)
+	env.svc.Heartbeat(pAlice, true, 50*time.Second)
+	env.clock.Advance(4*time.Minute + 9*time.Second)
+	env.tick()
+	none(t, bob)
+	env.clock.Advance(time.Second)
+	env.tick()
+	if got := statuses(bob); len(got) != 1 || got[0] != PresenceAway {
+		t.Fatalf("want away 5 min after the reported input, got %v", got)
+	}
+
+	// an older input reported by another tab does not move the last input back
+	env.svc.Heartbeat(pAlice, true, 0)
+	env.svc.Heartbeat(pAlice, true, 20*time.Minute)
+	env.svc.Heartbeat(pAlice, true, -time.Second) // clamped to now
+	env.tick()
+	if got := statuses(bob); len(got) != 1 || got[0] != PresenceOnline {
+		t.Fatalf("want online, got %v", got)
+	}
+}
+
+func TestPresenceFreshConnectionUntilTheFirstHeartbeat(t *testing.T) {
+	env := newPresenceEnv(t)
+	env.privacy.allowBoth(pAlice, pBob)
+	bob := env.stream(t, pBob)
+
+	// a connection never followed by a heartbeat (old client): active for idle_after
+	env.svc.Connect(pAlice)
+	env.tick()
+	if v := only(t, bob, pAlice); v.Status != PresenceOnline {
+		t.Fatalf("want online at connection, got %+v", v)
+	}
+	env.clock.Advance(5 * time.Minute)
+	env.tick()
+	if got := statuses(bob); len(got) != 1 || got[0] != PresenceAway {
+		t.Fatalf("want away, got %v", got)
+	}
+	env.svc.Disconnect(pAlice)
+	env.clock.Advance(31 * time.Second)
+	env.tick()
+	env.tick() // offline pushed, state dropped
+	drain(bob)
+
+	// server restart / long network loss: the tab reconnects and reports that its last
+	// input was 20 minutes ago: away at the next flush instead of 5 more minutes online
+	env.svc.Connect(pAlice)
+	env.svc.Heartbeat(pAlice, true, 20*time.Minute)
+	env.tick()
+	if got := statuses(bob); len(got) != 1 || got[0] != PresenceAway {
+		t.Fatalf("want away right after the reconnection, got %v", got)
+	}
+}
+
+func TestPresenceHeartbeatBeforeTheStream(t *testing.T) {
+	env := newPresenceEnv(t)
+	env.privacy.allowBoth(pAlice, pBob)
+	bob := env.stream(t, pBob)
+	env.tick()
+	drain(bob)
+	env.mu.Lock()
+	env.stored[pCarol] = data.PresenceContact{ID: pCarol, Username: "carol", Invisible: true}
+	env.mu.Unlock()
+	env.privacy.allowBoth(pCarol, pBob)
+
+	// the heartbeat of the page load arrives before its stream opens: kept for it
+	env.svc.Heartbeat(pAlice, true, 0)
+	env.svc.Heartbeat(pCarol, true, 0)
+	env.svc.Connect(pAlice)
+	env.svc.Connect(pCarol)
+	env.tick()
+	views := drain(bob)
+	got := map[uint]PresenceView{}
+	for _, v := range views {
+		got[v.User.ID] = v
+	}
+	if a := got[pAlice]; a.Status != PresenceOnline || a.User.Username != "alice" {
+		t.Fatalf("want alice online, got %+v", views)
+	}
+	if c, ok := got[pCarol]; ok && c.Status != PresenceOffline {
+		t.Fatalf("carol is invisible, got %+v", c)
+	}
+	// the heartbeat set the real input time: away 5 min after it
+	env.clock.Advance(5 * time.Minute)
+	env.tick()
+	if got := statuses(bob); len(got) != 1 || got[0] != PresenceAway {
+		t.Fatalf("want away, got %v", got)
+	}
+	// the invisible mode was read although the state existed before the stream
+	if inv, _ := env.svc.Invisible(context.Background(), pCarol); !inv {
+		t.Fatal("invisible mode of carol not loaded")
+	}
+}
+
+func TestPresencePlayingKeepsOnline(t *testing.T) {
+	env := newPresenceEnv(t)
+	env.privacy.allowBoth(pAlice, pBob)
+	bob := env.stream(t, pBob)
+	env.svc.Connect(pAlice)
+	env.svc.Heartbeat(pAlice, true, 0)
+	env.tick()
+	drain(bob)
+
+	// a playing scene keeps the user online without input
+	for i := 0; i < 40; i++ {
 		env.clock.Advance(15 * time.Second)
-		if err := env.svc.UpdateActivity(pAlice, PresenceActivityInput{TabID: "t1", Type: ActivityWatchingScene, SceneID: 10, Position: float64(15 * (i + 1))}); err != nil {
-			t.Fatal(err)
-		}
+		env.watch(t, "t1", float64(15*(i+1)), false)
 		env.tick()
 	}
 	views := drain(bob)
 	for _, v := range views {
 		if v.Status != PresenceOnline {
-			t.Fatalf("idle while playing: %+v", v)
+			t.Fatalf("away while playing: %+v", v)
 		}
 	}
-	if len(views) != 1 {
-		t.Fatalf("normal playback progress must not be pushed, got %d events", len(views))
+	if len(views) != 1 || views[0].Activity == nil {
+		t.Fatalf("only the start of the activity is pushed, got %+v", views)
+	}
+}
+
+func TestPresencePausedVideoGoesAway(t *testing.T) {
+	env := newPresenceEnv(t)
+	env.privacy.allowBoth(pAlice, pBob)
+	bob := env.stream(t, pBob)
+	env.svc.Connect(pAlice)
+	env.svc.Heartbeat(pAlice, true, 0)
+	env.watch(t, "t1", 0, false)
+	env.tick()
+	drain(bob)
+
+	env.clock.Advance(time.Minute)
+	env.watch(t, "t1", 60, false)
+	pausedAt := env.clock.Now()
+	env.watch(t, "t1", 60, true)
+	// still reported every 15 s (to keep the activity), without input
+	var views []PresenceView
+	for i := 0; i < 19; i++ {
+		env.clock.Advance(15 * time.Second)
+		env.watch(t, "t1", 60, true)
+		env.tick()
+		views = append(views, drain(bob)...)
+	}
+	env.clock.Set(pausedAt.Add(5*time.Minute - time.Second))
+	env.tick()
+	views = append(views, drain(bob)...)
+	// only the pause was pushed (after paused_after), the user stays online until idle_after
+	if len(views) != 1 || views[0].Status != PresenceOnline || views[0].Activity == nil || !*views[0].Activity.Paused {
+		t.Fatalf("want one paused view, got %+v", views)
+	}
+	env.clock.Set(pausedAt.Add(5 * time.Minute))
+	env.watch(t, "t1", 60, true)
+	env.tick()
+	v := only(t, bob, pAlice)
+	if v.Status != PresenceAway || v.Activity == nil || v.Activity.Scene == nil || !*v.Activity.Paused {
+		t.Fatalf("want away, paused on the scene: %+v", v)
+	}
+	// resumed: online again, even before the position moves
+	env.watch(t, "t1", 60, false)
+	env.tick()
+	v = only(t, bob, pAlice)
+	if v.Status != PresenceOnline || *v.Activity.Paused {
+		t.Fatalf("want online, playing: %+v", v)
+	}
+}
+
+func TestPresenceStalledVideoDoesNotCount(t *testing.T) {
+	env := newPresenceEnv(t)
+	env.privacy.allowBoth(pAlice, pBob)
+	bob := env.stream(t, pBob)
+	env.svc.Connect(pAlice)
+	env.svc.Heartbeat(pAlice, true, 0)
+	env.watch(t, "t1", 10, false)
+	env.tick()
+	drain(bob)
+
+	// buffering: not paused, but the position does not move
+	lastProgress := env.clock.Now()
+	for i := 0; i < 19; i++ {
+		env.clock.Advance(15 * time.Second)
+		env.watch(t, "t1", 10, false)
+		env.tick()
+	}
+	none(t, bob)
+	env.clock.Set(lastProgress.Add(5 * time.Minute))
+	env.watch(t, "t1", 10, false)
+	env.tick()
+	if got := statuses(bob); len(got) != 1 || got[0] != PresenceAway {
+		t.Fatalf("want away while stalled, got %v", got)
+	}
+	// playing again
+	env.clock.Advance(15 * time.Second)
+	env.watch(t, "t1", 12, false)
+	env.tick()
+	if got := statuses(bob); len(got) != 1 || got[0] != PresenceOnline {
+		t.Fatalf("want online once it plays again, got %v", got)
+	}
+}
+
+func TestPresenceAwayWithSeveralTabs(t *testing.T) {
+	env := newPresenceEnv(t)
+	env.privacy.allowBoth(pAlice, pBob)
+	bob := env.stream(t, pBob)
+	env.svc.Connect(pAlice)
+	env.svc.Heartbeat(pAlice, true, 0)
+	// tab 1: paused; tab 2: playing
+	env.watch(t, "t1", 30, true)
+	if err := env.svc.UpdateActivity(pAlice, PresenceActivityInput{TabID: "t2", Type: ActivityWatchingScene, SceneID: 11, Position: 0}); err != nil {
+		t.Fatal(err)
+	}
+	env.tick()
+	drain(bob)
+
+	var stoppedAt time.Time
+	aways := 0
+	for i := 1; i <= 40; i++ {
+		env.clock.Advance(15 * time.Second)
+		env.watch(t, "t1", 30, true)
+		if i <= 20 {
+			_ = env.svc.UpdateActivity(pAlice, PresenceActivityInput{TabID: "t2", Type: ActivityWatchingScene, SceneID: 11, Position: float64(15 * i)})
+			stoppedAt = env.clock.Now()
+		} else if i == 21 {
+			_ = env.svc.ClearActivity(pAlice, "t2") // tab 2 closed
+		}
+		env.tick()
+		for _, v := range drain(bob) {
+			if v.Status == PresenceAway {
+				aways++
+				if env.clock.Now().Before(stoppedAt.Add(5 * time.Minute)) {
+					t.Fatalf("away %v after tab 2 stopped playing: %+v", env.clock.Now().Sub(stoppedAt), v)
+				}
+			}
+		}
+	}
+	if aways != 1 {
+		t.Fatalf("want away pushed once, got %d", aways)
+	}
+	// 40*15 s = 10 min: tab 2 stopped at 5 min, away 5 min later with the paused tab shown
+	v, err := env.svc.ViewOf(context.Background(), pBob, pAlice)
+	if err != nil || v.Status != PresenceAway || v.Activity == nil || v.Activity.Scene.ID != 10 {
+		t.Fatalf("want away on the paused tab: %+v %v", v, err)
 	}
 }
 
@@ -633,7 +907,8 @@ func TestPresenceSnapshot(t *testing.T) {
 	if carol.User.ID != pCarol || carol.Status != PresenceOffline || carol.LastSeenAt == nil || !carol.LastSeenAt.Equal(seen) {
 		t.Fatalf("carol: %+v", carol)
 	}
-	if snap.Invisible || snap.HeartbeatInterval != time.Minute || snap.ActivityInterval != 15*time.Second {
+	if snap.Invisible || snap.HeartbeatInterval != time.Minute || snap.ActivityInterval != 15*time.Second ||
+		snap.IdleAfter != 5*time.Minute || snap.StalledAfter != 30*time.Second {
 		t.Fatalf("snapshot settings: %+v", snap)
 	}
 
