@@ -6,6 +6,8 @@ import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
 const scene = inject<Ref<Scene | null>>('watchScene');
 const { setSceneActors } = useApiActors();
+const perms = useMyPermissions();
+const canEdit = computed(() => perms.has('scenes:edit'));
 
 // Inject centralized watch page data
 const watchPageData = inject<WatchPageData>(WATCH_PAGE_DATA_KEY);
@@ -79,6 +81,10 @@ async function onActorCreated(actor: Actor) {
         </div>
 
         <!-- Actor cards grid -->
+        <p v-else-if="sceneActors.length === 0 && !canEdit" class="text-dim py-1 text-sm">
+            No actors
+        </p>
+
         <div v-else class="flex flex-wrap gap-2">
             <!-- Applied actors as vertical cards -->
             <div v-for="actor in sceneActors" :key="actor.id" class="group relative w-20">
@@ -111,6 +117,7 @@ async function onActorCreated(actor: Actor) {
                 </NuxtLink>
                 <!-- Remove button -->
                 <button
+                    v-if="canEdit"
                     class="bg-void/80 hover:bg-lava absolute -top-1 -right-1 flex h-5 w-5
                         items-center justify-center rounded-full opacity-0 backdrop-blur-sm
                         transition-all group-hover:opacity-100"
@@ -123,6 +130,7 @@ async function onActorCreated(actor: Actor) {
 
             <!-- Add actor button -->
             <button
+                v-if="canEdit"
                 class="border-border hover:border-lava/40 text-dim hover:text-lava flex w-20
                     flex-col items-center justify-center rounded-lg border border-dashed
                     transition-colors"

@@ -8,7 +8,11 @@ const props = defineProps<{
     rating?: number;
     jizzCount?: number;
     completed?: boolean;
+    // Cell of a grid zone: spaced by a margin and truncated when the column is too narrow
+    cell?: boolean;
 }>();
+
+const cellClass = computed(() => (props.cell ? 'm-0.5 min-w-0 max-w-full' : ''));
 
 const { formatDuration, formatSize, formatFrameRate } = useFormatter();
 
@@ -19,7 +23,7 @@ const badge = computed(() => {
                 ? { icon: null, text: formatDuration(props.scene.duration), class: 'bg-void/90' }
                 : null;
         case 'file_size':
-            return props.scene.size > 0
+            return props.scene.size
                 ? { icon: null, text: formatSize(props.scene.size), class: 'bg-void/90' }
                 : null;
         case 'added_at':
@@ -96,14 +100,31 @@ const badge = computed(() => {
 </script>
 
 <template>
-    <!-- Tags badge with popover -->
-    <SceneCardTagsShort v-if="field === 'tags' && scene.tags?.length" :tags="scene.tags" badge />
+    <!-- Tags & Markers & Actors: the tags, markers and actors badges with their popovers -->
+    <div
+        v-if="
+            field === 'tags' &&
+            (scene.tags?.length || scene.markers?.length || scene.actors?.length)
+        "
+        class="flex items-center gap-1"
+        :class="cellClass"
+    >
+        <SceneCardTagsShort v-if="scene.tags?.length" :tags="scene.tags" badge />
+        <SceneCardMarkersShort
+            v-if="scene.markers?.length"
+            :scene-id="scene.id"
+            :markers="scene.markers"
+            badge
+        />
+        <SceneCardActorsShort v-if="scene.actors?.length" :actors="scene.actors" badge />
+    </div>
 
     <!-- Actors badge with popover -->
     <SceneCardActorsShort
         v-else-if="field === 'actors' && scene.actors?.length"
         :actors="scene.actors"
         badge
+        :class="cellClass"
     />
 
     <!-- Standard badges -->
@@ -111,10 +132,18 @@ const badge = computed(() => {
         v-else-if="badge"
         class="z-20 flex items-center gap-0.5 rounded px-1.5 py-0.5 font-mono text-[10px]
             font-medium text-white backdrop-blur-sm"
-        :class="[badge.class, badge.round ? 'h-6 w-6 justify-center rounded-full !p-0' : '']"
+        :class="[
+            badge.class,
+            badge.round ? 'h-6 w-6 justify-center rounded-full !p-0' : '',
+            cell ? 'm-0.5 max-w-full min-w-0 overflow-hidden' : '',
+        ]"
     >
-        <Icon v-if="badge.icon" :name="badge.icon" size="14" />
-        <NuxtTime v-if="badge.isDate" :datetime="scene.created_at" format="short" />
-        <span v-else-if="badge.text">{{ badge.text }}</span>
+        <Icon v-if="badge.icon" :name="badge.icon" size="14" class="shrink-0" />
+        <UiFormattedDate
+            v-if="badge.isDate"
+            :datetime="scene.created_at"
+            :class="cell ? 'truncate' : ''"
+        />
+        <span v-else-if="badge.text" :class="cell ? 'truncate' : ''">{{ badge.text }}</span>
     </div>
 </template>

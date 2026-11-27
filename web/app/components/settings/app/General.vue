@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { DateFormat, MarkerView, PaginationPosition } from '~/types/settings';
+
 const settingsStore = useSettingsStore();
 const { layout: keyboardLayout, setLayout: setKeyboardLayout } = useKeyboardLayout();
 
@@ -20,6 +22,57 @@ const appMarkerThumbnailCycling = computed({
         if (settingsStore.draft) settingsStore.draft.marker_thumbnail_cycling = v;
     },
 });
+
+const appAdvancedMarkerFilters = computed({
+    get: () => settingsStore.draft?.advanced_marker_filters ?? false,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.advanced_marker_filters = v;
+    },
+});
+
+const appPaginationPosition = computed({
+    get: () => settingsStore.draft?.pagination_position ?? 'bottom',
+    set: (v: PaginationPosition) => {
+        if (settingsStore.draft) settingsStore.draft.pagination_position = v;
+    },
+});
+
+const paginationPositionOptions: { value: PaginationPosition; label: string }[] = [
+    { value: 'top', label: 'Top' },
+    { value: 'bottom', label: 'Bottom' },
+    { value: 'both', label: 'Top & Bottom' },
+];
+
+const appDateFormat = computed({
+    get: () => settingsStore.draft?.date_format ?? DEFAULT_DATE_FORMAT,
+    set: (v: DateFormat) => {
+        if (settingsStore.draft) settingsStore.draft.date_format = v;
+    },
+});
+
+// Example rendered with each format (today), so the choice is concrete
+const dateFormatOptions = computed(() => {
+    const today = new Date();
+    return DATE_FORMATS.map((value) => ({
+        value,
+        label:
+            value === 'auto'
+                ? `Browser default (${formatDateWith(today, 'auto')})`
+                : `${value} (${formatDateWith(today, value)})`,
+    }));
+});
+
+const appDefaultMarkerView = computed({
+    get: () => settingsStore.draft?.default_marker_view ?? 'grouped',
+    set: (v: MarkerView) => {
+        if (settingsStore.draft) settingsStore.draft.default_marker_view = v;
+    },
+});
+
+const markerViewOptions: { value: MarkerView; label: string }[] = [
+    { value: 'grouped', label: 'Grouped' },
+    { value: 'all', label: 'All' },
+];
 
 const appShowPageSizeSelector = computed({
     get: () => settingsStore.draft?.show_page_size_selector ?? false,
@@ -63,6 +116,53 @@ const appShowPageSizeSelector = computed({
                     </p>
                 </div>
                 <UiToggle v-model="appShowPageSizeSelector" />
+            </div>
+
+            <!-- Pagination Position -->
+            <div class="flex items-center justify-between gap-4">
+                <div>
+                    <label class="text-sm font-medium text-white"> Page Controls Position </label>
+                    <p class="text-dim mt-0.5 text-xs">
+                        Where the page buttons are shown on paginated pages
+                    </p>
+                </div>
+                <div class="flex shrink-0 gap-1">
+                    <button
+                        v-for="opt in paginationPositionOptions"
+                        :key="opt.value"
+                        class="rounded-lg border px-3 py-1.5 text-xs font-medium transition-all"
+                        :class="
+                            appPaginationPosition === opt.value
+                                ? 'border-lava bg-lava/10 text-lava'
+                                : `border-border text-muted hover:border-border-hover
+                                    hover:text-white`
+                        "
+                        @click="appPaginationPosition = opt.value"
+                    >
+                        {{ opt.label }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Date Format -->
+            <div class="flex items-center justify-between gap-4">
+                <div>
+                    <label for="date-format" class="text-sm font-medium text-white">
+                        Date Format
+                    </label>
+                    <p class="text-dim mt-0.5 text-xs">How dates are shown across the app</p>
+                </div>
+                <select
+                    id="date-format"
+                    v-model="appDateFormat"
+                    class="border-border bg-void/80 focus:border-lava/40 focus:ring-lava/20 shrink-0
+                        rounded-lg border px-3 py-2 text-xs text-white transition-all focus:ring-1
+                        focus:outline-none"
+                >
+                    <option v-for="opt in dateFormatOptions" :key="opt.value" :value="opt.value">
+                        {{ opt.label }}
+                    </option>
+                </select>
             </div>
 
             <!-- Keyboard Layout -->
@@ -112,6 +212,42 @@ const appShowPageSizeSelector = computed({
                     </p>
                 </div>
                 <UiToggle v-model="appMarkerThumbnailCycling" />
+            </div>
+
+            <!-- Default Markers View -->
+            <div class="flex items-center justify-between">
+                <div>
+                    <label class="text-sm font-medium text-white"> Default Markers View </label>
+                    <p class="text-dim mt-0.5 text-xs">
+                        View shown when opening the markers page: grouped by label or all markers
+                    </p>
+                </div>
+                <div class="border-border bg-void/50 flex shrink-0 rounded-lg border p-0.5">
+                    <button
+                        v-for="opt in markerViewOptions"
+                        :key="opt.value"
+                        class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-all"
+                        :class="
+                            appDefaultMarkerView === opt.value
+                                ? 'bg-lava/15 text-lava'
+                                : 'text-dim hover:text-white'
+                        "
+                        @click="appDefaultMarkerView = opt.value"
+                    >
+                        {{ opt.label }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Advanced Marker Filters -->
+            <div class="flex items-center justify-between">
+                <div>
+                    <label class="text-sm font-medium text-white"> Advanced Marker Filters </label>
+                    <p class="text-dim mt-0.5 text-xs">
+                        Filter marker pages by labels, scene tags, actors, studio and range markers
+                    </p>
+                </div>
+                <UiToggle v-model="appAdvancedMarkerFilters" />
             </div>
         </div>
     </div>

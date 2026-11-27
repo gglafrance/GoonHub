@@ -20,7 +20,7 @@ type SceneEvent struct {
 type JobHistoryRecorder interface {
 	RecordJobStart(jobID string, sceneID uint, sceneTitle string, phase string)
 	RecordJobStartWithRetry(jobID string, sceneID uint, sceneTitle string, phase string, maxRetries int, retryCount int)
-	RecordJobComplete(jobID string)
+	RecordJobComplete(jobID string, sceneID uint, phase string)
 	RecordJobCancelled(jobID string)
 	RecordJobFailedWithRetry(jobID string, sceneID uint, phase string, err error)
 	UpdateProgress(jobID string, progress int)
@@ -39,7 +39,20 @@ type JobQueueRecorder interface {
 	ExistsPendingOrRunning(sceneID uint, phase string) (bool, error)
 }
 
+// FailingChecker tells which scenes are failing for a phase (consecutive failures on an
+// unchanged file): the "missing" bulk runs skip them.
+type FailingChecker interface {
+	FailingSceneIDs(phase string) (map[uint]bool, error)
+}
+
 // SceneIndexer handles search index updates for scenes
 type SceneIndexer interface {
 	UpdateSceneIndex(scene *data.Scene) error
+}
+
+// PhaseRouter says whether the local pools and the remote workers may claim the jobs of a
+// phase (internal/workers.Router). Without a router every phase is local.
+type PhaseRouter interface {
+	LocalAllowed(phase string) bool
+	RemoteAllowed(phase string) bool
 }

@@ -1,6 +1,7 @@
 package data
 
 import (
+	"errors"
 	"time"
 
 	"github.com/lib/pq"
@@ -16,10 +17,20 @@ type UserRepository interface {
 	UpdatePassword(userID uint, hashedPassword string) error
 	UpdateUsername(userID uint, newUsername string) error
 	List(page, limit int) ([]User, int64, error)
+	// UpdateRole changes the user's role. It returns ErrLastSuperuser, without changing
+	// anything, when the user is the last one holding a superuser role and the new role is not
+	// a superuser role (checked atomically).
 	UpdateRole(userID uint, role string) error
+	// UpdateShareMarkers sets whether the user's markers are visible to every user.
+	UpdateShareMarkers(userID uint, share bool) error
 	UpdateLastLogin(userID uint) error
+	// Delete deletes the user. It returns ErrLastSuperuser, without deleting, when the user is
+	// the last one holding a superuser role (checked atomically).
 	Delete(userID uint) error
 }
+
+// ErrLastSuperuser is returned when a change would leave no user with a superuser role.
+var ErrLastSuperuser = errors.New("this is the last user with a superuser role")
 
 type UserSettingsRepository interface {
 	GetByUserID(userID uint) (*UserSettings, error)
@@ -33,14 +44,25 @@ type RevokedTokenRepository interface {
 }
 
 type SceneSearchParams struct {
-	Page             int
-	Limit            int
-	Query            string
-	TagIDs           []uint
-	Actors           []string
-	Studio           string
-	MinDuration      int
-	MaxDuration      int
+	Page        int
+	Limit       int
+	Query       string
+	TagIDs      []uint
+	Actors      []string
+	Studio      string
+	MinDuration int
+	MaxDuration int
+	MinSizeMB   int // file size filter, megabytes (0 = no bound)
+	MaxSizeMB   int
+	// Library status filters (nil = any): metadata presence, and per-user state
+	HasActors        *bool
+	HasTags          *bool
+	HasStudio        *bool
+	SourceSites      []string // normalized source sites, OR ("pornhub.com"); see core.NormalizeSourceSite
+	HasSource        *bool    // the scene has a source URL
+	Watched          *bool    // the user has watched the scene
+	Rated            *bool    // the user has rated the scene
+	HasMarkers       *bool    // the user has markers on the scene
 	MinDate          *time.Time
 	MaxDate          *time.Time
 	MinHeight        int
@@ -59,6 +81,9 @@ type SceneSearchParams struct {
 	Type             string   // Filter by type (standard, jav, hentai, amateur, professional, vr, compilation, pmv)
 	HasPornDBID      *bool    // nil = no filter, true = has, false = missing
 	Seed             int64    // Random shuffle seed (0 = auto-generate)
+	// HideFilePaths matches the query on the content only, not on the stored paths and file
+	// names (users without files:view_paths)
+	HideFilePaths bool
 }
 
 // ScanLookupEntry is a lightweight struct for move detection during scans.
@@ -69,6 +94,7 @@ type ScanLookupEntry struct {
 	Size             int64
 	OriginalFilename string
 	IsDeleted        bool
+	IsTrashed        bool
 }
 
 // ScenePathInfo is a lightweight struct for missing file detection during scans.
@@ -104,6 +130,7 @@ type SceneRepository interface {
 	Delete(id uint) error
 	UpdateDetails(id uint, title, description string, releaseDate *time.Time) error
 	UpdateSceneMetadata(id uint, title, description, studio string, releaseDate *time.Time, porndbSceneID string) error
+	UpdateSourceURL(id uint, sourceURL string) error
 	ExistsByStoredPath(path string) (bool, error)
 	GetByStoredPath(path string) (*Scene, error)
 	MarkAsMissing(id uint) error
@@ -123,6 +150,11 @@ type SceneRepository interface {
 	GetExpiredTrashScenes(retentionDays int) ([]Scene, error)
 	GetByIDIncludingTrashed(id uint) (*Scene, error)
 	GetByIDsIncludingTrashed(ids []uint) ([]Scene, error)
+	// Trash page (filters, sorts and totals computed in SQL, see trash_repository.go)
+	ListTrash(q TrashQuery) ([]TrashedSceneRow, TrashTotals, error)
+	TrashTotals(f TrashFilter) (TrashTotals, error)
+	ListTrashIDs(q TrashQuery, limit int) ([]TrashIDSize, int64, error)
+	TrashFacets() (TrashFacets, error)
 
 	// PornDB filtering
 	GetSceneIDsWithPornDBID() ([]uint, error)
@@ -280,49 +312,49 @@ func (r *SceneRepositoryImpl) GetPendingProcessing() ([]Scene, error) {
 }
 
 func (r *SceneRepositoryImpl) GetScenesNeedingPhase(phase string) ([]Scene, error) {
+	query := scenesNeedingPhaseQuery(r.DB, phase)
+	if query == nil {
+		return nil, nil
+	}
 	var scenes []Scene
+	if err := query.Find(&scenes).Error; err != nil {
+		return nil, err
+	}
+	return scenes, nil
+}
 
-	baseQuery := r.DB.Model(&Scene{}).
-		Where("deleted_at IS NULL").
-		Where("trashed_at IS NULL").
+// scenesNeedingPhaseQuery selects the scenes a "missing" bulk run of the phase queues a job
+// for: scenes lacking the phase output, with metadata when the phase needs it, and without a
+// pending or running job of that phase. It returns nil for an unknown phase. The library
+// health page counts with it, so the count it shows before queuing matches what is queued.
+func scenesNeedingPhaseQuery(db *gorm.DB, phase string) *gorm.DB {
+	query := db.Model(&Scene{}).
+		Where("scenes.deleted_at IS NULL").
+		Where("scenes.trashed_at IS NULL").
 		Where("NOT EXISTS (SELECT 1 FROM job_history jh WHERE jh.scene_id = scenes.id AND jh.phase = ? AND jh.status IN ('pending', 'running'))", phase)
 
 	switch phase {
 	case "metadata":
-		baseQuery = baseQuery.Where("duration = 0")
+		return query.Where("scenes.duration = 0")
 	case "thumbnail":
-		baseQuery = baseQuery.Where("thumbnail_path = ''").Where("duration > 0")
+		return query.Where("scenes.thumbnail_path = ''").Where("scenes.duration > 0")
 	case "sprites":
-		baseQuery = baseQuery.Where("sprite_sheet_path = ''").Where("duration > 0")
+		return query.Where("scenes.sprite_sheet_path = ''").Where("scenes.duration > 0")
 	case "animated_thumbnails":
-		// Scenes that have markers without animated thumbnails OR missing scene preview video
-		var animScenes []Scene
-		err := r.DB.Raw(`
-			SELECT DISTINCT s.* FROM scenes s
-			WHERE s.duration > 0 AND s.deleted_at IS NULL AND s.trashed_at IS NULL
-			AND (
-				(s.preview_video_path = '' OR s.preview_video_path IS NULL)
-				OR EXISTS (
-					SELECT 1 FROM user_scene_markers m
-					WHERE m.scene_id = s.id
-					AND (m.animated_thumbnail_path = '' OR m.animated_thumbnail_path IS NULL)
-				)
+		// Scenes missing their preview video, or with markers without animated thumbnails
+		return query.Where("scenes.duration > 0").Where(`(
+			(scenes.preview_video_path = '' OR scenes.preview_video_path IS NULL)
+			OR EXISTS (
+				SELECT 1 FROM user_scene_markers m
+				WHERE m.scene_id = scenes.id
+				AND (m.animated_thumbnail_path = '' OR m.animated_thumbnail_path IS NULL)
 			)
-		`).Find(&animScenes).Error
-		if err != nil {
-			return nil, err
-		}
-		return animScenes, nil
+		)`)
 	case "fingerprint":
-		baseQuery = baseQuery.Where("fingerprint_type IS NULL").Where("duration > 0")
+		return query.Where("scenes.fingerprint_type IS NULL").Where("scenes.duration > 0")
 	default:
-		return nil, nil
+		return nil
 	}
-
-	if err := baseQuery.Find(&scenes).Error; err != nil {
-		return nil, err
-	}
-	return scenes, nil
 }
 
 func (r *SceneRepositoryImpl) Delete(id uint) error {
@@ -351,6 +383,10 @@ func (r *SceneRepositoryImpl) UpdateSceneMetadata(id uint, title, description, s
 		updates["release_date"] = releaseDate
 	}
 	return r.DB.Model(&Scene{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (r *SceneRepositoryImpl) UpdateSourceURL(id uint, sourceURL string) error {
+	return r.DB.Model(&Scene{}).Where("id = ?", id).Update("source_url", sourceURL).Error
 }
 
 func (r *SceneRepositoryImpl) GetDistinctStudios() ([]string, error) {
@@ -428,7 +464,7 @@ func (r *SceneRepositoryImpl) GetAllStoredPathSet() (map[string]struct{}, error)
 func (r *SceneRepositoryImpl) GetScanLookupEntries() ([]ScanLookupEntry, error) {
 	var entries []ScanLookupEntry
 	if err := r.DB.Unscoped().Model(&Scene{}).
-		Select("id, stored_path, size, original_filename, (deleted_at IS NOT NULL) as is_deleted").
+		Select("id, stored_path, size, original_filename, (deleted_at IS NOT NULL) as is_deleted, (trashed_at IS NOT NULL) as is_trashed").
 		Find(&entries).Error; err != nil {
 		return nil, err
 	}
@@ -720,8 +756,42 @@ func (r *UserRepositoryImpl) List(page, limit int) ([]User, int64, error) {
 	return users, total, nil
 }
 
+// lockSuperusers locks the rows of the users holding a superuser role and returns their IDs.
+// Concurrent role changes and deletions wait for each other here, and see the committed
+// result: two of them cannot both remove a different last-but-one superuser.
+func lockSuperusers(tx *gorm.DB) ([]uint, error) {
+	var ids []uint
+	err := tx.Raw(`SELECT u.id FROM users u JOIN roles r ON r.name = u.role
+		WHERE r.is_superuser ORDER BY u.id FOR UPDATE OF u`).Scan(&ids).Error
+	return ids, err
+}
+
+// isLastSuperuser reports whether userID is the only one among the superuser IDs.
+func isLastSuperuser(ids []uint, userID uint) bool {
+	return len(ids) == 1 && ids[0] == userID
+}
+
 func (r *UserRepositoryImpl) UpdateRole(userID uint, role string) error {
-	return r.DB.Model(&User{}).Where("id = ?", userID).Update("role", role).Error
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		ids, err := lockSuperusers(tx)
+		if err != nil {
+			return err
+		}
+		if isLastSuperuser(ids, userID) {
+			var superuser bool
+			if err := tx.Raw(`SELECT COALESCE((SELECT is_superuser FROM roles WHERE name = ?), FALSE)`, role).Scan(&superuser).Error; err != nil {
+				return err
+			}
+			if !superuser {
+				return ErrLastSuperuser
+			}
+		}
+		return tx.Model(&User{}).Where("id = ?", userID).Update("role", role).Error
+	})
+}
+
+func (r *UserRepositoryImpl) UpdateShareMarkers(userID uint, share bool) error {
+	return r.DB.Model(&User{}).Where("id = ?", userID).Update("share_markers", share).Error
 }
 
 func (r *UserRepositoryImpl) UpdateLastLogin(userID uint) error {
@@ -729,7 +799,16 @@ func (r *UserRepositoryImpl) UpdateLastLogin(userID uint) error {
 }
 
 func (r *UserRepositoryImpl) Delete(userID uint) error {
-	return r.DB.Where("id = ?", userID).Delete(&User{}).Error
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		ids, err := lockSuperusers(tx)
+		if err != nil {
+			return err
+		}
+		if isLastSuperuser(ids, userID) {
+			return ErrLastSuperuser
+		}
+		return tx.Where("id = ?", userID).Delete(&User{}).Error
+	})
 }
 
 type UserSettingsRepositoryImpl struct {

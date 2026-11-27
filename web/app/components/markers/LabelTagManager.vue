@@ -11,6 +11,9 @@ const emit = defineEmits<{
 
 const { fetchLabelTags, setLabelTags } = useApiMarkers();
 const { fetchTags } = useApiTags();
+// Labels and their default tags are server-wide: editing them needs marker_labels:manage
+const perms = useMyPermissions();
+const canEdit = computed(() => perms.has('marker_labels:manage'));
 
 const loading = ref(false);
 const saving = ref(false);
@@ -116,7 +119,8 @@ defineExpose({ reload });
             <div>
                 <h3 class="text-sm font-medium text-white">Default Tags</h3>
                 <p class="text-dim mt-0.5 text-[11px]">
-                    These tags are automatically applied to all markers with this label.
+                    These tags are automatically applied to all markers with this label, for every
+                    user.
                 </p>
             </div>
             <div v-if="saving" class="text-dim flex items-center gap-1 text-[10px]">
@@ -160,6 +164,7 @@ defineExpose({ reload });
                 />
                 {{ tag.name }}
                 <span
+                    v-if="canEdit"
                     class="cursor-pointer opacity-0 transition-opacity group-hover:opacity-60
                         hover:opacity-100!"
                     :class="{ 'pointer-events-none': saving }"
@@ -176,6 +181,7 @@ defineExpose({ reload });
 
             <!-- Add tag button -->
             <button
+                v-if="canEdit"
                 ref="anchorRef"
                 class="border-border hover:border-border-hover flex h-5 w-5 items-center
                     justify-center rounded-full border transition-colors"

@@ -55,6 +55,10 @@ type CreateActorInput struct {
 	Piercings       string
 	FakeBoobs       bool
 	SameSexOnly     bool
+	// Strict rejects (409, apperrors.EntityConflictError) a name or an alias already used
+	// by another actor as its name or alias. Without it, duplicate names are allowed (import
+	// clients rely on it) and aliases used by another actor are dropped.
+	Strict bool
 }
 
 type UpdateActorInput struct {
@@ -80,6 +84,8 @@ type UpdateActorInput struct {
 	Piercings       *string
 	FakeBoobs       *bool
 	SameSexOnly     *bool
+	// Strict: see CreateActorInput.Strict (the name is only checked when it changes).
+	Strict bool
 }
 
 func (s *ActorService) Create(input CreateActorInput) (*data.Actor, error) {
@@ -89,11 +95,20 @@ func (s *ActorService) Create(input CreateActorInput) (*data.Actor, error) {
 	if len(input.Name) > 255 {
 		return nil, apperrors.NewValidationErrorWithField("name", "actor name must be 255 characters or less")
 	}
+	if input.Strict {
+		if err := s.checkNameFree(0, input.Name); err != nil {
+			return nil, err
+		}
+	}
+	aliases, err := s.prepareAliases(0, input.Name, input.Aliases, input.Strict)
+	if err != nil {
+		return nil, err
+	}
 
 	actor := &data.Actor{
 		UUID:            uuid.New(),
 		Name:            input.Name,
-		Aliases:         pq.StringArray(input.Aliases),
+		Aliases:         pq.StringArray(aliases),
 		ImageURL:        input.ImageURL,
 		Gender:          input.Gender,
 		Birthday:        input.Birthday,
@@ -166,6 +181,7 @@ func (s *ActorService) Update(id uint, input UpdateActorInput) (*data.Actor, err
 	}
 
 	nameChanged := false
+	oldAliases := append([]string{}, actor.Aliases...)
 	if input.Name != nil {
 		if *input.Name == "" {
 			return nil, apperrors.NewValidationErrorWithField("name", "actor name is required")
@@ -175,6 +191,11 @@ func (s *ActorService) Update(id uint, input UpdateActorInput) (*data.Actor, err
 		}
 		if actor.Name != *input.Name {
 			nameChanged = true
+			if input.Strict {
+				if err := s.checkNameFree(id, *input.Name); err != nil {
+					return nil, err
+				}
+			}
 		}
 		actor.Name = *input.Name
 	}
@@ -239,15 +260,25 @@ func (s *ActorService) Update(id uint, input UpdateActorInput) (*data.Actor, err
 		actor.SameSexOnly = *input.SameSexOnly
 	}
 	if input.Aliases != nil {
-		actor.Aliases = pq.StringArray(*input.Aliases)
+		aliases, err := s.prepareAliases(id, actor.Name, *input.Aliases, input.Strict)
+		if err != nil {
+			return nil, err
+		}
+		actor.Aliases = pq.StringArray(aliases)
+	} else if nameChanged {
+		// the new name may be one of the aliases: it is no longer an alias
+		if aliases, err := NormalizeAliases(actor.Name, actor.Aliases); err == nil {
+			actor.Aliases = pq.StringArray(aliases)
+		}
 	}
 
 	if err := s.actorRepo.Update(actor); err != nil {
 		return nil, apperrors.NewInternalError("failed to update actor", err)
 	}
 
-	// When the actor name changes, update denormalized actors field and re-index all associated scenes
-	if nameChanged {
+	// When the actor name or aliases change, update denormalized actors field and re-index
+	// all associated scenes (aliases are searchable)
+	if nameChanged || !sameStrings(oldAliases, actor.Aliases) {
 		s.reindexActorScenes(id)
 	}
 

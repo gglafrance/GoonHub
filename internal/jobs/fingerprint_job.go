@@ -2,9 +2,10 @@ package jobs
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"goonhub/pkg/chromaprint"
-	"goonhub/pkg/dhash"
+	"goonhub/pkg/compute"
+	"goonhub/pkg/workerproto"
 	"sync/atomic"
 	"time"
 
@@ -12,28 +13,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// FingerprintResult holds the extracted fingerprint data.
-// In dual mode, both AudioFingerprint and VisualFingerprint may be populated.
-type FingerprintResult struct {
-	AudioFingerprint  []int32  // non-nil when audio fingerprint was extracted
-	VisualFingerprint []uint64 // non-nil when visual fingerprint was extracted
-}
-
-// FingerprintTypeLabel returns a label based on which fingerprints are populated.
-func (r *FingerprintResult) FingerprintTypeLabel() string {
-	hasAudio := len(r.AudioFingerprint) > 0
-	hasVisual := len(r.VisualFingerprint) > 0
-	switch {
-	case hasAudio && hasVisual:
-		return "dual"
-	case hasAudio:
-		return "audio"
-	case hasVisual:
-		return "visual"
-	default:
-		return "unknown"
-	}
-}
+// FingerprintResult holds the extracted fingerprint data (the computation result shared with
+// remote workers). In dual mode, both AudioFingerprint and VisualFingerprint may be populated.
+type FingerprintResult = workerproto.FingerprintResult
 
 // FingerprintJob extracts audio or visual fingerprints from a video scene
 type FingerprintJob struct {
@@ -42,10 +24,13 @@ type FingerprintJob struct {
 	scenePath       string
 	audioCodec      string // from scene metadata - determines audio vs visual path
 	fingerprintMode string // "audio_only" or "dual"
+	sceneDuration   int    // seconds, scales the timeout of long videos
 	status          JobStatus
 	error           error
 	cancelled       atomic.Bool
 	result          *FingerprintResult
+	committer       *FingerprintCommitter
+	env             compute.Env
 	ctx             context.Context
 	cancelFn        context.CancelFunc
 	logger          *zap.Logger
@@ -70,6 +55,31 @@ func NewFingerprintJob(
 	}
 }
 
+// SetCommitter sets the commit step (PostgreSQL save + matching). Without one, the job only
+// extracts the fingerprints.
+func (j *FingerprintJob) SetCommitter(c *FingerprintCommitter) { j.committer = c }
+
+// SetComputeEnv sets the compute environment (binaries, acceleration; default: software).
+func (j *FingerprintJob) SetComputeEnv(env compute.Env) { j.env = env }
+
+// SetSceneDuration sets the video duration (seconds), used to scale the job timeout.
+func (j *FingerprintJob) SetSceneDuration(seconds int) {
+	j.sceneDuration = seconds
+}
+
+// fingerprintTimeoutPerVideoSecond is the time allowed per second of video beyond the pool
+// timeout: long videos (hours) must not time out after a fixed 10 minutes and redo all the work.
+const fingerprintTimeoutPerVideoSecond = 500 * time.Millisecond
+
+// JobTimeout implements TimeoutScaler: the pool timeout, raised for long videos.
+func (j *FingerprintJob) JobTimeout(base time.Duration) time.Duration {
+	scaled := time.Duration(j.sceneDuration) * fingerprintTimeoutPerVideoSecond
+	if scaled > base {
+		return scaled
+	}
+	return base
+}
+
 // NewFingerprintJobWithID creates a FingerprintJob with a pre-assigned job ID.
 // Used by JobQueueFeeder when creating jobs from pending DB records.
 func NewFingerprintJobWithID(
@@ -91,7 +101,7 @@ func NewFingerprintJobWithID(
 	}
 }
 
-func (j *FingerprintJob) GetID() string                { return j.id }
+func (j *FingerprintJob) GetID() string                 { return j.id }
 func (j *FingerprintJob) GetSceneID() uint              { return j.sceneID }
 func (j *FingerprintJob) GetPhase() string              { return "fingerprint" }
 func (j *FingerprintJob) GetStatus() JobStatus          { return j.status }
@@ -128,53 +138,63 @@ func (j *FingerprintJob) ExecuteWithContext(ctx context.Context) error {
 		return fmt.Errorf("job cancelled")
 	}
 
-	// Determine which extractions to run:
-	// - Audio: always when audio exists (both modes)
-	// - Visual: when no audio, or when dual mode is enabled
-	extractAudio := j.audioCodec != ""
-	extractVisual := j.audioCodec == "" || j.fingerprintMode == "dual"
-
-	j.result = &FingerprintResult{}
-
-	if extractAudio {
-		if err := j.extractAudioFingerprint(); err != nil {
-			if j.ctx.Err() == context.DeadlineExceeded {
-				j.status = JobStatusTimedOut
-				j.error = fmt.Errorf("audio fingerprint extraction timed out")
-				return j.error
-			}
-			if j.ctx.Err() == context.Canceled || j.cancelled.Load() {
-				j.status = JobStatusCancelled
-				return fmt.Errorf("job cancelled")
-			}
-			j.error = err
-			j.status = JobStatusFailed
-			return err
+	res, err := compute.Fingerprint(j.ctx, j.env, compute.Request{
+		Input: j.scenePath,
+		Video: workerproto.VideoInfo{DurationSec: j.sceneDuration, AudioCodec: j.audioCodec},
+	}, workerproto.FingerprintParams{Mode: j.fingerprintMode})
+	if err != nil {
+		step := "visual"
+		if compute.FailedStep(err) == compute.StepAudioFingerprint {
+			step = "audio"
 		}
+		if j.ctx.Err() == context.DeadlineExceeded || errors.Is(err, context.DeadlineExceeded) {
+			j.status = JobStatusTimedOut
+			j.error = fmt.Errorf("%s fingerprint extraction timed out", step)
+			return j.error
+		}
+		if j.ctx.Err() == context.Canceled || j.cancelled.Load() {
+			j.status = JobStatusCancelled
+			return fmt.Errorf("job cancelled")
+		}
+		j.error = err
+		j.status = JobStatusFailed
+		return err
+	}
+	j.result = res
+
+	if res.AudioError != "" {
+		j.logger.Warn("Audio extraction failed in dual mode, falling back to visual fingerprint",
+			zap.Uint("scene_id", j.sceneID),
+			zap.String("error", res.AudioError),
+		)
+	}
+	if res.VisualError != "" {
+		j.logger.Warn("Visual extraction failed in dual mode, keeping audio fingerprint",
+			zap.Uint("scene_id", j.sceneID),
+			zap.String("error", res.VisualError),
+		)
+	}
+	if len(res.AudioFingerprint) > 0 {
+		j.logger.Info("Audio fingerprint extracted",
+			zap.Uint("scene_id", j.sceneID),
+			zap.Int("hash_count", len(res.AudioFingerprint)),
+			zap.Float64("duration", res.AudioDurationSec),
+		)
+	}
+	if len(res.VisualFingerprint) > 0 {
+		j.logger.Info("Visual fingerprint extracted",
+			zap.Uint("scene_id", j.sceneID),
+			zap.Int("frame_count", len(res.VisualFingerprint)),
+		)
 	}
 
-	if extractVisual {
-		if err := j.extractVisualFingerprint(); err != nil {
-			if j.ctx.Err() == context.DeadlineExceeded {
-				j.status = JobStatusTimedOut
-				j.error = fmt.Errorf("visual fingerprint extraction timed out")
-				return j.error
-			}
-			if j.ctx.Err() == context.Canceled || j.cancelled.Load() {
-				j.status = JobStatusCancelled
-				return fmt.Errorf("job cancelled")
-			}
-			// In dual mode, if audio succeeded but visual failed, treat as partial success
-			if extractAudio && len(j.result.AudioFingerprint) > 0 {
-				j.logger.Warn("Visual extraction failed in dual mode, keeping audio fingerprint",
-					zap.Uint("scene_id", j.sceneID),
-					zap.Error(err),
-				)
-			} else {
-				j.error = err
-				j.status = JobStatusFailed
-				return err
-			}
+	// Commit: a failed save is logged and does not fail the job (as before)
+	if j.committer != nil {
+		if err := j.committer.Commit(j.sceneID, res); err != nil {
+			j.logger.Error("Failed to save fingerprint to database",
+				zap.Uint("scene_id", j.sceneID),
+				zap.Error(err),
+			)
 		}
 	}
 
@@ -184,43 +204,6 @@ func (j *FingerprintJob) ExecuteWithContext(ctx context.Context) error {
 		zap.Uint("scene_id", j.sceneID),
 		zap.String("type", j.result.FingerprintTypeLabel()),
 		zap.Duration("elapsed", time.Since(startTime)),
-	)
-
-	return nil
-}
-
-func (j *FingerprintJob) extractAudioFingerprint() error {
-	fpResult, err := chromaprint.ExtractFingerprintWithContext(j.ctx, j.scenePath)
-	if err != nil {
-		return fmt.Errorf("chromaprint extraction failed: %w", err)
-	}
-
-	j.result.AudioFingerprint = fpResult.Fingerprint
-
-	j.logger.Info("Audio fingerprint extracted",
-		zap.Uint("scene_id", j.sceneID),
-		zap.Int("hash_count", len(fpResult.Fingerprint)),
-		zap.Float64("duration", fpResult.Duration),
-	)
-
-	return nil
-}
-
-func (j *FingerprintJob) extractVisualFingerprint() error {
-	hashes, err := dhash.ExtractDHashesWithContext(j.ctx, j.scenePath)
-	if err != nil {
-		return fmt.Errorf("dhash extraction failed: %w", err)
-	}
-
-	if len(hashes) == 0 {
-		return fmt.Errorf("no visual frames extracted")
-	}
-
-	j.result.VisualFingerprint = hashes
-
-	j.logger.Info("Visual fingerprint extracted",
-		zap.Uint("scene_id", j.sceneID),
-		zap.Int("frame_count", len(hashes)),
 	)
 
 	return nil

@@ -4,14 +4,16 @@ import "goonhub/internal/core"
 
 // DuplicateGroupResponse represents a duplicate group in the API response
 type DuplicateGroupResponse struct {
-	ID          uint                           `json:"id"`
-	Status      string                         `json:"status"`
-	SceneCount  int                            `json:"scene_count"`
-	BestSceneID *uint                          `json:"best_scene_id"`
-	Members     []DuplicateGroupMemberResponse `json:"members"`
-	CreatedAt   string                         `json:"created_at"`
-	UpdatedAt   string                         `json:"updated_at"`
-	ResolvedAt  *string                        `json:"resolved_at,omitempty"`
+	ID          uint   `json:"id"`
+	Status      string `json:"status"`
+	SceneCount  int    `json:"scene_count"`
+	BestSceneID *uint  `json:"best_scene_id"`
+	// Kind summarizes the members' relations: identical, containment, partial, unverified
+	Kind       string                         `json:"kind"`
+	Members    []DuplicateGroupMemberResponse `json:"members"`
+	CreatedAt  string                         `json:"created_at"`
+	UpdatedAt  string                         `json:"updated_at"`
+	ResolvedAt *string                        `json:"resolved_at,omitempty"`
 }
 
 // DuplicateGroupMemberResponse represents a member of a duplicate group
@@ -31,6 +33,17 @@ type DuplicateGroupMemberResponse struct {
 	MatchType       string  `json:"match_type"`
 	IsTrashed       bool    `json:"is_trashed"`
 	TrashedAt       *string `json:"trashed_at,omitempty"`
+	FileName        string  `json:"file_name"`
+	// Matching segment in this scene and the corresponding segment in RefSceneID (seconds)
+	MatchStart *float64 `json:"match_start,omitempty"`
+	MatchEnd   *float64 `json:"match_end,omitempty"`
+	RefSceneID *uint    `json:"ref_scene_id,omitempty"`
+	RefStart   *float64 `json:"ref_start,omitempty"`
+	RefEnd     *float64 `json:"ref_end,omitempty"`
+	// Relation to RefSceneID: identical, contained (clip of it), contains, partial, unknown
+	Relation string `json:"relation"`
+	// DeleteAfter is when this scene (not kept at resolution) will be permanently deleted
+	DeleteAfter *string `json:"delete_after,omitempty"`
 }
 
 // DuplicateStatsResponse represents duplicate group statistics
@@ -52,6 +65,13 @@ type DuplicationConfigResponse struct {
 	VisualMinSpan           int     `json:"visual_min_span"`
 	DeltaTolerance          int     `json:"delta_tolerance"`
 	FingerprintMode         string  `json:"fingerprint_mode"`
+	// Permanent deletion (scene and file) of the scenes not kept when a group is resolved
+	DeleteResolvedFiles bool `json:"delete_resolved_files"`
+	DeletionDelayHours  int  `json:"deletion_delay_hours"`
+	// Ordered criteria used to pick the best variant (first difference decides)
+	BestSelectionCriteria []string `json:"best_selection_criteria"`
+	// AvailableBestCriteria lists all supported criteria (read-only)
+	AvailableBestCriteria []string `json:"available_best_criteria,omitempty"`
 }
 
 // ToDuplicateGroupResponse converts a core DuplicateGroupWithScenes to an API response
@@ -73,10 +93,21 @@ func ToDuplicateGroupResponse(g core.DuplicateGroupWithScenes) DuplicateGroupRes
 			ConfidenceScore: m.ConfidenceScore,
 			MatchType:       m.MatchType,
 			IsTrashed:       m.IsTrashed,
+			FileName:        m.FileName,
+			MatchStart:      m.MatchStart,
+			MatchEnd:        m.MatchEnd,
+			RefSceneID:      m.RefSceneID,
+			RefStart:        m.RefStart,
+			RefEnd:          m.RefEnd,
+			Relation:        m.Relation,
 		}
 		if m.TrashedAt != nil {
 			s := m.TrashedAt.Format("2006-01-02T15:04:05Z")
 			member.TrashedAt = &s
+		}
+		if m.DeleteAfter != nil {
+			s := m.DeleteAfter.UTC().Format("2006-01-02T15:04:05Z")
+			member.DeleteAfter = &s
 		}
 		members[i] = member
 	}
@@ -86,6 +117,7 @@ func ToDuplicateGroupResponse(g core.DuplicateGroupWithScenes) DuplicateGroupRes
 		Status:      g.Status,
 		SceneCount:  g.SceneCount,
 		BestSceneID: g.BestSceneID,
+		Kind:        g.Kind,
 		Members:     members,
 		CreatedAt:   g.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:   g.UpdatedAt.Format("2006-01-02T15:04:05Z"),

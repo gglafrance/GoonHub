@@ -1,5 +1,9 @@
 <script setup lang="ts">
-const searchStore = useSearchStore();
+import type { SearchStatusKey } from '~/stores/search';
+import { SEARCH_STATUS_KEYS } from '~/stores/search';
+const searchStore = useSearchContext();
+// Size filters are not applied without files:view_size (see the search store)
+const perms = useMyPermissions();
 
 const removeTag = (tag: string) => {
     searchStore.selectedTags = searchStore.selectedTags.filter((t) => t !== tag);
@@ -9,9 +13,38 @@ const removeActor = (actor: string) => {
     searchStore.selectedActors = searchStore.selectedActors.filter((a) => a !== actor);
 };
 
+const removeSourceSite = (site: string) => {
+    searchStore.selectedSourceSites = searchStore.selectedSourceSites.filter((s) => s !== site);
+};
+
 const removeMarkerLabel = (label: string) => {
     searchStore.selectedMarkerLabels = searchStore.selectedMarkerLabels.filter((l) => l !== label);
 };
+
+// Size chip label (bounds in megabytes)
+const formatMB = (mb: number) => (mb >= 1024 ? `${+(mb / 1024).toFixed(1)} GB` : `${mb} MB`);
+const formatSizeRange = (min: number, max: number) => {
+    if (min > 0 && max > 0) return `${formatMB(min)} - ${formatMB(max)}`;
+    if (min > 0) return `${formatMB(min)}+`;
+    return `< ${formatMB(max)}`;
+};
+
+const STATUS_LABELS: Record<SearchStatusKey, [string, string]> = {
+    watched: ['Watched', 'Never watched'],
+    rated: ['Rated', 'Not rated'],
+    has_markers: ['With markers', 'Without markers'],
+    has_actors: ['With actors', 'Without actors'],
+    has_tags: ['With tags', 'Without tags'],
+    has_studio: ['With studio', 'Without studio'],
+    has_source: ['With source', 'Without source'],
+};
+
+const statusChips = computed(() =>
+    SEARCH_STATUS_KEYS.filter((k) => searchStore.status[k] !== null).map((k) => ({
+        key: k,
+        label: STATUS_LABELS[k][searchStore.status[k] ? 0 : 1],
+    })),
+);
 </script>
 
 <template>
@@ -80,6 +113,19 @@ const removeMarkerLabel = (label: string) => {
         </span>
 
         <span
+            v-for="site in searchStore.selectedSourceSites"
+            :key="'source-' + site"
+            class="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-0.5 text-[11px]
+                font-medium text-white"
+        >
+            <Icon name="heroicons:globe-alt" size="12" class="opacity-50" />
+            {{ site }}
+            <button class="text-dim hover:text-white" @click="removeSourceSite(site)">
+                <Icon name="heroicons:x-mark" size="12" />
+            </button>
+        </span>
+
+        <span
             v-if="searchStore.minDuration > 0 || searchStore.maxDuration > 0"
             class="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-0.5 text-[11px]
                 font-medium text-white"
@@ -99,6 +145,42 @@ const removeMarkerLabel = (label: string) => {
                 @click="
                     searchStore.minDuration = 0;
                     searchStore.maxDuration = 0;
+                "
+            >
+                <Icon name="heroicons:x-mark" size="12" />
+            </button>
+        </span>
+        <span
+            v-for="chip in statusChips"
+            :key="chip.key"
+            class="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-0.5 text-[11px]
+                font-medium text-white"
+        >
+            <Icon name="heroicons:check-badge" size="12" />
+            {{ chip.label }}
+            <button
+                class="hover:text-white"
+                @click="
+                    searchStore.status[chip.key] = null;
+                    searchStore.search();
+                "
+            >
+                <Icon name="heroicons:x-mark" size="12" />
+            </button>
+        </span>
+        <span
+            v-if="
+                perms.has('files:view_size') && (searchStore.minSize > 0 || searchStore.maxSize > 0)
+            "
+            class="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-0.5 text-[11px]
+                font-medium text-white"
+        >
+            {{ formatSizeRange(searchStore.minSize, searchStore.maxSize) }}
+            <button
+                class="text-dim hover:text-white"
+                @click="
+                    searchStore.minSize = 0;
+                    searchStore.maxSize = 0;
                 "
             >
                 <Icon name="heroicons:x-mark" size="12" />

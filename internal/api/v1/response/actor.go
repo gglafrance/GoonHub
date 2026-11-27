@@ -11,4 +11,6 @@ type ActorListItem struct {
 	ImageURL   string    `json:"image_url"`
 	Gender     string    `json:"gender"`
 	SceneCount int64     `json:"scene_count"`
+	// MatchedAlias is the alias that matched the search query when the name does not.
+	MatchedAlias string `json:"matched_alias,omitempty"`
 }

@@ -12,10 +12,12 @@ mocks: setup-test
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_explorer_repository.go -package=mocks goonhub/internal/data ExplorerRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_revoked_token_repository.go -package=mocks goonhub/internal/data RevokedTokenRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_user_settings_repository.go -package=mocks goonhub/internal/data UserSettingsRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_nav_layout_repository.go -package=mocks goonhub/internal/data NavLayoutRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_role_repository.go -package=mocks goonhub/internal/data RoleRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_permission_repository.go -package=mocks goonhub/internal/data PermissionRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_job_history_repository.go -package=mocks goonhub/internal/data JobHistoryRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_pool_config_repository.go -package=mocks goonhub/internal/data PoolConfigRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_job_schedule_repository.go -package=mocks goonhub/internal/data JobScheduleRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_processing_config_repository.go -package=mocks goonhub/internal/data ProcessingConfigRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_trigger_config_repository.go -package=mocks goonhub/internal/data TriggerConfigRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_tag_repository.go -package=mocks goonhub/internal/data TagRepository
@@ -27,14 +29,26 @@ mocks: setup-test
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_watch_history_repository.go -package=mocks goonhub/internal/data WatchHistoryRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_dlq_repository.go -package=mocks goonhub/internal/data DLQRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_retry_config_repository.go -package=mocks goonhub/internal/data RetryConfigRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_scene_phase_failure_repository.go -package=mocks goonhub/internal/data ScenePhaseFailureRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_saved_search_repository.go -package=mocks goonhub/internal/data SavedSearchRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_marker_repository.go -package=mocks goonhub/internal/data MarkerRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_marker_label_repository.go -package=mocks goonhub/internal/data MarkerLabelRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_search_config_repository.go -package=mocks goonhub/internal/data SearchConfigRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_playlist_repository.go -package=mocks goonhub/internal/data PlaylistRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_app_settings_repository.go -package=mocks goonhub/internal/data AppSettingsRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_share_link_repository.go -package=mocks goonhub/internal/data ShareLinkRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_duplicate_group_repository.go -package=mocks goonhub/internal/data DuplicateGroupRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_scene_copy_repository.go -package=mocks goonhub/internal/data SceneCopyRepository
 	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_duplication_config_repository.go -package=mocks goonhub/internal/data DuplicationConfigRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_import_repository.go -package=mocks goonhub/internal/data ImportRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_saved_marker_filter_repository.go -package=mocks goonhub/internal/data SavedMarkerFilterRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_replay_heatmap_repository.go -package=mocks goonhub/internal/data ReplayHeatmapRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_library_health_repository.go -package=mocks goonhub/internal/data LibraryHealthRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_social_repository.go -package=mocks goonhub/internal/data SocialRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_privacy_repository.go -package=mocks goonhub/internal/data PrivacyRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_profile_repository.go -package=mocks goonhub/internal/data ProfileRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_presence_repository.go -package=mocks goonhub/internal/data PresenceRepository
+	go run go.uber.org/mock/mockgen -destination=internal/mocks/mock_message_repository.go -package=mocks goonhub/internal/data MessageRepository
 
 test: mocks
 	go test ./...

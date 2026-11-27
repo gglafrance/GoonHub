@@ -22,16 +22,20 @@ const showNext = ref(false);
 const nextLoaded = ref(false);
 let cycleTimer: ReturnType<typeof setTimeout> | null = null;
 
-const currentUrl = computed(() => `/marker-thumbnails/${ids.value[currentIndex.value]}`);
+// Thumbnail URL of a marker of the group, with its version (refetched once regenerated)
+const urlOf = (id: number | undefined, animated = false) =>
+    markerThumbnailUrl(id ?? 0, id != null ? props.group.thumbnail_versions?.[id] : null, animated);
+
+const currentUrl = computed(() => urlOf(ids.value[currentIndex.value]));
 const nextIndex = computed(() => (currentIndex.value + 1) % ids.value.length);
-const nextUrl = computed(() => `/marker-thumbnails/${ids.value[nextIndex.value]}`);
+const nextUrl = computed(() => urlOf(ids.value[nextIndex.value]));
 
 // For animated mode, pick a random marker ID for the video
 const animatedMarkerId = computed(() => {
     const arr = ids.value;
     return arr[Math.floor(Math.random() * arr.length)];
 });
-const animatedUrl = computed(() => `/marker-thumbnails/${animatedMarkerId.value}/animated`);
+const animatedUrl = computed(() => urlOf(animatedMarkerId.value, true));
 
 function stopCycling() {
     if (cycleTimer) {
@@ -90,7 +94,7 @@ onBeforeUnmount(() => {
 <template>
     <NuxtLink
         :to="`/markers/${encodeURIComponent(group.label)}`"
-        class="group relative block max-w-[320px] overflow-hidden rounded-lg"
+        class="group relative block overflow-hidden rounded-lg"
     >
         <!-- Thumbnail -->
         <div class="relative aspect-video w-full overflow-hidden bg-black/40">

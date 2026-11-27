@@ -6,7 +6,7 @@ import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 const scene = inject<Ref<Scene | null>>('watchScene');
 const thumbnailVersion = inject<Ref<number>>('thumbnailVersion');
 const detailsRefreshKey = inject<Ref<number>>('detailsRefreshKey');
-const authStore = useAuthStore();
+const perms = useMyPermissions();
 const { updateSceneDetails, fetchScene } = useApi();
 
 // Inject centralized watch page data
@@ -30,7 +30,9 @@ const router = useRouter();
 // Tag manager ref for reloading
 const tagManagerRef = ref<{ reload: () => void } | null>(null);
 
-const isAdmin = computed(() => authStore.user?.role === 'admin');
+const canEdit = computed(() => perms.has('scenes:edit'));
+const canUsePornDB = computed(() => perms.has('porndb:use'));
+const canTrash = computed(() => perms.has('scenes:trash'));
 
 // Loading state for interactions
 const interactionsLoading = computed(() => watchPageData?.loading.details ?? true);
@@ -49,7 +51,7 @@ const sceneForSearch = computed(() => {
     return {
         ...scene.value,
         actors: watchPageData?.actors.value.map((a) => a.name) || [],
-        studio: watchPageData?.studio.value?.name || null,
+        studio: watchPageData?.studio.value?.name || undefined,
     };
 });
 
@@ -91,6 +93,32 @@ async function saveTitle(title: string) {
 async function saveDescription(description: string) {
     if (!scene?.value) return;
     await saveDetails(scene.value.title || '', description);
+}
+
+async function saveSourceUrl(sourceUrl: string) {
+    if (!scene?.value) return;
+
+    saving.value = true;
+    error.value = null;
+
+    try {
+        const updated = await updateSceneDetails(
+            scene.value.id,
+            scene.value.title,
+            scene.value.description || '',
+            undefined,
+            sourceUrl,
+        );
+        if (scene.value) {
+            scene.value.source_url = updated.source_url;
+            scene.value.source_site = updated.source_site;
+        }
+        showSavedIndicator();
+    } catch (err: unknown) {
+        error.value = err instanceof Error ? err.message : 'Failed to save the source';
+    } finally {
+        saving.value = false;
+    }
 }
 
 async function saveReleaseDate(releaseDate: string | null) {
@@ -171,13 +199,23 @@ function handleSceneDeleted() {
                     <WatchDetailsTitleEditor
                         :title="scene?.title || ''"
                         :saved="saved"
+                        :readonly="!canEdit"
                         @save="saveTitle"
                     />
 
                     <!-- Description -->
                     <WatchDetailsDescriptionEditor
                         :description="scene?.description || ''"
+                        :readonly="!canEdit"
                         @save="saveDescription"
+                    />
+
+                    <!-- Source -->
+                    <WatchDetailsSourceEditor
+                        :source-url="scene?.source_url || ''"
+                        :source-site="scene?.source_site || ''"
+                        :readonly="!canEdit"
+                        @save="saveSourceUrl"
                     />
                 </div>
             </div>
@@ -239,6 +277,7 @@ function handleSceneDeleted() {
             <div class="border-border/50 bg-surface/30 w-40 shrink-0 rounded-lg border p-3">
                 <WatchDetailsReleaseDateEditor
                     :release-date="scene?.release_date || null"
+                    :readonly="!canEdit"
                     @save="saveReleaseDate"
                 />
             </div>
@@ -269,7 +308,7 @@ function handleSceneDeleted() {
                     <p v-else class="text-dim text-xs">Not linked</p>
                     <!-- Fetch/Refresh button -->
                     <button
-                        v-if="isAdmin && pornDBConfigured"
+                        v-if="canUsePornDB && pornDBConfigured"
                         class="hover:border-lava/40 hover:text-lava text-dim flex w-full
                             items-center justify-center gap-2 rounded-md border border-dashed
                             border-white/10 px-2 py-1.5 text-xs transition-colors"
@@ -304,7 +343,7 @@ function handleSceneDeleted() {
                 Add to Playlist
             </button>
             <button
-                v-if="isAdmin"
+                v-if="canTrash"
                 class="hover:border-lava/40 hover:text-lava text-dim flex items-center gap-2
                     rounded-md border border-dashed border-white/10 px-3 py-1.5 text-xs
                     transition-colors"

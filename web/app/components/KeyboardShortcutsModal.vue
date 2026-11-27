@@ -1,6 +1,8 @@
 <script setup lang="ts">
 const props = defineProps<{
     visible: boolean;
+    // Lists the triage shortcuts first (opened from the triage page)
+    triageFirst?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -8,8 +10,31 @@ const emit = defineEmits<{
 }>();
 
 const { layout, displayKeys } = useKeyboardLayout();
+const { modifierLabel } = useCommandPalette();
+const slashEnabled = useCommandPaletteSlashEnabled();
 
-const shortcuts = computed(() => [
+// Alt+M is Option+M on macOS
+const startKey = computed(() => (modifierLabel.value === 'Ctrl' ? 'Alt M' : '⌥ M'));
+
+const paletteKeys = computed(() =>
+    slashEnabled.value ? [`${modifierLabel.value} K`, '/'] : [`${modifierLabel.value} K`],
+);
+
+const triageSection = computed(() => ({
+    category: 'Triage mode',
+    items: TRIAGE_SHORTCUTS.map((s) => ({ keys: s.keys, description: s.description })),
+}));
+
+const shortcuts = computed(() => {
+    const player = playerSections.value;
+    return props.triageFirst ? [triageSection.value, ...player] : [...player, triageSection.value];
+});
+
+const playerSections = computed(() => [
+    {
+        category: 'General',
+        items: [{ keys: paletteKeys.value, description: 'Command palette' }],
+    },
     {
         category: 'Playback',
         items: [
@@ -47,7 +72,11 @@ const shortcuts = computed(() => [
     },
     {
         category: 'Markers',
-        items: [{ keys: ['M'], description: 'Add marker at current time' }],
+        items: [
+            { keys: ['M'], description: 'Quick marker: label, then sub-labels' },
+            { keys: ['Shift M'], description: 'Set the end of the last marker' },
+            { keys: [startKey.value], description: 'Set the start of the last marker' },
+        ],
     },
     {
         category: 'Navigation',
@@ -108,7 +137,7 @@ onUnmounted(() => {
                             <div>
                                 <h2 class="text-sm font-semibold text-white">Keyboard Shortcuts</h2>
                                 <p class="text-dim text-[11px]">
-                                    Scene player controls
+                                    App, scene player and triage controls
                                     <span class="text-lava ml-1 uppercase">{{ layout }}</span>
                                 </p>
                             </div>

@@ -4,6 +4,23 @@ const api = useApi();
 const { showSelector, maxLimit, updatePageSize } = usePageSize();
 
 const selectMode = ref(false);
+// Grid or table (table columns may need fields the current results lack)
+const { isTable } = useSceneListView('search', () => searchStore.search());
+
+// Infinite scroll instead of page controls (user setting)
+const settingsStore = useSettingsStore();
+const infiniteScroll = computed(() => settingsStore.infiniteScroll);
+const { keepPositionWhile } = useInfiniteScrollPosition();
+const hasMore = computed(
+    () => searchStore.loadedPages.last * searchStore.limit < searchStore.total,
+);
+// The search page watches the page: the next page is appended to the list
+const loadMore = () => {
+    if (searchStore.isLoading || searchStore.isLoadingMore) return;
+    searchStore.page = searchStore.loadedPages.last + 1;
+};
+const loadPrevious = () => keepPositionWhile(() => searchStore.loadPrevious());
+watch(infiniteScroll, () => searchStore.search());
 const scenesRef = computed(() => searchStore.scenes);
 const {
     hasSelection,
@@ -39,6 +56,8 @@ watch(filterSignature, () => clearSelection());
 watch(selectMode, (on) => {
     if (!on) clearSelection();
 });
+// A card's hover checkbox turns select mode on, Escape clears the selection
+useCardSelectMode(selectMode, hasSelection, clearSelection);
 
 const handleBulkComplete = () => {
     clearSelection();
@@ -60,19 +79,22 @@ const handleBulkComplete = () => {
                 <span v-else>No scenes found</span>
             </div>
 
-            <SceneSelectionControls
-                v-if="!searchStore.isLoading && searchStore.scenes.length > 0"
-                :select-mode="selectMode"
-                :has-selection="hasSelection"
-                :is-selecting-all="isSelectingAll"
-                :all-page-scenes-selected="allPageScenesSelected"
-                :all-scenes-selected="allScenesSelected"
-                :total-scenes="searchStore.total"
-                @update:select-mode="selectMode = $event"
-                @deselect-all="clearSelection()"
-                @select-page="selectAllOnPage()"
-                @select-all="selectAllScenes()"
-            />
+            <div class="flex items-center gap-3">
+                <SceneSelectionControls
+                    v-if="!searchStore.isLoading && searchStore.scenes.length > 0"
+                    :select-mode="selectMode"
+                    :has-selection="hasSelection"
+                    :is-selecting-all="isSelectingAll"
+                    :all-page-scenes-selected="allPageScenesSelected"
+                    :all-scenes-selected="allScenesSelected"
+                    :total-scenes="searchStore.total"
+                    @update:select-mode="selectMode = $event"
+                    @deselect-all="clearSelection()"
+                    @select-page="selectAllOnPage()"
+                    @select-all="selectAllScenes()"
+                />
+                <SceneTableViewControls page="search" />
+            </div>
         </div>
 
         <!-- Error -->
@@ -92,25 +114,55 @@ const handleBulkComplete = () => {
 
         <!-- Results Grid -->
         <template v-else-if="searchStore.scenes.length > 0">
-            <SelectableSceneGrid
-                v-if="selectMode"
-                :scenes="searchStore.scenes"
-                :ratings="searchStore.ratings"
-                :likes="searchStore.likes"
-                :jizz-counts="searchStore.jizzCounts"
-                :is-scene-selected="isSceneSelected"
-                @toggle-selection="toggleSceneSelection"
-                @drag-select="(ids, additive) => dragSelect(ids, additive)"
-            />
-            <SceneGrid
-                v-else
-                :scenes="searchStore.scenes"
-                :ratings="searchStore.ratings"
-                :likes="searchStore.likes"
-                :jizz-counts="searchStore.jizzCounts"
+            <Pagination
+                v-if="!infiniteScroll"
+                v-model="searchStore.page"
+                position="top"
+                :total="searchStore.total"
+                :limit="searchStore.limit"
+                :show-page-size-selector="showSelector"
+                :max-limit="maxLimit"
+                @update:limit="
+                    (v: number) => {
+                        updatePageSize(v);
+                        if (searchStore.page === 1) searchStore.search();
+                        else searchStore.page = 1;
+                    }
+                "
             />
 
+            <SceneListLoadPrevious
+                v-if="infiniteScroll && searchStore.loadedPages.first > 1"
+                :first-page="searchStore.loadedPages.first"
+                :loading="searchStore.isLoadingMore"
+                @load-previous="loadPrevious"
+            />
+
+            <SceneCollection
+                :scenes="searchStore.scenes"
+                :ratings="searchStore.ratings"
+                :likes="searchStore.likes"
+                :jizz-counts="searchStore.jizzCounts"
+                :watched="searchStore.watched"
+                :table="isTable"
+                :select-mode="selectMode"
+                :is-scene-selected="isSceneSelected"
+                :sort="searchStore.sort"
+                default-sort="created_at_desc"
+                @toggle-selection="toggleSceneSelection"
+                @drag-select="(ids, additive) => dragSelect(ids, additive)"
+                @sort="searchStore.sort = $event"
+            />
+
+            <SceneListInfiniteLoader
+                v-if="infiniteScroll"
+                :has-more="hasMore"
+                :loading="searchStore.isLoadingMore"
+                :total="searchStore.total"
+                @load-more="loadMore"
+            />
             <Pagination
+                v-else
                 v-model="searchStore.page"
                 :total="searchStore.total"
                 :limit="searchStore.limit"
@@ -149,6 +201,7 @@ const handleBulkComplete = () => {
             v-if="hasSelection"
             :scene-ids="getSelectedSceneIDs()"
             :selection-count="selectionCount"
+            :scenes="scenesRef"
             @clear-selection="clearSelection()"
             @complete="handleBulkComplete"
         />

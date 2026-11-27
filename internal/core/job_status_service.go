@@ -92,6 +92,17 @@ func (s *JobStatusService) GetJobStatus() *JobStatus {
 	animatedThumbnailsRunning := queueStatus.AnimatedThumbnailsActive
 	fingerprintRunning := queueStatus.FingerprintActive
 
+	// Jobs leased to remote workers run outside the pools: counted from their rows.
+	remoteRunning := map[string]int{}
+	for _, job := range activeJobs {
+		if job.WorkerID != nil {
+			remoteRunning[job.Phase]++
+		}
+	}
+	spritesRunning += remoteRunning["sprites"]
+	animatedThumbnailsRunning += remoteRunning["animated_thumbnails"]
+	fingerprintRunning += remoteRunning["fingerprint"]
+
 	// Build phase status map with pending and failed counts
 	byPhase := map[string]PhaseStatus{
 		"metadata": {
@@ -138,7 +149,7 @@ func (s *JobStatusService) GetJobStatus() *JobStatus {
 	// in the channel buffer. The pool registry is the source of truth.
 	var verifiedJobs []ActiveJob
 	for _, job := range activeJobs {
-		if _, inPool := s.processingService.GetExecutingJob(job.JobID); inPool {
+		if _, inPool := s.processingService.GetExecutingJob(job.JobID); inPool || job.WorkerID != nil {
 			verifiedJobs = append(verifiedJobs, ActiveJob{
 				JobID:      job.JobID,
 				SceneID:    job.SceneID,

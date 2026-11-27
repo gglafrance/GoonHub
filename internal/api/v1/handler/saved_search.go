@@ -48,6 +48,11 @@ func (h *SavedSearchHandler) List(c *gin.Context) {
 		return
 	}
 
+	if !fileVisibility(c).Size {
+		for i := range searches {
+			searches[i].Filters = core.WithoutSizeFilters(searches[i].Filters)
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"data": response.NewSavedSearchListResponse(searches),
 	})
@@ -80,7 +85,27 @@ func (h *SavedSearchHandler) GetByUUID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, response.NewSavedSearchResponse(search))
+	c.JSON(http.StatusOK, savedSearchForUser(c, search))
+}
+
+// savedSearchForUser returns the saved search as the user may see it: without size bounds
+// nor size sort without files:view_size (saved before migration 094).
+func savedSearchForUser(c *gin.Context, search *data.SavedSearch) response.SavedSearchResponse {
+	if search != nil && !fileVisibility(c).Size {
+		cp := *search
+		cp.Filters = core.WithoutSizeFilters(cp.Filters)
+		search = &cp
+	}
+	return response.NewSavedSearchResponse(search)
+}
+
+// refuseSizeFilters answers 403 when saved search filters use sizes without files:view_size.
+func refuseSizeFilters(c *gin.Context, filters data.Filters) bool {
+	if fileVisibility(c).Size || !core.SavedSearchUsesSize(filters) {
+		return false
+	}
+	response.Error(c, apperrors.NewForbiddenError("file size filters and sorts need the files:view_size permission"))
+	return true
 }
 
 func (h *SavedSearchHandler) Create(c *gin.Context) {
@@ -100,6 +125,9 @@ func (h *SavedSearchHandler) Create(c *gin.Context) {
 		Name:    req.Name,
 		Filters: requestFiltersToData(req.Filters),
 	}
+	if refuseSizeFilters(c, input.Filters) {
+		return
+	}
 
 	search, err := h.Service.Create(userID, input)
 	if err != nil {
@@ -111,7 +139,7 @@ func (h *SavedSearchHandler) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, response.NewSavedSearchResponse(search))
+	c.JSON(http.StatusCreated, savedSearchForUser(c, search))
 }
 
 func (h *SavedSearchHandler) Update(c *gin.Context) {
@@ -138,6 +166,9 @@ func (h *SavedSearchHandler) Update(c *gin.Context) {
 	}
 	if req.Filters != nil {
 		filters := requestFiltersToData(*req.Filters)
+		if refuseSizeFilters(c, filters) {
+			return
+		}
 		input.Filters = &filters
 	}
 
@@ -159,7 +190,7 @@ func (h *SavedSearchHandler) Update(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, response.NewSavedSearchResponse(search))
+	c.JSON(http.StatusOK, savedSearchForUser(c, search))
 }
 
 func (h *SavedSearchHandler) Delete(c *gin.Context) {
@@ -201,6 +232,17 @@ func requestFiltersToData(f request.SavedSearchFilters) data.Filters {
 		Resolution:     f.Resolution,
 		MinDuration:    f.MinDuration,
 		MaxDuration:    f.MaxDuration,
+		MinSize:        f.MinSize,
+		MaxSize:        f.MaxSize,
+		HasActors:      f.HasActors,
+		HasTags:        f.HasTags,
+		HasStudio:      f.HasStudio,
+		SourceSites:    core.NormalizeSourceSites(f.SourceSites),
+		HasSource:      f.HasSource,
+		Watched:        f.Watched,
+		Rated:          f.Rated,
+		HasMarkers:     f.HasMarkers,
+		MarkerLabels:   f.MarkerLabels,
 		MinDate:        f.MinDate,
 		MaxDate:        f.MaxDate,
 		Liked:          f.Liked,

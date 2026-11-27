@@ -24,6 +24,22 @@ type memoryDuplicateGroups struct {
 	transaction bool
 	failAdd     uint
 	failReopen  bool
+	// exclusions are the pairs of scenes marked as not duplicates
+	exclusions []data.DuplicateExclusion
+}
+
+func (repo *memoryDuplicateGroups) ListExclusionsAmong(ids []uint) ([]data.DuplicateExclusion, error) {
+	in := make(map[uint]bool, len(ids))
+	for _, id := range ids {
+		in[id] = true
+	}
+	var result []data.DuplicateExclusion
+	for _, e := range repo.exclusions {
+		if in[e.SceneIDA] && in[e.SceneIDB] {
+			result = append(result, e)
+		}
+	}
+	return result, nil
 }
 
 func (repo *memoryDuplicateGroups) RunInTransaction(fn func(data.DuplicateGroupRepository) error) error {
@@ -38,6 +54,22 @@ func (repo *memoryDuplicateGroups) RunInTransaction(fn func(data.DuplicateGroupR
 	if err := fn(repo); err != nil {
 		repo.groups = snapshot
 		return err
+	}
+	return nil
+}
+
+func (repo *memoryDuplicateGroups) FillMemberSegment(member *data.DuplicateGroupMember) error {
+	group, ok := repo.groups[member.GroupID]
+	if !ok {
+		return nil
+	}
+	for i := range group.Members {
+		m := &group.Members[i]
+		if m.SceneID == member.SceneID && m.MatchStart == nil {
+			m.MatchStart, m.MatchEnd = member.MatchStart, member.MatchEnd
+			m.RefSceneID, m.RefStart, m.RefEnd = member.RefSceneID, member.RefStart, member.RefEnd
+			m.Relation = member.Relation
+		}
 	}
 	return nil
 }
@@ -148,7 +180,24 @@ func newMatchingTestService(t *testing.T, groups ...*data.DuplicateGroup) (*Matc
 	scenes.EXPECT().GetByIDIncludingTrashed(gomock.Any()).DoAndReturn(func(id uint) (*data.Scene, error) {
 		return &data.Scene{ID: id, Duration: int(id)}, nil
 	}).AnyTimes()
+	expectSceneDurations(scenes, nil)
 	return NewMatchingService(nil, scenes, repo, nil, zap.NewNop()), repo
+}
+
+// expectSceneDurations answers the batch duration lookup of ProcessMatches: the duration of a
+// scene is durations[id], or its ID (seconds) when not listed.
+func expectSceneDurations(scenes *mocks.MockSceneRepository, durations map[uint]int) {
+	scenes.EXPECT().GetByIDsIncludingTrashed(gomock.Any()).DoAndReturn(func(ids []uint) ([]data.Scene, error) {
+		result := make([]data.Scene, 0, len(ids))
+		for _, id := range ids {
+			d, ok := durations[id]
+			if !ok {
+				d = int(id)
+			}
+			result = append(result, data.Scene{ID: id, Duration: d})
+		}
+		return result, nil
+	}).AnyTimes()
 }
 
 func TestProcessMatchesPreservesEveryMembership(t *testing.T) {
@@ -256,11 +305,91 @@ func TestReopenedGroupDoesNotChooseTrashedBestScene(t *testing.T) {
 	scenes.EXPECT().GetByIDIncludingTrashed(uint(20)).Return(&data.Scene{ID: 20, Duration: 1000, TrashedAt: &now}, nil)
 	scenes.EXPECT().GetByIDIncludingTrashed(uint(30)).Return(&data.Scene{ID: 30, Duration: 30}, nil)
 	scenes.EXPECT().GetByIDIncludingTrashed(uint(10)).Return(&data.Scene{ID: 10, Duration: 10}, nil)
+	expectSceneDurations(scenes, nil)
 	svc := NewMatchingService(nil, scenes, repo, nil, zap.NewNop())
 	if err := svc.ProcessMatches(10, []matching.MatchResult{{SceneID: 30, MatchType: "audio"}}); err != nil {
 		t.Fatal(err)
 	}
 	if group.BestSceneID == nil || *group.BestSceneID != 30 {
 		t.Fatalf("expected live scene 30 as best, got %v", group.BestSceneID)
+	}
+}
+
+func TestProcessMatchesBackfillsMissingSegments(t *testing.T) {
+	// An older group whose members have no matching segment yet
+	svc, repo := newMatchingTestService(t, matchingTestGroup(7, "unresolved", 10, 20))
+	matches := []matching.MatchResult{
+		{SceneID: 20, ConfidenceScore: 0.9, MatchType: "visual", QueryStart: 5, QueryEnd: 14, Delta: 3},
+	}
+	if err := svc.ProcessMatches(10, matches); err != nil {
+		t.Fatal(err)
+	}
+	segments := map[uint]data.DuplicateGroupMember{}
+	for _, m := range repo.groups[7].Members {
+		segments[m.SceneID] = m
+	}
+	query, matched := segments[10], segments[20]
+	// Visual positions are 2 s apart: query 10..30 s, matched scene shifted by 3 frames (6 s)
+	if query.MatchStart == nil || *query.MatchStart != 10 || *query.MatchEnd != 30 || *query.RefSceneID != 20 {
+		t.Fatalf("query segment not filled: %+v", query)
+	}
+	if matched.MatchStart == nil || *matched.MatchStart != 16 || *matched.MatchEnd != 36 || *matched.RefSceneID != 10 {
+		t.Fatalf("matched segment not filled: %+v", matched)
+	}
+}
+
+func newMatchingTestServiceWithDurations(t *testing.T, durations map[uint]int, groups ...*data.DuplicateGroup) (*MatchingService, *memoryDuplicateGroups) {
+	t.Helper()
+	repo := &memoryDuplicateGroups{groups: make(map[uint]*data.DuplicateGroup)}
+	for _, group := range groups {
+		repo.groups[group.ID] = group
+	}
+	scenes := mocks.NewMockSceneRepository(gomock.NewController(t))
+	scenes.EXPECT().GetByIDIncludingTrashed(gomock.Any()).DoAndReturn(func(id uint) (*data.Scene, error) {
+		return &data.Scene{ID: id, Duration: durations[id]}, nil
+	}).AnyTimes()
+	expectSceneDurations(scenes, durations)
+	return NewMatchingService(nil, scenes, repo, nil, zap.NewNop()), repo
+}
+
+func membersBySceneID(group *data.DuplicateGroup) map[uint]data.DuplicateGroupMember {
+	result := make(map[uint]data.DuplicateGroupMember, len(group.Members))
+	for _, m := range group.Members {
+		result[m.SceneID] = m
+	}
+	return result
+}
+
+func TestProcessMatchesClassifiesClipAndCompilation(t *testing.T) {
+	// Scene 4448 (1,642 s clip) is found in scene 4446 (5,627 s compilation) from 2,100 s
+	svc, repo := newMatchingTestServiceWithDurations(t, map[uint]int{4446: 5627, 4448: 1642})
+	matches := []matching.MatchResult{
+		{SceneID: 4446, ConfidenceScore: 0.8, MatchType: "visual", QueryStart: 0, QueryEnd: 819, Delta: 1050},
+	}
+	if err := svc.ProcessMatches(4448, matches); err != nil {
+		t.Fatal(err)
+	}
+	members := membersBySceneID(repo.groups[1])
+	if got := members[4448].Relation; got != data.DuplicateRelationContained {
+		t.Fatalf("clip 4448: got relation %q, want contained", got)
+	}
+	if got := members[4446].Relation; got != data.DuplicateRelationContains {
+		t.Fatalf("compilation 4446: got relation %q, want contains", got)
+	}
+}
+
+func TestProcessMatchesClassifiesBackfilledSegments(t *testing.T) {
+	// An older group without segments: the next fingerprint records them with their relation
+	svc, repo := newMatchingTestServiceWithDurations(t, map[uint]int{10: 600, 20: 602}, matchingTestGroup(7, "unresolved", 10, 20))
+	matches := []matching.MatchResult{
+		{SceneID: 20, ConfidenceScore: 0.95, MatchType: "visual", QueryStart: 1, QueryEnd: 297, Delta: 1},
+	}
+	if err := svc.ProcessMatches(10, matches); err != nil {
+		t.Fatal(err)
+	}
+	for id, m := range membersBySceneID(repo.groups[7]) {
+		if m.Relation != data.DuplicateRelationIdentical {
+			t.Fatalf("scene %d: got relation %q, want identical", id, m.Relation)
+		}
 	}
 }

@@ -9,6 +9,8 @@ const props = defineProps<{
 
 const router = useRouter();
 const { fetchTags, setSceneTags } = useApiTags();
+const perms = useMyPermissions();
+const canEdit = computed(() => perms.has('scenes:edit'));
 
 function navigateToTagSearch(tagName: string) {
     router.push({ path: '/search', query: { tags: tagName } });
@@ -106,6 +108,8 @@ defineExpose({ reload });
             <LoadingSpinner />
         </div>
 
+        <p v-else-if="sceneTags.length === 0 && !canEdit" class="text-dim py-1 text-sm">No tags</p>
+
         <div v-else class="flex flex-wrap items-center gap-1.5">
             <!-- Applied tags -->
             <span
@@ -129,6 +133,7 @@ defineExpose({ reload });
                     {{ tag.name }}
                 </span>
                 <span
+                    v-if="canEdit"
                     class="cursor-pointer opacity-0 transition-opacity group-hover:opacity-60
                         hover:opacity-100!"
                     @click="removeTag(tag.id)"
@@ -139,6 +144,7 @@ defineExpose({ reload });
 
             <!-- Add tag button -->
             <button
+                v-if="canEdit"
                 ref="anchorRef"
                 class="border-border hover:border-border-hover flex h-5 w-5 items-center
                     justify-center rounded-full border transition-colors"

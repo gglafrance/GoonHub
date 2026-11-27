@@ -15,28 +15,67 @@ type User struct {
 	Password    string     `gorm:"not null" json:"-"`
 	Role        string     `gorm:"not null;default:'user'" json:"role"`
 	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
+	// ShareMarkers makes the user's markers visible (read-only) to every user.
+	ShareMarkers bool `gorm:"not null;default:false" json:"share_markers"`
 }
 
+// Role is a named set of permission settings (docs/RBAC.md). It inherits the permissions of
+// its parent roles (role_parents). A superuser role has every permission; a system role cannot
+// be deleted.
 type Role struct {
-	ID          uint         `gorm:"primarykey" json:"id"`
-	CreatedAt   time.Time    `json:"created_at"`
-	UpdatedAt   time.Time    `json:"updated_at"`
-	Name        string       `gorm:"uniqueIndex;not null;size:50" json:"name"`
-	Description string       `gorm:"size:255" json:"description"`
-	Permissions []Permission `gorm:"many2many:role_permissions" json:"permissions,omitempty"`
+	ID          uint      `gorm:"primarykey" json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Name        string    `gorm:"uniqueIndex;not null;size:50" json:"name"`
+	Description string    `gorm:"size:255" json:"description"`
+	IsSystem    bool      `gorm:"not null;default:false" json:"is_system"`
+	IsSuperuser bool      `gorm:"not null;default:false" json:"is_superuser"`
 }
 
+// Permission is a named capability, synced from the catalog (core/rbac_catalog.go).
 type Permission struct {
 	ID          uint      `gorm:"primarykey" json:"id"`
 	CreatedAt   time.Time `json:"created_at"`
 	Name        string    `gorm:"uniqueIndex;not null;size:100" json:"name"`
 	Description string    `gorm:"size:255" json:"description"`
+	GroupName   string    `gorm:"column:group_name;not null;default:''" json:"group"`
 }
 
+// Permission setting effects (role settings and user overrides). No row means "inherit".
+const (
+	PermissionEffectAllow = "allow"
+	PermissionEffectDeny  = "deny"
+)
+
+// RolePermission is a role's own setting for a permission.
 type RolePermission struct {
-	ID           uint `gorm:"primarykey"`
-	RoleID       uint `gorm:"not null"`
-	PermissionID uint `gorm:"not null"`
+	ID           uint   `gorm:"primarykey"`
+	RoleID       uint   `gorm:"not null"`
+	PermissionID uint   `gorm:"not null"`
+	Effect       string `gorm:"not null;default:'allow'"`
+}
+
+// RoleParent makes RoleID inherit the permissions of ParentID.
+type RoleParent struct {
+	RoleID    uint      `gorm:"primaryKey;autoIncrement:false"`
+	ParentID  uint      `gorm:"primaryKey;autoIncrement:false"`
+	CreatedAt time.Time `gorm:"autoCreateTime"`
+}
+
+func (RoleParent) TableName() string {
+	return "role_parents"
+}
+
+// UserPermissionOverride is a per-user setting: it beats the role's effective value.
+type UserPermissionOverride struct {
+	UserID       uint      `gorm:"primaryKey;autoIncrement:false"`
+	PermissionID uint      `gorm:"primaryKey;autoIncrement:false"`
+	Effect       string    `gorm:"not null"`
+	CreatedAt    time.Time `gorm:"autoCreateTime"`
+}
+
+func (UserPermissionOverride) TableName() string {
+	return "user_permission_overrides"
 }
 
 type RevokedToken struct {
@@ -48,32 +87,130 @@ type RevokedToken struct {
 }
 
 type UserSettings struct {
-	ID               uint           `gorm:"primarykey" json:"id"`
-	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
-	UserID           uint           `gorm:"uniqueIndex;not null" json:"user_id"`
-	Autoplay         bool           `gorm:"not null;default:false" json:"autoplay"`
-	DefaultVolume    int            `gorm:"not null;default:100" json:"default_volume"`
-	Loop             bool           `gorm:"not null;default:false" json:"loop"`
-	AbLoopControls   bool           `gorm:"not null;default:false" json:"ab_loop_controls"`
-	VideosPerPage    int            `gorm:"not null;default:20" json:"videos_per_page"`
-	DefaultSortOrder string         `gorm:"not null;default:'created_at_desc'" json:"default_sort_order"`
-	DefaultTagSort          string         `gorm:"not null;default:'az'" json:"default_tag_sort"`
-	MarkerThumbnailCycling     bool                 `gorm:"not null;default:true" json:"marker_thumbnail_cycling"`
-	HomepageConfig             HomepageConfig       `gorm:"type:jsonb;not null" json:"homepage_config"`
-	ParsingRules               ParsingRulesSettings `gorm:"type:jsonb;not null" json:"parsing_rules"`
-	SortPreferences            SortPreferences      `gorm:"type:jsonb;not null" json:"sort_preferences"`
-	PlaylistAutoAdvance        string               `gorm:"not null;default:'countdown'" json:"playlist_auto_advance"`
-	PlaylistCountdownSeconds   int                  `gorm:"not null;default:5" json:"playlist_countdown_seconds"`
-	ShowPageSizeSelector       bool                 `gorm:"not null;default:false" json:"show_page_size_selector"`
-	SceneCardConfig            SceneCardConfig      `gorm:"type:jsonb;not null" json:"scene_card_config"`
-	MaxItemsPerPage            int                  `gorm:"-" json:"max_items_per_page"`
+	ID                       uint                 `gorm:"primarykey" json:"id"`
+	CreatedAt                time.Time            `json:"created_at"`
+	UpdatedAt                time.Time            `json:"updated_at"`
+	UserID                   uint                 `gorm:"uniqueIndex;not null" json:"user_id"`
+	Autoplay                 bool                 `gorm:"not null;default:false" json:"autoplay"`
+	DefaultVolume            int                  `gorm:"not null;default:100" json:"default_volume"`
+	Loop                     bool                 `gorm:"not null;default:false" json:"loop"`
+	AbLoopControls           bool                 `gorm:"not null;default:false" json:"ab_loop_controls"`
+	MarkerLoop               bool                 `gorm:"not null;default:false" json:"marker_loop"`
+	VideosPerPage            int                  `gorm:"not null;default:20" json:"videos_per_page"`
+	DefaultSortOrder         string               `gorm:"not null;default:'created_at_desc'" json:"default_sort_order"`
+	DefaultTagSort           string               `gorm:"not null;default:'az'" json:"default_tag_sort"`
+	MarkerThumbnailCycling   bool                 `gorm:"not null;default:true" json:"marker_thumbnail_cycling"`
+	HomepageConfig           HomepageConfig       `gorm:"type:jsonb;not null" json:"homepage_config"`
+	ParsingRules             ParsingRulesSettings `gorm:"type:jsonb;not null" json:"parsing_rules"`
+	SortPreferences          SortPreferences      `gorm:"type:jsonb;not null" json:"sort_preferences"`
+	PlaylistAutoAdvance      string               `gorm:"not null;default:'countdown'" json:"playlist_auto_advance"`
+	PlaylistCountdownSeconds int                  `gorm:"not null;default:5" json:"playlist_countdown_seconds"`
+	ShowPageSizeSelector     bool                 `gorm:"not null;default:false" json:"show_page_size_selector"`
+	AdvancedMarkerFilters    bool                 `gorm:"not null;default:false" json:"advanced_marker_filters"`
+	DefaultMarkerView        string               `gorm:"size:10;not null;default:'grouped'" json:"default_marker_view"`
+	// PaginationPosition: where page controls are shown on paginated pages (top, bottom, both)
+	PaginationPosition string `gorm:"size:10;not null;default:'bottom'" json:"pagination_position"`
+	// DateFormat: how dates are displayed (auto = browser locale, or a pattern like DD/MM/YYYY)
+	DateFormat string `gorm:"size:20;not null;default:'auto'" json:"date_format"`
+	// PlayerGestures: touch gestures on the video player (double-tap seek, swipes, long-press 2x).
+	// No gorm default so that false is written when the row is created (the column defaults to true).
+	PlayerGestures bool `gorm:"not null" json:"player_gestures"`
+	// GestureSeekStep: seconds skipped by a double-tap on the sides of the player (5, 10, 15, 30)
+	GestureSeekStep int `gorm:"not null;default:10" json:"gesture_seek_step"`
+	// ShowReplayHeatmap / RecordReplayHeatmap: "most replayed" heatmap above the player
+	// progress bar, and recording of the watched parts (both on by default)
+	ShowReplayHeatmap   bool            `gorm:"not null;default:true" json:"show_replay_heatmap"`
+	RecordReplayHeatmap bool            `gorm:"not null;default:true" json:"record_replay_heatmap"`
+	SceneCardConfig     SceneCardConfig `gorm:"type:jsonb;not null" json:"scene_card_config"`
+	// GridDensity: size of the cards in the scene grids (compact, comfortable, large)
+	GridDensity string `gorm:"size:12;not null;default:'comfortable'" json:"grid_density"`
+	// InfiniteScroll: scene list pages load the next page on scroll instead of page controls
+	InfiniteScroll bool `gorm:"not null;default:false" json:"infinite_scroll"`
+	// SceneListView: grid or table per scene list page, and the table columns
+	SceneListView SceneListView `gorm:"type:jsonb;not null" json:"scene_list_view"`
+	// ShowScrubber: strip of the scene thumbnails under the player on the watch page (off by default)
+	ShowScrubber bool `gorm:"not null;default:false" json:"show_scrubber"`
+	// ScrubberMode: how the scrubber strip behaves, free (scrolled on its own, click to seek) or
+	// centered (like Stash: the centre line is the playback position, moving the strip seeks)
+	ScrubberMode string `gorm:"size:10;not null;default:'free'" json:"scrubber_mode"`
+	// ScrubberWheel: the mouse wheel over a thumbnail scrubber scrolls it (free mode) or seeks
+	// (centered mode); off by default so the wheel scrolls the page
+	ScrubberWheel bool `gorm:"not null;default:false" json:"scrubber_wheel"`
+	// ContentWidth: maximum width of the scene list pages, default (today's width), wide or full
+	// (edge to edge); the grids get more columns when it is wider
+	ContentWidth    string `gorm:"size:10;not null;default:'default'" json:"content_width"`
+	MaxItemsPerPage int    `gorm:"-" json:"max_items_per_page"`
 }
 
 // HomepageConfig represents the user's homepage layout configuration
 type HomepageConfig struct {
-	ShowUpload bool              `json:"show_upload"`
-	Sections   []HomepageSection `json:"sections"`
+	ShowUpload bool `json:"show_upload"`
+	// Sections is the legacy single-page layout, migrated into a first tab by Normalize.
+	Sections []HomepageSection `json:"sections"`
+	// Tabs of the homepage, each with its own sections.
+	Tabs []HomepageTab `json:"tabs"`
+	// DefaultTabID is the tab opened when OpenOn is "default" (or no tab was visited yet).
+	DefaultTabID string `json:"default_tab_id"`
+	// OpenOn: "last" (last visited tab, kept by the browser) or "default".
+	OpenOn string `json:"open_on"`
+}
+
+// HomepageTab is a tab of the homepage.
+type HomepageTab struct {
+	ID       string            `json:"id"`
+	Name     string            `json:"name"`
+	Icon     string            `json:"icon"`
+	Sections []HomepageSection `json:"sections"`
+}
+
+// Normalize migrates the legacy sections into a first "Home" tab and fills defaults.
+func (h *HomepageConfig) Normalize() {
+	if len(h.Tabs) == 0 {
+		sections := h.Sections
+		if sections == nil {
+			sections = []HomepageSection{}
+		}
+		h.Tabs = []HomepageTab{{ID: "home", Name: "Home", Icon: "heroicons:home", Sections: sections}}
+	}
+	h.Sections = []HomepageSection{}
+	for i := range h.Tabs {
+		if h.Tabs[i].Sections == nil {
+			h.Tabs[i].Sections = []HomepageSection{}
+		}
+	}
+	if h.FindTab(h.DefaultTabID) == nil {
+		h.DefaultTabID = h.Tabs[0].ID
+	}
+	if h.OpenOn != "last" && h.OpenOn != "default" {
+		h.OpenOn = "last"
+	}
+}
+
+// FindTab returns the tab with the given ID, or nil.
+func (h *HomepageConfig) FindTab(id string) *HomepageTab {
+	for i := range h.Tabs {
+		if h.Tabs[i].ID == id {
+			return &h.Tabs[i]
+		}
+	}
+	return nil
+}
+
+// FindSection returns the section with the given ID in any tab (or the legacy list), or nil.
+func (h *HomepageConfig) FindSection(id string) *HomepageSection {
+	for i := range h.Tabs {
+		for j := range h.Tabs[i].Sections {
+			if h.Tabs[i].Sections[j].ID == id {
+				return &h.Tabs[i].Sections[j]
+			}
+		}
+	}
+	for i := range h.Sections {
+		if h.Sections[i].ID == id {
+			return &h.Sections[i]
+		}
+	}
+	return nil
 }
 
 // HomepageSection represents a single section on the homepage
@@ -109,17 +246,15 @@ func (h *HomepageConfig) Scan(value any) error {
 		return err
 	}
 
-	// Ensure Sections is never nil so it serializes as [] instead of null
-	if h.Sections == nil {
-		h.Sections = []HomepageSection{}
-	}
+	// Migrate legacy sections into tabs; Sections then serializes as []
+	h.Normalize()
 
 	return nil
 }
 
 // DefaultHomepageConfig returns the default homepage configuration
 func DefaultHomepageConfig() HomepageConfig {
-	return HomepageConfig{
+	config := HomepageConfig{
 		ShowUpload: true,
 		Sections: []HomepageSection{
 			{
@@ -134,6 +269,8 @@ func DefaultHomepageConfig() HomepageConfig {
 			},
 		},
 	}
+	config.Normalize()
+	return config
 }
 
 // ParsingRulesSettings represents the user's parsing rules configuration
@@ -254,7 +391,17 @@ type BadgeZones struct {
 type BadgeZone struct {
 	Items     []string `json:"items"`
 	Direction string   `json:"direction"`
+	// Columns lays the items out in a grid of that many columns (1 to MaxBadgeZoneColumns),
+	// filled row by row (horizontal) or column by column (vertical). 0 (absent) keeps the
+	// original layout: one column (vertical) or one row (horizontal).
+	Columns int `json:"columns,omitempty"`
 }
+
+// Limits of a badge zone of the scene card template.
+const (
+	MaxBadgeZoneItems   = 12
+	MaxBadgeZoneColumns = 4
+)
 
 // ContentRow represents a single content row below the title
 type ContentRow struct {
@@ -321,6 +468,67 @@ func DefaultSceneCardConfig() SceneCardConfig {
 			{Type: "split", Left: "file_size", Right: "added_at"},
 		},
 	}
+}
+
+// Scene list view modes.
+const (
+	SceneListViewGrid  = "grid"
+	SceneListViewTable = "table"
+)
+
+// SceneListView is how the scene list pages display their scenes.
+type SceneListView struct {
+	// Pages maps a page type (search, actor, studio, playlist, explorer) to its view mode
+	// (grid or table). A missing page uses the grid.
+	Pages map[string]string `json:"pages"`
+	// Columns are the visible table columns, in display order.
+	Columns []string `json:"columns"`
+}
+
+// DefaultSceneListViewColumns are the table columns shown by default.
+func DefaultSceneListViewColumns() []string {
+	return []string{"thumbnail", "title", "duration", "resolution", "file_size", "rating", "views", "studio", "actors", "added_at"}
+}
+
+// DefaultSceneListView returns the default scene list view: grids everywhere.
+func DefaultSceneListView() SceneListView {
+	return SceneListView{Pages: map[string]string{}, Columns: DefaultSceneListViewColumns()}
+}
+
+// Normalize fills the missing parts with their defaults.
+func (v *SceneListView) Normalize() {
+	if v.Pages == nil {
+		v.Pages = map[string]string{}
+	}
+	if len(v.Columns) == 0 {
+		v.Columns = DefaultSceneListViewColumns()
+	}
+}
+
+// Value implements the driver.Valuer interface for JSONB storage
+func (v SceneListView) Value() (driver.Value, error) {
+	v.Normalize()
+	return json.Marshal(v)
+}
+
+// Scan implements the sql.Scanner interface for JSONB retrieval
+func (v *SceneListView) Scan(value any) error {
+	if value == nil {
+		*v = DefaultSceneListView()
+		return nil
+	}
+
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("failed to scan SceneListView: expected []byte")
+	}
+
+	*v = SceneListView{}
+	if err := json.Unmarshal(bytes, v); err != nil {
+		return err
+	}
+	v.Normalize()
+	return nil
 }
 
 // DefaultSortPreferences returns the default sort preferences

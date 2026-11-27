@@ -29,13 +29,14 @@ type SceneHandler struct {
 	RelatedScenesService *core.RelatedScenesService
 	MarkerService        *core.MarkerService
 	StreamManager        *streaming.Manager
+	Transcoder           *streaming.Transcoder
 	InteractionRepo      data.InteractionRepository
 	TagRepo              data.TagRepository
 	ActorRepo            data.ActorRepository
 	MaxItemsPerPage      int
 }
 
-func NewSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, maxItemsPerPage int) *SceneHandler {
+func NewSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, transcoder *streaming.Transcoder, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, maxItemsPerPage int) *SceneHandler {
 	return &SceneHandler{
 		Service:              service,
 		ProcessingService:    processingService,
@@ -44,10 +45,33 @@ func NewSceneHandler(service *core.SceneService, processingService *core.ScenePr
 		RelatedScenesService: relatedScenesService,
 		MarkerService:        markerService,
 		StreamManager:        streamManager,
+		Transcoder:           transcoder,
 		InteractionRepo:      interactionRepo,
 		TagRepo:              tagRepo,
 		ActorRepo:            actorRepo,
 		MaxItemsPerPage:      maxItemsPerPage,
+	}
+}
+
+// populateCardMarkers adds the user's markers to scene card items (best effort).
+func (h *SceneHandler) populateCardMarkers(items []response.SceneListItem, sceneIDs []uint, userID uint) {
+	fillCardMarkers(h.MarkerService, items, sceneIDs, userID)
+}
+
+// fillCardMarkers adds the user's markers to scene card items (best effort), shared by the
+// scene lists and the watch history.
+func fillCardMarkers(markerService *core.MarkerService, items []response.SceneListItem, sceneIDs []uint, userID uint) {
+	if markerService == nil || userID == 0 || len(sceneIDs) == 0 {
+		return
+	}
+	markersByScene, err := markerService.GetMarkersForScenes(userID, sceneIDs)
+	if err != nil {
+		return
+	}
+	for i := range items {
+		if markers, ok := markersByScene[items[i].ID]; ok {
+			items[i].Markers = response.ToSceneCardMarkers(markers)
+		}
 	}
 }
 
@@ -62,7 +86,8 @@ func (h *SceneHandler) UploadScene(c *gin.Context) {
 
 	scene, err := h.Service.UploadScene(file, title)
 	if err != nil {
-		if errors.Is(err, apperrors.ErrInvalidFileExtension) {
+		// Invalid extension, or upload directory under a read-only storage path
+		if apperrors.IsValidation(err) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -70,7 +95,7 @@ func (h *SceneHandler) UploadScene(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, scene)
+	c.JSON(http.StatusCreated, response.NewSceneDetail(scene, fileVisibility(c)))
 }
 
 var resolutionToHeight = map[string][2]int{
@@ -82,20 +107,9 @@ var resolutionToHeight = map[string][2]int{
 	"360p":  {0, 479},
 }
 
-func (h *SceneHandler) ListScenes(c *gin.Context) {
-	var req request.SearchScenesRequest
-	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
-		return
-	}
-
-	req.Page, req.Limit = clampPagination(req.Page, req.Limit, 20, h.MaxItemsPerPage)
-
-	var userID uint
-	if payload, err := middleware.GetUserFromContext(c); err == nil {
-		userID = payload.UserID
-	}
-
+// searchParamsFromRequest maps the scene search query to search parameters, except tags
+// (resolved to IDs by the handler).
+func searchParamsFromRequest(req *request.SearchScenesRequest, userID uint) data.SceneSearchParams {
 	// Map frontend match_type to Meilisearch matching strategy
 	var matchingStrategy string
 	switch req.MatchType {
@@ -114,6 +128,16 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		Studio:           req.Studio,
 		MinDuration:      req.MinDuration,
 		MaxDuration:      req.MaxDuration,
+		MinSizeMB:        req.MinSize,
+		MaxSizeMB:        req.MaxSize,
+		HasActors:        req.HasActors,
+		HasTags:          req.HasTags,
+		HasStudio:        req.HasStudio,
+		SourceSites:      core.ParseSourceSites(req.SourceSite),
+		HasSource:        req.HasSource,
+		Watched:          req.Watched,
+		Rated:            req.Rated,
+		HasMarkers:       req.HasMarkers,
 		Sort:             req.Sort,
 		UserID:           userID,
 		Liked:            req.Liked,
@@ -123,18 +147,6 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		MaxJizzCount:     req.MaxJizzCount,
 		MatchingStrategy: matchingStrategy,
 		Seed:             req.Seed,
-	}
-
-	if req.Tags != "" {
-		tagNames := strings.Split(req.Tags, ",")
-		tags, err := h.TagService.GetTagsByNames(tagNames)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resolve tags"})
-			return
-		}
-		for _, tag := range tags {
-			params.TagIDs = append(params.TagIDs, tag.ID)
-		}
 	}
 
 	if req.Actors != "" {
@@ -166,6 +178,43 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		}
 	}
 
+	return params
+}
+
+func (h *SceneHandler) ListScenes(c *gin.Context) {
+	var req request.SearchScenesRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
+		return
+	}
+
+	req.Page, req.Limit = clampPagination(req.Page, req.Limit, 20, h.MaxItemsPerPage)
+
+	var userID uint
+	if payload, err := middleware.GetUserFromContext(c); err == nil {
+		userID = payload.UserID
+	}
+
+	vis := fileVisibility(c)
+	if refuseHiddenSizeQuery(c, vis, req.Sort, req.MinSize > 0 || req.MaxSize > 0) {
+		return
+	}
+
+	params := searchParamsFromRequest(&req, userID)
+	params.HideFilePaths = !vis.Paths
+
+	if req.Tags != "" {
+		tagNames := strings.Split(req.Tags, ",")
+		tags, err := h.TagService.GetTagsByNames(tagNames)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resolve tags"})
+			return
+		}
+		for _, tag := range tags {
+			params.TagIDs = append(params.TagIDs, tag.ID)
+		}
+	}
+
 	result, err := h.SearchService.Search(params)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search scenes"})
@@ -176,9 +225,9 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 
 	var items []response.SceneListItem
 	if cardFields.HasAny() {
-		items = response.ToSceneListItemsWithFields(result.Scenes, cardFields)
+		items = response.ToSceneListItemsWithFields(result.Scenes, cardFields, vis)
 	} else {
-		items = response.ToSceneListItems(result.Scenes)
+		items = response.ToSceneListItems(result.Scenes, vis)
 	}
 
 	sceneIDs := make([]uint, len(result.Scenes))
@@ -186,33 +235,11 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		sceneIDs[i] = s.ID
 	}
 
-	// Load tags/actors from join tables when requested
-	if cardFields.Tags && len(sceneIDs) > 0 {
-		if tagsByScene, err := h.TagRepo.GetSceneTagsMultiple(sceneIDs); err == nil {
-			for i := range items {
-				if tags, ok := tagsByScene[items[i].ID]; ok {
-					names := make([]string, len(tags))
-					for j, t := range tags {
-						names[j] = t.Name
-					}
-					items[i].Tags = names
-				}
-			}
-		}
+	// Load tags/actors from join tables when requested (markers go with tags)
+	if cardFields.Tags {
+		h.populateCardMarkers(items, sceneIDs, userID)
 	}
-	if cardFields.Actors && len(sceneIDs) > 0 {
-		if actorsByScene, err := h.ActorRepo.GetSceneActorsMultiple(sceneIDs); err == nil {
-			for i := range items {
-				if actors, ok := actorsByScene[items[i].ID]; ok {
-					names := make([]string, len(actors))
-					for j, a := range actors {
-						names[j] = a.Name
-					}
-					items[i].Actors = names
-				}
-			}
-		}
-	}
+	fillCardTagsActors(h.TagRepo, h.ActorRepo, items, sceneIDs, cardFields)
 
 	resp := gin.H{
 		"data":  items,
@@ -224,24 +251,8 @@ func (h *SceneHandler) ListScenes(c *gin.Context) {
 		resp["seed"] = result.Seed
 	}
 
-	// Load interaction sidecar maps if requested
-	if userID > 0 {
-		if cardFields.Rating {
-			if ratings, err := h.InteractionRepo.GetRatingsBySceneIDs(userID, sceneIDs); err == nil {
-				resp["ratings"] = ratings
-			}
-		}
-		if cardFields.Liked {
-			if likes, err := h.InteractionRepo.GetLikesBySceneIDs(userID, sceneIDs); err == nil {
-				resp["likes"] = likes
-			}
-		}
-		if cardFields.JizzCount {
-			if jizzCounts, err := h.InteractionRepo.GetJizzCountsBySceneIDs(userID, sceneIDs); err == nil {
-				resp["jizz_counts"] = jizzCounts
-			}
-		}
-	}
+	// The user's interactions with these scenes, for the card badges
+	addCardSidecars(resp, loadCardSidecars(h.InteractionRepo, userID, sceneIDs, cardFields))
 
 	c.JSON(http.StatusOK, resp)
 }
@@ -271,6 +282,10 @@ func (h *SceneHandler) GetFilterOptions(c *gin.Context) {
 		labels, err := h.MarkerService.GetLabelSuggestions(payload.UserID, 100)
 		if err == nil {
 			for _, label := range labels {
+				// the referential lists unused labels too: a filter only offers labels in use
+				if label.Count == 0 {
+					continue
+				}
 				markerLabels = append(markerLabels, gin.H{
 					"label": label.Label,
 					"count": label.Count,
@@ -370,7 +385,40 @@ func (h *SceneHandler) GetScene(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, scene)
+	resp := response.NewSceneDetail(scene, fileVisibility(c))
+	if h.Transcoder != nil {
+		resp.Playback = h.Transcoder.PlaybackInfo(scene)
+	} else {
+		plan := streaming.DecidePlayback(scene.StoredPath, scene.VideoCodec, scene.AudioCodec)
+		resp.Playback = streaming.PlaybackInfo{Mode: plan.Mode, Reason: plan.Reason}
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+// TranscodeScene streams a scene converted on the fly for browsers that can't play the
+// original (see serveTranscode). Same access rules as StreamScene.
+func (h *SceneHandler) TranscodeScene(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
+		return
+	}
+	serveTranscode(c, h.Transcoder, h.StreamManager, uint(id))
+}
+
+// ListSourceSites lists the sites scenes come from with their scene counts, for the search
+// filters. GET /scenes/source-sites
+func (h *SceneHandler) ListSourceSites(c *gin.Context) {
+	if h.SearchService == nil {
+		response.Error(c, apperrors.NewInternalError("search is not configured", nil))
+		return
+	}
+	sites, err := h.SearchService.GetSourceSites()
+	if err != nil {
+		response.Error(c, apperrors.NewInternalError("failed to list source sites", err))
+		return
+	}
+	response.OK(c, response.ToSourceSiteList(sites))
 }
 
 func (h *SceneHandler) StreamScene(c *gin.Context) {
@@ -432,12 +480,19 @@ func (h *SceneHandler) StreamScene(c *gin.Context) {
 
 	c.Header("Content-Type", mimeType)
 	c.Header("Cache-Control", "public, max-age=86400")
+	setDownloadDisposition(c, filePath)
 
 	// Use the buffer pool for efficient I/O (256KB vs Go's default 32KB)
 	buf := h.StreamManager.BufferPool().Get()
 	defer h.StreamManager.BufferPool().Put(buf)
 
-	streaming.ServeVideo(c.Writer, c.Request, filepath.Base(filePath), fileInfo.ModTime(), file, buf)
+	// Playback gets bounded range responses (connections shared between the playing videos);
+	// a download gets the whole range it asks for
+	maxRange := h.StreamManager.MaxRangeSize()
+	if c.Query("download") == "1" {
+		maxRange = 0
+	}
+	streaming.ServeVideo(c.Writer, c.Request, filepath.Base(filePath), fileInfo.ModTime(), file, buf, maxRange)
 }
 
 func (h *SceneHandler) ExtractThumbnail(c *gin.Context) {
@@ -502,6 +557,13 @@ func (h *SceneHandler) UpdateSceneDetails(c *gin.Context) {
 		}
 	}
 
+	if req.SourceURL != nil {
+		if _, err := core.NormalizeSourceURL(*req.SourceURL); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
 	scene, err := h.Service.UpdateSceneDetails(uint(id), req.Title, req.Description, releaseDate)
 	if err != nil {
 		if apperrors.IsNotFound(err) {
@@ -512,7 +574,14 @@ func (h *SceneHandler) UpdateSceneDetails(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, scene)
+	if req.SourceURL != nil {
+		if scene, err = h.Service.UpdateSceneSourceURL(uint(id), *req.SourceURL); err != nil {
+			response.Error(c, err)
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, response.NewSceneDetail(scene, fileVisibility(c)))
 }
 
 func (h *SceneHandler) UploadThumbnail(c *gin.Context) {
@@ -610,10 +679,24 @@ func (h *SceneHandler) ApplySceneMetadata(c *gin.Context) {
 		porndbSceneID = *req.PornDBSceneID
 	}
 
+	if req.SourceURL != nil {
+		if _, err := core.NormalizeSourceURL(*req.SourceURL); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
 	updatedScene, err := h.Service.UpdateSceneMetadata(uint(id), title, description, studio, releaseDate, porndbSceneID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update scene metadata"})
 		return
+	}
+
+	if req.SourceURL != nil {
+		if updatedScene, err = h.Service.UpdateSceneSourceURL(uint(id), *req.SourceURL); err != nil {
+			response.Error(c, err)
+			return
+		}
 	}
 
 	// Import thumbnail from URL if provided
@@ -668,7 +751,7 @@ func (h *SceneHandler) ApplySceneMetadata(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, updatedScene)
+	c.JSON(http.StatusOK, response.NewSceneDetail(updatedScene, fileVisibility(c)))
 }
 
 func (h *SceneHandler) GetRelatedScenes(c *gin.Context) {
@@ -716,9 +799,9 @@ func (h *SceneHandler) GetRelatedScenes(c *gin.Context) {
 
 	var items []response.SceneListItem
 	if cardFields.HasAny() {
-		items = response.ToSceneListItemsWithFields(scenes, cardFields)
+		items = response.ToSceneListItemsWithFields(scenes, cardFields, fileVisibility(c))
 	} else {
-		items = response.ToSceneListItems(scenes)
+		items = response.ToSceneListItems(scenes, fileVisibility(c))
 	}
 
 	sceneIDs := make([]uint, len(scenes))
@@ -726,57 +809,19 @@ func (h *SceneHandler) GetRelatedScenes(c *gin.Context) {
 		sceneIDs[i] = s.ID
 	}
 
-	// Load tags/actors from join tables when requested
-	if cardFields.Tags && len(sceneIDs) > 0 {
-		if tagsByScene, err := h.TagRepo.GetSceneTagsMultiple(sceneIDs); err == nil {
-			for i := range items {
-				if tags, ok := tagsByScene[items[i].ID]; ok {
-					names := make([]string, len(tags))
-					for j, t := range tags {
-						names[j] = t.Name
-					}
-					items[i].Tags = names
-				}
-			}
-		}
+	// Load tags/actors from join tables when requested (markers go with tags)
+	if cardFields.Tags {
+		h.populateCardMarkers(items, sceneIDs, userID)
 	}
-	if cardFields.Actors && len(sceneIDs) > 0 {
-		if actorsByScene, err := h.ActorRepo.GetSceneActorsMultiple(sceneIDs); err == nil {
-			for i := range items {
-				if actors, ok := actorsByScene[items[i].ID]; ok {
-					names := make([]string, len(actors))
-					for j, a := range actors {
-						names[j] = a.Name
-					}
-					items[i].Actors = names
-				}
-			}
-		}
-	}
+	fillCardTagsActors(h.TagRepo, h.ActorRepo, items, sceneIDs, cardFields)
 
 	resp := gin.H{
 		"data":  items,
 		"total": len(scenes),
 	}
 
-	// Load interaction sidecar maps if requested
-	if userID > 0 {
-		if cardFields.Rating {
-			if ratings, err := h.InteractionRepo.GetRatingsBySceneIDs(userID, sceneIDs); err == nil {
-				resp["ratings"] = ratings
-			}
-		}
-		if cardFields.Liked {
-			if likes, err := h.InteractionRepo.GetLikesBySceneIDs(userID, sceneIDs); err == nil {
-				resp["likes"] = likes
-			}
-		}
-		if cardFields.JizzCount {
-			if jizzCounts, err := h.InteractionRepo.GetJizzCountsBySceneIDs(userID, sceneIDs); err == nil {
-				resp["jizz_counts"] = jizzCounts
-			}
-		}
-	}
+	// The user's interactions with these scenes, for the card badges
+	addCardSidecars(resp, loadCardSidecars(h.InteractionRepo, userID, sceneIDs, cardFields))
 
 	c.JSON(http.StatusOK, resp)
 }

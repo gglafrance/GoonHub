@@ -3,12 +3,16 @@ package core
 import (
 	"fmt"
 	"math/rand"
+	"sort"
 
 	"go.uber.org/zap"
 
 	"goonhub/internal/data"
 	"goonhub/internal/infrastructure/meilisearch"
 )
+
+// bytesPerMB converts the file size filters (megabytes) to bytes.
+const bytesPerMB = 1024 * 1024
 
 // SearchResult contains the result of a search query.
 type SearchResult struct {
@@ -69,6 +73,8 @@ func (s *SearchService) Search(params data.SceneSearchParams) (*SearchResult, er
 	}
 
 	isRandomSort := params.Sort == "random"
+	isJizzSort := isJizzSortOrder(params.Sort)
+	isUserSort := isUserSortOrder(params.Sort)
 
 	// Start with SceneIDs pre-filter if provided (e.g., folder search)
 	var preFilteredIDs []uint
@@ -125,7 +131,14 @@ func (s *SearchService) Search(params data.SceneSearchParams) (*SearchResult, er
 	// Build Meilisearch search params
 	meiliParams := s.buildMeiliParams(params, preFilteredIDs)
 
-	if isRandomSort {
+	// Negative user status filters (unwatched, unrated, without markers)
+	excludedIDs, err := s.getUserExcludedIDs(params)
+	if err != nil {
+		return nil, err
+	}
+	meiliParams.ExcludeSceneIDs = excludedIDs
+
+	if isRandomSort || isJizzSort || isUserSort {
 		meiliParams.FetchAllIDs = true
 	}
 
@@ -143,6 +156,16 @@ func (s *SearchService) Search(params data.SceneSearchParams) (*SearchResult, er
 	// For random sort, shuffle all IDs and paginate in Go
 	if isRandomSort {
 		return s.handleRandomSort(result.IDs, params)
+	}
+
+	// O sorts are user specific: order all matching IDs in Go, then paginate
+	if isJizzSort {
+		return s.handleJizzSort(result.IDs, params)
+	}
+
+	// Rating, like, view sorts of the user: same, by the user's interactions
+	if isUserSort {
+		return s.handleUserSort(result.IDs, params)
 	}
 
 	// Fetch full scene records from PostgreSQL
@@ -215,6 +238,102 @@ func (s *SearchService) handleRandomSort(allIDs []uint, params data.SceneSearchP
 	return &SearchResult{Scenes: scenes, Total: total, Seed: seed}, nil
 }
 
+// Sorts ordering scenes by the user's o, done in Go over all matching IDs.
+const (
+	sortLastJizzDesc  = "last_jizz_desc"
+	sortLastJizzAsc   = "last_jizz_asc"
+	sortJizzCountDesc = "jizz_count_desc"
+	sortJizzCountAsc  = "jizz_count_asc"
+)
+
+// isJizzSortOrder reports whether the sort orders scenes by the user's o (last dated o or
+// o count).
+func isJizzSortOrder(sort string) bool {
+	switch sort {
+	case sortLastJizzDesc, sortLastJizzAsc, sortJizzCountDesc, sortJizzCountAsc:
+		return true
+	}
+	return false
+}
+
+// jizzLookupBatch bounds the scene IDs sent per o query (PostgreSQL parameter limit).
+const jizzLookupBatch = 10000
+
+// handleJizzSort orders the matching scenes by the user's o, then paginates:
+//   - last_jizz_desc / last_jizz_asc: by the most recent dated o; scenes without a dated o
+//     come last in both directions;
+//   - jizz_count_desc / jizz_count_asc: by the o count; scenes without o count as 0, so they
+//     come last in "most" and first in "least".
+//
+// Ties are broken by ascending scene ID.
+func (s *SearchService) handleJizzSort(allIDs []uint, params data.SceneSearchParams) (*SearchResult, error) {
+	byCount := params.Sort == sortJizzCountDesc || params.Sort == sortJizzCountAsc
+	desc := params.Sort == sortLastJizzDesc || params.Sort == sortJizzCountDesc
+
+	keys := make(map[uint]int64, len(allIDs))
+	if params.UserID != 0 && s.interactionRepo != nil {
+		for start := 0; start < len(allIDs); start += jizzLookupBatch {
+			end := min(start+jizzLookupBatch, len(allIDs))
+			batch := allIDs[start:end]
+			if byCount {
+				counts, err := s.interactionRepo.GetJizzCountsBySceneIDs(params.UserID, batch)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get o counts: %w", err)
+				}
+				for id, count := range counts {
+					keys[id] = int64(count)
+				}
+				continue
+			}
+			times, err := s.interactionRepo.GetLastJizzTimes(params.UserID, batch)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get last o times: %w", err)
+			}
+			for id, at := range times {
+				keys[id] = at.UnixNano()
+			}
+		}
+	}
+
+	ordered := make([]uint, len(allIDs))
+	copy(ordered, allIDs)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		ki, okI := keys[ordered[i]]
+		kj, okJ := keys[ordered[j]]
+		if !byCount && okI != okJ {
+			return okI // scenes with a dated o first
+		}
+		// A missing count reads as 0 (the zero value)
+		if ki != kj {
+			if desc {
+				return ki > kj
+			}
+			return ki < kj
+		}
+		return ordered[i] < ordered[j]
+	})
+
+	total := int64(len(ordered))
+	page, limit := params.Page, params.Limit
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+	offset := (page - 1) * limit
+	if offset >= len(ordered) {
+		return &SearchResult{Scenes: []data.Scene{}, Total: total}, nil
+	}
+	end := min(offset+limit, len(ordered))
+
+	scenes, err := s.sceneRepo.GetByIDs(ordered[offset:end])
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch scenes by IDs: %w", err)
+	}
+	return &SearchResult{Scenes: scenes, Total: total}, nil
+}
+
 // hasUserFilters returns true if the params include user-specific filters.
 func (s *SearchService) hasUserFilters(params data.SceneSearchParams) bool {
 	if params.UserID == 0 {
@@ -223,7 +342,79 @@ func (s *SearchService) hasUserFilters(params data.SceneSearchParams) bool {
 	return (params.Liked != nil && *params.Liked) ||
 		params.MinRating > 0 || params.MaxRating > 0 ||
 		params.MinJizzCount > 0 || params.MaxJizzCount > 0 ||
-		len(params.MarkerLabels) > 0
+		len(params.MarkerLabels) > 0 ||
+		isTrue(params.Watched) || isTrue(params.Rated) || isTrue(params.HasMarkers)
+}
+
+func isTrue(b *bool) bool  { return b != nil && *b }
+func isFalse(b *bool) bool { return b != nil && !*b }
+
+// getUserStatusIncludes returns the scene ID sets required by the positive user status filters
+// (watched, rated, with markers).
+func (s *SearchService) getUserStatusIncludes(params data.SceneSearchParams) ([][]uint, error) {
+	var sets [][]uint
+	if isTrue(params.Watched) {
+		ids, err := s.interactionRepo.GetWatchedSceneIDs(params.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get watched scene IDs: %w", err)
+		}
+		sets = append(sets, ids)
+	}
+	if isTrue(params.Rated) {
+		ids, err := s.interactionRepo.GetRatedSceneIDs(params.UserID, 0, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get rated scene IDs: %w", err)
+		}
+		sets = append(sets, ids)
+	}
+	if isTrue(params.HasMarkers) {
+		ids, err := s.interactionRepo.GetMarkedSceneIDs(params.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get marked scene IDs: %w", err)
+		}
+		sets = append(sets, ids)
+	}
+	return sets, nil
+}
+
+// getUserExcludedIDs returns the scenes removed by the negative user status filters
+// (unwatched, unrated, without markers).
+func (s *SearchService) getUserExcludedIDs(params data.SceneSearchParams) ([]uint, error) {
+	if params.UserID == 0 {
+		return nil, nil
+	}
+	seen := make(map[uint]bool)
+	var excluded []uint
+	add := func(ids []uint) {
+		for _, id := range ids {
+			if !seen[id] {
+				seen[id] = true
+				excluded = append(excluded, id)
+			}
+		}
+	}
+	if isFalse(params.Watched) {
+		ids, err := s.interactionRepo.GetWatchedSceneIDs(params.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get watched scene IDs: %w", err)
+		}
+		add(ids)
+	}
+	if isFalse(params.Rated) {
+		ids, err := s.interactionRepo.GetRatedSceneIDs(params.UserID, 0, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get rated scene IDs: %w", err)
+		}
+		add(ids)
+	}
+	if isFalse(params.HasMarkers) {
+		ids, err := s.interactionRepo.GetMarkedSceneIDs(params.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get marked scene IDs: %w", err)
+		}
+		add(ids)
+	}
+	return excluded, nil
 }
 
 // getUserFilteredIDs queries PostgreSQL for scene IDs matching user-specific filters.
@@ -242,6 +433,11 @@ func (s *SearchService) getUserFilteredIDs(params data.SceneSearchParams) ([]uin
 	}
 	if len(params.MarkerLabels) > 0 {
 		filterCount++
+	}
+	for _, status := range []*bool{params.Watched, params.Rated, params.HasMarkers} {
+		if isTrue(status) {
+			filterCount++
+		}
 	}
 	needsIntersection := filterCount > 1
 
@@ -290,6 +486,22 @@ func (s *SearchService) getUserFilteredIDs(params data.SceneSearchParams) ([]uin
 		}
 	}
 
+	// Positive user status filters (watched, rated, with markers) are always intersected
+	statusSets, err := s.getUserStatusIncludes(params)
+	if err != nil {
+		return nil, err
+	}
+	if len(statusSets) > 0 {
+		needsIntersection = true
+	}
+	for _, ids := range statusSets {
+		if result == nil {
+			result = ids
+		} else {
+			result = intersect(result, ids)
+		}
+	}
+
 	// Get scene IDs with markers matching specified labels
 	if len(params.MarkerLabels) > 0 {
 		ids, err := s.markerRepo.GetSceneIDsByLabels(params.UserID, params.MarkerLabels)
@@ -319,6 +531,8 @@ func (s *SearchService) buildMeiliParams(params data.SceneSearchParams, preFilte
 		Offset:           (params.Page - 1) * params.Limit,
 		Limit:            params.Limit,
 		MatchingStrategy: params.MatchingStrategy,
+		// paths and file names are not searched for users who may not see them
+		ExcludeFileAttributes: params.HideFilePaths,
 	}
 
 	if params.MinDuration > 0 {
@@ -328,6 +542,19 @@ func (s *SearchService) buildMeiliParams(params data.SceneSearchParams, preFilte
 	if params.MaxDuration > 0 {
 		maxDur := float64(params.MaxDuration)
 		meiliParams.MaxDuration = &maxDur
+	}
+	meiliParams.HasActors = params.HasActors
+	meiliParams.HasTags = params.HasTags
+	meiliParams.HasStudio = params.HasStudio
+	meiliParams.SourceSites = params.SourceSites
+	meiliParams.HasSource = params.HasSource
+	if params.MinSizeMB > 0 {
+		minSize := int64(params.MinSizeMB) * bytesPerMB
+		meiliParams.MinSize = &minSize
+	}
+	if params.MaxSizeMB > 0 {
+		maxSize := int64(params.MaxSizeMB) * bytesPerMB
+		meiliParams.MaxSize = &maxSize
 	}
 	if params.MinHeight > 0 {
 		meiliParams.MinHeight = &params.MinHeight
@@ -362,6 +589,12 @@ func (s *SearchService) buildMeiliParams(params data.SceneSearchParams, preFilte
 	case "duration_desc":
 		meiliParams.Sort = "duration"
 		meiliParams.SortDir = "desc"
+	case "size_asc":
+		meiliParams.Sort = "size"
+		meiliParams.SortDir = "asc"
+	case "size_desc":
+		meiliParams.Sort = "size"
+		meiliParams.SortDir = "desc"
 	case "created_at_asc":
 		meiliParams.Sort = "created_at"
 		meiliParams.SortDir = "asc"
@@ -389,8 +622,10 @@ func buildSceneDocument(scene *data.Scene, tags []data.Tag, actors []data.Actor)
 	}
 
 	actorNames := make([]string, len(actors))
+	actorAliases := []string{}
 	for i, actor := range actors {
 		actorNames[i] = actor.Name
+		actorAliases = append(actorAliases, actor.Aliases...)
 	}
 
 	return meilisearch.SceneDocument{
@@ -401,13 +636,16 @@ func buildSceneDocument(scene *data.Scene, tags []data.Tag, actors []data.Actor)
 		Description:      scene.Description,
 		Studio:           scene.Studio,
 		Actors:           actorNames,
+		ActorAliases:     actorAliases,
 		TagIDs:           tagIDs,
 		TagNames:         tagNames,
 		Duration:         float64(scene.Duration),
+		Size:             scene.Size,
 		Height:           scene.Height,
 		CreatedAt:        scene.CreatedAt.Unix(),
 		ProcessingStatus: scene.ProcessingStatus,
 		ViewCount:        int(scene.ViewCount),
+		SourceSite:       SourceSiteFromURL(scene.SourceURL),
 	}
 }
 
@@ -546,6 +784,42 @@ func (s *SearchService) ReindexAll() error {
 
 	s.logger.Info("full reindex completed", zap.Int("total_scenes", len(scenes)))
 	return nil
+}
+
+// SourceSiteCount is a source site with the number of scenes that come from it.
+type SourceSiteCount struct {
+	Site  string
+	Count int64
+}
+
+// GetSourceSites lists the source sites of the library with their scene counts, most scenes
+// first (then by name). It reads the Meilisearch source_site facet: scenes indexed before
+// source sites existed are missing until a full reindex.
+func (s *SearchService) GetSourceSites() ([]SourceSiteCount, error) {
+	if s.meiliClient == nil {
+		return nil, fmt.Errorf("meilisearch is not configured")
+	}
+	facets, err := s.meiliClient.SourceSiteFacets()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get source site facets: %w", err)
+	}
+	return sortSourceSiteCounts(facets), nil
+}
+
+// sortSourceSiteCounts converts facet counts to source site counts, most scenes first, ties
+// by site name.
+func sortSourceSiteCounts(facets []meilisearch.FacetCount) []SourceSiteCount {
+	sites := make([]SourceSiteCount, len(facets))
+	for i, f := range facets {
+		sites[i] = SourceSiteCount{Site: f.Value, Count: f.Count}
+	}
+	sort.Slice(sites, func(i, j int) bool {
+		if sites[i].Count != sites[j].Count {
+			return sites[i].Count > sites[j].Count
+		}
+		return sites[i].Site < sites[j].Site
+	})
+	return sites
 }
 
 // UpdateMaxTotalHits updates the Meilisearch pagination maxTotalHits setting.

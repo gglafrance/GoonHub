@@ -1,15 +1,9 @@
 <script setup lang="ts">
-type JobsSubTabType =
-    | 'manual'
-    | 'history'
-    | 'workers'
-    | 'processing'
-    | 'triggers'
-    | 'retry'
-    | 'dlq';
-
+// Sub-tab id from the settings page (read from the URL): one of the Jobs sub-tabs of
+// utils/settingsTabs.ts (manual, history, workers, scheduling, processing, triggers, retry, dlq,
+// failing)
 const props = defineProps<{
-    activeSubTab: JobsSubTabType;
+    activeSubTab: string;
 }>();
 </script>
 
@@ -20,6 +14,9 @@ const props = defineProps<{
 
         <!-- Workers sub-tab -->
         <SettingsJobsWorkers v-if="props.activeSubTab === 'workers'" />
+
+        <!-- Scheduling sub-tab -->
+        <SettingsJobsScheduling v-if="props.activeSubTab === 'scheduling'" />
 
         <!-- Processing sub-tab -->
         <SettingsJobsProcessing v-if="props.activeSubTab === 'processing'" />
@@ -32,6 +29,9 @@ const props = defineProps<{
 
         <!-- DLQ sub-tab -->
         <SettingsJobsDLQ v-if="props.activeSubTab === 'dlq'" />
+
+        <!-- Failing sub-tab -->
+        <SettingsJobsFailing v-if="props.activeSubTab === 'failing'" />
 
         <!-- Manual sub-tab -->
         <SettingsJobsManual v-if="props.activeSubTab === 'manual'" />

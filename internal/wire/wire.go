@@ -18,7 +18,10 @@ import (
 	"goonhub/internal/infrastructure/meilisearch"
 	"goonhub/internal/infrastructure/persistence/postgres"
 	"goonhub/internal/infrastructure/server"
+	"goonhub/internal/jobs"
 	"goonhub/internal/streaming"
+	"goonhub/internal/together"
+	"goonhub/internal/workers"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
@@ -56,18 +59,22 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideActorInteractionRepository,
 		provideStudioInteractionRepository,
 		provideWatchHistoryRepository,
+		provideReplayHeatmapRepository,
 
 		// Job & Processing Repositories
 		provideJobHistoryRepository,
 		providePoolConfigRepository,
+		provideJobScheduleRepository,
 		provideProcessingConfigRepository,
 		provideTriggerConfigRepository,
 		provideDLQRepository,
 		provideRetryConfigRepository,
+		provideScenePhaseFailureRepository,
 
 		// Storage & Scan Repositories
 		provideStoragePathRepository,
 		provideScanHistoryRepository,
+		provideSceneCopyRepository,
 		provideExplorerRepository,
 
 		// Search Config Repository
@@ -81,6 +88,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Marker Repository
 		provideMarkerRepository,
+		provideMarkerLabelRepository,
 
 		// Playlist Repository
 		providePlaylistRepository,
@@ -91,6 +99,28 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		// Duplication Repositories
 		provideDuplicateGroupRepository,
 		provideDuplicationConfigRepository,
+
+		// Library Health Repository
+		provideLibraryHealthRepository,
+
+		// Import Repository
+		provideImportRepository,
+
+		// Social Repositories
+		provideSocialRepository,
+		provideProfileRepository,
+		providePrivacyRepository,
+		providePresenceRepository,
+		provideNavLayoutRepository,
+		provideMessageRepository,
+
+		// Remote Worker Repositories
+		provideWorkerRepository,
+		provideJobLeaseRepository,
+
+		// Goon2gether Repositories
+		provideLobbyRepository,
+		provideEmoteRepository,
 
 		// ============================================================
 		// EXTERNAL SERVICES
@@ -109,6 +139,7 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideAuthService,
 		provideUserService,
 		provideSettingsService,
+		provideNavLayoutService,
 		provideRBACService,
 		provideAdminService,
 
@@ -122,20 +153,25 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideStudioInteractionService,
 		provideSearchService,
 		provideWatchHistoryService,
+		provideReplayHeatmapService,
 		provideRelatedScenesService,
 
 		// Processing & Job Services
 		provideSceneProcessingService,
 		provideJobHistoryService,
 		provideJobStatusService,
+		provideJobSchedulingService,
 		provideJobQueueFeeder,
 		provideTriggerScheduler,
 		provideRetryScheduler,
 		provideDLQService,
+		provideSceneFailureService,
 
 		// Storage & Scan Services
 		provideStoragePathService,
+		provideMediaFileGuard,
 		provideScanService,
+		provideSceneCopyService,
 		provideExplorerService,
 
 		// External API Services
@@ -161,8 +197,31 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 		provideSceneFingerprintIndex,
 		provideDuplicateService,
 
+		// Library Health Service
+		provideLibraryHealthService,
+
+		// Import Service
+		provideImportService,
+
 		// Streaming Manager
 		provideStreamManager,
+		provideTranscoder,
+
+		// Social Services
+		providePrivacyService,
+		provideSocialService,
+		provideProfileService,
+		providePresenceService,
+		provideLobbyInvites,
+		provideMessageService,
+
+		// Remote Workers
+		provideWorkerService,
+		providePushDispatcher,
+
+		// Goon2gether (watch lobbies, emotes)
+		provideEmoteService,
+		provideTogetherHub,
 
 		// ============================================================
 		// API LAYER - MIDDLEWARE
@@ -230,6 +289,20 @@ func InitializeServer(cfgPath string) (*server.Server, error) {
 
 		// Duplicate Handler
 		provideDuplicateHandler,
+
+		// Library Health Handler
+		provideLibraryHealthHandler,
+
+		// Remote Worker Handler
+		provideWorkerHandler,
+
+		// Goon2gether Handler
+		provideTogetherHandler,
+		// Social Handler
+		provideSocialHandler,
+		provideProfileHandler,
+		providePresenceHandler,
+		provideMessageHandler,
 
 		// ============================================================
 		// ROUTER & SERVER
@@ -301,6 +374,10 @@ func provideWatchHistoryRepository(db *gorm.DB) data.WatchHistoryRepository {
 	return data.NewWatchHistoryRepository(db)
 }
 
+func provideReplayHeatmapRepository(db *gorm.DB) data.ReplayHeatmapRepository {
+	return data.NewReplayHeatmapRepository(db)
+}
+
 // --- Job & Processing Repositories ---
 
 func provideJobHistoryRepository(db *gorm.DB) data.JobHistoryRepository {
@@ -309,6 +386,10 @@ func provideJobHistoryRepository(db *gorm.DB) data.JobHistoryRepository {
 
 func providePoolConfigRepository(db *gorm.DB) data.PoolConfigRepository {
 	return data.NewPoolConfigRepository(db)
+}
+
+func provideJobScheduleRepository(db *gorm.DB) data.JobScheduleRepository {
+	return data.NewJobScheduleRepository(db)
 }
 
 func provideProcessingConfigRepository(db *gorm.DB) data.ProcessingConfigRepository {
@@ -323,6 +404,10 @@ func provideDLQRepository(db *gorm.DB) data.DLQRepository {
 	return data.NewDLQRepository(db)
 }
 
+func provideScenePhaseFailureRepository(db *gorm.DB) data.ScenePhaseFailureRepository {
+	return data.NewScenePhaseFailureRepository(db)
+}
+
 func provideRetryConfigRepository(db *gorm.DB) data.RetryConfigRepository {
 	return data.NewRetryConfigRepository(db)
 }
@@ -335,6 +420,10 @@ func provideStoragePathRepository(db *gorm.DB) data.StoragePathRepository {
 
 func provideScanHistoryRepository(db *gorm.DB) data.ScanHistoryRepository {
 	return data.NewScanHistoryRepository(db)
+}
+
+func provideSceneCopyRepository(db *gorm.DB) data.SceneCopyRepository {
+	return data.NewSceneCopyRepository(db)
 }
 
 func provideExplorerRepository(db *gorm.DB) data.ExplorerRepository {
@@ -357,12 +446,34 @@ func provideMarkerRepository(db *gorm.DB) data.MarkerRepository {
 	return data.NewMarkerRepository(db)
 }
 
+func provideMarkerLabelRepository(db *gorm.DB) data.MarkerLabelRepository {
+	return data.NewMarkerLabelRepository(db)
+}
+
 func providePlaylistRepository(db *gorm.DB) data.PlaylistRepository {
 	return data.NewPlaylistRepository(db)
 }
 
 func provideShareLinkRepository(db *gorm.DB) data.ShareLinkRepository {
 	return data.NewShareLinkRepository(db)
+}
+
+// --- Social Repositories ---
+
+func provideSocialRepository(db *gorm.DB) data.SocialRepository {
+	return data.NewSocialRepository(db)
+}
+
+func providePrivacyRepository(db *gorm.DB) data.PrivacyRepository {
+	return data.NewPrivacyRepository(db)
+}
+
+func provideNavLayoutRepository(db *gorm.DB) data.NavLayoutRepository {
+	return data.NewNavLayoutRepository(db)
+}
+
+func providePresenceRepository(db *gorm.DB) data.PresenceRepository {
+	return data.NewPresenceRepository(db)
 }
 
 // ============================================================================
@@ -416,13 +527,21 @@ func provideUserService(userRepo data.UserRepository, logger *logging.Logger) *c
 	return core.NewUserService(userRepo, logger.Logger)
 }
 
+func provideNavLayoutService(repo data.NavLayoutRepository, eventBus *core.EventBus, logger *logging.Logger) *core.NavLayoutService {
+	return core.NewNavLayoutService(repo, eventBus, logger.Logger)
+}
+
 func provideSettingsService(settingsRepo data.UserSettingsRepository, userRepo data.UserRepository, logger *logging.Logger) *core.SettingsService {
 	return core.NewSettingsService(settingsRepo, userRepo, logger.Logger)
 }
 
-func provideRBACService(roleRepo data.RoleRepository, permRepo data.PermissionRepository, logger *logging.Logger) *core.RBACService {
-	svc, err := core.NewRBACService(roleRepo, permRepo, logger.Logger)
+func provideRBACService(roleRepo data.RoleRepository, permRepo data.PermissionRepository, userRepo data.UserRepository, logger *logging.Logger) *core.RBACService {
+	svc, err := core.NewRBACService(roleRepo, permRepo, userRepo, logger.Logger)
 	if err != nil {
+		panic(err)
+	}
+	// Permission catalog: new permissions with their default grants (docs/RBAC.md)
+	if err := svc.SyncCatalog(); err != nil {
 		panic(err)
 	}
 	return svc
@@ -434,8 +553,8 @@ func provideAdminService(userRepo data.UserRepository, roleRepo data.RoleReposit
 
 // --- Scene & Content Services ---
 
-func provideSceneService(repo data.SceneRepository, cfg *config.Config, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger, jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, appSettingsRepo data.AppSettingsRepository, fingerprintIndex core.SceneFingerprintIndex) *core.SceneService {
-	return core.NewSceneService(repo, cfg.Processing.VideoDir, cfg.Processing.MetadataDir, processingService, eventBus, logger.Logger, jobHistoryRepo, dlqRepo, appSettingsRepo, fingerprintIndex)
+func provideSceneService(repo data.SceneRepository, cfg *config.Config, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger, jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, appSettingsRepo data.AppSettingsRepository, fingerprintIndex core.SceneFingerprintIndex, mediaGuard *core.MediaFileGuard) *core.SceneService {
+	return core.NewSceneService(repo, cfg.Processing.VideoDir, cfg.Processing.MetadataDir, processingService, eventBus, logger.Logger, jobHistoryRepo, dlqRepo, appSettingsRepo, fingerprintIndex, mediaGuard)
 }
 
 func provideTagService(tagRepo data.TagRepository, sceneRepo data.SceneRepository, logger *logging.Logger) *core.TagService {
@@ -470,6 +589,10 @@ func provideWatchHistoryService(repo data.WatchHistoryRepository, sceneRepo data
 	return core.NewWatchHistoryService(repo, sceneRepo, searchService, logger.Logger)
 }
 
+func provideReplayHeatmapService(repo data.ReplayHeatmapRepository, sceneRepo data.SceneRepository, settingsRepo data.UserSettingsRepository, logger *logging.Logger) *core.ReplayHeatmapService {
+	return core.NewReplayHeatmapService(repo, sceneRepo, settingsRepo, logger.Logger)
+}
+
 func provideRelatedScenesService(
 	sceneRepo data.SceneRepository,
 	tagRepo data.TagRepository,
@@ -485,32 +608,50 @@ func provideRelatedScenesService(
 
 // --- Processing & Job Services ---
 
-func provideSceneProcessingService(repo data.SceneRepository, markerService *core.MarkerService, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository) *core.SceneProcessingService {
+func provideSceneProcessingService(repo data.SceneRepository, markerService *core.MarkerService, cfg *config.Config, logger *logging.Logger, eventBus *core.EventBus, jobHistory *core.JobHistoryService, poolConfigRepo data.PoolConfigRepository, processingConfigRepo data.ProcessingConfigRepository, triggerConfigRepo data.TriggerConfigRepository, failures *core.SceneFailureService) *core.SceneProcessingService {
 	svc := core.NewSceneProcessingService(repo, markerService, cfg.Processing, logger.Logger, eventBus, jobHistory, poolConfigRepo, processingConfigRepo, triggerConfigRepo, &cfg.Duplication)
+	// "missing" runs skip the failing scenes; the Retry action of the Failing view queues here
+	svc.SetFailingChecker(failures)
+	failures.SetSubmitter(svc)
 	// The pool manager has merged the DB-persisted config over the file config; hand the
 	// preview settings to the marker service too, or a restart reverts them to the file defaults
 	markerService.ApplyQualityConfig(svc.GetProcessingQualityConfig())
 	return svc
 }
 
-func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config, logger *logging.Logger) *core.JobHistoryService {
-	return core.NewJobHistoryService(repo, cfg.Processing, logger.Logger)
+func provideJobHistoryService(repo data.JobHistoryRepository, cfg *config.Config, logger *logging.Logger, failures *core.SceneFailureService) *core.JobHistoryService {
+	svc := core.NewJobHistoryService(repo, cfg.Processing, logger.Logger)
+	svc.SetFailureTracker(failures)
+	return svc
+}
+
+func provideSceneFailureService(repo data.ScenePhaseFailureRepository, sceneRepo data.SceneRepository, cfg *config.Config, logger *logging.Logger) *core.SceneFailureService {
+	return core.NewSceneFailureService(repo, sceneRepo, cfg.Processing, logger.Logger)
 }
 
 func provideJobStatusService(jobHistoryService *core.JobHistoryService, processingService *core.SceneProcessingService, logger *logging.Logger) *core.JobStatusService {
 	return core.NewJobStatusService(jobHistoryService, processingService, logger.Logger)
 }
 
-func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, markerService *core.MarkerService, processingService *core.SceneProcessingService, dupConfigRepo data.DuplicationConfigRepository, cfg *config.Config, logger *logging.Logger) *core.JobQueueFeeder {
-	return core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerService, markerService, processingService.GetPoolManager(), cfg.Duplication.Enabled, dupConfigRepo, logger.Logger)
+func provideJobSchedulingService(repo data.JobScheduleRepository, processingService *core.SceneProcessingService, jobHistoryRepo data.JobHistoryRepository, logger *logging.Logger) *core.JobSchedulingService {
+	return core.NewJobSchedulingService(repo, processingService.GetPoolManager(), jobHistoryRepo, logger.Logger)
+}
+
+func provideJobQueueFeeder(jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, markerService *core.MarkerService, processingService *core.SceneProcessingService, dupConfigRepo data.DuplicationConfigRepository, schedulingService *core.JobSchedulingService, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.JobQueueFeeder {
+	feeder := core.NewJobQueueFeeder(jobHistoryRepo, sceneRepo, markerService, markerService, processingService.GetPoolManager(), cfg.Duplication.Enabled, dupConfigRepo, logger.Logger)
+	feeder.SetScheduler(schedulingService)
+	feeder.SetEventBus(eventBus)
+	return feeder
 }
 
 func provideTriggerScheduler(triggerConfigRepo data.TriggerConfigRepository, sceneRepo data.SceneRepository, processingService *core.SceneProcessingService, logger *logging.Logger) *core.TriggerScheduler {
 	return core.NewTriggerScheduler(triggerConfigRepo, sceneRepo, processingService, logger.Logger)
 }
 
-func provideRetryScheduler(jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, retryConfigRepo data.RetryConfigRepository, sceneRepo data.SceneRepository, eventBus *core.EventBus, logger *logging.Logger) *core.RetryScheduler {
-	return core.NewRetryScheduler(jobHistoryRepo, dlqRepo, retryConfigRepo, sceneRepo, eventBus, logger.Logger)
+func provideRetryScheduler(jobHistoryRepo data.JobHistoryRepository, dlqRepo data.DLQRepository, retryConfigRepo data.RetryConfigRepository, sceneRepo data.SceneRepository, eventBus *core.EventBus, logger *logging.Logger, failures *core.SceneFailureService) *core.RetryScheduler {
+	rs := core.NewRetryScheduler(jobHistoryRepo, dlqRepo, retryConfigRepo, sceneRepo, eventBus, logger.Logger)
+	rs.SetFailingChecker(failures)
+	return rs
 }
 
 func provideDLQService(dlqRepo data.DLQRepository, jobHistoryRepo data.JobHistoryRepository, sceneRepo data.SceneRepository, eventBus *core.EventBus, logger *logging.Logger) *core.DLQService {
@@ -519,16 +660,28 @@ func provideDLQService(dlqRepo data.DLQRepository, jobHistoryRepo data.JobHistor
 
 // --- Storage & Scan Services ---
 
+func provideMediaFileGuard(repo data.StoragePathRepository, logger *logging.Logger) *core.MediaFileGuard {
+	return core.NewMediaFileGuard(repo, logger.Logger)
+}
+
 func provideStoragePathService(repo data.StoragePathRepository, logger *logging.Logger) *core.StoragePathService {
 	return core.NewStoragePathService(repo, logger.Logger)
 }
 
-func provideScanService(storagePathService *core.StoragePathService, sceneRepo data.SceneRepository, scanHistoryRepo data.ScanHistoryRepository, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger) *core.ScanService {
-	return core.NewScanService(storagePathService, sceneRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
+func provideSceneCopyService(copyRepo data.SceneCopyRepository, sceneRepo data.SceneRepository, storagePathService *core.StoragePathService, guard *core.MediaFileGuard, processingService *core.SceneProcessingService, searchService *core.SearchService, logger *logging.Logger) *core.SceneCopyService {
+	svc := core.NewSceneCopyService(copyRepo, sceneRepo, storagePathService, guard, processingService, logger.Logger)
+	if searchService != nil {
+		svc.SetIndexer(searchService)
+	}
+	return svc
 }
 
-func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, jobHistoryRepo data.JobHistoryRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config, fingerprintIndex core.SceneFingerprintIndex) *core.ExplorerService {
-	return core.NewExplorerService(explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, jobHistoryRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir, fingerprintIndex)
+func provideScanService(storagePathService *core.StoragePathService, sceneRepo data.SceneRepository, sceneCopyRepo data.SceneCopyRepository, scanHistoryRepo data.ScanHistoryRepository, processingService *core.SceneProcessingService, eventBus *core.EventBus, logger *logging.Logger) *core.ScanService {
+	return core.NewScanService(storagePathService, sceneRepo, sceneCopyRepo, scanHistoryRepo, processingService, eventBus, logger.Logger)
+}
+
+func provideExplorerService(explorerRepo data.ExplorerRepository, storagePathRepo data.StoragePathRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, jobHistoryRepo data.JobHistoryRepository, eventBus *core.EventBus, logger *logging.Logger, cfg *config.Config, fingerprintIndex core.SceneFingerprintIndex, mediaGuard *core.MediaFileGuard) *core.ExplorerService {
+	return core.NewExplorerService(explorerRepo, storagePathRepo, sceneRepo, tagRepo, actorRepo, jobHistoryRepo, eventBus, logger.Logger, cfg.Processing.MetadataDir, fingerprintIndex, mediaGuard)
 }
 
 // --- External API Services ---
@@ -552,9 +705,16 @@ func provideHomepageService(
 	tagRepo data.TagRepository,
 	actorRepo data.ActorRepository,
 	studioRepo data.StudioRepository,
+	db *gorm.DB,
+	markerRepo data.MarkerRepository,
+	relatedScenesService *core.RelatedScenesService,
+	jobHistoryRepo data.JobHistoryRepository,
+	duplicateService *core.DuplicateService,
+	storagePathRepo data.StoragePathRepository,
+	rbacService *core.RBACService,
 	logger *logging.Logger,
 ) *core.HomepageService {
-	return core.NewHomepageService(
+	svc := core.NewHomepageService(
 		settingsService,
 		searchService,
 		savedSearchService,
@@ -567,26 +727,44 @@ func provideHomepageService(
 		studioRepo,
 		logger.Logger,
 	)
+	svc.SetWidgetDeps(core.HomepageWidgetDeps{
+		DB:            db,
+		Markers:       markerRepo,
+		RelatedScenes: relatedScenesService,
+		JobHistory:    jobHistoryRepo,
+		Duplicates:    duplicateService,
+		StoragePaths:  storagePathRepo,
+		Permissions:   rbacService,
+	})
+	return svc
 }
 
-func provideMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
-	return core.NewMarkerService(markerRepo, sceneRepo, tagRepo, cfg, logger.Logger)
+func provideMarkerService(markerRepo data.MarkerRepository, labelRepo data.MarkerLabelRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.MarkerService {
+	return core.NewMarkerService(markerRepo, labelRepo, sceneRepo, tagRepo, cfg, logger.Logger)
 }
 
-func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, logger *logging.Logger) *core.PlaylistService {
-	return core.NewPlaylistService(repo, sceneRepo, tagRepo, logger.Logger)
+func providePlaylistService(repo data.PlaylistRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *logging.Logger) *core.PlaylistService {
+	return core.NewPlaylistService(repo, sceneRepo, tagRepo, cfg.Playlists, logger.Logger)
 }
 
 // --- Share Service ---
 
-func provideShareService(shareLinkRepo data.ShareLinkRepository, sceneRepo data.SceneRepository, logger *logging.Logger) *core.ShareService {
-	return core.NewShareService(shareLinkRepo, sceneRepo, logger.Logger)
+// provideShareService creates the share links; links can share a marker range (read through
+// the message repository, docs/MESSAGES.md).
+func provideShareService(shareLinkRepo data.ShareLinkRepository, sceneRepo data.SceneRepository, messageRepo data.MessageRepository, cfg *config.Config, logger *logging.Logger) *core.ShareService {
+	s := core.NewShareService(shareLinkRepo, sceneRepo, logger.Logger)
+	s.SetMarkers(messageRepo, cfg.Playlists.MarkerDefaultDuration)
+	return s
 }
 
 // --- Duplication Repositories ---
 
 func provideDuplicateGroupRepository(db *gorm.DB) data.DuplicateGroupRepository {
 	return data.NewDuplicateGroupRepository(db)
+}
+
+func provideImportRepository(db *gorm.DB) data.ImportRepository {
+	return data.NewImportRepository(db)
 }
 
 func provideDuplicationConfigRepository(db *gorm.DB) data.DuplicationConfigRepository {
@@ -616,14 +794,30 @@ func provideSceneFingerprintIndex(matchingService *core.MatchingService) core.Sc
 	return matchingService
 }
 
-func provideDuplicateService(dupGroupRepo data.DuplicateGroupRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, markerRepo data.MarkerRepository, interactionRepo data.InteractionRepository, sceneService *core.SceneService, logger *logging.Logger) *core.DuplicateService {
-	return core.NewDuplicateService(dupGroupRepo, sceneRepo, tagRepo, actorRepo, markerRepo, interactionRepo, sceneService, logger.Logger)
+func provideDuplicateService(dupGroupRepo data.DuplicateGroupRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, markerRepo data.MarkerRepository, interactionRepo data.InteractionRepository, sceneService *core.SceneService, dupConfigRepo data.DuplicationConfigRepository, markerService *core.MarkerService, logger *logging.Logger) *core.DuplicateService {
+	svc := core.NewDuplicateService(dupGroupRepo, sceneRepo, tagRepo, actorRepo, markerRepo, interactionRepo, sceneService, logger.Logger)
+	svc.SetConfigRepo(dupConfigRepo)
+	svc.SetMarkerService(markerService)
+	return svc
 }
 
 // --- Streaming Manager ---
 
 func provideStreamManager(cfg *config.Config, sceneRepo data.SceneRepository, logger *logging.Logger) *streaming.Manager {
 	return streaming.NewManager(&cfg.Streaming, sceneRepo, logger.Logger)
+}
+
+func provideTranscoder(cfg *config.Config, appSettingsRepo data.AppSettingsRepository, logger *logging.Logger) *streaming.Transcoder {
+	transcoder := streaming.NewTranscoder(cfg.Streaming.Transcode, appSettingsRepo, logger.Logger)
+	cache, err := streaming.NewTranscodeCache(cfg.Streaming.Transcode.Cache, logger.Logger)
+	if err != nil {
+		// Conversions still work, each one running ffmpeg as before
+		logger.Error(fmt.Sprintf("transcode cache disabled: %v", err))
+	} else if cache != nil {
+		transcoder.SetCache(cache)
+		cache.Start()
+	}
+	return transcoder
 }
 
 // ============================================================================
@@ -657,14 +851,16 @@ func provideAdminHandler(adminService *core.AdminService, rbacService *core.RBAC
 	return handler.NewAdminHandler(adminService, rbacService, sceneService, appSettingsRepo)
 }
 
-func provideSettingsHandler(settingsService *core.SettingsService, cfg *config.Config) *handler.SettingsHandler {
-	return handler.NewSettingsHandler(settingsService, cfg.Pagination.MaxItemsPerPage)
+func provideSettingsHandler(settingsService *core.SettingsService, navLayoutService *core.NavLayoutService, cfg *config.Config) *handler.SettingsHandler {
+	h := handler.NewSettingsHandler(settingsService, cfg.Pagination.MaxItemsPerPage)
+	h.NavLayout = navLayoutService
+	return h
 }
 
 // --- Scene & Content Handlers ---
 
-func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, cfg *config.Config) *handler.SceneHandler {
-	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager, interactionRepo, tagRepo, actorRepo, cfg.Pagination.MaxItemsPerPage)
+func provideSceneHandler(service *core.SceneService, processingService *core.SceneProcessingService, tagService *core.TagService, searchService *core.SearchService, relatedScenesService *core.RelatedScenesService, markerService *core.MarkerService, streamManager *streaming.Manager, transcoder *streaming.Transcoder, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository, cfg *config.Config) *handler.SceneHandler {
+	return handler.NewSceneHandler(service, processingService, tagService, searchService, relatedScenesService, markerService, streamManager, transcoder, interactionRepo, tagRepo, actorRepo, cfg.Pagination.MaxItemsPerPage)
 }
 
 func provideTagHandler(tagService *core.TagService) *handler.TagHandler {
@@ -695,18 +891,18 @@ func provideSearchHandler(searchService *core.SearchService, searchConfigRepo da
 	return handler.NewSearchHandler(searchService, searchConfigRepo)
 }
 
-func provideWatchHistoryHandler(service *core.WatchHistoryService) *handler.WatchHistoryHandler {
-	return handler.NewWatchHistoryHandler(service)
+func provideWatchHistoryHandler(service *core.WatchHistoryService, heatmapService *core.ReplayHeatmapService, markerService *core.MarkerService, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository) *handler.WatchHistoryHandler {
+	return handler.NewWatchHistoryHandler(service, heatmapService).WithCardData(markerService, interactionRepo, tagRepo, actorRepo)
 }
 
 // --- Job & Processing Handlers ---
 
-func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.SceneProcessingService) *handler.JobHandler {
-	return handler.NewJobHandler(jobHistoryService, processingService)
+func provideJobHandler(jobHistoryService *core.JobHistoryService, processingService *core.SceneProcessingService, jobQueueFeeder *core.JobQueueFeeder, failures *core.SceneFailureService) *handler.JobHandler {
+	return handler.NewJobHandler(jobHistoryService, processingService, jobQueueFeeder, failures)
 }
 
-func providePoolConfigHandler(processingService *core.SceneProcessingService, poolConfigRepo data.PoolConfigRepository) *handler.PoolConfigHandler {
-	return handler.NewPoolConfigHandler(processingService, poolConfigRepo)
+func providePoolConfigHandler(processingService *core.SceneProcessingService, poolConfigRepo data.PoolConfigRepository, schedulingService *core.JobSchedulingService) *handler.PoolConfigHandler {
+	return handler.NewPoolConfigHandler(processingService, poolConfigRepo, schedulingService)
 }
 
 func provideProcessingConfigHandler(processingService *core.SceneProcessingService, processingConfigRepo data.ProcessingConfigRepository, markerService *core.MarkerService) *handler.ProcessingConfigHandler {
@@ -727,20 +923,22 @@ func provideRetryConfigHandler(retryConfigRepo data.RetryConfigRepository, retry
 
 // --- Real-time & Storage Handlers ---
 
-func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, logger *logging.Logger) *handler.SSEHandler {
-	return handler.NewSSEHandler(eventBus, authService, jobStatusService, logger.Logger)
+func provideSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, rbacService *core.RBACService, presence *core.PresenceService, logger *logging.Logger) *handler.SSEHandler {
+	h := handler.NewSSEHandler(eventBus, authService, jobStatusService, rbacService, logger.Logger)
+	h.SetPresence(presence)
+	return h
 }
 
 func provideStoragePathHandler(service *core.StoragePathService) *handler.StoragePathHandler {
 	return handler.NewStoragePathHandler(service)
 }
 
-func provideScanHandler(scanService *core.ScanService) *handler.ScanHandler {
-	return handler.NewScanHandler(scanService)
+func provideScanHandler(scanService *core.ScanService, copyService *core.SceneCopyService) *handler.ScanHandler {
+	return handler.NewScanHandler(scanService, copyService)
 }
 
-func provideExplorerHandler(explorerService *core.ExplorerService) *handler.ExplorerHandler {
-	return handler.NewExplorerHandler(explorerService)
+func provideExplorerHandler(explorerService *core.ExplorerService, tagRepo data.TagRepository, actorRepo data.ActorRepository, interactionRepo data.InteractionRepository) *handler.ExplorerHandler {
+	return handler.NewExplorerHandler(explorerService, tagRepo, actorRepo, interactionRepo)
 }
 
 // --- External API Handlers ---
@@ -757,24 +955,134 @@ func provideHomepageHandler(homepageService *core.HomepageService) *handler.Home
 	return handler.NewHomepageHandler(homepageService)
 }
 
-func provideMarkerHandler(markerService *core.MarkerService, cfg *config.Config) *handler.MarkerHandler {
-	return handler.NewMarkerHandler(markerService, cfg.Pagination.MaxItemsPerPage)
+func provideMarkerHandler(markerService *core.MarkerService, labelRepo data.MarkerLabelRepository, tagRepo data.TagRepository, db *gorm.DB, cfg *config.Config, logger *logging.Logger) *handler.MarkerHandler {
+	h := handler.NewMarkerHandler(markerService, cfg.Pagination.MaxItemsPerPage)
+	h.SetLabelService(core.NewMarkerLabelService(labelRepo, tagRepo, logger.Logger))
+	h.SetSavedFilterService(core.NewSavedMarkerFilterService(data.NewSavedMarkerFilterRepository(db), logger.Logger))
+	return h
 }
 
 func providePlaylistHandler(service *core.PlaylistService, cfg *config.Config) *handler.PlaylistHandler {
 	return handler.NewPlaylistHandler(service, cfg.Pagination.MaxItemsPerPage)
 }
 
-func provideImportHandler(sceneRepo data.SceneRepository, markerRepo data.MarkerRepository, logger *logging.Logger) *handler.ImportHandler {
-	return handler.NewImportHandler(sceneRepo, markerRepo, logger.Logger)
+func provideImportService(
+	importRepo data.ImportRepository,
+	sceneRepo data.SceneRepository,
+	tagRepo data.TagRepository,
+	actorRepo data.ActorRepository,
+	studioRepo data.StudioRepository,
+	storagePathRepo data.StoragePathRepository,
+	userRepo data.UserRepository,
+	interactionRepo data.InteractionRepository,
+	searchService *core.SearchService,
+	logger *logging.Logger,
+) *core.ImportService {
+	return core.NewImportService(importRepo, sceneRepo, tagRepo, actorRepo, studioRepo, storagePathRepo, userRepo, interactionRepo, searchService, logger.Logger)
+}
+
+func provideImportHandler(service *core.ImportService, logger *logging.Logger) *handler.ImportHandler {
+	return handler.NewImportHandler(service, logger.Logger)
 }
 
 func provideStreamStatsHandler(streamManager *streaming.Manager) *handler.StreamStatsHandler {
 	return handler.NewStreamStatsHandler(streamManager)
 }
 
-func provideShareHandler(shareService *core.ShareService, authService *core.AuthService, streamManager *streaming.Manager, cfg *config.Config) *handler.ShareHandler {
-	return handler.NewShareHandler(shareService, authService, streamManager, cfg.Sharing.BaseURL)
+func provideShareHandler(shareService *core.ShareService, authService *core.AuthService, streamManager *streaming.Manager, transcoder *streaming.Transcoder, rbacService *core.RBACService, cfg *config.Config) *handler.ShareHandler {
+	h := handler.NewShareHandler(shareService, authService, streamManager, transcoder, cfg.Sharing.BaseURL)
+	h.Access = rbacService
+	return h
+}
+
+// --- Social ---
+
+func providePrivacyService(repo data.PrivacyRepository, socialRepo data.SocialRepository, logger *logging.Logger) *core.PrivacyService {
+	return core.NewPrivacyService(repo, socialRepo, logger.Logger)
+}
+
+func provideSocialService(repo data.SocialRepository, privacy *core.PrivacyService, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.SocialService {
+	return core.NewSocialService(repo, privacy, eventBus, cfg.Social, logger.Logger)
+}
+
+func provideSocialHandler(social *core.SocialService, privacy *core.PrivacyService, cfg *config.Config) *handler.SocialHandler {
+	return handler.NewSocialHandler(social, privacy, cfg.Pagination.MaxItemsPerPage)
+}
+
+// --- Profiles ---
+
+func provideProfileRepository(db *gorm.DB) data.ProfileRepository {
+	return data.NewProfileRepository(db)
+}
+
+func provideProfileService(repo data.ProfileRepository, socialRepo data.SocialRepository, markerRepo data.MarkerRepository, social *core.SocialService, privacy *core.PrivacyService, homepage *core.HomepageService, searchService *core.SearchService, tagRepo data.TagRepository, savedSearchRepo data.SavedSearchRepository, interactionRepo data.InteractionRepository, cfg *config.Config, logger *logging.Logger) *core.ProfileService {
+	return core.NewProfileService(repo, socialRepo, markerRepo, social, privacy, homepage, cfg.Profiles, logger.Logger).
+		WithCustomLists(searchService, tagRepo, savedSearchRepo).
+		WithListFigures(interactionRepo)
+}
+
+func provideProfileHandler(profiles *core.ProfileService, cfg *config.Config, markerService *core.MarkerService, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository) *handler.ProfileHandler {
+	return handler.NewProfileHandler(profiles, cfg.Pagination.MaxItemsPerPage).WithCardData(markerService, interactionRepo, tagRepo, actorRepo)
+}
+
+// providePresenceService creates the presence (docs/PRESENCE.md), subscribed to the privacy
+// and social changes. Its loop is started and stopped by the server.
+func providePresenceService(repo data.PresenceRepository, privacy *core.PrivacyService, social *core.SocialService, sceneRepo data.SceneRepository, rbacService *core.RBACService, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.PresenceService {
+	return core.NewPresenceService(repo, privacy, social, sceneRepo, rbacService, eventBus, cfg.Presence, logger.Logger)
+}
+
+func providePresenceHandler(presence *core.PresenceService) *handler.PresenceHandler {
+	return handler.NewPresenceHandler(presence)
+}
+
+// --- Messages ---
+
+func provideMessageRepository(db *gorm.DB) data.MessageRepository {
+	return data.NewMessageRepository(db)
+}
+
+// provideLobbyInvites gives the messages the lobby invites of Goon2gether (nil when it is
+// disabled: lobby invites are refused).
+func provideLobbyInvites(cfg *config.Config, hub *together.Hub) core.LobbyInvites {
+	if !cfg.Goon2gether.Enabled || hub == nil {
+		return nil
+	}
+	return hub
+}
+
+// provideMessageService creates the messages (docs/MESSAGES.md), subscribed to the relation
+// changes (whether one can still write). The server emotes of Goon2gether are accepted as
+// reactions while it is enabled.
+func provideMessageService(repo data.MessageRepository, socialRepo data.SocialRepository, social *core.SocialService, rbacService *core.RBACService, lobbies core.LobbyInvites, emotes *together.EmoteService, eventBus *core.EventBus, cfg *config.Config, logger *logging.Logger) *core.MessageService {
+	s := core.NewMessageService(repo, socialRepo, social, rbacService, lobbies, eventBus, cfg.Messages, logger.Logger)
+	if cfg.Goon2gether.Enabled && emotes != nil {
+		s.SetEmotes(emotes)
+	}
+	return s
+}
+
+func provideMessageHandler(messages *core.MessageService, cfg *config.Config) *handler.MessageHandler {
+	return handler.NewMessageHandler(messages, cfg.Pagination.MaxItemsPerPage)
+}
+
+// --- Library Health ---
+
+func provideLibraryHealthRepository(db *gorm.DB) data.LibraryHealthRepository {
+	return data.NewLibraryHealthRepository(db)
+}
+
+func provideLibraryHealthService(repo data.LibraryHealthRepository, sceneRepo data.SceneRepository, storagePathService *core.StoragePathService, processingService *core.SceneProcessingService, searchService *core.SearchService, cfg *config.Config, logger *logging.Logger) *core.LibraryHealthService {
+	svc := core.NewLibraryHealthService(repo, sceneRepo, storagePathService, processingService, cfg.LibraryHealth.StatConcurrency, logger.Logger)
+	if searchService != nil {
+		svc.SetIndexer(searchService)
+	}
+	// A task left running by a restart will never finish: mark it failed
+	svc.RecoverInterruptedChecks()
+	return svc
+}
+
+func provideLibraryHealthHandler(service *core.LibraryHealthService) *handler.LibraryHealthHandler {
+	return handler.NewLibraryHealthHandler(service)
 }
 
 func provideDuplicateHandler(duplicateService *core.DuplicateService, dupConfigRepo data.DuplicationConfigRepository) *handler.DuplicateHandler {
@@ -819,6 +1127,13 @@ func provideRouter(
 	playlistHandler *handler.PlaylistHandler,
 	shareHandler *handler.ShareHandler,
 	duplicateHandler *handler.DuplicateHandler,
+	libraryHealthHandler *handler.LibraryHealthHandler,
+	workerHandler *handler.WorkerHandler,
+	togetherHandler *handler.TogetherHandler,
+	socialHandler *handler.SocialHandler,
+	profileHandler *handler.ProfileHandler,
+	presenceHandler *handler.PresenceHandler,
+	messageHandler *handler.MessageHandler,
 	authService *core.AuthService,
 	rbacService *core.RBACService,
 	rateLimiter *middleware.IPRateLimiter,
@@ -831,7 +1146,7 @@ func provideRouter(
 		dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler,
 		actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler,
 		explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler,
-		playlistHandler, shareHandler, duplicateHandler, authService, rbacService, rateLimiter, ogMiddleware,
+		playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, presenceHandler, togetherHandler, profileHandler, messageHandler, authService, rbacService, rateLimiter, ogMiddleware,
 	)
 }
 
@@ -868,12 +1183,156 @@ func provideServer(
 	actorService *core.ActorService,
 	studioService *core.StudioService,
 	matchingService *core.MatchingService,
+	duplicateService *core.DuplicateService,
+	markerService *core.MarkerService,
 	shareServer *server.ShareServer,
+	transcoder *streaming.Transcoder,
+	workerService *workers.Service,
+	pushDispatcher *workers.PushDispatcher,
+	togetherHub *together.Hub,
+	presenceService *core.PresenceService,
+	messageService *core.MessageService,
 ) *server.Server {
-	return server.NewHTTPServer(
+	srv := server.NewHTTPServer(
 		router, logger, cfg,
 		processingService, userService, jobHistoryService, jobHistoryRepo, jobQueueFeeder, triggerScheduler,
 		sceneService, tagService, searchService, scanService, explorerService, retryScheduler, dlqService,
-		actorService, studioService, matchingService, shareServer,
+		actorService, studioService, matchingService, duplicateService, markerService, shareServer, transcoder,
+		workerService, pushDispatcher, togetherHub,
 	)
+	srv.SetPresence(presenceService)
+	srv.SetMessages(messageService)
+	return srv
+}
+
+// ============================================================================
+// REMOTE WORKERS
+// ============================================================================
+
+func provideWorkerRepository(db *gorm.DB) data.WorkerRepository {
+	return data.NewWorkerRepository(db)
+}
+
+func provideJobLeaseRepository(db *gorm.DB) data.JobLeaseRepository {
+	return data.NewJobLeaseRepository(db)
+}
+
+// provideWorkerService creates the server side of the remote workers and hooks it into the
+// local processing (phase routing, remote cancel). With workers.enabled false every phase
+// stays local and the worker API answers 404.
+func provideWorkerService(
+	cfg *config.Config,
+	workerRepo data.WorkerRepository,
+	leaseRepo data.JobLeaseRepository,
+	sceneRepo data.SceneRepository,
+	storagePathRepo data.StoragePathRepository,
+	dupConfigRepo data.DuplicationConfigRepository,
+	processingService *core.SceneProcessingService,
+	markerService *core.MarkerService,
+	matchingService *core.MatchingService,
+	retryScheduler *core.RetryScheduler,
+	feeder *core.JobQueueFeeder,
+	logger *logging.Logger,
+) (*workers.Service, error) {
+	stagingRoot := jobs.StagingRoot(cfg.Processing.StagingDir, cfg.Processing.SpriteDir)
+	settings, err := workers.NewSettings(cfg.Workers, stagingRoot)
+	if err != nil {
+		return nil, err
+	}
+	secret := cfg.Workers.MediaSecret
+	if secret == "" {
+		generated, err := workers.NewMediaSecret()
+		if err != nil {
+			return nil, err
+		}
+		if secret, err = workerRepo.EnsureMediaSecret(generated); err != nil {
+			return nil, fmt.Errorf("failed to load the worker media secret: %w", err)
+		}
+	}
+	router := workers.NewRouter(cfg.Workers.Enabled, cfg.Workers.LocalPhases, workerRepo)
+	if err := router.Load(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to load the worker phase routing, using the config: %v", err))
+	}
+	var fpIndex workers.FingerprintIndexCleaner
+	if matchingService != nil {
+		fpIndex = matchingService
+	}
+	poolManager := processingService.GetPoolManager()
+	svc := workers.NewService(workers.Deps{
+		Settings:           settings,
+		Workers:            workerRepo,
+		Leases:             leaseRepo,
+		Scenes:             sceneRepo,
+		StoragePaths:       storagePathRepo,
+		Router:             router,
+		Staging:            workers.NewStaging(stagingRoot, settings.MaxArtifactBytes),
+		Processing:         poolManager,
+		Animated:           markerService,
+		Fingerprints:       poolManager.FingerprintCommitter(),
+		FingerprintIndex:   fpIndex,
+		FingerprintMode:    func() string { return fingerprintMode(dupConfigRepo) },
+		DuplicationEnabled: cfg.Duplication.Enabled,
+		Results:            processingService,
+		Retry:              retryScheduler,
+		Gate:               feeder,
+		MediaSecret:        []byte(secret),
+		Logger:             logger.Logger,
+	})
+	feeder.SetPhaseRouter(router)
+	feeder.SetRemoteCanceller(svc)
+	processingService.SetPhaseRouter(router)
+	processingService.SetRemoteCanceller(svc)
+	return svc, nil
+}
+
+func fingerprintMode(repo data.DuplicationConfigRepository) string {
+	if repo != nil {
+		if c, err := repo.Get(); err == nil && c != nil && c.FingerprintMode != "" {
+			return c.FingerprintMode
+		}
+	}
+	return "audio_only"
+}
+
+func providePushDispatcher(svc *workers.Service) *workers.PushDispatcher {
+	return workers.NewPushDispatcher(svc, nil)
+}
+
+func provideWorkerHandler(svc *workers.Service, logger *logging.Logger) *handler.WorkerHandler {
+	return handler.NewWorkerHandler(svc, logger.Logger)
+}
+
+// ============================================================================
+// GOON2GETHER
+// ============================================================================
+
+func provideLobbyRepository(db *gorm.DB) data.LobbyRepository {
+	return data.NewLobbyRepository(db)
+}
+
+func provideEmoteRepository(db *gorm.DB) data.EmoteRepository {
+	return data.NewEmoteRepository(db)
+}
+
+func provideEmoteService(repo data.EmoteRepository, cfg *config.Config, logger *logging.Logger) *together.EmoteService {
+	return together.NewEmoteService(repo, cfg.Goon2gether, logger.Logger)
+}
+
+func provideTogetherHub(cfg *config.Config, lobbyRepo data.LobbyRepository, sceneRepo data.SceneRepository, rbacService *core.RBACService, emotes *together.EmoteService, eventBus *core.EventBus, logger *logging.Logger) *together.Hub {
+	hub := together.NewHub(cfg.Goon2gether, lobbyRepo, sceneRepo, rbacService, logger.Logger)
+	hub.SetEmotes(emotes)
+	emotes.OnChange(hub.BroadcastEmotesChanged)
+	// The nav badge of the lobby browser (broadcast, filtered to goon2gether:use)
+	hub.OnPublicCountChange(func(count int64) {
+		eventBus.Publish(core.SceneEvent{Type: "together:public_count", Data: map[string]any{"count": count}})
+	})
+	return hub
+}
+
+// provideTogetherHandler is nil when Goon2gether is disabled (no routes).
+func provideTogetherHandler(cfg *config.Config, hub *together.Hub, emotes *together.EmoteService, logger *logging.Logger) *handler.TogetherHandler {
+	if !cfg.Goon2gether.Enabled {
+		return nil
+	}
+	return handler.NewTogetherHandler(hub, emotes, handler.OriginPatterns(cfg.Server.AllowedOrigins), logger.Logger)
 }

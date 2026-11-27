@@ -55,17 +55,31 @@ func (mr *MockMarkerRepositoryMockRecorder) AddMarkerTags(markerID, tagIDs any) 
 }
 
 // ApplyLabelTagsToMarker mocks base method.
-func (m *MockMarkerRepository) ApplyLabelTagsToMarker(userID, markerID uint, label string) error {
+func (m *MockMarkerRepository) ApplyLabelTagsToMarker(markerID uint) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ApplyLabelTagsToMarker", userID, markerID, label)
+	ret := m.ctrl.Call(m, "ApplyLabelTagsToMarker", markerID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ApplyLabelTagsToMarker indicates an expected call of ApplyLabelTagsToMarker.
-func (mr *MockMarkerRepositoryMockRecorder) ApplyLabelTagsToMarker(userID, markerID, label any) *gomock.Call {
+func (mr *MockMarkerRepositoryMockRecorder) ApplyLabelTagsToMarker(markerID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyLabelTagsToMarker", reflect.TypeOf((*MockMarkerRepository)(nil).ApplyLabelTagsToMarker), userID, markerID, label)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyLabelTagsToMarker", reflect.TypeOf((*MockMarkerRepository)(nil).ApplyLabelTagsToMarker), markerID)
+}
+
+// ApplyMarkerDedup mocks base method.
+func (m *MockMarkerRepository) ApplyMarkerDedup(merges []data.MarkerDedupMerge) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ApplyMarkerDedup", merges)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ApplyMarkerDedup indicates an expected call of ApplyMarkerDedup.
+func (mr *MockMarkerRepositoryMockRecorder) ApplyMarkerDedup(merges any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyMarkerDedup", reflect.TypeOf((*MockMarkerRepository)(nil).ApplyMarkerDedup), merges)
 }
 
 // CountByUserAndScene mocks base method.
@@ -126,25 +140,10 @@ func (mr *MockMarkerRepositoryMockRecorder) GetAllByScene(sceneID any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllByScene", reflect.TypeOf((*MockMarkerRepository)(nil).GetAllByScene), sceneID)
 }
 
-// GetAllLabelTagsForUser mocks base method.
-func (m *MockMarkerRepository) GetAllLabelTagsForUser(userID uint) (map[string][]data.Tag, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllLabelTagsForUser", userID)
-	ret0, _ := ret[0].(map[string][]data.Tag)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAllLabelTagsForUser indicates an expected call of GetAllLabelTagsForUser.
-func (mr *MockMarkerRepositoryMockRecorder) GetAllLabelTagsForUser(userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllLabelTagsForUser", reflect.TypeOf((*MockMarkerRepository)(nil).GetAllLabelTagsForUser), userID)
-}
-
 // GetAllMarkersForUser mocks base method.
-func (m *MockMarkerRepository) GetAllMarkersForUser(userID uint, offset, limit int, sortBy string) ([]data.MarkerWithScene, int64, error) {
+func (m *MockMarkerRepository) GetAllMarkersForUser(userID uint, offset, limit int, opts data.MarkerListOptions) ([]data.MarkerWithScene, int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllMarkersForUser", userID, offset, limit, sortBy)
+	ret := m.ctrl.Call(m, "GetAllMarkersForUser", userID, offset, limit, opts)
 	ret0, _ := ret[0].([]data.MarkerWithScene)
 	ret1, _ := ret[1].(int64)
 	ret2, _ := ret[2].(error)
@@ -152,9 +151,9 @@ func (m *MockMarkerRepository) GetAllMarkersForUser(userID uint, offset, limit i
 }
 
 // GetAllMarkersForUser indicates an expected call of GetAllMarkersForUser.
-func (mr *MockMarkerRepositoryMockRecorder) GetAllMarkersForUser(userID, offset, limit, sortBy any) *gomock.Call {
+func (mr *MockMarkerRepositoryMockRecorder) GetAllMarkersForUser(userID, offset, limit, opts any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllMarkersForUser", reflect.TypeOf((*MockMarkerRepository)(nil).GetAllMarkersForUser), userID, offset, limit, sortBy)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllMarkersForUser", reflect.TypeOf((*MockMarkerRepository)(nil).GetAllMarkersForUser), userID, offset, limit, opts)
 }
 
 // GetByID mocks base method.
@@ -217,10 +216,25 @@ func (mr *MockMarkerRepositoryMockRecorder) GetByUserAndScene(userID, sceneID an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByUserAndScene", reflect.TypeOf((*MockMarkerRepository)(nil).GetByUserAndScene), userID, sceneID)
 }
 
-// GetLabelGroupsForUser mocks base method.
-func (m *MockMarkerRepository) GetLabelGroupsForUser(userID uint, offset, limit int, sortBy string) ([]data.MarkerLabelGroup, int64, error) {
+// GetByUserAndScenes mocks base method.
+func (m *MockMarkerRepository) GetByUserAndScenes(userID uint, sceneIDs []uint) ([]data.UserSceneMarker, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetLabelGroupsForUser", userID, offset, limit, sortBy)
+	ret := m.ctrl.Call(m, "GetByUserAndScenes", userID, sceneIDs)
+	ret0, _ := ret[0].([]data.UserSceneMarker)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByUserAndScenes indicates an expected call of GetByUserAndScenes.
+func (mr *MockMarkerRepositoryMockRecorder) GetByUserAndScenes(userID, sceneIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByUserAndScenes", reflect.TypeOf((*MockMarkerRepository)(nil).GetByUserAndScenes), userID, sceneIDs)
+}
+
+// GetLabelGroupsForUser mocks base method.
+func (m *MockMarkerRepository) GetLabelGroupsForUser(userID uint, offset, limit int, opts data.MarkerListOptions) ([]data.MarkerLabelGroup, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLabelGroupsForUser", userID, offset, limit, opts)
 	ret0, _ := ret[0].([]data.MarkerLabelGroup)
 	ret1, _ := ret[1].(int64)
 	ret2, _ := ret[2].(error)
@@ -228,9 +242,9 @@ func (m *MockMarkerRepository) GetLabelGroupsForUser(userID uint, offset, limit 
 }
 
 // GetLabelGroupsForUser indicates an expected call of GetLabelGroupsForUser.
-func (mr *MockMarkerRepositoryMockRecorder) GetLabelGroupsForUser(userID, offset, limit, sortBy any) *gomock.Call {
+func (mr *MockMarkerRepositoryMockRecorder) GetLabelGroupsForUser(userID, offset, limit, opts any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLabelGroupsForUser", reflect.TypeOf((*MockMarkerRepository)(nil).GetLabelGroupsForUser), userID, offset, limit, sortBy)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLabelGroupsForUser", reflect.TypeOf((*MockMarkerRepository)(nil).GetLabelGroupsForUser), userID, offset, limit, opts)
 }
 
 // GetLabelSuggestionsForUser mocks base method.
@@ -246,36 +260,6 @@ func (m *MockMarkerRepository) GetLabelSuggestionsForUser(userID uint, limit int
 func (mr *MockMarkerRepositoryMockRecorder) GetLabelSuggestionsForUser(userID, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLabelSuggestionsForUser", reflect.TypeOf((*MockMarkerRepository)(nil).GetLabelSuggestionsForUser), userID, limit)
-}
-
-// GetLabelTags mocks base method.
-func (m *MockMarkerRepository) GetLabelTags(userID uint, label string) ([]data.Tag, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetLabelTags", userID, label)
-	ret0, _ := ret[0].([]data.Tag)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetLabelTags indicates an expected call of GetLabelTags.
-func (mr *MockMarkerRepositoryMockRecorder) GetLabelTags(userID, label any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLabelTags", reflect.TypeOf((*MockMarkerRepository)(nil).GetLabelTags), userID, label)
-}
-
-// GetMarkerIDsByLabel mocks base method.
-func (m *MockMarkerRepository) GetMarkerIDsByLabel(userID uint, label string) ([]uint, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMarkerIDsByLabel", userID, label)
-	ret0, _ := ret[0].([]uint)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetMarkerIDsByLabel indicates an expected call of GetMarkerIDsByLabel.
-func (mr *MockMarkerRepositoryMockRecorder) GetMarkerIDsByLabel(userID, label any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMarkerIDsByLabel", reflect.TypeOf((*MockMarkerRepository)(nil).GetMarkerIDsByLabel), userID, label)
 }
 
 // GetMarkerTags mocks base method.
@@ -309,9 +293,9 @@ func (mr *MockMarkerRepositoryMockRecorder) GetMarkerTagsMultiple(markerIDs any)
 }
 
 // GetMarkersByLabelForUser mocks base method.
-func (m *MockMarkerRepository) GetMarkersByLabelForUser(userID uint, label string, offset, limit int) ([]data.MarkerWithScene, int64, error) {
+func (m *MockMarkerRepository) GetMarkersByLabelForUser(userID uint, label string, offset, limit int, opts data.MarkerListOptions) ([]data.MarkerWithScene, int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMarkersByLabelForUser", userID, label, offset, limit)
+	ret := m.ctrl.Call(m, "GetMarkersByLabelForUser", userID, label, offset, limit, opts)
 	ret0, _ := ret[0].([]data.MarkerWithScene)
 	ret1, _ := ret[1].(int64)
 	ret2, _ := ret[2].(error)
@@ -319,24 +303,24 @@ func (m *MockMarkerRepository) GetMarkersByLabelForUser(userID uint, label strin
 }
 
 // GetMarkersByLabelForUser indicates an expected call of GetMarkersByLabelForUser.
-func (mr *MockMarkerRepositoryMockRecorder) GetMarkersByLabelForUser(userID, label, offset, limit any) *gomock.Call {
+func (mr *MockMarkerRepositoryMockRecorder) GetMarkersByLabelForUser(userID, label, offset, limit, opts any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMarkersByLabelForUser", reflect.TypeOf((*MockMarkerRepository)(nil).GetMarkersByLabelForUser), userID, label, offset, limit)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMarkersByLabelForUser", reflect.TypeOf((*MockMarkerRepository)(nil).GetMarkersByLabelForUser), userID, label, offset, limit, opts)
 }
 
 // GetRandomThumbnailsForLabels mocks base method.
-func (m *MockMarkerRepository) GetRandomThumbnailsForLabels(userID uint, labels []string, perLabel int) (map[string][]uint, error) {
+func (m *MockMarkerRepository) GetRandomThumbnailsForLabels(userID uint, labels []string, perLabel int, opts data.MarkerListOptions) (map[string][]data.MarkerThumbnailRef, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRandomThumbnailsForLabels", userID, labels, perLabel)
-	ret0, _ := ret[0].(map[string][]uint)
+	ret := m.ctrl.Call(m, "GetRandomThumbnailsForLabels", userID, labels, perLabel, opts)
+	ret0, _ := ret[0].(map[string][]data.MarkerThumbnailRef)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetRandomThumbnailsForLabels indicates an expected call of GetRandomThumbnailsForLabels.
-func (mr *MockMarkerRepositoryMockRecorder) GetRandomThumbnailsForLabels(userID, labels, perLabel any) *gomock.Call {
+func (mr *MockMarkerRepositoryMockRecorder) GetRandomThumbnailsForLabels(userID, labels, perLabel, opts any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRandomThumbnailsForLabels", reflect.TypeOf((*MockMarkerRepository)(nil).GetRandomThumbnailsForLabels), userID, labels, perLabel)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRandomThumbnailsForLabels", reflect.TypeOf((*MockMarkerRepository)(nil).GetRandomThumbnailsForLabels), userID, labels, perLabel, opts)
 }
 
 // GetSceneIDsByLabels mocks base method.
@@ -354,32 +338,33 @@ func (mr *MockMarkerRepositoryMockRecorder) GetSceneIDsByLabels(userID, labels a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSceneIDsByLabels", reflect.TypeOf((*MockMarkerRepository)(nil).GetSceneIDsByLabels), userID, labels)
 }
 
-// ReassignMarkersToScene mocks base method.
-func (m *MockMarkerRepository) ReassignMarkersToScene(fromSceneID, toSceneID uint) error {
+// ListSceneIDsWithNearbyMarkers mocks base method.
+func (m *MockMarkerRepository) ListSceneIDsWithNearbyMarkers(toleranceSeconds int) ([]uint, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReassignMarkersToScene", fromSceneID, toSceneID)
+	ret := m.ctrl.Call(m, "ListSceneIDsWithNearbyMarkers", toleranceSeconds)
+	ret0, _ := ret[0].([]uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListSceneIDsWithNearbyMarkers indicates an expected call of ListSceneIDsWithNearbyMarkers.
+func (mr *MockMarkerRepositoryMockRecorder) ListSceneIDsWithNearbyMarkers(toleranceSeconds any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSceneIDsWithNearbyMarkers", reflect.TypeOf((*MockMarkerRepository)(nil).ListSceneIDsWithNearbyMarkers), toleranceSeconds)
+}
+
+// MoveMarkers mocks base method.
+func (m *MockMarkerRepository) MoveMarkers(moves []data.MarkerMove) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MoveMarkers", moves)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// ReassignMarkersToScene indicates an expected call of ReassignMarkersToScene.
-func (mr *MockMarkerRepositoryMockRecorder) ReassignMarkersToScene(fromSceneID, toSceneID any) *gomock.Call {
+// MoveMarkers indicates an expected call of MoveMarkers.
+func (mr *MockMarkerRepositoryMockRecorder) MoveMarkers(moves any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReassignMarkersToScene", reflect.TypeOf((*MockMarkerRepository)(nil).ReassignMarkersToScene), fromSceneID, toSceneID)
-}
-
-// SetLabelTags mocks base method.
-func (m *MockMarkerRepository) SetLabelTags(userID uint, label string, tagIDs []uint) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetLabelTags", userID, label, tagIDs)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SetLabelTags indicates an expected call of SetLabelTags.
-func (mr *MockMarkerRepositoryMockRecorder) SetLabelTags(userID, label, tagIDs any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLabelTags", reflect.TypeOf((*MockMarkerRepository)(nil).SetLabelTags), userID, label, tagIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MoveMarkers", reflect.TypeOf((*MockMarkerRepository)(nil).MoveMarkers), moves)
 }
 
 // SetMarkerTags mocks base method.
@@ -396,20 +381,6 @@ func (mr *MockMarkerRepositoryMockRecorder) SetMarkerTags(markerID, tagIDs any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMarkerTags", reflect.TypeOf((*MockMarkerRepository)(nil).SetMarkerTags), markerID, tagIDs)
 }
 
-// SyncMarkerTagsFromLabel mocks base method.
-func (m *MockMarkerRepository) SyncMarkerTagsFromLabel(userID uint, label string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SyncMarkerTagsFromLabel", userID, label)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SyncMarkerTagsFromLabel indicates an expected call of SyncMarkerTagsFromLabel.
-func (mr *MockMarkerRepositoryMockRecorder) SyncMarkerTagsFromLabel(userID, label any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncMarkerTagsFromLabel", reflect.TypeOf((*MockMarkerRepository)(nil).SyncMarkerTagsFromLabel), userID, label)
-}
-
 // Update mocks base method.
 func (m *MockMarkerRepository) Update(marker *data.UserSceneMarker) error {
 	m.ctrl.T.Helper()
@@ -422,4 +393,32 @@ func (m *MockMarkerRepository) Update(marker *data.UserSceneMarker) error {
 func (mr *MockMarkerRepositoryMockRecorder) Update(marker any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockMarkerRepository)(nil).Update), marker)
+}
+
+// UpdateAnimatedThumbnailPath mocks base method.
+func (m *MockMarkerRepository) UpdateAnimatedThumbnailPath(id uint, path string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAnimatedThumbnailPath", id, path)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateAnimatedThumbnailPath indicates an expected call of UpdateAnimatedThumbnailPath.
+func (mr *MockMarkerRepositoryMockRecorder) UpdateAnimatedThumbnailPath(id, path any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAnimatedThumbnailPath", reflect.TypeOf((*MockMarkerRepository)(nil).UpdateAnimatedThumbnailPath), id, path)
+}
+
+// UpdateThumbnailPath mocks base method.
+func (m *MockMarkerRepository) UpdateThumbnailPath(id uint, path string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateThumbnailPath", id, path)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateThumbnailPath indicates an expected call of UpdateThumbnailPath.
+func (mr *MockMarkerRepositoryMockRecorder) UpdateThumbnailPath(id, path any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateThumbnailPath", reflect.TypeOf((*MockMarkerRepository)(nil).UpdateThumbnailPath), id, path)
 }

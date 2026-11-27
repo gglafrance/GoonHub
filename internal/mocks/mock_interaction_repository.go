@@ -12,6 +12,7 @@ package mocks
 import (
 	data "goonhub/internal/data"
 	reflect "reflect"
+	time "time"
 
 	gomock "go.uber.org/mock/gomock"
 )
@@ -98,6 +99,21 @@ func (mr *MockInteractionRepositoryMockRecorder) GetJizzCountsBySceneIDs(userID,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJizzCountsBySceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetJizzCountsBySceneIDs), userID, sceneIDs)
 }
 
+// GetJizzEvents mocks base method.
+func (m *MockInteractionRepository) GetJizzEvents(userID, sceneID uint) ([]data.UserSceneJizzEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetJizzEvents", userID, sceneID)
+	ret0, _ := ret[0].([]data.UserSceneJizzEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetJizzEvents indicates an expected call of GetJizzEvents.
+func (mr *MockInteractionRepositoryMockRecorder) GetJizzEvents(userID, sceneID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJizzEvents", reflect.TypeOf((*MockInteractionRepository)(nil).GetJizzEvents), userID, sceneID)
+}
+
 // GetJizzedCount mocks base method.
 func (m *MockInteractionRepository) GetJizzedCount(userID, sceneID uint) (int, error) {
 	m.ctrl.T.Helper()
@@ -128,6 +144,36 @@ func (mr *MockInteractionRepositoryMockRecorder) GetJizzedSceneIDs(userID, minCo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJizzedSceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetJizzedSceneIDs), userID, minCount, maxCount)
 }
 
+// GetLastJizzTimes mocks base method.
+func (m *MockInteractionRepository) GetLastJizzTimes(userID uint, sceneIDs []uint) (map[uint]time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLastJizzTimes", userID, sceneIDs)
+	ret0, _ := ret[0].(map[uint]time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLastJizzTimes indicates an expected call of GetLastJizzTimes.
+func (mr *MockInteractionRepositoryMockRecorder) GetLastJizzTimes(userID, sceneIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastJizzTimes", reflect.TypeOf((*MockInteractionRepository)(nil).GetLastJizzTimes), userID, sceneIDs)
+}
+
+// GetLikeTimes mocks base method.
+func (m *MockInteractionRepository) GetLikeTimes(userID uint, sceneIDs []uint) (map[uint]time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLikeTimes", userID, sceneIDs)
+	ret0, _ := ret[0].(map[uint]time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLikeTimes indicates an expected call of GetLikeTimes.
+func (mr *MockInteractionRepositoryMockRecorder) GetLikeTimes(userID, sceneIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLikeTimes", reflect.TypeOf((*MockInteractionRepository)(nil).GetLikeTimes), userID, sceneIDs)
+}
+
 // GetLikedSceneIDs mocks base method.
 func (m *MockInteractionRepository) GetLikedSceneIDs(userID uint) ([]uint, error) {
 	m.ctrl.T.Helper()
@@ -156,6 +202,21 @@ func (m *MockInteractionRepository) GetLikesBySceneIDs(userID uint, sceneIDs []u
 func (mr *MockInteractionRepositoryMockRecorder) GetLikesBySceneIDs(userID, sceneIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLikesBySceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetLikesBySceneIDs), userID, sceneIDs)
+}
+
+// GetMarkedSceneIDs mocks base method.
+func (m *MockInteractionRepository) GetMarkedSceneIDs(userID uint) ([]uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMarkedSceneIDs", userID)
+	ret0, _ := ret[0].([]uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMarkedSceneIDs indicates an expected call of GetMarkedSceneIDs.
+func (mr *MockInteractionRepositoryMockRecorder) GetMarkedSceneIDs(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMarkedSceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetMarkedSceneIDs), userID)
 }
 
 // GetRatedSceneIDs mocks base method.
@@ -203,6 +264,51 @@ func (mr *MockInteractionRepositoryMockRecorder) GetRatingsBySceneIDs(userID, sc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRatingsBySceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetRatingsBySceneIDs), userID, sceneIDs)
 }
 
+// GetWatchStats mocks base method.
+func (m *MockInteractionRepository) GetWatchStats(userID uint, sceneIDs []uint) (map[uint]data.SceneWatchStat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWatchStats", userID, sceneIDs)
+	ret0, _ := ret[0].(map[uint]data.SceneWatchStat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWatchStats indicates an expected call of GetWatchStats.
+func (mr *MockInteractionRepositoryMockRecorder) GetWatchStats(userID, sceneIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWatchStats", reflect.TypeOf((*MockInteractionRepository)(nil).GetWatchStats), userID, sceneIDs)
+}
+
+// GetWatchedBySceneIDs mocks base method.
+func (m *MockInteractionRepository) GetWatchedBySceneIDs(userID uint, sceneIDs []uint) (map[uint]bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWatchedBySceneIDs", userID, sceneIDs)
+	ret0, _ := ret[0].(map[uint]bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWatchedBySceneIDs indicates an expected call of GetWatchedBySceneIDs.
+func (mr *MockInteractionRepositoryMockRecorder) GetWatchedBySceneIDs(userID, sceneIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWatchedBySceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetWatchedBySceneIDs), userID, sceneIDs)
+}
+
+// GetWatchedSceneIDs mocks base method.
+func (m *MockInteractionRepository) GetWatchedSceneIDs(userID uint) ([]uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWatchedSceneIDs", userID)
+	ret0, _ := ret[0].([]uint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWatchedSceneIDs indicates an expected call of GetWatchedSceneIDs.
+func (mr *MockInteractionRepositoryMockRecorder) GetWatchedSceneIDs(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWatchedSceneIDs", reflect.TypeOf((*MockInteractionRepository)(nil).GetWatchedSceneIDs), userID)
+}
+
 // IncrementJizzed mocks base method.
 func (m *MockInteractionRepository) IncrementJizzed(userID, sceneID uint) (int, error) {
 	m.ctrl.T.Helper()
@@ -245,6 +351,20 @@ func (m *MockInteractionRepository) ReassignInteractionsToScene(fromSceneID, toS
 func (mr *MockInteractionRepositoryMockRecorder) ReassignInteractionsToScene(fromSceneID, toSceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReassignInteractionsToScene", reflect.TypeOf((*MockInteractionRepository)(nil).ReassignInteractionsToScene), fromSceneID, toSceneID)
+}
+
+// SetJizzedCount mocks base method.
+func (m *MockInteractionRepository) SetJizzedCount(userID, sceneID uint, count int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetJizzedCount", userID, sceneID, count)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetJizzedCount indicates an expected call of SetJizzedCount.
+func (mr *MockInteractionRepositoryMockRecorder) SetJizzedCount(userID, sceneID, count any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetJizzedCount", reflect.TypeOf((*MockInteractionRepository)(nil).SetJizzedCount), userID, sceneID, count)
 }
 
 // SetLike mocks base method.

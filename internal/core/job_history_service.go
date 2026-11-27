@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"goonhub/internal/apperrors"
@@ -13,34 +15,40 @@ import (
 
 type JobHistoryService struct {
 	repo              data.JobHistoryRepository
-	retention         time.Duration
-	retentionStr      string
+	purge             HistoryPurgeSettings
 	logger            *zap.Logger
 	cancel            context.CancelFunc
 	retryScheduler    *RetryScheduler
 	processingService *SceneProcessingService
+	now               func() time.Time
+
+	purgeMu   sync.Mutex // one purge at a time (ticker or "purge now")
+	lastMu    sync.RWMutex
+	lastPurge *HistoryPurgeResult
+
+	// failures counts the consecutive failures per (scene, phase) (optional)
+	failures PhaseFailureTracker
+	// shuttingDown is set when the server shutdown starts: the jobs that fail or are cancelled
+	// from then on are interrupted by the shutdown, not failures of the job.
+	shuttingDown atomic.Bool
+}
+
+// PhaseFailureTracker counts the consecutive failures of each (scene, phase) (implemented by
+// SceneFailureService).
+type PhaseFailureTracker interface {
+	// RecordFailure adds a failure and tells whether the (scene, phase) is failing now.
+	RecordFailure(sceneID uint, phase, errMsg string) bool
+	// ClearFailure forgets the failures of the (scene, phase), after a success.
+	ClearFailure(sceneID uint, phase string)
 }
 
 func NewJobHistoryService(repo data.JobHistoryRepository, cfg config.ProcessingConfig, logger *zap.Logger) *JobHistoryService {
-	retention, err := config.ParseRetentionDuration(cfg.JobHistoryRetention)
-	if err != nil {
-		logger.Warn("Failed to parse job_history_retention, using default 7d",
-			zap.String("value", cfg.JobHistoryRetention),
-			zap.Error(err),
-		)
-		retention = 7 * 24 * time.Hour
-	}
-
-	retentionStr := cfg.JobHistoryRetention
-	if retentionStr == "" {
-		retentionStr = "7d"
-	}
-
+	logger = logger.With(zap.String("component", "job_history"))
 	return &JobHistoryService{
-		repo:         repo,
-		retention:    retention,
-		retentionStr: retentionStr,
-		logger:       logger.With(zap.String("component", "job_history")),
+		repo:   repo,
+		purge:  newHistoryPurgeSettings(cfg, logger),
+		logger: logger,
+		now:    time.Now,
 	}
 }
 
@@ -64,13 +72,42 @@ func (s *JobHistoryService) RecordJobStart(jobID string, sceneID uint, sceneTitl
 	}
 }
 
-func (s *JobHistoryService) RecordJobComplete(jobID string) {
+// SetFailureTracker sets the tracker of the consecutive failures per (scene, phase).
+// Must be called before jobs run.
+func (s *JobHistoryService) SetFailureTracker(tracker PhaseFailureTracker) {
+	s.failures = tracker
+}
+
+// BeginShutdown marks the start of the server shutdown: the jobs that fail or are cancelled from
+// now on are recorded as interrupted by the shutdown (not counted as failures, not retried, put
+// back to pending at the next startup).
+func (s *JobHistoryService) BeginShutdown() {
+	s.shuttingDown.Store(true)
+}
+
+// recordInterrupted records a job stopped by the server shutdown.
+func (s *JobHistoryService) recordInterrupted(jobID string) {
+	now := time.Now()
+	errMsg := data.JobErrorInterruptedByShutdown
+	if err := s.repo.UpdateStatus(jobID, data.JobStatusFailed, &errMsg, &now); err != nil {
+		s.logger.Error("Failed to record job interrupted by shutdown",
+			zap.String("job_id", jobID),
+			zap.Error(err),
+		)
+	}
+}
+
+// RecordJobComplete records the success of a job and forgets the failures of its (scene, phase).
+func (s *JobHistoryService) RecordJobComplete(jobID string, sceneID uint, phase string) {
 	now := time.Now()
 	if err := s.repo.UpdateStatus(jobID, "completed", nil, &now); err != nil {
 		s.logger.Error("Failed to record job completion",
 			zap.String("job_id", jobID),
 			zap.Error(err),
 		)
+	}
+	if s.failures != nil {
+		s.failures.ClearFailure(sceneID, phase)
 	}
 }
 
@@ -86,6 +123,10 @@ func (s *JobHistoryService) RecordJobFailed(jobID string, jobErr error) {
 }
 
 func (s *JobHistoryService) RecordJobCancelled(jobID string) {
+	if s.shuttingDown.Load() {
+		s.recordInterrupted(jobID)
+		return
+	}
 	now := time.Now()
 	errMsg := "job was cancelled"
 	if err := s.repo.UpdateStatus(jobID, "cancelled", &errMsg, &now); err != nil {
@@ -107,50 +148,6 @@ func (s *JobHistoryService) RecordJobTimedOut(jobID string) {
 	}
 }
 
-func (s *JobHistoryService) StartCleanupTicker() {
-	ctx, cancel := context.WithCancel(context.Background())
-	s.cancel = cancel
-
-	// Run cleanup immediately on startup
-	s.Cleanup()
-
-	go func() {
-		ticker := time.NewTicker(1 * time.Hour)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				s.Cleanup()
-			}
-		}
-	}()
-
-	s.logger.Info("Job history cleanup ticker started",
-		zap.Duration("retention", s.retention),
-	)
-}
-
-func (s *JobHistoryService) StopCleanupTicker() {
-	if s.cancel != nil {
-		s.cancel()
-		s.logger.Info("Job history cleanup ticker stopped")
-	}
-}
-
-func (s *JobHistoryService) Cleanup() {
-	before := time.Now().Add(-s.retention)
-	deleted, err := s.repo.DeleteOlderThan(before)
-	if err != nil {
-		s.logger.Error("Failed to cleanup job history", zap.Error(err))
-		return
-	}
-	if deleted > 0 {
-		s.logger.Info("Cleaned up old job history records", zap.Int64("deleted", deleted))
-	}
-}
-
 func (s *JobHistoryService) ListJobs(page, limit int, status string) ([]data.JobHistory, int64, error) {
 	return s.repo.ListAll(page, limit, status)
 }
@@ -159,8 +156,9 @@ func (s *JobHistoryService) ListActiveJobs() ([]data.JobHistory, error) {
 	return s.repo.ListActive()
 }
 
+// GetRetention returns the retention of completed and cancelled jobs, as configured (e.g. "30d").
 func (s *JobHistoryService) GetRetention() string {
-	return s.retentionStr
+	return s.purge.CompletedRetention
 }
 
 // SetRetryScheduler sets the retry scheduler for handling failed jobs.
@@ -260,8 +258,14 @@ func (s *JobHistoryService) UpdateStartedAt(jobID string, startedAt time.Time) {
 	}
 }
 
-// RecordJobFailedWithRetry records a job failure and schedules a retry if configured.
+// RecordJobFailedWithRetry records a job failure, counts it against its (scene, phase) and
+// schedules a retry if configured, unless the (scene, phase) is failing now. During the server
+// shutdown the job is recorded as interrupted instead.
 func (s *JobHistoryService) RecordJobFailedWithRetry(jobID string, sceneID uint, phase string, jobErr error) {
+	if s.shuttingDown.Load() {
+		s.recordInterrupted(jobID)
+		return
+	}
 	now := time.Now()
 	errMsg := jobErr.Error()
 
@@ -285,6 +289,17 @@ func (s *JobHistoryService) RecordJobFailedWithRetry(jobID string, sceneID uint,
 			zap.String("job_id", jobID),
 			zap.Error(err),
 		)
+		return
+	}
+
+	// A (scene, phase) failing on an unchanged file is not retried automatically
+	if s.failures != nil && s.failures.RecordFailure(sceneID, phase, errMsg) {
+		if err := s.repo.MarkNotRetryable(jobID); err != nil {
+			s.logger.Error("Failed to mark failing job as not retryable",
+				zap.String("job_id", jobID),
+				zap.Error(err),
+			)
+		}
 		return
 	}
 

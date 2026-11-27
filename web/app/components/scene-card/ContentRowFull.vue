@@ -14,9 +14,9 @@ const { formatSize, formatFrameRate } = useFormatter();
 const metaValue = computed(() => {
     switch (props.field) {
         case 'file_size':
-            return formatSize(props.scene.size);
+            return props.scene.size !== undefined ? formatSize(props.scene.size) : '';
         case 'added_at':
-            return null; // handled in template with NuxtTime
+            return null; // handled in template with UiFormattedDate
         case 'views':
             return props.scene.view_count != null ? `${props.scene.view_count} views` : '';
         case 'resolution':
@@ -60,17 +60,29 @@ const isMetaField = computed(() =>
         {{ scene.studio }}
     </NuxtLink>
 
-    <!-- Tags short mode -->
-    <SceneCardTagsShort
-        v-else-if="field === 'tags' && mode === 'short' && scene.tags?.length"
-        :tags="scene.tags"
-    />
-
-    <!-- Tags long mode -->
-    <SceneCardTagsLong
-        v-else-if="field === 'tags' && mode !== 'short' && scene.tags?.length"
-        :tags="scene.tags"
-    />
+    <!-- Tags & Markers & Actors (short or long mode): the markers icon, the tags, the actors -->
+    <div
+        v-else-if="
+            field === 'tags' &&
+            (scene.tags?.length || scene.markers?.length || scene.actors?.length)
+        "
+        class="flex min-w-0 items-center gap-1.5"
+    >
+        <SceneCardMarkersShort
+            v-if="scene.markers?.length"
+            class="shrink-0"
+            :scene-id="scene.id"
+            :markers="scene.markers"
+        />
+        <template v-if="scene.tags?.length">
+            <SceneCardTagsShort v-if="mode === 'short'" :tags="scene.tags" />
+            <SceneCardTagsLong v-else class="min-w-0" :tags="scene.tags" />
+        </template>
+        <template v-if="scene.actors?.length">
+            <SceneCardActorsShort v-if="mode === 'short'" class="shrink-0" :actors="scene.actors" />
+            <SceneCardActorsLong v-else class="min-w-0" :actors="scene.actors" />
+        </template>
+    </div>
 
     <!-- Actors short mode -->
     <SceneCardActorsShort
@@ -86,7 +98,7 @@ const isMetaField = computed(() =>
 
     <!-- Simple meta fields -->
     <div v-else-if="isMetaField" class="text-dim flex items-center gap-0.5 font-mono text-[10px]">
-        <NuxtTime v-if="field === 'added_at'" :datetime="scene.created_at" format="short" />
+        <UiFormattedDate v-if="field === 'added_at'" :datetime="scene.created_at" />
         <template v-else-if="field === 'jizz_count'">
             <Icon name="fluent-emoji-high-contrast:sweat-droplets" size="11" />
             <span>{{ metaValue }}</span>

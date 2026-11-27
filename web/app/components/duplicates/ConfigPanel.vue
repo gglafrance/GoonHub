@@ -219,6 +219,16 @@ const handleSave = async () => {
             </div>
         </div>
 
+        <DuplicatesConfigBestCriteria
+            v-model="localConfig.best_selection_criteria"
+            :available="localConfig.available_best_criteria"
+        />
+
+        <DuplicatesConfigDeletion
+            v-model:enabled="localConfig.delete_resolved_files"
+            v-model:delay-hours="localConfig.deletion_delay_hours"
+        />
+
         <div class="mt-4 flex justify-end">
             <button
                 :disabled="saving"

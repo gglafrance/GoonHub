@@ -1,3 +1,4 @@
+import type { ShallowRef } from 'vue';
 import type videojs from 'video.js';
 
 type Player = ReturnType<typeof videojs>;
@@ -6,6 +7,25 @@ export const useABLoop = (player: Ref<Player | null> | ShallowRef<Player | null>
     const enabled = ref(false);
     const pointA = ref<number | null>(null);
     const pointB = ref<number | null>(null);
+
+    // Player duration as a reactive value, so that the progress bar overlay is placed once the
+    // metadata is loaded (points can be set before, e.g. when opening a marker link).
+    const duration = ref(0);
+    const updateDuration = () => {
+        duration.value = player.value?.duration() ?? 0;
+    };
+    watch(
+        player,
+        (p, previous) => {
+            previous?.off('durationchange', updateDuration);
+            previous?.off('loadedmetadata', updateDuration);
+            if (!p) return;
+            p.on('durationchange', updateDuration);
+            p.on('loadedmetadata', updateDuration);
+            updateDuration();
+        },
+        { immediate: true },
+    );
 
     const formatTime = (seconds: number | null): string => {
         if (seconds === null) return '--:--';
@@ -74,6 +94,21 @@ export const useABLoop = (player: Ref<Player | null> | ShallowRef<Player | null>
         }
     };
 
+    // Set both points at once (used for marker ranges). With enable, looping starts right away;
+    // otherwise the points are set and the loop stays off until toggled.
+    const setRange = (start: number, end: number, enable = true) => {
+        if (end <= start) return;
+        pointA.value = start;
+        pointB.value = end;
+        if (enable && !enabled.value) {
+            enabled.value = true;
+            bindTimeUpdate();
+        } else if (!enable && enabled.value) {
+            enabled.value = false;
+            unbindTimeUpdate();
+        }
+    };
+
     // Seek to start point (right-click on start button)
     const seekToStart = () => {
         const p = player.value;
@@ -124,17 +159,13 @@ export const useABLoop = (player: Ref<Player | null> | ShallowRef<Player | null>
 
     // Percentage positions for progress bar overlay
     const progressA = computed(() => {
-        if (pointA.value === null || !player.value) return null;
-        const duration = player.value.duration() ?? 0;
-        if (duration <= 0) return null;
-        return (pointA.value / duration) * 100;
+        if (pointA.value === null || duration.value <= 0) return null;
+        return (pointA.value / duration.value) * 100;
     });
 
     const progressB = computed(() => {
-        if (pointB.value === null || !player.value) return null;
-        const duration = player.value.duration() ?? 0;
-        if (duration <= 0) return null;
-        return (pointB.value / duration) * 100;
+        if (pointB.value === null || duration.value <= 0) return null;
+        return (pointB.value / duration.value) * 100;
     });
 
     const hasPoints = computed(() => pointA.value !== null || pointB.value !== null);
@@ -154,6 +185,7 @@ export const useABLoop = (player: Ref<Player | null> | ShallowRef<Player | null>
         hasPoints,
         setStart,
         setEnd,
+        setRange,
         seekToStart,
         seekToEnd,
         toggleEnabled,

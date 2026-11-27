@@ -5,6 +5,12 @@ type MatchResult struct {
 	SceneID         uint
 	ConfidenceScore float64
 	MatchType       string // "audio" or "visual"
+	// Aligned segment, in fingerprint positions (audio hashes or visual frames): the query
+	// scene matches from QueryStart to QueryEnd, the matched scene at the same positions
+	// shifted by Delta.
+	QueryStart int
+	QueryEnd   int
+	Delta      int
 }
 
 // AudioHit represents a hit from the audio fingerprint index
@@ -12,6 +18,12 @@ type AudioHit struct {
 	SceneID uint
 	Offset  uint32
 }
+
+// MaxQueryHashRepeats is the number of times a hash may occur within the query fingerprint
+// before it is ignored. Chromaprint gives the same value for every frame of digital silence (or
+// any constant signal), so a silent track (or the silent parts of a video) would otherwise
+// align with the silent parts of any other video and score a 100% match.
+const MaxQueryHashRepeats = 8
 
 // floorDiv performs floor division (rounds toward negative infinity),
 // unlike Go's built-in integer division which truncates toward zero.
@@ -49,6 +61,12 @@ func FindAudioMatches(
 		deltaTolerance = 2
 	}
 
+	// Ignore non-discriminative hashes that repeat within the query (silence, constant tones).
+	hashCounts := make(map[int32]int, len(queryHashes))
+	for _, hash := range queryHashes {
+		hashCounts[hash]++
+	}
+
 	// sceneBins maps sceneID -> binKey -> bin tracking unique query positions.
 	// Using unique query positions (not raw hit count) prevents score inflation
 	// when a single query position produces multiple hits from the same scene
@@ -57,10 +75,15 @@ func FindAudioMatches(
 		queryPositions map[int]struct{}
 		minQuery       int
 		maxQuery       int
+		deltaSum       int
+		deltaCount     int
 	}
 	sceneBins := make(map[uint]map[int]*binData)
 
 	for queryOffset, hash := range queryHashes {
+		if hashCounts[hash] > MaxQueryHashRepeats {
+			continue
+		}
 		hashHits, ok := hits[hash]
 		if !ok {
 			continue
@@ -85,6 +108,8 @@ func FindAudioMatches(
 				sceneBins[hit.SceneID][binKey] = bd
 			}
 			bd.queryPositions[queryOffset] = struct{}{}
+			bd.deltaSum += delta
+			bd.deltaCount++
 			if queryOffset < bd.minQuery {
 				bd.minQuery = queryOffset
 			}
@@ -102,6 +127,7 @@ func FindAudioMatches(
 		// (high count, low density) from being selected over a smaller dense
 		// bin that would have been a valid match.
 		var bestScore float64
+		var bestBin *binData
 		matched := false
 
 		for _, bd := range bins {
@@ -126,6 +152,7 @@ func FindAudioMatches(
 
 			if score >= densityThreshold && score > bestScore {
 				bestScore = score
+				bestBin = bd
 				matched = true
 			}
 		}
@@ -135,6 +162,9 @@ func FindAudioMatches(
 				SceneID:         sceneID,
 				ConfidenceScore: bestScore,
 				MatchType:       "audio",
+				QueryStart:      bestBin.minQuery,
+				QueryEnd:        bestBin.maxQuery,
+				Delta:           bestBin.deltaSum / max(bestBin.deltaCount, 1),
 			})
 		}
 	}

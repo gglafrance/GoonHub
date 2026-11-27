@@ -8,6 +8,9 @@ import (
 	"goonhub/internal/core"
 	"goonhub/internal/data"
 	"goonhub/internal/infrastructure/logging"
+	"goonhub/internal/streaming"
+	"goonhub/internal/together"
+	"goonhub/internal/workers"
 	"net/http"
 	"os"
 	"os/signal"
@@ -37,8 +40,28 @@ type Server struct {
 	actorService      *core.ActorService
 	studioService     *core.StudioService
 	matchingService   *core.MatchingService
+	duplicateService  *core.DuplicateService
+	markerService     *core.MarkerService
 	shareServer       *ShareServer
+	transcoder        *streaming.Transcoder
+	workerService     *workers.Service
+	pushDispatcher    *workers.PushDispatcher
+	togetherHub       *together.Hub
+	presenceService   *core.PresenceService
+	messageService    *core.MessageService
 	srv               *http.Server
+}
+
+// SetPresence sets the presence service (its loop runs while the server runs; the last seen
+// times are saved at shutdown).
+func (s *Server) SetPresence(p *core.PresenceService) {
+	s.presenceService = p
+}
+
+// SetMessages gives the server the message service (its retention cleanup runs with the
+// server).
+func (s *Server) SetMessages(m *core.MessageService) {
+	s.messageService = m
 }
 
 func NewHTTPServer(
@@ -61,7 +84,13 @@ func NewHTTPServer(
 	actorService *core.ActorService,
 	studioService *core.StudioService,
 	matchingService *core.MatchingService,
+	duplicateService *core.DuplicateService,
+	markerService *core.MarkerService,
 	shareServer *ShareServer,
+	transcoder *streaming.Transcoder,
+	workerService *workers.Service,
+	pushDispatcher *workers.PushDispatcher,
+	togetherHub *together.Hub,
 ) *Server {
 	return &Server{
 		router:            router,
@@ -83,7 +112,13 @@ func NewHTTPServer(
 		actorService:      actorService,
 		studioService:     studioService,
 		matchingService:   matchingService,
+		duplicateService:  duplicateService,
+		markerService:     markerService,
 		shareServer:       shareServer,
+		transcoder:        transcoder,
+		workerService:     workerService,
+		pushDispatcher:    pushDispatcher,
+		togetherHub:       togetherHub,
 	}
 }
 
@@ -119,6 +154,16 @@ func (s *Server) Start() error {
 		s.logger.Info("Search indexer wired to services")
 	}
 
+	// Studio aliases given by name resolve to the studio's name
+	if s.studioService != nil {
+		if s.sceneService != nil {
+			s.sceneService.SetStudioResolver(s.studioService)
+		}
+		if s.explorerService != nil {
+			s.explorerService.SetStudioResolver(s.studioService)
+		}
+	}
+
 	// Wire up matching service to processing service for fingerprint matching
 	if s.matchingService != nil && s.processingService != nil {
 		s.processingService.SetMatchingService(s.matchingService)
@@ -145,18 +190,52 @@ func (s *Server) Start() error {
 		s.processingService.Start()
 	}
 
+	// Marker thumbnails are made in the background so new markers show at once
+	if s.markerService != nil {
+		s.markerService.Start()
+	}
+
 	// Start job queue feeder AFTER processing service starts
 	// The feeder moves pending jobs from DB to worker pools
 	if s.jobQueueFeeder != nil {
 		s.jobQueueFeeder.Start()
 	}
 
+	// Remote workers: startup lease grace, lease expiry sweep, staging janitor, push dispatcher
+	if s.workerService != nil {
+		s.workerService.Start(s.pushDispatcher)
+	}
+
 	if s.jobHistoryService != nil {
 		s.jobHistoryService.StartCleanupTicker()
 	}
 
+	// Goon2gether: lobby ticks (auto-advance, holds, host grace) and idle lobby cleanup
+	if s.togetherHub != nil && s.cfg.Goon2gether.Enabled {
+		s.togetherHub.Start()
+	}
+
 	if s.triggerScheduler != nil {
 		s.triggerScheduler.Start()
+	}
+
+	if s.presenceService != nil {
+		s.presenceService.Start()
+	}
+
+	if s.messageService != nil {
+		s.messageService.Start()
+	}
+
+	// Apply the scheduled deletions of resolved duplicates, and classify the duplicate group
+	// members recorded before their relation (identical, contained...) was stored
+	if s.matchingService != nil {
+		// Segments missing or cleared (migration 089): recomputed from the stored fingerprints
+		s.matchingService.StartSegmentBackfill()
+	}
+	if s.duplicateService != nil {
+		s.duplicateService.StartRelationBackfill()
+		s.duplicateService.StartDeletionCleanupTicker()
 	}
 
 	// Wire up retry scheduler and DLQ service to processing service
@@ -236,14 +315,30 @@ func (s *Server) Start() error {
 	// ---------------------------------------------------------------------------
 	s.logger.Info("PHASE 1: Stopping job intake...")
 
+	// From now on a job that fails or is cancelled is interrupted by the shutdown: it does not
+	// count as a failure of its scene and is put back to pending at the next startup.
+	if s.jobHistoryService != nil {
+		s.jobHistoryService.BeginShutdown()
+	}
+
 	if s.jobQueueFeeder != nil {
 		s.jobQueueFeeder.Stop()
 		s.logger.Info("Job queue feeder stopped")
 	}
 
+	// Remote leases stay in the database: workers resume them after the restart
+	if s.workerService != nil {
+		s.workerService.Stop()
+		s.logger.Info("Remote worker loops stopped")
+	}
+
 	if s.triggerScheduler != nil {
 		s.triggerScheduler.Stop()
 		s.logger.Info("Trigger scheduler stopped")
+	}
+
+	if s.duplicateService != nil {
+		s.duplicateService.StopDeletionCleanupTicker()
 	}
 
 	if s.retryScheduler != nil {
@@ -257,6 +352,10 @@ func (s *Server) Start() error {
 	// Also drains channel buffers and returns those job IDs
 	// ---------------------------------------------------------------------------
 	s.logger.Info("PHASE 2: Waiting for in-flight jobs to complete...")
+
+	if s.markerService != nil {
+		s.markerService.Stop(s.cfg.Shutdown.JobCompletionWait)
+	}
 
 	var bufferedJobs map[string][]string
 	if s.processingService != nil {
@@ -314,6 +413,25 @@ func (s *Server) Start() error {
 
 	if s.jobHistoryService != nil {
 		s.jobHistoryService.StopCleanupTicker()
+	}
+
+	// Goon2gether: save the lobby playback and close the WebSockets (hijacked connections are
+	// not closed by the HTTP shutdown)
+	if s.togetherHub != nil {
+		s.togetherHub.Stop()
+	}
+
+	if s.presenceService != nil {
+		s.presenceService.Stop()
+	}
+
+	if s.messageService != nil {
+		s.messageService.Stop()
+	}
+
+	// Kill the on-the-fly conversions: their streams would hold the HTTP shutdown
+	if s.transcoder != nil {
+		s.transcoder.Stop()
 	}
 
 	// Shutdown HTTP servers with remaining graceful timeout

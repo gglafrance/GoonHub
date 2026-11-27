@@ -245,6 +245,38 @@ func (mr *MockTagRepositoryMockRecorder) ListWithCounts() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWithCounts", reflect.TypeOf((*MockTagRepository)(nil).ListWithCounts))
 }
 
+// MergeTags mocks base method.
+func (m *MockTagRepository) MergeTags(target data.Tag, sources []data.Tag, dryRun bool) (*data.TagMergeStats, []uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MergeTags", target, sources, dryRun)
+	ret0, _ := ret[0].(*data.TagMergeStats)
+	ret1, _ := ret[1].([]uint)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// MergeTags indicates an expected call of MergeTags.
+func (mr *MockTagRepositoryMockRecorder) MergeTags(target, sources, dryRun any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MergeTags", reflect.TypeOf((*MockTagRepository)(nil).MergeTags), target, sources, dryRun)
+}
+
+// RenameTag mocks base method.
+func (m *MockTagRepository) RenameTag(tag data.Tag, oldName string) (int64, []uint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RenameTag", tag, oldName)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].([]uint)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// RenameTag indicates an expected call of RenameTag.
+func (mr *MockTagRepositoryMockRecorder) RenameTag(tag, oldName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenameTag", reflect.TypeOf((*MockTagRepository)(nil).RenameTag), tag, oldName)
+}
+
 // SetSceneTags mocks base method.
 func (m *MockTagRepository) SetSceneTags(sceneID uint, tagIDs []uint) error {
 	m.ctrl.T.Helper()
@@ -257,4 +289,18 @@ func (m *MockTagRepository) SetSceneTags(sceneID uint, tagIDs []uint) error {
 func (mr *MockTagRepositoryMockRecorder) SetSceneTags(sceneID, tagIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSceneTags", reflect.TypeOf((*MockTagRepository)(nil).SetSceneTags), sceneID, tagIDs)
+}
+
+// Update mocks base method.
+func (m *MockTagRepository) Update(tag *data.Tag) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Update", tag)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Update indicates an expected call of Update.
+func (mr *MockTagRepositoryMockRecorder) Update(tag any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockTagRepository)(nil).Update), tag)
 }

@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -11,20 +12,158 @@ import (
 )
 
 type Config struct {
-	Environment string            `mapstructure:"environment"`
-	Server      ServerConfig      `mapstructure:"server"`
-	Database    DatabaseConfig    `mapstructure:"database"`
-	Log         LogConfig         `mapstructure:"log"`
-	Processing  ProcessingConfig  `mapstructure:"processing"`
-	Auth        AuthConfig        `mapstructure:"auth"`
-	Meilisearch MeilisearchConfig `mapstructure:"meilisearch"`
-	PornDB      PornDBConfig      `mapstructure:"porndb"`
-	Shutdown    ShutdownConfig    `mapstructure:"shutdown"`
-	Streaming   StreamingConfig   `mapstructure:"streaming"`
-	Pagination  PaginationConfig  `mapstructure:"pagination"`
-	Sharing      SharingConfig      `mapstructure:"sharing"`
-	Duplication  DuplicationConfig  `mapstructure:"duplication"`
-	ClickHouse   ClickHouseConfig   `mapstructure:"clickhouse"`
+	Environment   string              `mapstructure:"environment"`
+	Server        ServerConfig        `mapstructure:"server"`
+	Database      DatabaseConfig      `mapstructure:"database"`
+	Log           LogConfig           `mapstructure:"log"`
+	Processing    ProcessingConfig    `mapstructure:"processing"`
+	Auth          AuthConfig          `mapstructure:"auth"`
+	Meilisearch   MeilisearchConfig   `mapstructure:"meilisearch"`
+	PornDB        PornDBConfig        `mapstructure:"porndb"`
+	Shutdown      ShutdownConfig      `mapstructure:"shutdown"`
+	Streaming     StreamingConfig     `mapstructure:"streaming"`
+	Pagination    PaginationConfig    `mapstructure:"pagination"`
+	Playlists     PlaylistsConfig     `mapstructure:"playlists"`
+	Sharing       SharingConfig       `mapstructure:"sharing"`
+	Duplication   DuplicationConfig   `mapstructure:"duplication"`
+	ClickHouse    ClickHouseConfig    `mapstructure:"clickhouse"`
+	LibraryHealth LibraryHealthConfig `mapstructure:"library_health"`
+	Workers       WorkersConfig       `mapstructure:"workers"`
+	Goon2gether   Goon2getherConfig   `mapstructure:"goon2gether"`
+	Social        SocialConfig        `mapstructure:"social"`
+	Presence      PresenceConfig      `mapstructure:"presence"`
+	Profiles      ProfilesConfig      `mapstructure:"profiles"`
+	Messages      MessagesConfig      `mapstructure:"messages"`
+}
+
+// MessagesConfig configures the messages between users and the shares (docs/MESSAGES.md).
+type MessagesConfig struct {
+	MaxLength          int           `mapstructure:"max_length"`           // longest message body (characters)
+	RatePerMinute      int           `mapstructure:"rate_per_minute"`      // messages (and edits) a user can send per minute, a share counting once per recipient (0 = unlimited)
+	RateBurst          int           `mapstructure:"rate_burst"`           // messages a user can send at once before the rate applies
+	PageSize           int           `mapstructure:"page_size"`            // messages per history page (default)
+	MaxPageSize        int           `mapstructure:"max_page_size"`        // largest history page
+	TypingInterval     time.Duration `mapstructure:"typing_interval"`      // a user's typing indicator is relayed at most this often per conversation
+	MaxShareRecipients int           `mapstructure:"max_share_recipients"` // users one share can be sent to
+	MaxShareItems      int           `mapstructure:"max_share_items"`      // items (scenes, markers...) one share can carry
+	RetentionDays      int           `mapstructure:"retention_days"`       // messages older than this are deleted (0 = kept forever)
+	PurgeInterval      time.Duration `mapstructure:"purge_interval"`       // retention and orphan conversation cleanup period
+	// Reactions (emoji and server emotes on messages)
+	MaxReactionKinds      int `mapstructure:"max_reaction_kinds"`       // distinct reactions per message (0 = default 20)
+	MaxReactionsPerUser   int `mapstructure:"max_reactions_per_user"`   // reactions of one user on one message (0 = default 10)
+	ReactionRatePerMinute int `mapstructure:"reaction_rate_per_minute"` // reactions added or removed per user per minute (0 = unlimited)
+	ReactionRateBurst     int `mapstructure:"reaction_rate_burst"`      // reactions at once before the rate applies
+}
+
+// PresenceConfig sets the timings of the presence (online, away, now watching, docs/PRESENCE.md).
+type PresenceConfig struct {
+	DisconnectGrace   time.Duration `mapstructure:"disconnect_grace"`   // a user stays online this long after their last live connection closed (page reloads)
+	IdleAfter         time.Duration `mapstructure:"idle_after"`         // no real input nor playing video for this long = away (sent to the client)
+	HeartbeatInterval time.Duration `mapstructure:"heartbeat_interval"` // the client reports input at most this often (sent to the client)
+	ActivityInterval  time.Duration `mapstructure:"activity_interval"`  // the client reports the playback position this often (sent to the client)
+	ActivityTTL       time.Duration `mapstructure:"activity_ttl"`       // an activity not reported for this long ends (closed tab, crash)
+	PausedAfter       time.Duration `mapstructure:"paused_after"`       // a playback paused for this long shows as paused
+	StalledAfter      time.Duration `mapstructure:"stalled_after"`      // a playback not progressing (buffering) for this long no longer counts as playing (sent to the client)
+	SeekThreshold     time.Duration `mapstructure:"seek_threshold"`     // a position this far from the expected one is a seek (pushed)
+	FlushInterval     time.Duration `mapstructure:"flush_interval"`     // changes are coalesced and pushed at this interval
+	LastSeenInterval  time.Duration `mapstructure:"last_seen_interval"` // last_seen_at of online users is saved this often (also on disconnect)
+	MaxTabsPerUser    int           `mapstructure:"max_tabs_per_user"`  // activities kept per user (one per tab), the oldest is dropped
+}
+
+// ProfilesConfig configures the user profile pages (docs/PROFILES.md).
+type ProfilesConfig struct {
+	ImageDir             string `mapstructure:"image_dir"`               // avatars and uploaded banners (GoonHub data, never a media directory)
+	MaxUploadBytes       int64  `mapstructure:"max_upload_bytes"`        // largest accepted avatar or banner upload
+	MaxImagePixels       int    `mapstructure:"max_image_pixels"`        // largest decoded image (width x height), checked before decoding
+	ImageUploadsPerHour  int    `mapstructure:"image_uploads_per_hour"`  // avatar and banner uploads a user can make per hour (0 = unlimited)
+	MaxShowcaseItems     int    `mapstructure:"max_showcase_items"`      // favorite videos and favorite markers per showcase (1-12)
+	BioMaxLength         int    `mapstructure:"bio_max_length"`          // characters
+	DisplayNameMaxLength int    `mapstructure:"display_name_max_length"` // characters (at most 64, the column size)
+	MaxTabs              int    `mapstructure:"max_tabs"`                // tabs of a profile, built-in ones included (4-20)
+	MaxSections          int    `mapstructure:"max_sections"`            // sections per tab (1-40)
+	MaxBlocksPerTab      int    `mapstructure:"max_blocks_per_tab"`      // blocks per tab (1-100)
+	MaxLists             int    `mapstructure:"max_lists"`               // custom lists per user (1-200)
+}
+
+// SocialConfig limits the social actions that notify another user (docs/SOCIAL.md).
+type SocialConfig struct {
+	FriendRequestsPerHour int `mapstructure:"friend_requests_per_hour"` // friend requests a user can send per hour (0 = unlimited)
+	FollowsPerHour        int `mapstructure:"follows_per_hour"`         // follows a user can make per hour (0 = unlimited)
+	MaxPendingRequests    int `mapstructure:"max_pending_requests"`     // pending outgoing friend requests per user (0 = unlimited)
+}
+
+// LibraryHealthConfig configures the background tasks of the library health page.
+// WorkersConfig configures the remote workers (goonhub-worker, docs/REMOTE_WORKERS.md).
+// Goon2getherConfig configures the synchronized watch lobbies (docs/GOON2GETHER.md).
+type Goon2getherConfig struct {
+	Enabled               bool          `mapstructure:"enabled"`
+	EmoteDir              string        `mapstructure:"emote_dir"`           // emote images (GoonHub data, never a media directory)
+	EmoteMaxBytes         int64         `mapstructure:"emote_max_bytes"`     // largest emote file
+	EmoteMaxDimension     int           `mapstructure:"emote_max_dimension"` // largest emote width and height (px)
+	EmoteMaxCount         int           `mapstructure:"emote_max_count"`
+	MaxMembers            int           `mapstructure:"max_members"` // online members per lobby (cap of a lobby's own limit)
+	MaxLobbiesPerUser     int           `mapstructure:"max_lobbies_per_user"`
+	MaxQueueItems         int           `mapstructure:"max_queue_items"`
+	MaxSuggestions        int           `mapstructure:"max_suggestions"`
+	MaxConnectionsPerUser int           `mapstructure:"max_connections_per_user"` // per lobby
+	ChatHistory           int           `mapstructure:"chat_history"`             // messages kept per lobby
+	ChatMaxLength         int           `mapstructure:"chat_max_length"`          // characters
+	ChatRateLimit         int           `mapstructure:"chat_rate_limit"`          // messages per rate_window
+	ReactionRateLimit     int           `mapstructure:"reaction_rate_limit"`      // reactions per rate_window
+	RateWindow            time.Duration `mapstructure:"rate_window"`
+	DriftThreshold        float64       `mapstructure:"drift_threshold"` // seconds, clients seek over it
+	DriftNudge            bool          `mapstructure:"drift_nudge"`     // small drifts corrected with the playback rate
+	HoldTimeout           time.Duration `mapstructure:"hold_timeout"`    // longest "wait for everyone" hold
+	EndGrace              time.Duration `mapstructure:"end_grace"`       // after the scene duration before advancing
+	HostGrace             time.Duration `mapstructure:"host_grace"`      // host absence before the role is handed over
+	TickInterval          time.Duration `mapstructure:"tick_interval"`
+	UnloadAfter           time.Duration `mapstructure:"unload_after"`         // a lobby without connections leaves memory
+	IdleTimeout           time.Duration `mapstructure:"idle_timeout"`         // safety net: a lobby nobody connected to is deleted
+	EmptyCloseAfter       time.Duration `mapstructure:"empty_close_after"`    // a lobby with nobody connected closes (0: off)
+	InactiveCloseAfter    time.Duration `mapstructure:"inactive_close_after"` // a lobby with members but no activity closes (0: off)
+	CloseWarning          time.Duration `mapstructure:"close_warning"`        // warning before an inactivity close (0: none)
+	CleanupInterval       time.Duration `mapstructure:"cleanup_interval"`
+	SendBuffer            int           `mapstructure:"send_buffer"` // messages queued per connection
+	PingInterval          time.Duration `mapstructure:"ping_interval"`
+	WriteTimeout          time.Duration `mapstructure:"write_timeout"`
+	MaxMessageBytes       int64         `mapstructure:"max_message_bytes"`
+
+	// Reactions on chat messages (not the floating reactions over the video)
+	ChatReactionRateLimit   int `mapstructure:"chat_reaction_rate_limit"`    // chat message reactions added or removed per rate_window
+	ChatMaxReactionKinds    int `mapstructure:"chat_max_reaction_kinds"`     // distinct reactions per chat message
+	ChatMaxReactionsPerUser int `mapstructure:"chat_max_reactions_per_user"` // reactions of one member on one chat message
+
+	// History of the played items (docs/GOON2GETHER.md "History"): entries kept per lobby (0: off)
+	HistoryMax     int           `mapstructure:"history_max"`
+	HistoryMinPlay time.Duration `mapstructure:"history_min_play"` // a skipped item played less than this is not recorded
+}
+
+type WorkersConfig struct {
+	Enabled              bool          `mapstructure:"enabled"`                 // enables the worker API
+	HeartbeatInterval    time.Duration `mapstructure:"heartbeat_interval"`      // sent to the workers
+	LeaseDuration        time.Duration `mapstructure:"lease_duration"`          // a lease not renewed for this long expires (>= 3 x heartbeat)
+	ExpirySweepInterval  time.Duration `mapstructure:"expiry_sweep_interval"`   // how often expired leases are swept
+	ClaimMaxWait         time.Duration `mapstructure:"claim_max_wait"`          // longest claim long-poll
+	MediaURLTTL          time.Duration `mapstructure:"media_url_ttl"`           // validity of a signed media URL
+	MediaSecret          string        `mapstructure:"media_secret"`            // HMAC secret of media URLs ("" = generated and stored in the database)
+	MaxArtifactBytes     int64         `mapstructure:"max_artifact_bytes"`      // largest artifact
+	UploadChunkBytes     int64         `mapstructure:"upload_chunk_bytes"`      // recommended PUT body size
+	MaxCompleteBodyBytes int64         `mapstructure:"max_complete_body_bytes"` // largest complete body
+	StagingRetention     time.Duration `mapstructure:"staging_retention"`       // abandoned staging dirs are deleted after this
+	MaxAssignmentAge     time.Duration `mapstructure:"max_assignment_age"`      // a lease older than this is no longer renewed
+	StartupLeaseGrace    time.Duration `mapstructure:"startup_lease_grace"`     // remote leases extended by this at start (0 = lease_duration)
+	PushPollInterval     time.Duration `mapstructure:"push_poll_interval"`      // push dispatcher loop
+	PushTimeout          time.Duration `mapstructure:"push_timeout"`            // timeout of a call to a push worker
+	OfflineAfter         time.Duration `mapstructure:"offline_after"`           // no contact for this long = offline (0 = 3 x heartbeat)
+	LocalPhases          []string      `mapstructure:"local_phases"`            // remotable phases the local pools still process
+	AllowedCIDRs         []string      `mapstructure:"allowed_cidrs"`           // source addresses accepted on the worker API
+	PublicURL            string        `mapstructure:"public_url"`              // base URL of the server for workers ("" = the URL the worker used)
+}
+
+type LibraryHealthConfig struct {
+	// StatConcurrency is the number of files stat'ed at once by the missing-file check and the
+	// fix-sizes task. Keep it low on NFS, where each stat is a network round trip.
+	StatConcurrency int `mapstructure:"stat_concurrency"`
 }
 
 type DuplicationConfig struct {
@@ -58,12 +197,72 @@ type PaginationConfig struct {
 	MaxItemsPerPage int `mapstructure:"max_items_per_page"`
 }
 
+// PlaylistsConfig configures the playlists (marker playlists: docs/MARKER_PLAYLISTS.md).
+type PlaylistsConfig struct {
+	// MaxMarkers is the most markers a marker playlist holds (0 = no limit).
+	MaxMarkers int `mapstructure:"max_markers"`
+	// MarkerDefaultDuration is how long, in seconds, a marker without an end plays in a marker
+	// playlist before the next one.
+	MarkerDefaultDuration int `mapstructure:"marker_default_duration"`
+}
+
 type StreamingConfig struct {
 	MaxGlobalStreams int           `mapstructure:"max_global_streams"`
 	MaxStreamsPerIP  int           `mapstructure:"max_streams_per_ip"`
 	BufferSize       int           `mapstructure:"buffer_size"`
 	PathCacheTTL     time.Duration `mapstructure:"path_cache_ttl"`
 	PathCacheMaxSize int           `mapstructure:"path_cache_max_size"`
+	// MaxRangeSize caps the bytes of one range response of a direct stream (0 = no cap): the
+	// player asks for the next part when it needs it, so a playing video does not hold a
+	// browser connection the whole time (6 per server over HTTP/1.1).
+	MaxRangeSize int64 `mapstructure:"max_range_size"`
+	// On-the-fly conversion of files browsers can't play (see streaming.Transcoder).
+	Transcode TranscodeConfig `mapstructure:"transcode"`
+}
+
+// TranscodeConfig limits and tunes the on-the-fly conversion (CPU ffmpeg, H.264 + AAC in
+// fragmented MP4) of scenes browsers can't play. It can be turned off at runtime with the
+// transcoding_enabled app setting.
+type TranscodeConfig struct {
+	// Maximum number of ffmpeg conversions running at the same time (one per viewer without
+	// the cache; with it, viewers of a part already converted or being converted need none).
+	MaxConcurrent int `mapstructure:"max_concurrent"`
+	// libx264 preset (ultrafast ... veryslow).
+	Preset string `mapstructure:"preset"`
+	// libx264 constant rate factor (0-51, lower is better quality).
+	CRF int `mapstructure:"crf"`
+	// Downscale videos larger than this (height of landscape videos, width of portrait
+	// ones). 0 keeps the original size.
+	MaxHeight int `mapstructure:"max_height"`
+	// AAC bitrate of re-encoded audio, e.g. "160k".
+	AudioBitrate string `mapstructure:"audio_bitrate"`
+	// ffmpeg threads per conversion, 0 lets ffmpeg decide.
+	Threads int `mapstructure:"threads"`
+	// Seconds between keyframes of re-encoded video (one MP4 fragment per keyframe).
+	KeyframeInterval int `mapstructure:"keyframe_interval"`
+	// Cache of the converted output (see streaming.TranscodeCache).
+	Cache TranscodeCacheConfig `mapstructure:"cache"`
+}
+
+// TranscodeCacheConfig keeps what on-the-fly conversions produced so that a replay, a seek
+// back or a second viewer of the same part does not run ffmpeg again. The directory holds
+// only GoonHub's own output: never point it at a media folder.
+type TranscodeCacheConfig struct {
+	Enabled bool `mapstructure:"enabled"`
+	// Directory of the cached conversions (created if missing).
+	Dir string `mapstructure:"dir"`
+	// Total size above which the least recently used conversions are removed.
+	MaxSizeGB float64 `mapstructure:"max_size_gb"`
+	// Conversions not used for this long are removed.
+	MaxAge time.Duration `mapstructure:"max_age"`
+	// How often the size and age limits are applied (also done at startup).
+	CleanupInterval time.Duration `mapstructure:"cleanup_interval"`
+	// How far (in video time) a conversion may run ahead of its furthest viewer.
+	ReadAhead time.Duration `mapstructure:"read_ahead"`
+	// How long a conversion nobody watches anymore keeps running (a viewer seeking back
+	// into it, or coming back, picks it up again) before ffmpeg is stopped. An idle
+	// conversion is stopped at once when its slot is needed by another one.
+	IdleTimeout time.Duration `mapstructure:"idle_timeout"`
 }
 
 type PornDBConfig struct {
@@ -119,49 +318,55 @@ type LogConfig struct {
 }
 
 type ProcessingConfig struct {
-	FrameInterval          int           `mapstructure:"frame_interval"`            // seconds
-	MaxFrameDimension      int           `mapstructure:"max_frame_dimension"`       // longest side in pixels (small thumbnail)
-	MaxFrameDimensionLarge int           `mapstructure:"max_frame_dimension_large"` // longest side in pixels (large thumbnail)
-	FrameQuality           int           `mapstructure:"frame_quality"`             // 1-100, WebP quality (small thumbnails)
-	FrameQualityLg         int           `mapstructure:"frame_quality_lg"`          // 1-100, WebP quality (large thumbnails)
-	FrameQualitySprites    int           `mapstructure:"frame_quality_sprites"`     // 1-100, WebP quality (sprite sheets)
-	MetadataWorkers        int           `mapstructure:"metadata_workers"`          // concurrent metadata jobs
-	ThumbnailWorkers       int           `mapstructure:"thumbnail_workers"`         // concurrent thumbnail jobs
-	SpritesWorkers         int           `mapstructure:"sprites_workers"`           // concurrent sprites jobs
-	ThumbnailSeek          string        `mapstructure:"thumbnail_seek"`            // "00:00:05" or "5%"
-	VideoDir               string        `mapstructure:"video_dir"`                 // directory for video files
-	MetadataDir            string        `mapstructure:"metadata_dir"`              // base directory for metadata (thumbnails, sprites, vtt)
-	FrameOutputDir         string        `mapstructure:"frame_output_dir"`          // relative to app root
-	ThumbnailDir           string        `mapstructure:"thumbnail_dir"`             // relative to app root
-	SpriteDir              string        `mapstructure:"sprite_dir"`                // relative to app root
-	VttDir                 string        `mapstructure:"vtt_dir"`                   // relative to app root
-	ActorImageDir          string        `mapstructure:"actor_image_dir"`           // directory for actor images
-	StudioLogoDir          string        `mapstructure:"studio_logo_dir"`           // directory for studio logos
-	MarkerThumbnailDir     string        `mapstructure:"marker_thumbnail_dir"`      // directory for marker thumbnails
-	GridCols               int           `mapstructure:"grid_cols"`                 // number of columns in sprite sheet
-	GridRows               int           `mapstructure:"grid_rows"`                 // number of rows in sprite sheet
-	SpritesConcurrency         int           `mapstructure:"sprites_concurrency"`           // concurrent ffmpeg processes for sprite extraction (0 = auto)
-	AnimatedThumbnailsWorkers  int           `mapstructure:"animated_thumbnails_workers"`   // concurrent animated thumbnail jobs
-	AnimatedThumbnailsTimeout  time.Duration `mapstructure:"animated_thumbnails_timeout"`   // timeout for animated thumbnail jobs
-	MarkerThumbnailType            string        `mapstructure:"marker_thumbnail_type"`             // "static" or "animated"
-	MarkerAnimatedDuration         int           `mapstructure:"marker_animated_duration"`          // animated clip duration in seconds (3-15)
-	ScenePreviewEnabled            bool          `mapstructure:"scene_preview_enabled"`             // enable scene preview video generation
-	ScenePreviewSegments           int           `mapstructure:"scene_preview_segments"`            // number of segments to sample (2-24)
-	ScenePreviewSegmentDuration    float64       `mapstructure:"scene_preview_segment_duration"`    // duration of each segment in seconds (0.75-30.0)
-	ScenePreviewDir                string        `mapstructure:"scene_preview_dir"`                 // directory for scene preview videos
-	MarkerPreviewCRF               int           `mapstructure:"marker_preview_crf"`                // CRF for marker animated thumbnails (18-40)
-	ScenePreviewCRF                int           `mapstructure:"scene_preview_crf"`                 // CRF for scene preview videos (18-40)
-	JobHistoryRetention            string        `mapstructure:"job_history_retention"`             // duration string e.g. "7d", "24h"
-	MetadataTimeout            time.Duration `mapstructure:"metadata_timeout"`              // timeout for metadata extraction jobs
-	ThumbnailTimeout           time.Duration `mapstructure:"thumbnail_timeout"`             // timeout for thumbnail extraction jobs
-	SpritesTimeout             time.Duration `mapstructure:"sprites_timeout"`               // timeout for sprite sheet generation jobs
+	FrameInterval               int           `mapstructure:"frame_interval"`                 // seconds
+	MaxFrameDimension           int           `mapstructure:"max_frame_dimension"`            // longest side in pixels (small thumbnail)
+	MaxFrameDimensionLarge      int           `mapstructure:"max_frame_dimension_large"`      // longest side in pixels (large thumbnail)
+	FrameQuality                int           `mapstructure:"frame_quality"`                  // 1-100, WebP quality (small thumbnails)
+	FrameQualityLg              int           `mapstructure:"frame_quality_lg"`               // 1-100, WebP quality (large thumbnails)
+	FrameQualitySprites         int           `mapstructure:"frame_quality_sprites"`          // 1-100, WebP quality (sprite sheets)
+	MetadataWorkers             int           `mapstructure:"metadata_workers"`               // concurrent metadata jobs
+	ThumbnailWorkers            int           `mapstructure:"thumbnail_workers"`              // concurrent thumbnail jobs
+	SpritesWorkers              int           `mapstructure:"sprites_workers"`                // concurrent sprites jobs
+	ThumbnailSeek               string        `mapstructure:"thumbnail_seek"`                 // "00:00:05" or "5%"
+	VideoDir                    string        `mapstructure:"video_dir"`                      // directory for video files
+	MetadataDir                 string        `mapstructure:"metadata_dir"`                   // base directory for metadata (thumbnails, sprites, vtt)
+	FrameOutputDir              string        `mapstructure:"frame_output_dir"`               // relative to app root
+	ThumbnailDir                string        `mapstructure:"thumbnail_dir"`                  // relative to app root
+	SpriteDir                   string        `mapstructure:"sprite_dir"`                     // relative to app root
+	VttDir                      string        `mapstructure:"vtt_dir"`                        // relative to app root
+	ActorImageDir               string        `mapstructure:"actor_image_dir"`                // directory for actor images
+	StudioLogoDir               string        `mapstructure:"studio_logo_dir"`                // directory for studio logos
+	MarkerThumbnailDir          string        `mapstructure:"marker_thumbnail_dir"`           // directory for marker thumbnails
+	GridCols                    int           `mapstructure:"grid_cols"`                      // number of columns in sprite sheet
+	GridRows                    int           `mapstructure:"grid_rows"`                      // number of rows in sprite sheet
+	SpritesConcurrency          int           `mapstructure:"sprites_concurrency"`            // concurrent ffmpeg processes for sprite extraction (0 = auto)
+	AnimatedThumbnailsWorkers   int           `mapstructure:"animated_thumbnails_workers"`    // concurrent animated thumbnail jobs
+	AnimatedThumbnailsTimeout   time.Duration `mapstructure:"animated_thumbnails_timeout"`    // timeout for animated thumbnail jobs
+	MarkerThumbnailType         string        `mapstructure:"marker_thumbnail_type"`          // "static" or "animated"
+	MarkerAnimatedDuration      int           `mapstructure:"marker_animated_duration"`       // animated clip duration in seconds (3-15)
+	MarkerThumbnailWorkers      int           `mapstructure:"marker_thumbnail_workers"`       // background marker thumbnail workers (default 2)
+	ScenePreviewEnabled         bool          `mapstructure:"scene_preview_enabled"`          // enable scene preview video generation
+	ScenePreviewSegments        int           `mapstructure:"scene_preview_segments"`         // number of segments to sample (2-24)
+	ScenePreviewSegmentDuration float64       `mapstructure:"scene_preview_segment_duration"` // duration of each segment in seconds (0.75-30.0)
+	ScenePreviewDir             string        `mapstructure:"scene_preview_dir"`              // directory for scene preview videos
+	StagingDir                  string        `mapstructure:"staging_dir"`                    // job outputs before their commit ("" = "staging" next to sprite_dir)
+	MarkerPreviewCRF            int           `mapstructure:"marker_preview_crf"`             // CRF for marker animated thumbnails (18-40)
+	ScenePreviewCRF             int           `mapstructure:"scene_preview_crf"`              // CRF for scene preview videos (18-40)
+	JobHistoryRetention         string        `mapstructure:"job_history_retention"`          // completed/cancelled jobs kept this long, e.g. "30d", "24h" ("0" = never purged)
+	JobHistoryFailedRetention   string        `mapstructure:"job_history_failed_retention"`   // failed/timed out jobs kept this long, e.g. "90d" ("0" = never purged)
+	JobHistoryPurgeInterval     time.Duration `mapstructure:"job_history_purge_interval"`     // how often the job history purge runs
+	JobHistoryPurgeBatchSize    int           `mapstructure:"job_history_purge_batch_size"`   // rows deleted per statement by the purge
+	MetadataTimeout             time.Duration `mapstructure:"metadata_timeout"`               // timeout for metadata extraction jobs
+	ThumbnailTimeout            time.Duration `mapstructure:"thumbnail_timeout"`              // timeout for thumbnail extraction jobs
+	SpritesTimeout              time.Duration `mapstructure:"sprites_timeout"`                // timeout for sprite sheet generation jobs
+	FailingThreshold            int           `mapstructure:"failing_threshold"`              // consecutive failures of a (scene, phase) on an unchanged file before it is no longer retried automatically (0 = never)
 }
 
 type AuthConfig struct {
 	PasetoSecret       string        `mapstructure:"paseto_secret"`
 	AdminUsername      string        `mapstructure:"admin_username"`
 	AdminPassword      string        `mapstructure:"admin_password"`
-	TokenDuration      time.Duration `mapstructure:"token_duration"`
+	TokenDuration      time.Duration `mapstructure:"token_duration"`       // session lifetime (token + cookie), e.g. "24h", "30d", "1y"
 	LoginRateLimit     int           `mapstructure:"login_rate_limit"`     // requests per minute
 	LoginRateBurst     int           `mapstructure:"login_rate_burst"`     // burst size
 	LockoutThreshold   int           `mapstructure:"lockout_threshold"`    // failed attempts before lockout
@@ -223,9 +428,14 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("processing.scene_preview_segments", 12)
 	v.SetDefault("processing.scene_preview_segment_duration", 1.0)
 	v.SetDefault("processing.scene_preview_dir", "./data/metadata/scene-previews")
+	v.SetDefault("processing.staging_dir", "")
 	v.SetDefault("processing.marker_preview_crf", 32)
 	v.SetDefault("processing.scene_preview_crf", 27)
-	v.SetDefault("processing.job_history_retention", "7d")
+	v.SetDefault("processing.job_history_retention", "30d")
+	v.SetDefault("processing.job_history_failed_retention", "90d")
+	v.SetDefault("processing.job_history_purge_interval", time.Hour)
+	v.SetDefault("processing.job_history_purge_batch_size", 5000)
+	v.SetDefault("processing.failing_threshold", 3)
 	v.SetDefault("processing.metadata_timeout", 5*time.Minute)
 	v.SetDefault("processing.thumbnail_timeout", 2*time.Minute)
 	v.SetDefault("processing.sprites_timeout", 30*time.Minute)
@@ -247,9 +457,107 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("shutdown.orphan_timeout", 30*time.Second)
 	v.SetDefault("shutdown.stuck_pending_time", 10*time.Minute)
 	v.SetDefault("pagination.max_items_per_page", 100)
+	v.SetDefault("playlists.max_markers", 1000)
+	v.SetDefault("playlists.marker_default_duration", 30)
 	v.SetDefault("sharing.base_url", "")
 	v.SetDefault("sharing.port", "")
+
+	v.SetDefault("social.friend_requests_per_hour", 30)
+	v.SetDefault("social.follows_per_hour", 60)
+	v.SetDefault("social.max_pending_requests", 50)
+	v.SetDefault("profiles.image_dir", "./data/metadata/profiles")
+	v.SetDefault("profiles.max_upload_bytes", 8*1024*1024)
+	v.SetDefault("profiles.max_image_pixels", 25_000_000)
+	v.SetDefault("profiles.image_uploads_per_hour", 20)
+	v.SetDefault("profiles.max_showcase_items", 4)
+	v.SetDefault("profiles.bio_max_length", 1000)
+	v.SetDefault("profiles.display_name_max_length", 64)
+	v.SetDefault("profiles.max_tabs", 8)
+	v.SetDefault("profiles.max_sections", 12)
+	v.SetDefault("profiles.max_blocks_per_tab", 24)
+	v.SetDefault("profiles.max_lists", 20)
+	v.SetDefault("messages.max_length", 2000)
+	v.SetDefault("messages.rate_per_minute", 30)
+	v.SetDefault("messages.rate_burst", 10)
+	v.SetDefault("messages.page_size", 50)
+	v.SetDefault("messages.max_page_size", 100)
+	v.SetDefault("messages.typing_interval", 3*time.Second)
+	v.SetDefault("messages.max_share_recipients", 20)
+	v.SetDefault("messages.max_share_items", 10)
+	v.SetDefault("messages.retention_days", 0)
+	v.SetDefault("messages.purge_interval", time.Hour)
+	v.SetDefault("messages.max_reaction_kinds", 20)
+	v.SetDefault("messages.max_reactions_per_user", 10)
+	v.SetDefault("messages.reaction_rate_per_minute", 60)
+	v.SetDefault("messages.reaction_rate_burst", 20)
+	v.SetDefault("presence.disconnect_grace", 30*time.Second)
+	v.SetDefault("presence.idle_after", 5*time.Minute)
+	v.SetDefault("presence.heartbeat_interval", 60*time.Second)
+	v.SetDefault("presence.activity_interval", 15*time.Second)
+	v.SetDefault("presence.activity_ttl", 60*time.Second)
+	v.SetDefault("presence.paused_after", 20*time.Second)
+	v.SetDefault("presence.stalled_after", 30*time.Second)
+	v.SetDefault("presence.seek_threshold", 15*time.Second)
+	v.SetDefault("presence.flush_interval", 2*time.Second)
+	v.SetDefault("presence.last_seen_interval", 5*time.Minute)
+	v.SetDefault("presence.max_tabs_per_user", 8)
 	v.SetDefault("duplication.enabled", false)
+	v.SetDefault("library_health.stat_concurrency", 8)
+	v.SetDefault("workers.enabled", false)
+	v.SetDefault("goon2gether.enabled", true)
+	v.SetDefault("goon2gether.emote_dir", "./data/emotes")
+	v.SetDefault("goon2gether.emote_max_bytes", int64(512<<10))
+	v.SetDefault("goon2gether.emote_max_dimension", 256)
+	v.SetDefault("goon2gether.emote_max_count", 500)
+	v.SetDefault("goon2gether.max_members", 20)
+	v.SetDefault("goon2gether.max_lobbies_per_user", 5)
+	v.SetDefault("goon2gether.max_queue_items", 200)
+	v.SetDefault("goon2gether.max_suggestions", 50)
+	v.SetDefault("goon2gether.max_connections_per_user", 4)
+	v.SetDefault("goon2gether.chat_history", 100)
+	v.SetDefault("goon2gether.chat_max_length", 500)
+	v.SetDefault("goon2gether.chat_rate_limit", 5)
+	v.SetDefault("goon2gether.reaction_rate_limit", 10)
+	v.SetDefault("goon2gether.chat_reaction_rate_limit", 10)
+	v.SetDefault("goon2gether.chat_max_reaction_kinds", 20)
+	v.SetDefault("goon2gether.chat_max_reactions_per_user", 10)
+	v.SetDefault("goon2gether.history_max", 100)
+	v.SetDefault("goon2gether.history_min_play", 3*time.Second)
+	v.SetDefault("goon2gether.rate_window", 10*time.Second)
+	v.SetDefault("goon2gether.drift_threshold", 0.75)
+	v.SetDefault("goon2gether.drift_nudge", true)
+	v.SetDefault("goon2gether.hold_timeout", 10*time.Second)
+	v.SetDefault("goon2gether.end_grace", 1500*time.Millisecond)
+	v.SetDefault("goon2gether.host_grace", 60*time.Second)
+	v.SetDefault("goon2gether.tick_interval", 500*time.Millisecond)
+	v.SetDefault("goon2gether.unload_after", time.Minute)
+	v.SetDefault("goon2gether.idle_timeout", 24*time.Hour)
+	v.SetDefault("goon2gether.empty_close_after", 15*time.Minute)
+	v.SetDefault("goon2gether.inactive_close_after", 60*time.Minute)
+	v.SetDefault("goon2gether.close_warning", 5*time.Minute)
+	v.SetDefault("goon2gether.cleanup_interval", time.Minute)
+	v.SetDefault("goon2gether.send_buffer", 64)
+	v.SetDefault("goon2gether.ping_interval", 25*time.Second)
+	v.SetDefault("goon2gether.write_timeout", 10*time.Second)
+	v.SetDefault("goon2gether.max_message_bytes", int64(16<<10))
+	v.SetDefault("workers.heartbeat_interval", 10*time.Second)
+	v.SetDefault("workers.lease_duration", 60*time.Second)
+	v.SetDefault("workers.expiry_sweep_interval", 5*time.Second)
+	v.SetDefault("workers.claim_max_wait", 25*time.Second)
+	v.SetDefault("workers.media_url_ttl", 6*time.Hour)
+	v.SetDefault("workers.media_secret", "")
+	v.SetDefault("workers.max_artifact_bytes", int64(2<<30))
+	v.SetDefault("workers.upload_chunk_bytes", int64(16<<20))
+	v.SetDefault("workers.max_complete_body_bytes", int64(64<<20))
+	v.SetDefault("workers.staging_retention", 24*time.Hour)
+	v.SetDefault("workers.max_assignment_age", 24*time.Hour)
+	v.SetDefault("workers.startup_lease_grace", time.Duration(0))
+	v.SetDefault("workers.push_poll_interval", 5*time.Second)
+	v.SetDefault("workers.push_timeout", 10*time.Second)
+	v.SetDefault("workers.offline_after", time.Duration(0))
+	v.SetDefault("workers.local_phases", []string{"sprites", "animated_thumbnails", "fingerprint"})
+	v.SetDefault("workers.allowed_cidrs", []string{"100.64.0.0/10", "fd7a:115c:a1e0::/48", "127.0.0.0/8", "::1/128"})
+	v.SetDefault("workers.public_url", "")
 	v.SetDefault("duplication.fingerprint_workers", 1)
 	v.SetDefault("duplication.fingerprint_timeout", 5*time.Minute)
 	v.SetDefault("duplication.audio_density_threshold", 0.50)
@@ -267,9 +575,24 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("clickhouse.password", "")
 	v.SetDefault("streaming.max_global_streams", 100)
 	v.SetDefault("streaming.max_streams_per_ip", 10)
-	v.SetDefault("streaming.buffer_size", 262144)       // 256KB (8x default 32KB)
+	v.SetDefault("streaming.buffer_size", 262144) // 256KB (8x default 32KB)
 	v.SetDefault("streaming.path_cache_ttl", 5*time.Minute)
 	v.SetDefault("streaming.path_cache_max_size", 10000)
+	v.SetDefault("streaming.max_range_size", 8<<20) // 8 MiB per range response
+	v.SetDefault("streaming.transcode.max_concurrent", 4)
+	v.SetDefault("streaming.transcode.preset", "veryfast")
+	v.SetDefault("streaming.transcode.crf", 23)
+	v.SetDefault("streaming.transcode.max_height", 1080)
+	v.SetDefault("streaming.transcode.audio_bitrate", "160k")
+	v.SetDefault("streaming.transcode.threads", 0)
+	v.SetDefault("streaming.transcode.keyframe_interval", 2)
+	v.SetDefault("streaming.transcode.cache.enabled", true)
+	v.SetDefault("streaming.transcode.cache.dir", "./data/transcode-cache")
+	v.SetDefault("streaming.transcode.cache.max_size_gb", 20)
+	v.SetDefault("streaming.transcode.cache.max_age", 24*time.Hour)
+	v.SetDefault("streaming.transcode.cache.cleanup_interval", 10*time.Minute)
+	v.SetDefault("streaming.transcode.cache.read_ahead", 60*time.Second)
+	v.SetDefault("streaming.transcode.cache.idle_timeout", 30*time.Second)
 
 	// Environment variables
 	v.SetEnvPrefix("GOONHUB")
@@ -284,9 +607,22 @@ func Load(path string) (*Config, error) {
 		}
 	}
 
+	// The session lifetime also accepts days and years ("30d", "1y"), which
+	// time.ParseDuration does not know.
+	if raw := strings.TrimSpace(v.GetString("auth.token_duration")); raw != "" {
+		d, err := ParseSessionDuration(raw)
+		if err != nil {
+			return nil, fmt.Errorf("auth.token_duration: %w", err)
+		}
+		v.Set("auth.token_duration", d)
+	}
+
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
+	}
+	if cfg.Auth.TokenDuration <= 0 {
+		return nil, fmt.Errorf("auth.token_duration must be positive, got %s", cfg.Auth.TokenDuration)
 	}
 
 	// Validate PASETO secret
@@ -339,6 +675,28 @@ func ParseRetentionDuration(s string) (time.Duration, error) {
 			return 0, fmt.Errorf("invalid day duration %q: %w", s, err)
 		}
 		return time.Duration(days) * 24 * time.Hour, nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid duration %q: %w", s, err)
+	}
+	return d, nil
+}
+
+// ParseSessionDuration parses a session lifetime. Besides the time.ParseDuration
+// units it accepts a whole number of days ("30d") or years of 365 days ("1y").
+func ParseSessionDuration(s string) (time.Duration, error) {
+	s = strings.TrimSpace(s)
+	for suffix, unit := range map[string]time.Duration{"d": 24 * time.Hour, "y": 365 * 24 * time.Hour} {
+		numStr, ok := strings.CutSuffix(s, suffix)
+		if !ok {
+			continue
+		}
+		n, err := strconv.Atoi(numStr)
+		if err != nil {
+			return 0, fmt.Errorf("invalid duration %q", s)
+		}
+		return time.Duration(n) * unit, nil
 	}
 	d, err := time.ParseDuration(s)
 	if err != nil {

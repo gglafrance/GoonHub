@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { WatchHistoryEntry, DateGroup, ChartActivityCount } from '~/types/watch';
 
+const { containerClass } = useContentWidth();
 const { getUserWatchHistoryByDateRange, getUserWatchHistoryByTimeRange } = useApiScenes();
+const { formatDate } = useDateFormatter();
 
 useHead({ title: 'Watch History' });
 
@@ -12,11 +14,20 @@ useSeoMeta({
     ogDescription: 'Your recently watched scenes',
 });
 
-const rangeDays = ref(30);
-const rangeMode = ref<'preset' | 'custom'>('preset');
-const customSince = ref('');
-const customUntil = ref('');
+// Range kept in the URL (`days`, `mode`, `since`, `until`): Back from a scene, a reload or a
+// shared link show the same period
+const rangeDays = useUrlQueryRef('days', 30, (raw) => {
+    const n = Number(raw);
+    return Number.isInteger(n) && n >= 0 ? n : undefined;
+});
+const rangeMode = useUrlQueryRef<'preset' | 'custom'>('mode', 'preset', (raw) =>
+    raw === 'custom' ? 'custom' : undefined,
+);
+const customSince = useUrlString('since');
+const customUntil = useUrlString('until');
 const entries = ref<WatchHistoryEntry[]>([]);
+// the user's ratings / likes / jizz counts of the listed scenes, for the card badges
+const cardData = ref<HistoryCardData>({});
 const isLoading = ref(true);
 
 const totalScenes = computed(() => {
@@ -48,8 +59,7 @@ const formatDateLabel = (dateKey: string) => {
     if (dateKey === todayKey) return 'Today';
     if (dateKey === yesterdayKey) return 'Yesterday';
 
-    const d = new Date(dateKey + 'T00:00:00');
-    return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    return formatDate(dateKey, { utc: true });
 };
 
 const dateGroups = computed<DateGroup[]>(() => {
@@ -98,12 +108,15 @@ const loadData = async () => {
                 2000,
             );
             entries.value = historyData.entries || [];
+            cardData.value = historyCardData(historyData);
         } else {
             const historyData = await getUserWatchHistoryByDateRange(rangeDays.value, 2000);
             entries.value = historyData.entries || [];
+            cardData.value = historyCardData(historyData);
         }
     } catch {
         entries.value = [];
+        cardData.value = {};
     } finally {
         isLoading.value = false;
     }
@@ -141,7 +154,7 @@ definePageMeta({
 
 <template>
     <div class="min-h-screen px-4 py-6 sm:px-5">
-        <div class="mx-auto max-w-415">
+        <div :class="containerClass">
             <!-- Header -->
             <div class="mb-6 flex items-center justify-between">
                 <div class="flex items-center gap-3">
@@ -207,6 +220,7 @@ definePageMeta({
                     :date-label="group.date"
                     :entries="group.entries"
                     :entry-count="group.entries.length"
+                    :card-data="cardData"
                 />
             </div>
         </div>

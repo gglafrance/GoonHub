@@ -60,6 +60,7 @@ func (h *PlaylistHandler) List(c *gin.Context) {
 	params := data.PlaylistListParams{
 		Owner:      c.DefaultQuery("owner", "all"),
 		Visibility: c.Query("visibility"),
+		Kind:       c.Query("kind"),
 		TagIDs:     tagIDs,
 		Search:     c.Query("search"),
 		Sort:       c.DefaultQuery("sort", "created_at_desc"),
@@ -98,7 +99,7 @@ func (h *PlaylistHandler) GetByUUID(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, response.NewPlaylistDetailResponse(detail))
+	response.OK(c, response.NewPlaylistDetailResponse(detail, fileVisibility(c)))
 }
 
 func (h *PlaylistHandler) Create(c *gin.Context) {
@@ -118,8 +119,10 @@ func (h *PlaylistHandler) Create(c *gin.Context) {
 		Name:        req.Name,
 		Description: req.Description,
 		Visibility:  req.Visibility,
+		Kind:        req.Kind,
 		TagIDs:      req.TagIDs,
 		SceneIDs:    req.SceneIDs,
+		MarkerIDs:   req.MarkerIDs,
 	}
 
 	playlist, err := h.Service.Create(userID, input)
@@ -131,6 +134,7 @@ func (h *PlaylistHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"uuid": playlist.UUID.String(),
 		"name": playlist.Name,
+		"kind": playlist.Kind,
 	})
 }
 
@@ -433,11 +437,11 @@ func (h *PlaylistHandler) UpdateProgress(c *gin.Context) {
 
 	var req request.UpdatePlaylistProgressRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "scene_id is required")
+		response.BadRequest(c, "Invalid request body")
 		return
 	}
 
-	if err := h.Service.UpdateProgress(userID, uuidStr, req.SceneID, req.PositionS); err != nil {
+	if err := h.Service.UpdateProgress(userID, uuidStr, req.SceneID, req.MarkerID, req.PositionS); err != nil {
 		response.Error(c, err)
 		return
 	}

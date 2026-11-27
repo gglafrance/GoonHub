@@ -3,15 +3,20 @@ package core
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"goonhub/internal/apperrors"
 	"goonhub/internal/config"
 	"goonhub/internal/data"
+	"goonhub/internal/jobs"
+	"goonhub/pkg/compute"
 	"goonhub/pkg/ffmpeg"
+	"goonhub/pkg/workerproto"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -21,6 +26,7 @@ const maxMarkersPerScene = 50
 
 type MarkerService struct {
 	markerRepo                  data.MarkerRepository
+	labelRepo                   data.MarkerLabelRepository
 	sceneRepo                   data.SceneRepository
 	tagRepo                     data.TagRepository
 	markerThumbnailDir          string
@@ -36,9 +42,26 @@ type MarkerService struct {
 	markerPreviewCRF            int
 	scenePreviewCRF             int
 	logger                      *zap.Logger
+
+	// Marker thumbnails are made in the background (ffmpeg takes seconds, the new marker
+	// must show at once). Nil queue (Start not called, as in tests): made inline.
+	thumbnailWorkers int
+	thumbnailQueue   chan markerThumbnailTask
+	thumbnailWG      sync.WaitGroup
+	startOnce        sync.Once
+	stopOnce         sync.Once
 }
 
-func NewMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *zap.Logger) *MarkerService {
+// markerThumbnailTask asks for the thumbnail of a marker, made from its current row.
+type markerThumbnailTask struct {
+	markerID uint
+}
+
+// markerThumbnailQueueSize is how many thumbnails can wait for a worker; beyond it, the
+// thumbnail is made inline (slower answer, but never lost).
+const markerThumbnailQueueSize = 256
+
+func NewMarkerService(markerRepo data.MarkerRepository, labelRepo data.MarkerLabelRepository, sceneRepo data.SceneRepository, tagRepo data.TagRepository, cfg *config.Config, logger *zap.Logger) *MarkerService {
 	markerAnimatedDuration := cfg.Processing.MarkerAnimatedDuration
 	if markerAnimatedDuration <= 0 {
 		markerAnimatedDuration = 10
@@ -63,8 +86,14 @@ func NewMarkerService(markerRepo data.MarkerRepository, sceneRepo data.SceneRepo
 	if scenePreviewCRF <= 0 {
 		scenePreviewCRF = 27
 	}
+	thumbnailWorkers := cfg.Processing.MarkerThumbnailWorkers
+	if thumbnailWorkers <= 0 {
+		thumbnailWorkers = 2
+	}
 	return &MarkerService{
+		thumbnailWorkers:            thumbnailWorkers,
 		markerRepo:                  markerRepo,
+		labelRepo:                   labelRepo,
 		sceneRepo:                   sceneRepo,
 		tagRepo:                     tagRepo,
 		markerThumbnailDir:          cfg.Processing.MarkerThumbnailDir,
@@ -133,7 +162,73 @@ func (s *MarkerService) ListMarkers(userID, sceneID uint) ([]data.MarkerWithTags
 	return result, nil
 }
 
-func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, label, color string) (*data.UserSceneMarker, error) {
+// validateMarkerEnd checks that an optional marker end lies after the start and within the scene.
+func validateMarkerEnd(timestamp int, endTimestamp *int, sceneDuration int) error {
+	if endTimestamp == nil {
+		return nil
+	}
+	if *endTimestamp <= timestamp {
+		return apperrors.NewValidationError(fmt.Sprintf("end_timestamp %d must be greater than timestamp %d", *endTimestamp, timestamp))
+	}
+	if sceneDuration > 0 && *endTimestamp > sceneDuration {
+		return apperrors.NewValidationError(fmt.Sprintf("end_timestamp %d exceeds scene duration %d", *endTimestamp, sceneDuration))
+	}
+	return nil
+}
+
+// resolveLabel returns the label of the referential named name (ignoring case and
+// surrounding spaces), nil for an empty name. An unknown label is created when canCreate (the
+// user has marker_labels:manage), else refused (400).
+func (s *MarkerService) resolveLabel(name string, canCreate bool) (*data.MarkerLabel, error) {
+	name = data.NormalizeMarkerLabelName(name)
+	if name == "" {
+		return nil, nil
+	}
+	if len(name) > maxMarkerLabelNameLength {
+		return nil, apperrors.NewValidationErrorWithField("label", "label must be 100 characters or fewer")
+	}
+	if s.labelRepo == nil {
+		return nil, apperrors.NewInternalError("marker labels are not available", fmt.Errorf("no marker label repository"))
+	}
+	label, err := s.labelRepo.FindByName(name)
+	if err != nil {
+		s.logger.Error("failed to find marker label", zap.String("label", name), zap.Error(err))
+		return nil, apperrors.NewInternalError("failed to find marker label", err)
+	}
+	if label != nil {
+		return label, nil
+	}
+	if !canCreate {
+		return nil, apperrors.NewValidationErrorWithField("label", fmt.Sprintf(
+			"unknown marker label %q: pick an existing label (creating labels needs the marker_labels:manage permission)", name))
+	}
+	label, created, err := s.labelRepo.Ensure(name)
+	if err != nil {
+		s.logger.Error("failed to create marker label", zap.String("label", name), zap.Error(err))
+		return nil, apperrors.NewInternalError("failed to create marker label", err)
+	}
+	if created {
+		s.logger.Info("Marker label created", zap.Uint("id", label.ID), zap.String("name", label.Name))
+	}
+	return label, nil
+}
+
+// setMarkerLabel points the marker to label (nil: no label).
+func setMarkerLabel(marker *data.UserSceneMarker, label *data.MarkerLabel) {
+	if label == nil {
+		marker.LabelID = nil
+		marker.Label = ""
+		return
+	}
+	id := label.ID
+	marker.LabelID = &id
+	marker.Label = label.Name
+}
+
+// CreateMarker creates a marker. label must be an existing label (ignoring case); an unknown
+// one is created when canCreateLabel, else refused (400). Without color, the marker takes the
+// color of its label (white without label).
+func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, endTimestamp *int, label, color string, canCreateLabel bool) (*data.UserSceneMarker, error) {
 	// Validate scene exists and get duration
 	scene, err := s.sceneRepo.GetByID(sceneID)
 	if err != nil {
@@ -151,6 +246,9 @@ func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, label,
 	if scene.Duration > 0 && timestamp > scene.Duration {
 		return nil, apperrors.NewValidationError(fmt.Sprintf("timestamp %d exceeds scene duration %d", timestamp, scene.Duration))
 	}
+	if err := validateMarkerEnd(timestamp, endTimestamp, scene.Duration); err != nil {
+		return nil, err
+	}
 
 	// Check marker limit
 	count, err := s.markerRepo.CountByUserAndScene(userID, sceneID)
@@ -163,25 +261,29 @@ func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, label,
 	}
 
 	// Validate color format (hex color)
-	if color == "" {
-		color = "#FFFFFF" // default white
-	}
-	if len(color) != 7 || color[0] != '#' {
+	if color != "" && (len(color) != 7 || color[0] != '#') {
 		return nil, apperrors.NewValidationError("color must be a valid hex color (e.g., #FF4D4D)")
 	}
 
-	// Validate label length
-	if len(label) > 100 {
-		return nil, apperrors.NewValidationError("label must be 100 characters or fewer")
+	markerLabel, err := s.resolveLabel(label, canCreateLabel)
+	if err != nil {
+		return nil, err
+	}
+	if color == "" {
+		color = "#FFFFFF" // default white
+		if markerLabel != nil && markerLabel.Color != "" {
+			color = markerLabel.Color
+		}
 	}
 
 	marker := &data.UserSceneMarker{
-		UserID:    userID,
-		SceneID:   sceneID,
-		Timestamp: timestamp,
-		Label:     label,
-		Color:     color,
+		UserID:       userID,
+		SceneID:      sceneID,
+		Timestamp:    timestamp,
+		EndTimestamp: endTimestamp,
+		Color:        color,
 	}
+	setMarkerLabel(marker, markerLabel)
 
 	if err := s.markerRepo.Create(marker); err != nil {
 		s.logger.Error("failed to create marker", zap.Uint("userID", userID), zap.Uint("sceneID", sceneID), zap.Error(err))
@@ -189,36 +291,25 @@ func (s *MarkerService) CreateMarker(userID, sceneID uint, timestamp int, label,
 	}
 
 	// Apply label tags if the marker has a label
-	if label != "" {
-		if err := s.markerRepo.ApplyLabelTagsToMarker(userID, marker.ID, label); err != nil {
+	if marker.LabelID != nil {
+		if err := s.markerRepo.ApplyLabelTagsToMarker(marker.ID); err != nil {
 			s.logger.Warn("failed to apply label tags to marker",
 				zap.Uint("markerID", marker.ID),
-				zap.String("label", label),
+				zap.String("label", marker.Label),
 				zap.Error(err))
 		}
 	}
 
-	// Generate the appropriate thumbnail type (best effort - marker is still useful without it)
-	if s.markerThumbnailType == "animated" {
-		if err := s.generateAnimatedThumbnail(marker, scene); err != nil {
-			s.logger.Warn("failed to generate animated marker thumbnail",
-				zap.Uint("markerID", marker.ID),
-				zap.Uint("sceneID", sceneID),
-				zap.Error(err))
-		}
-	} else {
-		if err := s.generateThumbnail(marker, scene); err != nil {
-			s.logger.Warn("failed to generate marker thumbnail",
-				zap.Uint("markerID", marker.ID),
-				zap.Uint("sceneID", sceneID),
-				zap.Error(err))
-		}
-	}
+	// The thumbnail is made in the background (best effort - the marker is useful without it)
+	s.queueThumbnail(marker, scene)
 
 	return marker, nil
 }
 
-func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color *string, timestamp *int) (*data.UserSceneMarker, error) {
+// UpdateMarker updates the provided fields of a marker. endTimestamp sets the end of the marker
+// range; clearEnd removes it (endTimestamp is then ignored). A new label follows the rules of
+// CreateMarker (canCreateLabel) and replaces the marker's tags from label by its default tags.
+func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color *string, timestamp *int, endTimestamp *int, clearEnd bool, canCreateLabel bool) (*data.UserSceneMarker, error) {
 	marker, err := s.markerRepo.GetByID(markerID)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -234,11 +325,18 @@ func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color
 	}
 
 	// Update fields if provided
+	var labelChanged bool
 	if label != nil {
-		if len(*label) > 100 {
-			return nil, apperrors.NewValidationError("label must be 100 characters or fewer")
+		markerLabel, err := s.resolveLabel(*label, canCreateLabel)
+		if err != nil {
+			return nil, err
 		}
-		marker.Label = *label
+		var newID *uint
+		if markerLabel != nil {
+			newID = &markerLabel.ID
+		}
+		labelChanged = !sameLabelID(marker.LabelID, newID)
+		setMarkerLabel(marker, markerLabel)
 	}
 
 	if color != nil {
@@ -272,9 +370,36 @@ func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color
 		marker.Timestamp = *timestamp
 	}
 
+	if clearEnd {
+		marker.EndTimestamp = nil
+	} else if endTimestamp != nil {
+		end := *endTimestamp
+		marker.EndTimestamp = &end
+	}
+	if marker.EndTimestamp != nil && (timestamp != nil || endTimestamp != nil) {
+		if scene == nil {
+			var err error
+			scene, err = s.sceneRepo.GetByID(marker.SceneID)
+			if err != nil {
+				s.logger.Error("failed to get scene", zap.Uint("sceneID", marker.SceneID), zap.Error(err))
+				return nil, apperrors.NewInternalError("failed to get scene", err)
+			}
+		}
+		if err := validateMarkerEnd(marker.Timestamp, marker.EndTimestamp, scene.Duration); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := s.markerRepo.Update(marker); err != nil {
 		s.logger.Error("failed to update marker", zap.Uint("markerID", markerID), zap.Error(err))
 		return nil, apperrors.NewInternalError("failed to update marker", err)
+	}
+
+	if labelChanged {
+		if err := s.markerRepo.ApplyLabelTagsToMarker(marker.ID); err != nil {
+			s.logger.Warn("failed to apply label tags to marker",
+				zap.Uint("markerID", marker.ID), zap.String("label", marker.Label), zap.Error(err))
+		}
 	}
 
 	// Regenerate thumbnail if timestamp changed
@@ -312,21 +437,9 @@ func (s *MarkerService) UpdateMarker(userID, markerID uint, label *string, color
 			}
 		}
 
-		// Generate new thumbnail matching the current type
+		// New thumbnail matching the current type, in the background
 		if scene != nil {
-			if s.markerThumbnailType == "animated" {
-				if err := s.generateAnimatedThumbnail(marker, scene); err != nil {
-					s.logger.Warn("failed to regenerate animated marker thumbnail",
-						zap.Uint("markerID", marker.ID),
-						zap.Error(err))
-				}
-			} else {
-				if err := s.generateThumbnail(marker, scene); err != nil {
-					s.logger.Warn("failed to regenerate marker thumbnail",
-						zap.Uint("markerID", marker.ID),
-						zap.Error(err))
-				}
-			}
+			s.queueThumbnail(marker, scene)
 		}
 	}
 
@@ -397,7 +510,19 @@ func (s *MarkerService) GetLabelSuggestions(userID uint, limit int) ([]data.Mark
 	return suggestions, nil
 }
 
-func (s *MarkerService) GetLabelGroups(userID uint, page, limit int, sortBy string) ([]data.MarkerLabelGroup, int64, error) {
+// normalizeMarkerSort validates the sort against the allowed values (falling back to def) and
+// makes sure a random sort has a seed, so that pages of a random listing stay consistent.
+func normalizeMarkerSort(opts data.MarkerListOptions, valid map[string]bool, def string) data.MarkerListOptions {
+	if opts.SortBy != "random" && !valid[opts.SortBy] {
+		opts.SortBy = def
+	}
+	if opts.SortBy == "random" && opts.Seed == 0 {
+		opts.Seed = rand.Int63n(9007199254740991) + 1
+	}
+	return opts
+}
+
+func (s *MarkerService) GetLabelGroups(userID uint, page, limit int, opts data.MarkerListOptions) ([]data.MarkerLabelGroup, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -414,11 +539,9 @@ func (s *MarkerService) GetLabelGroups(userID uint, page, limit int, sortBy stri
 		"label_desc": true,
 		"recent":     true,
 	}
-	if !validSorts[sortBy] {
-		sortBy = "count_desc"
-	}
+	opts = normalizeMarkerSort(opts, validSorts, "count_desc")
 
-	groups, total, err := s.markerRepo.GetLabelGroupsForUser(userID, offset, limit, sortBy)
+	groups, total, err := s.markerRepo.GetLabelGroupsForUser(userID, offset, limit, opts)
 	if err != nil {
 		s.logger.Error("failed to get label groups", zap.Uint("userID", userID), zap.Error(err))
 		return nil, 0, apperrors.NewInternalError("failed to get label groups", err)
@@ -431,15 +554,17 @@ func (s *MarkerService) GetLabelGroups(userID uint, page, limit int, sortBy stri
 			labels[i] = g.Label
 		}
 
-		thumbnails, err := s.markerRepo.GetRandomThumbnailsForLabels(userID, labels, 10)
+		thumbnails, err := s.markerRepo.GetRandomThumbnailsForLabels(userID, labels, 10, opts)
 		if err != nil {
 			s.logger.Warn("failed to get thumbnail IDs for labels", zap.Uint("userID", userID), zap.Error(err))
 		} else {
 			for i := range groups {
-				if ids, ok := thumbnails[groups[i].Label]; ok {
-					groups[i].ThumbnailMarkerIDs = ids
-				} else {
-					groups[i].ThumbnailMarkerIDs = []uint{}
+				refs := thumbnails[groups[i].Label]
+				groups[i].ThumbnailMarkerIDs = make([]uint, len(refs))
+				groups[i].ThumbnailVersions = make(map[uint]int64, len(refs))
+				for j, ref := range refs {
+					groups[i].ThumbnailMarkerIDs[j] = ref.ID
+					groups[i].ThumbnailVersions[ref.ID] = data.MarkerThumbnailVersion(ref.UpdatedAt)
 				}
 			}
 		}
@@ -448,7 +573,7 @@ func (s *MarkerService) GetLabelGroups(userID uint, page, limit int, sortBy stri
 	return groups, total, nil
 }
 
-func (s *MarkerService) GetMarkersByLabel(userID uint, label string, page, limit int) ([]data.MarkerWithScene, int64, error) {
+func (s *MarkerService) GetMarkersByLabel(userID uint, label string, page, limit int, opts data.MarkerListOptions) ([]data.MarkerWithScene, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -457,15 +582,16 @@ func (s *MarkerService) GetMarkersByLabel(userID uint, label string, page, limit
 	}
 	offset := (page - 1) * limit
 
-	markers, total, err := s.markerRepo.GetMarkersByLabelForUser(userID, label, offset, limit)
+	markers, total, err := s.markerRepo.GetMarkersByLabelForUser(userID, label, offset, limit, opts)
 	if err != nil {
 		s.logger.Error("failed to get markers by label", zap.Uint("userID", userID), zap.String("label", label), zap.Error(err))
 		return nil, 0, apperrors.NewInternalError("failed to get markers by label", err)
 	}
+	s.attachMarkerTags(markers)
 	return markers, total, nil
 }
 
-func (s *MarkerService) GetAllMarkers(userID uint, page, limit int, sortBy string) ([]data.MarkerWithScene, int64, error) {
+func (s *MarkerService) GetAllMarkers(userID uint, page, limit int, opts data.MarkerListOptions) ([]data.MarkerWithScene, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -481,16 +607,52 @@ func (s *MarkerService) GetAllMarkers(userID uint, page, limit int, sortBy strin
 		"recent":     true,
 		"oldest":     true,
 	}
-	if !validSorts[sortBy] {
-		sortBy = "label_asc"
-	}
+	opts = normalizeMarkerSort(opts, validSorts, "label_asc")
 
-	markers, total, err := s.markerRepo.GetAllMarkersForUser(userID, offset, limit, sortBy)
+	markers, total, err := s.markerRepo.GetAllMarkersForUser(userID, offset, limit, opts)
 	if err != nil {
 		s.logger.Error("failed to get all markers", zap.Uint("userID", userID), zap.Error(err))
 		return nil, 0, apperrors.NewInternalError("failed to get all markers", err)
 	}
+	s.attachMarkerTags(markers)
 	return markers, total, nil
+}
+
+// attachMarkerTags loads the tags of listed markers in one query (best effort: a failure only
+// leaves the tags empty).
+func (s *MarkerService) attachMarkerTags(markers []data.MarkerWithScene) {
+	if len(markers) == 0 {
+		return
+	}
+	ids := make([]uint, len(markers))
+	for i, m := range markers {
+		ids[i] = m.ID
+	}
+	tagsByMarker, err := s.markerRepo.GetMarkerTagsMultiple(ids)
+	if err != nil {
+		s.logger.Warn("failed to load marker tags", zap.Error(err))
+		return
+	}
+	for i := range markers {
+		markers[i].Tags = tagsByMarker[markers[i].ID]
+	}
+}
+
+// GetMarkersForScenes returns the user's markers grouped by scene (for scene cards).
+func (s *MarkerService) GetMarkersForScenes(userID uint, sceneIDs []uint) (map[uint][]data.UserSceneMarker, error) {
+	result := make(map[uint][]data.UserSceneMarker)
+	if userID == 0 || len(sceneIDs) == 0 {
+		return result, nil
+	}
+	markers, err := s.markerRepo.GetByUserAndScenes(userID, sceneIDs)
+	if err != nil {
+		s.logger.Error("failed to get markers for scenes", zap.Uint("userID", userID), zap.Error(err))
+		return nil, apperrors.NewInternalError("failed to get markers for scenes", err)
+	}
+	for _, m := range markers {
+		result[m.SceneID] = append(result[m.SceneID], m)
+	}
+	return result, nil
 }
 
 // GenerateMissingForScene finds all markers for a scene that lack thumbnails and generates them.
@@ -540,6 +702,87 @@ func (s *MarkerService) GenerateMissingForScene(ctx context.Context, sceneID uin
 
 // generateThumbnail extracts a frame at the marker's timestamp and saves it as a thumbnail.
 // This is a best-effort operation - the marker remains valid even if thumbnail generation fails.
+// Start starts the background marker thumbnail workers. Safe to call once.
+func (s *MarkerService) Start() {
+	s.startOnce.Do(func() {
+		s.thumbnailQueue = make(chan markerThumbnailTask, markerThumbnailQueueSize)
+		for i := 0; i < s.thumbnailWorkers; i++ {
+			s.thumbnailWG.Add(1)
+			go func() {
+				defer s.thumbnailWG.Done()
+				for task := range s.thumbnailQueue {
+					s.runThumbnailTask(task)
+				}
+			}()
+		}
+		s.logger.Info("Marker thumbnail workers started", zap.Int("workers", s.thumbnailWorkers))
+	})
+}
+
+// Stop lets the workers finish the queued thumbnails, waiting at most timeout.
+func (s *MarkerService) Stop(timeout time.Duration) {
+	s.stopOnce.Do(func() {
+		if s.thumbnailQueue == nil {
+			return
+		}
+		close(s.thumbnailQueue)
+		done := make(chan struct{})
+		go func() {
+			s.thumbnailWG.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(timeout):
+			s.logger.Warn("Marker thumbnails still running at shutdown")
+		}
+	})
+}
+
+// queueThumbnail has the marker's thumbnail made by a worker, or inline when the workers
+// aren't running or their queue is full.
+func (s *MarkerService) queueThumbnail(marker *data.UserSceneMarker, scene *data.Scene) {
+	if s.thumbnailQueue != nil {
+		select {
+		case s.thumbnailQueue <- markerThumbnailTask{markerID: marker.ID}:
+			return
+		default:
+			s.logger.Warn("Marker thumbnail queue full, making it inline", zap.Uint("markerID", marker.ID))
+		}
+	}
+	s.makeThumbnail(marker, scene)
+}
+
+// runThumbnailTask makes a queued thumbnail from the marker's current row (its time may
+// have changed since it was queued; a deleted marker is skipped).
+func (s *MarkerService) runThumbnailTask(task markerThumbnailTask) {
+	marker, err := s.markerRepo.GetByID(task.markerID)
+	if err != nil || marker == nil {
+		return
+	}
+	scene, err := s.sceneRepo.GetByID(marker.SceneID)
+	if err != nil {
+		s.logger.Warn("failed to get scene for marker thumbnail", zap.Uint("markerID", marker.ID), zap.Error(err))
+		return
+	}
+	s.makeThumbnail(marker, scene)
+}
+
+// makeThumbnail makes the thumbnail type the server is configured for.
+func (s *MarkerService) makeThumbnail(marker *data.UserSceneMarker, scene *data.Scene) {
+	if s.markerThumbnailType == "animated" {
+		if err := s.generateAnimatedThumbnail(marker, scene); err != nil {
+			s.logger.Warn("failed to generate animated marker thumbnail",
+				zap.Uint("markerID", marker.ID), zap.Uint("sceneID", scene.ID), zap.Error(err))
+		}
+		return
+	}
+	if err := s.generateThumbnail(marker, scene); err != nil {
+		s.logger.Warn("failed to generate marker thumbnail",
+			zap.Uint("markerID", marker.ID), zap.Uint("sceneID", scene.ID), zap.Error(err))
+	}
+}
+
 func (s *MarkerService) generateThumbnail(marker *data.UserSceneMarker, scene *data.Scene) error {
 	// Ensure marker thumbnail directory exists
 	if err := os.MkdirAll(s.markerThumbnailDir, 0755); err != nil {
@@ -572,9 +815,10 @@ func (s *MarkerService) generateThumbnail(marker *data.UserSceneMarker, scene *d
 		return fmt.Errorf("failed to extract thumbnail: %w", err)
 	}
 
-	// Update marker with thumbnail path
+	// Update marker with thumbnail path (only that column: the user may have edited the
+	// marker while its thumbnail was being made)
 	marker.ThumbnailPath = thumbnailFilename
-	if err := s.markerRepo.Update(marker); err != nil {
+	if err := s.markerRepo.UpdateThumbnailPath(marker.ID, thumbnailFilename); err != nil {
 		// Clean up the generated thumbnail file
 		os.Remove(thumbnailPath)
 		return fmt.Errorf("failed to update marker with thumbnail path: %w", err)
@@ -597,20 +841,17 @@ func (s *MarkerService) generateAnimatedThumbnail(marker *data.UserSceneMarker, 
 		return fmt.Errorf("scene file not found: %s", scene.StoredPath)
 	}
 
-	animatedFilename := fmt.Sprintf("marker_%d.mp4", marker.ID)
+	animatedFilename := workerproto.MarkerClipName(marker.ID)
 	animatedPath := filepath.Join(s.markerThumbnailDir, animatedFilename)
 
-	seekPosition := strconv.Itoa(marker.Timestamp)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	if err := ffmpeg.ExtractAnimatedThumbnailWithContext(ctx, scene.StoredPath, animatedPath, seekPosition, s.markerAnimatedDuration, s.markerThumbnailMaxDim, s.markerPreviewCRF); err != nil {
-		return fmt.Errorf("failed to extract animated thumbnail: %w", err)
+	if err := compute.MarkerClip(context.Background(), compute.Env{}, scene.StoredPath, animatedPath,
+		marker.Timestamp, s.markerAnimatedDuration, s.markerThumbnailMaxDim, s.markerPreviewCRF,
+		workerproto.DefaultMarkerClipTimeoutSec*time.Second); err != nil {
+		return err
 	}
 
 	marker.AnimatedThumbnailPath = animatedFilename
-	if err := s.markerRepo.Update(marker); err != nil {
+	if err := s.markerRepo.UpdateAnimatedThumbnailPath(marker.ID, animatedFilename); err != nil {
 		os.Remove(animatedPath)
 		return fmt.Errorf("failed to update marker with animated thumbnail path: %w", err)
 	}
@@ -618,10 +859,12 @@ func (s *MarkerService) generateAnimatedThumbnail(marker *data.UserSceneMarker, 
 	return nil
 }
 
-// GenerateMissingAnimatedForScene finds all markers for a scene that lack animated thumbnails and generates them.
-// When forceTarget is "markers" or "both", all markers are regenerated regardless of existing thumbnails.
-// Implements jobs.AnimatedThumbnailGenerator.
-func (s *MarkerService) GenerateMissingAnimatedForScene(ctx context.Context, sceneID uint, forceTarget string) (int, error) {
+// PrepareAnimatedThumbnails returns the animated thumbnails to make for a scene: a clip per
+// marker that lacks one (every marker when forceTarget is "markers" or "both") and the scene
+// preview when enabled and missing (or forceTarget is "previews" or "both"). Nil when there
+// is nothing to make. Implements jobs.AnimatedThumbnailGenerator (the server-side preparation
+// of the animated_thumbnails phase, local or remote).
+func (s *MarkerService) PrepareAnimatedThumbnails(sceneID uint, forceTarget string) (*jobs.AnimatedThumbnailsPlan, error) {
 	var markers []data.UserSceneMarker
 	var err error
 
@@ -631,43 +874,92 @@ func (s *MarkerService) GenerateMissingAnimatedForScene(ctx context.Context, sce
 		markers, err = s.markerRepo.GetBySceneWithoutAnimatedThumbnail(sceneID)
 	}
 	if err != nil {
-		return 0, fmt.Errorf("failed to query markers for animated thumbnails: %w", err)
+		return nil, fmt.Errorf("failed to query markers for animated thumbnails: %w", err)
 	}
 
-	if len(markers) == 0 {
-		return 0, nil
+	previewEnabled := s.scenePreviewEnabled
+	if len(markers) == 0 && !previewEnabled {
+		return nil, nil
 	}
 
 	scene, err := s.sceneRepo.GetByID(sceneID)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get scene for animated thumbnail generation: %w", err)
+		if len(markers) > 0 {
+			return nil, fmt.Errorf("failed to get scene for animated thumbnail generation: %w", err)
+		}
+		// Only the preview was wanted: best effort, as before
+		s.logger.Warn("Failed to generate scene preview",
+			zap.Uint("scene_id", sceneID),
+			zap.Error(fmt.Errorf("failed to get scene for preview generation: %w", err)))
+		return nil, nil
 	}
 
-	s.logger.Info("Generating missing animated marker thumbnails",
-		zap.Uint("scene_id", sceneID),
-		zap.Int("count", len(markers)))
-
-	generated := 0
-	for i := range markers {
-		if ctx.Err() != nil {
-			s.logger.Info("Animated marker thumbnail generation interrupted",
-				zap.Uint("scene_id", sceneID),
-				zap.Int("generated", generated),
-				zap.Int("remaining", len(markers)-i))
-			break
-		}
-
-		if err := s.generateAnimatedThumbnail(&markers[i], scene); err != nil {
-			s.logger.Warn("Failed to generate animated marker thumbnail",
-				zap.Uint("marker_id", markers[i].ID),
-				zap.Int("timestamp", markers[i].Timestamp),
-				zap.Error(err))
-			continue
-		}
-		generated++
+	params := workerproto.AnimatedThumbnailsParams{
+		SceneID:          sceneID,
+		Markers:          make([]workerproto.MarkerClipSpec, 0, len(markers)),
+		MarkerWidth:      s.markerThumbnailMaxDim,
+		MarkerCRF:        s.markerPreviewCRF,
+		MarkerTimeoutSec: workerproto.DefaultMarkerClipTimeoutSec,
+	}
+	for _, m := range markers {
+		params.Markers = append(params.Markers, workerproto.MarkerClipSpec{
+			MarkerID:     m.ID,
+			TimestampSec: m.Timestamp,
+			DurationSec:  s.markerAnimatedDuration,
+			Output:       workerproto.MarkerClipName(m.ID),
+		})
 	}
 
-	return generated, nil
+	forcePreview := forceTarget == "previews" || forceTarget == "both"
+	if previewEnabled && (scene.PreviewVideoPath == "" || forcePreview) {
+		params.Preview = &workerproto.ScenePreviewSpec{
+			Output:          workerproto.ScenePreviewName(scene.ID),
+			Segments:        s.scenePreviewSegments,
+			SegmentDuration: s.scenePreviewSegmentDuration,
+			Width:           s.scenePreviewMaxDim,
+			CRF:             s.scenePreviewCRF,
+			WithAudio:       scene.AudioCodec != "",
+		}
+	}
+
+	if len(params.Markers) == 0 && params.Preview == nil {
+		return nil, nil
+	}
+	if len(params.Markers) > 0 {
+		s.logger.Info("Generating missing animated marker thumbnails",
+			zap.Uint("scene_id", sceneID),
+			zap.Int("count", len(params.Markers)))
+	}
+
+	return &jobs.AnimatedThumbnailsPlan{
+		Input:  scene.StoredPath,
+		Video:  SceneVideoInfo(scene),
+		Params: params,
+	}, nil
+}
+
+// CommitAnimatedThumbnails moves the clips and preview found in artifactDir into the marker
+// thumbnail and scene preview directories and records them. Implements
+// jobs.AnimatedThumbnailGenerator.
+func (s *MarkerService) CommitAnimatedThumbnails(sceneID uint, res *workerproto.AnimatedThumbnailsResult, artifactDir string) (int, bool, error) {
+	return jobs.CommitAnimatedThumbnails(jobs.AnimatedThumbnailsCommit{
+		Markers:    s.markerRepo,
+		Scenes:     s.sceneRepo,
+		MarkerDir:  s.markerThumbnailDir,
+		PreviewDir: s.scenePreviewDir,
+	}, sceneID, res, artifactDir)
+}
+
+// SceneVideoInfo returns the probed facts of a scene in the compute/worker protocol form.
+func SceneVideoInfo(scene *data.Scene) workerproto.VideoInfo {
+	return workerproto.VideoInfo{
+		DurationSec: scene.Duration,
+		Width:       scene.Width,
+		Height:      scene.Height,
+		FrameRate:   scene.FrameRate,
+		VideoCodec:  scene.VideoCodec,
+		AudioCodec:  scene.AudioCodec,
+	}
 }
 
 // GetMarkerThumbnailType returns the current marker thumbnail type setting
@@ -683,55 +975,6 @@ func (s *MarkerService) SetMarkerThumbnailType(thumbnailType string) {
 // SetMarkerAnimatedDuration updates the animated duration setting
 func (s *MarkerService) SetMarkerAnimatedDuration(duration int) {
 	s.markerAnimatedDuration = duration
-}
-
-// GetLabelTags returns the default tags for a label
-func (s *MarkerService) GetLabelTags(userID uint, label string) ([]data.Tag, error) {
-	if label == "" {
-		return nil, apperrors.NewValidationError("label is required")
-	}
-
-	tags, err := s.markerRepo.GetLabelTags(userID, label)
-	if err != nil {
-		s.logger.Error("failed to get label tags", zap.Uint("userID", userID), zap.String("label", label), zap.Error(err))
-		return nil, apperrors.NewInternalError("failed to get label tags", err)
-	}
-	// Ensure non-nil slice for JSON serialization
-	if tags == nil {
-		tags = []data.Tag{}
-	}
-	return tags, nil
-}
-
-// SetLabelTags sets the default tags for a label and syncs to all existing markers
-func (s *MarkerService) SetLabelTags(userID uint, label string, tagIDs []uint) error {
-	if label == "" {
-		return apperrors.NewValidationError("label is required")
-	}
-
-	// Validate that all tag IDs exist
-	if len(tagIDs) > 0 {
-		tags, err := s.tagRepo.GetByIDs(tagIDs)
-		if err != nil {
-			s.logger.Error("failed to validate tags", zap.Uint("userID", userID), zap.Error(err))
-			return apperrors.NewInternalError("failed to validate tags", err)
-		}
-		if len(tags) != len(tagIDs) {
-			return apperrors.NewValidationError("one or more tags do not exist")
-		}
-	}
-
-	if err := s.markerRepo.SetLabelTags(userID, label, tagIDs); err != nil {
-		s.logger.Error("failed to set label tags", zap.Uint("userID", userID), zap.String("label", label), zap.Error(err))
-		return apperrors.NewInternalError("failed to set label tags", err)
-	}
-
-	s.logger.Info("set label tags",
-		zap.Uint("userID", userID),
-		zap.String("label", label),
-		zap.Int("tagCount", len(tagIDs)))
-
-	return nil
 }
 
 // GetMarkerTags returns tags for a specific marker
@@ -794,75 +1037,6 @@ func (s *MarkerService) SetMarkerTags(userID, markerID uint, tagIDs []uint) erro
 		s.logger.Error("failed to set marker tags", zap.Uint("markerID", markerID), zap.Error(err))
 		return apperrors.NewInternalError("failed to set marker tags", err)
 	}
-	return nil
-}
-
-// GenerateScenePreview generates a preview video for a scene by sampling multiple segments.
-// Returns nil immediately if scene preview generation is disabled.
-// When forceTarget is "previews" or "both", the existing preview is regenerated.
-// Implements jobs.AnimatedThumbnailGenerator.
-func (s *MarkerService) GenerateScenePreview(ctx context.Context, sceneID uint, forceTarget string) error {
-	if !s.scenePreviewEnabled {
-		return nil
-	}
-
-	scene, err := s.sceneRepo.GetByID(sceneID)
-	if err != nil {
-		return fmt.Errorf("failed to get scene for preview generation: %w", err)
-	}
-
-	// Skip if already has a preview video (unless force regeneration is requested)
-	forcePreview := forceTarget == "previews" || forceTarget == "both"
-	if scene.PreviewVideoPath != "" && !forcePreview {
-		return nil
-	}
-
-	// Validate scene has the required data
-	if scene.StoredPath == "" {
-		return fmt.Errorf("scene has no stored path")
-	}
-	if _, err := os.Stat(scene.StoredPath); os.IsNotExist(err) {
-		return fmt.Errorf("scene file not found: %s", scene.StoredPath)
-	}
-	if scene.Duration <= 0 {
-		return fmt.Errorf("scene has no duration")
-	}
-
-	// Ensure output directory exists
-	if err := os.MkdirAll(s.scenePreviewDir, 0755); err != nil {
-		return fmt.Errorf("failed to create scene preview directory: %w", err)
-	}
-
-	outputFilename := fmt.Sprintf("%d_preview.mp4", scene.ID)
-	outputPath := filepath.Join(s.scenePreviewDir, outputFilename)
-
-	hasAudio := scene.AudioCodec != ""
-	err = ffmpeg.ExtractScenePreviewWithContext(ctx, scene.StoredPath, outputPath,
-		scene.Duration, s.scenePreviewSegments, s.scenePreviewSegmentDuration, s.scenePreviewMaxDim, s.scenePreviewCRF, hasAudio)
-	if err != nil && hasAudio && ctx.Err() == nil {
-		// An odd audio track (e.g. one that ends before a seek point) must not cost the scene its preview
-		s.logger.Warn("Scene preview with audio failed, retrying without audio",
-			zap.Uint("scene_id", scene.ID),
-			zap.Error(err))
-		err = ffmpeg.ExtractScenePreviewWithContext(ctx, scene.StoredPath, outputPath,
-			scene.Duration, s.scenePreviewSegments, s.scenePreviewSegmentDuration, s.scenePreviewMaxDim, s.scenePreviewCRF, false)
-	}
-	if err != nil {
-		return fmt.Errorf("failed to generate scene preview: %w", err)
-	}
-
-	// Update scene with preview video path
-	scene.PreviewVideoPath = outputFilename
-	if err := s.sceneRepo.UpdatePreviewVideoPath(scene.ID, outputFilename); err != nil {
-		// Clean up file on DB failure
-		os.Remove(outputPath)
-		return fmt.Errorf("failed to update scene with preview path: %w", err)
-	}
-
-	s.logger.Info("Generated scene preview video",
-		zap.Uint("scene_id", scene.ID),
-		zap.String("output", outputFilename))
-
 	return nil
 }
 
@@ -954,4 +1128,12 @@ func (s *MarkerService) AddMarkerTags(userID, markerID uint, tagIDs []uint) erro
 		return apperrors.NewInternalError("failed to add marker tags", err)
 	}
 	return nil
+}
+
+// sameLabelID tells whether two optional label IDs are the same label (or both none).
+func sameLabelID(a, b *uint) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }

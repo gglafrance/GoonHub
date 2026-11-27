@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import type { PlaylistDetail, PlaylistSceneEntry } from '~/types/playlist';
+import type { PlaylistDetail } from '~/types/playlist';
+import type { PlaylistQueueItem } from '~/utils/playlistQueue';
 
 const props = defineProps<{
     playlist: PlaylistDetail;
+    // Queue items in playlist order (scenes, or markers with their range)
+    items: PlaylistQueueItem[];
     currentIndex: number;
     effectiveOrder: number[];
     isShuffled: boolean;
@@ -19,17 +22,18 @@ const emit = defineEmits<{
     unshuffle: [];
 }>();
 
-const { formatDuration } = useFormatter();
+const { formatDuration, formatMarkerRange } = useFormatter();
+
+const getScene = (orderIndex: number): PlaylistQueueItem | null => {
+    const itemIndex = props.effectiveOrder[orderIndex];
+    if (itemIndex === undefined) return null;
+    return props.items[itemIndex] ?? null;
+};
 
 const remainingDuration = computed(() => {
     let total = 0;
     for (let i = props.currentIndex + 1; i < props.effectiveOrder.length; i++) {
-        const sceneIndex = props.effectiveOrder[i];
-        if (sceneIndex === undefined) continue;
-        const entry = props.playlist.scenes[sceneIndex];
-        if (entry) {
-            total += entry.scene.duration ?? 0;
-        }
+        total += getScene(i)?.duration ?? 0;
     }
     return total;
 });
@@ -37,17 +41,7 @@ const remainingDuration = computed(() => {
 const expanded = ref(false);
 const scrollContainer = ref<HTMLElement | null>(null);
 
-const currentScene = computed(() => {
-    const sceneIndex = props.effectiveOrder[props.currentIndex];
-    if (sceneIndex === undefined) return null;
-    return props.playlist.scenes[sceneIndex] ?? null;
-});
-
-const getScene = (orderIndex: number): PlaylistSceneEntry | null => {
-    const sceneIndex = props.effectiveOrder[orderIndex];
-    if (sceneIndex === undefined) return null;
-    return props.playlist.scenes[sceneIndex] ?? null;
-};
+const currentScene = computed(() => getScene(props.currentIndex));
 
 const openDrawer = () => {
     expanded.value = true;
@@ -99,16 +93,16 @@ onUnmounted(() => {
         <div
             v-if="!countdownVisible && !expanded"
             class="glass-panel border-border fixed inset-x-0 bottom-0 z-40 mx-3 border xl:hidden"
-            :style="{ marginBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }"
+            :style="{ marginBottom: 'calc(0.75rem + var(--app-bottom-clear))' }"
         >
             <div class="flex items-center gap-3 px-3 py-2.5" @click="openDrawer">
                 <!-- Current scene thumbnail -->
                 <div class="bg-void relative h-9 w-14 shrink-0 overflow-hidden rounded">
                     <img
-                        v-if="currentScene?.scene.thumbnail_path"
-                        :src="`/thumbnails/${currentScene.scene.id}`"
+                        v-if="currentScene?.thumbnailUrl"
+                        :src="currentScene.thumbnailUrl"
                         class="h-full w-full object-cover"
-                        :alt="currentScene.scene.title"
+                        :alt="currentScene.title"
                     />
                 </div>
 
@@ -263,10 +257,10 @@ onUnmounted(() => {
                         <!-- Thumbnail -->
                         <div class="bg-void relative h-10 w-16 shrink-0 overflow-hidden rounded">
                             <img
-                                v-if="getScene(orderIdx)?.scene.thumbnail_path"
-                                :src="`/thumbnails/${getScene(orderIdx)!.scene.id}`"
+                                v-if="getScene(orderIdx)?.thumbnailUrl"
+                                :src="getScene(orderIdx)!.thumbnailUrl!"
                                 class="h-full w-full object-cover"
-                                :alt="getScene(orderIdx)!.scene.title"
+                                :alt="getScene(orderIdx)!.title"
                                 loading="lazy"
                             />
                         </div>
@@ -277,10 +271,26 @@ onUnmounted(() => {
                                 class="truncate text-[11px] font-medium"
                                 :class="orderIdx === currentIndex ? 'text-white' : 'text-white/80'"
                             >
-                                {{ getScene(orderIdx)?.scene.title }}
+                                {{ getScene(orderIdx)?.title }}
+                            </div>
+                            <div
+                                v-if="getScene(orderIdx)?.subtitle"
+                                class="text-dim truncate text-[10px]"
+                            >
+                                {{ getScene(orderIdx)?.subtitle }}
                             </div>
                             <div class="text-dim font-mono text-[9px]">
-                                {{ formatDuration(getScene(orderIdx)?.scene.duration ?? 0) }}
+                                <template v-if="getScene(orderIdx)?.start != null">
+                                    {{
+                                        formatMarkerRange(
+                                            getScene(orderIdx)!.start!,
+                                            getScene(orderIdx)!.end,
+                                        )
+                                    }}
+                                </template>
+                                <template v-else>
+                                    {{ formatDuration(getScene(orderIdx)?.duration ?? 0) }}
+                                </template>
                             </div>
                         </div>
                     </button>

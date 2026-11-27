@@ -1,262 +1,115 @@
 <script setup lang="ts">
+// The header, laid out from the user's layout (docs/NAVIGATION.md, stores/navLayout).
+// From md: the top bar (by default the logo, then the search and account icons on the right)
+// and the nav row (by default the user pages, then the Manage folder). Below md: a compact top
+// bar, a bottom tab bar and a Menu sheet built from the same layout (utils/mobileNav.ts).
+// Items the user lacks the permission for are never shown. Signed out, only the logo.
 const authStore = useAuthStore();
-const showShortcuts = ref(false);
-const { enabled: safeModeEnabled, toggle: toggleSafeMode } = useSafeMode();
-const { enabled: hoverAudioEnabled, toggle: toggleHoverAudio } = useHoverAudio();
+const perms = useMyPermissions();
+const navLayoutStore = useNavLayoutStore();
+const { shortcutsVisible } = useCommandPalette();
+const { isMobile, menuOpen } = useMobileNav();
+const setShortcutsVisible = (value: boolean) => {
+    shortcutsVisible.value = value;
+};
+
+const resolved = computed(() => resolveNavLayout(navLayoutStore.layout, perms.has));
+const showNavRow = computed(() => !isNavBarEmpty(resolved.value.nav));
+const mobileNav = computed(() => buildMobileNav(resolved.value));
+const mobile = computed(() => authStore.isAuthenticated && isMobile.value);
+
+// Phones: the top bar slides away while scrolling down and comes back on the way up (the tab
+// bar stays). Never while the Menu sheet is open, nor near the top of the page.
+const SCROLL_DELTA = 6;
+const hidden = ref(false);
+const headerHeight = ref(0);
+let lastY = 0;
+function onScroll() {
+    const y = window.scrollY;
+    const dy = y - lastY;
+    if (!mobile.value || menuOpen.value || y < headerHeight.value) {
+        hidden.value = false;
+        lastY = y;
+    } else if (Math.abs(dy) > SCROLL_DELTA) {
+        hidden.value = dy > 0;
+        lastY = y;
+    }
+}
+watch([mobile, menuOpen], () => onScroll());
+
+// Height of the sticky header (0 while slid away), for the pages and bars that stick right
+// under it
+const headerRef = ref<HTMLElement | null>(null);
+let resizeObserver: ResizeObserver | null = null;
+let stopTracking: (() => void) | null = null;
+
+watch([headerHeight, hidden], ([h, isHidden]) => {
+    if (h > 0) setChromeVar('--app-header-h', isHidden ? '0px' : `${h}px`);
+});
+
+onMounted(() => {
+    stopTracking = startMobileNavTracking();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    if (headerRef.value) {
+        resizeObserver = new ResizeObserver(([entry]) => {
+            if (!entry) return;
+            const h = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
+            headerHeight.value = Math.round(h);
+        });
+        resizeObserver.observe(headerRef.value);
+    }
+});
+
+onBeforeUnmount(() => {
+    stopTracking?.();
+    window.removeEventListener('scroll', onScroll);
+    resizeObserver?.disconnect();
+    setChromeVar('--app-header-h', null);
+});
 </script>
 
 <template>
-    <div class="sticky top-0 z-50">
-        <!-- Main Header -->
-        <header class="border-border bg-void/80 border-b backdrop-blur-md">
-            <div class="mx-auto max-w-415 px-4 sm:px-5">
-                <div class="flex h-12 items-center justify-between">
-                    <NuxtLink to="/" class="group flex items-center gap-2">
-                        <div
-                            class="bg-lava/10 group-hover:bg-lava/20 flex h-7 w-7 items-center
-                                justify-center rounded-md transition-colors"
-                        >
-                            <div class="bg-lava h-2 w-2 rounded-full"></div>
-                        </div>
-                        <h1 class="text-sm font-bold tracking-tight text-white">
-                            GOON<span class="text-lava">HUB</span>
-                        </h1>
-                    </NuxtLink>
+    <div
+        ref="headerRef"
+        class="sticky top-0 z-50 pt-[env(safe-area-inset-top)] transition-transform duration-200"
+        :class="[
+            mobile ? 'bg-void/85 backdrop-blur-md' : '',
+            { '-translate-y-full': hidden && mobile },
+        ]"
+    >
+        <!-- Phones: compact top bar (the pages are in the bottom tab bar and the Menu sheet) -->
+        <HeaderMobileTopBar v-if="mobile" :items="mobileNav.quick" />
 
-                    <div v-if="authStore.isAuthenticated" class="flex items-center gap-2 sm:gap-3">
-                        <div class="flex items-center gap-2">
-                            <div
-                                class="border-border bg-panel flex h-7 w-7 items-center
-                                    justify-center rounded-full border"
-                            >
-                                <span class="text-xs font-semibold text-white">
-                                    {{ authStore.user!.username.charAt(0).toUpperCase() }}
-                                </span>
-                            </div>
-                            <div class="hidden sm:block">
-                                <div class="text-xs font-medium text-white">
-                                    {{ authStore.user!.username }}
-                                </div>
-                                <div
-                                    class="font-mono text-[10px] tracking-wider uppercase"
-                                    :class="
-                                        authStore.user!.role === 'admin'
-                                            ? 'text-emerald'
-                                            : 'text-dim'
-                                    "
-                                >
-                                    {{ authStore.user!.role }}
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Keyboard shortcuts - hidden on mobile -->
-                        <button
-                            class="border-border text-dim hover:border-lava/30 hover:text-lava
-                                hidden h-7 w-7 items-center justify-center rounded-md border
-                                transition-all sm:flex"
-                            title="Keyboard shortcuts"
-                            @click="showShortcuts = true"
-                        >
-                            <Icon name="heroicons:command-line" size="16" />
-                        </button>
-
-                        <button
-                            class="border-border flex h-7 w-7 items-center justify-center rounded-md
-                                border transition-all"
-                            :class="
-                                safeModeEnabled
-                                    ? 'border-lava/30 text-lava'
-                                    : 'text-dim hover:border-lava/30 hover:text-lava'
-                            "
-                            :title="safeModeEnabled ? 'Disable safe mode' : 'Enable safe mode'"
-                            @click="toggleSafeMode"
-                        >
-                            <Icon
-                                :name="safeModeEnabled ? 'heroicons:eye-slash' : 'heroicons:eye'"
-                                size="16"
-                            />
-                        </button>
-
-                        <button
-                            class="border-border flex h-7 w-7 items-center justify-center rounded-md
-                                border transition-all"
-                            :class="
-                                hoverAudioEnabled
-                                    ? 'border-lava/30 text-lava'
-                                    : 'text-dim hover:border-lava/30 hover:text-lava'
-                            "
-                            :title="
-                                hoverAudioEnabled
-                                    ? 'Mute preview sound on hover'
-                                    : 'Play preview sound on hover'
-                            "
-                            @click="toggleHoverAudio"
-                        >
-                            <Icon
-                                :name="
-                                    hoverAudioEnabled
-                                        ? 'heroicons:speaker-wave'
-                                        : 'heroicons:speaker-x-mark'
-                                "
-                                size="16"
-                            />
-                        </button>
-
-                        <HeaderJobStatus />
-
-                        <NuxtLink
-                            to="/settings"
-                            class="border-border text-dim hover:border-lava/30 hover:text-lava flex
-                                h-7 w-7 items-center justify-center rounded-md border
-                                transition-all"
-                        >
-                            <Icon name="heroicons:cog-6-tooth" size="16" />
-                        </NuxtLink>
-
-                        <!-- Logout - icon only on mobile -->
-                        <button
-                            class="border-border text-dim hover:border-lava/30 hover:text-lava flex
-                                h-7 w-7 items-center justify-center rounded-md border transition-all
-                                sm:h-auto sm:w-auto sm:px-2.5 sm:py-1"
-                            @click="authStore.logout()"
-                        >
-                            <Icon
-                                name="heroicons:arrow-right-on-rectangle"
-                                size="16"
-                                class="sm:hidden"
-                            />
-                            <span class="ml-1.5 hidden text-[11px] font-medium sm:inline"
-                                >Logout</span
-                            >
-                        </button>
+        <template v-else>
+            <!-- Main Header -->
+            <header class="border-border bg-void/80 border-b backdrop-blur-md">
+                <div class="mx-auto max-w-415 px-4 sm:px-5">
+                    <HeaderLayoutBar
+                        v-if="authStore.isAuthenticated"
+                        bar="top"
+                        :zones="resolved.top"
+                    />
+                    <div v-else class="flex h-12 items-center">
+                        <HeaderLogo />
                     </div>
                 </div>
-            </div>
-        </header>
+            </header>
 
-        <!-- Secondary Nav Bar -->
-        <nav
-            v-if="authStore.isAuthenticated"
-            class="border-border bg-void/60 border-b backdrop-blur-sm"
-        >
-            <div class="mx-auto max-w-415 px-4 sm:px-5">
-                <div
-                    class="flex h-10 items-center justify-between sm:h-9 sm:justify-start sm:gap-1"
-                >
-                    <NuxtLink
-                        to="/search"
-                        class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
-                            text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
-                            sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
-                        active-class="!text-lava bg-lava/10"
-                        title="Search"
-                    >
-                        <Icon
-                            name="heroicons:magnifying-glass"
-                            size="18"
-                            class="sm:!h-3.5 sm:!w-3.5"
-                        />
-                        <span class="hidden sm:inline">Search</span>
-                    </NuxtLink>
+            <!-- Secondary nav bar -->
+            <HeaderNavBar v-if="authStore.isAuthenticated && showNavRow" :zones="resolved.nav" />
+        </template>
 
-                    <NuxtLink
-                        to="/history"
-                        class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
-                            text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
-                            sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
-                        active-class="!text-lava bg-lava/10"
-                        title="History"
-                    >
-                        <Icon name="heroicons:clock" size="18" class="sm:!h-3.5 sm:!w-3.5" />
-                        <span class="hidden sm:inline">History</span>
-                    </NuxtLink>
-
-                    <NuxtLink
-                        to="/actors"
-                        class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
-                            text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
-                            sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
-                        active-class="!text-lava bg-lava/10"
-                        title="Actors"
-                    >
-                        <Icon name="heroicons:user-group" size="18" class="sm:!h-3.5 sm:!w-3.5" />
-                        <span class="hidden sm:inline">Actors</span>
-                    </NuxtLink>
-
-                    <NuxtLink
-                        to="/studios"
-                        class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
-                            text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
-                            sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
-                        active-class="!text-lava bg-lava/10"
-                        title="Studios"
-                    >
-                        <Icon
-                            name="heroicons:building-office-2"
-                            size="18"
-                            class="sm:!h-3.5 sm:!w-3.5"
-                        />
-                        <span class="hidden sm:inline">Studios</span>
-                    </NuxtLink>
-
-                    <NuxtLink
-                        to="/playlists"
-                        class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
-                            text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
-                            sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
-                        active-class="!text-lava bg-lava/10"
-                        title="Playlists"
-                    >
-                        <Icon name="heroicons:queue-list" size="18" class="sm:!h-3.5 sm:!w-3.5" />
-                        <span class="hidden sm:inline">Playlists</span>
-                    </NuxtLink>
-
-                    <NuxtLink
-                        to="/explorer"
-                        class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
-                            text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
-                            sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
-                        active-class="!text-lava bg-lava/10"
-                        title="Explorer"
-                    >
-                        <Icon name="heroicons:folder" size="18" class="sm:!h-3.5 sm:!w-3.5" />
-                        <span class="hidden sm:inline">Explorer</span>
-                    </NuxtLink>
-
-                    <NuxtLink
-                        to="/markers"
-                        class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
-                            text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
-                            sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
-                        active-class="!text-lava bg-lava/10"
-                        title="Markers"
-                    >
-                        <Icon name="heroicons:bookmark" size="18" class="sm:!h-3.5 sm:!w-3.5" />
-                        <span class="hidden sm:inline">Markers</span>
-                    </NuxtLink>
-
-                    <NuxtLink
-                        v-if="authStore.user?.role === 'admin'"
-                        to="/duplicates"
-                        class="text-dim flex items-center justify-center rounded-md px-3 py-1.5
-                            text-[11px] font-medium transition-all hover:bg-white/5 hover:text-white
-                            sm:justify-start sm:gap-1.5 sm:px-2.5 sm:py-1"
-                        active-class="!text-lava bg-lava/10"
-                        title="Duplicates"
-                    >
-                        <Icon
-                            name="heroicons:document-duplicate"
-                            size="18"
-                            class="sm:!h-3.5 sm:!w-3.5"
-                        />
-                        <span class="hidden sm:inline">Duplicates</span>
-                    </NuxtLink>
-                </div>
-            </div>
-        </nav>
-
-        <!-- Keyboard Shortcuts Modal -->
-        <KeyboardShortcutsModal :visible="showShortcuts" @close="showShortcuts = false" />
+        <!-- Live badges, toasts and the layout, whatever is shown -->
+        <HeaderLiveSources v-if="authStore.isAuthenticated" />
     </div>
+
+    <!-- Outside the header: its slide (a transform) would anchor their fixed overlays to it -->
+    <KeyboardShortcutsModal :visible="shortcutsVisible" @close="setShortcutsVisible(false)" />
+    <CommandPalette v-if="authStore.isAuthenticated" />
+
+    <!-- Phones: bottom tab bar and the Menu sheet -->
+    <template v-if="mobile">
+        <HeaderMobileTabBar :nav="mobileNav" />
+        <HeaderMobileMenuSheet :nav="mobileNav" />
+    </template>
 </template>

@@ -43,8 +43,8 @@ func (a *jobHistoryAdapter) RecordJobStartWithRetry(jobID string, sceneID uint, 
 	a.service.RecordJobStartWithRetry(jobID, sceneID, sceneTitle, phase, maxRetries, retryCount)
 }
 
-func (a *jobHistoryAdapter) RecordJobComplete(jobID string) {
-	a.service.RecordJobComplete(jobID)
+func (a *jobHistoryAdapter) RecordJobComplete(jobID string, sceneID uint, phase string) {
+	a.service.RecordJobComplete(jobID, sceneID, phase)
 }
 
 func (a *jobHistoryAdapter) RecordJobCancelled(jobID string) {
@@ -89,27 +89,43 @@ func (a *matchingServiceAdapter) FindMatches(sceneID uint, fpType string, audioF
 	if err != nil {
 		return nil, err
 	}
+	return toProcessingMatches(results), nil
+}
+
+func (a *matchingServiceAdapter) ProcessMatches(sceneID uint, matches []processing.MatchResult) error {
+	return a.ms.ProcessMatches(sceneID, toMatchingMatches(matches))
+}
+
+// toProcessingMatches converts matcher results to job results, aligned segment included.
+func toProcessingMatches(results []matching.MatchResult) []processing.MatchResult {
 	out := make([]processing.MatchResult, len(results))
 	for i, r := range results {
 		out[i] = processing.MatchResult{
 			SceneID:         r.SceneID,
 			ConfidenceScore: r.ConfidenceScore,
 			MatchType:       r.MatchType,
+			QueryStart:      r.QueryStart,
+			QueryEnd:        r.QueryEnd,
+			Delta:           r.Delta,
 		}
 	}
-	return out, nil
+	return out
 }
 
-func (a *matchingServiceAdapter) ProcessMatches(sceneID uint, matches []processing.MatchResult) error {
-	converted := make([]matching.MatchResult, len(matches))
+// toMatchingMatches converts job results back to matcher results, aligned segment included.
+func toMatchingMatches(matches []processing.MatchResult) []matching.MatchResult {
+	out := make([]matching.MatchResult, len(matches))
 	for i, m := range matches {
-		converted[i] = matching.MatchResult{
+		out[i] = matching.MatchResult{
 			SceneID:         m.SceneID,
 			ConfidenceScore: m.ConfidenceScore,
 			MatchType:       m.MatchType,
+			QueryStart:      m.QueryStart,
+			QueryEnd:        m.QueryEnd,
+			Delta:           m.Delta,
 		}
 	}
-	return a.ms.ProcessMatches(sceneID, converted)
+	return out
 }
 
 // SceneProcessingService orchestrates scene processing using worker pools
@@ -120,6 +136,8 @@ type SceneProcessingService struct {
 	jobSubmitter  *processing.JobSubmitter
 	jobHistory    *JobHistoryService
 	logger        *zap.Logger
+
+	remoteCanceller RemoteJobCanceller
 }
 
 // NewSceneProcessingService creates a new SceneProcessingService
@@ -137,6 +155,7 @@ func NewSceneProcessingService(
 ) *SceneProcessingService {
 	// Create pool manager
 	poolManager := processing.NewPoolManager(cfg, logger, poolConfigRepo, processingConfigRepo, duplicationCfg)
+	poolManager.SetFingerprintCommitter(jobs.NewFingerprintCommitter(repo, logger))
 
 	// Create phase tracker
 	phaseTracker := processing.NewPhaseTracker(triggerConfigRepo, poolManager.IsDuplicationEnabled())
@@ -252,8 +271,15 @@ func (s *SceneProcessingService) SubmitPhaseWithRetry(sceneID uint, phase string
 
 // SubmitBulkPhase submits a processing phase for multiple scenes.
 // sceneIDs optionally scopes the operation to specific scenes (nil = all scenes).
-func (s *SceneProcessingService) SubmitBulkPhase(phase string, mode string, forceTarget string, sceneIDs []uint) (*BulkPhaseResult, error) {
-	return s.jobSubmitter.SubmitBulkPhase(phase, mode, forceTarget, sceneIDs)
+// In "missing" mode the failing scenes of the phase are skipped unless includeFailing is set.
+func (s *SceneProcessingService) SubmitBulkPhase(phase string, mode string, forceTarget string, sceneIDs []uint, includeFailing bool) (*BulkPhaseResult, error) {
+	return s.jobSubmitter.SubmitBulkPhase(phase, mode, forceTarget, sceneIDs, includeFailing)
+}
+
+// SetFailingChecker sets what tells the failing scenes of a phase to the bulk runs.
+// Must be called before jobs are submitted.
+func (s *SceneProcessingService) SetFailingChecker(checker processing.FailingChecker) {
+	s.jobSubmitter.SetFailingChecker(checker)
 }
 
 // CancelJob cancels a job by its ID.
@@ -263,6 +289,17 @@ func (s *SceneProcessingService) CancelJob(jobID string) error {
 	err := s.poolManager.CancelJob(jobID)
 	if err == nil {
 		return nil
+	}
+	// A job leased to a remote worker: cancelled in the database (the worker learns it on its
+	// next heartbeat, a push worker at once).
+	if s.remoteCanceller != nil {
+		cancelled, remoteErr := s.remoteCanceller.CancelJob(jobID)
+		if remoteErr != nil {
+			return remoteErr
+		}
+		if cancelled {
+			return nil
+		}
 	}
 	// Fallback: cancel pending job directly in DB
 	if s.jobHistory != nil {
@@ -282,9 +319,14 @@ func (s *SceneProcessingService) GetExecutingJob(jobID string) (jobs.Job, bool) 
 	return s.poolManager.GetExecutingJob(jobID)
 }
 
-// GetPoolConfig returns the current pool configuration
+// GetPoolConfig returns the effective pool sizes (quiet-hours overrides included)
 func (s *SceneProcessingService) GetPoolConfig() PoolConfig {
 	return s.poolManager.GetPoolConfig()
+}
+
+// GetBasePoolConfig returns the configured pool sizes, without the quiet-hours overrides
+func (s *SceneProcessingService) GetBasePoolConfig() PoolConfig {
+	return s.poolManager.GetBasePoolConfig()
 }
 
 // GetQueueStatus returns the current queue status

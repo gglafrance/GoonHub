@@ -58,12 +58,62 @@ const SCENE_RESTORE_EVENTS = ['scene:restored'];
 // Combine all event types for iteration
 const EVENT_HANDLERS: Record<string, FieldExtractor> = SCENE_UPDATE_HANDLERS;
 
+// Events dispatched to the listeners registered with onSSEEvent (features outside the scene
+// store: social, presence...). Add the type here and in public/workers/sse-worker.js.
+const LISTENER_EVENT_TYPES: readonly string[] = [
+    ...SOCIAL_SSE_EVENTS,
+    ...PRESENCE_SSE_EVENTS,
+    ...TOGETHER_SSE_EVENTS,
+    ...MESSAGE_SSE_EVENTS,
+    NAV_LAYOUT_SSE_EVENT,
+];
+
+export interface SSEListenerEvent {
+    type: string;
+    data?: Record<string, unknown>;
+}
+
+type SSEListener = (event: SSEListenerEvent) => void;
+
+const sseListeners = new Map<string, Set<SSEListener>>();
+
+/**
+ * Listens to an SSE event type (one of LISTENER_EVENT_TYPES) in this tab, whatever the
+ * transport (shared worker, leader tab, direct stream). Returns the unsubscribe function.
+ */
+export function onSSEEvent(eventType: string, listener: SSEListener): () => void {
+    let set = sseListeners.get(eventType);
+    if (!set) {
+        set = new Set();
+        sseListeners.set(eventType, set);
+    }
+    set.add(listener);
+    return () => {
+        sseListeners.get(eventType)?.delete(listener);
+    };
+}
+
+function dispatchToListeners(eventType: string, event: SSEListenerEvent) {
+    for (const listener of sseListeners.get(eventType) ?? []) {
+        try {
+            listener(event);
+        } catch {
+            // a failing listener must not break the others nor the stream
+        }
+    }
+}
+
 function handleSSEEvent(
     eventType: string,
     rawData: string,
     sceneStore: ReturnType<typeof useSceneStore>,
 ) {
     const event: SceneEventData = JSON.parse(rawData);
+
+    if (LISTENER_EVENT_TYPES.includes(eventType)) {
+        dispatchToListeners(eventType, { type: eventType, data: event.data });
+        return;
+    }
 
     // Handle scene removal events (trashed or deleted)
     if (SCENE_REMOVE_EVENTS.includes(eventType)) {
@@ -250,7 +300,7 @@ function useSSELeaderElection() {
             });
         }
 
-        for (const eventType of SCAN_EVENTS) {
+        for (const eventType of [...SCAN_EVENTS, ...LISTENER_EVENT_TYPES]) {
             eventSource.addEventListener(eventType, (e: MessageEvent) => {
                 dispatchEvent(eventType, e.data);
                 channel?.postMessage({ type: 'sse-event', eventType, data: e.data });
@@ -498,8 +548,8 @@ function useSSEFallback() {
             });
         }
 
-        // Scan event handlers
-        for (const eventType of SCAN_EVENTS) {
+        // Scan event handlers and the onSSEEvent listeners
+        for (const eventType of [...SCAN_EVENTS, ...LISTENER_EVENT_TYPES]) {
             eventSource.addEventListener(eventType, (e: MessageEvent) => {
                 handleSSEEvent(eventType, e.data, sceneStore);
             });

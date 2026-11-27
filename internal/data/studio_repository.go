@@ -23,6 +23,11 @@ type StudioRepository interface {
 
 	// Bulk operations
 	BulkSetStudioForScenes(sceneIDs []uint, studioID *uint) error
+
+	// Names and aliases (studio_alias_repository.go)
+	FindByNameOrAlias(names []string, excludeID uint) ([]Studio, error)
+	GetMergePreview(targetID, sourceID uint) (*StudioMergeStats, error)
+	Merge(target *Studio, source *Studio) (*StudioMergeStats, []uint, error)
 }
 
 type StudioRepositoryImpl struct {
@@ -130,7 +135,7 @@ func (r *StudioRepositoryImpl) Search(query string, page, limit int, sort string
 	offset := (page - 1) * limit
 	searchPattern := "%" + query + "%"
 
-	countQuery := r.DB.Model(&Studio{}).Where("name ILIKE ?", searchPattern)
+	countQuery := r.DB.Model(&Studio{}).Where("(name ILIKE ? OR EXISTS (SELECT 1 FROM unnest(aliases) AS al(v) WHERE al.v ILIKE ?))", searchPattern, searchPattern)
 	if err := countQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -142,7 +147,7 @@ func (r *StudioRepositoryImpl) Search(query string, page, limit int, sort string
 		Select("studios.*, COALESCE(COUNT(scenes.id), 0) as scene_count").
 		Joins("LEFT JOIN scenes ON scenes.studio_id = studios.id AND scenes.deleted_at IS NULL").
 		Where("studios.deleted_at IS NULL").
-		Where("studios.name ILIKE ?", searchPattern).
+		Where("(studios.name ILIKE ? OR EXISTS (SELECT 1 FROM unnest(studios.aliases) AS al(v) WHERE al.v ILIKE ?))", searchPattern, searchPattern).
 		Group("studios.id").
 		Order(orderClause).
 		Limit(limit).

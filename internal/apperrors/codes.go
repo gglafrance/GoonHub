@@ -25,6 +25,13 @@ const (
 	CodeVideoDimensionsNotAvailable = "VIDEO_DIMENSIONS_NOT_AVAILABLE"
 	CodeVideoFileNotFound           = "VIDEO_FILE_NOT_FOUND"
 
+	// Storage errors
+	CodeStoragePathReadOnly = "STORAGE_PATH_READ_ONLY"
+
+	// Goon2gether errors
+	CodeLobbyBanned = "LOBBY_BANNED"
+	CodeLobbyFull   = "LOBBY_FULL"
+
 	// Processing errors
 	CodeProcessingFailed = "PROCESSING_FAILED"
 	CodeProcessingQueued = "PROCESSING_QUEUED"

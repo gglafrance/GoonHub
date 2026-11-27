@@ -8,6 +8,9 @@ export default defineNuxtConfig({
     app: {
         head: {
             title: 'GoonHub',
+            // viewport-fit=cover: the notch and home indicator insets are exposed through
+            // env(safe-area-inset-*) (header, mobile tab bar)
+            viewport: 'width=device-width, initial-scale=1, viewport-fit=cover',
             titleTemplate: '%s - GoonHub',
             htmlAttrs: {
                 style: 'background-color:#050505',
@@ -113,7 +116,7 @@ export default defineNuxtConfig({
                 },
                 {
                     urlPattern:
-                        /^\/(thumbnails|sprites|actor-images|studio-logos|marker-thumbnails|scene-previews)\/.*/i,
+                        /^\/(thumbnails|sprites|actor-images|studio-logos|marker-thumbnails|scene-previews|emotes)\/.*/i,
                     handler: 'CacheFirst',
                     options: {
                         cacheName: 'media-cache',
@@ -176,6 +179,8 @@ export default defineNuxtConfig({
                 '/api': {
                     target: 'http://localhost:8080',
                     changeOrigin: true,
+                    // Goon2gether WebSocket (/api/v1/together/lobbies/:id/ws)
+                    ws: true,
                 },
                 '/thumbnails': {
                     target: 'http://localhost:8080',
@@ -202,6 +207,10 @@ export default defineNuxtConfig({
                     changeOrigin: true,
                 },
                 '/scene-previews': {
+                    target: 'http://localhost:8080',
+                    changeOrigin: true,
+                },
+                '/emotes': {
                     target: 'http://localhost:8080',
                     changeOrigin: true,
                 },

@@ -12,16 +12,22 @@ useSeoMeta({
 
 const api = useApi();
 const router = useRouter();
-const authStore = useAuthStore();
 const settingsStore = useSettingsStore();
 
 const actors = ref<ActorListItem[]>([]);
 const total = ref(0);
 const currentPage = useUrlPagination();
 const { limit, showSelector, maxLimit, updatePageSize } = usePageSize();
-const searchQuery = ref('');
+// Name search, kept in the URL (`q`) once typed (debounced), like the page and the sort
+const urlSearch = useUrlString('q');
+const searchQuery = ref(urlSearch.value);
 const sortOrder = useUrlSort(settingsStore.sortPreferences?.actors || 'name_asc');
-const genderFilter = ref<string[]>(JSON.parse(localStorage.getItem('actorGenderFilter') || '[]'));
+// Gender filter: in the URL (`gender`); without it, the last one used on this device
+const genderFilter = useUrlList('gender');
+if (!useRoute().query.gender) {
+    const stored: unknown = JSON.parse(localStorage.getItem('actorGenderFilter') || '[]');
+    if (Array.isArray(stored) && stored.length > 0) genderFilter.value = stored.map(String);
+}
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 const showCreateModal = ref(false);
@@ -42,7 +48,8 @@ const genderOptions = [
     { value: 'Non-binary', label: 'Non-binary' },
 ];
 
-const isAdmin = computed(() => authStore.user?.role === 'admin');
+const perms = useMyPermissions();
+const canManage = computed(() => perms.has('actors:manage'));
 
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -83,12 +90,18 @@ watch(searchQuery, () => {
         clearTimeout(searchTimeout);
     }
     searchTimeout = setTimeout(() => {
+        urlSearch.value = searchQuery.value;
         if (currentPage.value === 1) {
             loadActors(1);
         } else {
             currentPage.value = 1;
         }
     }, 300);
+});
+
+// Browser back/forward, links to this page
+watch(urlSearch, (value) => {
+    if (value !== searchQuery.value) searchQuery.value = value;
 });
 
 watch(sortOrder, () => {
@@ -131,7 +144,7 @@ definePageMeta({
                     <h1 class="text-lg font-semibold text-white">Actors</h1>
                     <div class="flex items-center gap-2">
                         <button
-                            v-if="isAdmin"
+                            v-if="canManage"
                             class="bg-lava hover:bg-lava-glow flex items-center gap-1 rounded-lg
                                 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
                             @click="showCreateModal = true"
@@ -204,6 +217,22 @@ definePageMeta({
 
             <!-- Actor Grid -->
             <div v-else>
+                <Pagination
+                    v-model="currentPage"
+                    position="top"
+                    :total="total"
+                    :limit="limit"
+                    :show-page-size-selector="showSelector"
+                    :max-limit="maxLimit"
+                    @update:limit="
+                        (v: number) => {
+                            updatePageSize(v);
+                            if (currentPage === 1) loadActors(1);
+                            else currentPage = 1;
+                        }
+                    "
+                />
+
                 <ActorGrid :actors="actors" />
 
                 <Pagination

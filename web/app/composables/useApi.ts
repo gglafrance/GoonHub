@@ -44,6 +44,7 @@ export const useApi = () => {
         searchScenes: scenes.searchScenes,
         fetchAllSearchSceneIDs: scenes.fetchAllSearchSceneIDs,
         fetchFilterOptions: scenes.fetchFilterOptions,
+        fetchSourceSites: scenes.fetchSourceSites,
         fetchScene: scenes.fetchScene,
         updateSceneDetails: scenes.updateSceneDetails,
         extractThumbnail: scenes.extractThumbnail,
@@ -67,6 +68,7 @@ export const useApi = () => {
         // Settings operations
         fetchSettings: settings.fetchSettings,
         updateAllSettings: settings.updateAllSettings,
+        patchSettings: settings.patchSettings,
         changePassword: settings.changePassword,
         changeUsername: settings.changeUsername,
         getParsingRules: settings.getParsingRules,
@@ -80,7 +82,6 @@ export const useApi = () => {
         deleteUser: admin.deleteUser,
         fetchRoles: admin.fetchRoles,
         fetchPermissions: admin.fetchPermissions,
-        syncRolePermissions: admin.syncRolePermissions,
         getSearchStatus: admin.getSearchStatus,
         triggerReindex: admin.triggerReindex,
 

@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import type { JobHistory, JobListResponse } from '~/types/jobs';
+import type {
+    BulkCancelResponse,
+    HistoryPurgeResult,
+    JobHistory,
+    JobListResponse,
+    PoolConfig,
+} from '~/types/jobs';
 import type { Scene } from '~/types/scene';
 
 const { fetchJobs, retryJob, retryAllFailed, retryBatchJobs, clearFailedJobs } = useApiJobs();
@@ -11,8 +17,14 @@ const route = useRoute();
 const loading = ref(false);
 const historyJobs = ref<JobHistory[]>([]);
 const activeJobs = ref<JobHistory[]>([]);
-const poolConfig = ref({ metadata_workers: 0, thumbnail_workers: 0, sprites_workers: 0 });
-const retention = ref('');
+const poolConfig = ref<PoolConfig>({
+    metadata_workers: 0,
+    thumbnail_workers: 0,
+    sprites_workers: 0,
+    animated_thumbnails_workers: 0,
+    fingerprint_workers: 0,
+    duplication_enabled: false,
+});
 const error = ref('');
 const message = ref('');
 const statusFilter = ref('');
@@ -60,7 +72,6 @@ const loadJobs = async (silent = false) => {
         activeJobs.value = data.active_jobs || [];
         poolConfig.value = data.pool_config;
         setTotal(data.total);
-        retention.value = data.retention;
     } catch (e: unknown) {
         error.value = e instanceof Error ? e.message : 'Failed to load jobs';
     } finally {
@@ -176,6 +187,20 @@ const handleClearFailed = async () => {
     }
 };
 
+const handleBulkCancelled = (result: BulkCancelResponse) => {
+    const parts = [`${result.pending_cancelled.toLocaleString()} pending`];
+    if (result.queued_skipped > 0) parts.push(`${result.queued_skipped} queued`);
+    if (result.running_cancelled > 0) parts.push(`${result.running_cancelled} running`);
+    showMessage(`Cancelled ${parts.join(', ')} job(s)`);
+    loadJobs(true);
+};
+
+const handlePurged = (result: HistoryPurgeResult) => {
+    showMessage(`Purged ${result.total.toLocaleString()} old job record(s)`);
+    selectedJobId.value = null;
+    loadJobs(true);
+};
+
 // Fetch scene path when a job is selected
 const fetchScenePath = async (sceneId: number) => {
     if (scenePathCache.value.has(sceneId)) return;
@@ -264,7 +289,7 @@ watch(liveJobsKey, (key, prev) => {
         </div>
 
         <!-- Queue Status Panel (live via SSE) -->
-        <SettingsJobsQueueStatus :pool-config="poolConfig" />
+        <SettingsJobsQueueStatus :pool-config="poolConfig" @cancelled="handleBulkCancelled" />
 
         <!-- Active Jobs -->
         <SettingsJobsActiveJobs :active-jobs="activeJobs" @reload="loadJobs(true)" />
@@ -533,9 +558,7 @@ watch(liveJobsKey, (key, prev) => {
             </div>
         </div>
 
-        <!-- Retention Info -->
-        <div v-if="retention" class="text-dim text-center text-[11px]">
-            Records older than {{ retention }} are automatically cleaned up
-        </div>
+        <!-- Retention and purge -->
+        <SettingsJobsHistoryPurge @purged="handlePurged" />
     </div>
 </template>

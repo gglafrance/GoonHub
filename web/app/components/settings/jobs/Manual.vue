@@ -110,7 +110,10 @@ const handleBulkJob = async (phase: BulkPhase, mode: 'missing' | 'all') => {
         const forceTarget = phase === 'animated_thumbnails' && mode === 'all' ? 'both' : undefined;
         const result = await triggerBulkPhase(phase, mode, forceTarget);
         bulkResults.value[phase] = result;
-        message.value = `${phaseLabel(phase)} jobs queued: ${result.submitted} submitted, ${result.skipped} skipped`;
+        const failing = result.skipped_failing
+            ? `, ${result.skipped_failing} failing skipped (see Failing)`
+            : '';
+        message.value = `${phaseLabel(phase)} jobs queued: ${result.submitted} submitted, ${result.skipped} skipped${failing}`;
     } catch (e: unknown) {
         error.value = e instanceof Error ? e.message : `Failed to start ${phase} jobs`;
     } finally {
@@ -139,6 +142,7 @@ watch(
         scanStatus.value.current_scan.videos_skipped = data.videos_skipped;
         scanStatus.value.current_scan.videos_removed = data.videos_removed;
         scanStatus.value.current_scan.videos_moved = data.videos_moved;
+        scanStatus.value.current_scan.copies_found = data.copies_found;
         scanStatus.value.current_scan.errors = data.errors;
         scanStatus.value.current_scan.current_path = data.current_path;
         scanStatus.value.current_scan.current_file = data.current_file;
@@ -175,16 +179,7 @@ watch(
     },
 );
 
-const formatDateTime = (dateStr: string): string => {
-    const d = new Date(dateStr);
-    return d.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    });
-};
+const { formatDateTime } = useDateFormatter();
 
 const formatDuration = (start: string, end?: string): string => {
     const startDate = new Date(start);
@@ -330,7 +325,7 @@ const phaseDescription = (phase: string): string => {
                     <span class="text-xs font-medium text-white">Scanning in progress...</span>
                 </div>
 
-                <div class="mb-3 grid grid-cols-3 gap-4 sm:grid-cols-6">
+                <div class="mb-3 grid grid-cols-4 gap-4 sm:grid-cols-7">
                     <div>
                         <div class="text-dim text-[10px] tracking-wider uppercase">Found</div>
                         <div class="text-lg font-semibold text-white">
@@ -375,6 +370,19 @@ const phaseDescription = (phase: string): string => {
                             {{ scanStatus.current_scan.videos_skipped }}
                         </div>
                     </div>
+                    <div title="Files with the same content as an existing scene, not added again">
+                        <div class="text-dim text-[10px] tracking-wider uppercase">Copies</div>
+                        <div
+                            class="text-lg font-semibold"
+                            :class="
+                                scanStatus.current_scan.copies_found > 0
+                                    ? 'text-white/80'
+                                    : 'text-dim'
+                            "
+                        >
+                            {{ scanStatus.current_scan.copies_found || 0 }}
+                        </div>
+                    </div>
                     <div>
                         <div class="text-dim text-[10px] tracking-wider uppercase">Errors</div>
                         <div
@@ -409,6 +417,12 @@ const phaseDescription = (phase: string): string => {
                                 <th class="pr-3 pb-2 font-medium">Added</th>
                                 <th class="pr-3 pb-2 font-medium">Moved</th>
                                 <th class="pr-3 pb-2 font-medium">Missing</th>
+                                <th
+                                    class="pr-3 pb-2 font-medium"
+                                    title="Copies of existing scenes, not added again"
+                                >
+                                    Copies
+                                </th>
                                 <th class="pr-3 pb-2 font-medium">Duration</th>
                             </tr>
                         </thead>
@@ -443,6 +457,12 @@ const phaseDescription = (phase: string): string => {
                                     :class="scan.videos_removed > 0 ? 'text-amber-500' : 'text-dim'"
                                 >
                                     {{ scan.videos_removed || 0 }}
+                                </td>
+                                <td
+                                    class="py-2 pr-3"
+                                    :class="scan.copies_found > 0 ? 'text-white/80' : 'text-dim'"
+                                >
+                                    {{ scan.copies_found || 0 }}
                                 </td>
                                 <td class="text-dim py-2 pr-3">
                                     {{ formatDuration(scan.started_at, scan.completed_at) }}
@@ -527,6 +547,16 @@ const phaseDescription = (phase: string): string => {
                             <span class="text-dim">Skipped:</span>
                             <span class="font-medium text-white">{{
                                 bulkResults[phase]?.skipped
+                            }}</span>
+                        </div>
+                        <div
+                            v-if="bulkResults[phase]?.skipped_failing"
+                            class="flex items-center gap-1.5"
+                            title="Scenes that failed this phase several times in a row on an unchanged file. Retry them from the Failing tab."
+                        >
+                            <span class="text-dim">Failing skipped:</span>
+                            <span class="font-medium text-amber-400">{{
+                                bulkResults[phase]?.skipped_failing
                             }}</span>
                         </div>
                         <div v-if="bulkResults[phase]?.errors" class="flex items-center gap-1.5">

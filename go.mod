@@ -6,6 +6,7 @@ toolchain go1.24.12
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.43.0
+	github.com/coder/websocket v1.8.14
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-contrib/gzip v1.2.5
 	github.com/gin-gonic/gin v1.11.0

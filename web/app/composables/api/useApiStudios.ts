@@ -1,3 +1,5 @@
+import type { StudioMergePreview, StudioResolution } from '~/types/studio';
+
 /**
  * Studio-related API operations: CRUD, associations, and interactions.
  */
@@ -40,6 +42,7 @@ export const useApiStudios = () => {
         sort?: string,
         studioName?: string,
         seed?: number,
+        cardFields?: string,
     ) => {
         const params = new URLSearchParams({
             page: page.toString(),
@@ -49,6 +52,10 @@ export const useApiStudios = () => {
         if (query) params.set('q', query);
         if (sort) params.set('sort', sort);
         if (sort === 'random' && seed) params.set('seed', seed.toString());
+        if (cardFields) params.set('card_fields', cardFields);
+
+        // Size filters and sorts need files:view_size (403 otherwise)
+        stripRestrictedSceneParams(params, hasMyPermission);
 
         const response = await fetch(`/api/v1/scenes?${params}`, {
             headers: getAuthHeaders(),
@@ -57,8 +64,15 @@ export const useApiStudios = () => {
         return handleResponse(response);
     };
 
-    const createStudio = async (data: Record<string, unknown>) => {
-        const response = await fetch('/api/v1/admin/studios', {
+    // strict: a name or alias already used by another studio answers 409 with the existing
+    // studio (see getEntityConflict). Without it, duplicate names are allowed and used aliases
+    // are dropped (automatic flows such as PornDB matching).
+    const createStudio = async (
+        data: Record<string, unknown>,
+        options: { strict?: boolean } = {},
+    ) => {
+        const query = options.strict ? '?strict=true' : '';
+        const response = await fetch(`/api/v1/admin/studios${query}`, {
             method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify(data),
@@ -66,8 +80,13 @@ export const useApiStudios = () => {
         return handleResponse(response);
     };
 
-    const updateStudio = async (id: number, data: Record<string, unknown>) => {
-        const response = await fetch(`/api/v1/admin/studios/${id}`, {
+    const updateStudio = async (
+        id: number,
+        data: Record<string, unknown>,
+        options: { strict?: boolean } = {},
+    ) => {
+        const query = options.strict ? '?strict=true' : '';
+        const response = await fetch(`/api/v1/admin/studios/${id}${query}`, {
             method: 'PUT',
             headers: getAuthHeaders(),
             body: JSON.stringify(data),
@@ -173,8 +192,48 @@ export const useApiStudios = () => {
         return allIds;
     };
 
+    // Exact name-or-alias match (case-insensitive); null when no studio has this name
+    const resolveStudio = async (name: string): Promise<StudioResolution | null> => {
+        const params = new URLSearchParams({ name });
+        const response = await fetch(`/api/v1/studios/resolve?${params}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        if (response.status === 404) return null;
+        return handleResponse(response);
+    };
+
+    // Merge: the source studio is merged into the target studio (kept)
+    const fetchStudioMergePreview = async (
+        targetUuid: string,
+        sourceUuid: string,
+    ): Promise<StudioMergePreview> => {
+        const params = new URLSearchParams({ source_uuid: sourceUuid });
+        const response = await fetch(`/api/v1/studios/${targetUuid}/merge-preview?${params}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const mergeStudio = async (
+        targetUuid: string,
+        sourceUuid: string,
+    ): Promise<StudioMergePreview> => {
+        const response = await fetch(`/api/v1/studios/${targetUuid}/merge`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ source_uuid: sourceUuid }),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
     return {
         fetchStudios,
+        resolveStudio,
+        fetchStudioMergePreview,
+        mergeStudio,
         fetchStudioByUUID,
         fetchStudioScenes,
         createStudio,

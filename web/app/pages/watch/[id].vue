@@ -1,10 +1,16 @@
 <script setup lang="ts">
 import type { VttCue } from '~/composables/useVttParser';
+import type { Marker } from '~/types/marker';
+import type { PlaylistQueueItem } from '~/utils/playlistQueue';
+import type ScenePlayer from '~/components/ScenePlayer.vue';
 import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
 const route = useRoute();
 const router = useRouter();
 const settingsStore = useSettingsStore();
+const perms = useMyPermissions();
+// "Watch together" (Goon2gether): start a lobby with this scene or add it to one
+const showTogether = ref(false);
 
 const sceneId = computed(() => parseInt(route.params.id as string));
 
@@ -54,18 +60,25 @@ watch(
 );
 
 const playerError = ref<unknown>(null);
-const playerRef = ref<{
-    getCurrentTime: () => number;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    player?: any;
-    vttCues?: VttCue[];
-} | null>(null);
+const playerRef = ref<InstanceType<typeof ScenePlayer> | null>(null);
 const showResumePrompt = ref(false);
 const startTime = ref(0);
+// Marker range to loop, from the ?t=&end= query (links from the markers pages)
+const markerLoopRange = ref<{ start: number; end: number } | null>(null);
+
+const parseQueryLoopRange = (): { start: number; end: number } | null => {
+    const start = parseInt(route.query.t as string, 10);
+    const end = parseInt(route.query.end as string, 10);
+    if (isNaN(start) || isNaN(end) || start < 0 || end <= start) return null;
+    return { start, end };
+};
 const forceAutoplay = ref(false);
 
 const thumbnailVersion = ref(0);
 const detailsRefreshKey = ref(0);
+
+// Quick marker dialog (M) open: the player shortcuts are off while its inputs are typed in
+const quickMarkerOpen = ref(false);
 
 // Keyboard shortcuts for scene player
 useScenePlayerShortcuts({
@@ -73,6 +86,7 @@ useScenePlayerShortcuts({
     scene: scene,
     onTheaterModeToggle: () => settingsStore.toggleTheaterMode(),
     onABLoopToggle: () => playerRef.value?.abLoop?.toggle(),
+    suspended: quickMarkerOpen,
 });
 
 const isProcessing = computed(() => scene.value?.processing_status === 'pending');
@@ -94,6 +108,12 @@ const streamUrl = computed(() => {
     return `/api/v1/scenes/${scene.value.id}/stream`;
 });
 
+// On-the-fly conversion of the formats browsers can't play
+const transcodeUrl = computed(() => {
+    if (!scene.value) return '';
+    return `/api/v1/scenes/${scene.value.id}/transcode`;
+});
+
 const posterUrl = computed(() => {
     if (!scene.value || !scene.value.thumbnail_path) return '';
     const base = `/thumbnails/${scene.value.id}?size=lg`;
@@ -106,7 +126,7 @@ const posterUrl = computed(() => {
 // Ambient glow effect
 const playerVttCues = ref<VttCue[]>([]);
 const isScenePlaying = ref(false);
-const { glowStyle } = useAmbientGlow(playerRef, playerVttCues, posterUrl, isScenePlaying);
+const { glowLayers } = useAmbientGlow(playerRef, playerVttCues, posterUrl, isScenePlaying);
 
 // Sync vttCues when they become available (loaded asynchronously by ScenePlayer)
 watch(
@@ -137,6 +157,7 @@ async function loadPage() {
     showResumePrompt.value = false;
     startTime.value = 0;
     forceAutoplay.value = false;
+    markerLoopRange.value = null;
 
     // Load all data via centralized composable
     await watchPageData.refreshAll();
@@ -157,18 +178,21 @@ async function loadPage() {
             startTime.value = timestamp;
             forceAutoplay.value = true;
             showResumePrompt.value = false;
+            markerLoopRange.value = parseQueryLoopRange();
         }
     }
 }
 
-// Playlist navigation helpers
-const navigateToPlaylistScene = (entry: { scene: { id: number } } | null, index: number) => {
+// Playlist navigation helpers: a scene plays from its start, a marker from its start time
+const navigateToPlaylistScene = (entry: PlaylistQueueItem | null, index: number) => {
     if (!entry || !playlistUuid.value) return;
-    const query: Record<string, string> = { playlist: playlistUuid.value, pos: String(index) };
-    if (playlistPlayer.shuffleSeed.value) {
-        query.shuffle = String(playlistPlayer.shuffleSeed.value);
-    }
-    router.push({ path: `/watch/${entry.scene.id}`, query });
+    const query = playlistItemQuery(
+        playlistUuid.value,
+        entry,
+        index,
+        playlistPlayer.shuffleSeed.value,
+    );
+    router.push({ path: `/watch/${entry.sceneId}`, query });
 };
 
 // Register callback for countdown-triggered navigation
@@ -176,16 +200,37 @@ playlistPlayer.onNavigate((entry, index) => {
     navigateToPlaylistScene(entry, index);
 });
 
-const handlePlaylistSceneEnd = () => {
-    if (!isPlaylistMode.value) return;
+// End of the current item: the next one, or (manual advance, end of the playlist) a stop
+const advancePlaylist = () => {
     const next = playlistPlayer.onSceneEnd();
     if (next) {
         navigateToPlaylistScene(next, playlistPlayer.currentIndex.value);
+    } else if (playlistPlayer.isMarkerPlaylist.value && !playlistPlayer.showCountdown.value) {
+        playerRef.value?.player?.pause();
     }
 };
 
+// Marker playlists: each marker plays its range, then the next one; resume points for both
+const playlistItemPlayback = usePlaylistItemPlayback({
+    player: () => playerRef.value?.player ?? null,
+    item: () => (isPlaylistMode.value ? playlistPlayer.currentItem.value : null),
+    sceneId: () => sceneId.value,
+    onMarkerEnd: advancePlaylist,
+    save: (item, positionS) => playlistPlayer.saveProgress(item, positionS),
+});
+
+const handlePlaylistSceneEnd = () => {
+    if (!isPlaylistMode.value) return;
+    // The scene ended before the end of the marker range
+    if (playlistPlayer.isMarkerPlaylist.value) {
+        playlistItemPlayback.finishMarker();
+        return;
+    }
+    advancePlaylist();
+};
+
 const handlePlaylistGoToScene = (orderIndex: number) => {
-    const entry = playlistPlayer.goToScene(orderIndex);
+    const entry = playlistPlayer.goToItem(orderIndex);
     if (entry) {
         navigateToPlaylistScene(entry, orderIndex);
     }
@@ -220,17 +265,19 @@ const handleStartOver = () => {
     showResumePrompt.value = false;
 };
 
-const goBack = () => {
-    if (playlistUuid.value) {
-        router.push(`/playlists/${playlistUuid.value}`);
-    } else {
-        router.push('/');
-    }
-};
+// Back returns to the list the scene was opened from (through the history, so that it comes
+// back with its filters, page and scroll position), else to the playlist or the library
+const { origin: navOrigin, goBack: goBackToOrigin } = useNavOrigin();
+const backLabel = computed(() => {
+    if (navOrigin.value) return navOriginLabel(navOrigin.value.fullPath);
+    return isPlaylistMode.value ? 'Playlist' : 'Library';
+});
+const goBack = () => goBackToOrigin(playlistUuid.value ? `/playlists/${playlistUuid.value}` : '/');
 
 // Tab state for DetailTabs (allows switching tabs from keyboard shortcuts)
-const activeTab = ref<'jobs' | 'thumbnail' | 'details' | 'history' | 'markers'>('details');
-const pendingMarkerAdd = ref(false);
+const activeTab = ref<'jobs' | 'thumbnail' | 'details' | 'history' | 'markers' | 'similar'>(
+    'details',
+);
 
 provide('getPlayerTime', () => playerRef.value?.getCurrentTime() ?? 0);
 provide('thumbnailVersion', thumbnailVersion);
@@ -239,38 +286,20 @@ provide('seekToTime', (time: number) => {
     startTime.value = time;
     showResumePrompt.value = false;
 });
-provide('activeTab', activeTab);
-provide('pendingMarkerAdd', pendingMarkerAdd);
-
-// Handle 'M' key globally to add markers (even when Markers tab is not open)
-const handleMarkerShortcut = (e: KeyboardEvent) => {
-    const target = e.target as HTMLElement;
-    if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable ||
-        e.ctrlKey ||
-        e.metaKey ||
-        e.altKey
-    ) {
-        return;
-    }
-
-    if (e.key === 'm' || e.key === 'M') {
-        e.preventDefault();
-        // Switch to markers tab and trigger marker add
-        activeTab.value = 'markers';
-        pendingMarkerAdd.value = true;
+// Plays a marker (markers tab, scrubber strip), looping its range when the setting is on
+const handlePlayMarker = (marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) => {
+    showResumePrompt.value = false;
+    if (playerRef.value?.playMarker) {
+        playerRef.value.playMarker(marker);
+    } else {
+        startTime.value = marker.timestamp;
     }
 };
+provide('playMarker', handlePlayMarker);
+provide('activeTab', activeTab);
 
 onMounted(() => {
-    window.addEventListener('keydown', handleMarkerShortcut);
     loadPage();
-});
-
-onUnmounted(() => {
-    window.removeEventListener('keydown', handleMarkerShortcut);
 });
 
 watch(
@@ -282,14 +311,15 @@ watch(
 
 // Handle timestamp query parameter changes (e.g., clicking different markers for same scene)
 watch(
-    () => route.query.t,
-    (newTime) => {
+    () => [route.query.t, route.query.end],
+    ([newTime]) => {
         if (newTime) {
             const timestamp = parseInt(newTime as string, 10);
             if (!isNaN(timestamp) && timestamp >= 0) {
                 startTime.value = timestamp;
                 forceAutoplay.value = true;
                 showResumePrompt.value = false;
+                markerLoopRange.value = parseQueryLoopRange();
             }
         }
     },
@@ -304,8 +334,8 @@ definePageMeta({
     <div class="min-h-screen">
         <!-- Back Navigation Bar -->
         <div
-            class="border-border bg-void/10 sticky top-12 z-40 border-b px-4 py-2.5 backdrop-blur-md
-                sm:px-5"
+            class="border-border bg-void/80 md:bg-void/10 sticky top-[var(--app-header-h)] z-40
+                border-b px-4 py-2.5 backdrop-blur-md sm:px-5"
         >
             <div class="mx-auto flex max-w-415 items-center justify-between">
                 <button
@@ -320,13 +350,36 @@ definePageMeta({
                     >
                         <Icon name="heroicons:arrow-left" size="12" />
                     </div>
-                    <span class="text-xs font-medium">{{
-                        isPlaylistMode ? 'Playlist' : 'Library'
-                    }}</span>
+                    <span class="text-xs font-medium">{{ backLabel }}</span>
                 </button>
 
-                <div v-if="scene" class="text-dim hidden truncate text-xs sm:block">
-                    {{ scene.title }}
+                <div class="flex min-w-0 items-center gap-3">
+                    <div v-if="scene" class="text-dim hidden truncate text-xs sm:block">
+                        {{ scene.title }}
+                    </div>
+                    <!-- The Share dialog: send to friends or a link, optionally at the current time -->
+                    <ShareButton
+                        v-if="scene"
+                        variant="bar"
+                        :subject="{
+                            kind: 'scene',
+                            sceneId: scene.id,
+                            title: scene.title,
+                            duration: scene.duration,
+                        }"
+                        :get-time="() => playerRef?.getCurrentTime() ?? 0"
+                    />
+                    <button
+                        v-if="scene && perms.has('goon2gether:use')"
+                        class="border-border bg-panel text-dim hover:border-lava/30 hover:text-lava
+                            flex h-6 shrink-0 items-center gap-1.5 rounded-md border px-2
+                            text-[11px] font-medium transition-all"
+                        title="Watch this scene with others"
+                        @click="showTogether = true"
+                    >
+                        <Icon name="heroicons:users" size="12" />
+                        Watch together
+                    </button>
                 </div>
             </div>
         </div>
@@ -359,7 +412,7 @@ definePageMeta({
                         hover:text-white"
                     @click="goBack"
                 >
-                    Return to Library
+                    Return to {{ backLabel }}
                 </button>
             </div>
 
@@ -384,7 +437,7 @@ definePageMeta({
                         hover:text-white"
                     @click="goBack"
                 >
-                    Return to Library
+                    Return to {{ backLabel }}
                 </button>
             </div>
 
@@ -444,16 +497,26 @@ definePageMeta({
                         <div
                             class="player-glow-container relative"
                             :class="{ 'mx-auto max-w-xl': isPortrait }"
-                            :style="glowStyle"
                         >
-                            <!-- Glow layers -->
-                            <div class="player-glow player-glow--primary" aria-hidden="true" />
-                            <div class="player-glow player-glow--secondary" aria-hidden="true" />
+                            <!-- Glow layers, crossfaded when the colours change -->
+                            <div
+                                v-for="(layerStyle, i) in glowLayers"
+                                :key="i"
+                                class="player-glow-layer"
+                                :style="layerStyle"
+                                aria-hidden="true"
+                            >
+                                <div class="player-glow player-glow--primary" />
+                                <div class="player-glow player-glow--secondary" />
+                            </div>
 
                             <div
                                 class="border-border bg-void relative z-10 overflow-hidden
                                     rounded-xl border"
-                                :style="{ aspectRatio: playerAspectRatio }"
+                                :style="{
+                                    aspectRatio: playerAspectRatio,
+                                    maxHeight: isPortrait ? '80vh' : undefined,
+                                }"
                             >
                                 <!-- Resume Prompt (overlaid on scene player) -->
                                 <WatchResumePrompt
@@ -468,6 +531,7 @@ definePageMeta({
                                 <LazyScenePlayer
                                     ref="playerRef"
                                     :scene-url="streamUrl"
+                                    :transcode-url="transcodeUrl"
                                     :poster-url="posterUrl"
                                     :scene="scene"
                                     :markers="markers"
@@ -477,9 +541,12 @@ definePageMeta({
                                     :loop="isPlaylistMode ? false : settingsStore.loop"
                                     :default-volume="settingsStore.defaultVolume"
                                     :start-time="startTime"
+                                    :loop-range="markerLoopRange"
                                     :playlist-mode="isPlaylistMode"
                                     :has-next="playlistPlayer.hasNext.value"
                                     :has-previous="playlistPlayer.hasPrevious.value"
+                                    scrubber-toggle
+                                    presence
                                     @play="isScenePlaying = true"
                                     @pause="isScenePlaying = false"
                                     @error="playerError = $event"
@@ -487,8 +554,29 @@ definePageMeta({
                                     @next="handlePlaylistNext"
                                     @previous="handlePlaylistPrevious"
                                 />
+
+                                <!-- Quick marker (M), rendered inside the player element -->
+                                <WatchQuickMarker
+                                    :player="playerRef?.player"
+                                    :target="playerRef?.playerEl"
+                                    :scene-id="scene.id"
+                                    @open-change="quickMarkerOpen = $event"
+                                />
                             </div>
                         </div>
+
+                        <!-- Thumbnail scrubber (Settings > Player, or the player button) -->
+                        <WatchScrubber
+                            v-if="settingsStore.showScrubber"
+                            :player="playerRef?.player ?? null"
+                            :cues="playerRef?.vttCues ?? []"
+                            :markers="markers"
+                            :has-sprites="!!scene.vtt_path"
+                            :direct-stream="!playerRef?.transcodeActive"
+                            @seek="showResumePrompt = false"
+                            @play-marker="handlePlayMarker"
+                            @hide="settingsStore.setShowScrubber(false)"
+                        />
 
                         <!-- Mobile Metadata -->
                         <div class="block xl:hidden">
@@ -502,7 +590,7 @@ definePageMeta({
                                 </span>
                                 <span class="flex items-center gap-1">
                                     <Icon name="heroicons:calendar" size="12" class="text-lava" />
-                                    <NuxtTime :datetime="scene.created_at" format="short" />
+                                    <UiFormattedDate :datetime="scene.created_at" />
                                 </span>
                             </div>
                         </div>
@@ -517,6 +605,7 @@ definePageMeta({
                     <WatchPlaylistSidebar
                         v-if="isPlaylistMode && playlistPlayer.playlist.value"
                         :playlist="playlistPlayer.playlist.value"
+                        :items="playlistPlayer.items.value"
                         :current-index="playlistPlayer.currentIndex.value"
                         :effective-order="playlistPlayer.effectiveOrder.value"
                         :is-shuffled="playlistPlayer.isShuffled.value"
@@ -536,6 +625,7 @@ definePageMeta({
         <WatchPlaylistMobileBar
             v-if="isPlaylistMode && playlistPlayer.playlist.value && scene && !isProcessing"
             :playlist="playlistPlayer.playlist.value"
+            :items="playlistPlayer.items.value"
             :current-index="playlistPlayer.currentIndex.value"
             :effective-order="playlistPlayer.effectiveOrder.value"
             :is-shuffled="playlistPlayer.isShuffled.value"
@@ -549,11 +639,18 @@ definePageMeta({
             @unshuffle="playlistPlayer.unshuffle()"
         />
 
+        <TogetherAddModal
+            v-if="scene"
+            :visible="showTogether"
+            :items="[{ scene_id: scene.id }]"
+            @close="showTogether = false"
+        />
+
         <!-- Playlist Auto-Advance Overlay -->
         <WatchPlaylistAutoAdvance
             v-if="isPlaylistMode"
             :visible="playlistPlayer.showCountdown.value"
-            :next-scene="playlistPlayer.nextScene.value"
+            :next-item="playlistPlayer.nextItem.value"
             :countdown-remaining="playlistPlayer.countdownRemaining.value"
             @play-now="handlePlaylistCountdownPlayNow"
             @cancel="playlistPlayer.cancelCountdown()"
@@ -562,10 +659,18 @@ definePageMeta({
 </template>
 
 <style scoped>
-.player-glow-container {
+/* Each layer is its own compositor layer: the crossfade only changes its opacity, the blurred
+   gradients are painted once per colour change */
+.player-glow-layer {
     --glow-color-primary: rgb(255, 77, 77);
     --glow-color-secondary: rgb(255, 45, 45);
     --glow-opacity: 1;
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    transition: opacity 1.2s ease-in-out;
+    will-change: opacity;
 }
 
 .player-glow {
@@ -573,11 +678,7 @@ definePageMeta({
     inset: -60px;
     border-radius: 32px;
     pointer-events: none;
-    z-index: 0;
     filter: blur(40px);
-    transition:
-        background 0.3s ease-out,
-        opacity 0.3s ease-out;
 }
 
 .player-glow--primary {

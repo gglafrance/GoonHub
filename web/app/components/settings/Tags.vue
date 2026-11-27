@@ -1,17 +1,23 @@
 <script setup lang="ts">
-import type { Tag } from '~/types/tag';
+import type { Tag, TagDuplicateGroup, TagMergeResult } from '~/types/tag';
 import type { TagSort } from '~/types/settings';
+import type ManageList from '~/components/settings/tags/ManageList.vue';
 
-const { fetchTags, createTag, deleteTag } = useApi();
+const { fetchTags, deleteTag, updateTagColor, fetchDuplicateTags } = useApiTags();
 const { message, error, clearMessages } = useSettingsMessage();
 const settingsStore = useSettingsStore();
+// Everyone sets the default sort; the tag management needs tags:manage
+const perms = useMyPermissions();
+const canManage = computed(() => perms.has('tags:manage'));
 
 const tags = ref<Tag[]>([]);
+const duplicates = ref<TagDuplicateGroup[]>([]);
 const loading = ref(false);
+const list = ref<InstanceType<typeof ManageList> | null>(null);
 
-const newTagName = ref('');
-const newTagColor = ref('#6B7280');
-const creating = ref(false);
+const merge = ref<{ candidateIds: number[]; targetId: number | null } | null>(null);
+// tags selected for a bulk delete
+const deleteMany = ref<Tag[] | null>(null);
 
 const selectedTagSort = computed({
     get: () => (settingsStore.draft?.default_tag_sort ?? 'az') as TagSort,
@@ -27,54 +33,41 @@ const tagSortOptions: { value: TagSort; label: string }[] = [
     { value: 'least', label: 'Least used' },
 ];
 
-const colorPresets = [
-    '#6B7280',
-    '#FF4D4D',
-    '#F59E0B',
-    '#8B5CF6',
-    '#3B82F6',
-    '#EC4899',
-    '#F97316',
-    '#14B8A6',
-    '#22C55E',
-    '#06B6D4',
-    '#A78BFA',
-    '#6366F1',
-    '#EF4444',
-];
-
 onMounted(async () => {
+    if (!canManage.value) return;
+    loading.value = true;
     await loadTags();
+    loading.value = false;
 });
 
 async function loadTags() {
-    loading.value = true;
     try {
-        const res = await fetchTags();
-        tags.value = res.data || [];
+        const [tagsRes, dupRes] = await Promise.all([fetchTags(), fetchDuplicateTags()]);
+        tags.value = tagsRes.data || [];
+        duplicates.value = dupRes.data || [];
     } catch (e: unknown) {
         error.value = e instanceof Error ? e.message : 'Failed to load tags';
-    } finally {
-        loading.value = false;
     }
 }
 
-async function handleCreate() {
-    if (!newTagName.value.trim()) return;
-    clearMessages();
-    creating.value = true;
-
+async function refreshDuplicates() {
     try {
-        const tag = await createTag(newTagName.value.trim(), newTagColor.value);
-        tags.value.push(tag);
-        tags.value.sort((a, b) => a.name.localeCompare(b.name));
-        message.value = `Tag "${tag.name}" created`;
-        newTagName.value = '';
-    } catch (e: unknown) {
-        error.value = e instanceof Error ? e.message : 'Failed to create tag';
-    } finally {
-        creating.value = false;
+        duplicates.value = (await fetchDuplicateTags()).data || [];
+    } catch {
+        // the banner is a hint: keep the previous groups
     }
+}
+
+function onCreated(tag: Tag) {
+    clearMessages();
+    tags.value = [...tags.value, tag].sort((a, b) => a.name.localeCompare(b.name));
+    message.value = `Tag "${tag.name}" created`;
+    refreshDuplicates();
+}
+
+function onCreateError(msg: string) {
+    clearMessages();
+    error.value = msg;
 }
 
 async function handleDelete(tag: Tag) {
@@ -83,9 +76,64 @@ async function handleDelete(tag: Tag) {
         await deleteTag(tag.id);
         tags.value = tags.value.filter((t) => t.id !== tag.id);
         message.value = `Tag "${tag.name}" deleted`;
+        refreshDuplicates();
     } catch (e: unknown) {
         error.value = e instanceof Error ? e.message : 'Failed to delete tag';
     }
+}
+
+async function handleColor(tag: Tag, color: string) {
+    clearMessages();
+    const previous = tag.color;
+    tags.value = tags.value.map((t) => (t.id === tag.id ? { ...t, color } : t));
+    try {
+        const saved: Tag = await updateTagColor(tag.id, color);
+        tags.value = tags.value.map((t) => (t.id === tag.id ? { ...t, color: saved.color } : t));
+    } catch (e: unknown) {
+        tags.value = tags.value.map((t) => (t.id === tag.id ? { ...t, color: previous } : t));
+        error.value = e instanceof Error ? e.message : 'Failed to change the tag color';
+    }
+}
+
+function onRenamed(tag: Tag) {
+    clearMessages();
+    const previous = tags.value.find((t) => t.id === tag.id);
+    tags.value = tags.value.map((t) => (t.id === tag.id ? { ...t, ...tag } : t));
+    message.value = previous
+        ? `Tag "${previous.name}" renamed to "${tag.name}"`
+        : `Tag renamed to "${tag.name}"`;
+    refreshDuplicates();
+}
+
+function openMerge(candidateIds: number[], targetId: number | null = null) {
+    clearMessages();
+    merge.value = { candidateIds, targetId };
+}
+
+function openGroupMerge(group: TagDuplicateGroup) {
+    openMerge(
+        group.tags.map((t) => t.id),
+        group.suggested_target_id,
+    );
+}
+
+function openDeleteMany(ids: number[]) {
+    clearMessages();
+    deleteMany.value = tags.value.filter((t) => ids.includes(t.id));
+}
+
+function onDeletedMany(ids: number[]) {
+    tags.value = tags.value.filter((t) => !ids.includes(t.id));
+    list.value?.clearSelection();
+    message.value = `${plural(ids.length, 'tag')} deleted`;
+    refreshDuplicates();
+}
+
+async function onMerged(res: TagMergeResult) {
+    merge.value = null;
+    list.value?.clearSelection();
+    message.value = `Merged ${plural(res.sources_deleted, 'tag')} into "${res.target.name}": ${plural(res.scenes_retagged, 'scene')} retagged`;
+    await loadTags();
 }
 </script>
 
@@ -124,92 +172,38 @@ async function handleDelete(tag: Tag) {
             </div>
         </div>
 
-        <!-- Create tag -->
-        <div class="glass-panel p-5">
-            <h3 class="mb-5 text-sm font-semibold text-white">Create Tag</h3>
-            <div class="space-y-4">
-                <div>
-                    <label
-                        class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                            uppercase"
-                    >
-                        Name
-                    </label>
-                    <input
-                        v-model="newTagName"
-                        type="text"
-                        placeholder="Tag name"
-                        maxlength="100"
-                        class="border-border bg-void/80 focus:border-lava/40 focus:ring-lava/20
-                            w-full max-w-64 rounded-lg border px-3.5 py-2.5 text-sm text-white
-                            transition-all focus:ring-1 focus:outline-none"
-                        @keydown.enter="handleCreate"
-                    />
-                </div>
-                <div>
-                    <label
-                        class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                            uppercase"
-                    >
-                        Color
-                    </label>
-                    <div class="flex items-center gap-2">
-                        <button
-                            v-for="color in colorPresets"
-                            :key="color"
-                            class="h-6 w-6 rounded-full border-2 transition-all"
-                            :class="
-                                newTagColor === color
-                                    ? 'scale-110 border-white'
-                                    : 'border-transparent hover:scale-110'
-                            "
-                            :style="{ backgroundColor: color }"
-                            @click="newTagColor = color"
-                        />
-                    </div>
-                </div>
-                <button
-                    :disabled="!newTagName.trim() || creating"
-                    class="bg-lava hover:bg-lava-glow rounded-lg px-4 py-2 text-xs font-semibold
-                        text-white transition-all disabled:cursor-not-allowed disabled:opacity-40"
-                    @click="handleCreate"
-                >
-                    Create Tag
-                </button>
-            </div>
-        </div>
+        <template v-if="canManage">
+            <SettingsTagsCreateForm @created="onCreated" @error="onCreateError" />
 
-        <!-- Existing tags -->
-        <div class="glass-panel p-5">
-            <h3 class="mb-5 text-sm font-semibold text-white">Manage Tags</h3>
+            <SettingsTagsDuplicatesPanel :groups="duplicates" @merge="openGroupMerge" />
 
-            <div v-if="loading" class="flex items-center gap-2 py-4">
-                <LoadingSpinner />
-            </div>
+            <SettingsTagsManageList
+                ref="list"
+                :tags="tags"
+                :loading="loading"
+                @delete="handleDelete"
+                @color="handleColor"
+                @merge="openMerge"
+                @delete-many="openDeleteMany"
+                @renamed="onRenamed"
+                @merge-into="(source, target) => openMerge([source.id, target.id], target.id)"
+            />
 
-            <div v-else-if="tags.length === 0" class="text-dim py-4 text-center text-xs">
-                No tags created yet.
-            </div>
+            <SettingsTagsDeleteManyModal
+                :visible="deleteMany !== null"
+                :tags="deleteMany ?? []"
+                @close="deleteMany = null"
+                @deleted="onDeletedMany"
+            />
 
-            <div v-else class="space-y-1">
-                <div
-                    v-for="tag in tags"
-                    :key="tag.id"
-                    class="border-border group flex items-center gap-3 rounded-lg border px-3 py-2
-                        transition-colors hover:bg-white/2"
-                >
-                    <span class="h-3 w-3 rounded-full" :style="{ backgroundColor: tag.color }" />
-                    <span class="flex-1 text-xs text-white">{{ tag.name }}</span>
-                    <button
-                        class="text-dim flex items-center justify-center opacity-0 transition-all
-                            group-hover:opacity-100 hover:text-red-400"
-                        title="Delete tag"
-                        @click="handleDelete(tag)"
-                    >
-                        <Icon name="heroicons:trash" size="14" />
-                    </button>
-                </div>
-            </div>
-        </div>
+            <SettingsTagsMergeModal
+                :visible="merge !== null"
+                :tags="tags"
+                :candidate-ids="merge?.candidateIds ?? []"
+                :initial-target-id="merge?.targetId ?? null"
+                @close="merge = null"
+                @merged="onMerged"
+            />
+        </template>
     </div>
 </template>

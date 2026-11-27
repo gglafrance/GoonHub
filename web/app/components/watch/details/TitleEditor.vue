@@ -2,6 +2,8 @@
 const props = defineProps<{
     title: string;
     saved?: boolean;
+    // Without scenes:edit: shown, not editable
+    readonly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -13,6 +15,7 @@ const editValue = ref(props.title);
 const inputRef = ref<HTMLInputElement | null>(null);
 
 const startEditing = () => {
+    if (props.readonly) return;
     editValue.value = props.title;
     editing.value = true;
     nextTick(() => inputRef.value?.focus());
@@ -58,7 +61,7 @@ watch(
             v-else
             class="text-dim -mx-2 cursor-pointer rounded-md px-2 py-1.5 text-base font-medium
                 transition-colors hover:bg-white/3 hover:text-white"
-            :class="{ 'text-white': title }"
+            :class="{ 'text-white': title, 'pointer-events-none': readonly }"
             @click="startEditing"
         >
             {{ title || 'Untitled' }}

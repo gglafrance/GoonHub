@@ -458,6 +458,38 @@ func (mr *MockSceneRepositoryMockRecorder) ListPopular(limit any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPopular", reflect.TypeOf((*MockSceneRepository)(nil).ListPopular), limit)
 }
 
+// ListTrash mocks base method.
+func (m *MockSceneRepository) ListTrash(q data.TrashQuery) ([]data.TrashedSceneRow, data.TrashTotals, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListTrash", q)
+	ret0, _ := ret[0].([]data.TrashedSceneRow)
+	ret1, _ := ret[1].(data.TrashTotals)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListTrash indicates an expected call of ListTrash.
+func (mr *MockSceneRepositoryMockRecorder) ListTrash(q any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTrash", reflect.TypeOf((*MockSceneRepository)(nil).ListTrash), q)
+}
+
+// ListTrashIDs mocks base method.
+func (m *MockSceneRepository) ListTrashIDs(q data.TrashQuery, limit int) ([]data.TrashIDSize, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListTrashIDs", q, limit)
+	ret0, _ := ret[0].([]data.TrashIDSize)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListTrashIDs indicates an expected call of ListTrashIDs.
+func (mr *MockSceneRepositoryMockRecorder) ListTrashIDs(q, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTrashIDs", reflect.TypeOf((*MockSceneRepository)(nil).ListTrashIDs), q, limit)
+}
+
 // ListTrashed mocks base method.
 func (m *MockSceneRepository) ListTrashed(page, limit int) ([]data.Scene, int64, error) {
 	m.ctrl.T.Helper()
@@ -529,6 +561,36 @@ func (m *MockSceneRepository) RestoreFromTrash(id uint) error {
 func (mr *MockSceneRepositoryMockRecorder) RestoreFromTrash(id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestoreFromTrash", reflect.TypeOf((*MockSceneRepository)(nil).RestoreFromTrash), id)
+}
+
+// TrashFacets mocks base method.
+func (m *MockSceneRepository) TrashFacets() (data.TrashFacets, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TrashFacets")
+	ret0, _ := ret[0].(data.TrashFacets)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// TrashFacets indicates an expected call of TrashFacets.
+func (mr *MockSceneRepositoryMockRecorder) TrashFacets() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TrashFacets", reflect.TypeOf((*MockSceneRepository)(nil).TrashFacets))
+}
+
+// TrashTotals mocks base method.
+func (m *MockSceneRepository) TrashTotals(f data.TrashFilter) (data.TrashTotals, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TrashTotals", f)
+	ret0, _ := ret[0].(data.TrashTotals)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// TrashTotals indicates an expected call of TrashTotals.
+func (mr *MockSceneRepositoryMockRecorder) TrashTotals(f any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TrashTotals", reflect.TypeOf((*MockSceneRepository)(nil).TrashTotals), f)
 }
 
 // UpdateActors mocks base method.
@@ -669,6 +731,20 @@ func (m *MockSceneRepository) UpdateSceneMetadata(id uint, title, description, s
 func (mr *MockSceneRepositoryMockRecorder) UpdateSceneMetadata(id, title, description, studio, releaseDate, porndbSceneID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSceneMetadata", reflect.TypeOf((*MockSceneRepository)(nil).UpdateSceneMetadata), id, title, description, studio, releaseDate, porndbSceneID)
+}
+
+// UpdateSourceURL mocks base method.
+func (m *MockSceneRepository) UpdateSourceURL(id uint, sourceURL string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSourceURL", id, sourceURL)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateSourceURL indicates an expected call of UpdateSourceURL.
+func (mr *MockSceneRepositoryMockRecorder) UpdateSourceURL(id, sourceURL any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSourceURL", reflect.TypeOf((*MockSceneRepository)(nil).UpdateSourceURL), id, sourceURL)
 }
 
 // UpdateSprites mocks base method.

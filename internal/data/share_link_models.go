@@ -31,6 +31,14 @@ type ShareLink struct {
 	ExpiresAt *time.Time `json:"expires_at"`
 	ViewCount int64      `gorm:"not null;default:0" json:"view_count"`
 	CreatedAt time.Time  `gorm:"not null" json:"created_at"`
+	// Start is where the player starts (seconds, nil: the beginning). End and Label are the
+	// range of a shared marker, played (looped) by the share page; MarkerID is the marker it
+	// came from (nil once deleted: the link keeps its copied range), never sent: the link only
+	// exposes the scene, the range and the label. docs/MESSAGES.md
+	Start    *int    `gorm:"column:start_s" json:"start"`
+	End      *int    `gorm:"column:end_s" json:"end"`
+	Label    *string `gorm:"column:label;size:100" json:"label"`
+	MarkerID *uint   `gorm:"column:marker_id" json:"-"`
 }
 
 func (ShareLink) TableName() string {

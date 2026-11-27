@@ -26,6 +26,62 @@ export interface PoolConfig {
     duplication_enabled: boolean;
 }
 
+export type SchedulablePhase =
+    | 'metadata'
+    | 'thumbnail'
+    | 'sprites'
+    | 'animated_thumbnails'
+    | 'fingerprint';
+
+export interface PhaseScheduleConfig {
+    phase: SchedulablePhase;
+    priority: number;
+    window_enabled: boolean;
+    window_start: string;
+    window_end: string;
+    quiet_workers: number;
+}
+
+export interface JobScheduleConfig {
+    timezone: string;
+    quiet_hours_start: string;
+    quiet_hours_end: string;
+    max_concurrent_jobs: number;
+    new_scenes_first: boolean;
+    new_scenes_window_hours: number;
+    phases: PhaseScheduleConfig[];
+}
+
+export interface PhaseScheduleState {
+    phase: SchedulablePhase;
+    priority: number;
+    state: 'running' | 'paused';
+    next_change?: string;
+    workers: number;
+    configured_workers: number;
+    quiet_workers: number;
+    worker_mode: 'day' | 'quiet';
+    pending: number;
+    queued: number;
+    running: number;
+}
+
+export interface JobScheduleStatus {
+    now: string;
+    timezone: string;
+    quiet_hours: boolean;
+    quiet_hours_next_change: string;
+    max_concurrent_jobs: number;
+    running_jobs: number;
+    new_scene_since?: string;
+    phases: PhaseScheduleState[];
+}
+
+export interface JobScheduleResponse {
+    config: JobScheduleConfig;
+    status: JobScheduleStatus;
+}
+
 export interface ProcessingConfig {
     max_frame_dimension_sm: number;
     max_frame_dimension_lg: number;
@@ -91,7 +147,50 @@ export interface BulkJobResponse {
     message: string;
     submitted: number;
     skipped: number;
+    // Failing scenes (failures in a row on an unchanged file) left out of a "missing" run
+    skipped_failing: number;
     errors: number;
+}
+
+// A (scene, phase) that failed processing.failing_threshold times in a row on an unchanged
+// file: the "missing" runs and the automatic retries skip it (Settings > Jobs > Failing).
+export interface FailingScene {
+    id: number;
+    scene_id: number;
+    scene_title: string;
+    stored_path: string;
+    phase: string;
+    failures: number;
+    last_error: string;
+    last_failed_at: string;
+    file_size: number | null;
+}
+
+export interface FailingSceneList {
+    data: FailingScene[];
+    total: number;
+    page: number;
+    limit: number;
+    // Failing (scene, phase) per phase, error filter applied, phase filter ignored
+    totals: Record<string, number>;
+    threshold: number;
+}
+
+export interface FailingActionResult {
+    retried: number;
+    cleared: number;
+    errors: number;
+}
+
+export type FailingAction = 'retry' | 'clear';
+
+// Body of POST /admin/jobs/failing/bulk: the given IDs, or every failing match of the filters
+export interface FailingBulkRequest {
+    action: FailingAction;
+    ids?: number[];
+    all?: boolean;
+    phase?: string;
+    q?: string;
 }
 
 export interface DLQEntry {
@@ -156,4 +255,62 @@ export interface JobStatusData {
     by_phase: Record<string, JobStatusPhase>;
     active_jobs: ActiveJobInfo[];
     more_count: number;
+}
+
+export type BulkCancelPhase =
+    | 'all'
+    | 'metadata'
+    | 'thumbnail'
+    | 'sprites'
+    | 'animated_thumbnails'
+    | 'fingerprint';
+
+export interface BulkCancelResponse {
+    message: string;
+    phases: string[];
+    pending_cancelled: number;
+    queued_skipped: number;
+    running_cancelled: number;
+    include_running: boolean;
+}
+
+export interface HistoryPurgeSettings {
+    completed_retention: string;
+    failed_retention: string;
+    completed_enabled: boolean;
+    failed_enabled: boolean;
+    interval: string;
+    batch_size: number;
+}
+
+export interface HistoryPurgePreview {
+    completed: number;
+    cancelled: number;
+    failed: number;
+    timed_out: number;
+    total: number;
+    completed_before?: string;
+    failed_before?: string;
+}
+
+export interface HistoryPurgeResult {
+    trigger: 'scheduled' | 'manual';
+    completed_deleted: number;
+    failed_deleted: number;
+    total: number;
+    batches: number;
+    started_at: string;
+    duration_ms: number;
+    error?: string;
+}
+
+export interface HistoryPurgeInfo {
+    settings: HistoryPurgeSettings;
+    preview: HistoryPurgePreview;
+    last_run: HistoryPurgeResult | null;
+}
+
+export interface HistoryPurgeResponse {
+    message: string;
+    result: HistoryPurgeResult;
 }

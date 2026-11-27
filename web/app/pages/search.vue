@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SavedSearch, SavedSearchFilters } from '~/types/saved_search';
 
+const { containerClass } = useContentWidth();
 const searchStore = useSearchStore();
 const route = useRoute();
 const router = useRouter();
@@ -39,6 +40,9 @@ const activeFilterCount = computed(() => {
         count += searchStore.selectedMarkerLabels.length;
     if (searchStore.studio) count++;
     if (searchStore.minDuration > 0 || searchStore.maxDuration > 0) count++;
+    if (searchStore.minSize > 0 || searchStore.maxSize > 0) count++;
+    count += searchStore.activeStatusCount;
+    count += searchStore.selectedSourceSites.length;
     if (searchStore.minDate || searchStore.maxDate) count++;
     if (searchStore.resolution) count++;
     if (searchStore.liked) count++;
@@ -48,60 +52,20 @@ const activeFilterCount = computed(() => {
     return count;
 });
 
-const syncFromUrl = () => {
+// The whole search (filters, source sites, sort, random seed, page) lives in the URL: Back, a
+// reload or a shared link restore it exactly. See utils/searchUrlState.ts for the mapping.
+const syncFromUrl = (): boolean => {
     isSyncingFromUrl = true;
-    const q = route.query;
-    searchStore.query = (q.q as string) || '';
-    searchStore.selectedTags = q.tags ? (q.tags as string).split(',') : [];
-    searchStore.selectedActors = q.actors ? (q.actors as string).split(',') : [];
-    searchStore.studio = (q.studio as string) || '';
-    searchStore.minDuration = q.min_duration ? Number(q.min_duration) : 0;
-    searchStore.maxDuration = q.max_duration ? Number(q.max_duration) : 0;
-    searchStore.minDate = (q.min_date as string) || '';
-    searchStore.maxDate = (q.max_date as string) || '';
-    searchStore.resolution = (q.resolution as string) || '';
-    searchStore.sort = (q.sort as string) || '';
-    searchStore.page = q.page ? Number(q.page) : 1;
-    searchStore.liked = q.liked === 'true';
-    searchStore.minRating = q.min_rating ? Number(q.min_rating) : 0;
-    searchStore.maxRating = q.max_rating ? Number(q.max_rating) : 0;
-    searchStore.minJizzCount = q.min_jizz_count ? Number(q.min_jizz_count) : 0;
-    searchStore.maxJizzCount = q.max_jizz_count ? Number(q.max_jizz_count) : 0;
-    searchStore.selectedMarkerLabels = q.marker_labels
-        ? (q.marker_labels as string).split(',')
-        : [];
-    searchStore.seed = q.seed ? Number(q.seed) : 0;
-    const matchType = q.match_type as string;
-    searchStore.matchType =
-        matchType === 'strict' || matchType === 'frequency' ? matchType : 'broad';
+    const complete = searchStore.applyUrlState(searchStateFromQuery(route.query));
     nextTick(() => {
         isSyncingFromUrl = false;
     });
+    return complete;
 };
 
 const syncToUrl = () => {
-    const query: Record<string, string> = {};
-    if (searchStore.query) query.q = searchStore.query;
-    if (searchStore.selectedTags.length > 0) query.tags = searchStore.selectedTags.join(',');
-    if (searchStore.selectedActors.length > 0) query.actors = searchStore.selectedActors.join(',');
-    if (searchStore.studio) query.studio = searchStore.studio;
-    if (searchStore.minDuration > 0) query.min_duration = String(searchStore.minDuration);
-    if (searchStore.maxDuration > 0) query.max_duration = String(searchStore.maxDuration);
-    if (searchStore.minDate) query.min_date = searchStore.minDate;
-    if (searchStore.maxDate) query.max_date = searchStore.maxDate;
-    if (searchStore.resolution) query.resolution = searchStore.resolution;
-    if (searchStore.sort) query.sort = searchStore.sort;
-    if (searchStore.sort === 'random' && searchStore.seed) query.seed = String(searchStore.seed);
-    if (searchStore.page > 1) query.page = String(searchStore.page);
-    if (searchStore.liked) query.liked = 'true';
-    if (searchStore.minRating > 0) query.min_rating = String(searchStore.minRating);
-    if (searchStore.maxRating > 0) query.max_rating = String(searchStore.maxRating);
-    if (searchStore.minJizzCount > 0) query.min_jizz_count = String(searchStore.minJizzCount);
-    if (searchStore.maxJizzCount > 0) query.max_jizz_count = String(searchStore.maxJizzCount);
-    if (searchStore.selectedMarkerLabels.length > 0)
-        query.marker_labels = searchStore.selectedMarkerLabels.join(',');
-    if (searchStore.matchType !== 'broad') query.match_type = searchStore.matchType;
-
+    const query = searchStateToQuery(searchStore.getUrlState());
+    if (sameQuery(route.query, query)) return;
     isUpdatingUrl = true;
     router.replace({ query }).finally(() => {
         isUpdatingUrl = false;
@@ -136,6 +100,10 @@ watch(
         searchStore.studio,
         searchStore.minDuration,
         searchStore.maxDuration,
+        searchStore.minSize,
+        searchStore.maxSize,
+        JSON.stringify(searchStore.status),
+        searchStore.selectedSourceSites,
         searchStore.minDate,
         searchStore.maxDate,
         searchStore.resolution,
@@ -168,10 +136,12 @@ watch(
 // Handle browser back/forward navigation
 watch(
     () => route.query,
-    () => {
+    async () => {
         // Skip if we're the ones updating the URL
         if (isUpdatingUrl) return;
-        syncFromUrl();
+        // A saved search opened while already on this page (e.g. from the command palette)
+        if (route.query.saved && (await loadSavedSearchFromUrl())) return;
+        if (!syncFromUrl()) syncToUrl();
         searchStore.search();
     },
     { deep: true },
@@ -200,9 +170,10 @@ const loadSavedSearchFromUrl = async () => {
 
 onMounted(async () => {
     searchStore.loadFilterOptions();
+    searchStore.loadSourceSites();
     const loaded = await loadSavedSearchFromUrl();
     if (!loaded) {
-        syncFromUrl();
+        if (!syncFromUrl()) syncToUrl();
         searchStore.search();
     }
 });
@@ -220,7 +191,7 @@ const handleSearchSaved = (_search: SavedSearch) => {
 </script>
 
 <template>
-    <div class="mx-auto max-w-415 px-4 py-4 sm:py-6">
+    <div class="px-4 py-4 sm:py-6" :class="containerClass">
         <div class="mb-4 flex items-center gap-2 sm:mb-5 sm:gap-3">
             <div class="min-w-0 flex-1">
                 <SearchBar />
@@ -243,6 +214,19 @@ const handleSearchSaved = (_search: SavedSearch) => {
                     {{ activeFilterCount }}
                 </span>
             </button>
+
+            <!-- Triage the results one at a time -->
+            <NuxtLink
+                v-if="searchStore.hasActiveFilters"
+                :to="{ path: '/triage', query: searchStore.getSearchParams() }"
+                class="border-border bg-surface hover:border-lava/40 hover:bg-lava/10 flex h-10
+                    shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium
+                    text-white transition-all sm:py-2"
+                title="Triage these scenes one at a time"
+            >
+                <Icon name="heroicons:bolt" size="14" />
+                <span class="hidden sm:inline">Triage</span>
+            </NuxtLink>
 
             <!-- Save search button -->
             <button

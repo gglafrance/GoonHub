@@ -41,6 +41,21 @@ func (m *MockJobHistoryRepository) EXPECT() *MockJobHistoryRepositoryMockRecorde
 	return m.recorder
 }
 
+// CancelClaimedJobs mocks base method.
+func (m *MockJobHistoryRepository) CancelClaimedJobs(jobIDs []string, reason string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CancelClaimedJobs", jobIDs, reason)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CancelClaimedJobs indicates an expected call of CancelClaimedJobs.
+func (mr *MockJobHistoryRepositoryMockRecorder) CancelClaimedJobs(jobIDs, reason any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelClaimedJobs", reflect.TypeOf((*MockJobHistoryRepository)(nil).CancelClaimedJobs), jobIDs, reason)
+}
+
 // CancelPendingJob mocks base method.
 func (m *MockJobHistoryRepository) CancelPendingJob(jobID string) error {
 	m.ctrl.T.Helper()
@@ -53,6 +68,21 @@ func (m *MockJobHistoryRepository) CancelPendingJob(jobID string) error {
 func (mr *MockJobHistoryRepositoryMockRecorder) CancelPendingJob(jobID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelPendingJob", reflect.TypeOf((*MockJobHistoryRepository)(nil).CancelPendingJob), jobID)
+}
+
+// CancelPendingJobsByPhases mocks base method.
+func (m *MockJobHistoryRepository) CancelPendingJobsByPhases(phases []string, reason string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CancelPendingJobsByPhases", phases, reason)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CancelPendingJobsByPhases indicates an expected call of CancelPendingJobsByPhases.
+func (mr *MockJobHistoryRepositoryMockRecorder) CancelPendingJobsByPhases(phases, reason any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelPendingJobsByPhases", reflect.TypeOf((*MockJobHistoryRepository)(nil).CancelPendingJobsByPhases), phases, reason)
 }
 
 // CancelPendingJobsForScene mocks base method.
@@ -71,18 +101,18 @@ func (mr *MockJobHistoryRepositoryMockRecorder) CancelPendingJobsForScene(sceneI
 }
 
 // ClaimPendingJobs mocks base method.
-func (m *MockJobHistoryRepository) ClaimPendingJobs(phase string, limit int) ([]data.JobHistory, error) {
+func (m *MockJobHistoryRepository) ClaimPendingJobs(phase string, limit int, opts data.ClaimOptions) ([]data.JobHistory, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ClaimPendingJobs", phase, limit)
+	ret := m.ctrl.Call(m, "ClaimPendingJobs", phase, limit, opts)
 	ret0, _ := ret[0].([]data.JobHistory)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ClaimPendingJobs indicates an expected call of ClaimPendingJobs.
-func (mr *MockJobHistoryRepositoryMockRecorder) ClaimPendingJobs(phase, limit any) *gomock.Call {
+func (mr *MockJobHistoryRepositoryMockRecorder) ClaimPendingJobs(phase, limit, opts any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimPendingJobs", reflect.TypeOf((*MockJobHistoryRepository)(nil).ClaimPendingJobs), phase, limit)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimPendingJobs", reflect.TypeOf((*MockJobHistoryRepository)(nil).ClaimPendingJobs), phase, limit, opts)
 }
 
 // CountPendingByPhase mocks base method.
@@ -98,6 +128,21 @@ func (m *MockJobHistoryRepository) CountPendingByPhase() (map[string]int, error)
 func (mr *MockJobHistoryRepositoryMockRecorder) CountPendingByPhase() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountPendingByPhase", reflect.TypeOf((*MockJobHistoryRepository)(nil).CountPendingByPhase))
+}
+
+// CountPurgeable mocks base method.
+func (m *MockJobHistoryRepository) CountPurgeable(statuses []string, before time.Time) (map[string]int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountPurgeable", statuses, before)
+	ret0, _ := ret[0].(map[string]int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountPurgeable indicates an expected call of CountPurgeable.
+func (mr *MockJobHistoryRepositoryMockRecorder) CountPurgeable(statuses, before any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountPurgeable", reflect.TypeOf((*MockJobHistoryRepository)(nil).CountPurgeable), statuses, before)
 }
 
 // CountRecentFailedByPhase mocks base method.
@@ -170,21 +215,6 @@ func (m *MockJobHistoryRepository) DeleteByStatus(status string) (int64, error) 
 func (mr *MockJobHistoryRepositoryMockRecorder) DeleteByStatus(status any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByStatus", reflect.TypeOf((*MockJobHistoryRepository)(nil).DeleteByStatus), status)
-}
-
-// DeleteOlderThan mocks base method.
-func (m *MockJobHistoryRepository) DeleteOlderThan(before time.Time) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOlderThan", before)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DeleteOlderThan indicates an expected call of DeleteOlderThan.
-func (mr *MockJobHistoryRepositoryMockRecorder) DeleteOlderThan(before any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOlderThan", reflect.TypeOf((*MockJobHistoryRepository)(nil).DeleteOlderThan), before)
 }
 
 // ExistsPendingOrRunning mocks base method.
@@ -352,18 +382,48 @@ func (mr *MockJobHistoryRepositoryMockRecorder) MarkRunningAsInterrupted() *gomo
 }
 
 // MarkStuckPendingJobsAsFailed mocks base method.
-func (m *MockJobHistoryRepository) MarkStuckPendingJobsAsFailed(olderThan time.Duration) (int64, error) {
+func (m *MockJobHistoryRepository) MarkStuckPendingJobsAsFailed(olderThan time.Duration, excludePhases []string) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MarkStuckPendingJobsAsFailed", olderThan)
+	ret := m.ctrl.Call(m, "MarkStuckPendingJobsAsFailed", olderThan, excludePhases)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // MarkStuckPendingJobsAsFailed indicates an expected call of MarkStuckPendingJobsAsFailed.
-func (mr *MockJobHistoryRepositoryMockRecorder) MarkStuckPendingJobsAsFailed(olderThan any) *gomock.Call {
+func (mr *MockJobHistoryRepositoryMockRecorder) MarkStuckPendingJobsAsFailed(olderThan, excludePhases any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkStuckPendingJobsAsFailed", reflect.TypeOf((*MockJobHistoryRepository)(nil).MarkStuckPendingJobsAsFailed), olderThan)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkStuckPendingJobsAsFailed", reflect.TypeOf((*MockJobHistoryRepository)(nil).MarkStuckPendingJobsAsFailed), olderThan, excludePhases)
+}
+
+// PurgeFinishedBatch mocks base method.
+func (m *MockJobHistoryRepository) PurgeFinishedBatch(statuses []string, before time.Time, limit int) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PurgeFinishedBatch", statuses, before, limit)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PurgeFinishedBatch indicates an expected call of PurgeFinishedBatch.
+func (mr *MockJobHistoryRepositoryMockRecorder) PurgeFinishedBatch(statuses, before, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PurgeFinishedBatch", reflect.TypeOf((*MockJobHistoryRepository)(nil).PurgeFinishedBatch), statuses, before, limit)
+}
+
+// RequeueInterruptedJobs mocks base method.
+func (m *MockJobHistoryRepository) RequeueInterruptedJobs() (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RequeueInterruptedJobs")
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RequeueInterruptedJobs indicates an expected call of RequeueInterruptedJobs.
+func (mr *MockJobHistoryRepositoryMockRecorder) RequeueInterruptedJobs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RequeueInterruptedJobs", reflect.TypeOf((*MockJobHistoryRepository)(nil).RequeueInterruptedJobs))
 }
 
 // ResetJobsToPending mocks base method.

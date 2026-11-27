@@ -1,8 +1,16 @@
 <script setup lang="ts">
-import type { DuplicateGroup, DuplicateStats } from '~/types/duplicates';
+import type {
+    BulkTrashAllResult,
+    DuplicateGroup,
+    DuplicateSkippedGroup,
+    DuplicateStats,
+    DuplicationConfig,
+    TrashAllResult,
+} from '~/types/duplicates';
 
 definePageMeta({
     middleware: 'auth',
+    permissions: ['duplicates:manage'],
 });
 
 useHead({ title: 'Duplicate Detection' });
@@ -14,33 +22,284 @@ useSeoMeta({
     ogDescription: 'Manage detected duplicate scenes',
 });
 
-const authStore = useAuthStore();
-const { listGroups, getStats, resolveGroup, dismissGroup, setBest } = useApiDuplicates();
-
-// Redirect non-admins
-if (authStore.user?.role !== 'admin') {
-    navigateTo('/');
-}
+const {
+    listGroups,
+    listSelectableIds,
+    getGroup,
+    getStats,
+    resolveGroup,
+    dismissGroup,
+    setBest,
+    autoSelectBest,
+    resolveBulk,
+    excludeMembers,
+    cancelDeletion,
+    getConfig,
+} = useApiDuplicates();
 
 // State
 const groups = ref<DuplicateGroup[]>([]);
 const stats = ref<DuplicateStats>({ unresolved: 0, resolved: 0, dismissed: 0, total: 0 });
 const loading = ref(true);
-const page = ref(1);
+// Page, status tab, sort and opened group live in the URL (Back, reload, shared links)
+const page = useUrlPagination();
 const limit = ref(20);
 const total = ref(0);
-const statusFilter = ref('');
-const sortBy = ref('newest');
-const expandedGroupId = ref<number | null>(null);
+const statusFilter = useUrlQueryRef('status', '', (raw) =>
+    ['unresolved', 'resolved', 'dismissed'].includes(raw) ? raw : undefined,
+);
+const sortBy = useUrlString('sort', 'newest');
+// Kind of group: identical, containment (clip / compilation), partial, unverified
+const kindFilter = useUrlQueryRef('kind', '', (raw) =>
+    ['identical', 'containment', 'partial', 'unverified'].includes(raw) ? raw : undefined,
+);
+// View: duplicate groups (fingerprint matches) or copies (same file at another path)
+const view = useUrlQueryRef('view', '', (raw) => (raw === 'copies' ? raw : undefined));
+const expandedGroupParam = useUrlQueryRef('group', 0, (raw) => {
+    const n = Number(raw);
+    return Number.isInteger(n) && n > 0 ? n : undefined;
+});
+const expandedGroupId = computed<number | null>({
+    get: () => expandedGroupParam.value || null,
+    set: (id) => {
+        expandedGroupParam.value = id ?? 0;
+    },
+});
 const mergeMetadata = ref(true);
+
+// Bulk selection and actions
+const selectedIds = ref<Set<number>>(new Set());
+const bulkBusy = ref(false);
+const showBulkConfirm = ref(false);
+const bulkMessage = ref<string | null>(null);
+// Groups the last automatic action skipped (not all their scenes are identical)
+const skippedGroups = ref<DuplicateSkippedGroup[]>([]);
+const dupConfig = ref<DuplicationConfig | null>(null);
+
+// Trash all videos of one group or of the selected groups. Groups seen on any page are kept
+// so the confirmation can count the videos of a selection spanning pages.
+const knownGroups = ref<Map<number, DuplicateGroup>>(new Map());
+const trashAllIds = ref<number[]>([]);
+const trashAllBulk = ref(false);
+const showTrashAll = ref(false);
+
+const rememberGroups = (list: DuplicateGroup[]) => {
+    const next = new Map(knownGroups.value);
+    for (const g of list) next.set(g.id, g);
+    knownGroups.value = next;
+};
+
+const openTrashAll = (ids: number[], bulk: boolean) => {
+    if (ids.length === 0) return;
+    trashAllIds.value = ids;
+    trashAllBulk.value = bulk;
+    showTrashAll.value = true;
+};
+
+const handleTrashed = async (result: TrashAllResult | BulkTrashAllResult) => {
+    skippedGroups.value = [];
+    if ('resolved' in result) {
+        bulkMessage.value = describeBulkTrashAll(result);
+        selectedIds.value = new Set(result.failed.map((f) => f.group_id));
+    } else {
+        const groupId = trashAllIds.value[0];
+        bulkMessage.value =
+            `Group #${groupId} resolved, ${result.trashed.length} video(s) moved to the trash` +
+            (result.skipped.length
+                ? `, ${result.skipped.length} already in the trash or missing`
+                : '');
+        if (groupId !== undefined && selectedIds.value.has(groupId)) toggleSelect(groupId);
+        expandedGroupId.value = null;
+    }
+    await Promise.all([loadGroups(), loadStats()]);
+};
+
+// Player / compare modal
+const playerGroup = ref<DuplicateGroup | null>(null);
+const playerSceneId = ref<number | null>(null);
+
+// Eligible members (client state per group, duplicateEligibility.ts): the scenes unchecked as
+// not duplicates are removed from their group before a resolve or a trash-all
+const unchecked = ref<Map<number, Set<number>>>(new Map());
+const noneUnchecked: ReadonlySet<number> = new Set();
+const uncheckedOf = (groupId: number): ReadonlySet<number> =>
+    unchecked.value.get(groupId) ?? noneUnchecked;
+
+const toggleEligible = (groupId: number, sceneId: number) => {
+    unchecked.value = toggleUnchecked(unchecked.value, groupId, sceneId);
+};
+
+const setAllEligible = (group: DuplicateGroup, eligible: boolean) => {
+    unchecked.value = setGroupUnchecked(
+        unchecked.value,
+        group.id,
+        eligible ? [] : group.members.map((m) => m.scene_id),
+    );
+};
+
+const clearUnchecked = (groupIds: number[]) => {
+    let next: Map<number, Set<number>> = unchecked.value;
+    for (const id of groupIds) next = setGroupUnchecked(next, id, []);
+    unchecked.value = next;
+};
+
+// "Remove unchecked from group", alone or before resolving the group
+const excludeGroup = ref<DuplicateGroup | null>(null);
+const excludeThenResolve = ref(false);
+
+const openExclude = (group: DuplicateGroup, resolve: boolean) => {
+    excludeGroup.value = group;
+    excludeThenResolve.value = resolve;
+};
+
+const handleExcluded = async (message: string) => {
+    const group = excludeGroup.value;
+    bulkMessage.value = message;
+    skippedGroups.value = [];
+    if (group) {
+        clearUnchecked([group.id]);
+        if (excludeThenResolve.value) expandedGroupId.value = null;
+    }
+    await Promise.all([loadGroups(), loadStats()]);
+};
+
+const requestResolve = (group: DuplicateGroup) => {
+    if (uncheckedMembers(unchecked.value, group).length) openExclude(group, true);
+    else handleResolve(group.id, group.best_scene_id!);
+};
+
+// Unchecked members of the selected groups, removed before the bulk auto-resolve
+const bulkPlan = computed(() =>
+    planExclusions(selectedIds.value, knownGroups.value, unchecked.value),
+);
+
+const selectableIds = computed(() =>
+    groups.value.filter((g) => g.status === 'unresolved').map((g) => g.id),
+);
+
+const toggleSelect = (id: number) => {
+    const next = new Set(selectedIds.value);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    selectedIds.value = next;
+};
+
+const selectAllOnPage = () => {
+    selectedIds.value = new Set([...selectedIds.value, ...selectableIds.value]);
+};
+
+// Every unresolved group of the current kind, on every page (the API returns at most the bulk
+// actions' limit, the newest first).
+const selectAllGroups = async () => {
+    bulkMessage.value = null;
+    try {
+        const { ids, total, limit } = await listSelectableIds(kindFilter.value);
+        selectedIds.value = new Set([...selectedIds.value, ...ids]);
+        if (total > ids.length) {
+            bulkMessage.value = `Selected the newest ${ids.length} of ${total} unresolved groups: bulk actions take at most ${limit} groups at a time`;
+        }
+    } catch (e: unknown) {
+        bulkMessage.value = e instanceof Error ? e.message : 'Failed to select the groups';
+    }
+};
+
+const clearSelection = () => {
+    selectedIds.value = new Set();
+};
+
+const handleAutoSelect = async (groupIds: number[]) => {
+    if (groupIds.length === 0) return;
+    bulkBusy.value = true;
+    bulkMessage.value = null;
+    skippedGroups.value = [];
+    try {
+        const { selected, skipped } = await autoSelectBest(groupIds);
+        bulkMessage.value =
+            `Best variant selected in ${Object.keys(selected).length} group(s)` +
+            (skipped.length ? `, ${skipped.length} skipped` : '');
+        skippedGroups.value = skipped;
+        await loadGroups();
+    } catch (e) {
+        bulkMessage.value = e instanceof Error ? e.message : 'Auto-select failed';
+    } finally {
+        bulkBusy.value = false;
+    }
+};
+
+const confirmBulkResolve = async () => {
+    showBulkConfirm.value = false;
+    const plan = bulkPlan.value;
+    const skip = new Set(plan.nothingEligible);
+    if (selectedIds.value.size === 0) return;
+    bulkBusy.value = true;
+    bulkMessage.value = null;
+    skippedGroups.value = [];
+    try {
+        // Unchecked members first: groups left with one video are dismissed, not resolved
+        const dismissed = await runExclusionPlan(plan, excludeMembers);
+        clearUnchecked(plan.exclusions.map((e) => e.groupId));
+        const excludedNote = plan.uncheckedVideos
+            ? `${plan.uncheckedVideos} unchecked video(s) removed from their group. `
+            : '';
+        const ids = [...selectedIds.value].filter((id) => !skip.has(id) && !dismissed.has(id));
+        if (ids.length === 0) {
+            bulkMessage.value = `${excludedNote}No group left to resolve`;
+            await Promise.all([loadGroups(), loadStats()]);
+            return;
+        }
+        const result = await resolveBulk(ids, true, mergeMetadata.value);
+        const markers = describeMarkerMerge(result.markers);
+        bulkMessage.value =
+            excludedNote +
+            `${result.resolved.length} group(s) resolved` +
+            (result.skipped.length ? `, ${result.skipped.length} skipped` : '') +
+            (result.failed.length ? `, ${result.failed.length} failed` : '') +
+            (markers ? `. Markers: ${markers}` : '');
+        skippedGroups.value = result.skipped;
+        selectedIds.value = new Set(result.failed.map((f) => f.group_id));
+        await Promise.all([loadGroups(), loadStats()]);
+    } catch (e) {
+        bulkMessage.value = e instanceof Error ? e.message : 'Bulk resolve failed';
+        await Promise.all([loadGroups(), loadStats()]);
+    } finally {
+        bulkBusy.value = false;
+    }
+};
+
+const handleCancelDeletion = async (groupId: number, sceneId: number) => {
+    try {
+        await cancelDeletion(groupId, sceneId);
+        await loadGroups();
+    } catch (e) {
+        console.error('Failed to cancel deletion:', e);
+    }
+};
+
+const openPlayer = (group: DuplicateGroup, sceneId: number) => {
+    playerGroup.value = group;
+    playerSceneId.value = sceneId;
+};
+
+const closePlayer = () => {
+    playerGroup.value = null;
+    playerSceneId.value = null;
+};
 
 const totalPages = computed(() => Math.ceil(total.value / limit.value) || 1);
 
 const loadGroups = async () => {
     loading.value = true;
     try {
-        const data = await listGroups(page.value, limit.value, statusFilter.value, sortBy.value);
+        const data = await listGroups(
+            page.value,
+            limit.value,
+            statusFilter.value,
+            sortBy.value,
+            kindFilter.value,
+        );
         groups.value = data.data;
+        rememberGroups(data.data);
+        unchecked.value = pruneUnchecked(unchecked.value, data.data);
         total.value = data.pagination.total_items;
     } catch (e) {
         console.error('Failed to load groups:', e);
@@ -59,7 +318,9 @@ const loadStats = async () => {
 
 const handleResolve = async (groupId: number, bestSceneId: number) => {
     try {
-        await resolveGroup(groupId, bestSceneId, mergeMetadata.value);
+        const result = await resolveGroup(groupId, bestSceneId, mergeMetadata.value);
+        const markers = describeMarkerMerge(result.markers);
+        bulkMessage.value = `Group #${groupId} resolved` + (markers ? `. Markers: ${markers}` : '');
         expandedGroupId.value = null;
         await Promise.all([loadGroups(), loadStats()]);
     } catch (e) {
@@ -92,6 +353,31 @@ const setStatus = (s: string) => {
     loadGroups();
 };
 
+const setKind = (k: string) => {
+    kindFilter.value = k;
+    page.value = 1;
+    loadGroups();
+};
+
+// Opens a skipped group to review it, fetching it on top of the list when not on this page
+const openSkippedGroup = async (groupId: number) => {
+    if (!groups.value.some((g) => g.id === groupId)) {
+        try {
+            const group: DuplicateGroup = await getGroup(groupId);
+            rememberGroups([group]);
+            groups.value = [group, ...groups.value];
+        } catch (e) {
+            console.error('Failed to load group:', e);
+            return;
+        }
+    }
+    expandedGroupId.value = groupId;
+    await nextTick();
+    document
+        .getElementById(`duplicate-group-${groupId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
 const setSort = (s: string) => {
     sortBy.value = s;
     page.value = 1;
@@ -105,25 +391,6 @@ const toggleGroup = (id: number) => {
 const goToPage = (p: number) => {
     page.value = p;
     loadGroups();
-};
-
-const formatDuration = (seconds: number): string => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    return `${m}:${String(s).padStart(2, '0')}`;
-};
-
-const formatSize = (bytes: number): string => {
-    if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(1) + ' GB';
-    if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
-    return (bytes / 1024).toFixed(1) + ' KB';
-};
-
-const formatBitrate = (bps: number): string => {
-    if (bps >= 1000000) return (bps / 1000000).toFixed(1) + ' Mbps';
-    return (bps / 1000).toFixed(0) + ' Kbps';
 };
 
 const statusTabs = [
@@ -152,7 +419,16 @@ const visiblePages = computed(() => {
 });
 
 onMounted(() => {
-    Promise.all([loadGroups(), loadStats()]);
+    // A group opened from a link (e.g. the watch page's Similar tab) may not be on this page
+    const linkedGroupId = expandedGroupId.value;
+    Promise.all([loadGroups(), loadStats()]).then(() => {
+        if (linkedGroupId && expandedGroupId.value === linkedGroupId) {
+            openSkippedGroup(linkedGroupId);
+        }
+    });
+    getConfig()
+        .then((cfg: DuplicationConfig) => (dupConfig.value = cfg))
+        .catch(() => {});
 });
 </script>
 
@@ -164,350 +440,274 @@ onMounted(() => {
                 <h1 class="text-lg font-bold text-white">Duplicate Detection</h1>
                 <p class="text-dim mt-1 text-xs">Manage detected duplicate scenes</p>
             </div>
-            <NuxtLink
-                to="/settings?tab=duplicates"
-                class="border-border text-dim hover:border-lava/30 hover:text-lava flex items-center
-                    gap-1.5 rounded-md border px-3 py-1.5 text-[11px] font-medium transition-all"
-            >
-                <Icon name="heroicons:adjustments-horizontal" size="14" />
-                Settings
-            </NuxtLink>
-        </div>
-
-        <!-- Stats Bar -->
-        <div class="mb-6 grid grid-cols-3 gap-3">
-            <div class="border-border rounded-lg border bg-white/2 p-3">
-                <div class="text-lava text-lg font-bold">{{ stats.unresolved }}</div>
-                <div class="text-dim text-[11px]">Unresolved</div>
-            </div>
-            <div class="border-border rounded-lg border bg-white/2 p-3">
-                <div class="text-emerald text-lg font-bold">{{ stats.resolved }}</div>
-                <div class="text-dim text-[11px]">Resolved</div>
-            </div>
-            <div class="border-border rounded-lg border bg-white/2 p-3">
-                <div class="text-dim text-lg font-bold">{{ stats.dismissed }}</div>
-                <div class="text-dim text-[11px]">Dismissed</div>
-            </div>
-        </div>
-
-        <!-- Filter Bar -->
-        <div class="mb-4 flex items-center justify-between">
-            <div class="flex gap-1">
-                <button
-                    v-for="s in statusTabs"
-                    :key="s.value"
-                    class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-all"
-                    :class="
-                        statusFilter === s.value
-                            ? 'bg-lava/20 text-lava'
-                            : 'text-dim hover:bg-white/5 hover:text-white'
-                    "
-                    @click="setStatus(s.value)"
-                >
-                    {{ s.label }}
-                </button>
-            </div>
             <div class="flex items-center gap-2">
-                <select
-                    :value="sortBy"
-                    class="border-border bg-panel rounded-md border px-2 py-1 text-[11px]
-                        text-white"
-                    @change="setSort(($event.target as HTMLSelectElement).value)"
+                <DuplicatesMarkerDedup />
+                <NuxtLink
+                    to="/settings?tab=duplicates"
+                    class="border-border text-dim hover:border-lava/30 hover:text-lava flex
+                        items-center gap-1.5 rounded-md border px-3 py-1.5 text-[11px] font-medium
+                        transition-all"
                 >
-                    <option value="newest">Newest</option>
-                    <option value="size">Group Size</option>
-                </select>
-                <button
-                    class="text-dim hover:text-lava transition-colors"
-                    title="Refresh"
-                    @click="
-                        loadGroups();
-                        loadStats();
-                    "
-                >
-                    <Icon name="heroicons:arrow-path" size="16" />
-                </button>
+                    <Icon name="heroicons:adjustments-horizontal" size="14" />
+                    Settings
+                </NuxtLink>
             </div>
         </div>
 
-        <!-- Loading -->
-        <div v-if="loading" class="flex items-center justify-center py-20">
-            <div
-                class="border-lava/30 border-t-lava h-6 w-6 animate-spin rounded-full border-2"
-            ></div>
-        </div>
-
-        <!-- Empty State -->
-        <div v-else-if="groups.length === 0" class="py-20 text-center">
-            <Icon name="heroicons:document-duplicate" size="48" class="text-dim mx-auto mb-3" />
-            <p class="text-dim text-sm">No duplicate groups found</p>
-        </div>
-
-        <!-- Group List -->
-        <div v-else class="space-y-3">
-            <div
-                v-for="group in groups"
-                :key="group.id"
-                class="border-border overflow-hidden rounded-lg border bg-white/2"
+        <!-- View switch -->
+        <div class="border-border mb-6 flex gap-1 border-b">
+            <button
+                v-for="v in [
+                    { value: '', label: 'Groups' },
+                    { value: 'copies', label: 'Copies' },
+                ]"
+                :key="v.value"
+                class="-mb-px border-b-2 px-3 py-1.5 text-xs font-medium transition-colors"
+                :class="
+                    view === v.value
+                        ? 'border-lava text-lava'
+                        : 'text-dim border-transparent hover:text-white'
+                "
+                @click="view = v.value"
             >
-                <!-- Group Header (clickable) -->
-                <button
-                    class="flex w-full items-center justify-between p-4 text-left transition-colors
-                        hover:bg-white/2"
-                    @click="toggleGroup(group.id)"
-                >
-                    <div class="flex items-center gap-3">
-                        <!-- Member Thumbnails Preview -->
-                        <div class="flex -space-x-2">
-                            <div
-                                v-for="(member, idx) in group.members.slice(0, 3)"
-                                :key="member.scene_id"
-                                class="border-void h-10 w-16 overflow-hidden rounded border-2
-                                    bg-black/50"
-                                :style="{ zIndex: 3 - idx }"
-                            >
-                                <img
-                                    v-if="member.thumbnail_path"
-                                    :src="`/thumbnails/${member.scene_id}?size=sm`"
-                                    class="h-full w-full object-cover"
-                                    :alt="member.title"
-                                />
-                            </div>
-                            <div
-                                v-if="group.members.length > 3"
-                                class="border-void bg-panel text-dim flex h-10 w-10 items-center
-                                    justify-center rounded border-2 text-[10px] font-medium"
-                            >
-                                +{{ group.members.length - 3 }}
-                            </div>
-                        </div>
+                {{ v.label }}
+            </button>
+        </div>
 
-                        <div>
-                            <div class="flex items-center gap-2">
-                                <span class="text-sm font-medium text-white"
-                                    >{{ group.scene_count }} scenes</span
-                                >
-                                <span
-                                    class="rounded-full px-1.5 py-0.5 text-[9px] font-semibold
-                                        uppercase"
-                                    :class="{
-                                        'bg-lava/20 text-lava': group.status === 'unresolved',
-                                        'bg-emerald/20 text-emerald': group.status === 'resolved',
-                                        'text-dim bg-white/10': group.status === 'dismissed',
-                                    }"
-                                >
-                                    {{ group.status }}
-                                </span>
-                                <span
-                                    v-if="group.members[0]"
-                                    class="rounded-full bg-white/5 px-1.5 py-0.5 text-[9px]
-                                        font-medium"
-                                    :class="
-                                        group.members[0].match_type === 'audio'
-                                            ? 'text-blue-400'
-                                            : 'text-purple-400'
-                                    "
-                                >
-                                    {{ group.members[0].match_type }}
-                                </span>
-                            </div>
-                            <div class="text-dim mt-0.5 text-[11px]">
-                                <NuxtTime :datetime="group.created_at" />
-                            </div>
-                        </div>
-                    </div>
+        <DuplicatesCopiesView v-if="view === 'copies'" />
 
-                    <Icon
-                        name="heroicons:chevron-down"
-                        size="16"
-                        class="text-dim transition-transform"
-                        :class="{ 'rotate-180': expandedGroupId === group.id }"
-                    />
-                </button>
-
-                <!-- Expanded Detail -->
-                <div v-if="expandedGroupId === group.id" class="border-border border-t">
-                    <!-- Comparison Table -->
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-[11px]">
-                            <thead>
-                                <tr class="border-border border-b bg-white/2">
-                                    <th class="text-dim px-4 py-2 text-left font-medium">Scene</th>
-                                    <th class="text-dim px-3 py-2 text-left font-medium">
-                                        Resolution
-                                    </th>
-                                    <th class="text-dim px-3 py-2 text-left font-medium">
-                                        Duration
-                                    </th>
-                                    <th class="text-dim px-3 py-2 text-left font-medium">Codec</th>
-                                    <th class="text-dim px-3 py-2 text-left font-medium">
-                                        Bitrate
-                                    </th>
-                                    <th class="text-dim px-3 py-2 text-left font-medium">Size</th>
-                                    <th class="text-dim px-3 py-2 text-left font-medium">Match</th>
-                                    <th class="text-dim px-3 py-2 text-center font-medium">Best</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr
-                                    v-for="member in group.members"
-                                    :key="member.scene_id"
-                                    class="border-border border-b transition-colors last:border-b-0"
-                                    :class="{
-                                        'bg-emerald/5': member.is_best,
-                                        'opacity-50': member.is_trashed,
-                                        'hover:bg-white/2': !member.is_best && !member.is_trashed,
-                                    }"
-                                >
-                                    <td class="px-4 py-2.5">
-                                        <div class="flex items-center gap-2">
-                                            <div
-                                                class="h-8 w-12 shrink-0 overflow-hidden rounded
-                                                    bg-black/50"
-                                                :class="{ grayscale: member.is_trashed }"
-                                            >
-                                                <img
-                                                    :src="`/thumbnails/${member.scene_id}?size=sm`"
-                                                    class="h-full w-full object-cover"
-                                                    :alt="member.title"
-                                                />
-                                            </div>
-                                            <div class="flex items-center gap-1.5">
-                                                <NuxtLink
-                                                    :to="`/watch/${member.scene_id}`"
-                                                    class="max-w-48 truncate font-medium
-                                                        transition-colors"
-                                                    :class="
-                                                        member.is_trashed
-                                                            ? 'text-dim'
-                                                            : 'hover:text-lava text-white'
-                                                    "
-                                                    @click.stop
-                                                >
-                                                    {{ member.title }}
-                                                </NuxtLink>
-                                                <span
-                                                    v-if="member.is_trashed"
-                                                    class="text-dim rounded-full bg-white/5 px-1.5
-                                                        py-0.5 text-[9px] font-medium"
-                                                >
-                                                    Trashed
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="px-3 py-2.5 text-white">
-                                        {{ member.width }}x{{ member.height }}
-                                    </td>
-                                    <td class="px-3 py-2.5 text-white">
-                                        {{ formatDuration(member.duration) }}
-                                    </td>
-                                    <td class="px-3 py-2.5 text-white">{{ member.video_codec }}</td>
-                                    <td class="px-3 py-2.5 text-white">
-                                        {{ formatBitrate(member.bit_rate) }}
-                                    </td>
-                                    <td class="px-3 py-2.5 text-white">
-                                        {{ formatSize(member.size) }}
-                                    </td>
-                                    <td class="px-3 py-2.5">
-                                        <span class="text-dim"
-                                            >{{ (member.confidence_score * 100).toFixed(0) }}%</span
-                                        >
-                                    </td>
-                                    <td class="px-3 py-2.5 text-center">
-                                        <button
-                                            v-if="group.status === 'unresolved'"
-                                            class="inline-flex h-5 w-5 items-center justify-center
-                                                rounded-full border transition-all"
-                                            :class="
-                                                member.is_best
-                                                    ? 'border-emerald bg-emerald/20 text-emerald'
-                                                    : `text-dim hover:border-emerald/50
-                                                        border-white/20`
-                                            "
-                                            @click.stop="handleSetBest(group.id, member.scene_id)"
-                                        >
-                                            <Icon
-                                                v-if="member.is_best"
-                                                name="heroicons:check"
-                                                size="12"
-                                            />
-                                        </button>
-                                        <Icon
-                                            v-else-if="member.is_best"
-                                            name="heroicons:check-circle-solid"
-                                            size="16"
-                                            class="text-emerald"
-                                        />
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- Actions -->
-                    <div
-                        v-if="group.status === 'unresolved'"
-                        class="border-border flex items-center justify-between border-t p-4"
-                    >
-                        <label class="text-dim flex items-center gap-2 text-[11px]">
-                            <input
-                                v-model="mergeMetadata"
-                                type="checkbox"
-                                class="accent-lava rounded"
-                            />
-                            Merge metadata (tags, actors)
-                        </label>
-                        <div class="flex gap-2">
-                            <button
-                                class="border-border text-dim rounded-md border px-3 py-1.5
-                                    text-[11px] font-medium transition-all hover:bg-white/5
-                                    hover:text-white"
-                                @click="handleDismiss(group.id)"
-                            >
-                                Dismiss
-                            </button>
-                            <button
-                                class="bg-lava hover:bg-lava/80 rounded-md px-3 py-1.5 text-[11px]
-                                    font-medium text-white transition-all disabled:opacity-50"
-                                :disabled="!group.best_scene_id"
-                                @click="handleResolve(group.id, group.best_scene_id!)"
-                            >
-                                Resolve
-                            </button>
-                        </div>
-                    </div>
+        <template v-else>
+            <!-- Stats Bar -->
+            <div class="mb-6 grid grid-cols-3 gap-3">
+                <div class="border-border rounded-lg border bg-white/2 p-3">
+                    <div class="text-lava text-lg font-bold">{{ stats.unresolved }}</div>
+                    <div class="text-dim text-[11px]">Unresolved</div>
+                </div>
+                <div class="border-border rounded-lg border bg-white/2 p-3">
+                    <div class="text-emerald text-lg font-bold">{{ stats.resolved }}</div>
+                    <div class="text-dim text-[11px]">Resolved</div>
+                </div>
+                <div class="border-border rounded-lg border bg-white/2 p-3">
+                    <div class="text-dim text-lg font-bold">{{ stats.dismissed }}</div>
+                    <div class="text-dim text-[11px]">Dismissed</div>
                 </div>
             </div>
-        </div>
 
-        <!-- Pagination -->
-        <div v-if="totalPages > 1" class="mt-6 flex items-center justify-center gap-1">
-            <button
-                :disabled="page <= 1"
-                class="text-dim rounded px-2 py-1 text-[11px] hover:text-white disabled:opacity-30"
-                @click="goToPage(page - 1)"
+            <!-- Filter Bar -->
+            <div class="mb-4 flex items-center justify-between">
+                <div class="flex gap-1">
+                    <button
+                        v-for="s in statusTabs"
+                        :key="s.value"
+                        class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-all"
+                        :class="
+                            statusFilter === s.value
+                                ? 'bg-lava/20 text-lava'
+                                : 'text-dim hover:bg-white/5 hover:text-white'
+                        "
+                        @click="setStatus(s.value)"
+                    >
+                        {{ s.label }}
+                    </button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <DuplicatesKindFilter :model-value="kindFilter" @update:model-value="setKind" />
+                    <select
+                        :value="sortBy"
+                        class="border-border bg-panel rounded-md border px-2 py-1 text-[11px]
+                            text-white"
+                        @change="setSort(($event.target as HTMLSelectElement).value)"
+                    >
+                        <option value="newest">Newest</option>
+                        <option value="size">Group Size</option>
+                    </select>
+                    <button
+                        class="text-dim hover:text-lava transition-colors"
+                        title="Refresh"
+                        @click="
+                            loadGroups();
+                            loadStats();
+                        "
+                    >
+                        <Icon name="heroicons:arrow-path" size="16" />
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading -->
+            <div v-if="loading" class="flex items-center justify-center py-20">
+                <div
+                    class="border-lava/30 border-t-lava h-6 w-6 animate-spin rounded-full border-2"
+                ></div>
+            </div>
+
+            <!-- Empty State -->
+            <div v-else-if="groups.length === 0" class="py-20 text-center">
+                <Icon name="heroicons:document-duplicate" size="48" class="text-dim mx-auto mb-3" />
+                <p class="text-dim text-sm">No duplicate groups found</p>
+            </div>
+
+            <!-- Bulk actions -->
+            <DuplicatesBulkBar
+                v-if="!loading && groups.length > 0"
+                :selected-count="selectedIds.size"
+                :selectable-count="selectableIds.length"
+                :kind-filtered="!!kindFilter"
+                :busy="bulkBusy"
+                :deletion-enabled="dupConfig?.delete_resolved_files ?? false"
+                :deletion-delay-hours="dupConfig?.deletion_delay_hours ?? 0"
+                @select-all="selectAllOnPage"
+                @select-all-groups="selectAllGroups"
+                @clear="clearSelection"
+                @auto-select="handleAutoSelect([...selectedIds])"
+                @auto-resolve="showBulkConfirm = true"
+                @trash-all="openTrashAll([...selectedIds], true)"
+            />
+            <div
+                v-if="bulkMessage"
+                class="border-border text-dim mb-3 flex items-center justify-between rounded-md
+                    border px-3 py-1.5 text-[11px]"
             >
-                Prev
-            </button>
-            <template v-for="(p, idx) in visiblePages" :key="idx">
-                <span v-if="p === null" class="text-dim px-1 text-[11px]">...</span>
-                <button
-                    v-else
-                    class="rounded px-2.5 py-1 text-[11px] font-medium transition-all"
-                    :class="page === p ? 'bg-lava/20 text-lava' : 'text-dim hover:bg-white/5'"
-                    @click="goToPage(p)"
-                >
-                    {{ p }}
+                <span>{{ bulkMessage }}</span>
+                <button class="hover:text-white" @click="bulkMessage = null">
+                    <Icon name="heroicons:x-mark" size="12" />
                 </button>
-            </template>
-            <button
-                :disabled="page >= totalPages"
-                class="text-dim rounded px-2 py-1 text-[11px] hover:text-white disabled:opacity-30"
-                @click="goToPage(page + 1)"
+            </div>
+            <DuplicatesSkippedNotice
+                v-if="skippedGroups.length"
+                :skipped="skippedGroups"
+                @open="openSkippedGroup"
+                @close="skippedGroups = []"
+            />
+
+            <!-- Group List -->
+            <div v-if="!loading && groups.length > 0" class="space-y-3">
+                <DuplicatesGroupCard
+                    v-for="group in groups"
+                    :id="`duplicate-group-${group.id}`"
+                    :key="group.id"
+                    v-model:merge-metadata="mergeMetadata"
+                    :group="group"
+                    :expanded="expandedGroupId === group.id"
+                    :selected="selectedIds.has(group.id)"
+                    :unchecked="uncheckedOf(group.id)"
+                    @toggle="toggleGroup(group.id)"
+                    @toggle-select="toggleSelect(group.id)"
+                    @set-best="(sceneId: number) => handleSetBest(group.id, sceneId)"
+                    @auto-select="handleAutoSelect([group.id])"
+                    @resolve="requestResolve(group)"
+                    @dismiss="handleDismiss(group.id)"
+                    @trash-all="openTrashAll([group.id], false)"
+                    @play="(sceneId: number) => openPlayer(group, sceneId)"
+                    @cancel-deletion="(sceneId: number) => handleCancelDeletion(group.id, sceneId)"
+                    @toggle-eligible="(sceneId: number) => toggleEligible(group.id, sceneId)"
+                    @set-all-eligible="(eligible: boolean) => setAllEligible(group, eligible)"
+                    @exclude-unchecked="openExclude(group, false)"
+                />
+            </div>
+
+            <DuplicatesPlayerModal
+                :visible="playerGroup !== null"
+                :members="playerGroup?.members ?? []"
+                :scene-id="playerSceneId"
+                :unchecked="playerGroup ? uncheckedOf(playerGroup.id) : noneUnchecked"
+                :editable="playerGroup?.status === 'unresolved'"
+                @close="closePlayer"
+                @toggle-eligible="
+                    (sceneId: number) => playerGroup && toggleEligible(playerGroup.id, sceneId)
+                "
+            />
+
+            <DuplicatesExcludeModal
+                :visible="excludeGroup !== null"
+                :group="excludeGroup"
+                :unchecked="excludeGroup ? uncheckedOf(excludeGroup.id) : noneUnchecked"
+                :resolve="excludeThenResolve"
+                :merge-metadata="mergeMetadata"
+                @close="excludeGroup = null"
+                @done="handleExcluded"
+            />
+
+            <DuplicatesTrashAllModal
+                :visible="showTrashAll"
+                :group-ids="trashAllIds"
+                :groups="knownGroups"
+                :bulk="trashAllBulk"
+                :unchecked="unchecked"
+                @close="showTrashAll = false"
+                @trashed="handleTrashed"
+                @excluded="clearUnchecked"
+            />
+
+            <UiConfirmModal
+                :visible="showBulkConfirm"
+                title="Auto-resolve selected groups"
+                confirm-label="Resolve"
+                @close="showBulkConfirm = false"
+                @confirm="confirmBulkResolve"
             >
-                Next
-            </button>
-        </div>
+                <p class="text-dim text-xs">
+                    In each of the {{ selectedIds.size }} selected group(s), the best variant is
+                    selected with the configured criteria and kept; the other scenes go to the
+                    trash{{
+                        mergeMetadata ? ' after their metadata is merged into the kept scene' : ''
+                    }}.
+                </p>
+                <p v-if="bulkPlan.uncheckedVideos" class="mt-2 text-xs text-white">
+                    {{ bulkPlan.uncheckedVideos }} unchecked video(s) in
+                    {{ bulkPlan.exclusions.length }} group(s) are first removed from their group and
+                    remembered as not duplicates of the others: they are never trashed. A group left
+                    with one video is dismissed instead of resolved.
+                </p>
+                <p v-if="bulkPlan.nothingEligible.length" class="text-dim mt-2 text-xs">
+                    {{ bulkPlan.nothingEligible.length }} group(s) with every video unchecked are
+                    left untouched.
+                </p>
+                <p class="text-dim mt-2 text-xs">
+                    Groups whose scenes are not all identical (a clip and the compilation containing
+                    it, partial or unverified matches) are skipped and listed afterwards, to be
+                    resolved by hand.
+                </p>
+                <p v-if="dupConfig?.delete_resolved_files" class="text-lava mt-2 text-xs">
+                    Their files will then be permanently deleted
+                    {{
+                        dupConfig.deletion_delay_hours === 0
+                            ? 'at the next cleanup'
+                            : `after ${dupConfig.deletion_delay_hours} hours`
+                    }}, except files on read-only storage paths, which are kept.
+                </p>
+            </UiConfirmModal>
+
+            <!-- Pagination -->
+            <div v-if="totalPages > 1" class="mt-6 flex items-center justify-center gap-1">
+                <button
+                    :disabled="page <= 1"
+                    class="text-dim rounded px-2 py-1 text-[11px] hover:text-white
+                        disabled:opacity-30"
+                    @click="goToPage(page - 1)"
+                >
+                    Prev
+                </button>
+                <template v-for="(p, idx) in visiblePages" :key="idx">
+                    <span v-if="p === null" class="text-dim px-1 text-[11px]">...</span>
+                    <button
+                        v-else
+                        class="rounded px-2.5 py-1 text-[11px] font-medium transition-all"
+                        :class="page === p ? 'bg-lava/20 text-lava' : 'text-dim hover:bg-white/5'"
+                        @click="goToPage(p)"
+                    >
+                        {{ p }}
+                    </button>
+                </template>
+                <button
+                    :disabled="page >= totalPages"
+                    class="text-dim rounded px-2 py-1 text-[11px] hover:text-white
+                        disabled:opacity-30"
+                    @click="goToPage(page + 1)"
+                >
+                    Next
+                </button>
+            </div>
+        </template>
     </div>
 </template>

@@ -28,13 +28,13 @@ func (h *HomepageHandler) GetHomepageData(c *gin.Context) {
 		return
 	}
 
-	data, err := h.homepageService.GetHomepageData(userPayload.UserID)
+	data, err := h.homepageService.GetHomepageData(userPayload.UserID, c.Query("tab"))
 	if err != nil {
 		response.Error(c, apperrors.NewInternalError("failed to fetch homepage data", err))
 		return
 	}
 
-	response.OK(c, response.ToHomepageResponse(data))
+	response.OK(c, response.ToHomepageResponse(data, fileVisibility(c)))
 }
 
 func (h *HomepageHandler) GetSectionData(c *gin.Context) {
@@ -61,5 +61,5 @@ func (h *HomepageHandler) GetSectionData(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, response.ToHomepageSectionDataResponse(data))
+	response.OK(c, response.ToHomepageSectionDataResponse(data, fileVisibility(c)))
 }

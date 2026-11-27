@@ -12,20 +12,57 @@ type DuplicateGroupRepository interface {
 	GetByID(id uint) (*DuplicateGroup, error)
 	GetByIDWithMembers(id uint) (*DuplicateGroup, error)
 	List(page, limit int, status string) ([]DuplicateGroup, int64, error)
-	ListWithMembers(page, limit int, status string) ([]DuplicateGroup, int64, error)
+	// ListWithMembers lists groups with their members, optionally filtered by status and by
+	// kind (DuplicateKind*, derived from the members' relations).
+	ListWithMembers(page, limit int, status, kind string) ([]DuplicateGroup, int64, error)
+	// ListUnresolvedIDs returns the IDs of the unresolved groups of a kind ("" = all), newest
+	// first like the listing, at most limit, and how many there are in total.
+	ListUnresolvedIDs(kind string, limit int) ([]uint, int64, error)
 	UpdateStatus(id uint, status string, resolvedAt *time.Time) error
 	SetBestScene(id uint, sceneID uint) error
+	// ClearBestScene removes the group's best scene (best_scene_id NULL): a group resolved by
+	// trashing all its scenes keeps none.
+	ClearBestScene(id uint) error
 	AddMember(member *DuplicateGroupMember) error
 	RemoveMember(groupID, sceneID uint) error
 	GetGroupBySceneID(sceneID uint) (*DuplicateGroup, error)
 	GetGroupsBySceneIDs(sceneIDs []uint) (map[uint]uint, error)
+	// ListSceneGroupMembers returns the members of the duplicate group of a scene, that scene
+	// included, with their scene card data and the group status (empty when the scene is in no
+	// group). Deleted scenes are left out, and so are trashed ones other than sceneID unless
+	// includeTrashed.
+	ListSceneGroupMembers(sceneID uint, includeTrashed bool) ([]DuplicateMemberScene, error)
 	MergeGroups(targetID uint, sourceIDs []uint) error
 	UpdateSceneCount(id uint) error
 	CountByStatus() (map[string]int64, error)
 	Delete(id uint) error
 	UpdateMemberBest(groupID uint, sceneID uint, isBest bool) error
+	// FillMemberSegment stores the matching segment (and its relation) of a member that has none yet.
+	FillMemberSegment(member *DuplicateGroupMember) error
+	// ListMembersForRelationBackfill returns, by ascending ID after afterID, the members that
+	// have a segment but no relation yet, with the durations of their scene and reference.
+	ListMembersForRelationBackfill(afterID uint, limit int) ([]DuplicateMemberRelationInput, error)
+	// SetMemberRelation stores the relation of a member to its reference.
+	SetMemberRelation(memberID uint, relation string) error
+	// ListMembersWithoutSegment returns, by ascending ID after afterID, the members that have
+	// no matching segment (their segment is recomputed from the stored fingerprints).
+	ListMembersWithoutSegment(afterID uint, limit int) ([]DuplicateGroupMember, error)
+	// SetMemberDeleteAfter schedules (or cancels, with nil) the deletion of group members.
+	SetMemberDeleteAfter(groupID uint, sceneIDs []uint, deleteAfter *time.Time) error
+	// ListMembersDueForDeletion returns members whose scheduled deletion time has passed.
+	ListMembersDueForDeletion(now time.Time, limit int) ([]DuplicateGroupMember, error)
+	// RemoveMembers removes the given scenes from a group (scene_count is not updated).
+	RemoveMembers(groupID uint, sceneIDs []uint) error
+	// AddExclusions records that each scene of sceneIDs is not a duplicate of each scene of
+	// otherIDs (pairs of a scene with itself are skipped, known pairs are kept as they are).
+	AddExclusions(sceneIDs, otherIDs []uint) error
+	// ListExclusionsAmong returns the exclusions whose two scenes are both in sceneIDs.
+	ListExclusionsAmong(sceneIDs []uint) ([]DuplicateExclusion, error)
 	RunInTransaction(fn func(DuplicateGroupRepository) error) error
 }
+
+// duplicateExclusionBatch caps the rows of one exclusion INSERT (3 parameters per row).
+const duplicateExclusionBatch = 1000
 
 type DuplicationConfigRepository interface {
 	Get() (*DuplicationConfigRecord, error)
@@ -83,7 +120,7 @@ func (r *DuplicateGroupRepositoryImpl) List(page, limit int, status string) ([]D
 	return groups, total, nil
 }
 
-func (r *DuplicateGroupRepositoryImpl) ListWithMembers(page, limit int, status string) ([]DuplicateGroup, int64, error) {
+func (r *DuplicateGroupRepositoryImpl) ListWithMembers(page, limit int, status, kind string) ([]DuplicateGroup, int64, error) {
 	var groups []DuplicateGroup
 	var total int64
 	offset := (page - 1) * limit
@@ -92,6 +129,7 @@ func (r *DuplicateGroupRepositoryImpl) ListWithMembers(page, limit int, status s
 	if status != "" {
 		countQuery = countQuery.Where("status = ?", status)
 	}
+	countQuery = whereDuplicateKind(countQuery, kind)
 
 	if err := countQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -101,12 +139,54 @@ func (r *DuplicateGroupRepositoryImpl) ListWithMembers(page, limit int, status s
 	if status != "" {
 		findQuery = findQuery.Where("status = ?", status)
 	}
+	findQuery = whereDuplicateKind(findQuery, kind)
 
 	if err := findQuery.Limit(limit).Offset(offset).Order("created_at DESC").Find(&groups).Error; err != nil {
 		return nil, 0, err
 	}
 
 	return groups, total, nil
+}
+
+func (r *DuplicateGroupRepositoryImpl) ListUnresolvedIDs(kind string, limit int) ([]uint, int64, error) {
+	var total int64
+	if err := whereDuplicateKind(r.DB.Model(&DuplicateGroup{}).Where("status = ?", "unresolved"), kind).
+		Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var ids []uint
+	err := whereDuplicateKind(r.DB.Model(&DuplicateGroup{}).Where("status = ?", "unresolved"), kind).
+		Order("created_at DESC").Order("id DESC").Limit(limit).Pluck("id", &ids).Error
+	return ids, total, err
+}
+
+// Subqueries on the members of the listed group, for whereDuplicateKind
+const (
+	duplicateGroupHasMembers    = "EXISTS (SELECT 1 FROM duplicate_group_members dm WHERE dm.group_id = duplicate_groups.id)"
+	duplicateGroupHasRelation   = "EXISTS (SELECT 1 FROM duplicate_group_members dm WHERE dm.group_id = duplicate_groups.id AND dm.relation IN ?)"
+	duplicateGroupLacksRelation = "NOT " + duplicateGroupHasRelation
+)
+
+// whereDuplicateKind keeps the groups of the given kind, with the same precedence as
+// core.DuplicateGroupKind (containment, then partial, then unverified, else identical).
+// An empty or unknown kind keeps every group.
+func whereDuplicateKind(query *gorm.DB, kind string) *gorm.DB {
+	containment := []string{DuplicateRelationContained, DuplicateRelationContains}
+	switch kind {
+	case DuplicateKindIdentical:
+		return query.Where(duplicateGroupHasMembers).
+			Where(duplicateGroupLacksRelation, append(containment, DuplicateRelationPartial, DuplicateRelationUnknown))
+	case DuplicateKindContainment:
+		return query.Where(duplicateGroupHasRelation, containment)
+	case DuplicateKindPartial:
+		return query.Where(duplicateGroupHasRelation, []string{DuplicateRelationPartial}).
+			Where(duplicateGroupLacksRelation, containment)
+	case DuplicateKindUnverified:
+		return query.Where(duplicateGroupHasRelation, []string{DuplicateRelationUnknown}).
+			Where(duplicateGroupLacksRelation, append(containment, DuplicateRelationPartial))
+	default:
+		return query
+	}
 }
 
 func (r *DuplicateGroupRepositoryImpl) UpdateStatus(id uint, status string, resolvedAt *time.Time) error {
@@ -122,8 +202,80 @@ func (r *DuplicateGroupRepositoryImpl) SetBestScene(id uint, sceneID uint) error
 	return r.DB.Model(&DuplicateGroup{}).Where("id = ?", id).Update("best_scene_id", sceneID).Error
 }
 
+func (r *DuplicateGroupRepositoryImpl) ClearBestScene(id uint) error {
+	return r.DB.Model(&DuplicateGroup{}).Where("id = ?", id).Update("best_scene_id", nil).Error
+}
+
 func (r *DuplicateGroupRepositoryImpl) AddMember(member *DuplicateGroupMember) error {
 	return r.DB.Create(member).Error
+}
+
+func (r *DuplicateGroupRepositoryImpl) FillMemberSegment(member *DuplicateGroupMember) error {
+	return r.DB.Model(&DuplicateGroupMember{}).
+		Where("group_id = ? AND scene_id = ? AND match_start IS NULL", member.GroupID, member.SceneID).
+		Updates(map[string]any{
+			"match_start":  member.MatchStart,
+			"match_end":    member.MatchEnd,
+			"ref_scene_id": member.RefSceneID,
+			"ref_start":    member.RefStart,
+			"ref_end":      member.RefEnd,
+			"relation":     DuplicateRelationOrUnknown(member.Relation),
+		}).Error
+}
+
+// DuplicateRelationOrUnknown maps an unset relation to DuplicateRelationUnknown.
+func DuplicateRelationOrUnknown(relation string) string {
+	if relation == "" {
+		return DuplicateRelationUnknown
+	}
+	return relation
+}
+
+func (r *DuplicateGroupRepositoryImpl) ListMembersForRelationBackfill(afterID uint, limit int) ([]DuplicateMemberRelationInput, error) {
+	var rows []DuplicateMemberRelationInput
+	err := r.DB.Table("duplicate_group_members AS m").
+		Select(`m.id, m.match_start, m.match_end, m.ref_start, m.ref_end,
+			COALESCE(s.duration, 0) AS duration, COALESCE(ref.duration, 0) AS ref_duration`).
+		Joins("LEFT JOIN scenes s ON s.id = m.scene_id").
+		Joins("LEFT JOIN scenes ref ON ref.id = m.ref_scene_id").
+		Where("m.relation = ? AND m.match_start IS NOT NULL AND m.id > ?", DuplicateRelationUnknown, afterID).
+		Order("m.id ASC").
+		Limit(limit).
+		Scan(&rows).Error
+	return rows, err
+}
+
+func (r *DuplicateGroupRepositoryImpl) ListMembersWithoutSegment(afterID uint, limit int) ([]DuplicateGroupMember, error) {
+	var rows []DuplicateGroupMember
+	err := r.DB.Where("match_start IS NULL AND id > ?", afterID).
+		Order("id ASC").
+		Limit(limit).
+		Find(&rows).Error
+	return rows, err
+}
+
+func (r *DuplicateGroupRepositoryImpl) SetMemberRelation(memberID uint, relation string) error {
+	return r.DB.Model(&DuplicateGroupMember{}).
+		Where("id = ?", memberID).
+		Update("relation", DuplicateRelationOrUnknown(relation)).Error
+}
+
+func (r *DuplicateGroupRepositoryImpl) SetMemberDeleteAfter(groupID uint, sceneIDs []uint, deleteAfter *time.Time) error {
+	if len(sceneIDs) == 0 {
+		return nil
+	}
+	return r.DB.Model(&DuplicateGroupMember{}).
+		Where("group_id = ? AND scene_id IN ?", groupID, sceneIDs).
+		Update("delete_after", deleteAfter).Error
+}
+
+func (r *DuplicateGroupRepositoryImpl) ListMembersDueForDeletion(now time.Time, limit int) ([]DuplicateGroupMember, error) {
+	var members []DuplicateGroupMember
+	err := r.DB.Where("delete_after IS NOT NULL AND delete_after <= ?", now).
+		Order("delete_after ASC").
+		Limit(limit).
+		Find(&members).Error
+	return members, err
 }
 
 func (r *DuplicateGroupRepositoryImpl) RemoveMember(groupID, sceneID uint) error {
@@ -158,6 +310,23 @@ func (r *DuplicateGroupRepositoryImpl) GetGroupsBySceneIDs(sceneIDs []uint) (map
 		result[m.SceneID] = m.GroupID
 	}
 	return result, nil
+}
+
+func (r *DuplicateGroupRepositoryImpl) ListSceneGroupMembers(sceneID uint, includeTrashed bool) ([]DuplicateMemberScene, error) {
+	var rows []DuplicateMemberScene
+	query := r.DB.Table("duplicate_group_members AS m").
+		Select(`m.group_id, g.status AS group_status, m.scene_id, m.is_best, m.confidence_score,
+			m.match_type, m.match_start, m.match_end, m.ref_scene_id, m.ref_start, m.ref_end,
+			m.relation, s.title, s.duration, s.width, s.height, s.size, s.thumbnail_path,
+			s.trashed_at`).
+		Joins("JOIN duplicate_group_members cur ON cur.group_id = m.group_id AND cur.scene_id = ?", sceneID).
+		Joins("JOIN duplicate_groups g ON g.id = m.group_id").
+		Joins("JOIN scenes s ON s.id = m.scene_id AND s.deleted_at IS NULL")
+	if !includeTrashed {
+		query = query.Where("m.scene_id = ? OR s.trashed_at IS NULL", sceneID)
+	}
+	err := query.Order("m.confidence_score DESC, m.scene_id ASC").Scan(&rows).Error
+	return rows, err
 }
 
 func (r *DuplicateGroupRepositoryImpl) MergeGroups(targetID uint, sourceIDs []uint) error {
@@ -243,6 +412,46 @@ func (r *DuplicateGroupRepositoryImpl) UpdateMemberBest(groupID uint, sceneID ui
 		Update("is_best", isBest).Error
 }
 
+func (r *DuplicateGroupRepositoryImpl) RemoveMembers(groupID uint, sceneIDs []uint) error {
+	if len(sceneIDs) == 0 {
+		return nil
+	}
+	return r.DB.Where("group_id = ? AND scene_id IN ?", groupID, sceneIDs).Delete(&DuplicateGroupMember{}).Error
+}
+
+func (r *DuplicateGroupRepositoryImpl) AddExclusions(sceneIDs, otherIDs []uint) error {
+	seen := make(map[DuplicateExclusion]bool, len(sceneIDs)*len(otherIDs))
+	rows := make([]DuplicateExclusion, 0, len(sceneIDs)*len(otherIDs))
+	now := time.Now()
+	for _, a := range sceneIDs {
+		for _, b := range otherIDs {
+			if a == b {
+				continue
+			}
+			pair := NewDuplicateExclusion(a, b)
+			if seen[pair] {
+				continue
+			}
+			seen[pair] = true
+			pair.CreatedAt = now
+			rows = append(rows, pair)
+		}
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	return r.DB.Clauses(clause.OnConflict{DoNothing: true}).CreateInBatches(rows, duplicateExclusionBatch).Error
+}
+
+func (r *DuplicateGroupRepositoryImpl) ListExclusionsAmong(sceneIDs []uint) ([]DuplicateExclusion, error) {
+	if len(sceneIDs) < 2 {
+		return nil, nil
+	}
+	var rows []DuplicateExclusion
+	err := r.DB.Where("scene_id_a IN ? AND scene_id_b IN ?", sceneIDs, sceneIDs).Find(&rows).Error
+	return rows, err
+}
+
 func (r *DuplicateGroupRepositoryImpl) RunInTransaction(fn func(DuplicateGroupRepository) error) error {
 	return r.DB.Transaction(func(tx *gorm.DB) error {
 		txRepo := &DuplicateGroupRepositoryImpl{DB: tx}
@@ -277,6 +486,6 @@ func (r *DuplicationConfigRepositoryImpl) Upsert(record *DuplicationConfigRecord
 	record.UpdatedAt = time.Now()
 	return r.DB.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"audio_density_threshold", "audio_min_hashes", "audio_max_hash_occurrences", "audio_min_span", "visual_hamming_max", "visual_min_frames", "visual_min_span", "delta_tolerance", "fingerprint_mode", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"audio_density_threshold", "audio_min_hashes", "audio_max_hash_occurrences", "audio_min_span", "visual_hamming_max", "visual_min_frames", "visual_min_span", "delta_tolerance", "fingerprint_mode", "delete_resolved_files", "deletion_delay_hours", "best_selection_criteria", "updated_at"}),
 	}).Create(record).Error
 }

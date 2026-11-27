@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const searchStore = useSearchStore();
+const searchStore = useSearchContext();
 
 const collapsed = ref(true);
 const searchQuery = ref('');
@@ -14,9 +14,8 @@ const toggleTag = (tagName: string) => {
 };
 
 const filteredTags = computed(() => {
-    if (!searchQuery.value) return searchStore.filterOptions.tags;
-    const q = searchQuery.value.toLowerCase();
-    return searchStore.filterOptions.tags.filter((t) => t.name.toLowerCase().includes(q));
+    // the tags starting with the typed text first
+    return rankByMatch(searchStore.filterOptions.tags, searchQuery.value, (t) => t.name);
 });
 
 const badge = computed(() =>

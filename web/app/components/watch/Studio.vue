@@ -6,6 +6,8 @@ import { WATCH_PAGE_DATA_KEY } from '~/composables/useWatchPageData';
 
 const scene = inject<Ref<Scene | null>>('watchScene');
 const { fetchStudios, setSceneStudio } = useApiStudios();
+const perms = useMyPermissions();
+const canEdit = computed(() => perms.has('scenes:edit'));
 
 // Inject centralized watch page data
 const watchPageData = inject<WatchPageData>(WATCH_PAGE_DATA_KEY);
@@ -91,6 +93,7 @@ async function onStudioCreated(studio: Studio) {
         id: studio.id,
         uuid: studio.uuid,
         name: studio.name,
+        aliases: studio.aliases || [],
         short_name: studio.short_name || '',
         logo: studio.logo || '',
         scene_count: 0,
@@ -149,6 +152,7 @@ async function onStudioCreated(studio: Studio) {
                 </NuxtLink>
                 <!-- Remove/change button -->
                 <button
+                    v-if="canEdit"
                     ref="anchorRef"
                     class="bg-void/80 hover:bg-lava absolute -top-1 -right-1 flex h-4 w-4
                         items-center justify-center rounded-full opacity-0 backdrop-blur-sm
@@ -162,7 +166,7 @@ async function onStudioCreated(studio: Studio) {
 
             <!-- Add studio button (when no studio) -->
             <button
-                v-else
+                v-else-if="canEdit"
                 ref="anchorRef"
                 class="hover:border-lava/40 text-dim hover:text-lava -mx-1 flex items-center gap-2
                     rounded-md border border-transparent px-1 py-1 text-sm transition-colors
@@ -180,6 +184,7 @@ async function onStudioCreated(studio: Studio) {
                 <Icon v-else name="heroicons:plus-circle" size="14" />
                 <span>Add studio</span>
             </button>
+            <p v-else class="text-dim py-1 text-sm">No studio</p>
 
             <WatchStudioPicker
                 :visible="showStudioPicker"

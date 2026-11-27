@@ -4,6 +4,8 @@ type UpdateSceneDetailsRequest struct {
 	Title       string  `json:"title"`
 	Description string  `json:"description"`
 	ReleaseDate *string `json:"release_date,omitempty"`
+	// SourceURL: absent leaves the source as it is, "" clears it
+	SourceURL *string `json:"source_url,omitempty"`
 }
 
 type SetRatingRequest struct {
@@ -11,12 +13,23 @@ type SetRatingRequest struct {
 }
 
 type SearchScenesRequest struct {
-	Query        string  `form:"q"`
-	Tags         string  `form:"tags"`
-	Actors       string  `form:"actors"`
-	Studio       string  `form:"studio"`
-	MinDuration  int     `form:"min_duration"`
-	MaxDuration  int     `form:"max_duration"`
+	Query       string `form:"q"`
+	Tags        string `form:"tags"`
+	Actors      string `form:"actors"`
+	Studio      string `form:"studio"`
+	MinDuration int    `form:"min_duration"`
+	MaxDuration int    `form:"max_duration"`
+	MinSize     int    `form:"min_size"` // megabytes
+	MaxSize     int    `form:"max_size"` // megabytes
+	// Library status filters (true / false, absent = any)
+	HasActors    *bool   `form:"has_actors"`
+	HasTags      *bool   `form:"has_tags"`
+	HasStudio    *bool   `form:"has_studio"`
+	SourceSite   string  `form:"source_site"` // comma-separated source sites (OR), e.g. "pornhub.com,xvideos.com"
+	HasSource    *bool   `form:"has_source"`
+	Watched      *bool   `form:"watched"`
+	Rated        *bool   `form:"rated"`
+	HasMarkers   *bool   `form:"has_markers"`
 	MinDate      string  `form:"min_date"`
 	MaxDate      string  `form:"max_date"`
 	Resolution   string  `form:"resolution"`
@@ -30,7 +43,7 @@ type SearchScenesRequest struct {
 	MaxJizzCount int     `form:"max_jizz_count"`
 	MatchType    string  `form:"match_type"`
 	MarkerLabels string  `form:"marker_labels"` // Comma-separated list of marker labels
-	Seed         int64   `form:"seed"`           // Random shuffle seed (0 = auto-generate)
+	Seed         int64   `form:"seed"`          // Random shuffle seed (0 = auto-generate)
 }
 
 type ApplySceneMetadataRequest struct {
@@ -42,6 +55,8 @@ type ApplySceneMetadataRequest struct {
 	TagNames      []string `json:"tag_names,omitempty"`
 	ReleaseDate   *string  `json:"release_date,omitempty"`
 	PornDBSceneID *string  `json:"porndb_scene_id,omitempty"`
+	// SourceURL: absent leaves the source as it is, "" clears it
+	SourceURL *string `json:"source_url,omitempty"`
 }
 
 type DeleteSceneRequest struct {

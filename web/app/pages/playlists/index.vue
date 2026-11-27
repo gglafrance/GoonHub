@@ -4,6 +4,7 @@ import type {
     PlaylistSortOption,
     PlaylistOwnerFilter,
     PlaylistVisibilityFilter,
+    PlaylistKindFilter,
 } from '~/types/playlist';
 
 definePageMeta({ middleware: 'auth' });
@@ -19,14 +20,95 @@ useSeoMeta({
 
 const store = usePlaylistStore();
 const { showSelector, maxLimit, updatePageSize } = usePageSize();
+const route = useRoute();
+const patchQuery = useUrlQueryPatch();
 
 const showCreateModal = ref(false);
+
+// Filters, sort and page live in the URL (Back, reload and shared links restore them)
+const SORTS = PLAYLIST_SORT_OPTIONS.map((o) => o.value);
+const OWNERS: PlaylistOwnerFilter[] = ['me', 'all'];
+const VISIBILITIES: PlaylistVisibilityFilter[] = ['', 'public', 'private', 'unlisted'];
+const KINDS: PlaylistKindFilter[] = ['', 'scenes', 'markers'];
+
+/** Applies the URL to the store; returns whether the list changed. */
+const applyUrl = (): boolean => {
+    const q = route.query;
+    const next = {
+        owner: queryEnum(q.owner, OWNERS, 'me'),
+        visibility: queryEnum(q.visibility, VISIBILITIES, ''),
+        kind: queryEnum(q.kind, KINDS, ''),
+        sort: queryEnum(q.sort, SORTS, 'created_at_desc'),
+        tags: queryList(q.tags)
+            .map(Number)
+            .filter((n) => Number.isInteger(n) && n > 0),
+        search: queryString(q.q),
+        page: queryPositiveInt(q.page, 1),
+    };
+    const changed =
+        next.owner !== store.ownerFilter ||
+        next.visibility !== store.visibilityFilter ||
+        next.kind !== store.kindFilter ||
+        next.sort !== store.sortOrder ||
+        next.tags.join(',') !== store.tagFilter.join(',') ||
+        next.search !== store.searchQuery ||
+        next.page !== store.currentPage;
+    store.ownerFilter = next.owner;
+    store.visibilityFilter = next.visibility;
+    store.kindFilter = next.kind;
+    store.sortOrder = next.sort;
+    store.tagFilter = next.tags;
+    store.searchQuery = next.search;
+    store.currentPage = next.page;
+    return changed;
+};
+
+// Before the filter watchers below, so that restoring the URL state does not reset the page
+let syncingFromUrl = false;
+applyUrl();
+const searchInput = ref(store.searchQuery);
+
+watch(
+    () => [
+        store.ownerFilter,
+        store.visibilityFilter,
+        store.kindFilter,
+        store.sortOrder,
+        store.tagFilter.join(','),
+        store.searchQuery,
+        store.currentPage,
+    ],
+    () =>
+        patchQuery({
+            owner: unlessDefault(store.ownerFilter, 'me'),
+            visibility: store.visibilityFilter || undefined,
+            kind: store.kindFilter || undefined,
+            sort: unlessDefault(store.sortOrder, 'created_at_desc'),
+            tags: store.tagFilter.join(','),
+            q: store.searchQuery,
+            page: unlessDefault(store.currentPage, 1),
+        }),
+);
+
+// Links to /playlists while on it (header), browser back/forward
+watch(
+    () => route.query,
+    () => {
+        syncingFromUrl = true;
+        if (applyUrl()) {
+            searchInput.value = store.searchQuery;
+            store.loadPlaylists();
+        }
+        nextTick(() => {
+            syncingFromUrl = false;
+        });
+    },
+);
 
 onMounted(async () => {
     await store.loadPlaylists();
 });
 
-const searchInput = ref(store.searchQuery);
 let searchDebounce: ReturnType<typeof setTimeout> | null = null;
 
 watch(searchInput, (val) => {
@@ -40,11 +122,13 @@ watch(
     [
         () => store.ownerFilter,
         () => store.visibilityFilter,
+        () => store.kindFilter,
         () => store.sortOrder,
         () => store.tagFilter,
         () => store.searchQuery,
     ],
     () => {
+        if (syncingFromUrl) return;
         store.currentPage = 1;
         store.loadPlaylists();
     },
@@ -53,6 +137,7 @@ watch(
 watch(
     () => store.currentPage,
     () => {
+        if (syncingFromUrl) return;
         store.loadPlaylists();
     },
 );
@@ -143,6 +228,29 @@ const handleCreated = () => {
                 <option value="private">Private</option>
             </select>
 
+            <!-- Kind filter -->
+            <div class="flex gap-1">
+                <button
+                    v-for="opt in [
+                        { value: '', label: 'All Kinds', icon: 'heroicons:squares-2x2' },
+                        { value: 'scenes', label: 'Scenes', icon: 'heroicons:film' },
+                        { value: 'markers', label: 'Markers', icon: 'heroicons:bookmark' },
+                    ] as { value: PlaylistKindFilter; label: string; icon: string }[]"
+                    :key="opt.value"
+                    class="flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-[11px]
+                        font-medium transition-all"
+                    :class="
+                        store.kindFilter === opt.value
+                            ? 'border-lava/40 bg-lava/10 text-lava'
+                            : 'border-border bg-surface text-dim hover:text-white'
+                    "
+                    @click="store.kindFilter = opt.value"
+                >
+                    <Icon :name="opt.icon" size="12" />
+                    {{ opt.label }}
+                </button>
+            </div>
+
             <!-- Sort -->
             <select
                 :value="store.sortOrder"
@@ -185,6 +293,22 @@ const handleCreated = () => {
 
         <!-- Grid -->
         <template v-else>
+            <Pagination
+                v-model="store.currentPage"
+                position="top"
+                :total="store.total"
+                :limit="store.limit"
+                :show-page-size-selector="showSelector"
+                :max-limit="maxLimit"
+                @update:limit="
+                    (v: number) => {
+                        updatePageSize(v);
+                        if (store.currentPage === 1) store.loadPlaylists();
+                        else store.currentPage = 1;
+                    }
+                "
+            />
+
             <PlaylistGrid :playlists="store.playlists" />
 
             <Pagination

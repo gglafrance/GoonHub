@@ -15,7 +15,27 @@ const resolved = ref<ResolvedShareLink | null>(null);
 const loading = ref(true);
 const errorState = ref<'not_found' | 'expired' | 'auth_required' | null>(null);
 
+// A link can start at a time, or play a marker range (looped like a marker link of the
+// watch page) with its label (docs/MESSAGES.md, "Share links")
+const startTime = computed(() => resolved.value?.share_link.start ?? 0);
+const loopRange = computed(() => {
+    const l = resolved.value?.share_link;
+    return l?.start != null && l.end != null && l.end > l.start
+        ? { start: l.start, end: l.end }
+        : null;
+});
+const rangeLabel = computed(() => {
+    const l = resolved.value?.share_link;
+    if (!l || l.start == null) return '';
+    const range =
+        l.end != null
+            ? `${formatClock(l.start)} - ${formatClock(l.end)}`
+            : `From ${formatClock(l.start)}`;
+    return l.label ? `${l.label} · ${range}` : range;
+});
+
 const streamUrl = computed(() => `/api/v1/shares/${token.value}/stream`);
+const transcodeUrl = computed(() => `/api/v1/shares/${token.value}/transcode`);
 
 const loadShare = async () => {
     loading.value = true;
@@ -127,8 +147,13 @@ watch(
                 <div class="bg-surface/30 overflow-hidden rounded-xl">
                     <LazyScenePlayer
                         :scene-url="streamUrl"
+                        :transcode-url="transcodeUrl"
+                        :playback="resolved.scene.playback"
+                        :duration-hint="resolved.scene.duration"
                         :poster-url="`/thumbnails/${resolved.scene.id}?size=lg`"
                         :autoplay="false"
+                        :start-time="startTime"
+                        :loop-range="loopRange"
                     />
                 </div>
             </div>
@@ -142,6 +167,14 @@ watch(
 
                 <!-- Info Row -->
                 <div class="text-dim flex flex-wrap items-center gap-4 text-xs">
+                    <span
+                        v-if="rangeLabel"
+                        class="border-lava/30 bg-lava/10 text-lava flex items-center gap-1.5
+                            rounded-md border px-2 py-0.5"
+                    >
+                        <Icon name="heroicons:bookmark" size="12" />
+                        {{ rangeLabel }}
+                    </span>
                     <span v-if="resolved.scene.duration" class="flex items-center gap-1.5">
                         <Icon name="heroicons:clock" size="12" />
                         {{ formatDuration(resolved.scene.duration) }}
@@ -152,12 +185,7 @@ watch(
                     </span>
                     <span v-if="resolved.scene.release_date" class="flex items-center gap-1.5">
                         <Icon name="heroicons:calendar" size="12" />
-                        <NuxtTime
-                            :datetime="resolved.scene.release_date"
-                            year="numeric"
-                            month="short"
-                            day="numeric"
-                        />
+                        <UiFormattedDate :datetime="resolved.scene.release_date" utc />
                     </span>
                 </div>
 

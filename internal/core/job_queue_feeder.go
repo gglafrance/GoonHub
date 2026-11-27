@@ -7,19 +7,30 @@ import (
 	"goonhub/internal/data"
 	"goonhub/internal/jobs"
 	"goonhub/pkg/ffmpeg"
+	"reflect"
 	"sync"
 	"time"
 
 	"go.uber.org/zap"
 )
 
+// JobSchedulePlanner evaluates the job schedule (implemented by JobSchedulingService).
+type JobSchedulePlanner interface {
+	Plan(now time.Time) SchedulePlan
+}
+
 // JobQueueFeeder polls the database for pending jobs and feeds them to worker pools.
 // It acts as a bridge between the infinite-capacity DB queue and the bounded worker pool channels.
+//
+// With a JobSchedulePlanner, it also applies the job schedule: a phase outside its time window
+// claims nothing (its pending jobs stay pending, its queued jobs go back to pending, running
+// jobs finish), pool sizes follow the quiet hours, the global cap and phase priorities are
+// handed to the pools, and the jobs of new scenes are claimed first.
 type JobQueueFeeder struct {
-	repo              data.JobHistoryRepository
-	sceneRepo         data.SceneRepository
-	markerThumbGen    jobs.MarkerThumbnailGenerator
-	animatedThumbGen  jobs.AnimatedThumbnailGenerator
+	repo               data.JobHistoryRepository
+	sceneRepo          data.SceneRepository
+	markerThumbGen     jobs.MarkerThumbnailGenerator
+	animatedThumbGen   jobs.AnimatedThumbnailGenerator
 	poolManager        *processing.PoolManager
 	duplicationEnabled bool
 	dupConfigRepo      data.DuplicationConfigRepository
@@ -32,6 +43,25 @@ type JobQueueFeeder struct {
 	// Configurable timeouts for orphan/stuck job recovery
 	orphanTimeout    time.Duration
 	stuckPendingTime time.Duration
+
+	// Job scheduling (optional)
+	planner      JobSchedulePlanner
+	now          func() time.Time
+	planMu       sync.RWMutex
+	plan         *SchedulePlan
+	lastApplied  *processing.ScheduleSettings
+	pausedMu     sync.Mutex
+	pausedPhases map[string]bool
+
+	// feedLocks serializes, per phase, a feed (claim then submit) with a bulk cancel, so that no
+	// job is claimed while the pending jobs of the phase are being cancelled.
+	feedLocks map[string]*sync.Mutex
+	eventBus  *EventBus
+
+	// Remote workers (optional): phase routing, remote-only phases seen, remote cancel.
+	router          PhaseRouter
+	remoteOnly      map[string]bool
+	remoteCanceller RemoteJobCanceller
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -58,12 +88,20 @@ func NewJobQueueFeeder(
 		duplicationEnabled: duplicationEnabled,
 		dupConfigRepo:      dupConfigRepo,
 		logger:             logger.With(zap.String("component", "job_queue_feeder")),
-		pollInterval:     2 * time.Second,
-		batchSize:        50,
-		bufferMultiplier: 10, // Keep up to workerCount*10 jobs buffered per phase
-		orphanTimeout:    30 * time.Second,
-		stuckPendingTime: 10 * time.Minute,
+		pollInterval:       2 * time.Second,
+		batchSize:          50,
+		bufferMultiplier:   10, // Keep up to workerCount*10 jobs buffered per phase
+		orphanTimeout:      30 * time.Second,
+		stuckPendingTime:   10 * time.Minute,
+		now:                time.Now,
+		pausedPhases:       map[string]bool{},
+		feedLocks:          newFeedLocks(),
 	}
+}
+
+// SetScheduler sets the job schedule to apply. Must be called before Start.
+func (f *JobQueueFeeder) SetScheduler(planner JobSchedulePlanner) {
+	f.planner = planner
 }
 
 // SetOrphanTimeout sets the timeout for detecting orphaned running jobs
@@ -80,6 +118,9 @@ func (f *JobQueueFeeder) SetStuckPendingTime(d time.Duration) {
 func (f *JobQueueFeeder) Start() {
 	f.ctx, f.cancel = context.WithCancel(context.Background())
 
+	// Evaluate the schedule before anything is claimed
+	f.refreshSchedule()
+
 	// Recover orphaned jobs from previous server crash
 	f.recoverOrphanedJobs()
 
@@ -91,6 +132,10 @@ func (f *JobQueueFeeder) Start() {
 	for _, phase := range phases {
 		f.wg.Add(1)
 		go f.runFeeder(phase)
+	}
+	if f.planner != nil {
+		f.wg.Add(1)
+		go f.runScheduleLoop()
 	}
 
 	f.logger.Info("Job queue feeder started",
@@ -108,7 +153,8 @@ func (f *JobQueueFeeder) Stop() {
 	f.logger.Info("Job queue feeder stopped")
 }
 
-// recoverOrphanedJobs marks jobs that were running when the server crashed as failed
+// recoverOrphanedJobs marks jobs that were running when the server crashed as failed, then puts
+// back to pending the jobs the previous run interrupted (shutdown, crash, stuck pending).
 func (f *JobQueueFeeder) recoverOrphanedJobs() {
 	// Recover orphaned running jobs (using configurable timeout, default 30s)
 	count, err := f.repo.MarkOrphanedRunningAsFailed(f.orphanTimeout)
@@ -121,8 +167,15 @@ func (f *JobQueueFeeder) recoverOrphanedJobs() {
 		)
 	}
 
-	// Recover stuck pending jobs (jobs stuck in pending state for too long)
-	stuckCount, err := f.repo.MarkStuckPendingJobsAsFailed(f.stuckPendingTime)
+	// Recover stuck pending jobs (jobs stuck in pending state for too long). Phases restricted
+	// to a time window are skipped: their jobs wait for the window on purpose.
+	var windowed []string
+	if plan := f.currentPlan(); plan != nil {
+		windowed = plan.WindowedPhases()
+	}
+	// Jobs of phases only remote workers process wait for a worker on purpose.
+	windowed = append(windowed, f.remoteOnlyPhases()...)
+	stuckCount, err := f.repo.MarkStuckPendingJobsAsFailed(f.stuckPendingTime, windowed)
 	if err != nil {
 		f.logger.Error("Failed to recover stuck pending jobs", zap.Error(err))
 	} else if stuckCount > 0 {
@@ -130,6 +183,14 @@ func (f *JobQueueFeeder) recoverOrphanedJobs() {
 			zap.Int64("count", stuckCount),
 			zap.Duration("threshold", f.stuckPendingTime),
 		)
+	}
+
+	// Put the interrupted jobs back in the queue (once, retry count kept, dedup respected)
+	requeued, err := f.repo.RequeueInterruptedJobs()
+	if err != nil {
+		f.logger.Error("Failed to re-queue the jobs interrupted by the previous run", zap.Error(err))
+	} else {
+		f.logger.Info("Re-queued the jobs interrupted by the previous run", zap.Int64("count", requeued))
 	}
 }
 
@@ -150,8 +211,105 @@ func (f *JobQueueFeeder) runFeeder(phase string) {
 	}
 }
 
+// runScheduleLoop re-evaluates the job schedule periodically
+func (f *JobQueueFeeder) runScheduleLoop() {
+	defer f.wg.Done()
+
+	ticker := time.NewTicker(f.pollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-f.ctx.Done():
+			return
+		case <-ticker.C:
+			f.refreshSchedule()
+		}
+	}
+}
+
+// refreshSchedule evaluates the schedule now, stores the plan for the phase feeders and applies
+// the pool settings (quiet-hours sizes, global cap, priorities) when they changed.
+func (f *JobQueueFeeder) refreshSchedule() {
+	if f.planner == nil {
+		return
+	}
+	plan := f.planner.Plan(f.now())
+	f.planMu.Lock()
+	f.plan = &plan
+	f.planMu.Unlock()
+
+	settings := plan.PoolSettings()
+	if f.lastApplied != nil && reflect.DeepEqual(*f.lastApplied, settings) {
+		return
+	}
+	f.poolManager.ApplySchedule(settings)
+	f.lastApplied = &settings
+}
+
+// currentPlan returns the last evaluated plan (nil without scheduling)
+func (f *JobQueueFeeder) currentPlan() *SchedulePlan {
+	f.planMu.RLock()
+	defer f.planMu.RUnlock()
+	return f.plan
+}
+
+// setPhasePaused records whether a phase is paused by its time window. When it becomes paused,
+// the jobs claimed but still waiting in its pool queue go back to pending.
+func (f *JobQueueFeeder) setPhasePaused(phase string, paused bool, next time.Time) {
+	f.pausedMu.Lock()
+	was := f.pausedPhases[phase]
+	f.pausedPhases[phase] = paused
+	f.pausedMu.Unlock()
+	if was == paused {
+		return
+	}
+
+	until := zap.Skip()
+	if !next.IsZero() {
+		until = zap.String("until", next.Format(time.RFC3339))
+	}
+	if !paused {
+		f.logger.Info("Phase allowed to run again, resuming", zap.String("phase", phase), until)
+		return
+	}
+
+	reclaimed := 0
+	if ids := f.poolManager.DrainQueued(phase); len(ids) > 0 {
+		count, err := f.repo.ResetJobsToPending(ids)
+		if err != nil {
+			f.logger.Error("Failed to put queued jobs back to pending, they will be recovered as orphans",
+				zap.String("phase", phase), zap.Int("count", len(ids)), zap.Error(err))
+		}
+		reclaimed = int(count)
+	}
+	f.logger.Info("Phase outside its time window, pausing (running jobs finish)",
+		zap.String("phase", phase),
+		until,
+		zap.Int("queued_jobs_back_to_pending", reclaimed),
+	)
+}
+
 // feedPhase checks if the worker pool has capacity and claims pending jobs
 func (f *JobQueueFeeder) feedPhase(phase string) {
+	lock := f.feedLock(phase)
+	lock.Lock()
+	defer lock.Unlock()
+
+	if !f.localAllowed(phase) {
+		return
+	}
+
+	var claimOpts data.ClaimOptions
+	if plan := f.currentPlan(); plan != nil {
+		pp := plan.Phase(phase)
+		f.setPhasePaused(phase, !pp.Allowed, pp.NextChange)
+		if !pp.Allowed {
+			return
+		}
+		claimOpts.NewSceneSince = plan.NewSceneSince
+	}
+
 	// Get current queue status and pool config to determine capacity
 	queueStatus := f.poolManager.GetQueueStatus()
 	poolConfig := f.poolManager.GetPoolConfig()
@@ -194,7 +352,7 @@ func (f *JobQueueFeeder) feedPhase(phase string) {
 	claimLimit := min(spaceAvailable, f.batchSize)
 
 	// Claim pending jobs from DB
-	claimedJobs, err := f.repo.ClaimPendingJobs(phase, claimLimit)
+	claimedJobs, err := f.repo.ClaimPendingJobs(phase, claimLimit, claimOpts)
 	if err != nil {
 		f.logger.Error("Failed to claim pending jobs",
 			zap.String("phase", phase),
@@ -346,6 +504,7 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 			f.sceneRepo,
 			f.logger,
 		)
+		spritesJob.SetStagingRoot(jobs.StagingRoot(cfg.StagingDir, cfg.SpriteDir))
 		spritesJob.SetProgressCallback(func(jobID string, progress int) {
 			if err := f.repo.UpdateProgress(jobID, progress); err != nil {
 				f.logger.Warn("Failed to update sprite job progress",
@@ -358,14 +517,15 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 		if scene.Duration == 0 {
 			return fmt.Errorf("scene duration is 0: metadata not yet extracted")
 		}
-		job = jobs.NewAnimatedThumbnailJobWithID(
+		animatedJob := jobs.NewAnimatedThumbnailJobWithID(
 			jobRecord.JobID,
 			jobRecord.SceneID,
 			jobRecord.ForceTarget,
 			f.animatedThumbGen,
 			f.logger,
 		)
-		return f.poolManager.SubmitToAnimatedThumbnailsPool(job)
+		animatedJob.SetStagingRoot(jobs.StagingRoot(cfg.StagingDir, cfg.SpriteDir))
+		return f.poolManager.SubmitToAnimatedThumbnailsPool(animatedJob)
 
 	case "fingerprint":
 		if scene.Duration == 0 {
@@ -377,7 +537,7 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 				fpMode = dupCfg.FingerprintMode
 			}
 		}
-		job = jobs.NewFingerprintJobWithID(
+		fpJob := jobs.NewFingerprintJobWithID(
 			jobRecord.JobID,
 			jobRecord.SceneID,
 			scene.StoredPath,
@@ -385,6 +545,9 @@ func (f *JobQueueFeeder) submitJobToPool(jobRecord data.JobHistory, scene *data.
 			fpMode,
 			f.logger,
 		)
+		fpJob.SetSceneDuration(scene.Duration)
+		fpJob.SetCommitter(f.poolManager.FingerprintCommitter())
+		job = fpJob
 		return f.poolManager.SubmitToFingerprintPool(job)
 	}
 

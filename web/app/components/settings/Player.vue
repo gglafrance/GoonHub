@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PlaylistAutoAdvance } from '~/types/settings';
+import type { PlaylistAutoAdvance, ScrubberMode } from '~/types/settings';
 
 const settingsStore = useSettingsStore();
 
@@ -30,6 +30,61 @@ const playerAbLoopControls = computed({
         if (settingsStore.draft) settingsStore.draft.ab_loop_controls = v;
     },
 });
+
+const playerMarkerLoop = computed({
+    get: () => settingsStore.draft?.marker_loop ?? false,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.marker_loop = v;
+    },
+});
+
+const showReplayHeatmap = computed({
+    get: () => settingsStore.draft?.show_replay_heatmap ?? true,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.show_replay_heatmap = v;
+    },
+});
+
+const recordReplayHeatmap = computed({
+    get: () => settingsStore.draft?.record_replay_heatmap ?? true,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.record_replay_heatmap = v;
+    },
+});
+
+const showScrubber = computed({
+    get: () => settingsStore.draft?.show_scrubber ?? false,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.show_scrubber = v;
+    },
+});
+
+const scrubberMode = computed({
+    get: () => normalizeScrubberMode(settingsStore.draft?.scrubber_mode),
+    set: (v: ScrubberMode) => {
+        if (settingsStore.draft) settingsStore.draft.scrubber_mode = v;
+    },
+});
+
+const scrubberWheel = computed({
+    get: () => settingsStore.draft?.scrubber_wheel ?? false,
+    set: (v) => {
+        if (settingsStore.draft) settingsStore.draft.scrubber_wheel = v;
+    },
+});
+
+const scrubberModeOptions: { value: ScrubberMode; label: string; desc: string }[] = [
+    {
+        value: 'free',
+        label: 'Free',
+        desc: 'The strip scrolls on its own and follows playback; click a thumbnail to jump to it',
+    },
+    {
+        value: 'centered',
+        label: 'Centered (like Stash)',
+        desc: 'The middle of the strip is the current time; drag or scroll the strip to seek precisely',
+    },
+];
 
 const playlistAutoAdvance = computed({
     get: () => settingsStore.draft?.playlist_auto_advance ?? 'countdown',
@@ -87,6 +142,100 @@ const autoAdvanceOptions: { value: PlaylistAutoAdvance; label: string; desc: str
                     <UiToggle v-model="playerAbLoopControls" />
                 </div>
 
+                <!-- Marker Loop -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-sm text-white">Loop Marker Ranges</div>
+                        <div class="text-dim text-xs">
+                            Clicking a marker that has an end time sets the A/B loop to its range;
+                            when on, the loop starts right away
+                        </div>
+                    </div>
+                    <UiToggle v-model="playerMarkerLoop" />
+                </div>
+
+                <!-- Replay Heatmap -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-sm text-white">Most Replayed Heatmap</div>
+                        <div class="text-dim text-xs">
+                            Show a curve above the progress bar that peaks on the parts of a scene
+                            you watch the most
+                        </div>
+                    </div>
+                    <UiToggle v-model="showReplayHeatmap" />
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-sm text-white">Record Watched Parts</div>
+                        <div class="text-dim text-xs">
+                            Remember which parts of each scene you play to build the heatmap;
+                            turning it off keeps what was already recorded
+                        </div>
+                    </div>
+                    <UiToggle v-model="recordReplayHeatmap" />
+                </div>
+
+                <!-- Thumbnail Scrubber -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-sm text-white">Thumbnail Scrubber</div>
+                        <div class="text-dim text-xs">
+                            Show a strip of the scene thumbnails under the player: drag it and click
+                            a thumbnail to jump to that moment
+                        </div>
+                    </div>
+                    <UiToggle v-model="showScrubber" />
+                </div>
+
+                <!-- Scrubber mode -->
+                <div>
+                    <div class="mb-2">
+                        <div class="text-sm text-white">Scrubber Mode</div>
+                        <div class="text-dim text-xs">
+                            How the thumbnail strip moves (also switchable from the strip itself)
+                        </div>
+                    </div>
+                    <div class="grid gap-2 sm:grid-cols-2">
+                        <button
+                            v-for="opt in scrubberModeOptions"
+                            :key="opt.value"
+                            type="button"
+                            class="rounded-lg border px-3 py-2 text-left transition-all"
+                            :class="
+                                scrubberMode === opt.value
+                                    ? 'border-lava/40 bg-lava/10'
+                                    : 'border-border bg-void/50 hover:border-border-hover'
+                            "
+                            :aria-pressed="scrubberMode === opt.value"
+                            @click="scrubberMode = opt.value"
+                        >
+                            <div
+                                class="text-xs font-medium"
+                                :class="scrubberMode === opt.value ? 'text-lava' : 'text-white'"
+                            >
+                                {{ opt.label }}
+                            </div>
+                            <div class="text-dim mt-0.5 text-[11px] leading-snug">
+                                {{ opt.desc }}
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Scrubber mouse wheel -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-sm text-white">Mouse wheel scrubs the thumbnail strip</div>
+                        <div class="text-dim text-xs">
+                            The wheel over the strip scrolls it (free mode) or seeks (centered
+                            mode); off, the wheel scrolls the page as usual
+                        </div>
+                    </div>
+                    <UiToggle v-model="scrubberWheel" />
+                </div>
+
                 <!-- Volume Slider -->
                 <div>
                     <div class="mb-2 flex items-center justify-between">
@@ -107,6 +256,8 @@ const autoAdvanceOptions: { value: PlaylistAutoAdvance; label: string; desc: str
                 </div>
             </div>
         </div>
+
+        <SettingsPlayerGestures />
 
         <!-- Playlist Player Settings -->
         <div class="glass-panel p-5">

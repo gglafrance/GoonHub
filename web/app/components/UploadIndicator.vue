@@ -16,7 +16,10 @@ function formatSize(bytes: number): string {
 
 <template>
     <Teleport to="body">
-        <div v-if="uploadStore.uploads.length > 0" class="fixed right-4 bottom-4 z-50">
+        <div
+            v-if="uploadStore.uploads.length > 0"
+            class="fixed right-4 bottom-[calc(1rem+var(--app-bottom-clear))] z-50"
+        >
             <!-- Collapsed Pill -->
             <button
                 v-if="!expanded"

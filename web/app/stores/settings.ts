@@ -6,8 +6,19 @@ import type {
     KeyboardLayout,
     SortPreferences,
     SceneCardConfig,
+    MarkerView,
+    PaginationPosition,
+    DateFormat,
+    SceneListView,
+    SceneListPage,
+    SceneListViewMode,
+    SceneTableColumn,
+    GridDensity,
+    ScrubberMode,
+    ContentWidth,
 } from '~/types/settings';
 import type { ParsingRulesSettings, ParsingPreset } from '~/types/parsing-rules';
+import type { SettingsPatch } from '~/utils/settingsPatch';
 
 export const useSettingsStore = defineStore(
     'settings',
@@ -23,7 +34,7 @@ export const useSettingsStore = defineStore(
 
         const {
             fetchSettings: apiFetchSettings,
-            updateAllSettings: apiUpdateAllSettings,
+            patchSettings: apiPatchSettings,
             getParsingRules: apiGetParsingRules,
             updateParsingRules: apiUpdateParsingRules,
         } = useApi();
@@ -32,6 +43,44 @@ export const useSettingsStore = defineStore(
         const defaultVolume = computed(() => settings.value?.default_volume ?? 100);
         const loop = computed(() => settings.value?.loop ?? false);
         const abLoopControls = computed(() => settings.value?.ab_loop_controls ?? false);
+        const markerLoop = computed(() => settings.value?.marker_loop ?? false);
+        // Touch gestures on the player (on by default, also for share pages without settings)
+        const playerGestures = computed(() => settings.value?.player_gestures ?? true);
+        const gestureSeekStep = computed(() =>
+            normalizeGestureSeekStep(settings.value?.gesture_seek_step),
+        );
+        const advancedMarkerFilters = computed(
+            () => settings.value?.advanced_marker_filters ?? false,
+        );
+        const defaultMarkerView = computed<MarkerView>(
+            () => settings.value?.default_marker_view ?? 'grouped',
+        );
+        const paginationPosition = computed<PaginationPosition>(
+            () => settings.value?.pagination_position ?? 'bottom',
+        );
+        const dateFormat = computed<DateFormat>(() => {
+            const format = settings.value?.date_format;
+            return isDateFormat(format) ? format : DEFAULT_DATE_FORMAT;
+        });
+        const gridDensity = computed<GridDensity>(() => {
+            const density = settings.value?.grid_density;
+            return density === 'compact' || density === 'large' ? density : 'comfortable';
+        });
+        const infiniteScroll = computed(() => settings.value?.infinite_scroll ?? false);
+        const showReplayHeatmap = computed(() => settings.value?.show_replay_heatmap ?? true);
+        const recordReplayHeatmap = computed(() => settings.value?.record_replay_heatmap ?? true);
+        // Thumbnail scrubber strip under the player (off by default)
+        const showScrubber = computed(() => settings.value?.show_scrubber ?? false);
+        // Its mode: free (default) or centered on the playback position like Stash
+        const scrubberMode = computed<ScrubberMode>(() =>
+            normalizeScrubberMode(settings.value?.scrubber_mode),
+        );
+        // Whether the mouse wheel over the scrubber moves it (off by default: the page scrolls)
+        const scrubberWheel = computed(() => settings.value?.scrubber_wheel ?? false);
+        // Maximum width of the scene list pages (default, wide or full)
+        const contentWidth = computed<ContentWidth>(() =>
+            normalizeContentWidth(settings.value?.content_width),
+        );
         const videosPerPage = computed(() => settings.value?.videos_per_page ?? 20);
         const defaultSortOrder = computed<SortOrder>(
             () => settings.value?.default_sort_order ?? 'created_at_desc',
@@ -77,6 +126,7 @@ export const useSettingsStore = defineStore(
                 frame_rate: 'frame_rate',
                 tags: 'tags',
                 actors: 'actors',
+                watched: 'watched',
             };
 
             // Content field name -> API card_fields name mapping
@@ -108,21 +158,104 @@ export const useSettingsStore = defineStore(
             // Scan content rows
             for (const row of config.content_rows) {
                 if (row.type === 'full' && row.field) {
-                    if (contentFieldMap[row.field]) fieldsSet.add(contentFieldMap[row.field]);
+                    const field = contentFieldMap[row.field];
+                    if (field) fieldsSet.add(field);
                 } else if (row.type === 'split') {
-                    if (row.left && contentFieldMap[row.left])
-                        fieldsSet.add(contentFieldMap[row.left]);
-                    if (row.right && contentFieldMap[row.right])
-                        fieldsSet.add(contentFieldMap[row.right]);
+                    const left = row.left ? contentFieldMap[row.left] : undefined;
+                    if (left) fieldsSet.add(left);
+                    const right = row.right ? contentFieldMap[row.right] : undefined;
+                    if (right) fieldsSet.add(right);
                 }
             }
+
+            // the "Tags & Markers & Actors" field shows the actors too
+            if (fieldsSet.has('tags')) fieldsSet.add('actors');
 
             return fieldsSet.size > 0 ? [...fieldsSet].join(',') : '';
         });
 
+        const sceneListView = computed<SceneListView>(() => {
+            const view = settings.value?.scene_list_view;
+            return {
+                pages: view?.pages ?? {},
+                columns: view?.columns?.length ? view.columns : [...DEFAULT_SCENE_TABLE_COLUMNS],
+            };
+        });
+
+        const sceneListMode = (page: SceneListPage): SceneListViewMode =>
+            sceneListView.value.pages[page] ?? 'grid';
+
+        // card_fields of the scene list pages: the card fields, plus the fields of the visible
+        // table columns when a page shows a table
+        const listFieldsParam = computed(() => {
+            const fields = new Set(cardFieldsParam.value ? cardFieldsParam.value.split(',') : []);
+            const view = sceneListView.value;
+            if (Object.values(view.pages).includes('table')) {
+                for (const col of view.columns) {
+                    const field = sceneTableColumnDef(col)?.field;
+                    if (field) fields.add(field);
+                }
+            }
+            return [...fields].join(',');
+        });
+
+        // Saves a new scene list view right away (view toggles and column pickers)
+        const saveSceneListView = async (view: SceneListView) => {
+            try {
+                await saveSettingsNow({ scene_list_view: view });
+            } catch (e: unknown) {
+                console.error('Failed to save the scene list view:', e);
+            }
+        };
+
+        const setSceneListMode = (page: SceneListPage, mode: SceneListViewMode) => {
+            const view = sceneListView.value;
+            return saveSceneListView({ ...view, pages: { ...view.pages, [page]: mode } });
+        };
+
+        const setSceneTableColumns = (columns: SceneTableColumn[]) =>
+            saveSceneListView({ ...sceneListView.value, columns: [...columns] });
+
+        // Quick display toggles (next to the scene lists), saved right away
+        const saveDisplaySetting = async (
+            patch: Partial<
+                Pick<
+                    UserSettings,
+                    | 'grid_density'
+                    | 'infinite_scroll'
+                    | 'show_scrubber'
+                    | 'scrubber_mode'
+                    | 'content_width'
+                >
+            >,
+        ) => {
+            try {
+                await saveSettingsNow(patch);
+            } catch (e: unknown) {
+                console.error('Failed to save the display settings:', e);
+            }
+        };
+
+        const setGridDensity = (density: GridDensity) =>
+            saveDisplaySetting({ grid_density: density });
+
+        const setInfiniteScroll = (enabled: boolean) =>
+            saveDisplaySetting({ infinite_scroll: enabled });
+
+        // Show/hide toggle of the scrubber on the watch page
+        const setShowScrubber = (enabled: boolean) =>
+            saveDisplaySetting({ show_scrubber: enabled });
+
+        // Mode switch in the header of the scrubber
+        const setScrubberMode = (mode: ScrubberMode) => saveDisplaySetting({ scrubber_mode: mode });
+
+        // Width switch in the display menu of the scene lists
+        const setContentWidth = (width: ContentWidth) =>
+            saveDisplaySetting({ content_width: width });
+
         const hasUnsavedChanges = computed(() => {
             if (!draft.value || !settings.value) return false;
-            return JSON.stringify(draft.value) !== JSON.stringify(settings.value);
+            return !isEmptySettingsPatch(diffSettings(settings.value, draft.value));
         });
 
         function initDraft() {
@@ -152,12 +285,16 @@ export const useSettingsStore = defineStore(
             }
         };
 
-        const saveAllSettings = async () => {
-            if (!draft.value) return;
+        // Saves the Settings page draft: only the settings that differ from the loaded ones are
+        // sent, so that settings changed meanwhile elsewhere (another tab or device) are kept
+        const saveDraft = async () => {
+            if (!draft.value || !settings.value) return;
+            const patch = diffSettings(settings.value, draft.value);
+            if (isEmptySettingsPatch(patch)) return;
             isLoading.value = true;
             error.value = null;
             try {
-                const data: UserSettings = await apiUpdateAllSettings(draft.value);
+                const data: UserSettings = await apiPatchSettings(patch);
                 settings.value = data;
                 initDraft();
             } catch (e: unknown) {
@@ -167,6 +304,21 @@ export const useSettingsStore = defineStore(
             } finally {
                 isLoading.value = false;
             }
+        };
+
+        // Saves some settings right away (quick toggles next to the lists and on the player),
+        // without the other unsaved changes of the Settings page draft, which are kept
+        const saveSettingsNow = async (patch: SettingsPatch) => {
+            if (!settings.value) return;
+            const body = JSON.parse(JSON.stringify(patch)) as SettingsPatch;
+            // The UI follows right away
+            Object.assign(settings.value, JSON.parse(JSON.stringify(body)));
+            if (draft.value) Object.assign(draft.value, JSON.parse(JSON.stringify(body)));
+            const data: UserSettings = await apiPatchSettings(body);
+            const pending =
+                draft.value && settings.value ? diffSettings(settings.value, draft.value) : {};
+            settings.value = data;
+            draft.value = rebaseDraft(data, pending);
         };
 
         const toggleTheaterMode = () => {
@@ -225,6 +377,26 @@ export const useSettingsStore = defineStore(
             defaultVolume,
             loop,
             abLoopControls,
+            markerLoop,
+            playerGestures,
+            gestureSeekStep,
+            advancedMarkerFilters,
+            defaultMarkerView,
+            paginationPosition,
+            dateFormat,
+            gridDensity,
+            infiniteScroll,
+            setGridDensity,
+            setInfiniteScroll,
+            showReplayHeatmap,
+            recordReplayHeatmap,
+            showScrubber,
+            setShowScrubber,
+            scrubberMode,
+            setScrubberMode,
+            scrubberWheel,
+            contentWidth,
+            setContentWidth,
             videosPerPage,
             defaultSortOrder,
             defaultTagSort,
@@ -234,6 +406,11 @@ export const useSettingsStore = defineStore(
             maxItemsPerPage,
             sceneCardConfig,
             cardFieldsParam,
+            sceneListView,
+            sceneListMode,
+            listFieldsParam,
+            setSceneListMode,
+            setSceneTableColumns,
             hasUnsavedChanges,
             theaterMode,
             keyboardLayout,
@@ -241,7 +418,8 @@ export const useSettingsStore = defineStore(
             parsingRulesLoading,
             activePreset,
             loadSettings,
-            saveAllSettings,
+            saveDraft,
+            saveSettingsNow,
             initDraft,
             discardDraft,
             toggleTheaterMode,

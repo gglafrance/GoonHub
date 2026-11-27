@@ -31,7 +31,7 @@ func TestHomepageService_GetHomepageData_EmptySections(t *testing.T) {
 		zap.NewNop(),
 	)
 
-	response, err := svc.GetHomepageData(1)
+	response, err := svc.GetHomepageData(1, "")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestHomepageService_GetHomepageData_DisabledSectionsSkipped(t *testing.T) {
 		zap.NewNop(),
 	)
 
-	response, err := svc.GetHomepageData(1)
+	response, err := svc.GetHomepageData(1, "")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -166,11 +166,11 @@ func TestHomepageService_ContinueWatching_FiltersCompletedVideos(t *testing.T) {
 
 	// Return mix of completed and incomplete watches
 	watchHistoryRepo.EXPECT().ListUserHistory(uint(1), 1, 15).Return([]data.UserSceneWatch{
-		{SceneID: 1, Completed: true, LastPosition: 100},  // Completed - should be skipped
-		{SceneID: 2, Completed: false, LastPosition: 50},  // Incomplete with position
-		{SceneID: 3, Completed: false, LastPosition: 0},   // Incomplete but no position - skipped
-		{SceneID: 4, Completed: false, LastPosition: 75},  // Incomplete with position
-		{SceneID: 5, Completed: true, LastPosition: 200},  // Completed - should be skipped
+		{SceneID: 1, Completed: true, LastPosition: 100}, // Completed - should be skipped
+		{SceneID: 2, Completed: false, LastPosition: 50}, // Incomplete with position
+		{SceneID: 3, Completed: false, LastPosition: 0},  // Incomplete but no position - skipped
+		{SceneID: 4, Completed: false, LastPosition: 75}, // Incomplete with position
+		{SceneID: 5, Completed: true, LastPosition: 200}, // Completed - should be skipped
 	}, int64(5), nil)
 
 	// Only videos 2 and 4 should be fetched
@@ -377,11 +377,11 @@ func TestHomepageService_SettingsService_GetHomepageConfig_Defaults(t *testing.T
 	if !config.ShowUpload {
 		t.Fatal("expected ShowUpload to be true in default config")
 	}
-	if len(config.Sections) != 1 {
-		t.Fatalf("expected 1 default section, got %d", len(config.Sections))
+	if len(config.Tabs) != 1 || len(config.Tabs[0].Sections) != 1 {
+		t.Fatalf("expected 1 default tab with 1 section, got %+v", config.Tabs)
 	}
-	if config.Sections[0].Type != "latest" {
-		t.Fatalf("expected default section type 'latest', got '%s'", config.Sections[0].Type)
+	if config.Tabs[0].Sections[0].Type != "latest" {
+		t.Fatalf("expected default section type 'latest', got '%s'", config.Tabs[0].Sections[0].Type)
 	}
 }
 

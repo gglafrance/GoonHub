@@ -1,0 +1,905 @@
+package together
+
+import (
+	"encoding/json"
+	"strconv"
+	"strings"
+	"time"
+	"unicode"
+	"unicode/utf8"
+
+	"goonhub/internal/core"
+	"goonhub/internal/data"
+
+	"go.uber.org/zap"
+)
+
+// maxItemsPerAdd bounds the items of one queue_add (or REST add).
+const maxItemsPerAdd = 100
+
+// maxLabelLength is the longest queue item label (characters).
+const maxLabelLength = 100
+
+// handle runs one client message (lobby lock held). A refused command returns a cmdError.
+func (l *lobby) handle(c *Client, in *inbound, now time.Time) error {
+	switch in.T {
+	case cmdPing:
+		l.sendTo(c, pongMsg{T: msgPong, ID: in.ID, C: in.C, S: now.UnixMilli()})
+		return nil
+	case cmdKeepOpen:
+		return nil // activity only: calls an announced inactivity close off (Receive)
+	case cmdStatus:
+		return l.cmdStatus(c, in, now)
+
+	case cmdEnded:
+		return l.cmdEnded(c, in, now)
+	case cmdChat:
+		return l.cmdChat(c, in, now)
+	case cmdChatDelete:
+		return l.cmdChatDelete(c, in)
+	case cmdReaction:
+		return l.cmdReaction(c, in, now)
+	case cmdChatReact, cmdChatUnreact:
+		return l.cmdChatReact(c, in, now, in.T == cmdChatReact)
+	case cmdQueueAdd:
+		if !l.hub.hasPermission(c.userID, core.PermScenesView) {
+			return refuse(ErrCodeNotAllowed, "you cannot view scenes")
+		}
+		return l.cmdQueueAdd(c, in, now)
+	case cmdQueueRemove:
+		return l.cmdQueueRemove(c, in, now)
+	case cmdSuggestionReject:
+		return l.cmdSuggestionReject(c, in)
+	case cmdKick:
+		return l.cmdKick(c, in)
+	case cmdSettings, cmdGrantControl, cmdRevokeControl, cmdTransferHost:
+		if !l.isHost(c.userID) {
+			return refuse(ErrCodeNotAllowed, "only the host can do this")
+		}
+		return l.handleHost(c, in, now)
+	case cmdPlay, cmdPause, cmdSeek, cmdRate, cmdSkip, cmdPlayItem, cmdQueueMove, cmdSuggestionAccept, cmdAutoNext:
+		if !l.canControl(c.userID) {
+			return refuse(ErrCodeNotAllowed, "you do not have control of the lobby")
+		}
+		return l.handleControl(in, now)
+	default:
+		return refuse(ErrCodeUnknownType, "unknown message type")
+	}
+}
+
+// handleControl runs the commands that need control.
+func (l *lobby) handleControl(in *inbound, now time.Time) error {
+	switch in.T {
+	case cmdPlay:
+		cur := l.current()
+		if cur == nil {
+			return refuse(ErrCodeInvalid, "the queue is empty")
+		}
+		end, known, _ := itemEnd(cur)
+		pos := l.posNow(now)
+		if in.Position != nil {
+			pos = clampPosition(*in.Position, end)
+		}
+		if known && l.row.AutoNext == data.AutoNextStop && pos >= end-atEndTolerance {
+			// Stopped at the end (auto-next stop): playing again starts the item over
+			pos = itemStart(cur)
+			l.syncPoint()
+		}
+		l.state.position = pos
+		l.state.ref = now
+		l.state.playing = true
+		l.applyHold(now)
+		l.trackPlay(now)
+		l.changed()
+		return nil
+	case cmdPause:
+		if l.current() == nil {
+			return refuse(ErrCodeInvalid, "the queue is empty")
+		}
+		end, _, _ := itemEnd(l.current())
+		pos := l.posNow(now)
+		if in.Position != nil {
+			pos = clampPosition(*in.Position, end)
+		}
+		l.state.position = pos
+		l.state.ref = now
+		l.state.playing = false
+		l.state.hold = false
+		l.changed()
+		l.savePlayback()
+		return nil
+	case cmdSeek:
+		cur := l.current()
+		if cur == nil {
+			return refuse(ErrCodeInvalid, "the queue is empty")
+		}
+		if in.Position == nil {
+			return refuse(ErrCodeInvalid, "position is required")
+		}
+		end, _, _ := itemEnd(cur)
+		l.state.position = clampPosition(*in.Position, end)
+		l.state.ref = now
+		l.state.hold = false
+		l.syncPoint()
+		l.applyHold(now)
+		l.broadcastState()
+		l.savePlayback()
+		return nil
+	case cmdRate:
+		if in.Rate == nil || *in.Rate < minRate || *in.Rate > maxRate {
+			return refuse(ErrCodeInvalid, "rate must be between 0.25 and 4")
+		}
+		l.state.position = l.posNow(now)
+		l.state.ref = now
+		l.state.rate = *in.Rate
+		l.changed()
+		l.savePlayback()
+		return nil
+	case cmdSkip:
+		if l.current() == nil {
+			return refuse(ErrCodeInvalid, "the queue is empty")
+		}
+		return l.internal(l.finish(now, finishSkip))
+	case cmdPlayItem:
+		return l.cmdPlayItem(in, now)
+	case cmdQueueMove:
+		return l.cmdQueueMove(in)
+	case cmdSuggestionAccept:
+		return l.cmdSuggestionAccept(in, now)
+	case cmdAutoNext:
+		return l.cmdAutoNext(in)
+	}
+	return nil
+}
+
+// atEndTolerance: a position this close to the end of an item counts as the end.
+const atEndTolerance = 0.5
+
+// cmdAutoNext changes what happens at the end of an item (anyone with control).
+func (l *lobby) cmdAutoNext(in *inbound) error {
+	if in.Mode == nil || !data.ValidAutoNext(*in.Mode) {
+		return refuse(ErrCodeInvalid, "mode must be stop, next, repeat_one or repeat_queue")
+	}
+	if *in.Mode == l.row.AutoNext {
+		return nil
+	}
+	next := l.row
+	next.AutoNext = *in.Mode
+	if err := l.hub.store.UpdateSettings(&next); err != nil {
+		return l.internal(err)
+	}
+	l.row = next
+	l.broadcastLobby()
+	return nil
+}
+
+// internal turns a storage error into a refused command (logged).
+func (l *lobby) internal(err error) error {
+	if err == nil {
+		return nil
+	}
+	l.hub.logger.Error("Lobby storage error", zap.Uint("lobby_id", l.row.ID), zap.Error(err))
+	return refuse(ErrCodeInternal, "the change could not be saved")
+}
+
+func (l *lobby) cmdStatus(c *Client, in *inbound, now time.Time) error {
+	before := c.buffering
+	if in.Buffering != nil {
+		c.buffering = *in.Buffering
+	}
+	if in.Seq != nil {
+		c.reportSeq = *in.Seq
+	}
+	if in.ItemID != nil {
+		c.reportItem = *in.ItemID
+	}
+	if before != c.buffering {
+		l.broadcastMembers()
+	}
+	if l.applyHold(now) {
+		l.changed()
+	}
+	return nil
+}
+
+func (l *lobby) cmdEnded(c *Client, in *inbound, now time.Time) error {
+	cur := l.current()
+	if cur == nil || in.ItemID == nil || *in.ItemID != cur.id {
+		return nil // another item: already advanced, or a late report
+	}
+	if !l.restartedAt.IsZero() && now.Sub(l.restartedAt) < restartGrace {
+		return nil // the end of the previous loop of a repeated item
+	}
+	end, known, _ := itemEnd(cur)
+	if known {
+		if l.state.at(now) < end-endedTolerance {
+			return nil // too early: a broken stream must not skip for everyone
+		}
+		return l.internal(l.finish(now, finishEnded))
+	}
+	if l.canControl(c.userID) {
+		return l.internal(l.finish(now, finishEnded))
+	}
+	l.endedReports[c.userID] = true
+	online := l.onlineUsers()
+	reported := 0
+	for uid := range l.endedReports {
+		if online[uid] {
+			reported++
+		}
+	}
+	if reported*2 >= len(online) {
+		return l.internal(l.finish(now, finishEnded))
+	}
+	return nil
+}
+
+// restartGrace: ended reports this soon after a repeat restarted the item are ignored.
+const restartGrace = 3 * time.Second
+
+func (l *lobby) cmdPlayItem(in *inbound, now time.Time) error {
+	if in.ItemID == nil {
+		return refuse(ErrCodeInvalid, "item_id is required")
+	}
+	i := l.queueIndex(*in.ItemID)
+	if i < 0 {
+		return refuse(ErrCodeNotFound, "no such queue item")
+	}
+	if i == 0 {
+		// The item playing: start it over
+		l.startItem(now, true)
+		l.broadcastState()
+		l.savePlayback()
+		return nil
+	}
+	target := l.queue[i]
+	var rest []*item
+	if l.row.AutoNext == data.AutoNextRepeatQueue {
+		// The queue loops: it turns until the item is first, nothing is dropped
+		rest = make([]*item, 0, len(l.queue))
+		rest = append(rest, l.queue[i:]...)
+		rest = append(rest, l.queue[:i]...)
+	} else {
+		rest = make([]*item, 0, len(l.queue)-1)
+		rest = append(rest, target)
+		for j, it := range l.queue {
+			if j == 0 || j == i {
+				continue
+			}
+			rest = append(rest, it)
+		}
+		if err := l.hub.store.DeleteQueueItem(l.row.ID, l.queue[0].id); err != nil {
+			return l.internal(err)
+		}
+	}
+	if err := l.hub.store.SetQueueOrder(l.row.ID, itemIDs(rest)); err != nil {
+		return l.internal(err)
+	}
+	l.queue = rest
+	l.startItem(now, true)
+	l.savePlayback()
+	l.broadcastQueue()
+	l.broadcastState()
+	l.system("Now playing: " + itemTitle(target))
+	return nil
+}
+
+// cmdQueueAdd adds items to the queue (or suggests them). With play_now (control only), the
+// items go to the front of the queue and the first one starts at once: the item playing is
+// dropped, like play_item does.
+func (l *lobby) cmdQueueAdd(c *Client, in *inbound, now time.Time) error {
+	if in.PlayNow && !l.canControl(c.userID) {
+		return refuse(ErrCodeNotAllowed, "you do not have control of the lobby")
+	}
+	cur := l.current()
+	before := len(l.queue)
+	queued, _, err := l.addItems(c.userID, in.Items, now)
+	if err != nil || !in.PlayNow || queued == 0 {
+		return err
+	}
+	return l.playAdded(cur, l.queue[before:before+queued], now)
+}
+
+// playAdded moves the items just added to the front of the queue, drops the item that was
+// playing (cur, may be nil) and starts the first added item.
+func (l *lobby) playAdded(cur *item, added []*item, now time.Time) error {
+	isAdded := make(map[uint]bool, len(added))
+	for _, it := range added {
+		isAdded[it.id] = true
+	}
+	next := make([]*item, 0, len(l.queue))
+	next = append(next, added...)
+	for _, it := range l.queue {
+		if !isAdded[it.id] && it != cur {
+			next = append(next, it)
+		}
+	}
+	if cur != nil {
+		if err := l.hub.store.DeleteQueueItem(l.row.ID, cur.id); err != nil {
+			return l.internal(err)
+		}
+	}
+	if err := l.hub.store.SetQueueOrder(l.row.ID, itemIDs(next)); err != nil {
+		return l.internal(err)
+	}
+	l.queue = next
+	l.startItem(now, true)
+	l.savePlayback()
+	l.broadcastQueue()
+	l.broadcastState()
+	l.system("Now playing: " + itemTitle(next[0]))
+	return nil
+}
+
+// clampItemEnd keeps the end of a range inside the scene when its duration is known (a marker
+// without an end is queued with a default length that may pass the end of the scene).
+func clampItemEnd(in ItemInput, duration int) *float64 {
+	if in.End == nil || duration <= 0 || *in.End <= float64(duration) {
+		return in.End
+	}
+	start := 0.0
+	if in.Start != nil {
+		start = *in.Start
+	}
+	if float64(duration) <= start {
+		return nil // plays to the end of the scene
+	}
+	d := float64(duration)
+	return &d
+}
+
+func itemIDs(items []*item) []uint {
+	ids := make([]uint, len(items))
+	for i, it := range items {
+		ids[i] = it.id
+	}
+	return ids
+}
+
+func (l *lobby) cmdQueueMove(in *inbound) error {
+	if in.ItemID == nil || in.Index == nil {
+		return refuse(ErrCodeInvalid, "item_id and index are required")
+	}
+	i := l.queueIndex(*in.ItemID)
+	first := 0
+	if l.current() != nil {
+		first = 1
+	}
+	if i < first {
+		return refuse(ErrCodeNotFound, "no such upcoming item")
+	}
+	moved := l.queue[i]
+	upcoming := make([]*item, 0, len(l.queue))
+	for j := first; j < len(l.queue); j++ {
+		if j != i {
+			upcoming = append(upcoming, l.queue[j])
+		}
+	}
+	idx := *in.Index
+	if idx < 0 {
+		idx = 0
+	}
+	if idx > len(upcoming) {
+		idx = len(upcoming)
+	}
+	upcoming = append(upcoming[:idx], append([]*item{moved}, upcoming[idx:]...)...)
+	next := append(append([]*item{}, l.queue[:first]...), upcoming...)
+	if err := l.hub.store.SetQueueOrder(l.row.ID, itemIDs(next)); err != nil {
+		return l.internal(err)
+	}
+	l.queue = next
+	l.broadcastQueue()
+	return nil
+}
+
+func (l *lobby) cmdSuggestionAccept(in *inbound, now time.Time) error {
+	if in.ItemID == nil {
+		return refuse(ErrCodeInvalid, "item_id is required")
+	}
+	i := l.suggestionIndex(*in.ItemID)
+	if i < 0 {
+		return refuse(ErrCodeNotFound, "no such suggestion")
+	}
+	if max := l.hub.cfg.MaxQueueItems; max > 0 && len(l.queue) >= max {
+		return refuse(ErrCodeQueueFull, "the queue is full")
+	}
+	accepted := l.suggestions[i]
+	next := append(append([]*item{}, l.queue...), accepted)
+	if err := l.hub.store.SetQueueOrder(l.row.ID, itemIDs(next)); err != nil {
+		return l.internal(err)
+	}
+	l.queue = next
+	l.suggestions = append(l.suggestions[:i:i], l.suggestions[i+1:]...)
+	if l.current() == nil {
+		l.startItem(now, false)
+		l.broadcastState()
+		l.savePlayback()
+	}
+	l.broadcastQueue()
+	return nil
+}
+
+func (l *lobby) cmdQueueRemove(c *Client, in *inbound, now time.Time) error {
+	if in.ItemID == nil {
+		return refuse(ErrCodeInvalid, "item_id is required")
+	}
+	if i := l.suggestionIndex(*in.ItemID); i >= 0 {
+		return l.cmdSuggestionReject(c, in)
+	}
+	i := l.queueIndex(*in.ItemID)
+	if i < 0 {
+		return refuse(ErrCodeNotFound, "no such queue item")
+	}
+	if !l.canControl(c.userID) {
+		return refuse(ErrCodeNotAllowed, "you do not have control of the lobby")
+	}
+	if i == 0 && l.current() != nil {
+		return l.internal(l.finish(now, finishRemove))
+	}
+	if err := l.hub.store.DeleteQueueItem(l.row.ID, *in.ItemID); err != nil {
+		return l.internal(err)
+	}
+	l.queue = append(l.queue[:i:i], l.queue[i+1:]...)
+	l.broadcastQueue()
+	return nil
+}
+
+func (l *lobby) cmdSuggestionReject(c *Client, in *inbound) error {
+	if in.ItemID == nil {
+		return refuse(ErrCodeInvalid, "item_id is required")
+	}
+	i := l.suggestionIndex(*in.ItemID)
+	if i < 0 {
+		return refuse(ErrCodeNotFound, "no such suggestion")
+	}
+	s := l.suggestions[i]
+	own := s.addedBy != nil && *s.addedBy == c.userID
+	if !own && !l.canControl(c.userID) {
+		return refuse(ErrCodeNotAllowed, "you do not have control of the lobby")
+	}
+	if err := l.hub.store.DeleteQueueItem(l.row.ID, s.id); err != nil {
+		return l.internal(err)
+	}
+	l.suggestions = append(l.suggestions[:i:i], l.suggestions[i+1:]...)
+	l.broadcastQueue()
+	return nil
+}
+
+// validateItems checks the items to add and gives them with their scene.
+func (l *lobby) validateItems(inputs []ItemInput) ([]ItemInput, map[uint]data.Scene, error) {
+	if len(inputs) == 0 {
+		return nil, nil, refuse(ErrCodeInvalid, "no item to add")
+	}
+	if len(inputs) > maxItemsPerAdd {
+		return nil, nil, refuse(ErrCodeInvalid, "too many items at once")
+	}
+	ids := make([]uint, 0, len(inputs))
+	for i, in := range inputs {
+		if in.SceneID == 0 {
+			return nil, nil, refuse(ErrCodeInvalid, "scene_id is required")
+		}
+		if in.Start != nil && *in.Start < 0 {
+			return nil, nil, refuse(ErrCodeInvalid, "start must not be negative")
+		}
+		if in.End != nil {
+			start := 0.0
+			if in.Start != nil {
+				start = *in.Start
+			}
+			if *in.End <= start {
+				return nil, nil, refuse(ErrCodeInvalid, "end must be after start")
+			}
+		}
+		if in.Label != nil {
+			label := strings.TrimSpace(*in.Label)
+			if utf8.RuneCountInString(label) > maxLabelLength {
+				return nil, nil, refuse(ErrCodeTooLong, "label is too long")
+			}
+			if label == "" {
+				inputs[i].Label = nil
+			} else {
+				inputs[i].Label = &label
+			}
+		}
+		ids = append(ids, in.SceneID)
+	}
+	scenes, err := l.hub.scenes.GetByIDs(ids)
+	if err != nil {
+		return nil, nil, l.internal(err)
+	}
+	byID := make(map[uint]data.Scene, len(scenes))
+	for _, s := range scenes {
+		byID[s.ID] = s
+	}
+	valid := inputs[:0:0]
+	for _, in := range inputs {
+		if _, ok := byID[in.SceneID]; ok {
+			valid = append(valid, in)
+		}
+	}
+	if len(valid) == 0 {
+		return nil, nil, refuse(ErrCodeNotFound, "no such scene")
+	}
+	return valid, byID, nil
+}
+
+// addItems adds items to the queue when the user (a member) may, else as suggestions. The
+// first item queued into an empty queue becomes the current one, paused at its start.
+func (l *lobby) addItems(userID uint, inputs []ItemInput, now time.Time) (queued, suggested int, err error) {
+	adderMember := l.members[userID]
+	if adderMember == nil {
+		return 0, 0, refuse(ErrCodeNotAllowed, "join the lobby first")
+	}
+	valid, scenes, err := l.validateItems(inputs)
+	if err != nil {
+		return 0, 0, err
+	}
+	toQueue := l.canQueue(userID)
+	status := data.QueueItemSuggested
+	have, limit := len(l.suggestions), l.hub.cfg.MaxSuggestions
+	if toQueue {
+		status = data.QueueItemQueued
+		have, limit = len(l.queue), l.hub.cfg.MaxQueueItems
+	}
+	if limit > 0 && have+len(valid) > limit {
+		return 0, 0, refuse(ErrCodeQueueFull, "the queue is full")
+	}
+	adder := userID
+	rows := make([]data.LobbyQueueItem, len(valid))
+	for i, in := range valid {
+		rows[i] = data.LobbyQueueItem{
+			LobbyID:  l.row.ID,
+			SceneID:  in.SceneID,
+			Status:   status,
+			Position: have + i,
+			StartS:   in.Start,
+			EndS:     clampItemEnd(in, scenes[in.SceneID].Duration),
+			Label:    in.Label,
+			AddedBy:  &adder,
+		}
+		if adderMember.anon > 0 {
+			n := adderMember.anon
+			rows[i].AddedByAnon = &n
+		}
+	}
+	if err := l.hub.store.AddQueueItems(rows); err != nil {
+		return 0, 0, l.internal(err)
+	}
+	added := make([]*item, len(rows))
+	for i, r := range rows {
+		s := scenes[r.SceneID]
+		r.SceneTitle = s.Title
+		r.SceneDuration = s.Duration
+		r.AddedByName = adderMember.username
+		added[i] = itemFromRow(r)
+	}
+	if !toQueue {
+		l.suggestions = append(l.suggestions, added...)
+		l.broadcastQueue()
+		l.systemAbout(adderMember, " suggested "+itemTitle(added[0])+plural(len(added)-1))
+		return 0, len(added), nil
+	}
+	wasEmpty := l.current() == nil
+	l.queue = append(l.queue, added...)
+	if wasEmpty {
+		l.startItem(now, false)
+		l.broadcastState()
+		l.savePlayback()
+	}
+	l.broadcastQueue()
+	return len(added), 0, nil
+}
+
+func plural(more int) string {
+	switch {
+	case more <= 0:
+		return ""
+	case more == 1:
+		return " and 1 more"
+	default:
+		return " and " + strconv.Itoa(more) + " more"
+	}
+}
+
+// --- chat and reactions ---
+
+// cleanChat trims a chat text and refuses control characters (newlines are kept).
+func cleanChat(text string, maxLen int) (string, error) {
+	text = strings.TrimSpace(strings.ReplaceAll(text, "\r\n", "\n"))
+	if text == "" {
+		return "", refuse(ErrCodeInvalid, "empty message")
+	}
+	if !utf8.ValidString(text) {
+		return "", refuse(ErrCodeInvalid, "invalid text")
+	}
+	if maxLen > 0 && utf8.RuneCountInString(text) > maxLen {
+		return "", refuse(ErrCodeTooLong, "message is too long")
+	}
+	for _, r := range text {
+		if r != '\n' && unicode.IsControl(r) {
+			return "", refuse(ErrCodeInvalid, "invalid character in message")
+		}
+	}
+	return text, nil
+}
+
+func (l *lobby) cmdChat(c *Client, in *inbound, now time.Time) error {
+	if in.Text == nil {
+		return refuse(ErrCodeInvalid, "text is required")
+	}
+	text, err := cleanChat(*in.Text, l.hub.cfg.ChatMaxLength)
+	if err != nil {
+		return err
+	}
+	if !l.limiter(l.chatLimiters, c.userID, l.hub.cfg.ChatRateLimit).AllowN(now, 1) {
+		return refuse(ErrCodeRateLimited, "slow down")
+	}
+	uid, name := c.userID, c.username
+	msg := ChatMessage{UserID: &uid, Username: &name, Text: text}
+	if m := l.members[c.userID]; m != nil && m.anon > 0 {
+		msg.Anonymous, msg.AnonNumber = true, anonPtr(m.anon)
+	}
+	l.addChat(msg)
+	return nil
+}
+
+func (l *lobby) cmdChatDelete(c *Client, in *inbound) error {
+	var id int64
+	if err := json.Unmarshal(in.ID, &id); err != nil || id <= 0 {
+		return refuse(ErrCodeInvalid, "id is required")
+	}
+	for i, m := range l.chat {
+		if m.ID != id {
+			continue
+		}
+		own := m.UserID != nil && *m.UserID == c.userID
+		if !own && !l.isHost(c.userID) && !l.hub.hasPermission(c.userID, core.PermTogetherModerate) {
+			return refuse(ErrCodeNotAllowed, "you cannot delete this message")
+		}
+		l.chat = append(l.chat[:i:i], l.chat[i+1:]...)
+		l.broadcast(chatDeletedMsg{T: msgChatDeleted, ID: id})
+		return nil
+	}
+	return refuse(ErrCodeNotFound, "no such message")
+}
+
+func (l *lobby) cmdReaction(c *Client, in *inbound, now time.Time) error {
+	if in.Emote == nil {
+		return refuse(ErrCodeInvalid, "emote is required")
+	}
+	emote := *in.Emote
+	if len(emote) > 2 && strings.HasPrefix(emote, ":") && strings.HasSuffix(emote, ":") {
+		if l.hub.emotes == nil || !l.hub.emotes.HasEmote(emote[1:len(emote)-1]) {
+			return refuse(ErrCodeNotFound, "no such emote")
+		}
+	} else if !core.ValidEmoji(emote) {
+		return refuse(ErrCodeInvalid, "not an emoji")
+	}
+	if !l.limiter(l.reactionLimiters, c.userID, l.hub.cfg.ReactionRateLimit).AllowN(now, 1) {
+		return refuse(ErrCodeRateLimited, "slow down")
+	}
+	uid := c.userID
+	m := l.members[c.userID]
+	if m == nil || m.anon == 0 {
+		l.broadcast(reactionMsg{T: msgReaction, UserID: &uid, Username: c.username, Emote: emote})
+		return nil
+	}
+	l.broadcastSplit(func(full bool) any {
+		if full {
+			return reactionMsg{T: msgReaction, UserID: &uid, Username: c.username, Anonymous: true, AnonNumber: anonPtr(m.anon), Emote: emote}
+		}
+		return reactionMsg{T: msgReaction, Username: anonName(m.anon), Anonymous: true, AnonNumber: anonPtr(m.anon), Emote: emote}
+	})
+	return nil
+}
+
+// --- host and moderation ---
+
+// target finds the member a command is about: by anon (the number of an anonymous member)
+// or by user_id. Only moderators may name an anonymous member by user_id: for the others it
+// is "no such member", like a user who is not in the lobby, so that the answer never tells
+// who is behind an anonymous member.
+func (l *lobby) target(c *Client, in *inbound) *member {
+	if in.Anon != nil {
+		for _, m := range l.members {
+			if m.anon > 0 && m.anon == *in.Anon {
+				return m
+			}
+		}
+		return nil
+	}
+	if in.UserID == nil {
+		return nil
+	}
+	m := l.members[*in.UserID]
+	if m != nil && m.anon > 0 && !c.moderate && m.userID != c.userID {
+		return nil
+	}
+	return m
+}
+
+func (l *lobby) handleHost(c *Client, in *inbound, now time.Time) error {
+	switch in.T {
+	case cmdSettings:
+		return l.cmdSettings(in, now)
+	case cmdGrantControl, cmdRevokeControl:
+		m := l.target(c, in)
+		if m == nil {
+			return refuse(ErrCodeNotFound, "no such member")
+		}
+		grant := in.T == cmdGrantControl
+		if m.canControl == grant {
+			return nil
+		}
+		if err := l.hub.store.SetMemberControl(l.row.ID, m.userID, grant); err != nil {
+			return l.internal(err)
+		}
+		m.canControl = grant
+		l.broadcastMembers()
+		return nil
+	case cmdTransferHost:
+		m := l.target(c, in)
+		if m == nil {
+			return refuse(ErrCodeNotFound, "no such member")
+		}
+		if m.userID == c.userID {
+			return nil
+		}
+		if m.anon > 0 {
+			return refuse(ErrCodeNotAllowed, "an anonymous member cannot be the host")
+		}
+		if l.connections(m.userID) == 0 {
+			return refuse(ErrCodeInvalid, "the new host must be online")
+		}
+		return l.internal(l.setHost(m, now))
+	}
+	return nil
+}
+
+// setHost gives the host role to a member (never an anonymous one). nil leaves the lobby
+// without host: only anonymous members are left, every member controls until a named
+// member comes (tick).
+func (l *lobby) setHost(m *member, now time.Time) error {
+	if m == nil {
+		if err := l.hub.store.SetHost(l.row.ID, nil); err != nil {
+			return err
+		}
+		l.row.HostUserID = nil
+		l.hostAwaySince = now
+		l.broadcastLobby()
+		l.broadcastMembers()
+		l.system("The lobby has no host now: everyone controls it")
+		return nil
+	}
+	id := m.userID
+	if err := l.hub.store.SetHost(l.row.ID, &id); err != nil {
+		return err
+	}
+	l.row.HostUserID = &id
+	l.hostAwaySince = now
+	if l.connections(id) > 0 {
+		l.hostAwaySince = time.Time{}
+	}
+	l.broadcastLobby()
+	l.broadcastMembers()
+	l.system(m.username + " is now the host")
+	return nil
+}
+
+func (l *lobby) cmdSettings(in *inbound, now time.Time) error {
+	next := l.row
+	if in.Name != nil {
+		name := strings.TrimSpace(*in.Name)
+		if name == "" {
+			return refuse(ErrCodeInvalid, "name is required")
+		}
+		if utf8.RuneCountInString(name) > maxNameLength {
+			return refuse(ErrCodeTooLong, "name is too long")
+		}
+		next.Name = name
+	}
+	if in.Visibility != nil {
+		if *in.Visibility != data.LobbyVisibilityPublic && *in.Visibility != data.LobbyVisibilityPrivate {
+			return refuse(ErrCodeInvalid, "visibility must be public or private")
+		}
+		next.Visibility = *in.Visibility
+	}
+	if in.ControlOpen != nil {
+		next.ControlOpen = *in.ControlOpen
+	}
+	if in.QueueOpen != nil {
+		next.QueueOpen = *in.QueueOpen
+	}
+	if in.WaitForAll != nil {
+		next.WaitForAll = *in.WaitForAll
+	}
+	if in.MaxMembers != nil {
+		if *in.MaxMembers < 0 || (l.hub.cfg.MaxMembers > 0 && *in.MaxMembers > l.hub.cfg.MaxMembers) {
+			return refuse(ErrCodeInvalid, "max_members is out of range")
+		}
+		next.MaxMembers = *in.MaxMembers
+	}
+	if err := l.hub.store.UpdateSettings(&next); err != nil {
+		return l.internal(err)
+	}
+	if next.Visibility != l.row.Visibility {
+		l.hub.publicChanged()
+	}
+	l.row = next
+	l.broadcastLobby()
+	l.broadcastMembers()
+	if l.applyHold(now) {
+		l.changed()
+	}
+	return nil
+}
+
+func (l *lobby) cmdKick(c *Client, in *inbound) error {
+	if in.UserID == nil && in.Anon == nil {
+		return refuse(ErrCodeInvalid, "user_id or anon is required")
+	}
+	moderate := l.hub.hasPermission(c.userID, core.PermTogetherModerate)
+	if !l.isHost(c.userID) && !moderate {
+		return refuse(ErrCodeNotAllowed, "only the host or a moderator can do this")
+	}
+	m := l.target(c, in)
+	if m == nil {
+		// Moderators may ban a user who is not a member (by user_id)
+		if !in.Ban || !moderate || in.UserID == nil {
+			return refuse(ErrCodeNotFound, "no such member")
+		}
+	}
+	target := uint(0)
+	if m != nil {
+		target = m.userID
+	} else {
+		target = *in.UserID
+	}
+	if target == c.userID || l.isHost(target) {
+		return refuse(ErrCodeNotAllowed, "the host cannot be kicked")
+	}
+	return l.internal(l.removeMember(target, in.Ban))
+}
+
+// removeMember kicks (or bans) a user: membership removed and connections closed.
+func (l *lobby) removeMember(userID uint, ban bool) error {
+	m := l.members[userID]
+	if ban {
+		if err := l.hub.store.BanMember(l.row.ID, userID, l.hub.now().UTC()); err != nil {
+			return err
+		}
+		l.banned[userID] = true
+	} else if err := l.hub.store.RemoveMember(l.row.ID, userID); err != nil {
+		return err
+	}
+	delete(l.members, userID)
+	reason, code := ByeKicked, CloseKicked
+	if ban {
+		reason, code = ByeBanned, CloseForbidden
+	}
+	l.dropUser(userID, reason, code)
+	l.broadcastMembers()
+	if m != nil {
+		if ban {
+			l.systemAbout(m, " was banned")
+		} else {
+			l.systemAbout(m, " was kicked")
+		}
+	}
+	return nil
+}
+
+// dropUser closes every connection of a user, with a bye message.
+func (l *lobby) dropUser(userID uint, reason string, code int) {
+	bye := l.marshal(byeMsg{T: msgBye, Reason: reason})
+	for cl := range l.clients {
+		if cl.userID != userID {
+			continue
+		}
+		if bye != nil {
+			cl.enqueue(bye)
+		}
+		cl.close(code, reason)
+		delete(l.clients, cl)
+	}
+}

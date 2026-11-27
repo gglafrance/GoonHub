@@ -6,6 +6,7 @@ import (
 	"goonhub/internal/core"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -151,7 +152,30 @@ func (h *InteractionHandler) GetJizzed(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"count": count})
+	h.respondJizzed(c, payload.UserID, uint(sceneID), count)
+}
+
+// respondJizzed returns the jizz count with the dated o history (most recent first).
+func (h *InteractionHandler) respondJizzed(c *gin.Context, userID, sceneID uint, count int) {
+	history, err := h.Service.GetJizzHistory(userID, sceneID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get jizz history"})
+		return
+	}
+	events := make([]gin.H, len(history.Events))
+	var last *time.Time
+	for i, at := range history.Events {
+		events[i] = gin.H{"jizzed_at": at.UTC().Format(time.RFC3339)}
+		if i == 0 {
+			t := at
+			last = &t
+		}
+	}
+	resp := gin.H{"count": count, "history": events, "history_total": history.Total, "last_jizzed_at": nil}
+	if last != nil {
+		resp["last_jizzed_at"] = last.UTC().Format(time.RFC3339)
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *InteractionHandler) ToggleJizzed(c *gin.Context) {
@@ -173,7 +197,7 @@ func (h *InteractionHandler) ToggleJizzed(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"count": count})
+	h.respondJizzed(c, payload.UserID, uint(sceneID), count)
 }
 
 func (h *InteractionHandler) GetInteractions(c *gin.Context) {

@@ -28,11 +28,24 @@ export const useApiCore = () => {
         }
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Request failed');
+            let error: { error?: string } | null = null;
+            try {
+                error = (await readResponseBody(response)) as { error?: string } | null;
+            } catch {
+                // not JSON: the status says enough
+            }
+            // status and body let callers handle specific answers (e.g. 409 with the existing entity)
+            throw Object.assign(
+                new Error(error?.error || `Request failed with status ${response.status}`),
+                {
+                    status: response.status,
+                    body: error,
+                },
+            );
         }
 
-        return response.json();
+        // 204 No Content (DELETE endpoints) and empty bodies give null
+        return readResponseBody(response);
     };
 
     // Handle responses that may return 204 No Content

@@ -1,6 +1,9 @@
 package meilisearch
 
 import (
+	"encoding/json"
+	"reflect"
+	"sort"
 	"testing"
 
 	"go.uber.org/zap"
@@ -46,6 +49,31 @@ func TestClient_buildFilters(t *testing.T) {
 			expectContains: []string{"duration >= 60.000000", "duration <= 3600.000000"},
 		},
 		{
+			name: "metadata presence",
+			params: SearchParams{
+				HasActors: boolPtr(false),
+				HasTags:   boolPtr(true),
+				HasStudio: boolPtr(false),
+			},
+			expectedLen:    3,
+			expectContains: []string{"actors IS EMPTY", "tag_ids IS NOT EMPTY", "studio IS EMPTY"},
+		},
+		{
+			name:           "excluded scenes",
+			params:         SearchParams{ExcludeSceneIDs: []uint{4, 8}},
+			expectedLen:    1,
+			expectContains: []string{"id NOT IN [4, 8]"},
+		},
+		{
+			name: "size range",
+			params: SearchParams{
+				MinSize: int64Ptr(500 * 1024 * 1024),
+				MaxSize: int64Ptr(2 * 1024 * 1024 * 1024),
+			},
+			expectedLen:    2,
+			expectContains: []string{"size >= 524288000", "size <= 2147483648"},
+		},
+		{
 			name: "height range",
 			params: SearchParams{
 				MinHeight: intPtr(720),
@@ -53,6 +81,39 @@ func TestClient_buildFilters(t *testing.T) {
 			},
 			expectedLen:    2,
 			expectContains: []string{"height >= 720", "height <= 1080"},
+		},
+		{
+			name:           "one source site",
+			params:         SearchParams{SourceSites: []string{"pornhub.com"}},
+			expectedLen:    1,
+			expectContains: []string{`source_site IN ["pornhub.com"]`},
+		},
+		{
+			name:           "source sites are OR-ed and escaped",
+			params:         SearchParams{SourceSites: []string{"pornhub.com", `we"ird.com`}},
+			expectedLen:    1,
+			expectContains: []string{`source_site IN ["pornhub.com", "we\"ird.com"]`},
+		},
+		{
+			name:           "has a source",
+			params:         SearchParams{HasSource: boolPtr(true)},
+			expectedLen:    1,
+			expectContains: []string{"(source_site EXISTS AND source_site IS NOT EMPTY)"},
+		},
+		{
+			name:           "no source",
+			params:         SearchParams{HasSource: boolPtr(false)},
+			expectedLen:    1,
+			expectContains: []string{"(source_site NOT EXISTS OR source_site IS EMPTY)"},
+		},
+		{
+			name:        "source sites with has source",
+			params:      SearchParams{SourceSites: []string{"xvideos.com"}, HasSource: boolPtr(true)},
+			expectedLen: 2,
+			expectContains: []string{
+				`source_site IN ["xvideos.com"]`,
+				"(source_site EXISTS AND source_site IS NOT EMPTY)",
+			},
 		},
 		{
 			name: "scene IDs filter",
@@ -178,4 +239,54 @@ func floatPtr(f float64) *float64 {
 
 func intPtr(i int) *int {
 	return &i
+}
+
+func int64Ptr(v int64) *int64 { return &v }
+
+func TestBuildSort_Fields(t *testing.T) {
+	client := &Client{}
+	tests := []struct {
+		sort, dir string
+		want      string
+	}{
+		{"size", "desc", "size:desc"},
+		{"size", "asc", "size:asc"},
+		{"duration", "asc", "duration:asc"},
+		{"created_at", "", "created_at:desc"},
+	}
+	for _, tt := range tests {
+		got := client.buildSort(SearchParams{Sort: tt.sort, SortDir: tt.dir})
+		if len(got) == 0 || got[0] != tt.want {
+			t.Fatalf("buildSort(%s, %s) = %v, want %s", tt.sort, tt.dir, got, tt.want)
+		}
+	}
+	if got := client.buildSort(SearchParams{Sort: "relevance"}); got != nil {
+		t.Fatalf("relevance must not sort, got %v", got)
+	}
+}
+
+func boolPtr(v bool) *bool { return &v }
+
+func TestParseFacetDistribution(t *testing.T) {
+	distribution := map[string]interface{}{
+		"source_site": map[string]interface{}{
+			"pornhub.com": float64(12),
+			"xvideos.com": json.Number("3"),
+			"":            float64(40), // scenes without a source
+			"zero.com":    float64(0),
+		},
+		"studio": map[string]interface{}{"x": float64(1)},
+	}
+	got := parseFacetDistribution(distribution, "source_site")
+	sort.Slice(got, func(i, j int) bool { return got[i].Value < got[j].Value })
+	want := []FacetCount{{Value: "pornhub.com", Count: 12}, {Value: "xvideos.com", Count: 3}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseFacetDistribution = %#v, want %#v", got, want)
+	}
+
+	for _, bad := range []interface{}{nil, "x", map[string]interface{}{}, map[string]interface{}{"source_site": 3}} {
+		if got := parseFacetDistribution(bad, "source_site"); len(got) != 0 {
+			t.Fatalf("parseFacetDistribution(%#v) = %#v, want nothing", bad, got)
+		}
+	}
 }

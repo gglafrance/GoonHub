@@ -1,5 +1,6 @@
 import type { HomepageConfig } from './homepage';
 import type { ParsingRulesSettings } from './parsing-rules';
+import type { DateFormat } from '~/utils/dateFormat';
 
 export interface SortPreferences {
     actors: string;
@@ -9,6 +10,40 @@ export interface SortPreferences {
     studio_scenes: string;
 }
 
+export type MarkerView = 'grouped' | 'all';
+
+// Scene list pages that can show their scenes as a grid of cards or as a table
+export type SceneListPage = 'search' | 'actor' | 'studio' | 'playlist' | 'explorer';
+export type SceneListViewMode = 'grid' | 'table';
+export type SceneTableColumn =
+    | 'thumbnail'
+    | 'title'
+    | 'duration'
+    | 'resolution'
+    | 'file_size'
+    | 'rating'
+    | 'views'
+    | 'studio'
+    | 'actors'
+    | 'release_date'
+    | 'added_at';
+
+export interface SceneListView {
+    // Missing page: grid
+    pages: Partial<Record<SceneListPage, SceneListViewMode>>;
+    // Visible table columns, in display order
+    columns: SceneTableColumn[];
+}
+export type PaginationPosition = 'top' | 'bottom' | 'both';
+// Card size of the scene grids (and actor/studio grids)
+export type GridDensity = 'compact' | 'comfortable' | 'large';
+// Thumbnail scrubber: free (scrolls on its own, click to seek) or centered (like Stash: the centre
+// line is the playback position, dragging or wheeling the strip seeks the video)
+export type ScrubberMode = 'free' | 'centered';
+// Maximum width of the scene list pages: default (usual width), wide, or full (edge to edge)
+export type ContentWidth = 'default' | 'wide' | 'full';
+export type { DateFormat };
+
 export interface UserSettings {
     id: number;
     user_id: number;
@@ -16,6 +51,7 @@ export interface UserSettings {
     default_volume: number;
     loop: boolean;
     ab_loop_controls: boolean;
+    marker_loop: boolean;
     videos_per_page: number;
     default_sort_order: SortOrder;
     default_tag_sort: TagSort;
@@ -26,7 +62,23 @@ export interface UserSettings {
     playlist_auto_advance: PlaylistAutoAdvance;
     playlist_countdown_seconds: number;
     show_page_size_selector: boolean;
+    advanced_marker_filters: boolean;
+    default_marker_view: MarkerView;
+    pagination_position: PaginationPosition;
+    date_format: DateFormat;
+    player_gestures: boolean;
+    gesture_seek_step: number;
+    show_replay_heatmap: boolean;
+    record_replay_heatmap: boolean;
     scene_card_config: SceneCardConfig;
+    scene_list_view: SceneListView;
+    grid_density: GridDensity;
+    infinite_scroll: boolean;
+    show_scrubber: boolean;
+    scrubber_mode: ScrubberMode;
+    // the mouse wheel over the scrubber scrolls it (free) or seeks (centered); off: the page scrolls
+    scrubber_wheel: boolean;
+    content_width: ContentWidth;
     max_items_per_page: number;
     created_at: string;
     updated_at: string;
@@ -53,6 +105,10 @@ export type SortOrder =
     | 'duration_desc'
     | 'size_asc'
     | 'size_desc'
+    | 'last_jizz_desc'
+    | 'last_jizz_asc'
+    | 'jizz_count_desc'
+    | 'jizz_count_asc'
     | 'random';
 
 export type TagSort = 'az' | 'za' | 'most' | 'least';
@@ -68,6 +124,9 @@ export interface TagSettings {
 export interface BadgeZone {
     items: string[];
     direction: 'vertical' | 'horizontal';
+    // Grid of 1 to 4 columns, filled row by row (horizontal) or column by column (vertical).
+    // Absent: one column (vertical) or one row (horizontal), the original layout.
+    columns?: number;
 }
 
 export interface BadgeZones {

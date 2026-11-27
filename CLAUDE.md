@@ -47,6 +47,12 @@ bun run build
 
 # Linter checks
 bun run lint
+
+# Type checks (vue-tsc on the Nuxt tsconfigs, needs .nuxt: run after bun install)
+bun run typecheck
+
+# Unit tests (bun test)
+bun run test
 ```
 
 ### Testing (Go Backend)
@@ -116,6 +122,9 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - `internal/infrastructure/persistence/postgres/` - GORM PostgreSQL initializer with connection pooling
 - `internal/infrastructure/persistence/migrator/` - golang-migrate based schema migrations (35 migrations)
 - `internal/jobs/` - Worker pool and scene processing jobs (metadata, thumbnail, sprites)
+- `internal/workers/` - Server side of the remote workers (goonhub-worker): leases with fencing generations, claim/push, artifact staging and verified commit, expiry sweep, phase routing. Contract: `docs/REMOTE_WORKERS.md`
+- `internal/core/message_service.go` - Messages between users and shares (conversations, read state, typing, share cards resolved per reader): `docs/MESSAGES.md`
+- `internal/together/` - Goon2gether (synchronized watch lobbies): the hub holding the live lobbies (playback state, queue, history of the played items, members, chat, WebSocket clients with bounded send buffers, one tick goroutine) and the custom emotes. Contract and protocol: `docs/GOON2GETHER.md`
 - `internal/apperrors/` - Typed error system with domain-specific errors:
     - `errors.go` - Base AppError interface and common error types (NotFoundError, ValidationError, ConflictError, InternalError, ForbiddenError, UnauthorizedError)
     - `scene.go` - Scene-specific errors (ErrSceneNotFound, ErrInvalidFileExtension, ErrSceneDimensionsNotAvailable)
@@ -136,7 +145,7 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - `pages/` - Routes: index (scene grid), login, watch/[id], settings
 - `components/` - Organized by feature:
     - Root: `AppHeader`, `SceneCard`, `SceneGrid`, `ScenePlayer`, `SceneUpload`, `SceneMetadata`, `UploadIndicator`, `Pagination`, `ErrorAlert`, `LoadingSpinner`
-    - `header/` - `JobStatus` (real-time job indicator), `JobStatusPopup` (detailed breakdown by phase)
+    - `header/` - `JobStatus` (real-time job indicator), `JobStatusPopup` (detailed breakdown by phase), `LayoutBar` (one header bar in three zones from the user's layout), `Entry` (one item), `NavFolder` (dropdown folder, the default one is "Manage"), `LiveSources` (starts the live badges once), `mobile/` (phones below md: `TopBar`, bottom `TabBar`, `MenuSheet`, built by `utils/mobileNav.ts`; chrome heights in the CSS variables `--app-header-h` / `--app-bottom-nav-h`, use them for sticky and fixed-bottom elements). Items and permissions in `utils/navRegistry.ts`, layout logic in `utils/navLayout.ts`: see `docs/NAVIGATION.md`
     - `settings/` - `Account`, `Player`, `App`, `Users`, `Jobs` (tab orchestrator)
     - `settings/jobs/` - `HistoryTab`, `QueueStatus`, `ActiveJobs`, `Workers`, `Processing`, `Triggers`, `Retry`, `DLQ`, `Manual`
     - `settings/` modals - `UserCreateModal`, `UserEditRoleModal`, `UserResetPasswordModal`, `UserDeleteModal`
@@ -144,6 +153,7 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
     - `watch/details/` - `TitleEditor`, `DescriptionEditor`, `ReleaseDateEditor`, `RatingPanel`, `InteractionsBar`, `TagManager`, `PornDBStatus`
     - `search/` - `SearchFilters` (orchestrator), `SearchBar`, `SearchResults`
     - `search/filters/` - `FilterSection`, `FilterTags`, `FilterActors`, `FilterDuration`, `FilterDateRange`, `FilterSelect`, `FilterLiked`, `FilterRatingRange`, `FilterJizzRange`
+    - `picker/` - `PickerModal`: search picker (Videos and Markers tabs, the search page interface on its own store instance) to pick scenes or markers; see `docs/SEARCH_PICKER.md`. Search components read their store with `useSearchContext()`
     - `ui/` - Reusable `ErrorAlert`, `LoadingSpinner`
 - `stores/` - Pinia stores: `auth` (sessionStorage), `scenes`, `upload`, `settings`, `search`, `jobStatus` (real-time job counts via SSE)
 - `composables/` - Organized by domain:
@@ -260,6 +270,7 @@ Config loaded via Viper: YAML file path set by `GOONHUB_CONFIG` env var. All con
 - **No manual imports for auto-imported APIs:** Never import `ref`, `computed`, `watch`, `onMounted` from Vue, or stores/composables — Nuxt auto-imports them. Only use explicit `import type` for TypeScript types from `~/types/`.
 - **Data loading with `v-if` tabs:** Components rendered with `v-if` mount fresh each time the tab activates — use `onMounted` to load data (no watcher needed on the parent).
 - **Watchers for store sync:** When form fields mirror store state, use `watch(() => store.state, syncFn)` + `onMounted(syncFn)` to keep local refs in sync.
+- **Type checks must pass:** run `bun run typecheck` (vue-tsc) after frontend changes, it must pass with 0 errors. Type template refs to components with `ref<InstanceType<typeof Comp> | null>(null)` (`import type Comp from '~/components/Comp.vue'`) and what they `defineExpose()`; no `any`, `@ts-ignore` or `@ts-expect-error` to silence an error.
 
 ### Frontend Aesthetics
 
@@ -287,11 +298,14 @@ When working on GoonHub, remember:
 - After any Go backend change, run `make test-race` before considering the task complete
 - When adding new repository interface methods, regenerate mocks with `make mocks`
 - PASETO key must be exactly 32 bytes for v2 symmetric encryption
-- Admin routes require RBAC middleware with admin role check
-- Use <NuxtTime :datetime=".." /> for date display
+- Routes are gated by permission (`middleware.RequirePermission` / `RequireAnyPermission`), never by role name; see `docs/RBAC.md` for the catalog and what each permission hides. A superuser role passes every check
+- Use `<UiFormattedDate :datetime=".." />` for absolute dates (follows the user date format setting; `utc` for calendar dates, `time` to add the time) and `<NuxtTime :datetime=".." relative />` for relative times. In scripts, use `useDateFormatter()` (`formatDate`, `formatDateTime`)
 - API composables are in `composables/api/` - prefer domain-specific imports (e.g., `useApiScenes()`) over unified `useApi()`
 - Component sub-directories follow pattern: `components/<feature>/<subfeature>/` auto-imports as `<FeatureSubfeatureComponent />`
 - Use typed errors from `internal/apperrors/` - check with `apperrors.IsNotFound()`, `apperrors.IsValidation()`, etc.
 - In handlers, use `response.Error(c, err)` for automatic HTTP status and error code mapping
 - Never add a `Co-Authored-By` line to git commit messages
 - Before any database schema change, read `docs/DATABASE.md` for schema reference and conventions
+- The header bars are laid out per account (`docs/NAVIGATION.md`): a new header item goes in both registries (`web/app/utils/navRegistry.ts` and `internal/core/nav_layout_catalog.go`, a test checks they match) with its permission; its live state is started in `header/LiveSources.vue`, not in the item
+- Messages between users and shares (videos, markers, playlists, lobby invites): `core/message_*.go`, `docs/MESSAGES.md`. Private to the participants (no admin bypass), the recipient's message policy is checked at send time, share cards are resolved for the reader (never file info). The single Share dialog is `components/share/ShareModal.vue` (`ShareButton`): "Send to friends" and "Link". Reactions on messages (both chats, emoji and `:name:` emotes): `core/message_reactions.go`, `together/chat_reactions.go`, `components/chat/Reactions.vue`, `utils/reactions.ts`
+- Information about a user shown to other users (profile blocks, lists, presence, activity) must go through the privacy framework (`PrivacyService.CanView` / `VisibleTo`, catalog in `core/privacy_catalog.go`, no admin bypass) and personal live events through `EventBus.PublishToUser`; see `docs/SOCIAL.md`. Presence (online, away, now watching, invisible mode) is in `core/presence_*.go` and `utils/presenceTracker.ts` (what counts as activity); add activity types as described in `docs/PRESENCE.md`

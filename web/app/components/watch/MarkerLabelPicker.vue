@@ -1,15 +1,21 @@
 <script setup lang="ts">
 import type { MarkerLabelSuggestion } from '~/types/marker';
 
+// Labels are server-wide: the typed text must match one of them. A label manager also gets a
+// "Create label" row (createName); anyone else gets a hint that the label does not exist
+// (unknownName).
 const props = defineProps<{
     visible: boolean;
     suggestions: MarkerLabelSuggestion[];
     anchorEl: HTMLElement | null;
     selectedIndex: number;
+    createName?: string | null;
+    unknownName?: string | null;
 }>();
 
 const emit = defineEmits<{
     select: [suggestion: MarkerLabelSuggestion];
+    create: [name: string];
     close: [];
 }>();
 
@@ -75,7 +81,7 @@ onBeforeUnmount(() => {
 <template>
     <Teleport to="body">
         <div
-            v-if="visible && suggestions.length > 0"
+            v-if="visible && (suggestions.length > 0 || createName || unknownName)"
             ref="dropdownRef"
             class="border-border bg-panel fixed z-[9999] max-h-48 overflow-y-auto rounded-lg border
                 shadow-xl"
@@ -94,9 +100,30 @@ onBeforeUnmount(() => {
                 ]"
                 @mousedown.prevent="emit('select', suggestion)"
             >
-                <span class="truncate">{{ suggestion.label }}</span>
+                <span class="flex min-w-0 items-center gap-1.5">
+                    <span
+                        v-if="suggestion.color"
+                        class="h-2 w-2 shrink-0 rounded-full"
+                        :style="{ backgroundColor: suggestion.color }"
+                    />
+                    <span class="truncate">{{ suggestion.label }}</span>
+                </span>
                 <span class="text-dim/50 ml-2 shrink-0 text-[10px]">{{ suggestion.count }}x</span>
             </button>
+            <button
+                v-if="createName"
+                type="button"
+                class="text-lava hover:bg-surface-hover flex w-full items-center gap-1.5 px-3 py-2
+                    text-left text-xs transition-colors"
+                :class="selectedIndex === suggestions.length ? 'bg-surface-hover' : ''"
+                @mousedown.prevent="emit('create', createName)"
+            >
+                <Icon name="heroicons:plus" size="12" />
+                <span class="truncate">Create label "{{ createName }}"</span>
+            </button>
+            <div v-else-if="unknownName" class="text-dim px-3 py-2 text-[11px] italic">
+                No label "{{ unknownName }}": pick an existing label
+            </div>
         </div>
     </Teleport>
 </template>

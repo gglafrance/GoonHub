@@ -5,6 +5,7 @@ import (
 	"goonhub/internal/api/v1/request"
 	"goonhub/internal/api/v1/response"
 	"goonhub/internal/core"
+	"goonhub/internal/data"
 	"net/http"
 	"strconv"
 	"time"
@@ -13,11 +14,17 @@ import (
 )
 
 type WatchHistoryHandler struct {
-	Service *core.WatchHistoryService
+	Service        *core.WatchHistoryService
+	HeatmapService *core.ReplayHeatmapService
+	// card data of the history scenes (see WithCardData)
+	MarkerService   *core.MarkerService
+	InteractionRepo data.InteractionRepository
+	TagRepo         data.TagRepository
+	ActorRepo       data.ActorRepository
 }
 
-func NewWatchHistoryHandler(service *core.WatchHistoryService) *WatchHistoryHandler {
-	return &WatchHistoryHandler{Service: service}
+func NewWatchHistoryHandler(service *core.WatchHistoryService, heatmapService *core.ReplayHeatmapService) *WatchHistoryHandler {
+	return &WatchHistoryHandler{Service: service, HeatmapService: heatmapService}
 }
 
 func (h *WatchHistoryHandler) RecordWatch(c *gin.Context) {
@@ -39,7 +46,13 @@ func (h *WatchHistoryHandler) RecordWatch(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.RecordWatch(payload.UserID, uint(sceneID), req.Duration, req.Position, req.Completed); err != nil {
+	record := h.Service.RecordWatch
+	if req.KeepResume {
+		record = func(userID, sceneID uint, duration, _ int, _ bool) error {
+			return h.Service.RecordWatchKeepResume(userID, sceneID, duration)
+		}
+	}
+	if err := record(payload.UserID, uint(sceneID), req.Duration, req.Position, req.Completed); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record watch"})
 		return
 	}
@@ -135,7 +148,7 @@ func (h *WatchHistoryHandler) GetUserHistory(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"entries": response.ToWatchHistoryEntriesResponse(entries),
+		"entries": response.ToWatchHistoryEntriesResponse(entries, fileVisibility(c)),
 		"total":   total,
 		"page":    page,
 		"limit":   limit,
@@ -182,9 +195,7 @@ func (h *WatchHistoryHandler) GetUserHistoryByDateRange(c *gin.Context) {
 			return
 		}
 
-		response.OK(c, gin.H{
-			"entries": response.ToWatchHistoryEntriesResponse(entries),
-		})
+		response.OK(c, h.historyEntriesResponse(c, entries, payload.UserID))
 		return
 	}
 
@@ -201,9 +212,7 @@ func (h *WatchHistoryHandler) GetUserHistoryByDateRange(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, gin.H{
-		"entries": response.ToWatchHistoryEntriesResponse(entries),
-	})
+	response.OK(c, h.historyEntriesResponse(c, entries, payload.UserID))
 }
 
 func (h *WatchHistoryHandler) GetDailyActivity(c *gin.Context) {
@@ -229,4 +238,62 @@ func (h *WatchHistoryHandler) GetDailyActivity(c *gin.Context) {
 	response.OK(c, gin.H{
 		"counts": counts,
 	})
+}
+
+// RecordReplayHeatmap adds watched ranges of a scene to the current user's "most replayed"
+// histogram and returns the updated histogram.
+func (h *WatchHistoryHandler) RecordReplayHeatmap(c *gin.Context) {
+	payload, err := middleware.GetUserFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	sceneID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid scene ID")
+		return
+	}
+
+	var req request.RecordReplayHeatmapRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request body")
+		return
+	}
+
+	ranges := make([]core.WatchedRange, len(req.Ranges))
+	for i, r := range req.Ranges {
+		ranges[i] = core.WatchedRange{Start: r[0], End: r[1]}
+	}
+
+	result, err := h.HeatmapService.Record(payload.UserID, uint(sceneID), ranges, req.Duration)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, result)
+}
+
+// GetReplayHeatmap returns the current user's "most replayed" histogram of a scene.
+func (h *WatchHistoryHandler) GetReplayHeatmap(c *gin.Context) {
+	payload, err := middleware.GetUserFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	sceneID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid scene ID")
+		return
+	}
+
+	heatmap, err := h.HeatmapService.Get(payload.UserID, uint(sceneID))
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, heatmap)
 }

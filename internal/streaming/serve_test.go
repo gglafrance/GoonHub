@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -66,7 +67,7 @@ func TestServeVideoNoRange(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/video.mp4", nil)
 	w := httptest.NewRecorder()
 
-	ServeVideo(w, req, "video.mp4", time.Now(), body, buf)
+	ServeVideo(w, req, "video.mp4", time.Now(), body, buf, 0)
 
 	resp := w.Result()
 	if resp.StatusCode != http.StatusOK {
@@ -91,7 +92,7 @@ func TestServeVideoSingleRange(t *testing.T) {
 	req.Header.Set("Range", "bytes=4-7")
 	w := httptest.NewRecorder()
 
-	ServeVideo(w, req, "video.mp4", time.Now(), body, buf)
+	ServeVideo(w, req, "video.mp4", time.Now(), body, buf, 0)
 
 	resp := w.Result()
 	if resp.StatusCode != http.StatusPartialContent {
@@ -116,7 +117,7 @@ func TestServeVideoOpenRange(t *testing.T) {
 	req.Header.Set("Range", "bytes=5-")
 	w := httptest.NewRecorder()
 
-	ServeVideo(w, req, "video.mp4", time.Now(), body, buf)
+	ServeVideo(w, req, "video.mp4", time.Now(), body, buf, 0)
 
 	resp := w.Result()
 	if resp.StatusCode != http.StatusPartialContent {
@@ -139,7 +140,7 @@ func TestServeVideoIfModifiedSince(t *testing.T) {
 	req.Header.Set("If-Modified-Since", modTime.Add(time.Hour).UTC().Format(http.TimeFormat))
 	w := httptest.NewRecorder()
 
-	ServeVideo(w, req, "video.mp4", modTime, body, buf)
+	ServeVideo(w, req, "video.mp4", modTime, body, buf, 0)
 
 	resp := w.Result()
 	if resp.StatusCode != http.StatusNotModified {
@@ -155,7 +156,7 @@ func TestServeVideoHeadRequest(t *testing.T) {
 	req := httptest.NewRequest(http.MethodHead, "/video.mp4", nil)
 	w := httptest.NewRecorder()
 
-	ServeVideo(w, req, "video.mp4", time.Now(), body, buf)
+	ServeVideo(w, req, "video.mp4", time.Now(), body, buf, 0)
 
 	resp := w.Result()
 	if resp.StatusCode != http.StatusOK {
@@ -168,5 +169,55 @@ func TestServeVideoHeadRequest(t *testing.T) {
 	respBody, _ := io.ReadAll(resp.Body)
 	if len(respBody) != 0 {
 		t.Fatal("expected empty body for HEAD request")
+	}
+}
+
+func TestServeVideoMaxRange(t *testing.T) {
+	content := "0123456789ABCDEF"
+	tests := []struct {
+		name         string
+		rangeHeader  string
+		maxRange     int64
+		wantRange    string
+		wantBody     string
+		wantFullFile bool
+	}{
+		{name: "open range capped", rangeHeader: "bytes=4-", maxRange: 5, wantRange: "bytes 4-8/16", wantBody: "45678"},
+		{name: "explicit range capped", rangeHeader: "bytes=0-15", maxRange: 4, wantRange: "bytes 0-3/16", wantBody: "0123"},
+		{name: "range under the cap", rangeHeader: "bytes=10-12", maxRange: 8, wantRange: "bytes 10-12/16", wantBody: "ABC"},
+		{name: "tail shorter than the cap", rangeHeader: "bytes=12-", maxRange: 8, wantRange: "bytes 12-15/16", wantBody: "CDEF"},
+		{name: "no cap", rangeHeader: "bytes=2-", maxRange: 0, wantRange: "bytes 2-15/16", wantBody: "23456789ABCDEF"},
+		{name: "no range header is the whole file", rangeHeader: "", maxRange: 4, wantFullFile: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/video.mp4", nil)
+			if tt.rangeHeader != "" {
+				req.Header.Set("Range", tt.rangeHeader)
+			}
+			w := httptest.NewRecorder()
+			ServeVideo(w, req, "video.mp4", time.Now(), strings.NewReader(content), make([]byte, 8), tt.maxRange)
+
+			resp := w.Result()
+			body, _ := io.ReadAll(resp.Body)
+			if tt.wantFullFile {
+				if resp.StatusCode != http.StatusOK || string(body) != content {
+					t.Fatalf("got %d %q, want 200 with the whole file", resp.StatusCode, body)
+				}
+				return
+			}
+			if resp.StatusCode != http.StatusPartialContent {
+				t.Fatalf("expected 206, got %d", resp.StatusCode)
+			}
+			if got := resp.Header.Get("Content-Range"); got != tt.wantRange {
+				t.Fatalf("Content-Range = %q, want %q", got, tt.wantRange)
+			}
+			if got := resp.Header.Get("Content-Length"); got != strconv.Itoa(len(tt.wantBody)) {
+				t.Fatalf("Content-Length = %q, want %d", got, len(tt.wantBody))
+			}
+			if string(body) != tt.wantBody {
+				t.Fatalf("body = %q, want %q", body, tt.wantBody)
+			}
+		})
 	}
 }

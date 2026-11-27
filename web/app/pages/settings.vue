@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import type { SettingsTabId, SettingsTabConfig, SettingsSubTabConfig } from '~/utils/settingsTabs';
+
 const settingsStore = useSettingsStore();
-const authStore = useAuthStore();
+const perms = useMyPermissions();
 const route = useRoute();
 const router = useRouter();
 
@@ -13,81 +15,18 @@ useSeoMeta({
     ogDescription: 'Configure your GoonHub preferences',
 });
 
-type TabType =
-    | 'account'
-    | 'player'
-    | 'app'
-    | 'homepage'
-    | 'tags'
-    | 'parsing-rules'
-    | 'users'
-    | 'jobs'
-    | 'storage'
-    | 'duplicates'
-    | 'trash';
+type TabType = SettingsTabId;
+type TabConfig = SettingsTabConfig;
+type SubTabConfig = SettingsSubTabConfig;
 
-interface SubTabConfig {
-    id: string;
-    label: string;
-    admin?: boolean;
-}
-
-interface TabConfig {
-    id: TabType;
-    label: string;
-    icon: string;
-    admin?: boolean;
-    subTabs?: SubTabConfig[];
-}
-
-const tabConfig: TabConfig[] = [
-    { id: 'account', label: 'Account', icon: 'heroicons:user-circle' },
-    { id: 'player', label: 'Player', icon: 'heroicons:play-circle' },
-    {
-        id: 'app',
-        label: 'App',
-        icon: 'heroicons:cog-6-tooth',
-        subTabs: [
-            { id: 'general', label: 'General' },
-            { id: 'sort-defaults', label: 'Sort Defaults' },
-            { id: 'card-template', label: 'Card Template' },
-            { id: 'search', label: 'Search', admin: true },
-            { id: 'advanced', label: 'Advanced', admin: true },
-        ],
-    },
-    { id: 'homepage', label: 'Homepage', icon: 'heroicons:home' },
-    { id: 'tags', label: 'Tags', icon: 'heroicons:tag' },
-    { id: 'parsing-rules', label: 'Parsing Rules', icon: 'heroicons:funnel' },
-    { id: 'users', label: 'Users', icon: 'heroicons:users', admin: true },
-    {
-        id: 'jobs',
-        label: 'Jobs',
-        icon: 'heroicons:queue-list',
-        admin: true,
-        subTabs: [
-            { id: 'manual', label: 'Manual' },
-            { id: 'history', label: 'History' },
-            { id: 'workers', label: 'Workers' },
-            { id: 'processing', label: 'Processing' },
-            { id: 'triggers', label: 'Triggers' },
-            { id: 'retry', label: 'Retry' },
-            { id: 'dlq', label: 'DLQ' },
-        ],
-    },
-    { id: 'storage', label: 'Storage', icon: 'heroicons:folder', admin: true },
-    { id: 'duplicates', label: 'Duplicates', icon: 'heroicons:document-duplicate', admin: true },
-    { id: 'trash', label: 'Trash', icon: 'heroicons:trash', admin: true },
-];
+const tabConfig = SETTINGS_TABS;
 
 const activeTab = ref<TabType>('account');
 const activeSubTab = ref<string>('general');
 const expandedTabs = ref<Set<TabType>>(new Set());
 
-const isAdmin = computed(() => authStore.user?.role === 'admin');
-
 function getVisibleSubTabs(tab: TabConfig): SubTabConfig[] {
-    if (!tab.subTabs) return [];
-    return tab.subTabs.filter((st) => !st.admin || isAdmin.value);
+    return visibleSettingsSubTabs(tab, perms.has);
 }
 
 const currentTabConfig = computed(() => tabConfig.find((t) => t.id === activeTab.value));
@@ -113,7 +52,7 @@ async function handleGlobalSave() {
     saveError.value = '';
     isSaving.value = true;
     try {
-        await settingsStore.saveAllSettings();
+        await settingsStore.saveDraft();
         if (settingsAppRef.value?.hasUnsavedAppSettings) {
             await settingsAppRef.value.saveAppSettings();
         }
@@ -128,9 +67,7 @@ async function handleGlobalSave() {
     }
 }
 
-const availableTabs = computed(() => {
-    return tabConfig.filter((tab) => !tab.admin || authStore.user?.role === 'admin');
-});
+const availableTabs = computed(() => visibleSettingsTabs(tabConfig, perms.has));
 
 const regularTabs = computed(() => availableTabs.value.filter((t) => !t.admin));
 const adminTabs = computed(() => availableTabs.value.filter((t) => t.admin));
@@ -244,7 +181,10 @@ definePageMeta({
 </script>
 
 <template>
-    <div class="flex h-[calc(100vh-6rem)] flex-col overflow-hidden lg:flex-row">
+    <div
+        class="flex h-[calc(100dvh-var(--app-header-h)-var(--app-bottom-nav-h))] flex-col
+            overflow-hidden lg:h-[calc(100vh-6rem)] lg:flex-row"
+    >
         <!-- Mobile: Horizontal scrollable tabs -->
         <div class="border-border bg-surface/50 shrink-0 border-b backdrop-blur-sm lg:hidden">
             <!-- Main tabs row -->
@@ -534,7 +474,8 @@ definePageMeta({
 
         <!-- Content area -->
         <main class="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-            <div class="mx-auto max-w-3xl">
+            <!-- The trash list is dense (filters, bulk bar, file paths): wider -->
+            <div class="mx-auto" :class="activeTab === 'trash' ? 'max-w-6xl' : 'max-w-3xl'">
                 <!-- Global save feedback -->
                 <Transition
                     enter-active-class="transition-all duration-200 ease-out"
@@ -561,6 +502,7 @@ definePageMeta({
                 </Transition>
 
                 <SettingsAccount v-if="activeTab === 'account'" />
+                <SettingsPrivacy v-if="activeTab === 'privacy'" />
                 <SettingsPlayer v-if="activeTab === 'player'" />
                 <SettingsApp
                     v-if="activeTab === 'app'"
@@ -568,13 +510,18 @@ definePageMeta({
                     :active-sub-tab="activeSubTab"
                 />
                 <SettingsHomepage v-if="activeTab === 'homepage'" />
+                <SettingsNavigation v-if="activeTab === 'navigation'" />
                 <SettingsTags v-if="activeTab === 'tags'" />
+                <SettingsMarkerLabels v-if="activeTab === 'marker-labels'" />
                 <SettingsParsingRules v-if="activeTab === 'parsing-rules'" />
                 <SettingsUsers v-if="activeTab === 'users'" />
                 <SettingsJobs v-if="activeTab === 'jobs'" :active-sub-tab="activeSubTab" />
                 <SettingsStorage v-if="activeTab === 'storage'" />
+                <SettingsWorkers v-if="activeTab === 'workers'" />
                 <SettingsDuplicates v-if="activeTab === 'duplicates'" />
+                <SettingsHealth v-if="activeTab === 'health'" />
                 <SettingsTrash v-if="activeTab === 'trash'" />
+                <SettingsEmotes v-if="activeTab === 'emotes'" />
             </div>
         </main>
 
@@ -589,8 +536,8 @@ definePageMeta({
         >
             <div
                 v-if="hasAnyUnsavedChanges && isSettingsTab"
-                class="bg-surface/95 fixed inset-x-0 bottom-0 z-50 border-t border-white/8 p-3
-                    backdrop-blur-xl lg:hidden"
+                class="bg-surface/95 fixed inset-x-0 bottom-[var(--app-bottom-nav-h)] z-50 border-t
+                    border-white/8 p-3 backdrop-blur-xl lg:hidden"
             >
                 <div class="flex items-center gap-3">
                     <span class="text-lava flex flex-1 items-center gap-1.5 text-xs font-medium">

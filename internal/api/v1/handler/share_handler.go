@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"goonhub/internal/api/middleware"
 	"mime"
 	"net/http"
 	"os"
@@ -22,19 +23,25 @@ type ShareHandler struct {
 	ShareService  *core.ShareService
 	AuthService   *core.AuthService
 	StreamManager *streaming.Manager
+	Transcoder    *streaming.Transcoder
 	ShareBaseURL  string
+	// Access resolves the user of a session token: the token of a deleted user does not count
+	// as authenticated (nil: the token alone is checked)
+	Access middleware.AccessResolver
 }
 
 func NewShareHandler(
 	shareService *core.ShareService,
 	authService *core.AuthService,
 	streamManager *streaming.Manager,
+	transcoder *streaming.Transcoder,
 	shareBaseURL string,
 ) *ShareHandler {
 	return &ShareHandler{
 		ShareService:  shareService,
 		AuthService:   authService,
 		StreamManager: streamManager,
+		Transcoder:    transcoder,
 		ShareBaseURL:  shareBaseURL,
 	}
 }
@@ -72,7 +79,7 @@ func (h *ShareHandler) CreateShareLink(c *gin.Context) {
 		return
 	}
 
-	link, err := h.ShareService.CreateShareLink(userID, uint(sceneID), req.ShareType, req.ExpiresIn)
+	link, err := h.ShareService.CreateShareLinkWithOptions(userID, uint(sceneID), req.ShareType, req.ExpiresIn, core.ShareLinkOptions{Start: req.Start, MarkerID: req.MarkerID})
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -153,8 +160,16 @@ func (h *ShareHandler) isAuthenticated(c *gin.Context) bool {
 		return false
 	}
 
-	_, err := h.AuthService.ValidateToken(token)
-	return err == nil
+	payload, err := h.AuthService.ValidateToken(token)
+	if err != nil {
+		return false
+	}
+	if h.Access != nil {
+		if _, err := h.Access.ResolveUser(payload.UserID); err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 // ResolveShareLink resolves a share token to scene data.
@@ -171,37 +186,64 @@ func (h *ShareHandler) ResolveShareLink(c *gin.Context) {
 		return
 	}
 
+	// Tell the player whether the original plays in the browser (best effort)
+	if h.Transcoder != nil && h.StreamManager != nil {
+		if scene, err := h.StreamManager.GetScene(resolved.Scene.ID); err == nil {
+			info := h.Transcoder.PlaybackInfo(scene)
+			resolved.Scene.Playback = &info
+		}
+	}
+
 	response.OK(c, resolved)
 }
 
-// StreamShareLink streams the video for a share link.
-func (h *ShareHandler) StreamShareLink(c *gin.Context) {
+// shareStreamSceneID checks that a share link can be streamed (exists, not expired, login
+// when required) and returns its scene. On failure the response is already written.
+func (h *ShareHandler) shareStreamSceneID(c *gin.Context) (uint, bool) {
 	token := c.Param("token")
 	if token == "" {
 		response.BadRequest(c, "missing share token")
-		return
+		return 0, false
 	}
 
 	// Validate the share link
 	link, err := h.ShareService.GetShareLinkByToken(token)
 	if err != nil {
 		response.Error(c, err)
-		return
+		return 0, false
 	}
 
 	// Check expiry
 	if link.ExpiresAt != nil && link.ExpiresAt.Before(time.Now()) {
 		c.JSON(http.StatusGone, gin.H{"error": "share link has expired", "code": "SHARE_LINK_EXPIRED"})
-		return
+		return 0, false
 	}
 
 	// Check auth for auth_required type
 	if link.ShareType == data.ShareTypeAuthRequired && !h.isAuthenticated(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required", "code": "AUTH_REQUIRED"})
-		return
+		return 0, false
 	}
 
-	sceneID := link.SceneID
+	return link.SceneID, true
+}
+
+// TranscodeShareLink streams the scene of a share link converted on the fly (see
+// serveTranscode), with the same checks as StreamShareLink.
+func (h *ShareHandler) TranscodeShareLink(c *gin.Context) {
+	sceneID, ok := h.shareStreamSceneID(c)
+	if !ok {
+		return
+	}
+	serveTranscode(c, h.Transcoder, h.StreamManager, sceneID)
+}
+
+// StreamShareLink streams the video for a share link.
+func (h *ShareHandler) StreamShareLink(c *gin.Context) {
+	sceneID, ok := h.shareStreamSceneID(c)
+	if !ok {
+		return
+	}
 	clientIP := c.ClientIP()
 
 	// Acquire stream slot
@@ -250,6 +292,7 @@ func (h *ShareHandler) StreamShareLink(c *gin.Context) {
 
 	c.Header("Content-Type", mimeType)
 	c.Header("Cache-Control", "public, max-age=86400")
+	setDownloadDisposition(c, filePath)
 
 	http.ServeContent(c.Writer, c.Request, filepath.Base(filePath), fileInfo.ModTime(), file)
 }

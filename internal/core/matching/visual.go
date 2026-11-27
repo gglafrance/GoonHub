@@ -49,14 +49,26 @@ func FindVisualMatches(
 		queryPositions map[int]struct{}
 		minQuery       int
 		maxQuery       int
+		deltaSum       int
+		deltaCount     int
 	}
 	sceneBins := make(map[uint]map[int]*binData)
+
+	// Ignore frames whose exact hash repeats within the query (black screens, still images):
+	// like silence for audio, they would align with any other video containing such frames.
+	frameCounts := make(map[uint64]int, len(queryHashes))
+	for _, hash := range queryHashes {
+		frameCounts[hash]++
+	}
 
 	// Process each of the 4 bit-partitions
 	for chunkIdx := uint8(0); chunkIdx < 4; chunkIdx++ {
 		// Collect unique chunks for this partition
 		chunkMap := make(map[uint16][]queryInfo)
 		for frameIdx, hash := range queryHashes {
+			if frameCounts[hash] > MaxQueryHashRepeats {
+				continue
+			}
 			chunkValue := uint16((hash >> (chunkIdx * 16)) & 0xFFFF)
 			chunkMap[chunkValue] = append(chunkMap[chunkValue], queryInfo{
 				frameOffset: frameIdx,
@@ -105,6 +117,8 @@ func FindVisualMatches(
 						sceneBins[candidate.SceneID][binKey] = bd
 					}
 					bd.queryPositions[qi.frameOffset] = struct{}{}
+					bd.deltaSum += delta
+					bd.deltaCount++
 					if qi.frameOffset < bd.minQuery {
 						bd.minQuery = qi.frameOffset
 					}
@@ -121,6 +135,7 @@ func FindVisualMatches(
 	var results []MatchResult
 	for sceneID, bins := range sceneBins {
 		var bestScore float64
+		var bestBin *binData
 		matched := false
 
 		for _, bd := range bins {
@@ -145,6 +160,7 @@ func FindVisualMatches(
 
 			if score >= densityThreshold && score > bestScore {
 				bestScore = score
+				bestBin = bd
 				matched = true
 			}
 		}
@@ -154,6 +170,9 @@ func FindVisualMatches(
 				SceneID:         sceneID,
 				ConfidenceScore: bestScore,
 				MatchType:       "visual",
+				QueryStart:      bestBin.minQuery,
+				QueryEnd:        bestBin.maxQuery,
+				Delta:           bestBin.deltaSum / max(bestBin.deltaCount, 1),
 			})
 		}
 	}

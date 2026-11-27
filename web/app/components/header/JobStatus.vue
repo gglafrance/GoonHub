@@ -1,4 +1,6 @@
 <script setup lang="ts">
+// touch: larger button for the mobile top bar
+const props = defineProps<{ touch?: boolean }>();
 const jobStatusStore = useJobStatusStore();
 const showPopup = ref(false);
 const buttonRef = ref<HTMLButtonElement | null>(null);
@@ -38,9 +40,11 @@ function togglePopup() {
     <div class="relative">
         <button
             ref="buttonRef"
-            class="border-border text-dim hover:border-lava/30 hover:text-lava flex h-7 items-center
+            class="border-border text-dim hover:border-lava/30 hover:text-lava flex items-center
                 gap-1.5 rounded-md border px-2 transition-all"
             :class="{
+                'h-9 rounded-lg px-2.5': props.touch,
+                'h-7': !props.touch,
                 'border-lava/30 text-lava': jobStatusStore.isActive,
                 'border-red-500/40 text-red-400':
                     jobStatusStore.hasFailed && !jobStatusStore.isActive,

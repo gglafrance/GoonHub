@@ -1,23 +1,33 @@
 <script setup lang="ts">
 import type { SceneListItem } from '~/types/scene';
 
-defineProps<{
+// Scene cards with selection: in select mode a click toggles a card and a drag selects the
+// cards it covers; outside it, the cards open the scene and a hover checkbox starts a selection.
+const props = defineProps<{
     scenes: SceneListItem[];
     ratings?: Record<string, number>;
     likes?: Record<string, boolean>;
     jizzCounts?: Record<string, number>;
+    watched?: Record<string, boolean>;
     isSceneSelected: (id: number) => boolean;
+    selectMode: boolean;
 }>();
 
 const emit = defineEmits<{
-    toggleSelection: [sceneId: number];
+    toggleSelection: [sceneId: number, range: boolean];
     dragSelect: [sceneIds: number[], additive: boolean];
 }>();
 
 const gridRef = ref<HTMLElement | null>(null);
+const { sceneGridClass, sceneGridStyle } = useGridDensity();
 
+// Drag selection, only in select mode
+const dragContainer = ref<HTMLElement | null>(null);
+watchEffect(() => {
+    dragContainer.value = props.selectMode ? gridRef.value : null;
+});
 const { isDragging, selectionRect, dragSelectedIds } = useDragSelect({
-    containerRef: gridRef,
+    containerRef: dragContainer,
     onDragEnd: (ids, event) => {
         emit('dragSelect', ids, event.metaKey || event.ctrlKey);
     },
@@ -27,8 +37,9 @@ const { isDragging, selectionRect, dragSelectedIds } = useDragSelect({
 <template>
     <div
         ref="gridRef"
-        class="c_grid grid grid-cols-2 justify-center gap-2 sm:gap-3"
-        :class="{ 'select-none': isDragging }"
+        class="scene-grid grid justify-center"
+        :class="[sceneGridClass, { 'select-none': isDragging }]"
+        :style="sceneGridStyle"
     >
         <SceneCard
             v-for="scene in scenes"
@@ -38,11 +49,13 @@ const { isDragging, selectionRect, dragSelectedIds } = useDragSelect({
             :rating="ratings?.[scene.id]"
             :liked="likes?.[scene.id]"
             :jizz-count="jizzCounts?.[scene.id]"
+            :completed="watched?.[scene.id]"
             fluid
-            selectable
+            :selectable="selectMode"
+            hover-select
             :selected="isSceneSelected(scene.id) || dragSelectedIds.has(scene.id)"
             :class="{ 'pointer-events-none': isDragging }"
-            @toggle-selection="emit('toggleSelection', $event)"
+            @toggle-selection="(id, range) => emit('toggleSelection', id, range)"
         />
     </div>
 
@@ -60,11 +73,3 @@ const { isDragging, selectionRect, dragSelectedIds } = useDragSelect({
         />
     </Teleport>
 </template>
-
-<style scoped>
-.c_grid {
-    @media (width >= 40rem /* 640px */) {
-        grid-template-columns: repeat(auto-fill, 320px);
-    }
-}
-</style>

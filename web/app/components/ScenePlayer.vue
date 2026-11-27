@@ -1,14 +1,21 @@
 <script setup lang="ts">
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
-import type { Scene } from '~/types/scene';
+import type { Scene, ScenePlayback } from '~/types/scene';
 import type { Marker } from '~/types/marker';
+import type { LocationQuery } from 'vue-router';
 
 type Player = ReturnType<typeof videojs>;
 
 // Theater mode button interface for type safety
 interface TheaterModeButtonInstance {
     setTheaterMode: (active: boolean) => void;
+    _onToggle: (() => void) | null;
+}
+
+// Scrubber toggle button interface for type safety
+interface ScrubberToggleButtonInstance {
+    setActive: (active: boolean) => void;
     _onToggle: (() => void) | null;
 }
 
@@ -77,6 +84,42 @@ if (ButtonClass) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     videojs.registerComponent('TheaterModeButton', TheaterModeButton as any);
+
+    // Shows or hides the thumbnail scrubber strip under the player (watch page)
+    class ScrubberToggleButton extends ButtonClass {
+        public _onToggle: (() => void) | null = null;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        constructor(player: Player, options?: any) {
+            super(player, options);
+            this._onToggle = options?.onToggle ?? null;
+            this.setActive(options?.active ?? false);
+            const el = this.el();
+            if (el) {
+                el.insertAdjacentHTML(
+                    'beforeend',
+                    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="vjs-scrubber-icon" aria-hidden="true"><rect x="2" y="7" width="20" height="10" rx="1.5"/><path d="M8.5 7v10M15.5 7v10M12 3v3M12 18v3"/></svg>`,
+                );
+            }
+        }
+
+        buildCSSClass() {
+            return `vjs-scrubber-toggle-control ${super.buildCSSClass()}`;
+        }
+
+        handleClick() {
+            if (this._onToggle) this._onToggle();
+        }
+
+        setActive(active: boolean) {
+            this.controlText(active ? 'Hide Thumbnail Scrubber' : 'Show Thumbnail Scrubber');
+            const el = this.el();
+            if (el) el.classList.toggle('vjs-scrubber-toggle-active', active);
+        }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    videojs.registerComponent('ScrubberToggleButton', ScrubberToggleButton as any);
 
     // Playlist previous button
     class PlaylistPrevButton extends ButtonClass {
@@ -303,10 +346,24 @@ const props = defineProps<{
     defaultVolume?: number;
     scene?: Scene;
     startTime?: number;
+    // Marker range to loop once the player is ready (e.g. opened from a marker link)
+    loopRange?: { start: number; end: number } | null;
     markers?: Marker[];
     playlistMode?: boolean;
     hasNext?: boolean;
     hasPrevious?: boolean;
+    // Whether the browser can play the original (defaults to scene.playback)
+    playback?: ScenePlayback | null;
+    // On-the-fly conversion endpoint, used when the browser can't play the original
+    transcodeUrl?: string;
+    // Scene duration in seconds when no scene is passed (shown for converted streams)
+    durationHint?: number;
+    // Control bar button that shows/hides the thumbnail scrubber (saved in the user settings)
+    scrubberToggle?: boolean;
+    // Views and history are recorded but the resume position is kept (Goon2gether lobbies)
+    keepResume?: boolean;
+    // Report the playback to the presence of the signed-in user ("now watching")
+    presence?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -323,12 +380,14 @@ const videoElement = ref<HTMLVideoElement>();
 const player = shallowRef<Player | null>(null);
 const settingsStore = useSettingsStore();
 const theaterModeButton = shallowRef<TheaterModeButtonInstance | null>(null);
+const scrubberToggleBtn = shallowRef<ScrubberToggleButtonInstance | null>(null);
 const playlistPrevBtn = shallowRef<PlaylistButtonInstance | null>(null);
 const playlistNextBtn = shallowRef<PlaylistButtonInstance | null>(null);
 const abLoopStartBtn = shallowRef<ABLoopTimeButtonInstance | null>(null);
 const abLoopEndBtn = shallowRef<ABLoopTimeButtonInstance | null>(null);
 const abLoopToggleBtn = shallowRef<ABLoopToggleButtonInstance | null>(null);
 const abLoop = useABLoop(player);
+const compactLayout = usePlayerCompactLayout(player);
 const { vttCues, loadVttCues } = useVttParser();
 const { setup: setupThumbnailPreview, cleanup: cleanupThumbnailPreview } = useThumbnailPreview(
     player,
@@ -341,10 +400,98 @@ const {
 } = useMarkerIndicators(
     player,
     computed(() => props.markers ?? []),
+    (marker) => playMarker(marker),
+);
+
+// A/B loop range last applied from a marker, so that clicking a point marker afterwards
+// only clears a loop the user did not set by hand.
+let markerLoopRange: { start: number; end: number } | null = null;
+
+// A range marker sets the A/B loop points to its start and end; the "Loop Marker Ranges"
+// setting decides whether looping starts right away (an active loop stays active). A point
+// marker clears a loop previously set from a marker.
+const applyMarkerLoop = (marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) => {
+    if (markerHasRange(marker)) {
+        // Keep looping when the loop is already on (e.g. turned on with the A/B toggle)
+        abLoop.setRange(
+            marker.timestamp,
+            marker.end_timestamp,
+            settingsStore.markerLoop || abLoop.enabled.value,
+        );
+        markerLoopRange = { start: marker.timestamp, end: marker.end_timestamp };
+        return;
+    }
+    if (
+        markerLoopRange &&
+        abLoop.pointA.value === markerLoopRange.start &&
+        abLoop.pointB.value === markerLoopRange.end
+    ) {
+        abLoop.clear();
+    }
+    markerLoopRange = null;
+};
+
+// Seeks to a marker and plays it, looping its range when applicable.
+const playMarker = (marker: Pick<Marker, 'timestamp' | 'end_timestamp'>) => {
+    const p = player.value;
+    if (!p) return;
+    applyMarkerLoop(marker);
+    p.currentTime(marker.timestamp);
+    p.play()?.catch(() => {});
+};
+
+// Touch gestures (double-tap seek, swipes, long-press 2x), feedback teleported into the player
+const playerEl = shallowRef<HTMLElement | null>(null);
+const {
+    indicator: gestureIndicator,
+    setup: setupGestures,
+    cleanup: cleanupGestures,
+} = usePlayerGestures({
+    player,
+    vttCues,
+    enabled: computed(() => settingsStore.playerGestures),
+    seekStep: computed(() => settingsStore.gestureSeekStep),
+});
+
+// Picture-in-picture: the button only shows where the browser supports it, and a scene playing
+// in picture-in-picture keeps playing when its page is left
+const pipSupported = import.meta.client && !!document.pictureInPictureEnabled;
+const pipKeeper = usePipKeeper();
+const route = useRoute();
+// Page of the current scene (updated when the scene changes, not when the page is left)
+const snapshotRoute = () => ({ path: route.path, query: { ...route.query } });
+let pageRoute = snapshotRoute();
+
+// From the picture-in-picture window back to the tab: reopen this page at the current time
+const returnToScene = (time: number) => {
+    const query: LocationQuery = { ...pageRoute.query, t: String(Math.floor(time)) };
+    delete query.end;
+    navigateTo({ path: pageRoute.path, query });
+};
+const transcode = useTranscodePlayback(player, {
+    playback: () => props.playback ?? props.scene?.playback,
+    transcodeUrl: () => props.transcodeUrl,
+    duration: () => props.durationHint ?? props.scene?.duration ?? 0,
+    loop: () => props.loop ?? false,
+});
+const { notice: playbackNotice, active: transcodeActive, mode: transcodeMode } = transcode;
+// The original file, as an attachment (offered when the browser can't play it)
+const downloadUrl = computed(
+    () => `${props.sceneUrl}${props.sceneUrl.includes('?') ? '&' : '?'}download=1`,
 );
 
 const sceneRef = computed(() => props.scene);
 const { hasRecordedView, setupTracking, cleanup } = useWatchTracking({
+    player,
+    scene: sceneRef,
+    keepResume: props.keepResume,
+});
+const { setup: setupPresenceActivity, cleanup: cleanupPresenceActivity } = usePresenceActivity({
+    player,
+    scene: sceneRef,
+    enabled: () => !!props.presence,
+});
+const { setup: setupReplayHeatmap, cleanup: cleanupReplayHeatmap } = useReplayHeatmap({
     player,
     scene: sceneRef,
 });
@@ -386,6 +533,9 @@ const vttUrl = computed(() => {
 onMounted(async () => {
     if (!videoElement.value) return;
 
+    // A scene left in picture-in-picture stops here; the same scene continues where it was
+    const pipHandoff = pipKeeper.takeOver();
+
     player.value = videojs(videoElement.value, {
         controls: true,
         autoplay: props.autoplay ? 'any' : false,
@@ -406,12 +556,15 @@ onMounted(async () => {
                 ...(settingsStore.abLoopControls
                     ? ['ABLoopStartButton', 'ABLoopEndButton', 'ABLoopToggleButton']
                     : []),
-                'pipToggle',
+                ...(pipSupported ? ['pictureInPictureToggle'] : []),
+                ...(props.scrubberToggle ? ['ScrubberToggleButton'] : []),
                 'TheaterModeButton',
                 'fullscreenToggle',
             ],
         },
     });
+
+    playerEl.value = player.value.el() as HTMLElement;
 
     // Get reference to theater mode button and configure it
     const controlBar = player.value.getChild('controlBar');
@@ -424,6 +577,17 @@ onMounted(async () => {
             btn.setTheaterMode(settingsStore.theaterMode);
             btn._onToggle = () => {
                 settingsStore.toggleTheaterMode();
+            };
+        }
+
+        const scrubberBtn = controlBar.getChild('ScrubberToggleButton') as unknown as
+            | ScrubberToggleButtonInstance
+            | undefined;
+        if (scrubberBtn) {
+            scrubberToggleBtn.value = scrubberBtn;
+            scrubberBtn.setActive(settingsStore.showScrubber);
+            scrubberBtn._onToggle = () => {
+                settingsStore.setShowScrubber(!settingsStore.showScrubber);
             };
         }
 
@@ -478,6 +642,9 @@ onMounted(async () => {
         }
     }
 
+    // Narrow players: the controls spread over the player instead of one bar
+    compactLayout.attach();
+
     // Set initial volume (video.js uses 0-1 range)
     const volume = props.defaultVolume != null ? props.defaultVolume / 100 : 1;
     player.value.volume(volume);
@@ -485,10 +652,18 @@ onMounted(async () => {
     player.value.on('play', () => emit('play'));
     player.value.on('pause', () => emit('pause'));
     player.value.on('ended', () => emit('ended'));
-    player.value.on('error', (e: unknown) => emit('error', e));
+    player.value.on('error', (e: unknown) => {
+        // Formats the browser can't play are converted on the fly or explained in an overlay
+        if (transcode.handleError()) return;
+        emit('error', e);
+    });
+
+    transcode.attach();
+    transcode.init(props.startTime ?? 0, !!props.autoplay);
 
     // Set up watch tracking (handles timeupdate, ended, and beforeunload)
     setupTracking();
+    setupPresenceActivity();
 
     // Emit viewRecorded when first recorded
     watch(hasRecordedView, (recorded) => {
@@ -507,6 +682,8 @@ onMounted(async () => {
     player.value.ready(() => {
         setupThumbnailPreview();
         setupMarkerIndicators();
+        setupGestures();
+        setupReplayHeatmap();
         if (vttUrl.value) {
             loadVttCues(vttUrl.value);
         }
@@ -518,9 +695,19 @@ onMounted(async () => {
             progressHolder.appendChild(abLoopMarkerA);
         }
 
-        // Seek to start time if provided
-        if (props.startTime && props.startTime > 0) {
+        // Seek to start time if provided (a converted stream already starts there)
+        if (props.startTime && props.startTime > 0 && !transcode.active.value) {
             player.value!.currentTime(props.startTime);
+        } else if (pipHandoff && pipHandoff.sceneUrl === props.sceneUrl) {
+            player.value!.currentTime(pipHandoff.time);
+            if (pipHandoff.playing && !props.autoplay) tryAutoplay(player.value!);
+        }
+
+        if (props.loopRange) {
+            applyMarkerLoop({
+                timestamp: props.loopRange.start,
+                end_timestamp: props.loopRange.end,
+            });
         }
 
         if (props.autoplay) {
@@ -561,23 +748,43 @@ watch(
         if (!player.value) return;
         const p = player.value;
 
+        pageRoute = snapshotRoute();
+
         // Clear AB loop and reset before loading new source
         abLoop.clear();
+        markerLoopRange = null;
         p.pause();
-        p.currentTime(0);
-        p.src({ type: 'video/mp4', src: newUrl });
+        // (a converted stream would reload at 0 first)
+        if (!transcode.active.value) p.currentTime(0);
+        const playable = transcode.load(newUrl, 0, !!props.autoplay);
 
-        if (props.autoplay) {
+        if (props.autoplay && playable) {
             p.ready(() => tryAutoplay(p));
         }
     },
 );
 
-watch(vttUrl, (newVttUrl) => {
+watch(vttUrl, (newVttUrl, oldVttUrl) => {
+    // The thumbnails of another scene must not show meanwhile (scrubber, gestures)
+    if (newVttUrl?.split('?')[0] !== oldVttUrl?.split('?')[0]) vttCues.value = [];
     if (newVttUrl) {
         loadVttCues(newVttUrl);
     }
 });
+
+// Apply a marker loop range passed by the page (defined after the sceneUrl watcher so that a
+// scene change clears the previous loop first)
+watch(
+    () => props.loopRange,
+    (range) => {
+        if (!player.value) return;
+        applyMarkerLoop(
+            range
+                ? { timestamp: range.start, end_timestamp: range.end }
+                : { timestamp: 0, end_timestamp: null },
+        );
+    },
+);
 
 // Watch for marker changes
 watch(
@@ -607,6 +814,11 @@ watch(
             theaterModeButton.value.setTheaterMode(isTheaterMode);
         }
     },
+);
+
+watch(
+    () => settingsStore.showScrubber,
+    (shown) => scrubberToggleBtn.value?.setActive(shown),
 );
 
 // Sync AB loop button states
@@ -650,13 +862,23 @@ defineExpose({
     player,
     vttCues,
     abLoop,
+    playMarker,
+    // video.js root element: overlays teleported into it also show in fullscreen
+    playerEl,
+    // the scene is converted or remuxed on the fly (its seeks reload the stream)
+    transcodeActive,
 });
 
 onBeforeUnmount(() => {
+    transcode.detach();
     cleanup();
+    cleanupPresenceActivity();
     cleanupThumbnailPreview();
     cleanupMarkerIndicators();
-    if (player.value) {
+    cleanupGestures();
+    cleanupReplayHeatmap();
+    compactLayout.detach();
+    if (player.value && !pipKeeper.keep(player.value, props.sceneUrl, returnToScene)) {
         player.value.dispose();
     }
 });
@@ -675,17 +897,64 @@ onBeforeUnmount(() => {
             :poster="posterUrl"
             crossorigin="anonymous"
         >
-            <source :src="sceneUrl" type="video/mp4" />
+            <source v-if="transcode.startsDirect" :src="sceneUrl" type="video/mp4" />
         </video>
+        <Teleport v-if="playerEl" :to="playerEl">
+            <PlayerGestureOverlay :indicator="gestureIndicator" />
+        </Teleport>
+        <div
+            v-if="transcodeActive && !playbackNotice && !compactLayout.compact.value"
+            class="transcode-badge"
+            :title="
+                transcodeMode === 'remux'
+                    ? 'The browser cannot read this file container: it is repackaged on the fly'
+                    : 'The browser cannot play this format: it is converted on the fly'
+            "
+        >
+            <Icon name="heroicons:arrow-path-rounded-square" size="12" />
+            {{ transcodeMode === 'remux' ? 'Remuxed' : 'Converted' }} on the fly
+        </div>
+        <PlayerPlaybackNotice
+            v-if="playbackNotice"
+            :notice="playbackNotice"
+            :download-url="downloadUrl"
+            @retry="transcode.retry()"
+        />
     </div>
 </template>
 
 <style scoped>
 .video-wrapper {
+    position: relative;
     width: 100%;
     margin: 0 auto;
     background: #050505;
     overflow: hidden;
+}
+
+.transcode-badge {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    background: rgba(8, 8, 8, 0.6);
+    backdrop-filter: blur(12px);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 10px;
+    font-weight: 500;
+    pointer-events: auto;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.video-wrapper:hover .transcode-badge {
+    opacity: 1;
 }
 
 .video-wrapper--portrait {
@@ -1019,6 +1288,29 @@ onBeforeUnmount(() => {
     background: rgba(255, 77, 77, 0.12);
 }
 
+:deep(.vjs-scrubber-toggle-control) {
+    display: flex;
+    width: 36px;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+:deep(.vjs-scrubber-toggle-control .vjs-scrubber-icon) {
+    width: 15px;
+    height: 15px;
+}
+
+:deep(.vjs-scrubber-toggle-control:hover) {
+    color: #ff4d4d;
+    background: rgba(255, 77, 77, 0.12);
+}
+
+:deep(.vjs-scrubber-toggle-control.vjs-scrubber-toggle-active) {
+    color: #ff4d4d;
+}
+
 :deep(.vjs-fullscreen-control:hover) {
     color: #ff4d4d;
     background: rgba(255, 77, 77, 0.12);
@@ -1106,6 +1398,15 @@ onBeforeUnmount(() => {
 :deep(.vjs-progress-control:hover .vjs-marker-container) {
     top: 0px;
     height: 6px;
+}
+
+:deep(.vjs-marker-range) {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background-color: var(--marker-color, #ff4d4d);
+    opacity: 0.35;
+    pointer-events: none;
 }
 
 :deep(.vjs-marker-tick) {
@@ -1204,6 +1505,37 @@ onBeforeUnmount(() => {
     font-size: 11px;
     font-family: 'JetBrains Mono', 'SF Mono', monospace;
     color: rgba(255, 255, 255, 0.5);
+}
+
+/* ========================================
+   REPLAY HEATMAP ("most replayed")
+   ======================================== */
+:deep(.vjs-replay-heatmap) {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    height: 22px;
+    pointer-events: none;
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
+    z-index: 1;
+}
+
+:deep(.vjs-progress-control:hover .vjs-replay-heatmap) {
+    opacity: 1;
+}
+
+:deep(.vjs-replay-heatmap svg) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+:deep(.vjs-replay-heatmap-line) {
+    stroke: rgba(255, 255, 255, 0.45);
+    stroke-width: 1px;
 }
 
 /* ========================================
@@ -1347,6 +1679,232 @@ onBeforeUnmount(() => {
 
 :deep(.vjs-ab-loop-toggle.vjs-ab-loop-enabled:hover) {
     background: rgba(255, 77, 77, 0.25);
+}
+
+/* ========================================
+   TOUCH GESTURES
+   ======================================== */
+/* Inline, the browser keeps vertical scrolling and pinch-zoom; horizontal drags are scrubs */
+:deep(.vjs-gestures .vjs-tech) {
+    touch-action: pan-y pinch-zoom;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* In fullscreen, every drag is a gesture (vertical: volume and brightness) */
+:deep(.vjs-gestures.vjs-fullscreen .vjs-tech) {
+    touch-action: none;
+}
+
+/* ========================================
+   NARROW BAR (desktop, narrow player e.g. a portrait video; usePlayerCompactLayout)
+   The single bar, tightened; it wraps on a second row rather than clipping its last controls
+   ======================================== */
+:deep(.video-js.vjs-narrow .vjs-control-bar) {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    height: auto;
+    min-height: 48px;
+    padding: 6px 4px 2px;
+    flex-wrap: wrap;
+    gap: 0 1px;
+}
+
+:deep(.video-js.vjs-narrow .vjs-time-control) {
+    line-height: 40px;
+    padding: 0 4px;
+}
+
+:deep(.video-js.vjs-narrow .vjs-current-time),
+:deep(.video-js.vjs-narrow .vjs-duration) {
+    padding: 0 4px;
+}
+
+:deep(.video-js.vjs-narrow .vjs-ab-loop-time) {
+    min-width: 0;
+    padding: 0 6px;
+}
+
+:deep(.video-js.vjs-narrow .vjs-playback-rate) {
+    min-width: 36px;
+}
+
+/* A/B buttons not set yet: the letter only (their "--:--" says nothing) */
+:deep(.video-js.vjs-narrow .vjs-ab-loop-time:not(.vjs-ab-loop-time-active) .vjs-ab-loop-value) {
+    display: none;
+}
+
+/* ========================================
+   COMPACT LAYOUT (narrow players on phones and touch screens, usePlayerCompactLayout)
+   Secondary controls at the top, playback in the middle, time and fullscreen at the bottom
+   ======================================== */
+:deep(.vjs-compact-top),
+:deep(.vjs-compact-center) {
+    display: none;
+}
+
+:deep(.video-js.vjs-compact.vjs-has-started .vjs-compact-top) {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    z-index: 2;
+    height: 42px;
+    padding: 0 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(8, 8, 8, 0.8);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    container-type: inline-size;
+}
+
+/* Very narrow players: the A/B buttons keep their letter only */
+@container (max-width: 300px) {
+    :deep(.vjs-ab-loop-value) {
+        display: none;
+    }
+}
+
+:deep(.video-js.vjs-compact.vjs-has-started .vjs-compact-center) {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    /* the empty area stays the video's (taps, double-tap seek, swipes) */
+    pointer-events: none;
+}
+
+:deep(.vjs-compact-top),
+:deep(.vjs-compact-center) {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+:deep(.vjs-compact-center > *) {
+    pointer-events: auto;
+}
+
+:deep(.video-js:hover .vjs-compact-top),
+:deep(.video-js:hover .vjs-compact-center),
+:deep(.video-js.vjs-user-active .vjs-compact-top),
+:deep(.video-js.vjs-user-active .vjs-compact-center),
+:deep(.video-js.vjs-paused .vjs-compact-top),
+:deep(.video-js.vjs-paused .vjs-compact-center) {
+    opacity: 1;
+}
+
+:deep(.video-js.vjs-user-inactive:not(.vjs-paused) .vjs-compact-top),
+:deep(.video-js.vjs-user-inactive:not(.vjs-paused) .vjs-compact-center) {
+    opacity: 0;
+    pointer-events: none;
+}
+
+:deep(.video-js.vjs-user-inactive:not(.vjs-paused) .vjs-compact-center > *) {
+    pointer-events: none;
+}
+
+/* The loading spinner and the error screens take the middle */
+:deep(.video-js.vjs-waiting .vjs-compact-center),
+:deep(.video-js.vjs-seeking .vjs-compact-center),
+:deep(.video-js.vjs-error .vjs-compact-center),
+:deep(.video-js.vjs-error .vjs-compact-top) {
+    visibility: hidden;
+}
+
+/* Top bar: speed and A/B loop on the left, picture-in-picture and scrubber on the right */
+:deep(.vjs-compact-top .vjs-picture-in-picture-control),
+:deep(.vjs-compact-top > :not(.vjs-picture-in-picture-control) + .vjs-scrubber-toggle-control) {
+    margin-left: auto;
+}
+
+:deep(.vjs-compact-top .vjs-ab-loop-time) {
+    min-width: 0;
+    padding: 0 6px;
+}
+
+/* The speed menu opens downwards from the top bar */
+:deep(.vjs-compact-top .vjs-menu) {
+    top: 100%;
+    bottom: auto;
+    height: auto;
+    margin: 4px 0 0;
+}
+
+:deep(.vjs-compact-top .vjs-menu .vjs-menu-content) {
+    position: relative;
+    bottom: auto;
+    max-height: 9.5rem;
+    overflow-y: auto;
+    background: rgba(8, 8, 8, 0.92) !important;
+}
+
+/* Middle: a large play button between the playlist previous/next */
+:deep(.vjs-compact-center .vjs-play-control),
+:deep(.vjs-compact-center .vjs-playlist-prev-control),
+:deep(.vjs-compact-center .vjs-playlist-next-control) {
+    margin: 0;
+    border-radius: 9999px;
+    color: #ffffff;
+    background: rgba(8, 8, 8, 0.55);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+:deep(.vjs-compact-center .vjs-play-control) {
+    width: 60px;
+    height: 60px;
+}
+
+:deep(.vjs-compact-center .vjs-play-control .vjs-icon-placeholder::before) {
+    font-size: 32px;
+    line-height: 60px;
+}
+
+:deep(.vjs-compact-center .vjs-playlist-prev-control),
+:deep(.vjs-compact-center .vjs-playlist-next-control) {
+    width: 44px;
+    height: 44px;
+}
+
+:deep(.vjs-compact-center .vjs-playlist-icon) {
+    width: 20px;
+    height: 20px;
+}
+
+/* Bottom bar: mute, time, then fullscreen at the end */
+:deep(.video-js.vjs-compact .vjs-control-bar) {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    height: 44px;
+}
+
+:deep(.video-js.vjs-compact .vjs-time-control) {
+    line-height: 44px;
+}
+
+:deep(.video-js.vjs-compact .vjs-current-time) {
+    margin-right: 0;
+    padding: 0 4px 0 6px;
+}
+
+:deep(.video-js.vjs-compact .vjs-duration) {
+    margin-right: auto;
+    padding: 0 6px 0 4px;
+}
+
+:deep(.video-js.vjs-compact .vjs-theater-mode-control) {
+    display: none;
 }
 
 /* Hide text track display from control bar area */

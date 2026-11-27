@@ -26,9 +26,18 @@ func ExtractFingerprint(videoPath string) (*FingerprintResult, error) {
 
 // ExtractFingerprintWithContext extracts an audio fingerprint with context support
 func ExtractFingerprintWithContext(ctx context.Context, videoPath string) (*FingerprintResult, error) {
+	return ExtractFingerprintWithBinary(ctx, FpcalcPath(), videoPath)
+}
+
+// ExtractFingerprintWithBinary extracts an audio fingerprint with the given fpcalc binary
+// ("" = fpcalc from PATH).
+func ExtractFingerprintWithBinary(ctx context.Context, fpcalcBin, videoPath string) (*FingerprintResult, error) {
+	if fpcalcBin == "" {
+		fpcalcBin = FpcalcPath()
+	}
 	args := []string{"-raw", "-signed", "-length", "0", "-json", videoPath}
 
-	cmd := exec.CommandContext(ctx, FpcalcPath(), args...)
+	cmd := exec.CommandContext(ctx, fpcalcBin, args...)
 	output, err := cmd.Output()
 	if err != nil {
 		if ctx.Err() != nil {

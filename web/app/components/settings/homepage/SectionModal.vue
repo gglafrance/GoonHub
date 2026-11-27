@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { HomepageSection, SectionType } from '~/types/homepage';
+import type { Component } from 'vue';
+import type { HomepageSection, SectionCategory, SectionType } from '~/types/homepage';
 import {
     SECTION_TYPE_LABELS,
     SORT_OPTIONS,
@@ -7,6 +8,9 @@ import {
     SECTION_ICONS,
     SECTION_COLORS_WITH_BORDER,
     SECTION_DESCRIPTIONS,
+    SECTION_TYPE_META,
+    SECTION_CATEGORY_LABELS,
+    sectionTypeComponentName,
 } from '~/types/homepage';
 
 const props = defineProps<{
@@ -53,21 +57,58 @@ onMounted(() => {
     onUnmounted(() => window.removeEventListener('keydown', handleEscape));
 });
 
+const perms = useMyPermissions();
+
 // Section type options with icons and descriptions
 const typeOptions = computed(() => {
-    return Object.entries(SECTION_TYPE_LABELS).map(([value, label]) => ({
-        value: value as SectionType,
-        label,
-        icon: SECTION_ICONS[value as SectionType] || 'heroicons:squares-2x2',
-        color:
-            SECTION_COLORS_WITH_BORDER[value as SectionType] ||
-            'text-dim bg-white/5 border-white/10',
-        description: SECTION_DESCRIPTIONS[value as SectionType] || '',
-    }));
+    return Object.entries(SECTION_TYPE_LABELS)
+        .filter(([value]) => {
+            const permission = SECTION_TYPE_META[value as SectionType]?.permission;
+            return !permission || perms.has(permission);
+        })
+        .map(([value, label]) => ({
+            value: value as SectionType,
+            label,
+            icon: SECTION_ICONS[value as SectionType] || 'heroicons:squares-2x2',
+            color:
+                SECTION_COLORS_WITH_BORDER[value as SectionType] ||
+                'text-dim bg-white/5 border-white/10',
+            description: SECTION_DESCRIPTIONS[value as SectionType] || '',
+            category: SECTION_TYPE_META[value as SectionType]?.category ?? 'scenes',
+        }));
+});
+
+// Type options grouped by category
+const typeGroups = computed(() =>
+    (Object.keys(SECTION_CATEGORY_LABELS) as SectionCategory[])
+        .map((category) => ({
+            category,
+            label: SECTION_CATEGORY_LABELS[category],
+            options: typeOptions.value.filter((o) => o.category === category),
+        }))
+        .filter((g) => g.options.length > 0),
+);
+
+const meta = computed(() => SECTION_TYPE_META[type.value]);
+
+// Widget config forms: components/settings/homepage/widget-config/<PascalType>.vue (v-model)
+const widgetConfigModules = import.meta.glob('./widget-config/*.vue');
+const widgetConfigComponent = computed<Component | null>(() => {
+    const loader =
+        widgetConfigModules[`./widget-config/${sectionTypeComponentName(type.value)}.vue`];
+    return loader ? defineAsyncComponent(loader as () => Promise<Component>) : null;
+});
+
+const hideHeader = computed({
+    get: () => config.value.hide_header === true,
+    set: (v: boolean) => (config.value = { ...config.value, hide_header: v }),
 });
 
 const requiresConfig = computed(() => {
-    return ['actor', 'studio', 'tag', 'saved_search'].includes(type.value);
+    return (
+        ['actor', 'studio', 'tag', 'saved_search'].includes(type.value) ||
+        !!widgetConfigComponent.value
+    );
 });
 
 // Check if required config fields are present
@@ -104,10 +145,11 @@ const currentTypeOption = computed(() => {
 
 // When type changes, update title, reset config, and adjust sort options
 watch(type, (newType) => {
-    // Update title and config for new sections
+    // Update title, config and item count for new sections
     if (!props.section) {
         title.value = SECTION_TYPE_LABELS[newType] || newType;
         config.value = {};
+        limit.value = SECTION_TYPE_META[newType]?.defaultLimit ?? 12;
     }
 
     // Reset sort to appropriate default for the new type
@@ -200,42 +242,48 @@ function handleClose() {
                             >
                                 Section Type
                             </label>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button
-                                    v-for="option in typeOptions"
-                                    :key="option.value"
-                                    class="flex items-start gap-3 rounded-lg border p-3 text-left
-                                        transition-all"
-                                    :class="
-                                        type === option.value
-                                            ? 'border-lava/40 bg-lava/5'
-                                            : 'border-border hover:border-white/20 hover:bg-white/2'
-                                    "
-                                    @click="type = option.value"
-                                >
-                                    <div
-                                        class="mt-0.5 flex h-7 w-7 shrink-0 items-center
-                                            justify-center rounded-md border"
-                                        :class="option.color"
+                            <div v-for="group in typeGroups" :key="group.category" class="mb-3">
+                                <div class="text-dim mb-1.5 text-[10px] font-medium uppercase">
+                                    {{ group.label }}
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button
+                                        v-for="option in group.options"
+                                        :key="option.value"
+                                        class="flex items-start gap-3 rounded-lg border p-3
+                                            text-left transition-all"
+                                        :class="
+                                            type === option.value
+                                                ? 'border-lava/40 bg-lava/5'
+                                                : `border-border hover:border-white/20
+                                                    hover:bg-white/2`
+                                        "
+                                        @click="type = option.value"
                                     >
-                                        <Icon :name="option.icon" size="14" />
-                                    </div>
-                                    <div class="min-w-0">
                                         <div
-                                            class="text-xs font-medium"
-                                            :class="
-                                                type === option.value
-                                                    ? 'text-white'
-                                                    : 'text-white/80'
-                                            "
+                                            class="mt-0.5 flex h-7 w-7 shrink-0 items-center
+                                                justify-center rounded-md border"
+                                            :class="option.color"
                                         >
-                                            {{ option.label }}
+                                            <Icon :name="option.icon" size="14" />
                                         </div>
-                                        <div class="text-dim mt-0.5 line-clamp-2 text-[10px]">
-                                            {{ option.description }}
+                                        <div class="min-w-0">
+                                            <div
+                                                class="text-xs font-medium"
+                                                :class="
+                                                    type === option.value
+                                                        ? 'text-white'
+                                                        : 'text-white/80'
+                                                "
+                                            >
+                                                {{ option.label }}
+                                            </div>
+                                            <div class="text-dim mt-0.5 line-clamp-2 text-[10px]">
+                                                {{ option.description }}
+                                            </div>
                                         </div>
-                                    </div>
-                                </button>
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -271,7 +319,7 @@ function handleClose() {
                             <!-- Limit & Sort Row -->
                             <div class="flex gap-4">
                                 <!-- Limit -->
-                                <div class="w-28">
+                                <div v-if="meta?.usesLimit !== false" class="w-28">
                                     <label
                                         class="text-dim mb-1.5 block text-[11px] font-medium
                                             tracking-wider uppercase"
@@ -332,6 +380,11 @@ function handleClose() {
                                 v-if="type === 'saved_search'"
                                 v-model="config"
                             />
+                            <component
+                                :is="widgetConfigComponent"
+                                v-if="widgetConfigComponent"
+                                v-model="config"
+                            />
 
                             <!-- Validation Message -->
                             <div
@@ -347,6 +400,21 @@ function handleClose() {
                                 <span class="text-lava text-xs">
                                     Please select a {{ type.replace('_', ' ') }} to continue.
                                 </span>
+                            </div>
+                        </div>
+
+                        <!-- Widget header toggle -->
+                        <div v-if="meta?.widget" class="border-border rounded-lg border p-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <span class="block text-xs font-medium text-white"
+                                        >Hide Title Bar</span
+                                    >
+                                    <span class="text-dim text-[11px]"
+                                        >Show the widget without its title and refresh button</span
+                                    >
+                                </div>
+                                <UiToggle v-model="hideHeader" />
                             </div>
                         </div>
 

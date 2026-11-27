@@ -2,13 +2,19 @@ package meilisearch
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	meili "github.com/meilisearch/meilisearch-go"
 	"go.uber.org/zap"
 )
+
+// maxValuesPerFacet bounds the values returned per facet (the source sites listed for the
+// filter UI). Meilisearch's default of 100 would hide sites on larger libraries.
+const maxValuesPerFacet = 1000
 
 // Client wraps the Meilisearch client with application-specific functionality.
 type Client struct {
@@ -64,14 +70,8 @@ func (c *Client) EnsureIndex() error {
 	index := c.client.Index(c.indexName)
 
 	// Configure searchable attributes
-	searchableTask, err := index.UpdateSearchableAttributes(&[]string{
-		"title",
-		"original_filename",
-		"path",
-		"description",
-		"actors",
-		"tag_names",
-	})
+	searchable := append([]string{}, SearchableAttributes...)
+	searchableTask, err := index.UpdateSearchableAttributes(&searchable)
 	if err != nil {
 		return fmt.Errorf("failed to update searchable attributes: %w", err)
 	}
@@ -85,10 +85,12 @@ func (c *Client) EnsureIndex() error {
 		"actors",
 		"tag_ids",
 		"duration",
+		"size",
 		"height",
 		"created_at",
 		"processing_status",
 		"id",
+		"source_site",
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update filterable attributes: %w", err)
@@ -102,6 +104,7 @@ func (c *Client) EnsureIndex() error {
 		"created_at",
 		"title",
 		"duration",
+		"size",
 		"view_count",
 	})
 	if err != nil {
@@ -109,6 +112,17 @@ func (c *Client) EnsureIndex() error {
 	}
 	if _, err := c.client.WaitForTask(sortableTask.TaskUID, meili.WaitParams{Context: ctx, Interval: 100 * time.Millisecond}); err != nil {
 		return fmt.Errorf("failed to wait for sortable attributes task: %w", err)
+	}
+
+	// Configure faceting (filterable attributes are facetable: source_site is listed by facet)
+	facetingTask, err := index.UpdateFaceting(&meili.Faceting{
+		MaxValuesPerFacet: maxValuesPerFacet,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update faceting settings: %w", err)
+	}
+	if _, err := c.client.WaitForTask(facetingTask.TaskUID, meili.WaitParams{Context: ctx, Interval: 100 * time.Millisecond}); err != nil {
+		return fmt.Errorf("failed to wait for faceting settings task: %w", err)
 	}
 
 	// Configure pagination (maxTotalHits)
@@ -256,6 +270,10 @@ func (c *Client) Search(params SearchParams) (*SearchResult, error) {
 		searchReq.MatchingStrategy = params.MatchingStrategy
 	}
 
+	if params.ExcludeFileAttributes {
+		searchReq.AttributesToSearchOn = append([]string{}, ContentSearchAttributes...)
+	}
+
 	result, err := index.Search(params.Query, searchReq)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
@@ -275,6 +293,61 @@ func (c *Client) Search(params SearchParams) (*SearchResult, error) {
 		IDs:        ids,
 		TotalCount: result.EstimatedTotalHits,
 	}, nil
+}
+
+// SourceSiteFacets returns the source sites of the indexed scenes with their scene counts,
+// from the source_site facet. Scenes without a source are left out.
+func (c *Client) SourceSiteFacets() ([]FacetCount, error) {
+	index := c.client.Index(c.indexName)
+	result, err := index.Search("", &meili.SearchRequest{
+		AttributesToRetrieve: []string{"id"},
+		Limit:                1, // only the facet distribution is used (0 means the default 20)
+		Facets:               []string{"source_site"},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("source site facet search failed: %w", err)
+	}
+	return parseFacetDistribution(result.FacetDistribution, "source_site"), nil
+}
+
+// parseFacetDistribution reads one facet of a search's facetDistribution
+// ({"facet": {"value": count}}), skipping empty values.
+func parseFacetDistribution(distribution interface{}, facet string) []FacetCount {
+	facets, ok := distribution.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	values, ok := facets[facet].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	counts := make([]FacetCount, 0, len(values))
+	for value, raw := range values {
+		if value == "" {
+			continue
+		}
+		var count int64
+		switch n := raw.(type) {
+		case float64:
+			count = int64(n)
+		case int64:
+			count = n
+		case int:
+			count = int64(n)
+		case json.Number:
+			parsed, err := n.Int64()
+			if err != nil {
+				continue
+			}
+			count = parsed
+		default:
+			continue
+		}
+		if count > 0 {
+			counts = append(counts, FacetCount{Value: value, Count: count})
+		}
+	}
+	return counts
 }
 
 // buildFilters constructs the filter string for Meilisearch.
@@ -306,6 +379,61 @@ func (c *Client) buildFilters(params SearchParams) []string {
 	}
 	if params.MaxDuration != nil {
 		filters = append(filters, fmt.Sprintf("duration <= %f", *params.MaxDuration))
+	}
+
+	// Metadata presence
+	for _, presence := range []struct {
+		field string
+		value *bool
+	}{
+		{"actors", params.HasActors},
+		{"tag_ids", params.HasTags},
+		{"studio", params.HasStudio},
+	} {
+		if presence.value == nil {
+			continue
+		}
+		if *presence.value {
+			filters = append(filters, presence.field+" IS NOT EMPTY")
+		} else {
+			filters = append(filters, presence.field+" IS EMPTY")
+		}
+	}
+
+	// Source site (OR logic - from one of the specified sites)
+	if len(params.SourceSites) > 0 {
+		sites := make([]string, len(params.SourceSites))
+		for i, site := range params.SourceSites {
+			sites[i] = fmt.Sprintf("\"%s\"", escapeFilterValue(site))
+		}
+		filters = append(filters, "source_site IN ["+strings.Join(sites, ", ")+"]")
+	}
+
+	// Source presence. Documents indexed before source_site existed have no such attribute:
+	// they count as "no source" (IS NOT EMPTY alone would match a missing attribute).
+	if params.HasSource != nil {
+		if *params.HasSource {
+			filters = append(filters, "(source_site EXISTS AND source_site IS NOT EMPTY)")
+		} else {
+			filters = append(filters, "(source_site NOT EXISTS OR source_site IS EMPTY)")
+		}
+	}
+
+	// Excluded scenes
+	if len(params.ExcludeSceneIDs) > 0 {
+		ids := make([]string, len(params.ExcludeSceneIDs))
+		for i, id := range params.ExcludeSceneIDs {
+			ids[i] = strconv.FormatUint(uint64(id), 10)
+		}
+		filters = append(filters, "id NOT IN ["+strings.Join(ids, ", ")+"]")
+	}
+
+	// File size range (bytes)
+	if params.MinSize != nil {
+		filters = append(filters, fmt.Sprintf("size >= %d", *params.MinSize))
+	}
+	if params.MaxSize != nil {
+		filters = append(filters, fmt.Sprintf("size <= %d", *params.MaxSize))
 	}
 
 	// Height range
@@ -356,6 +484,8 @@ func (c *Client) buildSort(params SearchParams) []string {
 		sortField = "title"
 	case "duration", "length":
 		sortField = "duration"
+	case "size":
+		sortField = "size"
 	case "view_count", "views":
 		sortField = "view_count"
 	default:

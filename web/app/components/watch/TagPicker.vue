@@ -31,12 +31,7 @@ function cycleSortMode() {
 }
 
 const filteredTags = computed(() => {
-    let tags = [...props.tags];
-
-    if (searchQuery.value) {
-        const q = searchQuery.value.toLowerCase();
-        tags = tags.filter((t) => t.name.toLowerCase().includes(q));
-    }
+    const tags = [...props.tags];
 
     switch (sortMode.value) {
         case 'az':
@@ -53,11 +48,62 @@ const filteredTags = computed(() => {
             break;
     }
 
-    return tags;
+    // typed text: the tags starting with it first ("Sho" -> "Shower" before "Cumshot")
+    return rankByMatch(tags, searchQuery.value, (t) => t.name);
 });
 
 const dropdownStyle = ref<{ top: string; left: string }>({ top: '0px', left: '0px' });
 const dropdownRef = ref<HTMLElement | null>(null);
+const searchInputRef = ref<HTMLInputElement | null>(null);
+const listRef = ref<HTMLElement | null>(null);
+
+// The tag Enter adds: the first match, moved with the arrow keys
+const highlighted = ref(0);
+watch(searchQuery, () => {
+    highlighted.value = 0;
+});
+watch(filteredTags, (tags) => {
+    if (highlighted.value > tags.length - 1) highlighted.value = Math.max(0, tags.length - 1);
+});
+
+function scrollToHighlighted() {
+    nextTick(() => {
+        listRef.value
+            ?.querySelector(`[data-index="${highlighted.value}"]`)
+            ?.scrollIntoView({ block: 'nearest' });
+    });
+}
+
+// A tag picked (click or Enter): the search is cleared and keeps the focus,
+// the picker stays open for the next tag
+function selectTag(id: number) {
+    emit('select', id);
+    searchQuery.value = '';
+    highlighted.value = 0;
+    nextTick(() => searchInputRef.value?.focus());
+}
+
+// Keyboard: arrows move through the matches, Enter adds the highlighted one,
+// Escape closes
+function onSearchKeydown(event: KeyboardEvent) {
+    const count = filteredTags.value.length;
+    if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        if (count) highlighted.value = Math.min(highlighted.value + 1, count - 1);
+        scrollToHighlighted();
+    } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        highlighted.value = Math.max(highlighted.value - 1, 0);
+        scrollToHighlighted();
+    } else if (event.key === 'Enter') {
+        event.preventDefault();
+        const tag = filteredTags.value[highlighted.value];
+        if (tag) selectTag(tag.id);
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        emit('close');
+    }
+}
 let clickTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function updatePosition() {
@@ -86,6 +132,8 @@ watch(
     (open) => {
         if (open) {
             updatePosition();
+            // ready to type: the search field gets the focus as the picker opens
+            nextTick(() => searchInputRef.value?.focus());
             clickTimeout = setTimeout(() => document.addEventListener('click', onClickOutside), 0);
             window.addEventListener('scroll', updatePosition, true);
         } else {
@@ -96,6 +144,7 @@ watch(
             document.removeEventListener('click', onClickOutside);
             window.removeEventListener('scroll', updatePosition, true);
             searchQuery.value = '';
+            highlighted.value = 0;
         }
     },
 );
@@ -121,12 +170,14 @@ onBeforeUnmount(() => {
             <!-- Search + Sort header -->
             <div class="border-border/50 flex items-center gap-1 border-b px-2 py-1.5">
                 <input
+                    ref="searchInputRef"
                     v-model="searchQuery"
                     type="text"
                     placeholder="Search tags..."
                     class="min-w-0 flex-1 bg-transparent text-[11px] text-white/80
                         placeholder-white/30 outline-none"
                     @click.stop
+                    @keydown="onSearchKeydown"
                 />
                 <button
                     class="text-dim shrink-0 rounded px-1.5 py-0.5 text-[9px] transition-colors
@@ -143,13 +194,20 @@ onBeforeUnmount(() => {
                     {{ searchQuery ? 'No matching tags' : 'No more tags available' }}
                 </p>
             </div>
-            <div v-else class="max-h-48 overflow-y-auto py-1">
+            <div v-else ref="listRef" class="max-h-48 overflow-y-auto py-1">
                 <button
-                    v-for="tag in filteredTags"
+                    v-for="(tag, index) in filteredTags"
                     :key="tag.id"
+                    :data-index="index"
                     class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px]
-                        text-white/70 transition-colors hover:bg-white/5 hover:text-white"
-                    @click="emit('select', tag.id)"
+                        transition-colors"
+                    :class="
+                        index === highlighted
+                            ? 'bg-white/10 text-white'
+                            : 'text-white/70 hover:bg-white/5 hover:text-white'
+                    "
+                    @mouseenter="highlighted = index"
+                    @click="selectTag(tag.id)"
                 >
                     <span
                         class="inline-block h-2 w-2 shrink-0 rounded-full"

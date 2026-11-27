@@ -8,6 +8,7 @@ useSeoMeta({
     ogDescription: 'Browse your scene storage paths',
 });
 
+const { containerClass } = useContentWidth();
 const explorerStore = useExplorerStore();
 
 onMounted(async () => {
@@ -26,12 +27,13 @@ onMounted(async () => {
 
 definePageMeta({
     middleware: ['auth'],
+    permissions: ['explorer:access'],
 });
 </script>
 
 <template>
     <div class="min-h-screen px-4 py-6 sm:px-5">
-        <div class="mx-auto max-w-415">
+        <div :class="containerClass">
             <!-- Header -->
             <div class="mb-6">
                 <div class="flex items-center justify-between">

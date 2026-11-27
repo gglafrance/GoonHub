@@ -19,6 +19,25 @@ var SSE_EVENT_TYPES = [
     'scene:cancelled',
     'scene:timed_out',
     'jobs:status',
+    // social events (targeted at the signed-in user, see app/utils/social.ts)
+    'social:friend_request',
+    'social:friend_request_cancelled',
+    'social:friend_request_accepted',
+    'social:followed',
+    'social:friend_requests_changed',
+    // presence (targeted, see app/utils/presence.ts)
+    'presence:update',
+    // public lobby count of Goon2gether (broadcast, see app/utils/together.ts)
+    'together:public_count',
+    // messages (targeted, see app/utils/messages.ts)
+    'chat:message',
+    'chat:message_updated',
+    'chat:read',
+    'chat:typing',
+    'chat:conversation_updated',
+    'chat:reaction',
+    // header layout changed (targeted, see app/utils/navRegistry.ts)
+    'settings:nav_layout',
 ];
 
 function broadcast(type, payload) {

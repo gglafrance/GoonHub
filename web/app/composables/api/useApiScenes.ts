@@ -1,3 +1,7 @@
+import type { ReplayHeatmap, ReplayHeatmapRecordResult } from '~/types/watch';
+import type { SceneCopiesResponse, SourceSiteOption } from '~/types/scene';
+import type { SimilarScenesResponse } from '~/types/duplicates';
+
 /**
  * Scene-related API operations: CRUD, search, streaming, filters, interactions.
  */
@@ -32,6 +36,9 @@ export const useApiScenes = () => {
             params.set('card_fields', settingsStore.cardFieldsParam);
         }
 
+        // Size filters and sorts need files:view_size (403 otherwise)
+        stripRestrictedSceneParams(params, hasMyPermission);
+
         const response = await fetch(`/api/v1/scenes?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
@@ -48,10 +55,14 @@ export const useApiScenes = () => {
             }
         }
 
+        // Scene list pages: card fields plus the scene table fields
         const settingsStore = useSettingsStore();
-        if (settingsStore.cardFieldsParam) {
-            params.set('card_fields', settingsStore.cardFieldsParam);
+        if (settingsStore.listFieldsParam) {
+            params.set('card_fields', settingsStore.listFieldsParam);
         }
+
+        // Size filters and sorts need files:view_size (403 otherwise)
+        stripRestrictedSceneParams(params, hasMyPermission);
 
         const response = await fetch(`/api/v1/scenes?${params}`, {
             headers: getAuthHeaders(),
@@ -79,6 +90,9 @@ export const useApiScenes = () => {
             params.set('page', String(currentPage));
             params.set('limit', String(pageLimit));
 
+            // Size filters and sorts need files:view_size (403 otherwise)
+            stripRestrictedSceneParams(params, hasMyPermission);
+
             const response = await fetch(`/api/v1/scenes?${params}`, {
                 headers: getAuthHeaders(),
                 ...fetchOptions(),
@@ -100,6 +114,15 @@ export const useApiScenes = () => {
         return handleResponse(response);
     };
 
+    // Sites scenes come from, with their scene counts, most scenes first
+    const fetchSourceSites = async (): Promise<{ sites: SourceSiteOption[] }> => {
+        const response = await fetch('/api/v1/scenes/source-sites', {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
     const fetchScene = async (id: number) => {
         const response = await fetch(`/api/v1/scenes/${id}`, {
             headers: getAuthHeaders(),
@@ -109,15 +132,20 @@ export const useApiScenes = () => {
         return handleResponse(response);
     };
 
+    // sourceUrl: undefined leaves the source as it is, '' clears it
     const updateSceneDetails = async (
         sceneId: number,
         title: string,
         description: string,
         releaseDate?: string | null,
+        sourceUrl?: string,
     ) => {
         const payload: Record<string, unknown> = { title, description };
         if (releaseDate !== undefined) {
             payload.release_date = releaseDate;
+        }
+        if (sourceUrl !== undefined) {
+            payload.source_url = sourceUrl;
         }
         const response = await fetch(`/api/v1/scenes/${sceneId}/details`, {
             method: 'PUT',
@@ -223,11 +251,18 @@ export const useApiScenes = () => {
         duration: number,
         position: number,
         completed: boolean,
+        // Goon2gether: the server keeps the previous resume position
+        keepResume = false,
     ) => {
         const response = await fetch(`/api/v1/scenes/${sceneId}/watch`, {
             method: 'POST',
             headers: getAuthHeaders(),
-            body: JSON.stringify({ duration, position, completed }),
+            body: JSON.stringify({
+                duration,
+                position,
+                completed,
+                ...(keepResume ? { keep_resume: true } : {}),
+            }),
         });
         return handleResponse(response);
     };
@@ -235,6 +270,32 @@ export const useApiScenes = () => {
     const getResumePosition = async (sceneId: number) => {
         const response = await fetch(`/api/v1/scenes/${sceneId}/resume`, {
             headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const getReplayHeatmap = async (sceneId: number): Promise<ReplayHeatmap> => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/heatmap`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    // Reports played [start, end] ranges (seconds); keepalive lets it finish while the page
+    // is being left. Returns the updated heatmap.
+    const recordReplayHeatmap = async (
+        sceneId: number,
+        ranges: [number, number][],
+        duration: number,
+        keepalive = false,
+    ): Promise<ReplayHeatmapRecordResult> => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/heatmap`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ ranges, duration }),
+            keepalive,
             ...fetchOptions(),
         });
         return handleResponse(response);
@@ -266,6 +327,11 @@ export const useApiScenes = () => {
             range: rangeDays.toString(),
             limit: limit.toString(),
         });
+        // what the user's card template shows (tags, actors, rating, likes...), like the lists
+        const historySettings = useSettingsStore();
+        if (historySettings.cardFieldsParam) {
+            params.set('card_fields', historySettings.cardFieldsParam);
+        }
         const response = await fetch(`/api/v1/history/by-date?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
@@ -290,6 +356,11 @@ export const useApiScenes = () => {
             until,
             limit: limit.toString(),
         });
+        // what the user's card template shows (tags, actors, rating, likes...), like the lists
+        const historySettings = useSettingsStore();
+        if (historySettings.cardFieldsParam) {
+            params.set('card_fields', historySettings.cardFieldsParam);
+        }
         const response = await fetch(`/api/v1/history/by-date?${params}`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
@@ -299,7 +370,30 @@ export const useApiScenes = () => {
 
     const fetchRelatedScenes = async (sceneId: number, limit = 12) => {
         const params = new URLSearchParams({ limit: limit.toString() });
+        // what the user's card template shows (tags, actors, rating, likes...), like the lists
+        const settingsStore = useSettingsStore();
+        if (settingsStore.cardFieldsParam) {
+            params.set('card_fields', settingsStore.cardFieldsParam);
+        }
         const response = await fetch(`/api/v1/scenes/${sceneId}/related?${params}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    // Scenes sharing the duplicate group (fingerprint match) of a scene
+    const fetchSimilarScenes = async (sceneId: number): Promise<SimilarScenesResponse> => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/similar`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    // Files recognised by the library scan as copies of the scene (read-only)
+    const fetchSceneCopies = async (sceneId: number): Promise<SceneCopiesResponse> => {
+        const response = await fetch(`/api/v1/scenes/${sceneId}/copies`, {
             headers: getAuthHeaders(),
             ...fetchOptions(),
         });
@@ -326,6 +420,7 @@ export const useApiScenes = () => {
         searchScenes,
         fetchAllSearchSceneIDs,
         fetchFilterOptions,
+        fetchSourceSites,
         fetchScene,
         updateSceneDetails,
         extractThumbnail,
@@ -340,12 +435,16 @@ export const useApiScenes = () => {
         incrementJizzed,
         recordWatch,
         getResumePosition,
+        getReplayHeatmap,
+        recordReplayHeatmap,
         getSceneWatchHistory,
         getUserWatchHistory,
         getUserWatchHistoryByDateRange,
         getUserWatchHistoryByTimeRange,
         getDailyActivity,
         fetchRelatedScenes,
+        fetchSimilarScenes,
+        fetchSceneCopies,
         deleteScene,
     };
 };

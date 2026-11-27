@@ -1,11 +1,14 @@
 <script setup lang="ts">
 const props = defineProps<{
     releaseDate: string | null;
+    readonly?: boolean;
 }>();
 
 const emit = defineEmits<{
     save: [value: string | null];
 }>();
+
+const { formatDate } = useDateFormatter();
 
 const editing = ref(false);
 const editValue = ref('');
@@ -13,10 +16,11 @@ const inputRef = ref<HTMLInputElement | null>(null);
 
 const displayDate = computed(() => {
     if (!props.releaseDate) return 'No release date';
-    return props.releaseDate.split('T')[0];
+    return formatDate(props.releaseDate.split('T')[0], { utc: true });
 });
 
 const startEditing = () => {
+    if (props.readonly) return;
     editValue.value = props.releaseDate?.split('T')[0] || '';
     editing.value = true;
     nextTick(() => inputRef.value?.focus());
@@ -58,7 +62,7 @@ watch(
             v-else
             class="text-dim -mx-1 cursor-pointer rounded-md px-1 py-0.5 text-sm transition-colors
                 hover:bg-white/3 hover:text-white"
-            :class="{ 'text-white': releaseDate }"
+            :class="{ 'text-white': releaseDate, 'pointer-events-none': readonly }"
             @click="startEditing"
         >
             {{ displayDate }}

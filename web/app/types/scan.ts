@@ -9,6 +9,8 @@ export interface ScanHistory {
     videos_skipped: number;
     videos_removed: number;
     videos_moved: number;
+    /** Files recognised as copies of an existing scene (not added as scenes) */
+    copies_found: number;
     errors: number;
     error_message?: string;
     current_path?: string;
@@ -34,6 +36,7 @@ export interface ScanProgressEvent {
     videos_skipped: number;
     videos_removed: number;
     videos_moved: number;
+    copies_found: number;
     errors: number;
     current_path?: string;
     current_file?: string;

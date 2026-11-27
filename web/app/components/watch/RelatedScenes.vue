@@ -7,6 +7,7 @@ const watchPageData = inject<WatchPageData>(WATCH_PAGE_DATA_KEY);
 
 // Use centralized data for related scenes and loading state
 const relatedScenes = computed(() => watchPageData?.relatedScenes.value ?? []);
+const sidecars = computed(() => watchPageData?.relatedSidecars.value);
 const isLoading = computed(() => watchPageData?.loading.related ?? false);
 </script>
 
@@ -40,7 +41,16 @@ const isLoading = computed(() => watchPageData?.loading.related ?? false);
         <!-- Related Scenes Grid -->
         <template v-else>
             <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                <SceneCard v-for="s in relatedScenes" :key="s.id" :scene="s" fluid />
+                <SceneCard
+                    v-for="s in relatedScenes"
+                    :key="s.id"
+                    :scene="s"
+                    :rating="sidecars?.ratings[s.id]"
+                    :liked="sidecars?.likes[s.id]"
+                    :jizz-count="sidecars?.jizzCounts[s.id]"
+                    :completed="sidecars?.watched[s.id]"
+                    fluid
+                />
             </div>
         </template>
     </div>

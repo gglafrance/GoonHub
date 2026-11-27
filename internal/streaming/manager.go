@@ -16,6 +16,7 @@ type Manager struct {
 	limiter    *StreamLimiter
 	bufferPool *BufferPool
 	pathCache  *PathCache
+	maxRange   int64
 	sceneRepo  data.SceneRepository
 	logger     *zap.Logger
 }
@@ -26,6 +27,7 @@ func NewManager(cfg *config.StreamingConfig, sceneRepo data.SceneRepository, log
 		limiter:    NewStreamLimiter(cfg.MaxGlobalStreams, cfg.MaxStreamsPerIP),
 		bufferPool: NewBufferPool(cfg.BufferSize),
 		pathCache:  NewPathCache(cfg.PathCacheTTL, cfg.PathCacheMaxSize),
+		maxRange:   max(cfg.MaxRangeSize, 0),
 		sceneRepo:  sceneRepo,
 		logger:     logger,
 	}
@@ -39,6 +41,11 @@ func (m *Manager) Limiter() *StreamLimiter {
 // BufferPool returns the buffer pool for efficient streaming.
 func (m *Manager) BufferPool() *BufferPool {
 	return m.bufferPool
+}
+
+// MaxRangeSize returns the cap of one range response of a direct stream (0 = no cap).
+func (m *Manager) MaxRangeSize() int64 {
+	return m.maxRange
 }
 
 // PathCache returns the path cache for scene file paths.
@@ -67,6 +74,19 @@ func (m *Manager) GetScenePath(sceneID uint) (string, error) {
 	m.pathCache.Set(sceneID, scene.StoredPath)
 
 	return scene.StoredPath, nil
+}
+
+// GetScene loads a scene (not cached: the conversion needs its codecs and duration, and
+// is started far less often than the range requests of direct streams).
+func (m *Manager) GetScene(sceneID uint) (*data.Scene, error) {
+	scene, err := m.sceneRepo.GetByID(sceneID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get scene %d: %w", sceneID, err)
+	}
+	if scene == nil {
+		return nil, fmt.Errorf("scene %d not found", sceneID)
+	}
+	return scene, nil
 }
 
 // InvalidateScenePath removes a scene from the path cache.
@@ -107,5 +127,6 @@ func DefaultConfig() *config.StreamingConfig {
 		BufferSize:       262144, // 256KB
 		PathCacheTTL:     5 * time.Minute,
 		PathCacheMaxSize: 10000,
+		MaxRangeSize:     8 << 20,
 	}
 }

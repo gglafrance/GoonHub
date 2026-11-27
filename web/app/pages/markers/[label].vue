@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import type { MarkerWithScene } from '~/types/marker';
+import type { MarkerWithScene, SavedMarkerFilterValues } from '~/types/marker';
 
 const route = useRoute();
-const router = useRouter();
 const { fetchMarkersByLabel } = useApiMarkers();
 const { fetchProcessingConfig } = useApiJobs();
-const { formatDuration } = useFormatter();
+const { formatMarkerRange } = useFormatter();
 const { observe } = useAnimatedMarkerPreview();
+const { sceneGridClass, sceneGridStyle } = useGridDensity();
+const { containerClass } = useContentWidth();
 
 // Marker thumbnail type (static or animated)
 const markerThumbnailType = ref('static');
@@ -19,6 +20,32 @@ const isLoading = ref(true);
 const error = ref<string | null>(null);
 
 const label = computed(() => decodeURIComponent(route.params.label as string));
+
+// No sort on this page: markers are listed newest first
+const fixedSort = ref('recent');
+const {
+    enabled: filtersEnabled,
+    state: filterState,
+    params: filterParams,
+    activeCount: filterCount,
+    reset: resetFilters,
+    options: filterOptions,
+    loadOptions: loadFilterOptions,
+    snapshot: filterSnapshot,
+    applySaved,
+} = useMarkerFilters(fixedSort, false);
+
+const applySavedFilter = (values: SavedMarkerFilterValues) => {
+    applySaved(values);
+    showFilters.value = true;
+    loadFilterOptions();
+};
+const showFilters = ref(filterCount.value > 0);
+
+const toggleFilters = () => {
+    showFilters.value = !showFilters.value;
+    if (showFilters.value) loadFilterOptions();
+};
 
 const pageTitle = computed(() => label.value || 'Markers');
 useHead({ title: pageTitle });
@@ -43,7 +70,12 @@ const loadMarkers = async (page: number) => {
     isLoading.value = true;
     error.value = null;
     try {
-        const response = await fetchMarkersByLabel(label.value, page, limit.value);
+        const response = await fetchMarkersByLabel(
+            label.value,
+            page,
+            limit.value,
+            filterParams.value,
+        );
         markers.value = response.data;
         total.value = response.pagination.total_items;
     } catch (err) {
@@ -55,6 +87,7 @@ const loadMarkers = async (page: number) => {
 
 onMounted(async () => {
     loadMarkers(currentPage.value);
+    if (showFilters.value && filtersEnabled.value) loadFilterOptions();
     try {
         const config = await fetchProcessingConfig();
         markerThumbnailType.value = config.marker_thumbnail_type || 'static';
@@ -77,9 +110,22 @@ watch(
     },
 );
 
-const goBack = () => {
-    router.push('/markers');
-};
+watch(
+    () => JSON.stringify(filterParams.value),
+    () => {
+        if (currentPage.value === 1) loadMarkers(1);
+        else currentPage.value = 1;
+    },
+);
+
+// "Add all to playlist": every marker of this label with the current filters
+const playlistFilter = computed(() =>
+    markerPlaylistFilter(filterParams.value, { label: label.value }),
+);
+
+// Back to the list with its filters, page and scroll position when coming from it
+const { backTo } = useNavOrigin();
+const goBack = () => backTo('/markers');
 
 definePageMeta({
     middleware: ['auth'],
@@ -88,7 +134,7 @@ definePageMeta({
 
 <template>
     <div class="min-h-screen px-4 py-6 sm:px-5">
-        <div class="mx-auto max-w-415">
+        <div :class="containerClass">
             <!-- Back Button -->
             <button
                 class="text-dim hover:text-lava mb-4 flex items-center gap-1 text-sm
@@ -103,13 +149,43 @@ definePageMeta({
             <div class="mb-4">
                 <div class="flex items-center justify-between">
                     <h1 class="text-lg font-semibold text-white">{{ label }}</h1>
-                    <span
-                        class="border-border bg-panel text-dim rounded-full border px-2.5 py-0.5
-                            font-mono text-[11px]"
-                    >
-                        {{ total }} markers
-                    </span>
+                    <div class="flex items-center gap-2">
+                        <MarkersFiltersToggle
+                            v-if="filtersEnabled"
+                            class="py-1"
+                            :open="showFilters"
+                            :active-count="filterCount"
+                            @toggle="toggleFilters"
+                        />
+                        <MarkersFiltersSavedMenu
+                            v-if="filtersEnabled"
+                            :snapshot="filterSnapshot"
+                            @apply="applySavedFilter"
+                        />
+                        <MarkersPlaylistAddButton
+                            v-if="total > 0"
+                            :filter="playlistFilter"
+                            :count="total"
+                            label="Add all to playlist"
+                        />
+                        <span
+                            class="border-border bg-panel text-dim rounded-full border px-2.5 py-0.5
+                                font-mono text-[11px]"
+                        >
+                            {{ total }} markers
+                        </span>
+                    </div>
                 </div>
+
+                <!-- Advanced filters (setting "Advanced Marker Filters") -->
+                <MarkersFiltersPanel
+                    v-if="filtersEnabled && showFilters"
+                    class="mt-3"
+                    :state="filterState"
+                    :options="filterOptions"
+                    :active-count="filterCount"
+                    @reset="resetFilters"
+                />
             </div>
 
             <!-- Label Tag Manager -->
@@ -143,23 +219,61 @@ definePageMeta({
 
             <!-- Markers Grid -->
             <div v-else>
-                <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                <Pagination
+                    v-model="currentPage"
+                    position="top"
+                    :total="total"
+                    :limit="limit"
+                    :show-page-size-selector="showSelector"
+                    :max-limit="maxLimit"
+                    @update:limit="
+                        (v: number) => {
+                            updatePageSize(v);
+                            if (currentPage === 1) loadMarkers(1);
+                            else currentPage = 1;
+                        }
+                    "
+                />
+
+                <div
+                    class="scene-grid grid justify-center"
+                    :class="sceneGridClass"
+                    :style="sceneGridStyle"
+                >
                     <NuxtLink
                         v-for="marker in markers"
                         :key="marker.id"
-                        :to="`/watch/${marker.scene_id}?t=${marker.timestamp}`"
-                        class="group relative block max-w-[320px] overflow-hidden rounded-lg
-                            transition-transform duration-200"
+                        :to="markerWatchUrl(marker)"
+                        class="group relative block overflow-hidden rounded-lg transition-transform
+                            duration-200"
                     >
                         <!-- Thumbnail -->
                         <div class="relative aspect-video w-full overflow-hidden bg-black/40">
+                            <MarkersTagsBadge :tags="marker.tags" :label="marker.label" />
+
+                            <!-- Add to a marker playlist -->
+                            <div
+                                class="absolute top-1.5 right-1.5 z-10 flex gap-1 opacity-0
+                                    transition-opacity group-hover:opacity-100
+                                    focus-within:opacity-100"
+                            >
+                                <MarkersPlaylistAddButton
+                                    variant="icon"
+                                    :marker-ids="[marker.id]"
+                                />
+                                <ShareButton
+                                    variant="icon"
+                                    label="Share marker"
+                                    :subject="markerShareSubject(marker)"
+                                />
+                            </div>
                             <video
                                 v-if="
                                     markerThumbnailType === 'animated' &&
                                     marker.animated_thumbnail_path
                                 "
                                 :ref="(el) => observe(el as HTMLVideoElement)"
-                                :src="`/marker-thumbnails/${marker.id}/animated`"
+                                :src="markerThumbnailUrl(marker.id, marker.updated_at, true)"
                                 muted
                                 loop
                                 playsinline
@@ -169,7 +283,7 @@ definePageMeta({
                             />
                             <img
                                 v-else
-                                :src="`/marker-thumbnails/${marker.id}`"
+                                :src="markerThumbnailUrl(marker.id, marker.updated_at)"
                                 :alt="marker.scene_title"
                                 class="h-full w-full object-cover transition-transform duration-300
                                     group-hover:scale-105"
@@ -188,7 +302,7 @@ definePageMeta({
                                     py-0.5 text-[10px] font-semibold text-white/90 tabular-nums
                                     backdrop-blur-sm"
                             >
-                                {{ formatDuration(marker.timestamp) }}
+                                {{ formatMarkerRange(marker.timestamp, marker.end_timestamp) }}
                             </div>
                         </div>
 

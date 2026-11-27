@@ -1,7 +1,9 @@
 export interface User {
     id: number;
     username: string;
-    role: 'admin' | 'user';
+    // Role name from the RBAC roles table. Access checks use the permissions
+    // (GET /auth/permissions, useMyPermissions), never the role name
+    role: string;
 }
 
 // SECURITY: Token is transmitted only via HTTP-only cookie, never in response body

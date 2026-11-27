@@ -1,3 +1,5 @@
+import type { ActorMergePreview, ActorResolution } from '~/types/actor';
+
 /**
  * Actor-related API operations: CRUD, associations, and interactions.
  */
@@ -49,6 +51,7 @@ export const useApiActors = () => {
         sort?: string,
         actorName?: string,
         seed?: number,
+        cardFields?: string,
     ) => {
         const params = new URLSearchParams({
             page: page.toString(),
@@ -58,6 +61,10 @@ export const useApiActors = () => {
         if (query) params.set('q', query);
         if (sort) params.set('sort', sort);
         if (sort === 'random' && seed) params.set('seed', seed.toString());
+        if (cardFields) params.set('card_fields', cardFields);
+
+        // Size filters and sorts need files:view_size (403 otherwise)
+        stripRestrictedSceneParams(params, hasMyPermission);
 
         const response = await fetch(`/api/v1/scenes?${params}`, {
             headers: getAuthHeaders(),
@@ -66,8 +73,15 @@ export const useApiActors = () => {
         return handleResponse(response);
     };
 
-    const createActor = async (data: Record<string, unknown>) => {
-        const response = await fetch('/api/v1/admin/actors', {
+    // strict: a name or alias already used by another actor answers 409 with the existing
+    // actor (see getEntityConflict). Without it, duplicate names are allowed and used aliases
+    // are dropped (automatic flows such as PornDB matching).
+    const createActor = async (
+        data: Record<string, unknown>,
+        options: { strict?: boolean } = {},
+    ) => {
+        const query = options.strict ? '?strict=true' : '';
+        const response = await fetch(`/api/v1/admin/actors${query}`, {
             method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify(data),
@@ -75,8 +89,13 @@ export const useApiActors = () => {
         return handleResponse(response);
     };
 
-    const updateActor = async (id: number, data: Record<string, unknown>) => {
-        const response = await fetch(`/api/v1/admin/actors/${id}`, {
+    const updateActor = async (
+        id: number,
+        data: Record<string, unknown>,
+        options: { strict?: boolean } = {},
+    ) => {
+        const query = options.strict ? '?strict=true' : '';
+        const response = await fetch(`/api/v1/admin/actors/${id}${query}`, {
             method: 'PUT',
             headers: getAuthHeaders(),
             body: JSON.stringify(data),
@@ -182,8 +201,48 @@ export const useApiActors = () => {
         return allIds;
     };
 
+    // Exact name-or-alias match (case-insensitive); null when no actor has this name
+    const resolveActor = async (name: string): Promise<ActorResolution | null> => {
+        const params = new URLSearchParams({ name });
+        const response = await fetch(`/api/v1/actors/resolve?${params}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        if (response.status === 404) return null;
+        return handleResponse(response);
+    };
+
+    // Merge: the source actor is merged into the target actor (kept)
+    const fetchActorMergePreview = async (
+        targetUuid: string,
+        sourceUuid: string,
+    ): Promise<ActorMergePreview> => {
+        const params = new URLSearchParams({ source_uuid: sourceUuid });
+        const response = await fetch(`/api/v1/actors/${targetUuid}/merge-preview?${params}`, {
+            headers: getAuthHeaders(),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
+    const mergeActor = async (
+        targetUuid: string,
+        sourceUuid: string,
+    ): Promise<ActorMergePreview> => {
+        const response = await fetch(`/api/v1/actors/${targetUuid}/merge`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ source_uuid: sourceUuid }),
+            ...fetchOptions(),
+        });
+        return handleResponse(response);
+    };
+
     return {
         fetchActors,
+        resolveActor,
+        fetchActorMergePreview,
+        mergeActor,
         fetchActorByUUID,
         fetchActorScenes,
         createActor,

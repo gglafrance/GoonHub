@@ -13,6 +13,14 @@ const emit = defineEmits<{
 }>();
 
 const api = useApi();
+const { resolveActor } = useApiActors();
+
+// Creates the actor, unless an actor already has this name or alias: that one is reused
+async function findOrCreateActor(input: Record<string, unknown>): Promise<number> {
+    const known = typeof input.name === 'string' ? await resolveActor(input.name) : null;
+    if (known) return known.data.id;
+    return (await api.createActor(input)).id;
+}
 
 const performerQueue = ref<PornDBScenePerformer[]>([]);
 const currentPerformerIndex = ref(0);
@@ -108,7 +116,7 @@ async function selectPornDBPerformer(performer: PornDBPerformerDetails) {
     try {
         // Fetch full details since search results only contain basic info
         const details = await api.getPornDBPerformer(performer.id);
-        const newActor = await api.createActor({
+        const newActorId = await findOrCreateActor({
             name: details.name,
             aliases: details.aliases,
             image_url: details.image,
@@ -130,15 +138,15 @@ async function selectPornDBPerformer(performer: PornDBPerformerDetails) {
             fake_boobs: details.fake_boobs,
             same_sex_only: details.same_sex_only,
         });
-        createdActorIds.value.push(newActor.id);
+        createdActorIds.value.push(newActorId);
     } catch {
         // If fetching details fails, try basic creation
         try {
-            const newActor = await api.createActor({
+            const newActorId = await findOrCreateActor({
                 name: performer.name,
                 image_url: performer.image,
             });
-            createdActorIds.value.push(newActor.id);
+            createdActorIds.value.push(newActorId);
         } catch {
             // Failed to create, continue anyway
         }
@@ -160,7 +168,7 @@ async function createActorWithMetadata() {
     try {
         // Fetch full performer details from PornDB using the scene performer's ID
         const details = await api.getPornDBPerformer(performer.id);
-        const newActor = await api.createActor({
+        const newActorId = await findOrCreateActor({
             name: details.name,
             aliases: details.aliases,
             image_url: details.image,
@@ -182,15 +190,15 @@ async function createActorWithMetadata() {
             fake_boobs: details.fake_boobs,
             same_sex_only: details.same_sex_only,
         });
-        createdActorIds.value.push(newActor.id);
+        createdActorIds.value.push(newActorId);
     } catch {
         // If fetching details fails, fall back to basic name + image
         try {
-            const newActor = await api.createActor({
+            const newActorId = await findOrCreateActor({
                 name: performer.name,
                 image_url: performer.image,
             });
-            createdActorIds.value.push(newActor.id);
+            createdActorIds.value.push(newActorId);
         } catch {
             // Failed to create, continue anyway
         }

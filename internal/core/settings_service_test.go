@@ -39,6 +39,9 @@ func TestGetSettings_Defaults(t *testing.T) {
 	if settings.DefaultSortOrder != "created_at_desc" {
 		t.Fatalf("expected default sort order created_at_desc, got %s", settings.DefaultSortOrder)
 	}
+	if settings.DefaultMarkerView != "grouped" {
+		t.Fatalf("expected default marker view 'grouped', got %q", settings.DefaultMarkerView)
+	}
 	if settings.Autoplay != false {
 		t.Fatal("expected default autoplay false")
 	}
@@ -74,12 +77,21 @@ func TestUpdateAllSettings_Success(t *testing.T) {
 	settingsRepo.EXPECT().Upsert(gomock.Any()).Return(nil)
 
 	autoplay, volume, loop, alc, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs, spss, scc := validAllSettingsArgs()
-	settings, err := svc.UpdateAllSettings(1, autoplay, volume, loop, alc, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs, spss, scc)
+	settings, err := svc.UpdateAllSettings(1, autoplay, volume, loop, alc, true, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs, spss, true, "all", scc)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 	if settings.DefaultVolume != 50 {
 		t.Fatalf("expected volume 50, got %d", settings.DefaultVolume)
+	}
+	if !settings.MarkerLoop {
+		t.Fatal("expected marker loop to be enabled")
+	}
+	if !settings.AdvancedMarkerFilters {
+		t.Fatal("expected advanced marker filters to be enabled")
+	}
+	if settings.DefaultMarkerView != "all" {
+		t.Fatalf("expected default marker view 'all', got %q", settings.DefaultMarkerView)
 	}
 }
 
@@ -108,13 +120,50 @@ func TestUpdateAllSettings_InvalidFields(t *testing.T) {
 			sp := data.DefaultSortPreferences()
 			sp.Actors = tt.actorSort
 
-			_, err := svc.UpdateAllSettings(1, false, tt.volume, false, false, tt.vpp, tt.sort, tt.tagSort, true,
-				data.DefaultHomepageConfig(), data.DefaultParsingRulesSettings(), sp, "countdown", 5, false, data.DefaultSceneCardConfig())
+			_, err := svc.UpdateAllSettings(1, false, tt.volume, false, false, false, tt.vpp, tt.sort, tt.tagSort, true,
+				data.DefaultHomepageConfig(), data.DefaultParsingRulesSettings(), sp, "countdown", 5, false, true, "", data.DefaultSceneCardConfig())
 			if err == nil {
 				t.Fatal("expected error")
 			}
 			if !strings.Contains(err.Error(), tt.wantSubstr) {
 				t.Fatalf("expected error containing %q, got: %v", tt.wantSubstr, err)
+			}
+		})
+	}
+}
+
+func TestUpdateAllSettings_DefaultMarkerView(t *testing.T) {
+	tests := []struct {
+		name    string
+		view    string
+		want    string
+		wantErr bool
+	}{
+		{"grouped", "grouped", "grouped", false},
+		{"all", "all", "all", false},
+		{"empty defaults to grouped", "", "grouped", false},
+		{"invalid", "list", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, settingsRepo, _ := newTestSettingsService(t)
+			if !tt.wantErr {
+				settingsRepo.EXPECT().GetByUserID(uint(1)).Return(&data.UserSettings{UserID: 1}, nil)
+				settingsRepo.EXPECT().Upsert(gomock.Any()).Return(nil)
+			}
+			autoplay, volume, loop, alc, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs, spss, scc := validAllSettingsArgs()
+			settings, err := svc.UpdateAllSettings(1, autoplay, volume, loop, alc, false, vpp, sort, tagSort, mtc, hc, pr, sp, paa, pcs, spss, false, tt.view, scc)
+			if tt.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "invalid default marker view") {
+					t.Fatalf("expected invalid view error, got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if settings.DefaultMarkerView != tt.want {
+				t.Fatalf("expected %q, got %q", tt.want, settings.DefaultMarkerView)
 			}
 		})
 	}

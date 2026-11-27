@@ -12,14 +12,15 @@ useSeoMeta({
 
 const api = useApi();
 const router = useRouter();
-const authStore = useAuthStore();
 const settingsStore = useSettingsStore();
 
 const studios = ref<StudioListItem[]>([]);
 const total = ref(0);
 const currentPage = useUrlPagination();
 const { limit, showSelector, maxLimit, updatePageSize } = usePageSize();
-const searchQuery = ref('');
+// Name search, kept in the URL (`q`) once typed (debounced), like the page and the sort
+const urlSearch = useUrlString('q');
+const searchQuery = ref(urlSearch.value);
 const sortOrder = useUrlSort(settingsStore.sortPreferences?.studios || 'name_asc');
 const isLoading = ref(false);
 const error = ref<string | null>(null);
@@ -34,7 +35,8 @@ const sortOptions = [
     { value: 'created_at_asc', label: 'Oldest' },
 ];
 
-const isAdmin = computed(() => authStore.user?.role === 'admin');
+const perms = useMyPermissions();
+const canManage = computed(() => perms.has('studios:manage'));
 
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -74,12 +76,18 @@ watch(searchQuery, () => {
         clearTimeout(searchTimeout);
     }
     searchTimeout = setTimeout(() => {
+        urlSearch.value = searchQuery.value;
         if (currentPage.value === 1) {
             loadStudios(1);
         } else {
             currentPage.value = 1;
         }
     }, 300);
+});
+
+// Browser back/forward, links to this page
+watch(urlSearch, (value) => {
+    if (value !== searchQuery.value) searchQuery.value = value;
 });
 
 watch(sortOrder, () => {
@@ -109,7 +117,7 @@ definePageMeta({
                     <h1 class="text-lg font-semibold text-white">Studios</h1>
                     <div class="flex items-center gap-2">
                         <button
-                            v-if="isAdmin"
+                            v-if="canManage"
                             class="bg-lava hover:bg-lava-glow flex items-center gap-1 rounded-lg
                                 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
                             @click="showCreateModal = true"
@@ -177,6 +185,22 @@ definePageMeta({
 
             <!-- Studio Grid -->
             <div v-else>
+                <Pagination
+                    v-model="currentPage"
+                    position="top"
+                    :total="total"
+                    :limit="limit"
+                    :show-page-size-selector="showSelector"
+                    :max-limit="maxLimit"
+                    @update:limit="
+                        (v: number) => {
+                            updatePageSize(v);
+                            if (currentPage === 1) loadStudios(1);
+                            else currentPage = 1;
+                        }
+                    "
+                />
+
                 <StudioGrid :studios="studios" />
 
                 <Pagination

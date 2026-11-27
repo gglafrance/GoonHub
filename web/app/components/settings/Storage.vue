@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { StoragePath } from '~/types/storage';
 
+const { formatDate } = useDateFormatter();
+
 const { fetchStoragePaths, deleteStoragePath } = useApi();
 const { message, error, clearMessages } = useSettingsMessage();
 const { formatSize } = useFormatter();
@@ -61,14 +63,7 @@ const handleDelete = async (path: StoragePath) => {
     }
 };
 
-const formatDate = (dateStr: string): string => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-    });
-};
+const formatStorageDate = (dateStr: string): string => formatDate(dateStr);
 </script>
 
 <template>
@@ -119,7 +114,7 @@ const formatDate = (dateStr: string): string => {
                         >
                             <th class="pr-4 pb-2 font-medium">Name</th>
                             <th class="pr-4 pb-2 font-medium">Path</th>
-                            <th class="pr-4 pb-2 font-medium">Default</th>
+                            <th class="pr-4 pb-2 font-medium">Flags</th>
                             <th class="pr-4 pb-2 font-medium">Created</th>
                             <th class="pb-2 font-medium">Actions</th>
                         </tr>
@@ -140,17 +135,29 @@ const formatDate = (dateStr: string): string => {
                                     </code>
                                 </td>
                                 <td class="py-2.5 pr-4">
-                                    <span
-                                        v-if="path.is_default"
-                                        class="bg-emerald/15 text-emerald border-emerald/30
-                                            inline-block rounded-full border px-2 py-0.5 text-[10px]
-                                            font-medium"
-                                    >
-                                        Default
-                                    </span>
+                                    <div class="flex flex-wrap gap-1">
+                                        <span
+                                            v-if="path.is_default"
+                                            class="bg-emerald/15 text-emerald border-emerald/30
+                                                inline-block rounded-full border px-2 py-0.5
+                                                text-[10px] font-medium"
+                                        >
+                                            Default
+                                        </span>
+                                        <span
+                                            v-if="path.read_only"
+                                            class="inline-flex items-center gap-1 rounded-full
+                                                border border-white/15 bg-white/5 px-2 py-0.5
+                                                text-[10px] font-medium text-white/70"
+                                            title="GoonHub never modifies files in this path"
+                                        >
+                                            <Icon name="heroicons:lock-closed" size="10" />
+                                            Read-only
+                                        </span>
+                                    </div>
                                 </td>
                                 <td class="text-dim py-2.5 pr-4">
-                                    {{ formatDate(path.created_at) }}
+                                    {{ formatStorageDate(path.created_at) }}
                                 </td>
                                 <td class="py-2.5">
                                     <div class="flex gap-2">

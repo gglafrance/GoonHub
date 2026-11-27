@@ -10,8 +10,11 @@ import (
 	"go.uber.org/zap"
 )
 
+// maxRetireTokens bounds the number of pending worker retirements (far above any pool size).
+const maxRetireTokens = 1024
+
 type WorkerPool struct {
-	workerCount    int
+	workerCount    atomic.Int32 // target number of workers
 	jobQueue       chan Job
 	resultChan     chan JobResult
 	wg             sync.WaitGroup
@@ -23,20 +26,46 @@ type WorkerPool struct {
 	registry       *JobRegistry
 	timeout        time.Duration
 	onJobExecuting func(jobID string) // called when a worker picks up a job for execution
+
+	// sizeMu serializes Start, Stop and Resize (worker goroutines are added and retired here).
+	sizeMu       sync.Mutex
+	nextWorkerID int
+	retire       chan struct{} // one token = one worker exits after its current job
+
+	// Optional cross-pool limit on executing jobs, and the priority of this pool for its slots.
+	limiter      *SlotLimiter
+	slotPriority atomic.Int32
+
+	// Jobs taken from the queue but never started (pool stopped while waiting for a slot).
+	unstartedMu sync.Mutex
+	unstarted   []string
 }
 
 func NewWorkerPool(workerCount int, queueSize int) *WorkerPool {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &WorkerPool{
-		workerCount: workerCount,
-		jobQueue:    make(chan Job, queueSize),
-		resultChan:  make(chan JobResult, queueSize),
-		ctx:         ctx,
-		cancel:      cancel,
-		logger:      zap.NewNop(),
-		registry:    NewJobRegistry(),
-		timeout:     0, // no timeout by default
+	p := &WorkerPool{
+		jobQueue:   make(chan Job, queueSize),
+		resultChan: make(chan JobResult, queueSize),
+		ctx:        ctx,
+		cancel:     cancel,
+		logger:     zap.NewNop(),
+		registry:   NewJobRegistry(),
+		timeout:    0, // no timeout by default
+		retire:     make(chan struct{}, maxRetireTokens),
 	}
+	p.workerCount.Store(int32(workerCount))
+	return p
+}
+
+// SetSlotLimiter makes the workers take a slot from a limiter shared with other pools before
+// executing a job. Must be called before Start.
+func (p *WorkerPool) SetSlotLimiter(limiter *SlotLimiter) {
+	p.limiter = limiter
+}
+
+// SetSlotPriority sets the priority of the workers of this pool when they wait for a slot.
+func (p *WorkerPool) SetSlotPriority(priority int) {
+	p.slotPriority.Store(int32(priority))
 }
 
 func (p *WorkerPool) SetLogger(logger *zap.Logger) {
@@ -50,21 +79,80 @@ func (p *WorkerPool) SetOnJobExecuting(fn func(jobID string)) {
 }
 
 func (p *WorkerPool) Start() {
+	p.sizeMu.Lock()
+	defer p.sizeMu.Unlock()
 	if !p.running.CompareAndSwap(false, true) {
 		return
 	}
 
+	count := int(p.workerCount.Load())
 	p.logger.Info("Starting worker pool",
-		zap.Int("worker_count", p.workerCount),
+		zap.Int("worker_count", count),
 		zap.Int("queue_size", cap(p.jobQueue)),
 	)
 
-	for i := 0; i < p.workerCount; i++ {
-		p.wg.Add(1)
-		go p.worker(i)
+	for i := 0; i < count; i++ {
+		p.spawnWorkerLocked()
 	}
 
 	p.logger.Info("All workers started and ready")
+}
+
+func (p *WorkerPool) spawnWorkerLocked() {
+	id := p.nextWorkerID
+	p.nextWorkerID++
+	p.wg.Add(1)
+	go p.worker(id)
+}
+
+// Resize changes the number of workers without interrupting anything: new workers start right
+// away, and when shrinking, idle workers exit first while busy ones finish their current job.
+// Jobs already queued stay queued.
+func (p *WorkerPool) Resize(workerCount int) {
+	if workerCount < 1 {
+		workerCount = 1
+	}
+	p.sizeMu.Lock()
+	defer p.sizeMu.Unlock()
+
+	current := int(p.workerCount.Load())
+	if workerCount == current {
+		return
+	}
+	p.workerCount.Store(int32(workerCount))
+	if !p.running.Load() {
+		return // Start will use the new count
+	}
+
+	if workerCount > current {
+		missing := workerCount - current
+		// Cancel pending retirements first: those workers are still alive.
+	reclaim:
+		for missing > 0 {
+			select {
+			case <-p.retire:
+				missing--
+			default:
+				break reclaim
+			}
+		}
+		for ; missing > 0; missing-- {
+			p.spawnWorkerLocked()
+		}
+	} else {
+		for i := 0; i < current-workerCount; i++ {
+			select {
+			case p.retire <- struct{}{}:
+			default:
+				p.logger.Warn("Too many pending worker retirements, pool shrinks later than asked")
+			}
+		}
+	}
+
+	p.logger.Info("Resized worker pool",
+		zap.Int("from", current),
+		zap.Int("to", workerCount),
+	)
 }
 
 func (p *WorkerPool) worker(id int) {
@@ -76,9 +164,28 @@ func (p *WorkerPool) worker(id int) {
 		case <-p.ctx.Done():
 			p.logger.Debug("Worker shutting down", zap.Int("worker_id", id))
 			return
+		case <-p.retire:
+			p.logger.Debug("Worker retired after pool resize", zap.Int("worker_id", id))
+			return
 		case job := <-p.jobQueue:
 			if job == nil {
 				return
+			}
+
+			if p.limiter != nil {
+				err := p.limiter.Acquire(p.ctx, int(p.slotPriority.Load()))
+				if err == nil && p.ctx.Err() != nil {
+					p.limiter.Release()
+					err = p.ctx.Err()
+				}
+				if err != nil {
+					// Pool stopping: the job never started, report it as reclaimable.
+					p.registry.Unregister(job.GetID())
+					p.unstartedMu.Lock()
+					p.unstarted = append(p.unstarted, job.GetID())
+					p.unstartedMu.Unlock()
+					return
+				}
 			}
 
 			p.activeCount.Add(1)
@@ -96,6 +203,9 @@ func (p *WorkerPool) worker(id int) {
 			)
 
 			result := p.executeJob(id, job)
+			if p.limiter != nil {
+				p.limiter.Release()
+			}
 
 			select {
 			case p.resultChan <- result:
@@ -138,8 +248,12 @@ func (p *WorkerPool) executeJob(workerID int, job Job) (result JobResult) {
 	// Create execution context with optional timeout
 	var execCtx context.Context
 	var execCancel context.CancelFunc
-	if p.timeout > 0 {
-		execCtx, execCancel = context.WithTimeout(p.ctx, p.timeout)
+	timeout := p.timeout
+	if scaler, ok := job.(TimeoutScaler); ok && timeout > 0 {
+		timeout = scaler.JobTimeout(timeout)
+	}
+	if timeout > 0 {
+		execCtx, execCancel = context.WithTimeout(p.ctx, timeout)
 	} else {
 		execCtx, execCancel = context.WithCancel(p.ctx)
 	}
@@ -230,13 +344,16 @@ func (p *WorkerPool) Results() <-chan JobResult {
 }
 
 func (p *WorkerPool) Stop() {
-	if !p.running.CompareAndSwap(true, false) {
+	p.sizeMu.Lock()
+	stopped := p.running.CompareAndSwap(true, false)
+	p.sizeMu.Unlock()
+	if !stopped {
 		return
 	}
 
 	p.logger.Info("Stopping worker pool gracefully",
 		zap.Int("pending_jobs", p.QueueSize()),
-		zap.Int("active_workers", p.workerCount),
+		zap.Int("active_workers", p.ActiveWorkers()),
 	)
 
 	p.cancel()
@@ -261,13 +378,13 @@ func (p *WorkerPool) ActiveJobCount() int {
 }
 
 func (p *WorkerPool) ActiveWorkers() int {
-	return p.workerCount
+	return int(p.workerCount.Load())
 }
 
 func (p *WorkerPool) LogStatus() {
 	p.logger.Info("Worker pool status",
 		zap.Int("queue_size", p.QueueSize()),
-		zap.Int("active_workers", p.workerCount),
+		zap.Int("active_workers", p.ActiveWorkers()),
 		zap.Int("queue_capacity", cap(p.jobQueue)),
 		zap.Bool("running", p.running.Load()),
 	)
@@ -327,13 +444,16 @@ func (p *WorkerPool) Registry() *JobRegistry {
 // 3. Drains channel buffer and returns those job IDs
 // The returned job IDs are jobs that were in the channel buffer but never executed.
 func (p *WorkerPool) GracefulStop(timeout time.Duration) []string {
-	if !p.running.CompareAndSwap(true, false) {
+	p.sizeMu.Lock()
+	stopped := p.running.CompareAndSwap(true, false)
+	p.sizeMu.Unlock()
+	if !stopped {
 		return nil
 	}
 
 	p.logger.Info("Starting graceful shutdown of worker pool",
 		zap.Int("pending_jobs", p.QueueSize()),
-		zap.Int("active_workers", p.workerCount),
+		zap.Int("active_workers", p.ActiveWorkers()),
 		zap.Duration("timeout", timeout),
 	)
 
@@ -358,6 +478,10 @@ func (p *WorkerPool) GracefulStop(timeout time.Duration) []string {
 
 	// Drain channel buffer to get job IDs that were never executed
 	bufferedJobIDs := p.drainBuffer()
+	p.unstartedMu.Lock()
+	bufferedJobIDs = append(bufferedJobIDs, p.unstarted...)
+	p.unstarted = nil
+	p.unstartedMu.Unlock()
 
 	close(p.jobQueue)
 	close(p.resultChan)
@@ -367,6 +491,15 @@ func (p *WorkerPool) GracefulStop(timeout time.Duration) []string {
 	)
 
 	return bufferedJobIDs
+}
+
+// DrainQueued removes the jobs waiting in the queue (not yet picked up by a worker) and returns
+// their IDs, without stopping the pool. Running jobs are not affected.
+func (p *WorkerPool) DrainQueued() []string {
+	if !p.running.Load() {
+		return nil
+	}
+	return p.drainBuffer()
 }
 
 // drainBuffer extracts all jobs from the channel buffer without executing them.
@@ -388,4 +521,30 @@ func (p *WorkerPool) drainBuffer() []string {
 			return jobIDs
 		}
 	}
+}
+
+// CancelRegistered cancels the jobs of the pool that are registered but not executing (taken from
+// the queue by a worker still waiting for a slot of the global cap) and, with includeExecuting,
+// the jobs being executed. A cancelled job that has not started returns right away when a worker
+// runs it, and its result goes through the usual cancelled path. Call DrainQueued first to take
+// the queued jobs out instead. Returns the number of waiting and executing jobs cancelled.
+func (p *WorkerPool) CancelRegistered(includeExecuting bool) (waiting, executing int) {
+	waitingJobs, executingJobs := p.registry.Snapshot()
+	for _, job := range waitingJobs {
+		job.Cancel()
+	}
+	waiting = len(waitingJobs)
+	if includeExecuting {
+		for _, job := range executingJobs {
+			job.Cancel()
+		}
+		executing = len(executingJobs)
+	}
+	if waiting > 0 || executing > 0 {
+		p.logger.Info("Cancelled registered jobs",
+			zap.Int("waiting", waiting),
+			zap.Int("executing", executing),
+		)
+	}
+	return waiting, executing
 }

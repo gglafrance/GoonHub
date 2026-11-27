@@ -1,16 +1,20 @@
 <script setup lang="ts">
 import type { Actor, UpdateActorInput } from '~/types/actor';
-import type { Scene } from '~/types/scene';
+import type { Scene, SceneListResponse } from '~/types/scene';
+import type { LoadedPages, PageLoadPlan } from '~/utils/infinitePages';
 
+const { containerClass } = useContentWidth();
 const route = useRoute();
 const router = useRouter();
 const api = useApi();
-const authStore = useAuthStore();
 const settingsStore = useSettingsStore();
 
 const actor = ref<Actor | null>(null);
 const scenes = ref<Scene[]>([]);
 const scenesTotal = ref(0);
+const scenesRatings = ref<Record<string, number>>({});
+// The user's likes, jizz counts and watched scenes, for the card badges
+const scenesSidecars = ref(emptyCardSidecars());
 const scenesPage = useUrlPagination();
 const scenesLimit = computed(() => settingsStore.videosPerPage);
 const isLoading = ref(true);
@@ -20,9 +24,18 @@ const showEditModal = ref(false);
 const showCreateModal = ref(false);
 const showFetchModal = ref(false);
 const showDeleteModal = ref(false);
+const showMergeModal = ref(false);
 
 // Scene selection
 const selectMode = ref(false);
+
+// Grid or table (table columns may need fields the loaded scenes lack)
+const { isTable } = useSceneListView('actor', () => loadScenes(scenesPage.value));
+
+// Table header sort: the newest-first sort is the empty sort of this page
+const onTableSort = (value: string) => {
+    scenesSort.value = value === 'created_at_desc' ? '' : value;
+};
 const scenesRef = toRef(scenes);
 const {
     hasSelection,
@@ -57,6 +70,8 @@ const selectAllScenes = async () => {
 watch(selectMode, (on) => {
     if (!on) clearSelection();
 });
+// A card's hover checkbox turns select mode on, Escape clears the selection
+useCardSelectMode(selectMode, hasSelection, clearSelection);
 
 const handleBulkComplete = () => {
     clearSelection();
@@ -64,15 +79,19 @@ const handleBulkComplete = () => {
     loadScenes(scenesPage.value);
 };
 
-// Scene search/sort state
-const scenesQuery = ref('');
-const defaultSort = settingsStore.sortPreferences?.actor_scenes ?? '';
-const scenesSort = ref(
-    typeof route.query.sort === 'string' && route.query.sort ? route.query.sort : defaultSort,
-);
+// Scene search/sort state, kept in the URL (`q`, `sort`, `seed`, `page`) so that Back from a
+// scene, a reload or a shared link show the same scenes in the same order
+// A saved default or a link may hold a size sort the user cannot use (files:view_size): the
+// page default then (the API answers 403 otherwise and the scenes never load)
+const defaultSort = sanitizeSceneSort(settingsStore.sortPreferences?.actor_scenes, hasMyPermission);
+const scenesSort = useUrlSort(defaultSort);
+if (!sceneSortAllowed(scenesSort.value, hasMyPermission)) scenesSort.value = defaultSort;
+const { seed: scenesSeed, reshuffle: drawNewSeed } = useUrlSeed(scenesSort);
+const urlScenesQuery = useUrlString('q');
+const scenesQuery = ref(urlScenesQuery.value);
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-const sortOptions = [
+const allSortOptions = [
     { value: '', label: 'Newest' },
     { value: 'random', label: 'Random' },
     { value: 'created_at_asc', label: 'Oldest' },
@@ -80,35 +99,20 @@ const sortOptions = [
     { value: 'title_desc', label: 'Title Z-A' },
     { value: 'duration_asc', label: 'Shortest' },
     { value: 'duration_desc', label: 'Longest' },
+    { value: 'size_desc', label: 'Largest' },
+    { value: 'size_asc', label: 'Smallest' },
     { value: 'view_count_desc', label: 'Most Viewed' },
     { value: 'view_count_asc', label: 'Least Viewed' },
+    { value: 'jizz_count_desc', label: 'Most O' },
+    { value: 'jizz_count_asc', label: 'Least O' },
+    { value: 'last_jizz_desc', label: 'Last O' },
+    { value: 'last_jizz_asc', label: 'Oldest O' },
 ];
 
-// Random sort seed (synced to URL for persistence across refresh)
-const generateSeed = () => Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
-const scenesSeed = ref(route.query.seed ? Number(route.query.seed) : 0);
-
-// Single URL sync for sort + seed to avoid race conditions
-const syncSortToUrl = () => {
-    const query = { ...route.query };
-    if (scenesSort.value === defaultSort || !scenesSort.value) {
-        delete query.sort;
-    } else {
-        query.sort = scenesSort.value;
-    }
-    if (scenesSort.value === 'random' && scenesSeed.value) {
-        query.seed = String(scenesSeed.value);
-    } else {
-        delete query.seed;
-    }
-    router.replace({ query });
-};
-
 const reshuffle = () => {
-    scenesSeed.value = generateSeed();
-    syncSortToUrl();
-    scenesPage.value = 1;
-    loadScenes(1);
+    drawNewSeed();
+    if (scenesPage.value === 1) loadScenes(1);
+    else scenesPage.value = 1;
 };
 
 // Rating state
@@ -149,7 +153,15 @@ watch(
 
 const actorUuid = computed(() => route.params.uuid as string);
 
-const isAdmin = computed(() => authStore.user?.role === 'admin');
+const perms = useMyPermissions();
+// Create, edit and delete: actors:manage; merge: actors:merge; PornDB fetch: both actors:manage
+// and porndb:use
+const canManage = computed(() => perms.has('actors:manage'));
+const canMerge = computed(() => perms.has('actors:merge'));
+const canFetch = computed(() => canManage.value && perms.has('porndb:use'));
+const hasActions = computed(() => canManage.value || canMerge.value);
+// Size sorts need files:view_size
+const sortOptions = computed(() => allowedSortOptions(allSortOptions, perms.has));
 
 const displayRating = computed(() => (isHovering.value ? hoverRating.value : currentRating.value));
 
@@ -234,68 +246,116 @@ async function onLikeClick() {
     }
 }
 
-const loadScenes = async (page: number) => {
+// Infinite scroll (user setting): pages in the list and the filters they were loaded with
+const loadedPages = ref<LoadedPages>({ first: 0, last: 0 });
+const isLoadingMoreScenes = ref(false);
+let scenesRequest = 0;
+
+const runScenesPlan = async (plan: PageLoadPlan) => {
     if (!actor.value) return;
+    const request = ++scenesRequest;
+    const partial = plan.mode !== 'replace';
     try {
-        isLoadingScenes.value = true;
-        const response = await api.fetchActorScenes(
-            actorUuid.value,
-            page,
-            scenesLimit.value,
-            scenesQuery.value || undefined,
-            scenesSort.value || undefined,
-            actor.value.name,
-            scenesSort.value === 'random' ? scenesSeed.value : undefined,
+        if (partial) isLoadingMoreScenes.value = true;
+        else isLoadingScenes.value = true;
+        const name = actor.value.name;
+        const responses: SceneListResponse[] = await Promise.all(
+            plan.pages.map((p) =>
+                api.fetchActorScenes(
+                    actorUuid.value,
+                    p,
+                    scenesLimit.value,
+                    scenesQuery.value || undefined,
+                    scenesSort.value || undefined,
+                    name,
+                    scenesSort.value === 'random' ? scenesSeed.value : undefined,
+                    settingsStore.listFieldsParam,
+                ),
+            ),
         );
-        scenes.value = response.data;
-        scenesTotal.value = response.total;
+        // A newer load replaced this one
+        if (request !== scenesRequest) return;
+        scenes.value = mergePageItems(
+            scenes.value,
+            responses.flatMap((r) => r.data as Scene[]),
+            plan.mode,
+        );
+        scenesTotal.value = responses[responses.length - 1]?.total ?? 0;
+        scenesRatings.value = Object.assign(
+            partial ? { ...scenesRatings.value } : {},
+            ...responses.map((r) => r.ratings ?? {}),
+        );
+        scenesSidecars.value = mergeCardSidecars(scenesSidecars.value, responses, partial);
+        loadedPages.value = commitPageLoad(loadedPages.value, plan);
     } catch {
         // Ignore scene loading errors
     } finally {
-        isLoadingScenes.value = false;
+        if (request === scenesRequest) {
+            isLoadingScenes.value = false;
+            isLoadingMoreScenes.value = false;
+        }
     }
 };
+
+const scenesContext = () =>
+    JSON.stringify([
+        actorUuid.value,
+        scenesQuery.value,
+        scenesSort.value,
+        scenesSeed.value,
+        scenesLimit.value,
+    ]);
+
+// Loads a page (appended to the list when it is the next one with infinite scroll)
+const loadScenes = (page: number) =>
+    runScenesPlan(
+        planPageLoad(loadedPages.value, page, settingsStore.infiniteScroll, scenesContext()),
+    );
+
+const { keepPositionWhile } = useInfiniteScrollPosition();
+const hasMoreScenes = computed(
+    () => loadedPages.value.last * scenesLimit.value < scenesTotal.value,
+);
+// The page watcher loads it: the URL keeps the last loaded page
+const loadMoreScenes = () => {
+    if (isLoadingScenes.value || isLoadingMoreScenes.value) return;
+    scenesPage.value = loadedPages.value.last + 1;
+};
+const loadPreviousScenes = () =>
+    keepPositionWhile(async () => {
+        const plan = planPreviousPage(loadedPages.value);
+        if (plan) await runScenesPlan(plan);
+    });
+watch(
+    () => settingsStore.infiniteScroll,
+    () => loadScenes(scenesPage.value),
+);
 
 const onSearchInput = () => {
     if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
     searchDebounceTimer = setTimeout(() => {
         clearSelection();
-        scenesPage.value = 1;
-        loadScenes(1);
+        urlScenesQuery.value = scenesQuery.value;
+        if (scenesPage.value === 1) loadScenes(1);
+        else scenesPage.value = 1;
     }, 300);
 };
 
-watch(scenesSort, (newSort) => {
-    if (newSort === 'random' && scenesSeed.value === 0) {
-        scenesSeed.value = generateSeed();
-    } else if (newSort !== 'random') {
-        scenesSeed.value = 0;
+// Browser back/forward, links to this page
+watch(urlScenesQuery, (value) => {
+    if (value !== scenesQuery.value) {
+        scenesQuery.value = value;
+        onSearchInput();
     }
-    clearSelection();
-    syncSortToUrl();
-    scenesPage.value = 1;
-    loadScenes(1);
 });
 
-// Handle browser back/forward navigation
-watch(
-    () => route.query.sort,
-    () => {
-        const urlSort =
-            typeof route.query.sort === 'string' && route.query.sort
-                ? route.query.sort
-                : defaultSort;
-        if (scenesSort.value !== urlSort) {
-            scenesSort.value = urlSort;
-        }
-    },
-);
+watch(scenesSort, () => {
+    clearSelection();
+    if (scenesPage.value === 1) loadScenes(1);
+    else scenesPage.value = 1;
+});
 
 onMounted(() => {
-    if (scenesSort.value === 'random' && scenesSeed.value === 0) {
-        scenesSeed.value = generateSeed();
-        syncSortToUrl();
-    }
     loadActor();
 });
 
@@ -313,9 +373,9 @@ watch(
     },
 );
 
-const goBack = () => {
-    router.push('/actors');
-};
+// Back to the list with its filters, page and scroll position when coming from it
+const { backTo } = useNavOrigin();
+const goBack = () => backTo('/actors');
 
 const handleActorUpdated = () => {
     showEditModal.value = false;
@@ -325,6 +385,15 @@ const handleActorUpdated = () => {
 const handleActorCreated = (newActor: Actor) => {
     showCreateModal.value = false;
     router.push(`/actors/${newActor.uuid}`);
+};
+
+const onAliasesUpdated = (aliases: string[]) => {
+    if (actor.value) actor.value.aliases = aliases;
+};
+
+const handleActorMerged = (targetUuid: string) => {
+    showMergeModal.value = false;
+    router.push(`/actors/${targetUuid}`);
 };
 
 const handleActorDeleted = () => {
@@ -367,7 +436,7 @@ definePageMeta({
 
 <template>
     <div class="min-h-screen px-4 py-6 sm:px-5">
-        <div class="mx-auto max-w-415">
+        <div :class="containerClass">
             <!-- Back Button -->
             <button
                 class="text-dim hover:text-lava mb-4 flex items-center gap-1 text-sm
@@ -524,9 +593,13 @@ definePageMeta({
                                 <h1 class="truncate text-xl font-bold text-white sm:text-2xl">
                                     {{ actor.name }}
                                 </h1>
-                                <p v-if="actor.aliases?.length" class="text-dim mt-0.5 text-sm">
-                                    Also known as: {{ actor.aliases.join(', ') }}
-                                </p>
+                                <AliasesPanel
+                                    kind="actor"
+                                    :entity-id="actor.id"
+                                    :aliases="actor.aliases || []"
+                                    :editable="canManage"
+                                    @updated="onAliasesUpdated"
+                                />
                                 <div class="text-dim mt-1 text-sm">
                                     {{ actor.scene_count }}
                                     {{ actor.scene_count === 1 ? 'scene' : 'scenes' }}
@@ -534,8 +607,9 @@ definePageMeta({
                             </div>
 
                             <!-- Desktop: Full admin buttons -->
-                            <div v-if="isAdmin" class="hidden items-center gap-2 sm:flex">
+                            <div v-if="hasActions" class="hidden items-center gap-2 sm:flex">
                                 <button
+                                    v-if="canManage"
                                     class="border-border bg-panel hover:border-lava/50
                                         hover:text-lava text-dim flex items-center gap-1 rounded-lg
                                         border px-3 py-1.5 text-sm transition-colors"
@@ -545,6 +619,7 @@ definePageMeta({
                                     New
                                 </button>
                                 <button
+                                    v-if="canFetch"
                                     class="border-border bg-panel hover:border-lava/50
                                         hover:text-lava text-dim flex items-center gap-1 rounded-lg
                                         border px-3 py-1.5 text-sm transition-colors"
@@ -554,6 +629,7 @@ definePageMeta({
                                     Fetch
                                 </button>
                                 <button
+                                    v-if="canManage"
                                     class="border-border bg-panel hover:border-lava/50
                                         hover:text-lava text-dim flex items-center gap-1 rounded-lg
                                         border px-3 py-1.5 text-sm transition-colors"
@@ -563,6 +639,18 @@ definePageMeta({
                                     Edit
                                 </button>
                                 <button
+                                    v-if="canMerge"
+                                    class="border-border bg-panel hover:border-lava/50
+                                        hover:text-lava text-dim flex items-center gap-1 rounded-lg
+                                        border px-3 py-1.5 text-sm transition-colors"
+                                    title="Merge this actor into another one"
+                                    @click="showMergeModal = true"
+                                >
+                                    <Icon name="heroicons:arrows-pointing-in" size="14" />
+                                    Merge into...
+                                </button>
+                                <button
+                                    v-if="canManage"
                                     class="border-border bg-panel text-dim flex items-center gap-1
                                         rounded-lg border px-3 py-1.5 text-sm transition-colors
                                         hover:border-red-500/50 hover:text-red-500"
@@ -574,7 +662,7 @@ definePageMeta({
                             </div>
 
                             <!-- Mobile: Dropdown menu -->
-                            <div v-if="isAdmin" class="relative sm:hidden">
+                            <div v-if="hasActions" class="relative sm:hidden">
                                 <button
                                     class="border-border bg-panel text-dim flex h-9 w-9 items-center
                                         justify-center rounded-lg border transition-colors
@@ -592,6 +680,7 @@ definePageMeta({
                                             w-40 rounded-lg border py-1 shadow-xl"
                                     >
                                         <button
+                                            v-if="canManage"
                                             class="text-dim flex w-full items-center gap-2 px-3 py-2
                                                 text-sm transition-colors hover:bg-white/5
                                                 hover:text-white"
@@ -604,6 +693,7 @@ definePageMeta({
                                             New Actor
                                         </button>
                                         <button
+                                            v-if="canFetch"
                                             class="text-dim flex w-full items-center gap-2 px-3 py-2
                                                 text-sm transition-colors hover:bg-white/5
                                                 hover:text-white"
@@ -616,6 +706,7 @@ definePageMeta({
                                             Fetch Metadata
                                         </button>
                                         <button
+                                            v-if="canManage"
                                             class="text-dim flex w-full items-center gap-2 px-3 py-2
                                                 text-sm transition-colors hover:bg-white/5
                                                 hover:text-white"
@@ -627,8 +718,22 @@ definePageMeta({
                                             <Icon name="heroicons:pencil" size="16" />
                                             Edit
                                         </button>
-                                        <div class="border-border my-1 border-t" />
                                         <button
+                                            v-if="canMerge"
+                                            class="text-dim flex w-full items-center gap-2 px-3 py-2
+                                                text-sm transition-colors hover:bg-white/5
+                                                hover:text-white"
+                                            @click="
+                                                showMergeModal = true;
+                                                showAdminMenu = false;
+                                            "
+                                        >
+                                            <Icon name="heroicons:arrows-pointing-in" size="16" />
+                                            Merge into...
+                                        </button>
+                                        <div v-if="canManage" class="border-border my-1 border-t" />
+                                        <button
+                                            v-if="canManage"
                                             class="flex w-full items-center gap-2 px-3 py-2 text-sm
                                                 text-red-400 transition-colors hover:bg-red-500/10"
                                             @click="
@@ -753,7 +858,7 @@ definePageMeta({
                                     <div v-if="actor.birthday" class="flex justify-between">
                                         <dt class="text-dim">Birthday</dt>
                                         <dd class="text-white">
-                                            {{ new Date(actor.birthday).toLocaleDateString() }}
+                                            <UiFormattedDate :datetime="actor.birthday" utc />
                                         </dd>
                                     </div>
                                     <div v-if="actor.birthplace" class="flex justify-between">
@@ -866,7 +971,7 @@ definePageMeta({
                             <div v-if="actor.birthday" class="flex justify-between">
                                 <dt class="text-dim">Birthday</dt>
                                 <dd class="text-white">
-                                    {{ new Date(actor.birthday).toLocaleDateString() }}
+                                    <UiFormattedDate :datetime="actor.birthday" utc />
                                 </dd>
                             </div>
                             <div v-if="actor.birthplace" class="flex justify-between">
@@ -1021,6 +1126,9 @@ definePageMeta({
                             @select-page="selectAllOnPage()"
                             @select-all="selectAllScenes()"
                         />
+
+                        <!-- Grid / table -->
+                        <SceneTableViewControls page="actor" tall />
                     </div>
 
                     <div v-if="isLoadingScenes" class="flex h-32 items-center justify-center">
@@ -1037,15 +1145,44 @@ definePageMeta({
                     </div>
 
                     <div v-else>
-                        <SelectableSceneGrid
-                            v-if="selectMode"
+                        <Pagination
+                            v-if="!settingsStore.infiniteScroll"
+                            v-model="scenesPage"
+                            position="top"
+                            :total="scenesTotal"
+                            :limit="scenesLimit"
+                        />
+                        <SceneListLoadPrevious
+                            v-else-if="loadedPages.first > 1"
+                            :first-page="loadedPages.first"
+                            :loading="isLoadingMoreScenes"
+                            @load-previous="loadPreviousScenes"
+                        />
+
+                        <SceneCollection
                             :scenes="scenes"
+                            :ratings="scenesRatings"
+                            :likes="scenesSidecars.likes"
+                            :jizz-counts="scenesSidecars.jizzCounts"
+                            :watched="scenesSidecars.watched"
+                            :table="isTable"
+                            :select-mode="selectMode"
                             :is-scene-selected="isSceneSelected"
+                            :sort="scenesSort"
+                            default-sort="created_at_desc"
                             @toggle-selection="toggleSceneSelection"
                             @drag-select="(ids, additive) => dragSelect(ids, additive)"
+                            @sort="onTableSort"
                         />
-                        <SceneGrid v-else :scenes="scenes" />
+                        <SceneListInfiniteLoader
+                            v-if="settingsStore.infiniteScroll"
+                            :has-more="hasMoreScenes"
+                            :loading="isLoadingMoreScenes"
+                            :total="scenesTotal"
+                            @load-more="loadMoreScenes"
+                        />
                         <Pagination
+                            v-else
                             v-model="scenesPage"
                             :total="scenesTotal"
                             :limit="scenesLimit"
@@ -1057,6 +1194,7 @@ definePageMeta({
                         v-if="hasSelection"
                         :scene-ids="getSelectedSceneIDs()"
                         :selection-count="selectionCount"
+                        :scenes="scenes"
                         @clear-selection="clearSelection()"
                         @complete="handleBulkComplete"
                     />
@@ -1089,6 +1227,16 @@ definePageMeta({
                 :current-actor="actor"
                 @close="showFetchModal = false"
                 @apply="handleApplyMetadata"
+            />
+
+            <!-- Merge Modal -->
+            <MergeEntityModal
+                v-if="actor && showMergeModal"
+                :visible="showMergeModal"
+                kind="actor"
+                :source="actor"
+                @close="showMergeModal = false"
+                @merged="handleActorMerged"
             />
 
             <!-- Delete Modal -->

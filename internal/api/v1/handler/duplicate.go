@@ -1,11 +1,14 @@
 package handler
 
 import (
+	"goonhub/internal/api/middleware"
 	"goonhub/internal/api/v1/response"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
 	"goonhub/internal/data"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -35,8 +38,14 @@ func (h *DuplicateHandler) ListGroups(c *gin.Context) {
 
 	status := c.Query("status")
 	sortBy := c.DefaultQuery("sort_by", "newest")
+	// kind: identical, containment, partial or unverified (empty: all groups)
+	kind := c.Query("kind")
+	if kind != "" && !core.IsValidDuplicateKind(kind) {
+		response.BadRequest(c, "kind must be one of identical, containment, partial, unverified")
+		return
+	}
 
-	groups, total, err := h.duplicateService.ListGroups(page, limit, status, sortBy)
+	groups, total, err := h.duplicateService.ListGroups(page, limit, status, kind, sortBy)
 	if err != nil {
 		response.InternalError(c, "Failed to list duplicate groups")
 		return
@@ -48,6 +57,23 @@ func (h *DuplicateHandler) ListGroups(c *gin.Context) {
 	}
 
 	response.OK(c, response.NewPaginatedResponse(respGroups, page, limit, total))
+}
+
+// SelectableIDs returns the IDs of the unresolved groups of a kind, for "select all": at most
+// the bulk actions' maximum, with the total.
+// GET /admin/duplicates/selectable-ids?kind= -> {"ids": [...], "total": n, "limit": 500}
+func (h *DuplicateHandler) SelectableIDs(c *gin.Context) {
+	kind := c.Query("kind")
+	if kind != "" && !core.IsValidDuplicateKind(kind) {
+		response.BadRequest(c, "kind must be one of identical, containment, partial, unverified")
+		return
+	}
+	ids, total, err := h.duplicateService.SelectableGroupIDs(kind, maxBulkDuplicateGroups)
+	if err != nil {
+		response.InternalError(c, "Failed to list duplicate groups")
+		return
+	}
+	response.OK(c, gin.H{"ids": ids, "total": total, "limit": maxBulkDuplicateGroups})
 }
 
 // GetGroup returns a single duplicate group with full details
@@ -103,6 +129,10 @@ func (h *DuplicateHandler) GetConfig(c *gin.Context) {
 			VisualMinSpan:           30,
 			DeltaTolerance:          2,
 			FingerprintMode:         "audio_only",
+			DeleteResolvedFiles:     false,
+			DeletionDelayHours:      defaultDeletionDelayHours,
+			BestSelectionCriteria:   core.DefaultBestCriteria,
+			AvailableBestCriteria:   core.AllBestCriteria,
 		})
 		return
 	}
@@ -110,6 +140,10 @@ func (h *DuplicateHandler) GetConfig(c *gin.Context) {
 	fpMode := cfg.FingerprintMode
 	if fpMode == "" {
 		fpMode = "audio_only"
+	}
+	criteria, err := core.ParseBestCriteria(cfg.BestSelectionCriteria)
+	if err != nil {
+		criteria = core.DefaultBestCriteria
 	}
 
 	response.OK(c, response.DuplicationConfigResponse{
@@ -122,6 +156,10 @@ func (h *DuplicateHandler) GetConfig(c *gin.Context) {
 		VisualMinSpan:           cfg.VisualMinSpan,
 		DeltaTolerance:          cfg.DeltaTolerance,
 		FingerprintMode:         fpMode,
+		DeleteResolvedFiles:     cfg.DeleteResolvedFiles,
+		DeletionDelayHours:      cfg.DeletionDelayHours,
+		BestSelectionCriteria:   criteria,
+		AvailableBestCriteria:   core.AllBestCriteria,
 	})
 }
 
@@ -142,6 +180,15 @@ func (h *DuplicateHandler) UpdateConfig(c *gin.Context) {
 		response.BadRequest(c, "fingerprint_mode must be 'audio_only' or 'dual'")
 		return
 	}
+	if req.DeletionDelayHours < 0 || req.DeletionDelayHours > maxDeletionDelayHours {
+		response.BadRequest(c, "deletion_delay_hours must be between 0 and 8760")
+		return
+	}
+	criteria, err := core.ParseBestCriteria(strings.Join(req.BestSelectionCriteria, ","))
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
 
 	record := &data.DuplicationConfigRecord{
 		AudioDensityThreshold:   req.AudioDensityThreshold,
@@ -153,6 +200,9 @@ func (h *DuplicateHandler) UpdateConfig(c *gin.Context) {
 		VisualMinSpan:           req.VisualMinSpan,
 		DeltaTolerance:          req.DeltaTolerance,
 		FingerprintMode:         fpMode,
+		DeleteResolvedFiles:     req.DeleteResolvedFiles,
+		DeletionDelayHours:      req.DeletionDelayHours,
+		BestSelectionCriteria:   strings.Join(criteria, ","),
 	}
 
 	if err := h.dupConfigRepo.Upsert(record); err != nil {
@@ -161,7 +211,120 @@ func (h *DuplicateHandler) UpdateConfig(c *gin.Context) {
 	}
 
 	req.FingerprintMode = fpMode
+	req.BestSelectionCriteria = criteria
+	req.AvailableBestCriteria = core.AllBestCriteria
 	response.OK(c, req)
+}
+
+const (
+	defaultDeletionDelayHours = 72
+	maxDeletionDelayHours     = 8760 // one year
+	maxBulkDuplicateGroups    = 500
+)
+
+type groupIDsRequest struct {
+	GroupIDs []uint `json:"group_ids" binding:"required,min=1"`
+}
+
+type bulkResolveRequest struct {
+	GroupIDs      []uint `json:"group_ids" binding:"required,min=1"`
+	AutoSelect    bool   `json:"auto_select"`
+	MergeMetadata bool   `json:"merge_metadata"`
+}
+
+// AutoSelectBest marks the best variant (resolution, then duration, bitrate, smallest size)
+// in each given unresolved group. Groups whose scenes are not all identical are skipped and
+// listed in "skipped" with the reason.
+func (h *DuplicateHandler) AutoSelectBest(c *gin.Context) {
+	var req groupIDsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "group_ids is required")
+		return
+	}
+	if len(req.GroupIDs) > maxBulkDuplicateGroups {
+		response.BadRequest(c, "too many groups (max 500)")
+		return
+	}
+	result, err := h.duplicateService.AutoSelectBest(req.GroupIDs)
+	if err != nil {
+		response.InternalError(c, "Failed to auto-select best scenes: "+err.Error())
+		return
+	}
+	response.OK(c, result)
+}
+
+// ResolveBulk resolves several groups at once (optionally auto-selecting the best variant).
+// Groups whose scenes are not all identical are skipped and listed in "skipped".
+func (h *DuplicateHandler) ResolveBulk(c *gin.Context) {
+	var req bulkResolveRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "group_ids is required")
+		return
+	}
+	if len(req.GroupIDs) > maxBulkDuplicateGroups {
+		response.BadRequest(c, "too many groups (max 500)")
+		return
+	}
+	response.OK(c, h.duplicateService.ResolveGroups(req.GroupIDs, req.AutoSelect, req.MergeMetadata))
+}
+
+// TrashAll moves every scene of a group to the trash, the best one included, and marks the
+// group resolved with no kept scene. Files are never deleted here: the trash's lifecycle decides.
+// POST /admin/duplicates/:id/trash-all
+func (h *DuplicateHandler) TrashAll(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+	result, err := h.duplicateService.TrashAllGroup(uint(id))
+	if err != nil {
+		if apperrors.IsNotFound(err) {
+			response.Error(c, err)
+			return
+		}
+		response.InternalError(c, "Failed to trash group scenes: "+err.Error())
+		return
+	}
+	response.OK(c, result)
+}
+
+// TrashAllBulk runs TrashAll on several unresolved groups, reporting each failed group.
+// POST /admin/duplicates/trash-all-bulk {"group_ids": [...]}
+func (h *DuplicateHandler) TrashAllBulk(c *gin.Context) {
+	var req groupIDsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "group_ids is required")
+		return
+	}
+	if len(req.GroupIDs) > maxBulkDuplicateGroups {
+		response.BadRequest(c, "too many groups (max 500)")
+		return
+	}
+	response.OK(c, h.duplicateService.TrashAllGroups(req.GroupIDs))
+}
+
+type cancelDeletionRequest struct {
+	SceneID uint `json:"scene_id" binding:"required"`
+}
+
+// CancelDeletion cancels the scheduled deletion of a scene not kept at resolution.
+func (h *DuplicateHandler) CancelDeletion(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+	var req cancelDeletionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "scene_id is required")
+		return
+	}
+	if err := h.duplicateService.CancelDeletion(uint(id), req.SceneID); err != nil {
+		response.InternalError(c, "Failed to cancel deletion")
+		return
+	}
+	response.OK(c, gin.H{"message": "Deletion cancelled"})
 }
 
 type resolveGroupRequest struct {
@@ -183,12 +346,51 @@ func (h *DuplicateHandler) ResolveGroup(c *gin.Context) {
 		return
 	}
 
-	if err := h.duplicateService.ResolveGroup(uint(id), req.BestSceneID, req.MergeMetadata); err != nil {
+	result, err := h.duplicateService.ResolveGroup(uint(id), req.BestSceneID, req.MergeMetadata)
+	if err != nil {
 		response.InternalError(c, "Failed to resolve group: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Group resolved"})
+	// markers: moved / shifted / deduplicated / left_behind (zero without merge_metadata)
+	c.JSON(http.StatusOK, gin.H{"message": "Group resolved", "markers": result.Markers})
+}
+
+type excludeMembersRequest struct {
+	SceneIDs []uint `json:"scene_ids" binding:"required,min=1"`
+}
+
+// ExcludeMembers removes scenes that are not duplicates from an unresolved group and records
+// them as not duplicates of the remaining members (fingerprint matching won't regroup them).
+// The best scene is replaced when removed, the group dismissed when fewer than 2 members
+// remain. No scene is trashed and no file is touched.
+// POST /admin/duplicates/:id/exclude {"scene_ids": [...]}
+// -> {"excluded": [...], "dismissed": bool, "group": {...}}
+func (h *DuplicateHandler) ExcludeMembers(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+	var req excludeMembersRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "scene_ids is required")
+		return
+	}
+	result, err := h.duplicateService.ExcludeMembers(uint(id), req.SceneIDs)
+	if err != nil {
+		if apperrors.IsNotFound(err) || apperrors.IsValidation(err) {
+			response.Error(c, err)
+			return
+		}
+		response.InternalError(c, "Failed to exclude scenes from the group: "+err.Error())
+		return
+	}
+	response.OK(c, gin.H{
+		"excluded":  result.Excluded,
+		"dismissed": result.Dismissed,
+		"group":     response.ToDuplicateGroupResponse(*result.Group),
+	})
 }
 
 // DismissGroup dismisses a duplicate group
@@ -231,4 +433,28 @@ func (h *DuplicateHandler) SetBest(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Best scene updated"})
+}
+
+// GetSimilarScenes lists the scenes sharing the duplicate group (fingerprint match) of a
+// scene, for the watch page. Users with library:insights also get the trashed ones, flagged;
+// the sizes need files:view_size.
+// GET /scenes/:id/similar
+func (h *DuplicateHandler) GetSimilarScenes(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid scene ID")
+		return
+	}
+	includeTrashed := middleware.HasPermission(c, core.PermLibraryInsights)
+	result, err := h.duplicateService.GetSimilarScenes(uint(id), includeTrashed)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	if !fileVisibility(c).Size {
+		for i := range result.Scenes {
+			result.Scenes[i].Size = nil
+		}
+	}
+	response.OK(c, result)
 }

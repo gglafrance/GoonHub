@@ -5,16 +5,18 @@
  * - P0: Scene (critical - blocks rendering)
  * - P1: Markers + Resume position (player experience)
  * - P2: Interactions + Studio + Tags + Actors (details tab)
- * - P3: Related scenes + PornDB status (below fold / admin only)
+ * - P3: Related scenes + similar scenes + PornDB status (below fold / admin only)
  *
  * Child components inject data instead of fetching independently,
  * eliminating network congestion and ensuring predictable load order.
  */
+import type { CardSidecarMaps } from '~/utils/cardSidecars';
 import type { Scene, SceneListItem } from '~/types/scene';
 import type { Marker } from '~/types/marker';
 import type { Studio } from '~/types/studio';
 import type { Tag } from '~/types/tag';
 import type { Actor } from '~/types/actor';
+import type { SimilarScenesResponse } from '~/types/duplicates';
 
 export interface SceneInteractions {
     rating: number;
@@ -43,6 +45,10 @@ export interface WatchPageData {
 
     // Below fold
     relatedScenes: Ref<SceneListItem[]>;
+    // the user's interactions with the related scenes, for their card badges
+    relatedSidecars: Ref<CardSidecarMaps>;
+    // Scenes sharing the duplicate group (fingerprint match) of this one (Similar tab)
+    similar: Ref<SimilarScenesResponse | null>;
     pornDBConfigured: Ref<boolean>;
 
     // Loading states per tier (reactive object for proper template unwrapping)
@@ -70,9 +76,13 @@ export interface WatchPageData {
 export const WATCH_PAGE_DATA_KEY = 'watchPageData';
 
 export function useWatchPageData(sceneId: Ref<number>): WatchPageData {
-    const authStore = useAuthStore();
-    const { fetchScene, fetchSceneInteractions, getResumePosition, fetchRelatedScenes } =
-        useApiScenes();
+    const {
+        fetchScene,
+        fetchSceneInteractions,
+        getResumePosition,
+        fetchRelatedScenes,
+        fetchSimilarScenes,
+    } = useApiScenes();
     const { fetchMarkers } = useApiMarkers();
     const { fetchSceneStudio } = useApiStudios();
     const { fetchSceneTags } = useApiTags();
@@ -92,6 +102,8 @@ export function useWatchPageData(sceneId: Ref<number>): WatchPageData {
 
     // Below fold
     const relatedScenes = ref<SceneListItem[]>([]);
+    const relatedSidecars = ref<CardSidecarMaps>(emptyCardSidecars());
+    const similar = ref<SimilarScenesResponse | null>(null);
     const pornDBConfigured = ref(false);
 
     // Loading states (reactive for proper template unwrapping)
@@ -105,7 +117,8 @@ export function useWatchPageData(sceneId: Ref<number>): WatchPageData {
     // Error state
     const error = ref<string | null>(null);
 
-    const isAdmin = computed(() => authStore.user?.role === 'admin');
+    const perms = useMyPermissions();
+    const canUsePornDB = computed(() => perms.has('porndb:use'));
 
     // P0: Critical - fetch scene
     async function loadP0(): Promise<boolean> {
@@ -195,7 +208,7 @@ export function useWatchPageData(sceneId: Ref<number>): WatchPageData {
         loading.details = false;
     }
 
-    // P3: Below fold - related scenes + PornDB status (deferred)
+    // P3: Below fold - related scenes, similar scenes + PornDB status (deferred)
     async function loadP3(): Promise<void> {
         loading.related = true;
 
@@ -204,13 +217,25 @@ export function useWatchPageData(sceneId: Ref<number>): WatchPageData {
         const relatedPromise = fetchRelatedScenes(sceneId.value, RELATED_LIMIT)
             .then((res) => {
                 relatedScenes.value = res.data || [];
+                relatedSidecars.value = mergeCardSidecars(emptyCardSidecars(), [res], false);
             })
             .catch(() => {
                 // Silent fail
             });
 
-        // Only check PornDB status for admins
-        const pornDBPromise = isAdmin.value
+        // Similar scenes (Similar tab, shown only when there are some); kept only if the
+        // scene did not change meanwhile
+        const similarFor = sceneId.value;
+        const similarPromise = fetchSimilarScenes(similarFor)
+            .then((res) => {
+                if (sceneId.value === similarFor) similar.value = res;
+            })
+            .catch(() => {
+                // Silent fail: no Similar tab
+            });
+
+        // Only check PornDB status for users allowed to use it
+        const pornDBPromise = canUsePornDB.value
             ? getPornDBStatus()
                   .then((status) => {
                       pornDBConfigured.value = status.configured;
@@ -220,7 +245,7 @@ export function useWatchPageData(sceneId: Ref<number>): WatchPageData {
                   })
             : Promise.resolve();
 
-        await Promise.all([relatedPromise, pornDBPromise]);
+        await Promise.all([relatedPromise, similarPromise, pornDBPromise]);
         loading.related = false;
     }
 
@@ -234,6 +259,8 @@ export function useWatchPageData(sceneId: Ref<number>): WatchPageData {
         tags.value = [];
         actors.value = [];
         relatedScenes.value = [];
+        relatedSidecars.value = emptyCardSidecars();
+        similar.value = null;
         pornDBConfigured.value = false;
 
         // P0: Scene (critical)
@@ -335,6 +362,8 @@ export function useWatchPageData(sceneId: Ref<number>): WatchPageData {
         tags,
         actors,
         relatedScenes,
+        relatedSidecars,
+        similar,
         pornDBConfigured,
 
         // Loading states

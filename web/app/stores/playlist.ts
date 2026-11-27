@@ -2,10 +2,12 @@ import type {
     PlaylistListItem,
     PlaylistDetail,
     CreatePlaylistInput,
+    CreatePlaylistResult,
     UpdatePlaylistInput,
     PlaylistSortOption,
     PlaylistOwnerFilter,
     PlaylistVisibilityFilter,
+    PlaylistKindFilter,
 } from '~/types/playlist';
 
 export const usePlaylistStore = defineStore('playlist', () => {
@@ -28,14 +30,22 @@ export const usePlaylistStore = defineStore('playlist', () => {
     // Filters
     const ownerFilter = ref<PlaylistOwnerFilter>('me');
     const visibilityFilter = ref<PlaylistVisibilityFilter>('');
+    const kindFilter = ref<PlaylistKindFilter>('');
     const sortOrder = ref<PlaylistSortOption>('created_at_desc');
     const tagFilter = ref<number[]>([]);
     const searchQuery = ref('');
 
     const totalPages = computed(() => Math.ceil(total.value / limit.value));
 
+    // Params and data version of the list held: back on the same list (Back from a playlist or
+    // a scene), it stays on screen while it refreshes instead of flashing a spinner
+    let listKey = '';
+    let listVersion = -1;
+    let listSeq = 0;
+
     const loadPlaylists = async () => {
-        isLoading.value = true;
+        const version = currentDataVersion();
+        const seq = ++listSeq;
         error.value = '';
 
         try {
@@ -49,6 +59,9 @@ export const usePlaylistStore = defineStore('playlist', () => {
             if (visibilityFilter.value) {
                 params.visibility = visibilityFilter.value;
             }
+            if (kindFilter.value) {
+                params.kind = kindFilter.value;
+            }
             if (tagFilter.value.length > 0) {
                 params.tag_ids = tagFilter.value.join(',');
             }
@@ -56,22 +69,39 @@ export const usePlaylistStore = defineStore('playlist', () => {
                 params.search = searchQuery.value;
             }
 
+            const key = JSON.stringify(params);
+            if (key !== listKey || version !== listVersion) isLoading.value = true;
             const result = await api.fetchPlaylists(params);
+            if (seq !== listSeq) return;
             playlists.value = result.data;
             total.value = result.pagination.total_items;
+            listKey = key;
+            listVersion = version;
         } catch (e: unknown) {
+            if (seq !== listSeq) return;
             error.value = e instanceof Error ? e.message : 'Failed to load playlists';
+            listKey = '';
         } finally {
-            isLoading.value = false;
+            if (seq === listSeq) isLoading.value = false;
         }
     };
 
+    let detailVersion = -1;
+
     const loadPlaylist = async (uuid: string) => {
-        isLoadingDetail.value = true;
+        const version = currentDataVersion();
+        // Same playlist already held and nothing edited since: refresh it in place
+        const held = currentPlaylist.value?.uuid === uuid && version === detailVersion;
+        if (!held) {
+            currentPlaylist.value = null;
+            isLoadingDetail.value = true;
+        }
         detailError.value = '';
 
         try {
-            currentPlaylist.value = await api.fetchPlaylist(uuid);
+            const result = await api.fetchPlaylist(uuid);
+            currentPlaylist.value = result;
+            detailVersion = version;
         } catch (e: unknown) {
             detailError.value = e instanceof Error ? e.message : 'Failed to load playlist';
         } finally {
@@ -79,7 +109,9 @@ export const usePlaylistStore = defineStore('playlist', () => {
         }
     };
 
-    const createPlaylist = async (input: CreatePlaylistInput): Promise<PlaylistListItem | null> => {
+    const createPlaylist = async (
+        input: CreatePlaylistInput,
+    ): Promise<CreatePlaylistResult | null> => {
         try {
             const result = await api.createPlaylist(input);
             await loadPlaylists();
@@ -184,6 +216,43 @@ export const usePlaylistStore = defineStore('playlist', () => {
         }
     };
 
+    // Marker playlists
+    const removeMarkers = async (uuid: string, markerIDs: number[]): Promise<boolean> => {
+        try {
+            if (markerIDs.length === 1) await api.removeMarker(uuid, markerIDs[0]!);
+            else await api.removeMarkers(uuid, markerIDs);
+            if (currentPlaylist.value?.uuid === uuid) {
+                // Counts and duration come from the server
+                await loadPlaylist(uuid);
+            }
+            return true;
+        } catch (e: unknown) {
+            error.value = e instanceof Error ? e.message : 'Failed to remove markers';
+            return false;
+        }
+    };
+
+    const reorderMarkers = async (uuid: string, markerIDs: number[]): Promise<boolean> => {
+        const held = currentPlaylist.value;
+        if (held?.uuid === uuid) {
+            // Moves the rows right away; the server order is reloaded after
+            const byId = new Map(held.markers.map((m) => [m.marker.id, m]));
+            const next = markerIDs.map((id) => byId.get(id)).filter((m) => m !== undefined);
+            if (next.length === held.markers.length) held.markers = next;
+        }
+        try {
+            await api.reorderMarkers(uuid, markerIDs);
+            if (currentPlaylist.value?.uuid === uuid) {
+                await loadPlaylist(uuid);
+            }
+            return true;
+        } catch (e: unknown) {
+            error.value = e instanceof Error ? e.message : 'Failed to reorder markers';
+            if (currentPlaylist.value?.uuid === uuid) await loadPlaylist(uuid);
+            return false;
+        }
+    };
+
     const toggleLike = async (uuid: string): Promise<boolean | null> => {
         try {
             const result = await api.toggleLike(uuid);
@@ -221,6 +290,7 @@ export const usePlaylistStore = defineStore('playlist', () => {
     const resetFilters = () => {
         ownerFilter.value = 'me';
         visibilityFilter.value = '';
+        kindFilter.value = '';
         sortOrder.value = 'created_at_desc';
         tagFilter.value = [];
         searchQuery.value = '';
@@ -245,6 +315,7 @@ export const usePlaylistStore = defineStore('playlist', () => {
         // Filters
         ownerFilter,
         visibilityFilter,
+        kindFilter,
         sortOrder,
         tagFilter,
         searchQuery,
@@ -259,6 +330,8 @@ export const usePlaylistStore = defineStore('playlist', () => {
         removeScene,
         removeScenes,
         reorderScenes,
+        removeMarkers,
+        reorderMarkers,
         toggleLike,
         updateProgress,
         resetFilters,

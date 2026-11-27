@@ -8,10 +8,12 @@ interface Options {
     scene: Ref<Scene | null | undefined>;
     onTheaterModeToggle: () => void;
     onABLoopToggle?: () => void;
+    // No shortcut while true (e.g. a dialog over the player is being typed in)
+    suspended?: Ref<boolean>;
 }
 
 export const useScenePlayerShortcuts = (options: Options) => {
-    const { player, scene, onTheaterModeToggle, onABLoopToggle } = options;
+    const { player, scene, onTheaterModeToggle, onABLoopToggle, suspended } = options;
     const { keys } = useKeyboardLayout();
 
     const SEEK_SHORT = 5;
@@ -25,7 +27,10 @@ export const useScenePlayerShortcuts = (options: Options) => {
     };
 
     const handleKeydown = (e: KeyboardEvent) => {
+        if (suspended?.value) return;
         if (isInputElement(e.target as HTMLElement)) return;
+        // Ctrl/Cmd/Alt combinations belong to the browser and the app (Ctrl+K: command palette)
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
         if (!player.value) return;
 
         const p = player.value;

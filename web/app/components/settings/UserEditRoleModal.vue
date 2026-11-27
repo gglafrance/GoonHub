@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import type { AdminUser, RoleResponse } from '~/types/admin';
+import type { AdminUser } from '~/types/admin';
+import type { RoleSummary } from '~/types/permissions';
 
 const props = defineProps<{
     visible: boolean;
     user: AdminUser | null;
-    roles: RoleResponse[];
+    roles: RoleSummary[];
 }>();
 
 const emit = defineEmits<{
@@ -12,19 +13,21 @@ const emit = defineEmits<{
     updated: [];
 }>();
 
-const { updateUserRole } = useApi();
+const { updateUserRole } = useApiAdmin();
 
 const roleValue = ref('');
 const loading = ref(false);
 const error = ref('');
 
+const roleOptions = computed(() => props.roles.map((r) => ({ value: r.name, label: r.name })));
+
+// Reset to the user's role on each opening
 watch(
-    () => props.user,
-    (u) => {
-        if (u) {
-            roleValue.value = u.role;
-        }
+    () => [props.visible, props.user] as const,
+    ([visible, u]) => {
+        if (visible && u) roleValue.value = u.role;
     },
+    { immediate: true },
 );
 
 const handleSubmit = async () => {
@@ -74,8 +77,9 @@ const handleClose = () => {
                             Role
                         </label>
                         <UiSelectMenu
-                            v-model="roleValue"
-                            :options="roles.map((r) => ({ value: r.name, label: r.name }))"
+                            :model-value="roleValue"
+                            :options="roleOptions"
+                            @update:model-value="roleValue = String($event)"
                         />
                     </div>
                     <div class="flex justify-end gap-2 pt-2">
@@ -89,7 +93,7 @@ const handleClose = () => {
                         </button>
                         <button
                             type="submit"
-                            :disabled="loading"
+                            :disabled="loading || roleValue === user?.role"
                             class="bg-lava hover:bg-lava-glow rounded-lg px-4 py-1.5 text-xs
                                 font-semibold text-white transition-all disabled:cursor-not-allowed
                                 disabled:opacity-40"

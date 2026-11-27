@@ -17,6 +17,7 @@ type ScanHistory struct {
 	VideosSkipped int        `gorm:"not null;default:0" json:"videos_skipped"`
 	VideosRemoved int        `gorm:"not null;default:0" json:"videos_removed"`
 	VideosMoved   int        `gorm:"not null;default:0" json:"videos_moved"`
+	CopiesFound   int        `gorm:"not null;default:0" json:"copies_found"` // files recognised as copies of an existing scene
 	Errors        int        `gorm:"not null;default:0" json:"errors"`
 	ErrorMessage  *string    `gorm:"type:text" json:"error_message,omitempty"`
 	CurrentPath   *string    `gorm:"size:500" json:"current_path,omitempty"`

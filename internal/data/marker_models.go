@@ -5,12 +5,19 @@ import (
 )
 
 type UserSceneMarker struct {
-	ID            uint      `gorm:"primarykey" json:"id"`
-	UserID        uint      `gorm:"not null" json:"user_id"`
-	SceneID       uint      `gorm:"not null;column:scene_id" json:"scene_id"`
-	Timestamp     int       `gorm:"not null" json:"timestamp"` // seconds
-	Label         string    `gorm:"size:100" json:"label"`
-	Color         string    `gorm:"size:7;default:'#FFFFFF'" json:"color"`
+	ID        uint `gorm:"primarykey" json:"id"`
+	UserID    uint `gorm:"not null" json:"user_id"`
+	SceneID   uint `gorm:"not null;column:scene_id" json:"scene_id"`
+	Timestamp int  `gorm:"not null" json:"timestamp"` // seconds
+	// EndTimestamp is the optional end of the marked range, in seconds (> Timestamp).
+	EndTimestamp *int `gorm:"column:end_timestamp" json:"end_timestamp"`
+	// LabelID is the marker's label (marker_labels), nil without label. It is the source of
+	// truth: Label is the label name, kept in sync by the database (see docs/MARKER_LABELS.md).
+	// Label is only written on create (a legacy writer may give the name only, the database
+	// resolves it); later changes go through LabelID.
+	LabelID               *uint     `gorm:"column:label_id" json:"label_id"`
+	Label                 string    `gorm:"size:100;<-:create" json:"label"`
+	Color                 string    `gorm:"size:7;default:'#FFFFFF'" json:"color"`
 	ThumbnailPath         string    `gorm:"size:255" json:"thumbnail_path"`
 	AnimatedThumbnailPath string    `gorm:"size:255" json:"animated_thumbnail_path"`
 	CreatedAt             time.Time `json:"created_at"`
@@ -21,8 +28,12 @@ func (UserSceneMarker) TableName() string {
 	return "user_scene_markers"
 }
 
+// MarkerLabelSuggestion is a label of the referential with the number of markers the user
+// sees with it (own and shared).
 type MarkerLabelSuggestion struct {
+	ID    uint   `json:"id"`
 	Label string `json:"label"`
+	Color string `json:"color"`
 	Count int64  `json:"count"`
 }
 
@@ -32,6 +43,24 @@ type MarkerLabelGroup struct {
 	Count              int64  `json:"count"`
 	ThumbnailMarkerID  uint   `json:"thumbnail_marker_id"`
 	ThumbnailMarkerIDs []uint `json:"thumbnail_marker_ids" gorm:"-"`
+	// ThumbnailVersions maps the IDs of ThumbnailMarkerIDs to their thumbnail version
+	// (MarkerThumbnailVersion), appended to the thumbnail URLs so that browsers refetch a
+	// regenerated thumbnail.
+	ThumbnailVersions map[uint]int64 `json:"thumbnail_versions" gorm:"-"`
+}
+
+// MarkerThumbnailRef is a marker picked as a thumbnail, with its last update time.
+type MarkerThumbnailRef struct {
+	ID        uint
+	UpdatedAt time.Time
+}
+
+// MarkerThumbnailVersion is the version of a marker's thumbnail files: its updated_at in Unix
+// milliseconds. updated_at moves each time a thumbnail path is written (UpdateThumbnailPath,
+// UpdateAnimatedThumbnailPath), so a regenerated thumbnail gets a new version. The frontend
+// computes the same value from the marker's updated_at.
+func MarkerThumbnailVersion(updatedAt time.Time) int64 {
+	return updatedAt.UnixMilli()
 }
 
 // MarkerWithScene extends UserSceneMarker with scene information
@@ -47,11 +76,11 @@ type MarkerWithTags struct {
 	Tags []MarkerTagInfo `json:"tags" gorm:"-"`
 }
 
-// MarkerLabelTag represents the default tags for a marker label (per user)
+// MarkerLabelTag is a default tag of a marker label (the same for every user): the markers of
+// the label get it as a tag "from label".
 type MarkerLabelTag struct {
 	ID        uint      `gorm:"primarykey" json:"id"`
-	UserID    uint      `gorm:"not null" json:"user_id"`
-	Label     string    `gorm:"size:100;not null" json:"label"`
+	LabelID   uint      `gorm:"not null" json:"label_id"`
 	TagID     uint      `gorm:"not null" json:"tag_id"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -79,4 +108,28 @@ type MarkerTagInfo struct {
 	Name        string `json:"name"`
 	Color       string `json:"color"`
 	IsFromLabel bool   `json:"is_from_label"`
+}
+
+// MarkerMove sets the scene and times of a marker: a marker of a duplicate moved to the kept
+// scene of its group, its times shifted to where the same moment is in that scene.
+type MarkerMove struct {
+	ID           uint
+	SceneID      uint
+	Timestamp    int
+	EndTimestamp *int
+}
+
+// MarkerDedupTag is a tag added to the kept marker of a MarkerDedupMerge.
+type MarkerDedupTag struct {
+	TagID       uint
+	IsFromLabel bool
+}
+
+// MarkerDedupMerge folds duplicate markers of a user into one: the KeepID marker gets Label
+// (when not nil) and the AddTags it lacks, and the RemoveIDs markers are deleted.
+type MarkerDedupMerge struct {
+	KeepID    uint
+	Label     *string
+	AddTags   []MarkerDedupTag
+	RemoveIDs []uint
 }

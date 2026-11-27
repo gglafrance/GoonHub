@@ -188,6 +188,18 @@ func NewForbiddenError(message string) *ForbiddenError {
 	}
 }
 
+// NewForbiddenErrorWithCode creates a ForbiddenError with a specific error code (e.g.
+// LOBBY_BANNED) so clients can tell refusals apart.
+func NewForbiddenErrorWithCode(message, code string) *ForbiddenError {
+	return &ForbiddenError{
+		baseError: baseError{
+			message:    message,
+			code:       code,
+			httpStatus: http.StatusForbidden,
+		},
+	}
+}
+
 // IsForbidden checks if an error is a ForbiddenError.
 func IsForbidden(err error) bool {
 	var forbidden *ForbiddenError

@@ -1,5 +1,9 @@
 <script setup lang="ts">
 const homepageStore = useHomepageStore();
+// The upload block needs scenes:upload
+const perms = useMyPermissions();
+const route = useRoute();
+const router = useRouter();
 
 useHead({ title: 'Library' });
 
@@ -10,9 +14,23 @@ useSeoMeta({
     ogDescription: 'Browse your personal scene library',
 });
 
+const queryTab = () => (typeof route.query.tab === 'string' ? route.query.tab : undefined);
+
 onMounted(async () => {
-    await homepageStore.loadHomepage();
+    await homepageStore.openHomepage(queryTab());
 });
+
+// Keep the active tab in the URL (shareable, survives a reload)
+const handleSelectTab = (tabId: string) => {
+    router.replace({ query: { ...route.query, tab: tabId } });
+};
+
+watch(
+    () => route.query.tab,
+    (tab) => {
+        if (typeof tab === 'string' && homepageStore.config) homepageStore.selectTab(tab);
+    },
+);
 
 const handleRefreshSection = async (sectionId: string) => {
     await homepageStore.refreshSection(sectionId);
@@ -24,10 +42,15 @@ definePageMeta({
 </script>
 
 <template>
-    <div class="min-h-[calc(100svh-5.25rem)] px-4 py-4 sm:min-h-[calc(100vh-5.25rem)] sm:py-6">
+    <div
+        class="min-h-[calc(100svh-var(--app-header-h)-var(--app-bottom-nav-h))] px-4 py-4 sm:py-6
+            md:min-h-[calc(100vh-5.25rem)]"
+    >
         <div class="mx-auto max-w-415">
             <!-- Upload Section -->
-            <SceneUpload v-if="homepageStore.config?.show_upload !== false" />
+            <SceneUpload
+                v-if="homepageStore.config?.show_upload !== false && perms.has('scenes:upload')"
+            />
 
             <!-- Loading State -->
             <div
@@ -47,6 +70,12 @@ definePageMeta({
 
             <!-- Dynamic Sections -->
             <div v-else class="mt-5 sm:mt-8">
+                <HomepageTabBar
+                    :tabs="homepageStore.tabs"
+                    :active-id="homepageStore.activeTab?.id ?? null"
+                    @select="handleSelectTab"
+                />
+
                 <HomepageSection
                     v-for="section in homepageStore.enabledSections"
                     :key="section.id"

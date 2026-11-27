@@ -40,6 +40,34 @@ func (m *MockPermissionRepository) EXPECT() *MockPermissionRepositoryMockRecorde
 	return m.recorder
 }
 
+// Create mocks base method.
+func (m *MockPermissionRepository) Create(permission *data.Permission) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Create", permission)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Create indicates an expected call of Create.
+func (mr *MockPermissionRepositoryMockRecorder) Create(permission any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockPermissionRepository)(nil).Create), permission)
+}
+
+// GrantToRoles mocks base method.
+func (m *MockPermissionRepository) GrantToRoles(permissionID uint, roleIDs []uint) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GrantToRoles", permissionID, roleIDs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// GrantToRoles indicates an expected call of GrantToRoles.
+func (mr *MockPermissionRepositoryMockRecorder) GrantToRoles(permissionID, roleIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GrantToRoles", reflect.TypeOf((*MockPermissionRepository)(nil).GrantToRoles), permissionID, roleIDs)
+}
+
 // List mocks base method.
 func (m *MockPermissionRepository) List() ([]data.Permission, error) {
 	m.ctrl.T.Helper()
@@ -55,16 +83,45 @@ func (mr *MockPermissionRepositoryMockRecorder) List() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockPermissionRepository)(nil).List))
 }
 
-// SyncRolePermissions mocks base method.
-func (m *MockPermissionRepository) SyncRolePermissions(roleID uint, permissionIDs []uint) error {
+// ListUserOverrides mocks base method.
+func (m *MockPermissionRepository) ListUserOverrides(userID uint) ([]data.UserPermissionOverride, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SyncRolePermissions", roleID, permissionIDs)
+	ret := m.ctrl.Call(m, "ListUserOverrides", userID)
+	ret0, _ := ret[0].([]data.UserPermissionOverride)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListUserOverrides indicates an expected call of ListUserOverrides.
+func (mr *MockPermissionRepositoryMockRecorder) ListUserOverrides(userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserOverrides", reflect.TypeOf((*MockPermissionRepository)(nil).ListUserOverrides), userID)
+}
+
+// ReplaceUserOverrides mocks base method.
+func (m *MockPermissionRepository) ReplaceUserOverrides(userID uint, overrides []data.UserPermissionOverride) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReplaceUserOverrides", userID, overrides)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SyncRolePermissions indicates an expected call of SyncRolePermissions.
-func (mr *MockPermissionRepositoryMockRecorder) SyncRolePermissions(roleID, permissionIDs any) *gomock.Call {
+// ReplaceUserOverrides indicates an expected call of ReplaceUserOverrides.
+func (mr *MockPermissionRepositoryMockRecorder) ReplaceUserOverrides(userID, overrides any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncRolePermissions", reflect.TypeOf((*MockPermissionRepository)(nil).SyncRolePermissions), roleID, permissionIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplaceUserOverrides", reflect.TypeOf((*MockPermissionRepository)(nil).ReplaceUserOverrides), userID, overrides)
+}
+
+// UpdateMeta mocks base method.
+func (m *MockPermissionRepository) UpdateMeta(id uint, group, description string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateMeta", id, group, description)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateMeta indicates an expected call of UpdateMeta.
+func (mr *MockPermissionRepositoryMockRecorder) UpdateMeta(id, group, description any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMeta", reflect.TypeOf((*MockPermissionRepository)(nil).UpdateMeta), id, group, description)
 }

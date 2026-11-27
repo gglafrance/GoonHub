@@ -27,6 +27,7 @@ const phases = ref({
     thumbnail: false,
     sprites: false,
     animated_thumbnails: false,
+    fingerprint: false,
 });
 
 const results = ref<Record<string, BulkJobResponse | null>>({
@@ -34,6 +35,7 @@ const results = ref<Record<string, BulkJobResponse | null>>({
     thumbnail: null,
     sprites: null,
     animated_thumbnails: null,
+    fingerprint: null,
 });
 
 const hasResults = computed(() => Object.values(results.value).some((r) => r !== null));
@@ -82,7 +84,13 @@ function onKeydown(e: KeyboardEvent) {
 const handleSubmit = async () => {
     loading.value = true;
     error.value = null;
-    results.value = { metadata: null, thumbnail: null, sprites: null, animated_thumbnails: null };
+    results.value = {
+        metadata: null,
+        thumbnail: null,
+        sprites: null,
+        animated_thumbnails: null,
+        fingerprint: null,
+    };
 
     const sceneIds = resolvedSceneIds.value;
 
@@ -94,7 +102,13 @@ const handleSubmit = async () => {
             results.value[phase] = await triggerBulkPhase(phase, mode.value, forceTarget, sceneIds);
         } catch (err) {
             const phaseLabel = phaseOptions.find((p) => p.key === phase)?.label ?? phase;
-            results.value[phase] = { message: '', submitted: 0, skipped: 0, errors: 1 };
+            results.value[phase] = {
+                message: '',
+                submitted: 0,
+                skipped: 0,
+                skipped_failing: 0,
+                errors: 1,
+            };
             error.value = err instanceof Error ? err.message : `Failed to trigger ${phaseLabel}`;
         }
     }
@@ -282,6 +296,20 @@ const handleClose = () => {
                                                         {{ results[phase]!.skipped }}
                                                     </span>
                                                     skip
+                                                </template>
+                                                <template
+                                                    v-if="
+                                                        (results[phase]!.skipped_failing ?? 0) > 0
+                                                    "
+                                                >
+                                                    /
+                                                    <span
+                                                        class="text-amber-400"
+                                                        title="Failing scenes (failed several times on an unchanged file), see Settings > Jobs > Failing"
+                                                    >
+                                                        {{ results[phase]!.skipped_failing }}
+                                                    </span>
+                                                    failing
                                                 </template>
                                                 <template v-if="results[phase]!.errors > 0">
                                                     /

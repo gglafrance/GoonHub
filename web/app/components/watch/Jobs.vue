@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { JobHistory } from '~/types/jobs';
 
+const { formatDateTime } = useDateFormatter();
+
 const route = useRoute();
 const { triggerScenePhase, fetchJobs, cancelJob } = useApi();
 
@@ -137,15 +139,7 @@ const formatDuration = (startedAt: string, completedAt?: string): string => {
     return `${minutes}m ${remainingSec}s`;
 };
 
-const formatTime = (dateStr: string): string => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    });
-};
+const formatTime = (dateStr: string): string => formatDateTime(dateStr);
 
 onMounted(() => {
     loadJobs();

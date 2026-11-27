@@ -3,6 +3,8 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	"goonhub/internal/api/middleware"
+	"goonhub/internal/apperrors"
 	"goonhub/internal/core"
 	"net/http"
 	"time"
@@ -15,16 +17,44 @@ type SSEHandler struct {
 	eventBus         *core.EventBus
 	authService      *core.AuthService
 	jobStatusService *core.JobStatusService
+	access           middleware.AccessResolver
+	presence         PresenceTracker
 	logger           *zap.Logger
 }
 
-func NewSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, logger *zap.Logger) *SSEHandler {
+// PresenceTracker is told when a live stream of a user opens and closes (core.PresenceService:
+// a user is online while they have one, docs/PRESENCE.md).
+type PresenceTracker interface {
+	Connect(userID uint)
+	Disconnect(userID uint)
+}
+
+// SetPresence sets the presence tracker of the streams (nil: none).
+func (h *SSEHandler) SetPresence(p PresenceTracker) {
+	h.presence = p
+}
+
+func NewSSEHandler(eventBus *core.EventBus, authService *core.AuthService, jobStatusService *core.JobStatusService, access middleware.AccessResolver, logger *zap.Logger) *SSEHandler {
 	return &SSEHandler{
 		eventBus:         eventBus,
 		authService:      authService,
 		jobStatusService: jobStatusService,
+		access:           access,
 		logger:           logger.With(zap.String("handler", "sse")),
 	}
+}
+
+// currentAccess resolves the live access of the connected user. gone is true when the user
+// no longer exists (the stream is closed then); access is nil on other errors.
+func (h *SSEHandler) currentAccess(userID uint) (access *core.UserAccess, gone bool) {
+	if h.access == nil {
+		return nil, false
+	}
+	access, err := h.access.ResolveUser(userID)
+	if err != nil {
+		return nil, apperrors.IsNotFound(err)
+	}
+	return access, false
 }
 
 // writeJobStatus marshals and writes the current job status as an SSE event.
@@ -51,10 +81,16 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 		return
 	}
 
-	_, err = h.authService.ValidateToken(token)
+	payload, err := h.authService.ValidateToken(token)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
+	}
+	if h.access != nil {
+		if _, err := h.access.ResolveUser(payload.UserID); err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
 	}
 
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
@@ -67,13 +103,21 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 	fmt.Fprintf(c.Writer, ": connected\n\n")
 	c.Writer.Flush()
 
-	// Send initial job status immediately after connection
-	if h.jobStatusService != nil {
+	// Send initial job status immediately after connection (permissions are resolved again
+	// for every event: a change applies without reconnecting)
+	if access, _ := h.currentAccess(payload.UserID); h.jobStatusService != nil && access.Has(core.PermJobsViewStatus) {
 		h.writeJobStatus(c)
 	}
 
-	subscriberID, eventCh := h.eventBus.Subscribe()
+	// the stream belongs to the user: it also receives the events targeted at them
+	subscriberID, eventCh := h.eventBus.SubscribeUser(payload.UserID)
 	defer h.eventBus.Unsubscribe(subscriberID)
+
+	// an open stream makes the user online (a grace period follows its end)
+	if h.presence != nil {
+		h.presence.Connect(payload.UserID)
+		defer h.presence.Disconnect(payload.UserID)
+	}
 
 	h.logger.Debug("SSE client connected", zap.String("subscriber_id", subscriberID))
 
@@ -94,6 +138,15 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 			if !ok {
 				return
 			}
+			access, gone := h.currentAccess(payload.UserID)
+			if gone {
+				h.logger.Debug("SSE user deleted, closing the stream", zap.Uint("user_id", payload.UserID))
+				return
+			}
+			event, send := eventForUser(event, access)
+			if !send {
+				continue
+			}
 			data, err := json.Marshal(event)
 			if err != nil {
 				h.logger.Error("Failed to marshal event", zap.Error(err))
@@ -109,7 +162,12 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 			}
 			c.Writer.Flush()
 		case <-statusTicker.C:
-			if h.jobStatusService != nil {
+			access, gone := h.currentAccess(payload.UserID)
+			if gone {
+				h.logger.Debug("SSE user deleted, closing the stream", zap.Uint("user_id", payload.UserID))
+				return
+			}
+			if h.jobStatusService != nil && access.Has(core.PermJobsViewStatus) {
 				if writeErr := h.writeJobStatus(c); writeErr != nil {
 					h.logger.Debug("SSE job status write failed, client likely disconnected",
 						zap.String("subscriber_id", subscriberID),

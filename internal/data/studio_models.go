@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
@@ -14,11 +15,12 @@ type Studio struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	Name        string   `gorm:"size:255;not null" json:"name"`
-	ShortName   string   `gorm:"size:100" json:"short_name"`
-	URL         string   `gorm:"size:512" json:"url"`
-	Description string   `gorm:"type:text" json:"description"`
-	Rating      *float64 `gorm:"type:decimal(3,1)" json:"rating"`
+	Name        string         `gorm:"size:255;not null" json:"name"`
+	Aliases     pq.StringArray `gorm:"type:text[];not null;default:'{}'" json:"aliases"`
+	ShortName   string         `gorm:"size:100" json:"short_name"`
+	URL         string         `gorm:"size:512" json:"url"`
+	Description string         `gorm:"type:text" json:"description"`
+	Rating      *float64       `gorm:"type:decimal(3,1)" json:"rating"`
 
 	Logo    string `gorm:"size:512" json:"logo"`
 	Favicon string `gorm:"size:512" json:"favicon"`
@@ -27,6 +29,14 @@ type Studio struct {
 	PornDBID  string `gorm:"column:porndb_id;size:100" json:"porndb_id"`
 	ParentID  *uint  `json:"parent_id"`
 	NetworkID *uint  `json:"network_id"`
+}
+
+// BeforeSave keeps aliases a non-NULL array (the column is NOT NULL)
+func (s *Studio) BeforeSave(tx *gorm.DB) error {
+	if s.Aliases == nil {
+		s.Aliases = pq.StringArray{}
+	}
+	return nil
 }
 
 // BeforeCreate generates a UUID if not set

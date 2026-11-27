@@ -25,6 +25,10 @@ export interface FolderContentsResponse {
     total_scenes: number;
     page: number;
     limit: number;
+    ratings?: Record<string, number>;
+    likes?: Record<string, boolean>;
+    jizz_counts?: Record<string, number>;
+    watched?: Record<string, boolean>;
 }
 
 export interface BulkUpdateTagsRequest {
@@ -95,6 +99,10 @@ export interface FolderSearchResponse {
     total: number;
     page: number;
     limit: number;
+    ratings?: Record<string, number>;
+    likes?: Record<string, boolean>;
+    jizz_counts?: Record<string, number>;
+    watched?: Record<string, boolean>;
 }
 
 export interface ScenesMatchInfoRequest {
@@ -104,12 +112,15 @@ export interface ScenesMatchInfoRequest {
 export interface SceneMatchInfo {
     id: number;
     title: string;
-    original_filename: string;
+    // Omitted without files:view_paths
+    original_filename?: string;
     porndb_scene_id: string | null;
     actors: string[];
     studio: string | null;
     thumbnail_path: string;
     duration: number;
+    // File size in bytes (0 when unknown; omitted without files:view_size)
+    size?: number;
 }
 
 export interface ScenesMatchInfoResponse {

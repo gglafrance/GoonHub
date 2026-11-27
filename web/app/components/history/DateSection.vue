@@ -6,6 +6,8 @@ const props = defineProps<{
     dateLabel: string;
     entries: WatchHistoryEntry[];
     entryCount: number;
+    // the user's ratings / likes / jizz counts, by scene id (card badges)
+    cardData?: HistoryCardData;
 }>();
 
 const { formatDuration } = useFormatter();
@@ -17,6 +19,8 @@ const getProgress = (entry: WatchHistoryEntry) => {
         duration: entry.scene.duration,
     };
 };
+
+const { sceneGridClass, sceneGridStyle } = useGridDensity();
 
 const validEntries = computed(() => props.entries.filter((e) => e.scene));
 </script>
@@ -33,13 +37,16 @@ const validEntries = computed(() => props.entries.filter((e) => e.scene));
             </span>
         </div>
 
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <div class="scene-grid grid justify-center" :class="sceneGridClass" :style="sceneGridStyle">
             <SceneCard
                 v-for="entry in validEntries"
                 :key="entry.watch.id"
                 :scene="entry.scene!"
                 :progress="getProgress(entry)"
                 :completed="entry.watch.completed"
+                :rating="cardData?.ratings?.[entry.scene!.id]"
+                :liked="cardData?.likes?.[entry.scene!.id]"
+                :jizz-count="cardData?.jizz_counts?.[entry.scene!.id]"
                 fluid
             >
                 <template #footer>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"goonhub/internal/data"
+	"goonhub/pkg/oshash"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -40,10 +41,48 @@ type pendingScene struct {
 
 // scanLookupIndex provides in-memory lookup structures built once before a scan
 type scanLookupIndex struct {
-	// knownPaths is the set of stored_path values for non-deleted scenes
+	// knownPaths is the set of stored_path values for non-deleted scenes, trashed ones included
 	knownPaths map[string]struct{}
+	// knownCopyPaths is the set of paths recorded as copies of a scene (scene_copies)
+	knownCopyPaths map[string]struct{}
 	// lookupByKey maps "size:filename" -> []ScanLookupEntry for move detection
 	lookupByKey map[string][]data.ScanLookupEntry
+	// bySize maps a file size to the live scenes (not trashed, not deleted) of that size, for
+	// copy detection; scenes created by the running scan are added as they are found
+	bySize map[int64][]copyCandidate
+}
+
+// copyCandidate is a live scene whose file may have the same content as a new file.
+type copyCandidate struct {
+	sceneID uint
+	path    string
+	// pending is set for a scene found by the running scan: its ID is known once its batch
+	// is flushed
+	pending *data.Scene
+}
+
+// oshashCache computes the oshash of each file at most once per scan.
+type oshashCache struct {
+	hashFile func(path string) (string, error)
+	results  map[string]oshashResult
+}
+
+type oshashResult struct {
+	hash string
+	err  error
+}
+
+func newOshashCache(hashFile func(path string) (string, error)) *oshashCache {
+	return &oshashCache{hashFile: hashFile, results: make(map[string]oshashResult)}
+}
+
+func (c *oshashCache) get(path string) (string, error) {
+	if r, ok := c.results[path]; ok {
+		return r.hash, r.err
+	}
+	hash, err := c.hashFile(path)
+	c.results[path] = oshashResult{hash: hash, err: err}
+	return hash, err
 }
 
 func buildScanLookupKey(size int64, filename string) string {
@@ -54,11 +93,14 @@ func buildScanLookupKey(size int64, filename string) string {
 type ScanService struct {
 	storagePathService *StoragePathService
 	sceneRepo          data.SceneRepository
+	sceneCopyRepo      data.SceneCopyRepository
 	scanHistoryRepo    data.ScanHistoryRepository
 	processingService  *SceneProcessingService
 	eventBus           *EventBus
 	logger             *zap.Logger
 	indexer            SceneIndexer
+	// hashFile computes the oshash of a file (oshash.FromFile; replaced in tests)
+	hashFile func(path string) (string, error)
 
 	mu          sync.Mutex
 	currentScan *data.ScanHistory
@@ -69,6 +111,7 @@ type ScanService struct {
 func NewScanService(
 	storagePathService *StoragePathService,
 	sceneRepo data.SceneRepository,
+	sceneCopyRepo data.SceneCopyRepository,
 	scanHistoryRepo data.ScanHistoryRepository,
 	processingService *SceneProcessingService,
 	eventBus *EventBus,
@@ -77,11 +120,22 @@ func NewScanService(
 	return &ScanService{
 		storagePathService: storagePathService,
 		sceneRepo:          sceneRepo,
+		sceneCopyRepo:      sceneCopyRepo,
 		scanHistoryRepo:    scanHistoryRepo,
 		processingService:  processingService,
 		eventBus:           eventBus,
 		logger:             logger.With(zap.String("component", "scan_service")),
+		hashFile:           oshash.FromFile,
 	}
+}
+
+// ListSceneCopies returns the files recorded as copies of a scene (read-only information).
+func (s *ScanService) ListSceneCopies(sceneID uint) ([]data.SceneCopy, error) {
+	copies, err := s.sceneCopyRepo.ListBySceneID(sceneID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list scene copies: %w", err)
+	}
+	return copies, nil
 }
 
 // SetIndexer sets the scene indexer for search index updates
@@ -196,21 +250,75 @@ func (s *ScanService) buildLookupIndex() (*scanLookupIndex, error) {
 		return nil, fmt.Errorf("failed to load scan lookup entries: %w", err)
 	}
 
+	// Load the paths already recorded as copies of a scene
+	knownCopyPaths, err := s.sceneCopyRepo.GetAllStoredPathSet()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load scene copy paths: %w", err)
+	}
+
 	lookupByKey := make(map[string][]data.ScanLookupEntry, len(entries))
+	bySize := make(map[int64][]copyCandidate)
 	for _, e := range entries {
+		// A scene in the trash keeps its file until it is deleted for good: its path stays
+		// known, so a scan skips the file instead of adding it again as a new scene
+		if e.IsTrashed && !e.IsDeleted && e.StoredPath != "" {
+			knownPaths[e.StoredPath] = struct{}{}
+		}
 		key := buildScanLookupKey(e.Size, e.OriginalFilename)
 		lookupByKey[key] = append(lookupByKey[key], e)
+		if !e.IsDeleted && !e.IsTrashed && e.Size > 0 && e.StoredPath != "" {
+			bySize[e.Size] = append(bySize[e.Size], copyCandidate{sceneID: e.ID, path: e.StoredPath})
+		}
 	}
 
 	s.logger.Info("Scan lookup index built",
 		zap.Int("known_paths", len(knownPaths)),
+		zap.Int("known_copy_paths", len(knownCopyPaths)),
 		zap.Int("lookup_entries", len(entries)),
 	)
 
 	return &scanLookupIndex{
-		knownPaths:  knownPaths,
-		lookupByKey: lookupByKey,
+		knownPaths:     knownPaths,
+		knownCopyPaths: knownCopyPaths,
+		lookupByKey:    lookupByKey,
+		bySize:         bySize,
 	}, nil
+}
+
+// matchCopy looks for a live scene whose file has the same content as the file at path: same
+// size (size index) and same oshash. A candidate whose file cannot be read (missing,
+// unreadable) is never matched. A candidate found earlier in the same scan gets its ID by
+// flushing the pending batch. Returns the scene ID and the oshash of the file.
+func matchCopy(path string, size int64, idx *scanLookupIndex, hashes *oshashCache, flush func()) (uint, string, bool) {
+	candidates := idx.bySize[size]
+	if len(candidates) == 0 {
+		return 0, "", false
+	}
+	hash, err := hashes.get(path)
+	if err != nil {
+		return 0, "", false
+	}
+	for _, c := range candidates {
+		if c.path == path {
+			continue
+		}
+		candidateHash, err := hashes.get(c.path)
+		if err != nil || candidateHash != hash {
+			continue
+		}
+		id := c.sceneID
+		if c.pending != nil {
+			if c.pending.ID == 0 {
+				flush()
+			}
+			id = c.pending.ID
+		}
+		if id == 0 {
+			continue // the scene could not be created
+		}
+		return id, hash, true
+	}
+	return 0, "", false
 }
 
 // runScan performs the actual scan operation
@@ -233,14 +341,7 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 		return
 	}
 
-	// Pre-load lookup data into memory (eliminates ~80k+ per-file DB queries)
-	lookupIdx, err := s.buildLookupIndex()
-	if err != nil {
-		s.completeScan(scan, "failed", fmt.Sprintf("failed to build lookup index: %v", err))
-		return
-	}
-
-	var filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, scanErrors int
+	var filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, copiesFound, scanErrors int
 	lastProgressDBWrite := time.Now()
 	lastProgressEvent := time.Now()
 
@@ -251,8 +352,21 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 		return
 	}
 
+	// Pre-load lookup data into memory (eliminates ~80k+ per-file DB queries). Built after
+	// phase 1 so that a scene just marked missing is seen as soft-deleted: a move then
+	// restores it, and it is not a copy candidate.
+	lookupIdx, err := s.buildLookupIndex()
+	if err != nil {
+		s.completeScan(scan, "failed", fmt.Sprintf("failed to build lookup index: %v", err))
+		return
+	}
+
 	// Pending batch for new scenes
 	var pendingBatch []pendingScene
+	// Copies of existing scenes found by this scan, and the already recorded copies seen
+	var pendingCopies []*data.SceneCopy
+	var seenCopyPaths []string
+	hashes := newOshashCache(s.hashFile)
 
 	// flushBatch writes pending scenes to DB, indexes them, and submits for processing
 	flushBatch := func() {
@@ -269,10 +383,19 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 			scenes[i] = batch[i].scene
 		}
 
-		// Batch create in DB
-		if err := s.sceneRepo.CreateInBatches(scenes, scanBatchSize); err != nil {
-			s.logger.Error("Failed to batch create scenes", zap.Error(err), zap.Int("count", len(scenes)))
-			scanErrors += len(batch)
+		// Batch create in DB; a failed batch is retried scene by scene so that one bad row
+		// does not drop the others
+		created, failed, err := createScenesResilient(s.sceneRepo, scenes, scanBatchSize)
+		if err != nil {
+			s.logger.Warn("Scan batch insert failed, scenes inserted one by one", zap.Error(err), zap.Int("count", len(scenes)), zap.Int("failed", len(failed)))
+		}
+		for _, sc := range failed {
+			s.logger.Error("Failed to create scene", zap.String("stored_path", sc.StoredPath))
+		}
+		scanErrors += len(failed)
+		scenesAdded -= len(failed)
+		scenes = created
+		if len(scenes) == 0 {
 			return
 		}
 
@@ -320,18 +443,66 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 		}
 	}
 
+	// flushCopies records the copies found since the last flush (rows only: the files are
+	// never touched)
+	flushCopies := func() {
+		if len(pendingCopies) == 0 {
+			return
+		}
+		copies := pendingCopies
+		pendingCopies = nil
+		if err := s.sceneCopyRepo.CreateBatch(copies); err != nil {
+			s.logger.Error("Failed to record scene copies", zap.Error(err), zap.Int("count", len(copies)))
+			scanErrors += len(copies)
+			copiesFound -= len(copies)
+		}
+	}
+
+	// flushAll writes everything the scan has pending: new scenes, new copies, and the
+	// last_seen_at of the copies already recorded (one batched update)
+	flushAll := func() {
+		flushBatch()
+		flushCopies()
+		if len(seenCopyPaths) > 0 {
+			if err := s.sceneCopyRepo.TouchLastSeen(seenCopyPaths, time.Now()); err != nil {
+				s.logger.Warn("Failed to update last_seen_at of scene copies", zap.Error(err), zap.Int("count", len(seenCopyPaths)))
+			}
+			seenCopyPaths = nil
+		}
+	}
+
+	publishProgress := func(currentPath, currentFile string) {
+		s.publishEvent("scan:progress", map[string]any{
+			"files_found":    filesFound,
+			"videos_added":   scenesAdded,
+			"videos_skipped": scenesSkipped,
+			"videos_removed": scenesRemoved,
+			"videos_moved":   scenesMoved,
+			"copies_found":   copiesFound,
+			"errors":         scanErrors,
+			"current_path":   currentPath,
+			"current_file":   currentFile,
+			// Legacy keys, kept for existing listeners
+			"scenes_added":   scenesAdded,
+			"scenes_skipped": scenesSkipped,
+			"scenes_removed": scenesRemoved,
+			"scenes_moved":   scenesMoved,
+		})
+		lastProgressEvent = time.Now()
+	}
+
 	for _, storagePath := range paths {
 		select {
 		case <-ctx.Done():
-			// Flush any remaining pending scenes before cancelling
-			flushBatch()
+			// Flush any remaining pending scenes and copies before cancelling
+			flushAll()
 			s.completeScan(scan, "cancelled", "")
 			return
 		default:
 		}
 
 		// Update current path (in-memory only, DB write is batched)
-		s.updateScanProgressInMemory(scan, &storagePath.Path, nil, scan.PathsScanned, filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, scanErrors)
+		s.updateScanProgressInMemory(scan, &storagePath.Path, nil, scan.PathsScanned, filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, copiesFound, scanErrors)
 
 		err := filepath.WalkDir(storagePath.Path, func(path string, d os.DirEntry, walkErr error) error {
 			select {
@@ -359,19 +530,40 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 				return nil
 			}
 
+			// A path in a legacy encoding cannot be stored (PostgreSQL text is UTF-8)
+			if !validScanPath(path) {
+				s.logger.Warn("Skipped a video whose path is not valid UTF-8 (rename the file to add it)",
+					zap.String("path", strings.ToValidUTF8(path, "?")),
+				)
+				scanErrors++
+				return nil
+			}
+
 			filesFound++
 			currentFile := path
 
 			// Batched progress: update in-memory always, write to DB periodically
-			s.updateScanProgressInMemory(scan, &storagePath.Path, &currentFile, scan.PathsScanned, filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, scanErrors)
+			s.updateScanProgressInMemory(scan, &storagePath.Path, &currentFile, scan.PathsScanned, filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, copiesFound, scanErrors)
 			if time.Since(lastProgressDBWrite) > progressDBInterval {
 				s.flushScanProgressToDB(scan)
 				lastProgressDBWrite = time.Now()
 			}
 
+			// Send batched SSE progress events
+			if filesFound%progressEventBatchSize == 0 || time.Since(lastProgressEvent) > progressEventInterval {
+				publishProgress(storagePath.Path, currentFile)
+			}
+
 			// In-memory check: does scene already exist at this path?
 			if _, exists := lookupIdx.knownPaths[path]; exists {
 				scenesSkipped++
+				return nil
+			}
+
+			// In-memory check: is this path a recorded copy of a scene?
+			if _, exists := lookupIdx.knownCopyPaths[path]; exists {
+				copiesFound++
+				seenCopyPaths = append(seenCopyPaths, path)
 				return nil
 			}
 
@@ -397,29 +589,41 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 				}
 			}
 
+			// Copy detection: a live scene of the same size whose file has the same oshash.
+			// The file is recorded as a copy of that scene instead of becoming a new scene.
+			if sceneID, hash, ok := matchCopy(path, info.Size(), lookupIdx, hashes, flushBatch); ok {
+				spID := storagePath.ID
+				pendingCopies = append(pendingCopies, &data.SceneCopy{
+					SceneID:       sceneID,
+					StoredPath:    path,
+					StoragePathID: &spID,
+					Size:          info.Size(),
+					Oshash:        hash,
+				})
+				lookupIdx.knownCopyPaths[path] = struct{}{}
+				copiesFound++
+				s.logger.Info("Copy of an existing scene recognised",
+					zap.Uint("scene_id", sceneID),
+					zap.String("path", path),
+				)
+				if len(pendingCopies) >= scanBatchSize {
+					flushCopies()
+				}
+				return nil
+			}
+
 			// New scene: build record and add to pending batch
 			scene := s.buildSceneRecord(path, info, &storagePath)
 			pendingBatch = append(pendingBatch, pendingScene{scene: scene, storagePath: storagePath.Path})
 			scenesAdded++
+			// A later file of the same scan with the same content becomes a copy of this scene
+			if scene.Size > 0 {
+				lookupIdx.bySize[scene.Size] = append(lookupIdx.bySize[scene.Size], copyCandidate{path: path, pending: scene})
+			}
 
 			// Flush batch if it's full
 			if len(pendingBatch) >= scanBatchSize {
 				flushBatch()
-			}
-
-			// Send batched SSE progress events
-			if filesFound%progressEventBatchSize == 0 || time.Since(lastProgressEvent) > progressEventInterval {
-				s.publishEvent("scan:progress", map[string]any{
-					"files_found":    filesFound,
-					"scenes_added":   scenesAdded,
-					"scenes_skipped": scenesSkipped,
-					"scenes_removed": scenesRemoved,
-					"scenes_moved":   scenesMoved,
-					"errors":         scanErrors,
-					"current_path":   storagePath.Path,
-					"current_file":   currentFile,
-				})
-				lastProgressEvent = time.Now()
 			}
 
 			return nil
@@ -427,7 +631,7 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 
 		if err != nil {
 			if err == context.Canceled {
-				flushBatch()
+				flushAll()
 				s.completeScan(scan, "cancelled", "")
 				return
 			}
@@ -441,8 +645,8 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 		scan.PathsScanned++
 	}
 
-	// Flush any remaining pending scenes
-	flushBatch()
+	// Flush any remaining pending scenes and copies
+	flushAll()
 
 	// Update final stats
 	scan.FilesFound = filesFound
@@ -450,6 +654,7 @@ func (s *ScanService) runScan(ctx context.Context, scan *data.ScanHistory) {
 	scan.VideosSkipped = scenesSkipped
 	scan.VideosRemoved = scenesRemoved
 	scan.VideosMoved = scenesMoved
+	scan.CopiesFound = copiesFound
 	scan.Errors = scanErrors
 
 	s.completeScan(scan, "completed", "")
@@ -601,6 +806,11 @@ func (s *ScanService) detectMissingFiles(ctx context.Context, scan *data.ScanHis
 
 // buildSceneRecord creates a Scene struct from file path and info without writing to DB.
 func (s *ScanService) buildSceneRecord(path string, info fs.FileInfo, storagePath *data.StoragePath) *data.Scene {
+	return newScannedSceneRecord(path, info, &storagePath.ID)
+}
+
+// newScannedSceneRecord builds the record of a scene found on disk, as the scan creates it.
+func newScannedSceneRecord(path string, info fs.FileInfo, storagePathID *uint) *data.Scene {
 	filename := filepath.Base(path)
 	title := strings.TrimSuffix(filename, filepath.Ext(filename))
 
@@ -612,7 +822,7 @@ func (s *ScanService) buildSceneRecord(path string, info fs.FileInfo, storagePat
 		ProcessingStatus: "pending",
 		Tags:             pq.StringArray{},
 		Actors:           pq.StringArray{},
-		StoragePathID:    &storagePath.ID,
+		StoragePathID:    storagePathID,
 	}
 
 	modTime := info.ModTime()
@@ -623,7 +833,7 @@ func (s *ScanService) buildSceneRecord(path string, info fs.FileInfo, storagePat
 
 // updateScanProgressInMemory updates the in-memory scan state without writing to DB.
 // This allows status queries to return current progress while batching DB writes.
-func (s *ScanService) updateScanProgressInMemory(scan *data.ScanHistory, currentPath, currentFile *string, pathsScanned, filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, errors int) {
+func (s *ScanService) updateScanProgressInMemory(scan *data.ScanHistory, currentPath, currentFile *string, pathsScanned, filesFound, scenesAdded, scenesSkipped, scenesRemoved, scenesMoved, copiesFound, errors int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -635,6 +845,7 @@ func (s *ScanService) updateScanProgressInMemory(scan *data.ScanHistory, current
 	scan.VideosSkipped = scenesSkipped
 	scan.VideosRemoved = scenesRemoved
 	scan.VideosMoved = scenesMoved
+	scan.CopiesFound = copiesFound
 	scan.Errors = errors
 }
 
@@ -685,6 +896,7 @@ func (s *ScanService) completeScan(scan *data.ScanHistory, status string, errorM
 		zap.Int("scenes_skipped", scan.VideosSkipped),
 		zap.Int("scenes_removed", scan.VideosRemoved),
 		zap.Int("scenes_moved", scan.VideosMoved),
+		zap.Int("copies_found", scan.CopiesFound),
 		zap.Int("errors", scan.Errors),
 	)
 }

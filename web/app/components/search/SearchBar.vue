@@ -1,7 +1,16 @@
 <script setup lang="ts">
-const searchStore = useSearchStore();
+const searchStore = useSearchContext();
 
-const sortOptions = [
+// sortOnMobile: the sort select also shows on small screens (the search page has it in its
+// mobile filters drawer instead)
+defineProps<{ sortOnMobile?: boolean }>();
+
+// Enter: search at once (the search page searches as the user types, debounced)
+const emit = defineEmits<{ submit: [] }>();
+const input = ref<HTMLInputElement | null>(null);
+defineExpose({ focus: () => input.value?.focus() });
+
+const allSortOptions = [
     { value: '', label: 'Default' },
     { value: 'relevance', label: 'Relevance' },
     { value: 'random', label: 'Random' },
@@ -11,9 +20,20 @@ const sortOptions = [
     { value: 'title_desc', label: 'Title Z-A' },
     { value: 'duration_asc', label: 'Shortest' },
     { value: 'duration_desc', label: 'Longest' },
+    { value: 'size_desc', label: 'Largest' },
+    { value: 'size_asc', label: 'Smallest' },
+    { value: 'jizz_count_desc', label: 'Most O' },
+    { value: 'jizz_count_asc', label: 'Least O' },
+    { value: 'last_jizz_desc', label: 'Last O' },
+    { value: 'last_jizz_asc', label: 'Oldest O' },
     { value: 'view_count_desc', label: 'Most Viewed' },
     { value: 'view_count_asc', label: 'Least Viewed' },
+    // the user's own ratings, likes and views
+    ...USER_SORT_OPTIONS,
 ];
+// Size sorts need files:view_size
+const perms = useMyPermissions();
+const sortOptions = computed(() => allowedSortOptions(allSortOptions, perms.has));
 </script>
 
 <template>
@@ -25,6 +45,7 @@ const sortOptions = [
                 class="text-dim absolute top-1/2 left-3 -translate-y-1/2"
             />
             <input
+                ref="input"
                 v-model="searchStore.query"
                 type="text"
                 placeholder="Search videos..."
@@ -32,10 +53,15 @@ const sortOptions = [
                     py-2 pr-3 pl-9 text-sm text-white transition-colors focus:border-white/20
                     focus:outline-none"
                 enterkeyhint="search"
+                @keydown.enter="emit('submit')"
             />
         </div>
 
-        <UiSortSelect v-model="searchStore.sort" :options="sortOptions" class="hidden sm:block" />
+        <UiSortSelect
+            v-model="searchStore.sort"
+            :options="sortOptions"
+            :class="sortOnMobile ? '' : 'hidden sm:block'"
+        />
 
         <button
             v-if="searchStore.sort === 'random'"

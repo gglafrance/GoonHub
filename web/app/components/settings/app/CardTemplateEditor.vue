@@ -13,6 +13,7 @@ const sampleScene: SceneListItem = {
     thumbnail_path: '',
     preview_video_path: '',
     processing_status: 'completed',
+    is_corrupted: false,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     view_count: 42,
@@ -23,6 +24,11 @@ const sampleScene: SceneListItem = {
     studio: 'Sample Studio',
     tags: ['tag-1', 'tag-2', 'tag-3'],
     actors: ['Actor One', 'Actor Two'],
+    markers: [
+        { id: 1, label: 'Intro', color: '#FFFFFF', timestamp: 12 },
+        { id: 2, label: 'Highlight', color: '#FF4D4D', timestamp: 245, end_timestamp: 301 },
+        { id: 3, label: 'Finale', color: '#34D399', timestamp: 690 },
+    ],
 };
 const sampleRating = 4;
 const sampleLiked = true;
@@ -37,22 +43,9 @@ const config = computed<SceneCardConfig>({
     },
 });
 
-const badgeFields = [
-    { value: 'liked', label: 'Liked' },
-    { value: 'rating', label: 'Rating' },
-    { value: 'duration', label: 'Duration' },
-    { value: 'resolution', label: 'Resolution' },
-    { value: 'views', label: 'Views' },
-    { value: 'jizz_count', label: 'Jizz Count' },
-    { value: 'watched', label: 'Watched' },
-    { value: 'file_size', label: 'File Size' },
-    { value: 'added_at', label: 'Date Added' },
-    { value: 'frame_rate', label: 'Frame Rate' },
-    { value: 'tags', label: 'Tags' },
-    { value: 'actors', label: 'Actors' },
-];
-
-const contentFields = [
+// File size and frame rate are offered only with their files:* permission
+const perms = useMyPermissions();
+const allContentFields = [
     { value: 'file_size', label: 'File Size', fullOnly: false, hasMode: false },
     { value: 'added_at', label: 'Date Added', fullOnly: false, hasMode: false },
     { value: 'views', label: 'Views', fullOnly: false, hasMode: false },
@@ -61,13 +54,18 @@ const contentFields = [
     { value: 'jizz_count', label: 'Jizz Count', fullOnly: false, hasMode: false },
     { value: 'rating', label: 'Rating', fullOnly: false, hasMode: false },
     { value: 'description', label: 'Description', fullOnly: true, hasMode: false },
-    { value: 'tags', label: 'Tags', fullOnly: false, hasMode: true },
+    { value: 'tags', label: 'Tags & Markers & Actors', fullOnly: false, hasMode: true },
     { value: 'actors', label: 'Actors', fullOnly: false, hasMode: true },
     { value: 'studio', label: 'Studio', fullOnly: true, hasMode: false },
 ];
 
 // Fields available in split rows (exclude fullOnly items like description, studio)
-const splitFields = computed(() => contentFields.filter((f) => !f.fullOnly));
+const contentFields = computed(() => allowedFileFields(allContentFields, perms.has));
+const splitFields = computed(() => contentFields.value.filter((f) => !f.fullOnly));
+// Field of a new content row
+const newRowField = computed(() =>
+    fileFieldAllowed('file_size', perms.has) ? 'file_size' : 'added_at',
+);
 
 const zoneNames = ['top_left', 'top_right', 'bottom_left', 'bottom_right'] as const;
 const zoneLabels: Record<string, string> = {
@@ -80,59 +78,19 @@ const zoneLabels: Record<string, string> = {
 // Selected zone for editing
 const selectedZone = ref<(typeof zoneNames)[number] | null>(null);
 
-function getZone(name: (typeof zoneNames)[number]): BadgeZone {
-    return config.value.badges[name];
-}
-
 function updateZone(name: (typeof zoneNames)[number], zone: BadgeZone) {
     const newConfig = JSON.parse(JSON.stringify(config.value)) as SceneCardConfig;
     newConfig.badges[name] = zone;
     config.value = newConfig;
 }
 
-function addBadgeToZone(zoneName: (typeof zoneNames)[number], field: string) {
-    const zone = getZone(zoneName);
-    if (zone.items.includes(field)) return;
-    updateZone(zoneName, { ...zone, items: [...zone.items, field] });
-}
-
-function removeBadgeFromZone(zoneName: (typeof zoneNames)[number], idx: number) {
-    const zone = getZone(zoneName);
-    const items = [...zone.items];
-    items.splice(idx, 1);
-    updateZone(zoneName, { ...zone, items });
-}
-
-function moveBadge(zoneName: (typeof zoneNames)[number], idx: number, dir: -1 | 1) {
-    const zone = getZone(zoneName);
-    const items = [...zone.items];
-    const newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= items.length) return;
-    [items[idx], items[newIdx]] = [items[newIdx], items[idx]];
-    updateZone(zoneName, { ...zone, items });
-}
-
-function toggleDirection(zoneName: (typeof zoneNames)[number]) {
-    const zone = getZone(zoneName);
-    updateZone(zoneName, {
-        ...zone,
-        direction: zone.direction === 'vertical' ? 'horizontal' : 'vertical',
-    });
-}
-
-// Available badge fields not used in the selected zone
-function availableBadgeFields(zoneName: (typeof zoneNames)[number]) {
-    const zone = getZone(zoneName);
-    return badgeFields.filter((f) => !zone.items.includes(f.value));
-}
-
 // Content rows
 function addContentRow(type: 'full' | 'split') {
     const newConfig = JSON.parse(JSON.stringify(config.value)) as SceneCardConfig;
     if (type === 'full') {
-        newConfig.content_rows.push({ type: 'full', field: 'file_size' });
+        newConfig.content_rows.push({ type: 'full', field: newRowField.value });
     } else {
-        newConfig.content_rows.push({ type: 'split', left: 'file_size', right: 'added_at' });
+        newConfig.content_rows.push({ type: 'split', left: newRowField.value, right: 'added_at' });
     }
     config.value = newConfig;
 }
@@ -146,11 +104,13 @@ function removeContentRow(idx: number) {
 function moveContentRow(idx: number, dir: -1 | 1) {
     const newConfig = JSON.parse(JSON.stringify(config.value)) as SceneCardConfig;
     const newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= newConfig.content_rows.length) return;
-    [newConfig.content_rows[idx], newConfig.content_rows[newIdx]] = [
-        newConfig.content_rows[newIdx],
-        newConfig.content_rows[idx],
-    ];
+    const rows = newConfig.content_rows;
+    if (newIdx < 0 || newIdx >= rows.length) return;
+    const moved = rows[idx];
+    const other = rows[newIdx];
+    if (moved === undefined || other === undefined) return;
+    rows[idx] = other;
+    rows[newIdx] = moved;
     config.value = newConfig;
 }
 
@@ -158,14 +118,6 @@ function updateContentRow(idx: number, row: ContentRow) {
     const newConfig = JSON.parse(JSON.stringify(config.value)) as SceneCardConfig;
     newConfig.content_rows[idx] = row;
     config.value = newConfig;
-}
-
-function fieldLabel(value: string): string {
-    return (
-        contentFields.find((f) => f.value === value)?.label ||
-        badgeFields.find((f) => f.value === value)?.label ||
-        value
-    );
 }
 </script>
 
@@ -184,6 +136,7 @@ function fieldLabel(value: string): string {
                         :completed="true"
                         :config-override="config"
                         fluid
+                        preview
                     />
                 </div>
             </div>
@@ -193,126 +146,20 @@ function fieldLabel(value: string): string {
         <div>
             <h4 class="mb-3 text-xs font-semibold text-white">Thumbnail Badges</h4>
             <p class="text-dim mb-3 text-[11px]">
-                Configure which badges appear on each corner of the thumbnail overlay.
+                Configure which badges appear on each corner of the thumbnail overlay. Set columns
+                to lay a corner out as a grid of several rows and columns.
             </p>
 
             <div class="grid grid-cols-2 gap-3">
-                <div
+                <SettingsAppCardTemplateBadgeZoneEditor
                     v-for="zoneName in zoneNames"
                     :key="zoneName"
-                    class="border-border rounded-lg border p-3 transition-all"
-                    :class="
-                        selectedZone === zoneName
-                            ? 'border-lava/40 bg-lava/5'
-                            : 'hover:border-border-hover'
-                    "
-                >
-                    <div class="mb-2 flex items-center justify-between">
-                        <span class="text-[11px] font-medium text-white">
-                            {{ zoneLabels[zoneName] }}
-                        </span>
-                        <button
-                            class="text-dim hover:text-lava text-[10px] transition-colors"
-                            @click="selectedZone = selectedZone === zoneName ? null : zoneName"
-                        >
-                            {{ selectedZone === zoneName ? 'Close' : 'Edit' }}
-                        </button>
-                    </div>
-
-                    <!-- Badge items preview -->
-                    <div class="flex flex-wrap gap-1">
-                        <span
-                            v-for="item in getZone(zoneName).items"
-                            :key="item"
-                            class="border-border bg-void/50 rounded border px-1.5 py-0.5 text-[9px]
-                                text-white/70"
-                        >
-                            {{ fieldLabel(item) }}
-                        </span>
-                        <span
-                            v-if="getZone(zoneName).items.length === 0"
-                            class="text-dim text-[9px]"
-                        >
-                            Empty
-                        </span>
-                    </div>
-
-                    <!-- Direction toggle -->
-                    <button
-                        class="text-dim mt-2 flex items-center gap-1 text-[10px] transition-colors
-                            hover:text-white"
-                        @click="toggleDirection(zoneName)"
-                    >
-                        <Icon
-                            :name="
-                                getZone(zoneName).direction === 'vertical'
-                                    ? 'heroicons:arrows-up-down'
-                                    : 'heroicons:arrows-right-left'
-                            "
-                            size="12"
-                        />
-                        {{ getZone(zoneName).direction }}
-                    </button>
-
-                    <!-- Expanded edit panel -->
-                    <div
-                        v-if="selectedZone === zoneName"
-                        class="border-border mt-3 space-y-2 border-t pt-3"
-                    >
-                        <!-- Current items with reorder/remove -->
-                        <div
-                            v-for="(item, idx) in getZone(zoneName).items"
-                            :key="item"
-                            class="flex items-center gap-2"
-                        >
-                            <span class="text-[10px] text-white/80">{{ fieldLabel(item) }}</span>
-                            <div class="ml-auto flex gap-1">
-                                <button
-                                    :disabled="idx === 0"
-                                    class="text-dim hover:text-white disabled:opacity-30"
-                                    @click="moveBadge(zoneName, idx, -1)"
-                                >
-                                    <Icon name="heroicons:chevron-up" size="12" />
-                                </button>
-                                <button
-                                    :disabled="idx === getZone(zoneName).items.length - 1"
-                                    class="text-dim hover:text-white disabled:opacity-30"
-                                    @click="moveBadge(zoneName, idx, 1)"
-                                >
-                                    <Icon name="heroicons:chevron-down" size="12" />
-                                </button>
-                                <button
-                                    class="text-dim hover:text-lava"
-                                    @click="removeBadgeFromZone(zoneName, idx)"
-                                >
-                                    <Icon name="heroicons:x-mark" size="12" />
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Add badge dropdown -->
-                        <select
-                            v-if="availableBadgeFields(zoneName).length > 0"
-                            class="border-border bg-void/80 w-full rounded border px-2 py-1
-                                text-[10px] text-white"
-                            @change="
-                                (e) => {
-                                    addBadgeToZone(zoneName, (e.target as HTMLSelectElement).value);
-                                    (e.target as HTMLSelectElement).value = '';
-                                }
-                            "
-                        >
-                            <option value="">Add badge...</option>
-                            <option
-                                v-for="f in availableBadgeFields(zoneName)"
-                                :key="f.value"
-                                :value="f.value"
-                            >
-                                {{ f.label }}
-                            </option>
-                        </select>
-                    </div>
-                </div>
+                    :zone="config.badges[zoneName]"
+                    :label="zoneLabels[zoneName] ?? zoneName"
+                    :open="selectedZone === zoneName"
+                    @update:zone="(zone) => updateZone(zoneName, zone)"
+                    @toggle="selectedZone = selectedZone === zoneName ? null : zoneName"
+                />
             </div>
         </div>
 

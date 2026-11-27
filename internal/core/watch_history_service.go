@@ -83,6 +83,21 @@ func (s *WatchHistoryService) RecordWatch(userID, sceneID uint, duration, positi
 	return nil
 }
 
+// RecordWatchKeepResume records a watch (view count, history, watched duration) without
+// moving the resume position: the position and completed flag of the user's previous watch
+// of the scene are kept (watching in a Goon2gether lobby, docs/GOON2GETHER.md).
+func (s *WatchHistoryService) RecordWatchKeepResume(userID, sceneID uint, duration int) error {
+	position, completed := 0, false
+	last, err := s.repo.GetLastWatch(userID, sceneID)
+	switch {
+	case err == nil:
+		position, completed = last.LastPosition, last.Completed
+	case !errors.Is(err, gorm.ErrRecordNotFound):
+		return fmt.Errorf("failed to read the last watch: %w", err)
+	}
+	return s.RecordWatch(userID, sceneID, duration, position, completed)
+}
+
 // GetResumePosition returns the position to resume from, or 0 if completed or not watched
 func (s *WatchHistoryService) GetResumePosition(userID, sceneID uint) (int, error) {
 	watch, err := s.repo.GetLastWatch(userID, sceneID)

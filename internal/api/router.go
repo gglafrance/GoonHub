@@ -18,7 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(logger *logging.Logger, cfg *config.Config, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, shareHandler *handler.ShareHandler, duplicateHandler *handler.DuplicateHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter, ogMiddleware *middleware.OGMiddleware) *gin.Engine {
+func NewRouter(logger *logging.Logger, cfg *config.Config, sceneHandler *handler.SceneHandler, authHandler *handler.AuthHandler, settingsHandler *handler.SettingsHandler, adminHandler *handler.AdminHandler, jobHandler *handler.JobHandler, poolConfigHandler *handler.PoolConfigHandler, processingConfigHandler *handler.ProcessingConfigHandler, triggerConfigHandler *handler.TriggerConfigHandler, dlqHandler *handler.DLQHandler, retryConfigHandler *handler.RetryConfigHandler, sseHandler *handler.SSEHandler, tagHandler *handler.TagHandler, actorHandler *handler.ActorHandler, studioHandler *handler.StudioHandler, interactionHandler *handler.InteractionHandler, actorInteractionHandler *handler.ActorInteractionHandler, studioInteractionHandler *handler.StudioInteractionHandler, searchHandler *handler.SearchHandler, watchHistoryHandler *handler.WatchHistoryHandler, storagePathHandler *handler.StoragePathHandler, scanHandler *handler.ScanHandler, explorerHandler *handler.ExplorerHandler, pornDBHandler *handler.PornDBHandler, savedSearchHandler *handler.SavedSearchHandler, homepageHandler *handler.HomepageHandler, markerHandler *handler.MarkerHandler, importHandler *handler.ImportHandler, streamStatsHandler *handler.StreamStatsHandler, playlistHandler *handler.PlaylistHandler, shareHandler *handler.ShareHandler, duplicateHandler *handler.DuplicateHandler, libraryHealthHandler *handler.LibraryHealthHandler, workerHandler *handler.WorkerHandler, socialHandler *handler.SocialHandler, presenceHandler *handler.PresenceHandler, togetherHandler *handler.TogetherHandler, profileHandler *handler.ProfileHandler, messageHandler *handler.MessageHandler, authService *core.AuthService, rbacService *core.RBACService, rateLimiter *middleware.IPRateLimiter, ogMiddleware *middleware.OGMiddleware) *gin.Engine {
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -124,10 +124,7 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, sceneHandler *handler
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid marker ID"})
 			return
 		}
-		path := filepath.Join(cfg.Processing.MarkerThumbnailDir, fmt.Sprintf("marker_%s.webp", id))
-		c.Header("Content-Type", "image/webp")
-		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
-		c.File(path)
+		serveMarkerThumbnail(c, filepath.Join(cfg.Processing.MarkerThumbnailDir, fmt.Sprintf("marker_%s.webp", id)), "image/webp")
 	})
 
 	// Serve Animated Marker Thumbnails (MP4 clips)
@@ -137,10 +134,7 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, sceneHandler *handler
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid marker ID"})
 			return
 		}
-		path := filepath.Join(cfg.Processing.MarkerThumbnailDir, fmt.Sprintf("marker_%s.mp4", id))
-		c.Header("Content-Type", "video/mp4")
-		c.Header("Cache-Control", "public, max-age=31536000") // 1 year cache
-		c.File(path)
+		serveMarkerThumbnail(c, filepath.Join(cfg.Processing.MarkerThumbnailDir, fmt.Sprintf("marker_%s.mp4", id)), "video/mp4")
 	})
 
 	// Serve Scene Preview Videos (MP4 clips for hover preview)
@@ -156,8 +150,16 @@ func NewRouter(logger *logging.Logger, cfg *config.Config, sceneHandler *handler
 		c.File(path)
 	})
 
+	// Serve Goon2gether emotes (GoonHub data directory, file names checked)
+	if togetherHandler != nil {
+		emoteDir := togetherHandler.EmoteDir()
+		r.GET("/emotes/:filename", func(c *gin.Context) {
+			serveEmote(c, emoteDir, c.Param("filename"))
+		})
+	}
+
 	// Register Routes
-	RegisterRoutes(r, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, shareHandler, duplicateHandler, authService, rbacService, logger, rateLimiter)
+	RegisterRoutes(r, sceneHandler, authHandler, settingsHandler, adminHandler, jobHandler, poolConfigHandler, processingConfigHandler, triggerConfigHandler, dlqHandler, retryConfigHandler, sseHandler, tagHandler, actorHandler, studioHandler, interactionHandler, actorInteractionHandler, studioInteractionHandler, searchHandler, watchHistoryHandler, storagePathHandler, scanHandler, explorerHandler, pornDBHandler, savedSearchHandler, homepageHandler, markerHandler, importHandler, streamStatsHandler, playlistHandler, shareHandler, duplicateHandler, libraryHealthHandler, workerHandler, socialHandler, presenceHandler, togetherHandler, profileHandler, messageHandler, authService, rbacService, logger, rateLimiter)
 
 	// Serve Frontend (SPA Fallback)
 	fsys, _ := fs.Sub(goonhub.WebDist, "web/dist")

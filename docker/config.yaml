@@ -47,6 +47,8 @@ auth:
   # paseto_secret: set via GOONHUB_AUTH_PASETO_SECRET env var (must be exactly 32 bytes)
   admin_username: admin
   # admin_password: set via GOONHUB_AUTH_ADMIN_PASSWORD env var
+  # Session lifetime (login token and cookie). Units: h, m, s, d (days), y (365 days).
+  # Env: GOONHUB_AUTH_TOKEN_DURATION. Logging out still ends the session at once.
   token_duration: 24h
   login_rate_limit: 10        # requests per minute
   login_rate_burst: 5         # burst size
@@ -82,7 +84,11 @@ processing:
   grid_cols: 12
   grid_rows: 8
   sprites_concurrency: 0      # 0 = auto (based on CPU cores)
-  job_history_retention: "7d"
+  job_history_retention: "30d"          # completed and cancelled jobs ("0" = keep forever)
+  job_history_failed_retention: "90d"   # failed and timed out jobs ("0" = keep forever)
+  job_history_purge_interval: 1h
+  job_history_purge_batch_size: 5000
+  failing_threshold: 3                 # failures in a row on an unchanged file before "missing" runs and auto retries skip it (0 = never)
   metadata_timeout: 5m
   thumbnail_timeout: 2m
   sprites_timeout: 30m
@@ -99,12 +105,82 @@ shutdown:
 pagination:
   max_items_per_page: 100     # maximum items per page for all paginated endpoints
 
+playlists:
+  max_markers: 1000           # most markers in a marker playlist (0 = no limit)
+  marker_default_duration: 30 # seconds a marker without an end plays in a marker playlist
+
+social:                       # docs/SOCIAL.md (0 = unlimited)
+  friend_requests_per_hour: 30  # friend requests a user can send per hour
+  follows_per_hour: 60          # follows a user can make per hour
+  max_pending_requests: 50      # pending outgoing friend requests per user
+
+profiles:                       # docs/PROFILES.md
+  image_dir: "/app/data/metadata/profiles"  # avatars and banners (GoonHub data, never a media directory)
+  max_upload_bytes: 8388608     # largest avatar or banner upload (8 MB)
+  max_image_pixels: 25000000    # largest decoded image (width x height)
+  image_uploads_per_hour: 20    # per user (0 = unlimited)
+  max_showcase_items: 4         # favorite videos / markers per showcase (1-12)
+  bio_max_length: 1000          # characters
+  display_name_max_length: 64   # characters (64 at most)
+
+presence:                       # docs/PRESENCE.md
+  disconnect_grace: 30s         # still online this long after the last live connection closed
+  idle_after: 5m                # no real input nor playing video for this long = away
+  heartbeat_interval: 60s       # the client reports input at most this often
+  activity_interval: 15s        # the client reports the playback position this often
+  activity_ttl: 60s             # an activity not reported for this long ends
+  paused_after: 20s             # a playback paused this long shows as paused
+  stalled_after: 30s            # a playback not progressing (buffering) this long no longer counts as playing
+  seek_threshold: 15s           # a jump this big in the position is pushed
+  flush_interval: 2s            # presence changes are coalesced and pushed at this interval
+  last_seen_interval: 5m        # last seen of online users saved this often
+  max_tabs_per_user: 8          # activities kept per user (one per tab)
+
+messages:                       # docs/MESSAGES.md
+  max_length: 2000              # longest message (characters)
+  rate_per_minute: 30           # messages per user per minute, a share counts once per recipient (0 = unlimited)
+  rate_burst: 10                # messages sent at once before the rate applies
+  page_size: 50                 # messages per history page
+  max_page_size: 100            # largest history page
+  typing_interval: 3s           # typing indicator relayed at most this often
+  max_share_recipients: 20      # users one share is sent to
+  max_share_items: 10           # items one share carries
+  retention_days: 0             # delete messages older than this (0 = keep forever)
+  purge_interval: 1h            # retention cleanup period
+
 streaming:
   max_global_streams: 100     # total concurrent streams allowed
   max_streams_per_ip: 10      # per-IP limit
   buffer_size: 262144         # 256KB buffer for streaming
   path_cache_ttl: 5m          # cache scene paths for 5 minutes
   path_cache_max_size: 10000  # max cached entries
+  max_range_size: 8388608    # bytes per range response of a direct stream (0 = whole range):
+                              # playing videos then share the browser's 6 HTTP/1.1 connections
+  # On-the-fly conversion of the files browsers can't play (AVI, MPEG-2, MKV, HEVC, WMV...)
+  # into H.264 + AAC fragmented MP4 (CPU ffmpeg). H.264/AAC in another container is only
+  # remuxed. Admins can turn it off in Settings > App > Advanced.
+  transcode:
+    max_concurrent: 4         # ffmpeg conversions at the same time (viewers of cached parts need none)
+    preset: veryfast          # libx264 preset
+    crf: 23                   # libx264 quality (lower is better, 18-28 is sensible)
+    max_height: 1080          # downscale above 1080p (smaller side), 0 keeps the size
+    audio_bitrate: 160k       # AAC bitrate of re-encoded audio
+    threads: 0                # ffmpeg threads per conversion, 0 = auto
+    keyframe_interval: 2      # seconds between keyframes (MP4 fragment length)
+    # Converted output kept on disk: replays, seeks back and other viewers of a part
+    # already converted don't run ffmpeg again. Its own directory in GoonHub's data (never
+    # a media folder: it deletes the files it wrote there).
+    cache:
+      enabled: true
+      dir: ./data/transcode-cache
+      max_size_gb: 20         # least recently used conversions are removed above this
+      max_age: 24h            # conversions unused for this long are removed
+      cleanup_interval: 10m   # also done at startup
+      read_ahead: 60s         # how far a conversion may run ahead of its viewer
+      idle_timeout: 30s       # a conversion nobody watches stops after this (or when its slot is needed)
+
+library_health:
+  stat_concurrency: 8         # files stat'ed at once by the health page checks (keep low on NFS)
 
 # Dedicated share server (optional)
 # Runs a second HTTP listener serving only share-related routes.

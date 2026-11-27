@@ -83,10 +83,14 @@ const entitySceneSortOptions = [
     { value: 'duration_desc', label: 'Longest' },
     { value: 'view_count_desc', label: 'Most Viewed' },
     { value: 'view_count_asc', label: 'Least Viewed' },
+    { value: 'jizz_count_desc', label: 'Most O' },
+    { value: 'jizz_count_asc', label: 'Least O' },
+    { value: 'last_jizz_desc', label: 'Last O' },
+    { value: 'last_jizz_asc', label: 'Oldest O' },
     { value: 'random', label: 'Random' },
 ];
 
-const sceneSortOptions: { value: SortOrder; label: string }[] = [
+const allSceneSortOptions: { value: SortOrder; label: string }[] = [
     { value: 'created_at_desc', label: 'Newest First' },
     { value: 'created_at_asc', label: 'Oldest First' },
     { value: 'title_asc', label: 'Title A-Z' },
@@ -95,8 +99,15 @@ const sceneSortOptions: { value: SortOrder; label: string }[] = [
     { value: 'duration_desc', label: 'Longest First' },
     { value: 'size_asc', label: 'Smallest First' },
     { value: 'size_desc', label: 'Largest First' },
+    { value: 'jizz_count_desc', label: 'Most O' },
+    { value: 'jizz_count_asc', label: 'Least O' },
+    { value: 'last_jizz_desc', label: 'Last O' },
+    { value: 'last_jizz_asc', label: 'Oldest O' },
     { value: 'random', label: 'Random' },
 ];
+// Size sorts need files:view_size
+const perms = useMyPermissions();
+const sceneSortOptions = computed(() => allowedSortOptions(allSceneSortOptions, perms.has));
 </script>
 
 <template>

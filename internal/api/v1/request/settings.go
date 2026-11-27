@@ -18,13 +18,25 @@ type ChangeUsernameRequest struct {
 }
 
 type UpdateHomepageConfigRequest struct {
-	ShowUpload bool                       `json:"show_upload"`
-	Sections   []HomepageSectionRequest   `json:"sections" binding:"required,dive"`
+	ShowUpload bool `json:"show_upload"`
+	// Sections is the legacy single-page layout (migrated into a tab when Tabs is empty)
+	Sections     []HomepageSectionRequest `json:"sections" binding:"dive"`
+	Tabs         []HomepageTabRequest     `json:"tabs" binding:"dive"`
+	DefaultTabID string                   `json:"default_tab_id"`
+	OpenOn       string                   `json:"open_on" binding:"omitempty,oneof=last default"`
+}
+
+type HomepageTabRequest struct {
+	ID       string                   `json:"id" binding:"required,max=100"`
+	Name     string                   `json:"name" binding:"required,max=40"`
+	Icon     string                   `json:"icon" binding:"max=100"`
+	Sections []HomepageSectionRequest `json:"sections" binding:"dive"`
 }
 
 type HomepageSectionRequest struct {
-	ID      string                 `json:"id" binding:"required"`
-	Type    string                 `json:"type" binding:"required,oneof=latest actor studio tag saved_search continue_watching most_viewed liked playlist"`
+	ID string `json:"id" binding:"required"`
+	// Type is validated by the settings service (built-in sections and registered widgets)
+	Type    string                 `json:"type" binding:"required,max=50"`
 	Title   string                 `json:"title" binding:"required,max=100"`
 	Enabled bool                   `json:"enabled"`
 	Limit   int                    `json:"limit" binding:"required,min=1,max=50"`
@@ -39,10 +51,10 @@ type UpdateParsingRulesRequest struct {
 }
 
 type ParsingPresetRequest struct {
-	ID        string                `json:"id" binding:"required"`
-	Name      string                `json:"name" binding:"required,max=100"`
-	IsBuiltIn bool                  `json:"isBuiltIn"`
-	Rules     []ParsingRuleRequest  `json:"rules" binding:"dive"`
+	ID        string               `json:"id" binding:"required"`
+	Name      string               `json:"name" binding:"required,max=100"`
+	IsBuiltIn bool                 `json:"isBuiltIn"`
+	Rules     []ParsingRuleRequest `json:"rules" binding:"dive"`
 }
 
 type ParsingRuleRequest struct {
@@ -78,6 +90,8 @@ type UpdateBadgeZonesRequest struct {
 type BadgeZoneRequest struct {
 	Items     []string `json:"items"`
 	Direction string   `json:"direction"`
+	// Columns is optional: absent or 0 keeps the one column / one row layout
+	Columns int `json:"columns,omitempty"`
 }
 
 type ContentRowRequest struct {
@@ -91,19 +105,49 @@ type ContentRowRequest struct {
 }
 
 type UpdateAllSettingsRequest struct {
-	Autoplay                  bool                          `json:"autoplay"`
-	DefaultVolume             int                           `json:"default_volume" binding:"min=0,max=100"`
-	Loop                      bool                          `json:"loop"`
-	AbLoopControls            bool                          `json:"ab_loop_controls"`
-	VideosPerPage             int                           `json:"videos_per_page" binding:"required,min=1"`
-	DefaultSortOrder          string                        `json:"default_sort_order" binding:"required"`
-	DefaultTagSort            string                        `json:"default_tag_sort" binding:"required"`
-	MarkerThumbnailCycling    bool                          `json:"marker_thumbnail_cycling"`
-	HomepageConfig            UpdateHomepageConfigRequest    `json:"homepage_config" binding:"required"`
-	ParsingRules              UpdateParsingRulesRequest      `json:"parsing_rules"`
-	SortPreferences           UpdateSortPreferencesRequest   `json:"sort_preferences" binding:"required"`
-	PlaylistAutoAdvance       string                        `json:"playlist_auto_advance"`
-	PlaylistCountdownSeconds  int                           `json:"playlist_countdown_seconds"`
-	ShowPageSizeSelector      bool                          `json:"show_page_size_selector"`
-	SceneCardConfig           UpdateSceneCardConfigRequest   `json:"scene_card_config"`
+	Autoplay                 bool                         `json:"autoplay"`
+	DefaultVolume            int                          `json:"default_volume" binding:"min=0,max=100"`
+	Loop                     bool                         `json:"loop"`
+	AbLoopControls           bool                         `json:"ab_loop_controls"`
+	MarkerLoop               bool                         `json:"marker_loop"`
+	VideosPerPage            int                          `json:"videos_per_page" binding:"required,min=1"`
+	DefaultSortOrder         string                       `json:"default_sort_order" binding:"required"`
+	DefaultTagSort           string                       `json:"default_tag_sort" binding:"required"`
+	MarkerThumbnailCycling   bool                         `json:"marker_thumbnail_cycling"`
+	HomepageConfig           UpdateHomepageConfigRequest  `json:"homepage_config" binding:"required"`
+	ParsingRules             UpdateParsingRulesRequest    `json:"parsing_rules"`
+	SortPreferences          UpdateSortPreferencesRequest `json:"sort_preferences" binding:"required"`
+	PlaylistAutoAdvance      string                       `json:"playlist_auto_advance"`
+	PlaylistCountdownSeconds int                          `json:"playlist_countdown_seconds"`
+	ShowPageSizeSelector     bool                         `json:"show_page_size_selector"`
+	AdvancedMarkerFilters    bool                         `json:"advanced_marker_filters"`
+	DefaultMarkerView        string                       `json:"default_marker_view"`
+	PaginationPosition       string                       `json:"pagination_position"`
+	DateFormat               string                       `json:"date_format"`
+	// PlayerGestures and GestureSeekStep keep their current value when omitted (nil / 0)
+	PlayerGestures  *bool `json:"player_gestures"`
+	GestureSeekStep int   `json:"gesture_seek_step"`
+	// Nil (field absent) keeps the current value: both settings are on by default
+	ShowReplayHeatmap   *bool                        `json:"show_replay_heatmap"`
+	RecordReplayHeatmap *bool                        `json:"record_replay_heatmap"`
+	SceneCardConfig     UpdateSceneCardConfigRequest `json:"scene_card_config"`
+	GridDensity         string                       `json:"grid_density"`
+	// InfiniteScroll: nil keeps the current value
+	InfiniteScroll *bool `json:"infinite_scroll"`
+	// SceneListView: nil keeps the current value
+	SceneListView *SceneListViewRequest `json:"scene_list_view"`
+	// ShowScrubber: nil keeps the current value
+	ShowScrubber *bool `json:"show_scrubber"`
+	// ScrubberMode: free or centered, nil keeps the current value
+	ScrubberMode *string `json:"scrubber_mode"`
+	// ScrubberWheel: the mouse wheel scrubs the thumbnail strip, nil keeps the current value
+	ScrubberWheel *bool `json:"scrubber_wheel"`
+	// ContentWidth: default, wide or full, nil keeps the current value
+	ContentWidth *string `json:"content_width"`
+}
+
+// SceneListViewRequest is the grid/table view per scene list page and the table columns.
+type SceneListViewRequest struct {
+	Pages   map[string]string `json:"pages"`
+	Columns []string          `json:"columns"`
 }

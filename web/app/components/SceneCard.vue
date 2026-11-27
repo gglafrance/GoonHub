@@ -11,13 +11,19 @@ const props = defineProps<{
     rating?: number;
     liked?: boolean;
     jizzCount?: number;
+    // Select mode: the checkbox is shown and a click on the card toggles the scene
     selectable?: boolean;
+    // Outside select mode, the checkbox shows on hover (pointer devices only) to start a selection
+    hoverSelect?: boolean;
     selected?: boolean;
     configOverride?: SceneCardConfig;
+    // Card template editor preview: the card and its links do not navigate
+    preview?: boolean;
 }>();
 
 const emit = defineEmits<{
-    toggleSelection: [sceneId: number];
+    // range: shift-click, select from the last toggled scene to this one
+    toggleSelection: [sceneId: number, range: boolean];
 }>();
 
 defineSlots<{
@@ -28,24 +34,43 @@ const { formatSize } = useFormatter();
 const settingsStore = useSettingsStore();
 const cardConfig = computed(() => props.configOverride ?? settingsStore.sceneCardConfig);
 
-const handleCheckboxClick = (event: Event) => {
+const handleCheckboxClick = (event: MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    emit('toggleSelection', props.scene.id);
+    emit('toggleSelection', props.scene.id, event.shiftKey);
 };
 
+// A shift-click would also extend the page's text selection
+const handleCheckboxMousedown = (event: MouseEvent) => {
+    if (event.shiftKey) event.preventDefault();
+};
+
+provideSceneCardPreview(!!props.preview);
+const NuxtLinkComponent = resolveComponent('NuxtLink');
+
 const handleCardClick = (event: MouseEvent) => {
+    if (props.preview) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+    }
     if (props.selectable) {
         event.preventDefault();
         event.stopPropagation();
-        emit('toggleSelection', props.scene.id);
+        emit('toggleSelection', props.scene.id, event.shiftKey);
     }
 };
 
 const hovering = ref(false);
+// True while the cursor is on the bottom scrub strip (preview paused, sprite frame shown)
+const scrubbing = ref(false);
 
-const { enabled: hoverAudio } = useHoverAudio();
-const HOVER_AUDIO_VOLUME = 0.6;
+const handleMouseLeave = () => {
+    hovering.value = false;
+    scrubbing.value = false;
+};
+
+const { enabled: hoverAudio, volume: hoverAudioVolume } = useHoverAudio();
 
 const previewVideo = ref<HTMLVideoElement | null>(null);
 
@@ -53,13 +78,31 @@ const previewVideo = ref<HTMLVideoElement | null>(null);
 // click, so a rejected unmuted play() falls back to playing muted.
 watch(previewVideo, (el) => {
     if (!el) return;
-    el.muted = !hoverAudio.value;
-    el.volume = HOVER_AUDIO_VOLUME;
+    el.muted = !hoverAudio.value || hoverAudioVolume.value === 0;
+    el.volume = hoverAudioVolume.value / 100;
     el.play().catch(() => {
         if (el.muted || !el.isConnected) return;
         el.muted = true;
         el.play().catch(() => {});
     });
+});
+
+// Apply sound changes (header control) to the preview playing under the cursor
+watch([hoverAudio, hoverAudioVolume], ([on, level]) => {
+    const el = previewVideo.value;
+    if (!el) return;
+    el.volume = level / 100;
+    el.muted = !on || level === 0;
+});
+
+watch(scrubbing, (isScrubbing) => {
+    const el = previewVideo.value;
+    if (!el) return;
+    if (isScrubbing) {
+        el.pause();
+    } else {
+        el.play().catch(() => {});
+    }
 });
 
 const isProcessing = computed(() => isSceneProcessing(props.scene));
@@ -78,6 +121,10 @@ const previewUrl = computed(() => {
     return v ? `/scene-previews/${props.scene.id}?v=${v}` : `/scene-previews/${props.scene.id}`;
 });
 
+const sceneVersion = computed(() =>
+    props.scene.updated_at ? String(new Date(props.scene.updated_at).getTime()) : undefined,
+);
+
 const progressPercent = computed(() => {
     if (!props.progress || props.progress.duration <= 0) return 0;
     return Math.min(100, (props.progress.last_position / props.progress.duration) * 100);
@@ -90,22 +137,32 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
     <div class="group relative" @click.capture="handleCardClick">
         <!-- Selection Checkbox -->
         <button
-            v-if="selectable"
+            v-if="selectable || hoverSelect"
+            type="button"
             class="absolute top-2 left-2 z-30 flex h-5 w-5 items-center justify-center rounded
                 border transition-all"
-            :class="
+            :class="[
                 selected
                     ? 'bg-lava border-lava text-white'
-                    : `bg-void/60 border-white/30 text-transparent group-hover:text-white/50
-                        hover:border-white/50`
-            "
+                    : `bg-void/60 border-white/30 text-transparent backdrop-blur-sm
+                        group-hover:text-white/50 hover:border-white/50`,
+                selectable
+                    ? ''
+                    : `pointer-events-none opacity-0 group-hover:pointer-events-auto
+                        group-hover:opacity-100 focus-visible:pointer-events-auto
+                        focus-visible:opacity-100`,
+            ]"
+            :aria-label="selected ? 'Deselect scene' : 'Select scene'"
+            :aria-pressed="!!selected"
+            @mousedown="handleCheckboxMousedown"
             @click="handleCheckboxClick"
         >
             <Icon name="heroicons:check" size="12" />
         </button>
 
-        <NuxtLink
-            :to="`/watch/${scene.id}`"
+        <component
+            :is="preview ? 'div' : NuxtLinkComponent"
+            :to="preview ? undefined : `/watch/${scene.id}`"
             class="group border-border bg-surface hover:border-border-hover hover:bg-elevated
                 relative block overflow-hidden rounded-lg border transition-all duration-200"
             :class="[
@@ -117,7 +174,7 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                 class="bg-void relative"
                 :class="fluid ? 'aspect-video w-full' : 'h-[158px] sm:h-45'"
                 @mouseenter="hovering = true"
-                @mouseleave="hovering = false"
+                @mouseleave="handleMouseLeave"
             >
                 <!-- Blurred background (stretched to fill) -->
                 <img
@@ -173,11 +230,25 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                     <Icon name="heroicons:play" size="32" />
                 </div>
 
+                <!-- Scrubber: hover the bottom strip to browse the scene -->
+                <SceneCardPreviewScrubber
+                    v-if="hovering && thumbnailUrl && !isProcessing"
+                    :scene-id="scene.id"
+                    :no-navigate="selectable"
+                    :duration="scene.duration"
+                    :version="sceneVersion"
+                    @update:active="scrubbing = $event"
+                />
+
                 <!-- Badge zones -->
-                <div class="absolute top-1.5 left-1.5 z-20" :class="selectable ? 'mt-6' : ''">
+                <div
+                    class="absolute top-1.5 left-1.5 z-20 transition-transform"
+                    :class="selectable ? 'mt-6' : hoverSelect ? 'group-hover:translate-y-6' : ''"
+                    :style="badgeZoneBoxStyle(cardConfig.badges, 'top_left')"
+                >
                     <SceneCardBadgeZone
-                        :items="cardConfig.badges.top_left.items"
-                        :direction="cardConfig.badges.top_left.direction"
+                        :zone="cardConfig.badges.top_left"
+                        corner="top_left"
                         :scene="scene"
                         :liked="liked"
                         :rating="rating"
@@ -186,10 +257,13 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                     />
                 </div>
 
-                <div class="absolute top-1.5 right-1.5 z-20">
+                <div
+                    class="absolute top-1.5 right-1.5 z-20"
+                    :style="badgeZoneBoxStyle(cardConfig.badges, 'top_right')"
+                >
                     <SceneCardBadgeZone
-                        :items="cardConfig.badges.top_right.items"
-                        :direction="cardConfig.badges.top_right.direction"
+                        :zone="cardConfig.badges.top_right"
+                        corner="top_right"
                         :scene="scene"
                         :liked="liked"
                         :rating="rating"
@@ -201,10 +275,11 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                 <div
                     class="absolute left-1.5 z-20"
                     :class="hasProgress ? 'bottom-3' : 'bottom-1.5'"
+                    :style="badgeZoneBoxStyle(cardConfig.badges, 'bottom_left')"
                 >
                     <SceneCardBadgeZone
-                        :items="cardConfig.badges.bottom_left.items"
-                        :direction="cardConfig.badges.bottom_left.direction"
+                        :zone="cardConfig.badges.bottom_left"
+                        corner="bottom_left"
                         :scene="scene"
                         :liked="liked"
                         :rating="rating"
@@ -216,10 +291,11 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                 <div
                     class="absolute right-1.5 z-20"
                     :class="hasProgress ? 'bottom-3' : 'bottom-1.5'"
+                    :style="badgeZoneBoxStyle(cardConfig.badges, 'bottom_right')"
                 >
                     <SceneCardBadgeZone
-                        :items="cardConfig.badges.bottom_right.items"
-                        :direction="cardConfig.badges.bottom_right.direction"
+                        :zone="cardConfig.badges.bottom_right"
+                        corner="bottom_right"
                         :scene="scene"
                         :liked="liked"
                         :rating="rating"
@@ -290,11 +366,12 @@ const hasProgress = computed(() => props.progress && progressPercent.value > 0);
                     class="text-dim mt-1.5 flex items-center justify-between font-mono text-[10px]"
                 >
                     <slot name="footer">
-                        <span>{{ formatSize(scene.size) }}</span>
-                        <NuxtTime :datetime="scene.created_at" format="short" />
+                        <!-- size: absent without files:view_size -->
+                        <span>{{ scene.size !== undefined ? formatSize(scene.size) : '' }}</span>
+                        <UiFormattedDate :datetime="scene.created_at" />
                     </slot>
                 </div>
             </div>
-        </NuxtLink>
+        </component>
     </div>
 </template>

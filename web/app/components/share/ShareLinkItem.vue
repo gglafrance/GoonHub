@@ -10,7 +10,7 @@ const emit = defineEmits<{
     delete: [id: number];
 }>();
 
-const copied = ref(false);
+const { copied, manualText, copy, dismiss } = useClipboard();
 const deleting = ref(false);
 
 const shareUrl = computed(() => {
@@ -39,17 +39,16 @@ const expiryLabel = computed(() => {
     return `${minutes}m left`;
 });
 
-const handleCopy = async () => {
-    try {
-        await navigator.clipboard.writeText(shareUrl.value);
-        copied.value = true;
-        setTimeout(() => {
-            copied.value = false;
-        }, 2000);
-    } catch {
-        // Fallback
-    }
-};
+// Where the shared player starts, or the marker range it plays
+const rangeLabel = computed(() => {
+    const { start, end, label } = props.link;
+    if (start == null) return '';
+    const range =
+        end != null ? `${formatClock(start)} - ${formatClock(end)}` : `from ${formatClock(start)}`;
+    return label ? `${label} · ${range}` : range;
+});
+
+const handleCopy = () => copy(shareUrl.value);
 
 const handleDelete = () => {
     deleting.value = true;
@@ -89,10 +88,14 @@ const handleDelete = () => {
                     <Icon name="heroicons:clock" size="10" />
                     {{ expiryLabel }}
                 </span>
+                <span v-if="rangeLabel" class="flex min-w-0 items-center gap-1 truncate">
+                    <Icon name="heroicons:bookmark" size="10" />
+                    {{ rangeLabel }}
+                </span>
             </div>
         </div>
 
-        <div class="flex shrink-0 items-center gap-1">
+        <div class="relative flex shrink-0 items-center gap-1">
             <button
                 class="text-dim rounded p-1.5 transition-colors hover:text-emerald-400"
                 :title="copied ? 'Copied!' : 'Copy link'"
@@ -111,6 +114,12 @@ const handleDelete = () => {
             >
                 <Icon name="heroicons:trash" size="14" />
             </button>
+            <UiCopyFallback
+                v-if="manualText"
+                :text="manualText"
+                label="Copy the share link"
+                @close="dismiss"
+            />
         </div>
     </div>
 </template>
