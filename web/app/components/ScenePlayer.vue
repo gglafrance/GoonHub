@@ -387,6 +387,7 @@ const abLoopStartBtn = shallowRef<ABLoopTimeButtonInstance | null>(null);
 const abLoopEndBtn = shallowRef<ABLoopTimeButtonInstance | null>(null);
 const abLoopToggleBtn = shallowRef<ABLoopToggleButtonInstance | null>(null);
 const abLoop = useABLoop(player);
+const compactLayout = usePlayerCompactLayout(player);
 const { vttCues, loadVttCues } = useVttParser();
 const { setup: setupThumbnailPreview, cleanup: cleanupThumbnailPreview } = useThumbnailPreview(
     player,
@@ -641,6 +642,9 @@ onMounted(async () => {
         }
     }
 
+    // Narrow players: the controls spread over the player instead of one bar
+    compactLayout.attach();
+
     // Set initial volume (video.js uses 0-1 range)
     const volume = props.defaultVolume != null ? props.defaultVolume / 100 : 1;
     player.value.volume(volume);
@@ -873,6 +877,7 @@ onBeforeUnmount(() => {
     cleanupMarkerIndicators();
     cleanupGestures();
     cleanupReplayHeatmap();
+    compactLayout.detach();
     if (player.value && !pipKeeper.keep(player.value, props.sceneUrl, returnToScene)) {
         player.value.dispose();
     }
@@ -898,7 +903,7 @@ onBeforeUnmount(() => {
             <PlayerGestureOverlay :indicator="gestureIndicator" />
         </Teleport>
         <div
-            v-if="transcodeActive && !playbackNotice"
+            v-if="transcodeActive && !playbackNotice && !compactLayout.compact.value"
             class="transcode-badge"
             :title="
                 transcodeMode === 'remux'
@@ -1690,6 +1695,177 @@ onBeforeUnmount(() => {
 /* In fullscreen, every drag is a gesture (vertical: volume and brightness) */
 :deep(.vjs-gestures.vjs-fullscreen .vjs-tech) {
     touch-action: none;
+}
+
+/* ========================================
+   COMPACT LAYOUT (narrow players, usePlayerCompactLayout)
+   Secondary controls at the top, playback in the middle, time and fullscreen at the bottom
+   ======================================== */
+:deep(.vjs-compact-top),
+:deep(.vjs-compact-center) {
+    display: none;
+}
+
+:deep(.video-js.vjs-compact.vjs-has-started .vjs-compact-top) {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    z-index: 2;
+    height: 42px;
+    padding: 0 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(8, 8, 8, 0.8);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    container-type: inline-size;
+}
+
+/* Very narrow players: the A/B buttons keep their letter only */
+@container (max-width: 300px) {
+    :deep(.vjs-ab-loop-value) {
+        display: none;
+    }
+}
+
+:deep(.video-js.vjs-compact.vjs-has-started .vjs-compact-center) {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    /* the empty area stays the video's (taps, double-tap seek, swipes) */
+    pointer-events: none;
+}
+
+:deep(.vjs-compact-top),
+:deep(.vjs-compact-center) {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+:deep(.vjs-compact-center > *) {
+    pointer-events: auto;
+}
+
+:deep(.video-js:hover .vjs-compact-top),
+:deep(.video-js:hover .vjs-compact-center),
+:deep(.video-js.vjs-user-active .vjs-compact-top),
+:deep(.video-js.vjs-user-active .vjs-compact-center),
+:deep(.video-js.vjs-paused .vjs-compact-top),
+:deep(.video-js.vjs-paused .vjs-compact-center) {
+    opacity: 1;
+}
+
+:deep(.video-js.vjs-user-inactive:not(.vjs-paused) .vjs-compact-top),
+:deep(.video-js.vjs-user-inactive:not(.vjs-paused) .vjs-compact-center) {
+    opacity: 0;
+    pointer-events: none;
+}
+
+:deep(.video-js.vjs-user-inactive:not(.vjs-paused) .vjs-compact-center > *) {
+    pointer-events: none;
+}
+
+/* The loading spinner and the error screens take the middle */
+:deep(.video-js.vjs-waiting .vjs-compact-center),
+:deep(.video-js.vjs-seeking .vjs-compact-center),
+:deep(.video-js.vjs-error .vjs-compact-center),
+:deep(.video-js.vjs-error .vjs-compact-top) {
+    visibility: hidden;
+}
+
+/* Top bar: speed and A/B loop on the left, picture-in-picture and scrubber on the right */
+:deep(.vjs-compact-top .vjs-picture-in-picture-control),
+:deep(.vjs-compact-top > :not(.vjs-picture-in-picture-control) + .vjs-scrubber-toggle-control) {
+    margin-left: auto;
+}
+
+:deep(.vjs-compact-top .vjs-ab-loop-time) {
+    min-width: 0;
+    padding: 0 6px;
+}
+
+/* The speed menu opens downwards from the top bar */
+:deep(.vjs-compact-top .vjs-menu) {
+    top: 100%;
+    bottom: auto;
+    height: auto;
+    margin: 4px 0 0;
+}
+
+:deep(.vjs-compact-top .vjs-menu .vjs-menu-content) {
+    position: relative;
+    bottom: auto;
+    max-height: 9.5rem;
+    overflow-y: auto;
+    background: rgba(8, 8, 8, 0.92) !important;
+}
+
+/* Middle: a large play button between the playlist previous/next */
+:deep(.vjs-compact-center .vjs-play-control),
+:deep(.vjs-compact-center .vjs-playlist-prev-control),
+:deep(.vjs-compact-center .vjs-playlist-next-control) {
+    margin: 0;
+    border-radius: 9999px;
+    color: #ffffff;
+    background: rgba(8, 8, 8, 0.55);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+:deep(.vjs-compact-center .vjs-play-control) {
+    width: 60px;
+    height: 60px;
+}
+
+:deep(.vjs-compact-center .vjs-play-control .vjs-icon-placeholder::before) {
+    font-size: 32px;
+    line-height: 60px;
+}
+
+:deep(.vjs-compact-center .vjs-playlist-prev-control),
+:deep(.vjs-compact-center .vjs-playlist-next-control) {
+    width: 44px;
+    height: 44px;
+}
+
+:deep(.vjs-compact-center .vjs-playlist-icon) {
+    width: 20px;
+    height: 20px;
+}
+
+/* Bottom bar: mute, time, then fullscreen at the end */
+:deep(.video-js.vjs-compact .vjs-control-bar) {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    height: 44px;
+}
+
+:deep(.video-js.vjs-compact .vjs-time-control) {
+    line-height: 44px;
+}
+
+:deep(.video-js.vjs-compact .vjs-current-time) {
+    margin-right: 0;
+    padding: 0 4px 0 6px;
+}
+
+:deep(.video-js.vjs-compact .vjs-duration) {
+    margin-right: auto;
+    padding: 0 6px 0 4px;
+}
+
+:deep(.video-js.vjs-compact .vjs-theater-mode-control) {
+    display: none;
 }
 
 /* Hide text track display from control bar area */
