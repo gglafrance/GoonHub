@@ -472,11 +472,18 @@ definePageMeta({
                             :observe="observe"
                         >
                             <template #actions>
-                                <!-- Add to a marker playlist -->
-                                <MarkersPlaylistAddButton
-                                    variant="icon"
-                                    :marker-ids="[marker.id]"
-                                />
+                                <div class="flex gap-1">
+                                    <!-- Add to a marker playlist -->
+                                    <MarkersPlaylistAddButton
+                                        variant="icon"
+                                        :marker-ids="[marker.id]"
+                                    />
+                                    <ShareButton
+                                        variant="icon"
+                                        label="Share marker"
+                                        :subject="markerShareSubject(marker)"
+                                    />
+                                </div>
                             </template>
                         </MarkersMarkerCard>
                     </div>

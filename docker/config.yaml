@@ -135,6 +135,18 @@ presence:                       # docs/PRESENCE.md
   last_seen_interval: 5m        # last seen of online users saved this often
   max_tabs_per_user: 8          # activities kept per user (one per tab)
 
+messages:                       # docs/MESSAGES.md
+  max_length: 2000              # longest message (characters)
+  rate_per_minute: 30           # messages per user per minute, a share counts once per recipient (0 = unlimited)
+  rate_burst: 10                # messages sent at once before the rate applies
+  page_size: 50                 # messages per history page
+  max_page_size: 100            # largest history page
+  typing_interval: 3s           # typing indicator relayed at most this often
+  max_share_recipients: 20      # users one share is sent to
+  max_share_items: 10           # items one share carries
+  retention_days: 0             # delete messages older than this (0 = keep forever)
+  purge_interval: 1h            # retention cleanup period
+
 streaming:
   max_global_streams: 100     # total concurrent streams allowed
   max_streams_per_ip: 10      # per-IP limit

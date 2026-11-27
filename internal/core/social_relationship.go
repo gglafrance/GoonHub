@@ -22,6 +22,9 @@ type Relationship struct {
 	// user's policy (or accepts the request the user sent). It does not look at the viewer's
 	// social:use permission.
 	CanSendFriendRequest bool
+	// CanMessage: the user's message policy lets the viewer send them messages (docs/
+	// MESSAGES.md). It does not look at the viewer's messages:use permission.
+	CanMessage bool
 }
 
 // tier is the closest relation of the viewer toward the user, for the audiences.
@@ -60,6 +63,7 @@ func relationshipFrom(row data.UserRelation) Relationship {
 		RequestSent:     row.RequestSent,
 		RequestReceived: row.RequestReceived,
 	}
+	r.CanMessage = messagePolicyAllows(row.MessagePolicy, r)
 	if !r.Friend && !r.RequestSent {
 		switch {
 		case r.RequestReceived:
@@ -73,4 +77,19 @@ func relationshipFrom(row data.UserRelation) Relationship {
 		}
 	}
 	return r
+}
+
+// messagePolicyAllows reports whether a user's message policy lets the viewer (relation r
+// toward that user) send them messages. An unknown or empty policy is the default, friends.
+func messagePolicyAllows(policy string, r Relationship) bool {
+	switch policy {
+	case data.MessagePolicyEveryone:
+		return true
+	case data.MessagePolicyMutuals:
+		return r.Friend || r.Mutual
+	case data.MessagePolicyNobody:
+		return false
+	default:
+		return r.Friend
+	}
 }

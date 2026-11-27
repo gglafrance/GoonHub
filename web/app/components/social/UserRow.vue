@@ -48,6 +48,11 @@ const emit = defineEmits<{ update: [relationship: Relationship] }>();
                 <NuxtTime :datetime="props.entry.since" relative />
             </div>
         </div>
+        <SocialMessageButton
+            :username="props.entry.username"
+            :relationship="props.entry.relationship"
+            variant="icon"
+        />
         <slot name="actions">
             <SocialRelationshipActions
                 :user-id="props.entry.id"

@@ -138,7 +138,12 @@ changes.
 - `together.Hub.ActiveLobbiesForUser(userID)` lists the lobbies where the user is online (for
   "watching in lobby X" in the friends presence). Anonymous memberships are never listed.
 - `together.Hub.InviteUser(lobbyUUID, inviterID, userID)` adds a user as a member of a lobby
-  (pre-authorized, like opening the invite link): the future "invite a friend" action calls it.
+  (pre-authorized, like opening the invite link).
+- Lobby invites sent as messages (`docs/MESSAGES.md`): the hub implements `core.LobbyInvites`
+  (`internal/together/invites.go`): `CanInvite` (members only), `InviteCard` (the card shown to
+  the invited user: joinable when the lobby is public or the inviter is still a member, not when
+  banned) and `AcceptInvite` (joins when the invite is still valid). The room's "Invite friends"
+  button sends them.
 
 ## WebSocket protocol (version 2)
 

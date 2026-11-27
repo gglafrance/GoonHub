@@ -29,6 +29,12 @@ var SSE_EVENT_TYPES = [
     'presence:update',
     // public lobby count of Goon2gether (broadcast, see app/utils/together.ts)
     'together:public_count',
+    // messages (targeted, see app/utils/messages.ts)
+    'chat:message',
+    'chat:message_updated',
+    'chat:read',
+    'chat:typing',
+    'chat:conversation_updated',
 ];
 
 function broadcast(type, payload) {

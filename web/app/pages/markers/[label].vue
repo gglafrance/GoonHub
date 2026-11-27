@@ -253,12 +253,18 @@ definePageMeta({
 
                             <!-- Add to a marker playlist -->
                             <div
-                                class="absolute top-1.5 right-1.5 z-10 opacity-0 transition-opacity
-                                    group-hover:opacity-100 focus-within:opacity-100"
+                                class="absolute top-1.5 right-1.5 z-10 flex gap-1 opacity-0
+                                    transition-opacity group-hover:opacity-100
+                                    focus-within:opacity-100"
                             >
                                 <MarkersPlaylistAddButton
                                     variant="icon"
                                     :marker-ids="[marker.id]"
+                                />
+                                <ShareButton
+                                    variant="icon"
+                                    label="Share marker"
+                                    :subject="markerShareSubject(marker)"
                                 />
                             </div>
                             <video

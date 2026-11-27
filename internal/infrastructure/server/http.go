@@ -48,6 +48,7 @@ type Server struct {
 	pushDispatcher    *workers.PushDispatcher
 	togetherHub       *together.Hub
 	presenceService   *core.PresenceService
+	messageService    *core.MessageService
 	srv               *http.Server
 }
 
@@ -55,6 +56,12 @@ type Server struct {
 // times are saved at shutdown).
 func (s *Server) SetPresence(p *core.PresenceService) {
 	s.presenceService = p
+}
+
+// SetMessages gives the server the message service (its retention cleanup runs with the
+// server).
+func (s *Server) SetMessages(m *core.MessageService) {
+	s.messageService = m
 }
 
 func NewHTTPServer(
@@ -214,6 +221,10 @@ func (s *Server) Start() error {
 
 	if s.presenceService != nil {
 		s.presenceService.Start()
+	}
+
+	if s.messageService != nil {
+		s.messageService.Start()
 	}
 
 	// Apply the scheduled deletions of resolved duplicates, and classify the duplicate group
@@ -412,6 +423,10 @@ func (s *Server) Start() error {
 
 	if s.presenceService != nil {
 		s.presenceService.Stop()
+	}
+
+	if s.messageService != nil {
+		s.messageService.Stop()
 	}
 
 	// Kill the on-the-fly conversions: their streams would hold the HTTP shutdown

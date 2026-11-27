@@ -1,220 +1,148 @@
 <script setup lang="ts">
-import type { ShareLink } from '~/types/share';
+import type { ShareTarget } from '~/types/messages';
+import type { ShareSubject } from '~/types/share';
 
-const props = defineProps<{
-    visible: boolean;
-    sceneId: number;
-}>();
+// The one Share dialog of the app (docs/MESSAGES.md, "Share dialog"): "Send to friends" (a
+// message with a share card, messages:use) and "Link" (a share link, scenes:share, for a scene
+// or a marker). A scene can start at a time ("Start at", prefilled with the player position);
+// a marker shares its range.
+const props = defineProps<{ visible: boolean; subject: ShareSubject }>();
+const emit = defineEmits<{ close: [] }>();
 
-const emit = defineEmits<{
-    close: [];
-}>();
+const perms = useMyPermissions();
+const canSend = computed(() => perms.has('messages:use'));
+const canLink = computed(
+    () =>
+        perms.has('scenes:share') &&
+        (props.subject.kind === 'scene' || props.subject.kind === 'marker'),
+);
+const tab = ref<'send' | 'link'>('send');
+const tabs = [
+    { id: 'send', label: 'Send to friends', icon: 'heroicons:paper-airplane' },
+    { id: 'link', label: 'Link', icon: 'heroicons:link' },
+] as const;
 
-const { createShareLink, listShareLinks, deleteShareLink } = useApiShares();
+// "Start at" of a scene share (seconds)
+const startEnabled = ref(false);
+const startAt = ref(0);
 
-const links = ref<ShareLink[]>([]);
-const shareBaseUrl = ref('');
-const loading = ref(false);
-const creating = ref(false);
-const error = ref('');
-
-// Form state
-const shareType = ref<'public' | 'auth_required'>('public');
-const expiresIn = ref('7d');
-
-const expiryOptions = [
-    { value: '1h', label: '1 hour' },
-    { value: '24h', label: '24 hours' },
-    { value: '7d', label: '7 days' },
-    { value: '30d', label: '30 days' },
-    { value: 'never', label: 'Never' },
-];
-
-const loadLinks = async () => {
-    loading.value = true;
-    try {
-        const data = await listShareLinks(props.sceneId);
-        links.value = data.share_links || [];
-        shareBaseUrl.value = data.share_base_url || '';
-    } catch {
-        links.value = [];
-    } finally {
-        loading.value = false;
-    }
+const reset = () => {
+    tab.value = canSend.value ? 'send' : 'link';
+    const s = props.subject;
+    startAt.value = s.kind === 'scene' ? Math.floor(s.time ?? 0) : 0;
+    startEnabled.value = false;
 };
-
-const handleCreate = async () => {
-    error.value = '';
-    creating.value = true;
-    try {
-        await createShareLink(props.sceneId, shareType.value, expiresIn.value);
-        await loadLinks();
-    } catch (e: unknown) {
-        error.value = e instanceof Error ? e.message : 'Failed to create share link';
-    } finally {
-        creating.value = false;
-    }
-};
-
-const handleDelete = async (linkId: number) => {
-    try {
-        await deleteShareLink(linkId);
-        links.value = links.value.filter((l) => l.id !== linkId);
-    } catch {
-        // Silent fail
-    }
-};
-
-const handleClose = () => {
-    error.value = '';
-    emit('close');
-};
-
 watch(
     () => props.visible,
-    (val) => {
-        if (val) loadLinks();
+    (v) => {
+        if (v) reset();
     },
+    { immediate: true },
 );
+
+const start = computed(() => (startEnabled.value && startAt.value > 0 ? startAt.value : 0));
+
+const items = computed<ShareTarget[]>(() => {
+    const s = props.subject;
+    switch (s.kind) {
+        case 'scene':
+            return [
+                {
+                    kind: 'scene',
+                    scene_id: s.sceneId,
+                    ...(start.value ? { time: start.value } : {}),
+                },
+            ];
+        case 'scenes':
+            return s.sceneIds.map((id) => ({ kind: 'scene' as const, scene_id: id }));
+        case 'marker':
+            return [{ kind: 'marker', marker_id: s.markerId }];
+        case 'playlist':
+            return [{ kind: 'playlist', playlist_uuid: s.uuid }];
+        case 'lobby':
+            return [{ kind: 'lobby', lobby_id: s.lobbyId }];
+    }
+    return [];
+});
+
+const heading = computed(() => {
+    const s = props.subject;
+    switch (s.kind) {
+        case 'scene':
+            return s.title ? `Share "${s.title}"` : 'Share video';
+        case 'scenes':
+            return `Share ${s.sceneIds.length} video${s.sceneIds.length === 1 ? '' : 's'}`;
+        case 'marker':
+            return 'Share marker';
+        case 'playlist':
+            return `Share "${s.name}"`;
+        case 'lobby':
+            return 'Invite friends';
+    }
+    return 'Share';
+});
+
+const close = () => emit('close');
 </script>
 
 <template>
     <Teleport to="body">
         <div
             v-if="visible"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-            @click.self="handleClose"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4
+                backdrop-blur-sm"
+            @click.self="close"
         >
-            <div class="glass-panel border-border w-full max-w-md border p-6">
-                <div class="mb-4 flex items-center justify-between">
-                    <h3 class="text-sm font-semibold text-white">Share Scene</h3>
-                    <button
-                        class="text-dim transition-colors hover:text-white"
-                        @click="handleClose"
-                    >
+            <div class="glass-panel border-border w-full max-w-md border p-5">
+                <div class="mb-3 flex items-center justify-between gap-3">
+                    <h3 class="truncate text-sm font-semibold text-white">{{ heading }}</h3>
+                    <button class="text-dim transition-colors hover:text-white" @click="close">
                         <Icon name="heroicons:x-mark" size="16" />
                     </button>
                 </div>
 
-                <!-- Error -->
-                <div
-                    v-if="error"
-                    class="border-lava/20 bg-lava/5 text-lava mb-3 rounded-lg border px-3 py-2
-                        text-xs"
-                >
-                    {{ error }}
-                </div>
-
-                <!-- Existing Links -->
-                <div v-if="loading" class="flex justify-center py-6">
-                    <LoadingSpinner label="Loading..." />
-                </div>
-
-                <div v-else>
-                    <div v-if="links.length > 0" class="mb-4 space-y-2">
-                        <span class="text-dim text-[10px] font-medium tracking-wider uppercase">
-                            Active Links
-                        </span>
-                        <div class="max-h-48 space-y-1.5 overflow-y-auto">
-                            <ShareLinkItem
-                                v-for="link in links"
-                                :key="link.id"
-                                :link="link"
-                                :base-url="shareBaseUrl"
-                                @delete="handleDelete"
-                            />
-                        </div>
-                    </div>
-
-                    <div v-else class="text-dim/50 mb-4 py-4 text-center text-xs">
-                        No share links yet
-                    </div>
-                </div>
-
-                <!-- Create Form -->
-                <div class="border-border space-y-3 border-t pt-4">
-                    <span class="text-dim text-[10px] font-medium tracking-wider uppercase">
-                        Create New Link
-                    </span>
-
-                    <!-- Share Type Toggle -->
-                    <div>
-                        <label
-                            class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                uppercase"
-                        >
-                            Visibility
-                        </label>
-                        <div class="flex gap-2">
-                            <button
-                                class="flex-1 rounded-lg border px-3 py-2 text-xs font-medium
-                                    transition-all"
-                                :class="
-                                    shareType === 'public'
-                                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
-                                        : `border-border text-dim hover:border-border-hover
-                                            hover:text-white`
-                                "
-                                @click="shareType = 'public'"
-                            >
-                                <Icon name="heroicons:globe-alt" size="12" class="mr-1" />
-                                Public
-                            </button>
-                            <button
-                                class="flex-1 rounded-lg border px-3 py-2 text-xs font-medium
-                                    transition-all"
-                                :class="
-                                    shareType === 'auth_required'
-                                        ? 'border-amber-500/40 bg-amber-500/10 text-amber-400'
-                                        : `border-border text-dim hover:border-border-hover
-                                            hover:text-white`
-                                "
-                                @click="shareType = 'auth_required'"
-                            >
-                                <Icon name="heroicons:lock-closed" size="12" class="mr-1" />
-                                Auth Required
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Expiry -->
-                    <div>
-                        <label
-                            class="text-dim mb-1.5 block text-[11px] font-medium tracking-wider
-                                uppercase"
-                        >
-                            Expires
-                        </label>
-                        <div class="flex flex-wrap gap-1.5">
-                            <button
-                                v-for="opt in expiryOptions"
-                                :key="opt.value"
-                                class="rounded-md border px-2.5 py-1.5 text-[11px] font-medium
-                                    transition-all"
-                                :class="
-                                    expiresIn === opt.value
-                                        ? 'border-lava/40 bg-lava/10 text-lava'
-                                        : `border-border text-dim hover:border-border-hover
-                                            hover:text-white`
-                                "
-                                @click="expiresIn = opt.value"
-                            >
-                                {{ opt.label }}
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Create Button -->
+                <div v-if="canSend && canLink" class="border-border mb-3 flex gap-1 border-b">
                     <button
-                        :disabled="creating"
-                        class="bg-lava hover:bg-lava-glow w-full rounded-lg px-4 py-2 text-xs
-                            font-semibold text-white transition-all disabled:cursor-not-allowed
-                            disabled:opacity-40"
-                        @click="handleCreate"
+                        v-for="t in tabs"
+                        :key="t.id"
+                        class="-mb-px flex items-center gap-1.5 border-b-2 px-3 py-1.5 text-xs
+                            font-medium transition-colors"
+                        :class="
+                            tab === t.id
+                                ? 'border-lava text-lava'
+                                : 'text-dim border-transparent hover:text-white'
+                        "
+                        @click="tab = t.id"
                     >
-                        {{ creating ? 'Creating...' : 'Create Share Link' }}
+                        <Icon :name="t.icon" size="12" />
+                        {{ t.label }}
                     </button>
                 </div>
+
+                <ShareSubjectSummary :subject="subject" class="mb-3" />
+                <ShareTimecodeField
+                    v-if="subject.kind === 'scene'"
+                    v-model:enabled="startEnabled"
+                    v-model:seconds="startAt"
+                    :max="subject.duration"
+                    class="mb-3"
+                />
+
+                <ShareSendPanel
+                    v-if="tab === 'send' && canSend"
+                    :items="items"
+                    :lobby="subject.kind === 'lobby'"
+                    @sent="close"
+                />
+                <ShareLinkPanel
+                    v-else-if="canLink && (subject.kind === 'scene' || subject.kind === 'marker')"
+                    :scene-id="subject.sceneId"
+                    :start="start"
+                    :marker-id="subject.kind === 'marker' ? subject.markerId : undefined"
+                />
+                <p v-else class="text-dim py-4 text-center text-xs">
+                    You are not allowed to share this.
+                </p>
             </div>
         </div>
     </Teleport>

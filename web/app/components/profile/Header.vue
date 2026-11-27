@@ -87,13 +87,18 @@ const counts = computed(() =>
                         <Icon :name="editing ? 'heroicons:check' : 'heroicons:pencil'" size="13" />
                         {{ editing ? 'Done' : 'Edit profile' }}
                     </button>
-                    <SocialRelationshipActions
-                        v-else
-                        :user-id="user.id"
-                        :username="user.username"
-                        :relationship="profile.relationship"
-                        @update="emit('update', $event)"
-                    />
+                    <template v-else>
+                        <SocialMessageButton
+                            :username="user.username"
+                            :relationship="profile.relationship"
+                        />
+                        <SocialRelationshipActions
+                            :user-id="user.id"
+                            :username="user.username"
+                            :relationship="profile.relationship"
+                            @update="emit('update', $event)"
+                        />
+                    </template>
                 </div>
             </div>
             <ProfileBio v-if="profile.bio" :bio="profile.bio" class="mt-3 max-w-2xl" />

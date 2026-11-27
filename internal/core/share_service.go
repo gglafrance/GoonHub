@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -39,7 +40,37 @@ type ShareService struct {
 	shareLinkRepo data.ShareLinkRepository
 	sceneRepo     data.SceneRepository
 	logger        *zap.Logger
+	// markers reads the markers shared through a link (nil: marker links are refused)
+	markers ShareMarkerSource
+	// markerDefaultDuration is the length of the range of a marker without an end (seconds)
+	markerDefaultDuration int
 }
+
+// ShareMarkerSource reads the markers a link can share (data.MessageRepository).
+type ShareMarkerSource interface {
+	MarkerVisibleTo(ctx context.Context, markerID, userID uint) (bool, error)
+	MarkerCards(ctx context.Context, ids []uint) ([]data.ShareMarkerRow, error)
+}
+
+// SetMarkers lets share links carry a marker range; defaultDuration is the length given to a
+// marker without an end (playlists.marker_default_duration).
+func (s *ShareService) SetMarkers(src ShareMarkerSource, defaultDuration int) {
+	s.markers = src
+	if defaultDuration <= 0 {
+		defaultDuration = defaultPlaylistMarkerDuration
+	}
+	s.markerDefaultDuration = defaultDuration
+}
+
+// ShareLinkOptions are the optional parts of a share link: where the player starts, or a
+// marker whose range it plays.
+type ShareLinkOptions struct {
+	Start    *int
+	MarkerID *uint
+}
+
+// maxShareLabelLength is the size of share_links.label.
+const maxShareLabelLength = 100
 
 func NewShareService(
 	shareLinkRepo data.ShareLinkRepository,
@@ -63,6 +94,79 @@ var validExpirations = map[string]time.Duration{
 
 // CreateShareLink generates a new share link for a scene.
 func (s *ShareService) CreateShareLink(userID, sceneID uint, shareType, expiresIn string) (*data.ShareLink, error) {
+	return s.CreateShareLinkWithOptions(userID, sceneID, shareType, expiresIn, ShareLinkOptions{})
+}
+
+// applyOptions validates the start time or the marker of a link and fills it: a start within
+// the scene (when its duration is known); a marker of that scene the user sees, whose range is
+// copied (its end, else the default length, cut at the scene end) with its label.
+func (s *ShareService) applyOptions(userID uint, scene *data.Scene, opts ShareLinkOptions, link *data.ShareLink) error {
+	if opts.MarkerID != nil {
+		if s.markers == nil {
+			return apperrors.NewValidationErrorWithField("marker_id", "marker links are not available")
+		}
+		ctx := context.Background()
+		ok, err := s.markers.MarkerVisibleTo(ctx, *opts.MarkerID, userID)
+		if err != nil {
+			return apperrors.NewInternalError("failed to check the marker", err)
+		}
+		if !ok {
+			return apperrors.NewNotFoundError("marker", *opts.MarkerID)
+		}
+		rows, err := s.markers.MarkerCards(ctx, []uint{*opts.MarkerID})
+		if err != nil {
+			return apperrors.NewInternalError("failed to read the marker", err)
+		}
+		if len(rows) == 0 {
+			return apperrors.NewNotFoundError("marker", *opts.MarkerID)
+		}
+		m := rows[0]
+		if m.SceneID != scene.ID {
+			return apperrors.NewValidationErrorWithField("marker_id", "the marker is not on this scene")
+		}
+		start := m.Timestamp
+		end := start + s.markerDefaultDuration
+		if m.EndTimestamp != nil && *m.EndTimestamp > start {
+			end = *m.EndTimestamp
+		}
+		if scene.Duration > 0 && end > scene.Duration {
+			end = scene.Duration
+		}
+		link.Start = &start
+		if end > start {
+			link.End = &end
+		}
+		if m.Label != "" {
+			label := m.Label
+			if r := []rune(label); len(r) > maxShareLabelLength {
+				label = string(r[:maxShareLabelLength])
+			}
+			link.Label = &label
+		}
+		id := m.ID
+		link.MarkerID = &id
+		return nil
+	}
+	if opts.Start == nil {
+		return nil
+	}
+	start := *opts.Start
+	if start < 0 {
+		return apperrors.NewValidationErrorWithField("start", "the start time cannot be negative")
+	}
+	if start == 0 {
+		return nil
+	}
+	if scene.Duration > 0 && start >= scene.Duration {
+		return apperrors.NewValidationErrorWithField("start", "the start time is past the end of the scene")
+	}
+	link.Start = &start
+	return nil
+}
+
+// CreateShareLinkWithOptions generates a share link for a scene, starting at a time or playing
+// a marker range (docs/MESSAGES.md, "Share links").
+func (s *ShareService) CreateShareLinkWithOptions(userID, sceneID uint, shareType, expiresIn string, opts ShareLinkOptions) (*data.ShareLink, error) {
 	if !data.IsValidShareType(shareType) {
 		return nil, apperrors.NewValidationErrorWithField("share_type", fmt.Sprintf("invalid share type: %s", shareType))
 	}
@@ -94,6 +198,9 @@ func (s *ShareService) CreateShareLink(userID, sceneID uint, shareType, expiresI
 		SceneID:   sceneID,
 		UserID:    userID,
 		ShareType: shareType,
+	}
+	if err := s.applyOptions(userID, scene, opts, link); err != nil {
+		return nil, err
 	}
 
 	if dur > 0 {

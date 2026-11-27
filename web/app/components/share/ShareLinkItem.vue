@@ -39,6 +39,15 @@ const expiryLabel = computed(() => {
     return `${minutes}m left`;
 });
 
+// Where the shared player starts, or the marker range it plays
+const rangeLabel = computed(() => {
+    const { start, end, label } = props.link;
+    if (start == null) return '';
+    const range =
+        end != null ? `${formatClock(start)} - ${formatClock(end)}` : `from ${formatClock(start)}`;
+    return label ? `${label} · ${range}` : range;
+});
+
 const handleCopy = () => copy(shareUrl.value);
 
 const handleDelete = () => {
@@ -78,6 +87,10 @@ const handleDelete = () => {
                 <span class="flex items-center gap-1">
                     <Icon name="heroicons:clock" size="10" />
                     {{ expiryLabel }}
+                </span>
+                <span v-if="rangeLabel" class="flex min-w-0 items-center gap-1 truncate">
+                    <Icon name="heroicons:bookmark" size="10" />
+                    {{ rangeLabel }}
                 </span>
             </div>
         </div>

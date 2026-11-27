@@ -184,7 +184,8 @@ Every route needs a signed-in user. The routes that create a relation need `soci
 designated by id in actions and by exact username in reads.
 
 `relationship` (the signed-in user toward the listed user): `{self, following, followed_by,
-mutual, friend, request_sent, request_received, can_send_friend_request}`.
+mutual, friend, request_sent, request_received, can_send_friend_request, can_message}`
+(`can_message`: the user's message policy lets me write to them, `docs/MESSAGES.md`).
 
 A list item: `{id, username, created_at, display_name, avatar_version, since, relationship}`
 (`display_name` and `avatar_version` come from the profile, `docs/PROFILES.md`; '' and 0 when
@@ -233,7 +234,8 @@ would be broadcast by mistake (`sseTargetedPrefixes`). The stream of a user subs
 | `social:followed` | the followed user | `{user}` (the new follower) |
 | `social:friend_requests_changed` | the user who accepted or declined | `{incoming_requests}` (syncs their other tabs) |
 
-Presence has its own targeted family, `presence:update` (`docs/PRESENCE.md`).
+Presence has its own targeted family, `presence:update` (`docs/PRESENCE.md`), and the messages
+theirs, `chat:*` (`docs/MESSAGES.md`).
 
 To add a personal event family (presence...): publish with `PublishToUser` /
 `PublishToUsers` (with `PrivacyService.AudienceMembers` to pick the users), add its prefix to
@@ -250,8 +252,12 @@ then listen with `onSSEEvent(type, fn)`.
 - `/u/<username>`: the profile page (`docs/PROFILES.md`): `ProfileHeader` (identity, badges,
   follow/friend buttons, counts), the blocks, and `SocialProfileLists`
   (friends/followers/following, each behind its privacy, opened from the counts).
-- Settings > Privacy (`SettingsPrivacy`): one audience per catalog item, grouped, and the
-  friend request policy; each change is saved at once. The Presence group also has the
+- Settings > Privacy (`SettingsPrivacy`): one audience per catalog item, grouped, the
+  friend request policy and the messages settings (`SettingsPrivacyMessages`: who may write to
+  me, toasts; `docs/MESSAGES.md`); each change is saved at once.
+- Messages (`docs/MESSAGES.md`): header entry `HeaderMessages` (unread badge, recent
+  conversations), `/messages/<username>`, "Message" (`SocialMessageButton`) on profile headers
+  and user rows when `relationship.can_message`. The Presence group also has the
   invisible mode toggle (`SettingsPrivacyInvisibleToggle`, `docs/PRESENCE.md`).
 - Presence (`docs/PRESENCE.md`): `HeaderFriendsPresence` (who is online, watching), presence
   dots on `SocialUserRow` and the profile header (`SocialPresenceDot`, `SocialPresenceBadge`).
@@ -269,8 +275,15 @@ social:
   max_pending_requests: 50      # pending outgoing requests per user (0 = unlimited)
 ```
 
+## Message policy
+
+Who may send a user messages (`user_social_settings.message_policy`, migration 102):
+`everyone`, `mutuals` (friends and mutuals), `friends` (default) or `nobody`, checked at send
+time; see `docs/MESSAGES.md`.
+
 ## Known limitations
 
 - No blocking: a user cannot prevent someone from following them (use `mutuals` or `friends`
-  audiences for what matters), nor remove a follower.
+  audiences for what matters), nor remove a follower, nor stop one user from writing (only the
+  message policy: `friends`, `nobody`...).
 - The rate limits are in memory (single process): they reset on restart.

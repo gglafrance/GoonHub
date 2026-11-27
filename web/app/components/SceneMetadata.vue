@@ -18,7 +18,6 @@ const canSize = computed(() => perms.has('files:view_size'));
 const canPaths = computed(() => perms.has('files:view_paths'));
 const canTechnical = computed(() => perms.has('files:view_technical'));
 const canExplore = computed(() => perms.has('explorer:access'));
-const canShare = computed(() => perms.has('scenes:share'));
 
 const showTechnical = computed(
     () =>
@@ -47,8 +46,6 @@ const loadStoragePaths = async () => {
 };
 
 onMounted(loadStoragePaths);
-
-const showShareModal = ref(false);
 
 // Normalize a path: strip trailing slashes and clean up ./ prefix
 const normalizePath = (p: string) => p.replace(/^\.\//, '').replace(/\/+$/, '');
@@ -289,30 +286,5 @@ const getResolutionLabel = (h?: number): string => {
                 </div>
             </div>
         </div>
-
-        <!-- Actions -->
-        <div
-            v-if="canShare"
-            class="border-border bg-surface/30 rounded-xl border p-3 backdrop-blur-sm"
-        >
-            <div class="flex gap-2">
-                <button
-                    class="border-border bg-panel text-dim hover:border-border-hover flex-1
-                        rounded-lg border py-2 text-[11px] font-medium transition-all
-                        hover:text-white"
-                    @click="showShareModal = true"
-                >
-                    <Icon name="heroicons:share" size="12" class="mr-1" />
-                    Share
-                </button>
-            </div>
-        </div>
-
-        <ShareModal
-            v-if="canShare"
-            :visible="showShareModal"
-            :scene-id="scene.id"
-            @close="showShareModal = false"
-        />
     </div>
 </template>

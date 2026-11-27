@@ -143,6 +143,8 @@ onMounted(load);
                 </div>
                 <p class="text-dim mt-2 text-[11px]">{{ policyDescription }}</p>
             </div>
+
+            <SettingsPrivacyMessages @saved="onInvisibleSaved" @failed="onInvisibleFailed" />
         </template>
     </div>
 </template>

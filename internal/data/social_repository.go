@@ -261,7 +261,8 @@ func (r *SocialRepositoryImpl) Relations(ctx context.Context, viewerID uint, use
 		EXISTS (SELECT 1 FROM user_friendships fr WHERE fr.user_low_id = LEAST(?::bigint, o.id) AND fr.user_high_id = GREATEST(?::bigint, o.id)) AS friend,
 		EXISTS (SELECT 1 FROM friend_requests rq WHERE rq.sender_id = ? AND rq.receiver_id = o.id) AS request_sent,
 		EXISTS (SELECT 1 FROM friend_requests rq WHERE rq.sender_id = o.id AND rq.receiver_id = ?) AS request_received,
-		COALESCE(ss.friend_request_policy, 'everyone') AS request_policy
+		COALESCE(ss.friend_request_policy, 'everyone') AS request_policy,
+		COALESCE(ss.message_policy, 'friends') AS message_policy
 		FROM unnest(?::bigint[]) AS o(id)
 		LEFT JOIN user_social_settings ss ON ss.user_id = o.id`,
 		v, v, v, v, v, v, uintsToInt64Array(userIDs)).Scan(&rows).Error
