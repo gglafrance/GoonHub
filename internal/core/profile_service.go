@@ -37,6 +37,11 @@ type ProfileService struct {
 
 	mu             sync.Mutex
 	uploadLimiters map[uint]*rate.Limiter
+
+	// custom lists (WithCustomLists)
+	searcher      ProfileSceneSearcher
+	tags          ProfileTagResolver
+	savedSearches data.SavedSearchRepository
 }
 
 func NewProfileService(repo data.ProfileRepository, socialRepo data.SocialRepository, markerRepo data.MarkerRepository, social *SocialService, privacy *PrivacyService, homepage *HomepageService, cfg config.ProfilesConfig, logger *zap.Logger) *ProfileService {
@@ -64,7 +69,11 @@ func NewProfileService(repo data.ProfileRepository, socialRepo data.SocialReposi
 	if cfg.ImageDir == "" {
 		cfg.ImageDir = "./data/metadata/profiles"
 	}
-	return &ProfileService{
+	cfg.MaxTabs = profileLimit(cfg.MaxTabs, 8, 4, 20)
+	cfg.MaxSections = profileLimit(cfg.MaxSections, 12, 1, 40)
+	cfg.MaxBlocksPerTab = profileLimit(cfg.MaxBlocksPerTab, 24, 1, 100)
+	cfg.MaxLists = profileLimit(cfg.MaxLists, 20, 1, 200)
+	s := &ProfileService{
 		repo:    repo,
 		social:  social,
 		privacy: privacy,
@@ -78,6 +87,21 @@ func NewProfileService(repo data.ProfileRepository, socialRepo data.SocialReposi
 		logger:         logger.With(zap.String("service", "profile")),
 		uploadLimiters: make(map[uint]*rate.Limiter),
 	}
+	s.deps.RunList = s.runList
+	return s
+}
+
+// profileLimit returns v, def when v is not set (<= 0), bounded to [lo, hi].
+func profileLimit(v, def, lo, hi int) int {
+	if v <= 0 {
+		v = def
+	}
+	return max(lo, min(hi, v))
+}
+
+// TabLimits returns the limits of the tabs.
+func (s *ProfileService) TabLimits() ProfileTabLimits {
+	return ProfileTabLimits{MaxTabs: s.cfg.MaxTabs, MaxSections: s.cfg.MaxSections, MaxBlocksPerTab: s.cfg.MaxBlocksPerTab}
 }
 
 // Config returns the effective profile limits.
@@ -109,6 +133,7 @@ type ProfileBanner struct {
 // ProfileBlockView is a block of a profile as a viewer gets it: Locked (a "private"
 // placeholder, no data), Data, or Failed (the block could not be loaded).
 type ProfileBlockView struct {
+	ID     string
 	Spec   ProfileBlockSpec
 	Config ProfileBlockValues
 	Locked bool
@@ -123,14 +148,34 @@ type ProfileView struct {
 	Bio    string
 	Banner *ProfileBanner
 	Blocks []ProfileBlockView
+	// Lists are the full lists the viewer may open (profile tabs)
+	Lists ProfileListsVisibility
+	// Tabs the viewer may open (without their sections), Tab the one served (TabMissing: the
+	// asked tab does not exist or is hidden from the viewer) and its Sections; Blocks are the
+	// blocks of the sections in order.
+	Tabs       []data.ProfileTab
+	Tab        string
+	TabMissing bool
+	Sections   []ProfileSectionView
+}
+
+// ProfileSectionView is a section of the served tab: its template and the blocks of each
+// column the viewer gets.
+type ProfileSectionView struct {
+	ID       string
+	Template string
+	Columns  [][]ProfileBlockView
 }
 
 // ProfileEditState is what the owner edits: the profile, the full layout, the showcases and
 // the privacy settings of the blocks.
 type ProfileEditState struct {
-	User            data.SocialUser
-	Profile         *data.UserProfile
+	User    data.SocialUser
+	Profile *data.UserProfile
+	// Layout: the blocks of the profile tab in order (the older single list); Tabs: all tabs
 	Layout          data.ProfileLayout
+	Tabs            data.ProfileTabs
+	Lists           []CustomListInfo
 	FavoriteScenes  []data.Scene
 	FavoriteMarkers []data.WidgetMarker
 	Privacy         *PrivacySettings
@@ -146,15 +191,16 @@ func newProfileValidationError(field, msg string) error {
 	return apperrors.NewValidationErrorWithField(field, msg)
 }
 
-// Get returns the profile of username as the viewer sees it. A hidden block is omitted, or
+// Get returns the profile of username as the viewer sees it, with the content of one tab
+// (tabKey: a tab id or a custom tab slug; "" = the profile tab). A hidden block is omitted, or
 // sent as a locked placeholder when its owner chose so; a block whose permission the viewer
-// lacks is always omitted.
-func (s *ProfileService) Get(ctx context.Context, viewer ProfileViewer, username string) (*ProfileView, error) {
+// lacks is always omitted. The tabs listed are those the viewer may open.
+func (s *ProfileService) Get(ctx context.Context, viewer ProfileViewer, username string, tabKey ...string) (*ProfileView, error) {
 	sp, err := s.social.Profile(ctx, viewer.UserID, username)
 	if err != nil {
 		return nil, err
 	}
-	view := &ProfileView{Social: sp, Blocks: []ProfileBlockView{}}
+	view := &ProfileView{Social: sp, Blocks: []ProfileBlockView{}, Tabs: []data.ProfileTab{}, Sections: []ProfileSectionView{}}
 	if !sp.ProfileVisible {
 		return view, nil
 	}
@@ -167,42 +213,158 @@ func (s *ProfileService) Get(ctx context.Context, viewer ProfileViewer, username
 	if view.Banner, err = s.bannerFor(ctx, viewer, profile); err != nil {
 		return nil, err
 	}
+	tabs := NormalizeProfileTabs(profile.Tabs, profile.Layout)
 
-	layout := NormalizeProfileLayout(profile.Layout)
+	// The custom lists of the blocks, with their criteria
+	lists := map[uint]ResolvedProfileList{}
+	if ids := customListIDs(tabs); len(ids) > 0 {
+		rows, err := s.repo.ListsByIDs(ctx, ownerID, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read the lists: %w", err)
+		}
+		for _, l := range rows {
+			lists[l.ID] = s.resolveList(l)
+		}
+	}
+
+	// Every privacy item the tabs need, read in one call
 	var items []string
 	seen := map[string]bool{}
-	for _, b := range layout {
-		if spec, ok := profileBlocks[b.Type]; ok && b.Visible && !seen[spec.PrivacyItem] {
-			seen[spec.PrivacyItem] = true
-			items = append(items, spec.PrivacyItem)
+	add := func(item string) {
+		if !seen[item] {
+			seen[item] = true
+			items = append(items, item)
+		}
+	}
+	for _, t := range tabs {
+		for _, b := range tabBlocks(t) {
+			if spec, ok := profileBlocks[b.Type]; ok && b.Visible {
+				add(spec.PrivacyItem)
+			}
+		}
+	}
+	for _, rl := range lists {
+		for _, item := range rl.Deps {
+			add(item)
+		}
+	}
+	// The items of the full lists (tabs)
+	if viewer.Has(PermScenesView) {
+		for _, item := range []string{PrivacyLiked, PrivacyRatings, PrivacyJizz} {
+			add(item)
 		}
 	}
 	visible, err := s.privacy.Visibility(ctx, viewer.UserID, ownerID, items)
 	if err != nil {
 		return nil, err
 	}
-	for _, b := range layout {
+	view.Lists = listsVisibility(viewer, visible)
+	owner := sp.Relationship.Self
+
+	// What the viewer gets of a block: shown (fetch), locked placeholder, or nothing
+	type blockState struct {
+		show, locked bool
+		list         *ResolvedProfileList
+	}
+	stateOf := func(b data.ProfileBlockConfig) blockState {
 		spec, ok := profileBlocks[b.Type]
 		if !ok || !b.Visible {
-			continue
+			return blockState{}
 		}
 		if spec.ViewerPermission != "" && !viewer.Has(spec.ViewerPermission) {
-			continue
+			return blockState{}
 		}
-		values := spec.resolve(b.Config)
-		if !visible[spec.PrivacyItem] {
-			if b.LockedPlaceholder {
-				view.Blocks = append(view.Blocks, ProfileBlockView{Spec: spec, Config: values, Locked: true})
+		pass := visible[spec.PrivacyItem]
+		var list *ResolvedProfileList
+		if b.Type == customListBlockType {
+			rl, found := lists[uint(spec.resolve(b.Config).Int("list_id"))]
+			if !found {
+				// a deleted list: nothing to show, to anyone
+				return blockState{}
 			}
-			continue
+			list = &rl
+			pass = pass && listVisibleTo(viewer, sp.Relationship, visible, rl)
 		}
-		blockData, err := spec.Fetch(ctx, &s.deps, ProfileBlockRequest{OwnerID: ownerID, Viewer: viewer, Config: values})
-		if err != nil {
-			s.logger.Warn("profile block failed", zap.String("block", spec.Type), zap.Uint("owner_id", ownerID), zap.Error(err))
-			view.Blocks = append(view.Blocks, ProfileBlockView{Spec: spec, Config: values, Failed: true})
-			continue
+		if !pass {
+			return blockState{locked: b.LockedPlaceholder}
 		}
-		view.Blocks = append(view.Blocks, ProfileBlockView{Spec: spec, Config: values, Data: blockData})
+		return blockState{show: true, list: list}
+	}
+
+	// The tabs the viewer may open
+	for _, t := range tabs {
+		meta := t
+		meta.Sections = nil
+		switch t.Kind {
+		case data.ProfileTabProfile:
+			view.Tabs = append(view.Tabs, meta)
+		case data.ProfileTabLikes, data.ProfileTabRatings, data.ProfileTabJizz:
+			open := map[string]bool{data.ProfileTabLikes: view.Lists.Liked, data.ProfileTabRatings: view.Lists.Ratings, data.ProfileTabJizz: view.Lists.Jizz}[t.Kind]
+			if t.Visible && open {
+				view.Tabs = append(view.Tabs, meta)
+			}
+		case data.ProfileTabCustom:
+			if !t.Visible {
+				continue
+			}
+			hasBlock := owner
+			for _, b := range tabBlocks(t) {
+				if st := stateOf(b); st.show || st.locked {
+					hasBlock = true
+					break
+				}
+			}
+			if hasBlock {
+				view.Tabs = append(view.Tabs, meta)
+			}
+		}
+	}
+
+	key := ""
+	if len(tabKey) > 0 {
+		key = tabKey[0]
+	}
+	current, found := findTab(tabs, key)
+	opened := false
+	for _, t := range view.Tabs {
+		if found && t.ID == current.ID {
+			opened = true
+		}
+	}
+	if !opened {
+		view.Tab = key
+		view.TabMissing = true
+		return view, nil
+	}
+	view.Tab = current.ID
+	for _, sec := range current.Sections {
+		sv := ProfileSectionView{ID: sec.ID, Template: sec.Template, Columns: make([][]ProfileBlockView, len(sec.Columns))}
+		for ci, col := range sec.Columns {
+			sv.Columns[ci] = []ProfileBlockView{}
+			for _, b := range col {
+				st := stateOf(b)
+				if !st.show && !st.locked {
+					continue
+				}
+				spec := profileBlocks[b.Type]
+				values := spec.resolve(b.Config)
+				bv := ProfileBlockView{ID: b.ID, Spec: spec, Config: values}
+				if !st.show {
+					bv.Locked = true
+				} else {
+					blockData, err := spec.Fetch(ctx, &s.deps, ProfileBlockRequest{OwnerID: ownerID, Viewer: viewer, Config: values, List: st.list})
+					if err != nil {
+						s.logger.Warn("profile block failed", zap.String("block", spec.Type), zap.Uint("owner_id", ownerID), zap.Error(err))
+						bv.Failed = true
+					} else {
+						bv.Data = blockData
+					}
+				}
+				sv.Columns[ci] = append(sv.Columns[ci], bv)
+				view.Blocks = append(view.Blocks, bv)
+			}
+		}
+		view.Sections = append(view.Sections, sv)
 	}
 	return view, nil
 }
@@ -252,10 +414,18 @@ func (s *ProfileService) EditState(ctx context.Context, userID uint) (*ProfileEd
 	if err != nil {
 		return nil, err
 	}
+	lists, err := s.MyLists(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	tabs := NormalizeProfileTabs(profile.Tabs, profile.Layout)
+	profileTab, _ := findTab(tabs, data.ProfileTabProfile)
 	return &ProfileEditState{
 		User:            *user,
 		Profile:         profile,
-		Layout:          NormalizeProfileLayout(profile.Layout),
+		Layout:          data.ProfileLayout(tabBlocks(profileTab)),
+		Tabs:            tabs,
+		Lists:           lists,
 		FavoriteScenes:  scenes,
 		FavoriteMarkers: markers,
 		Privacy:         privacy,
@@ -397,22 +567,89 @@ func (s *ProfileService) checkShowcaseIDs(field string, ids []uint) error {
 	return nil
 }
 
-// SetLayout validates and stores the block layout; nil resets it to the default layout.
-func (s *ProfileService) SetLayout(ctx context.Context, userID uint, layout data.ProfileLayout) (data.ProfileLayout, error) {
-	if layout == nil {
-		if err := s.repo.SaveLayout(ctx, userID, nil); err != nil {
-			return nil, fmt.Errorf("failed to save the layout: %w", err)
+// SetTabs validates and stores the tabs; nil resets the tabs (and the older layout) to the
+// default. A custom_list block must name one of the owner's lists.
+func (s *ProfileService) SetTabs(ctx context.Context, userID uint, tabs data.ProfileTabs) (data.ProfileTabs, error) {
+	if tabs == nil {
+		if err := s.repo.SaveTabs(ctx, userID, nil); err != nil {
+			return nil, fmt.Errorf("failed to save the tabs: %w", err)
 		}
-		return DefaultProfileLayout(), nil
+		return DefaultProfileTabs(), nil
 	}
-	normalized, err := ValidateProfileLayout(layout)
+	normalized, err := ValidateProfileTabs(tabs, s.TabLimits())
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.SaveLayout(ctx, userID, normalized); err != nil {
-		return nil, fmt.Errorf("failed to save the layout: %w", err)
+	var listIDs []uint
+	for _, t := range normalized {
+		for _, b := range tabBlocks(t) {
+			if b.Type == customListBlockType {
+				id := uint(profileBlocks[b.Type].resolve(b.Config).Int("list_id"))
+				if id == 0 {
+					return nil, profileTabsError("a custom list block needs a list")
+				}
+				listIDs = append(listIDs, id)
+			}
+		}
+	}
+	if len(listIDs) > 0 {
+		own, err := s.repo.ListsByIDs(ctx, userID, listIDs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check the lists: %w", err)
+		}
+		mine := map[uint]bool{}
+		for _, l := range own {
+			mine[l.ID] = true
+		}
+		for _, id := range listIDs {
+			if !mine[id] {
+				return nil, profileTabsError(fmt.Sprintf("list %d does not exist", id))
+			}
+		}
+	}
+	if err := s.repo.SaveTabs(ctx, userID, normalized); err != nil {
+		return nil, fmt.Errorf("failed to save the tabs: %w", err)
 	}
 	return normalized, nil
+}
+
+// SetLayout validates and stores the blocks of the profile tab as one full-width section (the
+// older single list API); nil resets them to the default layout. With saved tabs, the other
+// tabs are kept.
+func (s *ProfileService) SetLayout(ctx context.Context, userID uint, layout data.ProfileLayout) (data.ProfileLayout, error) {
+	blocks := DefaultProfileLayout()
+	if layout != nil {
+		var err error
+		if blocks, err = ValidateProfileLayout(layout); err != nil {
+			return nil, err
+		}
+	}
+	profile, err := s.repo.GetProfile(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the profile: %w", err)
+	}
+	if profile.Tabs != nil {
+		tabs := NormalizeProfileTabs(profile.Tabs, nil)
+		for i := range tabs {
+			if tabs[i].Kind == data.ProfileTabProfile {
+				tabs[i].Sections = legacyProfileTab(blocks).Sections
+			}
+		}
+		if err := s.repo.SaveTabs(ctx, userID, tabs); err != nil {
+			return nil, fmt.Errorf("failed to save the layout: %w", err)
+		}
+		return blocks, nil
+	}
+	if layout == nil {
+		blocks = nil
+	}
+	if err := s.repo.SaveLayout(ctx, userID, blocks); err != nil {
+		return nil, fmt.Errorf("failed to save the layout: %w", err)
+	}
+	if blocks == nil {
+		return DefaultProfileLayout(), nil
+	}
+	return blocks, nil
 }
 
 // MarkerCandidates lists the markers the user may put in their favorite markers showcase.

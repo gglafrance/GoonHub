@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Component } from 'vue';
-import type { ProfileBlock } from '~/types/profile';
+import type { ProfileBlock, ProfileCustomListPayload } from '~/types/profile';
 
 // Renders a profile block with components/profile/blocks/<PascalType>.vue inside its frame.
 // Block component contract: props { block, owner }. Locked blocks (the owner's "private"
@@ -8,6 +8,21 @@ import type { ProfileBlock } from '~/types/profile';
 const props = defineProps<{ block: ProfileBlock; owner: boolean }>();
 
 const blockModules = import.meta.glob('./blocks/*.vue');
+
+// "See all": the full list a block opens (liked, rated, jizz videos), same privacy item
+const route = useRoute();
+const seeAll = computed(() => {
+    if (props.block.locked || props.block.failed || props.block.empty) return null;
+    const username = String(route.params.username ?? '');
+    if (props.block.type === 'custom_list') {
+        const id = (props.block.widget as ProfileCustomListPayload | undefined)?.list_id;
+        return id
+            ? { to: `/u/${encodeURIComponent(username)}/lists/${id}`, label: 'Browse' }
+            : null;
+    }
+    const list = PROFILE_BLOCK_LISTS[props.block.type];
+    return list ? { to: profileTabPath(username, list), label: 'See all' } : null;
+});
 
 const pascal = (type: string) =>
     type
@@ -35,6 +50,15 @@ const component = computed<Component | null>(() => {
             <span v-if="block.total !== undefined && !block.locked" class="text-dim text-[11px]">
                 {{ block.total }}
             </span>
+            <NuxtLink
+                v-if="seeAll"
+                :to="seeAll.to"
+                class="text-dim hover:text-lava ml-auto flex items-center gap-0.5 text-[11px]
+                    transition-colors"
+            >
+                {{ seeAll.label }}
+                <Icon name="heroicons:chevron-right" size="12" />
+            </NuxtLink>
         </div>
         <div
             v-if="block.locked"

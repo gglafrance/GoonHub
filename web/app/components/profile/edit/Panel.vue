@@ -1,20 +1,31 @@
 <script setup lang="ts">
 import type { ProfileEdit } from '~/types/profile';
 
-// Edit mode of the owner's profile (orchestrator): identity and images, block layout, and the
-// two showcases. Emits changed when the profile page should reload.
+// Edit mode of the owner's profile (orchestrator): identity and images, tabs and their section
+// layouts, custom lists, and the two showcases. Emits changed when the profile page should reload.
 const emit = defineEmits<{ changed: [] }>();
 
 const api = useApiProfiles();
 const perms = useMyPermissions();
 const state = ref<ProfileEdit | null>(null);
 const error = ref('');
-const tab = ref<'profile' | 'blocks' | 'videos' | 'markers'>('profile');
+const tab = ref<'profile' | 'layout' | 'lists' | 'videos' | 'markers'>('profile');
 
 const tabs = computed(() =>
     [
         { id: 'profile' as const, label: 'Profile', icon: 'heroicons:user-circle', show: true },
-        { id: 'blocks' as const, label: 'Blocks', icon: 'heroicons:squares-2x2', show: true },
+        {
+            id: 'layout' as const,
+            label: 'Tabs & layout',
+            icon: 'heroicons:squares-2x2',
+            show: true,
+        },
+        {
+            id: 'lists' as const,
+            label: 'Custom lists',
+            icon: 'heroicons:queue-list',
+            show: perms.has('scenes:view'),
+        },
         {
             id: 'videos' as const,
             label: 'Favorite videos',
@@ -78,7 +89,8 @@ onMounted(load);
                 <ProfileEditIdentity :state="state" @saved="onSaved" />
                 <ProfileEditImages :state="state" @changed="changed" />
             </div>
-            <ProfileEditLayout v-else-if="tab === 'blocks'" :state="state" @saved="changed" />
+            <ProfileEditTabs v-else-if="tab === 'layout'" :state="state" @saved="changed" />
+            <ProfileEditLists v-else-if="tab === 'lists'" :state="state" @saved="changed" />
             <ProfileEditShowcase
                 v-else-if="tab === 'videos'"
                 :state="state"

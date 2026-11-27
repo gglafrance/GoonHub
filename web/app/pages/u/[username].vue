@@ -2,8 +2,10 @@
 import type { Profile } from '~/types/profile';
 import type { Relationship, SocialListKind } from '~/types/social';
 
-// Profile page (orchestrator, docs/PROFILES.md): header, the blocks the viewer may see, the
-// relation lists, and for the owner the edit mode (?edit=1).
+// Profile page (orchestrator, docs/PROFILES.md): the header, the tabs (the profile, the list
+// tabs and the custom tabs; the child pages in pages/u/[username]/), the relation lists, and for
+// the owner the edit mode (?edit=1). The profile is loaded with the sections of the tab of the
+// route and passed to the child pages as a prop.
 const route = useRoute();
 const router = useRouter();
 const api = useApiProfiles();
@@ -23,11 +25,9 @@ const showLists = ref(false);
 const listsEl = ref<HTMLElement | null>(null);
 
 const owner = computed(() => !!profile.value?.relationship.self);
+// The tab the route shows: the profile also brings its sections
+const tabKey = computed(() => tabKeyOfPath(route.path));
 const editing = computed(() => owner.value && route.query.edit === '1');
-// Other viewers do not see the empty blocks; a locked placeholder stays
-const blocks = computed(() =>
-    (profile.value?.blocks ?? []).filter((b) => owner.value || b.locked || !b.empty),
-);
 
 useHead({ title: () => (profile.value ? displayNameOf(profile.value.user) : username.value) });
 
@@ -36,7 +36,7 @@ async function load() {
     error.value = '';
     notFound.value = false;
     try {
-        profile.value = await api.getProfile(username.value);
+        profile.value = await api.getProfile(username.value, tabKey.value);
         if (!profile.value.visibility.friends_list && profile.value.visibility.followers_list) {
             activeList.value = 'followers';
         }
@@ -68,7 +68,7 @@ function toggleEdit() {
     router.replace({ query });
 }
 
-watch(username, load);
+watch([username, tabKey], load);
 watch(
     () => socialStore.version,
     () => {
@@ -103,22 +103,8 @@ onMounted(load);
             />
             <ProfileEditPanel v-if="editing" @changed="load" />
             <template v-if="profile.visibility.profile">
-                <ProfileBlockRenderer
-                    v-for="block in blocks"
-                    :key="block.type"
-                    :block="block"
-                    :owner="owner"
-                />
-                <div
-                    v-if="blocks.length === 0"
-                    class="glass-panel text-dim p-6 text-center text-xs"
-                >
-                    {{
-                        owner
-                            ? 'Your profile shows no block yet: Edit profile > Blocks.'
-                            : 'Nothing to show here.'
-                    }}
-                </div>
+                <ProfileTabs :profile="profile" />
+                <NuxtPage :profile="profile" :owner="owner" />
                 <div ref="listsEl">
                     <SocialProfileLists
                         v-if="showLists"

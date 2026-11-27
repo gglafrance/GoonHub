@@ -528,7 +528,11 @@ export const useSearchStore = defineStore('search', searchStoreSetup);
 /** Search of the picker modal (components/picker): same state as the search page, isolated. */
 export const usePickerSearchStore = defineStore('search-picker', searchStoreSetup);
 
-/** Either search store instance (they only differ by their id). */
+/** Criteria editor of the profile custom lists (components/profile/edit): isolated too. */
+export const useProfileListSearchStore = defineStore('search-profile-list', searchStoreSetup);
+
+/** Any search store instance (they only differ by their id). */
 export type SearchStore =
     | ReturnType<typeof useSearchStore>
-    | ReturnType<typeof usePickerSearchStore>;
+    | ReturnType<typeof usePickerSearchStore>
+    | ReturnType<typeof useProfileListSearchStore>;

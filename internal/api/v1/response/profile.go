@@ -48,11 +48,37 @@ type ProfileSceneResponse struct {
 	Scene SceneListItem `json:"scene"`
 	At    *time.Time    `json:"at,omitempty"`
 	Views *int64        `json:"views,omitempty"`
+	// Rating is the owner's rating (ratings list)
+	Rating *float64 `json:"rating,omitempty"`
+	// JizzCount is the owner's O count (jizz block and list)
+	JizzCount *int64 `json:"jizz_count,omitempty"`
+}
+
+// NewProfileSceneResponse converts a scene of a block or list with its figures.
+func NewProfileSceneResponse(s core.ProfileSceneItem, item SceneListItem) ProfileSceneResponse {
+	out := ProfileSceneResponse{Scene: item, At: s.At, Rating: s.Rating}
+	if s.Views > 0 {
+		v := s.Views
+		out.Views = &v
+	}
+	if s.JizzCount > 0 {
+		v := s.JizzCount
+		out.JizzCount = &v
+	}
+	return out
+}
+
+// ProfileListsResponse tells which full lists of a profile the viewer may open.
+type ProfileListsResponse struct {
+	Liked   bool `json:"liked"`
+	Ratings bool `json:"ratings"`
+	Jizz    bool `json:"jizz"`
 }
 
 // ProfileBlockResponse is a block of a profile as the viewer gets it. A locked block (the
 // owner's placeholder for viewers who may not see it) has no data.
 type ProfileBlockResponse struct {
+	ID          string                 `json:"id,omitempty"`
 	Type        string                 `json:"type"`
 	Label       string                 `json:"label"`
 	PrivacyItem string                 `json:"privacy_item"`
@@ -73,10 +99,33 @@ type ProfileResponse struct {
 	Bio    string                 `json:"bio"`
 	Banner *ProfileBannerResponse `json:"banner"`
 	Blocks []ProfileBlockResponse `json:"blocks"`
+	Lists  ProfileListsResponse   `json:"lists"`
+	// Tabs the viewer may open, the served tab and its sections
+	Tabs       []ProfileTabResponse     `json:"tabs"`
+	Tab        string                   `json:"tab"`
+	TabMissing bool                     `json:"tab_missing,omitempty"`
+	Sections   []ProfileSectionResponse `json:"sections"`
+}
+
+// ProfileTabResponse is a tab of a profile as the viewer lists it.
+type ProfileTabResponse struct {
+	ID    string `json:"id"`
+	Kind  string `json:"kind"`
+	Title string `json:"title"`
+	Icon  string `json:"icon,omitempty"`
+	Slug  string `json:"slug,omitempty"`
+}
+
+// ProfileSectionResponse is a section of the served tab.
+type ProfileSectionResponse struct {
+	ID       string                   `json:"id"`
+	Template string                   `json:"template"`
+	Columns  [][]ProfileBlockResponse `json:"columns"`
 }
 
 func newProfileBlockResponse(b core.ProfileBlockView, vis FileVisibility) ProfileBlockResponse {
 	out := ProfileBlockResponse{
+		ID:          b.ID,
 		Type:        b.Spec.Type,
 		Label:       b.Spec.Label,
 		PrivacyItem: b.Spec.PrivacyItem,
@@ -91,6 +140,9 @@ func newProfileBlockResponse(b core.ProfileBlockView, vis FileVisibility) Profil
 		return out
 	}
 	out.Empty = b.Data.Empty
+	if b.Data.Title != "" {
+		out.Label = b.Data.Title
+	}
 	out.Widget = b.Data.Widget
 	out.Total = b.Data.Total
 	if b.Data.Markers != nil {
@@ -99,12 +151,7 @@ func newProfileBlockResponse(b core.ProfileBlockView, vis FileVisibility) Profil
 	if b.Data.Scenes != nil {
 		out.Scenes = make([]ProfileSceneResponse, len(b.Data.Scenes))
 		for i, s := range b.Data.Scenes {
-			item := ProfileSceneResponse{Scene: ToSceneListItem(s.Scene, vis), At: s.At}
-			if s.Views > 0 {
-				v := s.Views
-				item.Views = &v
-			}
-			out.Scenes[i] = item
+			out.Scenes[i] = NewProfileSceneResponse(s, ToSceneListItem(s.Scene, vis))
 		}
 	}
 	return out
@@ -116,9 +163,26 @@ func NewProfileResponse(v *core.ProfileView, vis FileVisibility) ProfileResponse
 		Bio:                   v.Bio,
 		Banner:                newProfileBannerResponse(v.Banner, v.Social.User.ID),
 		Blocks:                make([]ProfileBlockResponse, len(v.Blocks)),
+		Lists:                 ProfileListsResponse{Liked: v.Lists.Liked, Ratings: v.Lists.Ratings, Jizz: v.Lists.Jizz},
 	}
 	for i, b := range v.Blocks {
 		out.Blocks[i] = newProfileBlockResponse(b, vis)
+	}
+	out.Tabs = make([]ProfileTabResponse, len(v.Tabs))
+	for i, t := range v.Tabs {
+		out.Tabs[i] = ProfileTabResponse{ID: t.ID, Kind: t.Kind, Title: t.Title, Icon: t.Icon, Slug: t.Slug}
+	}
+	out.Tab, out.TabMissing = v.Tab, v.TabMissing
+	out.Sections = make([]ProfileSectionResponse, len(v.Sections))
+	for i, sec := range v.Sections {
+		sr := ProfileSectionResponse{ID: sec.ID, Template: sec.Template, Columns: make([][]ProfileBlockResponse, len(sec.Columns))}
+		for ci, col := range sec.Columns {
+			sr.Columns[ci] = make([]ProfileBlockResponse, len(col))
+			for bi, b := range col {
+				sr.Columns[ci][bi] = newProfileBlockResponse(b, vis)
+			}
+		}
+		out.Sections[i] = sr
 	}
 	return out
 }
@@ -148,6 +212,8 @@ type ProfileBlockTypeResponse struct {
 	PrivacyItem      string                       `json:"privacy_item"`
 	ViewerPermission string                       `json:"viewer_permission,omitempty"`
 	Options          []ProfileBlockOptionResponse `json:"options"`
+	// Multi: placed as many times as wanted, each configured (custom lists)
+	Multi bool `json:"multi,omitempty"`
 }
 
 // NewProfileBlockTypesResponse lists the registered block types.
@@ -161,6 +227,7 @@ func NewProfileBlockTypesResponse() []ProfileBlockTypeResponse {
 			Description:      spec.Description,
 			PrivacyItem:      spec.PrivacyItem,
 			ViewerPermission: spec.ViewerPermission,
+			Multi:            spec.Multi,
 			Options:          make([]ProfileBlockOptionResponse, len(spec.Options)),
 		}
 		for j, opt := range spec.Options {
@@ -191,6 +258,10 @@ type ProfileLimitsResponse struct {
 	BioMaxLength         int   `json:"bio_max_length"`
 	DisplayNameMaxLength int   `json:"display_name_max_length"`
 	MaxUploadBytes       int64 `json:"max_upload_bytes"`
+	MaxTabs              int   `json:"max_tabs"`
+	MaxSections          int   `json:"max_sections"`
+	MaxBlocksPerTab      int   `json:"max_blocks_per_tab"`
+	MaxLists             int   `json:"max_lists"`
 }
 
 // ProfileEditBannerResponse is the banner as its owner edits it.
@@ -209,6 +280,9 @@ type ProfileEditResponse struct {
 	AvatarVersion   int64                      `json:"avatar_version"`
 	Banner          ProfileEditBannerResponse  `json:"banner"`
 	Layout          []data.ProfileBlockConfig  `json:"layout"`
+	Tabs            data.ProfileTabs           `json:"tabs"`
+	Lists           []CustomListResponse       `json:"lists"`
+	Templates       []SectionTemplateResponse  `json:"section_templates"`
 	FavoriteScenes  []SceneListItem            `json:"favorite_scenes"`
 	FavoriteMarkers []data.WidgetMarker        `json:"favorite_markers"`
 	BlockTypes      []ProfileBlockTypeResponse `json:"block_types"`
@@ -223,6 +297,10 @@ func NewProfileLimitsResponse(cfg config.ProfilesConfig) ProfileLimitsResponse {
 		BioMaxLength:         cfg.BioMaxLength,
 		DisplayNameMaxLength: cfg.DisplayNameMaxLength,
 		MaxUploadBytes:       cfg.MaxUploadBytes,
+		MaxTabs:              cfg.MaxTabs,
+		MaxSections:          cfg.MaxSections,
+		MaxBlocksPerTab:      cfg.MaxBlocksPerTab,
+		MaxLists:             cfg.MaxLists,
 	}
 }
 
@@ -242,10 +320,23 @@ func NewProfileEditResponse(s *core.ProfileEditState, cfg config.ProfilesConfig,
 		AvatarVersion:   p.AvatarVersion,
 		Banner:          banner,
 		Layout:          s.Layout,
+		Tabs:            s.Tabs,
+		Lists:           NewCustomListsResponse(s.Lists),
+		Templates:       NewSectionTemplatesResponse(),
 		FavoriteScenes:  ToSceneListItems(s.FavoriteScenes, vis),
 		FavoriteMarkers: s.FavoriteMarkers,
 		BlockTypes:      NewProfileBlockTypesResponse(),
 		Privacy:         NewPrivacySettingsResponse(s.Privacy),
 		Limits:          NewProfileLimitsResponse(cfg),
 	}
+}
+
+// ProfileListResponse is a page of a full list of a profile (liked, rated, jizz videos): the
+// scenes with the owner's figures, the sort used, and the viewer's own card sidecars (ratings,
+// likes, jizz_counts, watched maps, as on the scene lists, when card_fields asks for them).
+type ProfileListResponse struct {
+	Data       []ProfileSceneResponse `json:"data"`
+	Pagination Pagination             `json:"pagination"`
+	Sort       string                 `json:"sort"`
+	CardSidecars
 }

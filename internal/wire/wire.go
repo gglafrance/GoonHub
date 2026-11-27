@@ -1003,12 +1003,12 @@ func provideProfileRepository(db *gorm.DB) data.ProfileRepository {
 	return data.NewProfileRepository(db)
 }
 
-func provideProfileService(repo data.ProfileRepository, socialRepo data.SocialRepository, markerRepo data.MarkerRepository, social *core.SocialService, privacy *core.PrivacyService, homepage *core.HomepageService, cfg *config.Config, logger *logging.Logger) *core.ProfileService {
-	return core.NewProfileService(repo, socialRepo, markerRepo, social, privacy, homepage, cfg.Profiles, logger.Logger)
+func provideProfileService(repo data.ProfileRepository, socialRepo data.SocialRepository, markerRepo data.MarkerRepository, social *core.SocialService, privacy *core.PrivacyService, homepage *core.HomepageService, searchService *core.SearchService, tagRepo data.TagRepository, savedSearchRepo data.SavedSearchRepository, cfg *config.Config, logger *logging.Logger) *core.ProfileService {
+	return core.NewProfileService(repo, socialRepo, markerRepo, social, privacy, homepage, cfg.Profiles, logger.Logger).WithCustomLists(searchService, tagRepo, savedSearchRepo)
 }
 
-func provideProfileHandler(profiles *core.ProfileService, cfg *config.Config) *handler.ProfileHandler {
-	return handler.NewProfileHandler(profiles, cfg.Pagination.MaxItemsPerPage)
+func provideProfileHandler(profiles *core.ProfileService, cfg *config.Config, markerService *core.MarkerService, interactionRepo data.InteractionRepository, tagRepo data.TagRepository, actorRepo data.ActorRepository) *handler.ProfileHandler {
+	return handler.NewProfileHandler(profiles, cfg.Pagination.MaxItemsPerPage).WithCardData(markerService, interactionRepo, tagRepo, actorRepo)
 }
 
 // providePresenceService creates the presence (docs/PRESENCE.md), subscribed to the privacy

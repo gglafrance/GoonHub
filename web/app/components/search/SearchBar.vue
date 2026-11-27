@@ -28,6 +28,8 @@ const allSortOptions = [
     { value: 'last_jizz_asc', label: 'Oldest O' },
     { value: 'view_count_desc', label: 'Most Viewed' },
     { value: 'view_count_asc', label: 'Least Viewed' },
+    // the user's own ratings, likes and views
+    ...USER_SORT_OPTIONS,
 ];
 // Size sorts need files:view_size
 const perms = useMyPermissions();

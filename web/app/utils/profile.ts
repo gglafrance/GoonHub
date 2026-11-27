@@ -1,5 +1,5 @@
 // Pure helpers of the profile pages (docs/PROFILES.md). Tests in web/tests/profile.test.ts.
-import type { ImageCrop, ProfileLayoutBlock } from '~/types/profile';
+import type { ImageCrop, ProfileLayoutBlock, ProfileListKind } from '~/types/profile';
 
 export type AvatarSize = 'sm' | 'md' | 'lg';
 
@@ -132,7 +132,28 @@ export const PROFILE_BLOCK_ICONS: Record<string, string> = {
     recent_markers: 'heroicons:bookmark-square',
     liked_scenes: 'heroicons:heart',
     stats: 'heroicons:chart-bar',
+    ratings: 'heroicons:star',
+    jizz: 'fluent-emoji-high-contrast:sweat-droplets',
     activity_calendar: 'heroicons:calendar-days',
     playlists: 'heroicons:queue-list',
     friends: 'heroicons:user-group',
+    custom_list: 'heroicons:queue-list',
 };
+
+/** The full list a block opens with its "See all" link. */
+export const PROFILE_BLOCK_LISTS: Record<string, ProfileListKind> = {
+    liked_scenes: 'likes',
+    ratings: 'ratings',
+    jizz: 'jizz',
+};
+
+/** Path of a profile tab: the profile itself, or one of its lists (with an optional query). */
+export function profileTabPath(
+    username: string,
+    list?: ProfileListKind,
+    query?: Record<string, string>,
+): string {
+    const base = `/u/${encodeURIComponent(username)}${list ? `/${list}` : ''}`;
+    const qs = query ? new URLSearchParams(query).toString() : '';
+    return qs ? `${base}?${qs}` : base;
+}

@@ -42,6 +42,50 @@ func (m *MockProfileRepository) EXPECT() *MockProfileRepositoryMockRecorder {
 	return m.recorder
 }
 
+// CountLists mocks base method.
+func (m *MockProfileRepository) CountLists(ctx context.Context, userID uint) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountLists", ctx, userID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountLists indicates an expected call of CountLists.
+func (mr *MockProfileRepositoryMockRecorder) CountLists(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountLists", reflect.TypeOf((*MockProfileRepository)(nil).CountLists), ctx, userID)
+}
+
+// CreateList mocks base method.
+func (m *MockProfileRepository) CreateList(ctx context.Context, list *data.ProfileList) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateList", ctx, list)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateList indicates an expected call of CreateList.
+func (mr *MockProfileRepositoryMockRecorder) CreateList(ctx, list any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateList", reflect.TypeOf((*MockProfileRepository)(nil).CreateList), ctx, list)
+}
+
+// DeleteList mocks base method.
+func (m *MockProfileRepository) DeleteList(ctx context.Context, userID, id uint) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteList", ctx, userID, id)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteList indicates an expected call of DeleteList.
+func (mr *MockProfileRepositoryMockRecorder) DeleteList(ctx, userID, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteList", reflect.TypeOf((*MockProfileRepository)(nil).DeleteList), ctx, userID, id)
+}
+
 // FavoriteMarkerIDs mocks base method.
 func (m *MockProfileRepository) FavoriteMarkerIDs(ctx context.Context, userID uint) ([]uint, error) {
 	m.ctrl.T.Helper()
@@ -72,6 +116,21 @@ func (mr *MockProfileRepositoryMockRecorder) FavoriteSceneIDs(ctx, userID any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FavoriteSceneIDs", reflect.TypeOf((*MockProfileRepository)(nil).FavoriteSceneIDs), ctx, userID)
 }
 
+// GetList mocks base method.
+func (m *MockProfileRepository) GetList(ctx context.Context, userID, id uint) (*data.ProfileList, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetList", ctx, userID, id)
+	ret0, _ := ret[0].(*data.ProfileList)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetList indicates an expected call of GetList.
+func (mr *MockProfileRepositoryMockRecorder) GetList(ctx, userID, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetList", reflect.TypeOf((*MockProfileRepository)(nil).GetList), ctx, userID, id)
+}
+
 // GetProfile mocks base method.
 func (m *MockProfileRepository) GetProfile(ctx context.Context, userID uint) (*data.UserProfile, error) {
 	m.ctrl.T.Helper()
@@ -85,6 +144,37 @@ func (m *MockProfileRepository) GetProfile(ctx context.Context, userID uint) (*d
 func (mr *MockProfileRepositoryMockRecorder) GetProfile(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProfile", reflect.TypeOf((*MockProfileRepository)(nil).GetProfile), ctx, userID)
+}
+
+// JizzScenes mocks base method.
+func (m *MockProfileRepository) JizzScenes(ctx context.Context, userID uint, q data.ProfileListQuery) ([]data.ProfileSceneRef, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "JizzScenes", ctx, userID, q)
+	ret0, _ := ret[0].([]data.ProfileSceneRef)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// JizzScenes indicates an expected call of JizzScenes.
+func (mr *MockProfileRepositoryMockRecorder) JizzScenes(ctx, userID, q any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "JizzScenes", reflect.TypeOf((*MockProfileRepository)(nil).JizzScenes), ctx, userID, q)
+}
+
+// JizzSummary mocks base method.
+func (m *MockProfileRepository) JizzSummary(ctx context.Context, userID uint) (*data.ProfileJizzSummary, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "JizzSummary", ctx, userID)
+	ret0, _ := ret[0].(*data.ProfileJizzSummary)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// JizzSummary indicates an expected call of JizzSummary.
+func (mr *MockProfileRepositoryMockRecorder) JizzSummary(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "JizzSummary", reflect.TypeOf((*MockProfileRepository)(nil).JizzSummary), ctx, userID)
 }
 
 // LikedScenes mocks base method.
@@ -101,6 +191,52 @@ func (m *MockProfileRepository) LikedScenes(ctx context.Context, userID uint, li
 func (mr *MockProfileRepositoryMockRecorder) LikedScenes(ctx, userID, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LikedScenes", reflect.TypeOf((*MockProfileRepository)(nil).LikedScenes), ctx, userID, limit)
+}
+
+// LikedScenesPage mocks base method.
+func (m *MockProfileRepository) LikedScenesPage(ctx context.Context, userID uint, q data.ProfileListQuery) ([]data.ProfileSceneRef, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LikedScenesPage", ctx, userID, q)
+	ret0, _ := ret[0].([]data.ProfileSceneRef)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// LikedScenesPage indicates an expected call of LikedScenesPage.
+func (mr *MockProfileRepositoryMockRecorder) LikedScenesPage(ctx, userID, q any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LikedScenesPage", reflect.TypeOf((*MockProfileRepository)(nil).LikedScenesPage), ctx, userID, q)
+}
+
+// Lists mocks base method.
+func (m *MockProfileRepository) Lists(ctx context.Context, userID uint) ([]data.ProfileList, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Lists", ctx, userID)
+	ret0, _ := ret[0].([]data.ProfileList)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Lists indicates an expected call of Lists.
+func (mr *MockProfileRepositoryMockRecorder) Lists(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Lists", reflect.TypeOf((*MockProfileRepository)(nil).Lists), ctx, userID)
+}
+
+// ListsByIDs mocks base method.
+func (m *MockProfileRepository) ListsByIDs(ctx context.Context, userID uint, ids []uint) ([]data.ProfileList, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListsByIDs", ctx, userID, ids)
+	ret0, _ := ret[0].([]data.ProfileList)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListsByIDs indicates an expected call of ListsByIDs.
+func (mr *MockProfileRepositoryMockRecorder) ListsByIDs(ctx, userID, ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListsByIDs", reflect.TypeOf((*MockProfileRepository)(nil).ListsByIDs), ctx, userID, ids)
 }
 
 // LiveSceneIDs mocks base method.
@@ -165,6 +301,37 @@ func (mr *MockProfileRepositoryMockRecorder) PublicPlaylists(ctx, userID, limit 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PublicPlaylists", reflect.TypeOf((*MockProfileRepository)(nil).PublicPlaylists), ctx, userID, limit)
 }
 
+// RatedScenes mocks base method.
+func (m *MockProfileRepository) RatedScenes(ctx context.Context, userID uint, q data.ProfileListQuery) ([]data.ProfileSceneRef, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RatedScenes", ctx, userID, q)
+	ret0, _ := ret[0].([]data.ProfileSceneRef)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// RatedScenes indicates an expected call of RatedScenes.
+func (mr *MockProfileRepositoryMockRecorder) RatedScenes(ctx, userID, q any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RatedScenes", reflect.TypeOf((*MockProfileRepository)(nil).RatedScenes), ctx, userID, q)
+}
+
+// RatingSummary mocks base method.
+func (m *MockProfileRepository) RatingSummary(ctx context.Context, userID uint) (*data.ProfileRatingSummary, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RatingSummary", ctx, userID)
+	ret0, _ := ret[0].(*data.ProfileRatingSummary)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RatingSummary indicates an expected call of RatingSummary.
+func (mr *MockProfileRepositoryMockRecorder) RatingSummary(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RatingSummary", reflect.TypeOf((*MockProfileRepository)(nil).RatingSummary), ctx, userID)
+}
+
 // RecentMarkers mocks base method.
 func (m *MockProfileRepository) RecentMarkers(ctx context.Context, userID uint, limit int) ([]data.WidgetMarker, error) {
 	m.ctrl.T.Helper()
@@ -221,6 +388,20 @@ func (m *MockProfileRepository) SaveProfile(ctx context.Context, userID uint, di
 func (mr *MockProfileRepositoryMockRecorder) SaveProfile(ctx, userID, displayName, bio any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveProfile", reflect.TypeOf((*MockProfileRepository)(nil).SaveProfile), ctx, userID, displayName, bio)
+}
+
+// SaveTabs mocks base method.
+func (m *MockProfileRepository) SaveTabs(ctx context.Context, userID uint, tabs data.ProfileTabs) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SaveTabs", ctx, userID, tabs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SaveTabs indicates an expected call of SaveTabs.
+func (mr *MockProfileRepositoryMockRecorder) SaveTabs(ctx, userID, tabs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveTabs", reflect.TypeOf((*MockProfileRepository)(nil).SaveTabs), ctx, userID, tabs)
 }
 
 // ScenesByIDs mocks base method.
@@ -352,6 +533,20 @@ func (m *MockProfileRepository) TopTags(ctx context.Context, userID uint, since 
 func (mr *MockProfileRepositoryMockRecorder) TopTags(ctx, userID, since, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TopTags", reflect.TypeOf((*MockProfileRepository)(nil).TopTags), ctx, userID, since, limit)
+}
+
+// UpdateList mocks base method.
+func (m *MockProfileRepository) UpdateList(ctx context.Context, list *data.ProfileList) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateList", ctx, list)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateList indicates an expected call of UpdateList.
+func (mr *MockProfileRepositoryMockRecorder) UpdateList(ctx, list any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateList", reflect.TypeOf((*MockProfileRepository)(nil).UpdateList), ctx, list)
 }
 
 // VisibleMarkers mocks base method.
