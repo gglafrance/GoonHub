@@ -1698,7 +1698,46 @@ onBeforeUnmount(() => {
 }
 
 /* ========================================
-   COMPACT LAYOUT (narrow players, usePlayerCompactLayout)
+   NARROW BAR (desktop, narrow player e.g. a portrait video; usePlayerCompactLayout)
+   The single bar, tightened; it wraps on a second row rather than clipping its last controls
+   ======================================== */
+:deep(.video-js.vjs-narrow .vjs-control-bar) {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    height: auto;
+    min-height: 48px;
+    padding: 6px 4px 2px;
+    flex-wrap: wrap;
+    gap: 0 1px;
+}
+
+:deep(.video-js.vjs-narrow .vjs-time-control) {
+    line-height: 40px;
+    padding: 0 4px;
+}
+
+:deep(.video-js.vjs-narrow .vjs-current-time),
+:deep(.video-js.vjs-narrow .vjs-duration) {
+    padding: 0 4px;
+}
+
+:deep(.video-js.vjs-narrow .vjs-ab-loop-time) {
+    min-width: 0;
+    padding: 0 6px;
+}
+
+:deep(.video-js.vjs-narrow .vjs-playback-rate) {
+    min-width: 36px;
+}
+
+/* A/B buttons not set yet: the letter only (their "--:--" says nothing) */
+:deep(.video-js.vjs-narrow .vjs-ab-loop-time:not(.vjs-ab-loop-time-active) .vjs-ab-loop-value) {
+    display: none;
+}
+
+/* ========================================
+   COMPACT LAYOUT (narrow players on phones and touch screens, usePlayerCompactLayout)
    Secondary controls at the top, playback in the middle, time and fullscreen at the bottom
    ======================================== */
 :deep(.vjs-compact-top),

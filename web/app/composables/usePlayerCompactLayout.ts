@@ -3,13 +3,14 @@ import type videojs from 'video.js';
 type Player = ReturnType<typeof videojs>;
 
 /**
- * Compact layout of the scene player controls (utils/playerCompactLayout.ts): when the player
- * is narrower than COMPACT_PLAYER_WIDTH, the controls are spread over it like on the mobile
- * players: the secondary ones (speed, A/B loop, picture-in-picture, scrubber) in a bar at the
+ * Layout of the scene player controls (utils/playerCompactLayout.ts). When the player is
+ * narrower than COMPACT_PLAYER_WIDTH on a phone or touch screen (COMPACT_DEVICE_QUERY), the
+ * controls are spread over it like on the mobile players: the secondary ones (speed, A/B loop, picture-in-picture, scrubber) in a bar at the
  * top, play with the playlist previous/next in the middle, and the progress, mute, time and
  * fullscreen in the bottom bar. The theater mode is hidden (no use on a narrow screen). The
  * video.js components are untouched, only their elements move; they go back to the control bar,
- * in their order, when the player gets wide again.
+ * in their order, when the player gets wide again. On desktop a narrow player (a portrait
+ * video) keeps the single bar, tightened (class vjs-narrow).
  *
  * Call attach() once the control bar has all its children (after the playlist buttons).
  */
@@ -22,6 +23,14 @@ export function usePlayerCompactLayout(player: Ref<Player | null>) {
     let center: HTMLElement | null = null;
     let original: Element[] = [];
     let observer: ResizeObserver | null = null;
+    let deviceQuery: MediaQueryList | null = null;
+    let width = 0;
+
+    function update() {
+        const mode = playerControlsMode(width, !!deviceQuery?.matches);
+        root?.classList.toggle('vjs-narrow', mode === 'narrow');
+        apply(mode === 'compact');
+    }
 
     function apply(on: boolean) {
         if (!root || !bar || !top || !center || on === compact.value) return;
@@ -55,8 +64,12 @@ export function usePlayerCompactLayout(player: Ref<Player | null>) {
         root.appendChild(top);
         root.appendChild(center);
 
+        deviceQuery = window.matchMedia(COMPACT_DEVICE_QUERY);
+        deviceQuery.addEventListener('change', update);
         observer = new ResizeObserver(([entry]) => {
-            if (entry) apply(isCompactPlayer(entry.contentRect.width));
+            if (!entry) return;
+            width = entry.contentRect.width;
+            update();
         });
         observer.observe(root);
     }
@@ -64,6 +77,9 @@ export function usePlayerCompactLayout(player: Ref<Player | null>) {
     function detach() {
         observer?.disconnect();
         observer = null;
+        deviceQuery?.removeEventListener('change', update);
+        deviceQuery = null;
+        root?.classList.remove('vjs-narrow');
         apply(false);
         top?.remove();
         center?.remove();
