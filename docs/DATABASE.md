@@ -1859,7 +1859,7 @@ from the same group have no pair between them and can group again.
 
 ## Goon2gether
 
-Synchronized watch lobbies and custom emotes (migrations 099 and 101, `docs/GOON2GETHER.md`). The live
+Synchronized watch lobbies and custom emotes (migrations 099, 101 and 107, `docs/GOON2GETHER.md`). The live
 state (connections, buffering, holds, chat) is in memory; these tables keep what must survive a
 restart.
 
@@ -1883,6 +1883,8 @@ restart.
 | `playback_rate` | DOUBLE PRECISION | NO | 1 | Last saved playback rate |
 | `auto_next` | VARCHAR(16) | NO | 'next' | What happens at the end of an item: `stop`, `next`, `repeat_one`, `repeat_queue` (migration 101) |
 | `anon_seq` | INTEGER | NO | 0 | Last anonymous number given in the lobby ("Anonymous #N", never reused; migration 101) |
+| `play_started_at` | TIMESTAMPTZ | YES | NULL | When the current item first played (NULL: not yet), saved with the playback; its history entry is written when the item changes (migration 107) |
+| `play_completed` | BOOLEAN | NO | FALSE | The current item reached its end at least once (history outcome; migration 107) |
 | `last_active_at` | TIMESTAMPTZ | NO | NOW() | Last time someone was connected; unloaded lobbies with nobody connected for `goon2gether.empty_close_after` (else `idle_timeout`) are deleted, also after a restart |
 | `created_at`, `updated_at` | TIMESTAMPTZ | NO | NOW() | |
 
@@ -1891,7 +1893,7 @@ restart.
 **Constraints:** CHECK `chk_lobbies_visibility` (`public`, `private`), `chk_lobbies_max_members` (`>= 0`), `chk_lobbies_playback_rate` (`> 0`), `chk_lobbies_auto_next`, `chk_lobbies_anon_seq` (`>= 0`); `fk_lobbies_current_item` ON DELETE SET NULL.
 
 A closed lobby (by its host, a moderator, or automatically for inactivity) is deleted with its
-members and queue (CASCADE): it is lobby state, never a media file.
+members, queue and history (CASCADE): it is lobby state, never a media file.
 
 ### `lobby_members`
 
@@ -1923,6 +1925,26 @@ members and queue (CASCADE): it is lobby state, never a media file.
 | `created_at` | TIMESTAMPTZ | NO | NOW() | |
 
 An item that finished playing is deleted (auto-next `next`; with `repeat_queue` it goes back to the end of the queue). **Indexes:** `idx_lobby_queue_items_lobby_status_position` on `(lobby_id, status, position)`, `idx_lobby_queue_items_scene_id`. **Constraints:** CHECK `chk_lobby_queue_items_status`, `chk_lobby_queue_items_start` (`start_s >= 0`), `chk_lobby_queue_items_range` (`end_s > COALESCE(start_s, 0)`), `chk_lobby_queue_items_added_by_anon` (`> 0`).
+
+### `lobby_history`
+
+The items a lobby played, one row per play (migration 107, `docs/GOON2GETHER.md` "History"):
+the newest `goon2gether.history_max` rows per lobby are kept (each insert trims the older ones).
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | BIGSERIAL | NO | auto | Primary key (insertion order = order of the plays) |
+| `lobby_id` | BIGINT | NO | - | FK to `lobbies.id` (CASCADE) |
+| `scene_id` | BIGINT | NO | - | FK to `scenes.id` (CASCADE) |
+| `start_s`, `end_s` | DOUBLE PRECISION | YES | NULL | Range of the item (a marker) in seconds |
+| `label` | VARCHAR(100) | YES | NULL | Label of the item |
+| `added_by` | BIGINT | YES | NULL | FK to `users.id` (SET NULL): who added the item to the queue |
+| `added_by_anon` | INTEGER | YES | NULL | Anonymous number of the adder (NULL: added under their name) |
+| `started_at` | TIMESTAMPTZ | NO | - | When the play started |
+| `ended_at` | TIMESTAMPTZ | NO | - | When another item took its place |
+| `outcome` | VARCHAR(10) | NO | - | `completed` (reached its end at least once) or `skipped` |
+
+**Indexes:** `idx_lobby_history_lobby_id` on `(lobby_id, id DESC)`, `idx_lobby_history_scene_id`. **Constraints:** CHECK `chk_lobby_history_outcome`, `chk_lobby_history_start` (`start_s >= 0`), `chk_lobby_history_range` (`end_s > COALESCE(start_s, 0)`), `chk_lobby_history_added_by_anon` (`> 0`).
 
 
 ### `emotes`

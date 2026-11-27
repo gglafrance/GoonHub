@@ -2,6 +2,7 @@ import type {
     ByeReason,
     ChatMessage,
     ClientMessage,
+    HistoryEntry,
     LobbyInfo,
     LobbyMember,
     PlaybackState,
@@ -14,7 +15,7 @@ import type {
 } from '~/types/together';
 import type { ClockSample } from '~/utils/together';
 
-const PROTOCOL_VERSION = 3;
+const PROTOCOL_VERSION = 4;
 // Clock sync: a burst on connect, then a slow refresh (also keeps proxies busy)
 const PING_BURST = 5;
 const PING_BURST_INTERVAL_MS = 400;
@@ -39,10 +40,11 @@ const DEFAULT_CONFIG: TogetherConfig = {
     end_grace: 1.5,
     chat_max_reaction_kinds: 20,
     chat_max_reactions_per_user: 10,
+    history_max: 100,
 };
 
 /**
- * WebSocket of a Goon2gether room (protocol v3, docs/GOON2GETHER.md): reactive lobby state
+ * WebSocket of a Goon2gether room (protocol v4, docs/GOON2GETHER.md): reactive lobby state
  * resynced from the `welcome` snapshot on every (re)connect, clock offset from ping/pong,
  * reconnect with backoff unless the close is final (kicked, banned, closed, full).
  */
@@ -67,6 +69,8 @@ export const useTogetherSocket = (lobbyId: Ref<string>) => {
     const suggestions = ref<QueueItem[]>([]);
     const state = ref<PlaybackState | null>(null);
     const chat = ref<ChatMessage[]>([]);
+    // played items, newest first
+    const history = ref<HistoryEntry[]>([]);
     const lastError = ref<TogetherError | null>(null);
 
     // Clock offset: server time - client time (ms)
@@ -139,6 +143,7 @@ export const useTogetherSocket = (lobbyId: Ref<string>) => {
                 suggestions.value = msg.suggestions ?? [];
                 state.value = msg.state;
                 chat.value = msg.chat ?? [];
+                history.value = msg.history ?? [];
                 closingAt.value = msg.closing_at ?? null;
                 // Rough offset until the pongs refine it
                 if (samples.length === 0) clockOffset.value = msg.server_time - Date.now();
@@ -168,6 +173,13 @@ export const useTogetherSocket = (lobbyId: Ref<string>) => {
             case 'chat_reactions':
                 chat.value = chat.value.map((m) =>
                     m.id === msg.id ? { ...m, reactions: msg.reactions ?? [] } : m,
+                );
+                break;
+            case 'history_add':
+                history.value = pushHistoryEntry(
+                    history.value,
+                    msg.entry,
+                    config.value.history_max,
                 );
                 break;
             case 'reaction':
@@ -298,6 +310,7 @@ export const useTogetherSocket = (lobbyId: Ref<string>) => {
         suggestions,
         state,
         chat,
+        history,
         lastError,
         clockOffset,
         serverNow,

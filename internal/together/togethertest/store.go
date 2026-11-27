@@ -21,6 +21,7 @@ type Store struct {
 	lobbies map[uint]*data.Lobby
 	members map[uint]map[uint]*data.LobbyMember
 	items   map[uint]*data.LobbyQueueItem
+	history []data.LobbyHistoryEntry
 	// Users maps user IDs to usernames (member queries); Scenes gives titles and durations.
 	Users  map[uint]string
 	Scenes map[uint]data.Scene
@@ -189,9 +190,10 @@ func (s *Store) SetInviteCode(lobbyID uint, code string) error {
 	return s.update(lobbyID, func(l *data.Lobby) { l.InviteCode = code })
 }
 
-func (s *Store) SavePlayback(lobbyID uint, itemID *uint, position, rate float64) error {
+func (s *Store) SavePlayback(lobbyID uint, p data.LobbyPlayback) error {
 	return s.update(lobbyID, func(l *data.Lobby) {
-		l.CurrentItemID, l.PositionS, l.PlaybackRate = itemID, position, rate
+		l.CurrentItemID, l.PositionS, l.PlaybackRate = p.ItemID, p.PositionS, p.Rate
+		l.PlayStartedAt, l.PlayCompleted = p.PlayStartedAt, p.PlayCompleted
 	})
 }
 
@@ -212,6 +214,13 @@ func (s *Store) Delete(lobbyID uint) error {
 			delete(s.items, id)
 		}
 	}
+	kept := s.history[:0]
+	for _, h := range s.history {
+		if h.LobbyID != lobbyID {
+			kept = append(kept, h)
+		}
+	}
+	s.history = kept
 	return nil
 }
 
@@ -395,6 +404,69 @@ func (s *Store) SetQueueOrder(lobbyID uint, itemIDs []uint) error {
 		}
 	}
 	return nil
+}
+
+func (s *Store) ListHistory(lobbyID uint, limit int) ([]data.LobbyHistoryEntry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []data.LobbyHistoryEntry
+	for i := len(s.history) - 1; i >= 0; i-- {
+		h := s.history[i]
+		if h.LobbyID != lobbyID {
+			continue
+		}
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+		scene, ok := s.Scenes[h.SceneID]
+		h.SceneTitle, h.SceneDuration = scene.Title, scene.Duration
+		h.SceneAvailable = ok && scene.TrashedAt == nil
+		if h.AddedBy != nil {
+			h.AddedByName = s.Users[*h.AddedBy]
+		}
+		out = append(out, h)
+	}
+	return out, nil
+}
+
+func (s *Store) AddHistory(entry *data.LobbyHistoryEntry, keep int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry.ID = s.id()
+	s.history = append(s.history, *entry)
+	if keep <= 0 {
+		return nil
+	}
+	n := 0
+	kept := make([]data.LobbyHistoryEntry, 0, len(s.history))
+	for i := len(s.history) - 1; i >= 0; i-- {
+		h := s.history[i]
+		if h.LobbyID == entry.LobbyID {
+			if n >= keep {
+				continue
+			}
+			n++
+		}
+		kept = append(kept, h)
+	}
+	for i, j := 0, len(kept)-1; i < j; i, j = i+1, j-1 {
+		kept[i], kept[j] = kept[j], kept[i]
+	}
+	s.history = kept
+	return nil
+}
+
+// History gives the stored history entries of a lobby, oldest first (assertions).
+func (s *Store) History(lobbyID uint) []data.LobbyHistoryEntry {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []data.LobbyHistoryEntry
+	for _, h := range s.history {
+		if h.LobbyID == lobbyID {
+			out = append(out, h)
+		}
+	}
+	return out
 }
 
 // Scenes is an in-memory scene lookup.

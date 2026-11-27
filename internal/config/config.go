@@ -132,6 +132,10 @@ type Goon2getherConfig struct {
 	ChatReactionRateLimit   int `mapstructure:"chat_reaction_rate_limit"`    // chat message reactions added or removed per rate_window
 	ChatMaxReactionKinds    int `mapstructure:"chat_max_reaction_kinds"`     // distinct reactions per chat message
 	ChatMaxReactionsPerUser int `mapstructure:"chat_max_reactions_per_user"` // reactions of one member on one chat message
+
+	// History of the played items (docs/GOON2GETHER.md "History"): entries kept per lobby (0: off)
+	HistoryMax     int           `mapstructure:"history_max"`
+	HistoryMinPlay time.Duration `mapstructure:"history_min_play"` // a skipped item played less than this is not recorded
 }
 
 type WorkersConfig struct {
@@ -513,6 +517,8 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("goon2gether.chat_reaction_rate_limit", 10)
 	v.SetDefault("goon2gether.chat_max_reaction_kinds", 20)
 	v.SetDefault("goon2gether.chat_max_reactions_per_user", 10)
+	v.SetDefault("goon2gether.history_max", 100)
+	v.SetDefault("goon2gether.history_min_play", 3*time.Second)
 	v.SetDefault("goon2gether.rate_window", 10*time.Second)
 	v.SetDefault("goon2gether.drift_threshold", 0.75)
 	v.SetDefault("goon2gether.drift_nudge", true)

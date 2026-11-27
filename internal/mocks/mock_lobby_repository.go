@@ -56,6 +56,20 @@ func (mr *MockLobbyRepositoryMockRecorder) AddAnonymousMember(member any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddAnonymousMember", reflect.TypeOf((*MockLobbyRepository)(nil).AddAnonymousMember), member)
 }
 
+// AddHistory mocks base method.
+func (m *MockLobbyRepository) AddHistory(entry *data.LobbyHistoryEntry, keep int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddHistory", entry, keep)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddHistory indicates an expected call of AddHistory.
+func (mr *MockLobbyRepositoryMockRecorder) AddHistory(entry, keep any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddHistory", reflect.TypeOf((*MockLobbyRepository)(nil).AddHistory), entry, keep)
+}
+
 // AddMember mocks base method.
 func (m *MockLobbyRepository) AddMember(member *data.LobbyMember) error {
 	m.ctrl.T.Helper()
@@ -245,6 +259,21 @@ func (mr *MockLobbyRepositoryMockRecorder) List(userID, all any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockLobbyRepository)(nil).List), userID, all)
 }
 
+// ListHistory mocks base method.
+func (m *MockLobbyRepository) ListHistory(lobbyID uint, limit int) ([]data.LobbyHistoryEntry, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListHistory", lobbyID, limit)
+	ret0, _ := ret[0].([]data.LobbyHistoryEntry)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListHistory indicates an expected call of ListHistory.
+func (mr *MockLobbyRepositoryMockRecorder) ListHistory(lobbyID, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListHistory", reflect.TypeOf((*MockLobbyRepository)(nil).ListHistory), lobbyID, limit)
+}
+
 // ListMembers mocks base method.
 func (m *MockLobbyRepository) ListMembers(lobbyID uint) ([]data.LobbyMember, error) {
 	m.ctrl.T.Helper()
@@ -290,17 +319,17 @@ func (mr *MockLobbyRepositoryMockRecorder) RemoveMember(lobbyID, userID any) *go
 }
 
 // SavePlayback mocks base method.
-func (m *MockLobbyRepository) SavePlayback(lobbyID uint, itemID *uint, position, rate float64) error {
+func (m *MockLobbyRepository) SavePlayback(lobbyID uint, p data.LobbyPlayback) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SavePlayback", lobbyID, itemID, position, rate)
+	ret := m.ctrl.Call(m, "SavePlayback", lobbyID, p)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SavePlayback indicates an expected call of SavePlayback.
-func (mr *MockLobbyRepositoryMockRecorder) SavePlayback(lobbyID, itemID, position, rate any) *gomock.Call {
+func (mr *MockLobbyRepositoryMockRecorder) SavePlayback(lobbyID, p any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SavePlayback", reflect.TypeOf((*MockLobbyRepository)(nil).SavePlayback), lobbyID, itemID, position, rate)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SavePlayback", reflect.TypeOf((*MockLobbyRepository)(nil).SavePlayback), lobbyID, p)
 }
 
 // SetHost mocks base method.

@@ -54,6 +54,10 @@ type Lobby struct {
 	PlaybackRate  float64 `gorm:"not null;default:1"`
 	AutoNext      string  `gorm:"size:16;not null;default:'next'"`
 	AnonSeq       int     // last anonymous number given in the lobby
+	// The play of the current item (history): when it first played (nil: not yet) and whether
+	// it reached its end
+	PlayStartedAt *time.Time
+	PlayCompleted bool
 	LastActiveAt  time.Time
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
@@ -97,6 +101,45 @@ type LobbyQueueItem struct {
 }
 
 func (LobbyQueueItem) TableName() string { return "lobby_queue_items" }
+
+// Outcomes of a lobby history entry (lobby_history.outcome).
+const (
+	HistoryCompleted = "completed" // the item reached its end at least once
+	HistorySkipped   = "skipped"   // skipped, removed or replaced before its end
+)
+
+// LobbyHistoryEntry is an item a lobby played (one per play: a repeated item counts once until
+// the item changes).
+type LobbyHistoryEntry struct {
+	ID      uint `gorm:"primarykey"`
+	LobbyID uint `gorm:"not null"`
+	SceneID uint `gorm:"not null"`
+	StartS  *float64
+	EndS    *float64
+	Label   *string
+	AddedBy *uint
+	// AddedByAnon is the anonymous number of the member who added the item (nil: under their name)
+	AddedByAnon *int
+	StartedAt   time.Time
+	EndedAt     time.Time
+	Outcome     string
+	// read only, filled by ListHistory
+	SceneTitle     string `gorm:"->;-:migration"`
+	SceneDuration  int    `gorm:"->;-:migration"`
+	SceneAvailable bool   `gorm:"->;-:migration"` // the scene is not in the trash
+	AddedByName    string `gorm:"->;-:migration"`
+}
+
+func (LobbyHistoryEntry) TableName() string { return "lobby_history" }
+
+// LobbyPlayback is the saved playback of a lobby (SavePlayback).
+type LobbyPlayback struct {
+	ItemID        *uint
+	PositionS     float64
+	Rate          float64
+	PlayStartedAt *time.Time
+	PlayCompleted bool
+}
 
 // LobbyListEntry is a lobby with what the lobby browser shows.
 type LobbyListEntry struct {

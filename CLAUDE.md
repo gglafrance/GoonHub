@@ -124,7 +124,7 @@ Run the Go backend on port 8080 and Nuxt dev server on port 3000 simultaneously.
 - `internal/jobs/` - Worker pool and scene processing jobs (metadata, thumbnail, sprites)
 - `internal/workers/` - Server side of the remote workers (goonhub-worker): leases with fencing generations, claim/push, artifact staging and verified commit, expiry sweep, phase routing. Contract: `docs/REMOTE_WORKERS.md`
 - `internal/core/message_service.go` - Messages between users and shares (conversations, read state, typing, share cards resolved per reader): `docs/MESSAGES.md`
-- `internal/together/` - Goon2gether (synchronized watch lobbies): the hub holding the live lobbies (playback state, queue, members, chat, WebSocket clients with bounded send buffers, one tick goroutine) and the custom emotes. Contract and protocol: `docs/GOON2GETHER.md`
+- `internal/together/` - Goon2gether (synchronized watch lobbies): the hub holding the live lobbies (playback state, queue, history of the played items, members, chat, WebSocket clients with bounded send buffers, one tick goroutine) and the custom emotes. Contract and protocol: `docs/GOON2GETHER.md`
 - `internal/apperrors/` - Typed error system with domain-specific errors:
     - `errors.go` - Base AppError interface and common error types (NotFoundError, ValidationError, ConflictError, InternalError, ForbiddenError, UnauthorizedError)
     - `scene.go` - Scene-specific errors (ErrSceneNotFound, ErrInvalidFileExtension, ErrSceneDimensionsNotAvailable)

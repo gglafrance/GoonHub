@@ -3,8 +3,16 @@ import type { PickedItem } from '~/utils/picker';
 
 // Playing queue: now playing, upcoming items (drag to reorder for controllers), suggestions
 // and the search picker to add videos and markers (or suggest them, without queue rights).
+// A History tab lists the previously played items to requeue them (same height by default).
 const room = useInjectedTogetherRoom();
 const { socket, canControl, canQueue, canAddScenes, currentItem, upcoming } = room;
+
+const tab = ref<'queue' | 'history'>('queue');
+// The server keeps no history (history_max 0): no tab
+const hasHistory = computed(() => socket.config.value.history_max > 0);
+watch(hasHistory, (on) => {
+    if (!on) tab.value = 'queue';
+});
 
 const showPicker = ref(false);
 const dragFrom = ref<number | null>(null);
@@ -64,10 +72,53 @@ const onDragEnd = () => {
 <template>
     <div class="border-border bg-panel/40 rounded-xl border">
         <div class="border-border flex items-center gap-2 border-b px-3 py-2">
-            <Icon name="heroicons:queue-list" size="13" class="text-lava" />
-            <span class="text-xs font-semibold text-white">Queue</span>
-            <span class="text-dim font-mono text-[10px]">{{ socket.queue.value.length }}</span>
-            <div class="ml-auto flex items-center gap-1">
+            <div class="flex items-center gap-1" role="tablist">
+                <button
+                    role="tab"
+                    :aria-selected="tab === 'queue'"
+                    class="flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-semibold
+                        transition-colors"
+                    :class="
+                        tab === 'queue' ? 'bg-white/[0.06] text-white' : 'text-dim hover:text-white'
+                    "
+                    @click="tab = 'queue'"
+                >
+                    <Icon
+                        name="heroicons:queue-list"
+                        size="13"
+                        :class="tab === 'queue' ? 'text-lava' : ''"
+                    />
+                    Queue
+                    <span class="text-dim font-mono text-[10px]">{{
+                        socket.queue.value.length
+                    }}</span>
+                </button>
+                <button
+                    v-if="hasHistory"
+                    role="tab"
+                    :aria-selected="tab === 'history'"
+                    class="flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-semibold
+                        transition-colors"
+                    :class="
+                        tab === 'history'
+                            ? 'bg-white/[0.06] text-white'
+                            : 'text-dim hover:text-white'
+                    "
+                    title="Previously played"
+                    @click="tab = 'history'"
+                >
+                    <Icon
+                        name="heroicons:clock"
+                        size="13"
+                        :class="tab === 'history' ? 'text-lava' : ''"
+                    />
+                    History
+                    <span class="text-dim font-mono text-[10px]">
+                        {{ socket.history.value.length }}
+                    </span>
+                </button>
+            </div>
+            <div v-if="tab === 'queue'" class="ml-auto flex items-center gap-1">
                 <button
                     v-if="canControl && currentItem"
                     class="border-border text-dim hover:border-lava/30 hover:text-lava flex h-6
@@ -91,7 +142,9 @@ const onDragEnd = () => {
             </div>
         </div>
 
-        <div class="space-y-2 p-2">
+        <TogetherQueueHistory v-if="tab === 'history'" />
+
+        <div v-else class="space-y-2 p-2">
             <div v-if="currentItem">
                 <div class="text-dim mb-1 px-1 text-[10px] font-semibold tracking-wider uppercase">
                     Now playing
