@@ -8,7 +8,7 @@ const items = computed(() => props.block.widget?.items ?? []);
 </script>
 
 <template>
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+    <div class="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
         <NuxtLink
             v-for="p in items"
             :key="p.uuid"

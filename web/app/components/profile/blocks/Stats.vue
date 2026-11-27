@@ -56,20 +56,25 @@ const tops = computed(() => {
         <div class="text-dim text-[10px] tracking-wider uppercase">
             {{ PERIODS[stats.period] ?? stats.period }}
         </div>
-        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-2">
             <div
                 v-for="tile in tiles"
                 :key="tile.label"
                 class="border-border rounded-lg border bg-white/[0.02] px-3 py-2"
             >
-                <div class="font-mono text-base font-semibold text-white">{{ tile.value }}</div>
+                <div
+                    class="truncate font-mono text-base font-semibold text-white"
+                    :title="String(tile.value)"
+                >
+                    {{ tile.value }}
+                </div>
                 <div class="text-dim text-[10px]">
                     {{ tile.label
                     }}<span v-if="tile.total && stats.period !== 'all'"> (total)</span>
                 </div>
             </div>
         </div>
-        <div v-if="tops.length" class="grid gap-3 sm:grid-cols-3">
+        <div v-if="tops.length" class="grid gap-3 @xl:grid-cols-3">
             <div v-for="top in tops" :key="top.kind">
                 <div class="text-dim mb-1.5 text-[10px] tracking-wider uppercase">
                     {{ top.title }}
